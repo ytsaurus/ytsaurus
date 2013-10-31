@@ -25,6 +25,10 @@ public:
         const Stroka& path,
         IInvokerPtr invoker);
 
+    //! Runs single health check. 
+    //! Don't call after #Start(), otherwise two checks may interfere.
+    TAsyncError RunCheck();
+
     void Start();
 
     DEFINE_SIGNAL(void(), Failed);
@@ -42,13 +46,18 @@ private:
 
     void OnCheck();
     void OnCheckCompleted(TError error);
-    void OnCheckTimeout();
+    void OnCheckTimeout(TAsyncErrorPromise result);
 
-    TError RunCheck();
-
-    void RaiseFailed();
+    TError DoRunCheck();
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAsyncError RunDiskHealthCheck(
+    TDiskHealthCheckerConfigPtr config,
+    const Stroka& path,
+    IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -367,6 +367,11 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
         Bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         GetPath(),
         GetWriteInvoker());
+
+    // Run first health check before initialization is complete to sort out read-only drives.
+    auto error = HealthChecker->RunCheck().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
     HealthChecker->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker->Start();
 
