@@ -5,8 +5,6 @@
 #include "ast.h"
 #include "ast_visitor.h"
 
-#include "executor.h"
-
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -21,70 +19,18 @@
 namespace NYT {
 namespace NQueryClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NVersionedTableClient;
 using namespace NConcurrency;
 
-class TDumbReader
-    : public IReader
-{
-public:
-    TDumbReader(std::vector<IReaderPtr> readers)
-        : Readers_(std::move(readers))
-        , CurrentReader_(0)
-    { }
-
-    virtual TAsyncError Open(
-        TNameTablePtr nameTable, 
-        const NVersionedTableClient::NProto::TTableSchemaExt& schema,
-        bool includeAllColumns = false,
-        ERowsetType rowsetType = ERowsetType::Simple) override
-    {
-        for (auto reader : Readers_) {
-            auto error = WaitFor(
-                reader->Open(nameTable, schema, includeAllColumns, rowsetType));
-            if (!error.IsOK()) {
-                return MakeFuture(error);
-            }
-        }
-        return MakeFuture(TError());
-    }
-
-    // Returns true while reading is in progress, false when reading is complete.
-    // If rows->size() < rows->capacity(), wait for ready event before next call to #Read.
-    // Can throw, e.g. if some values in chunk are incompatible with schema.
-    // rows must be empty
-    virtual bool Read(std::vector<TRow>* rows) override
-    {
-        if (CurrentReader_ >= Readers_.size()) {
-            return false;
-        }
-        if (!Readers_[CurrentReader_]->Read(rows)) {
-            CurrentReader_++;
-        }
-        return true;
-    }
-
-    virtual TAsyncError GetReadyEvent() override
-    {
-        if (CurrentReader_ >= Readers_.size()) {
-            return MakeFuture(TError(42, "Reading complete!"));
-        }
-        return Readers_[CurrentReader_]->GetReadyEvent();
-    }
-
-private:
-    std::vector<IReaderPtr> Readers_;
-    int CurrentReader_;
-
-};
+////////////////////////////////////////////////////////////////////////////////
 
 TEvaluateController::TEvaluateController(
     IEvaluateCallbacks* callbacks,
-    const TQueryFragment& fragment)
+    const TQueryFragment& fragment,
+    TWriterPtr writer)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
+    , Writer_(std::move(writer))
     , Logger(QueryClientLogger)
 {
     Logger.AddTag(Sprintf(
@@ -95,7 +41,7 @@ TEvaluateController::TEvaluateController(
 TEvaluateController::~TEvaluateController()
 { }
 
-TError TEvaluateController::Run(TWriterPtr writer)
+TError TEvaluateController::Run()
 {
     LOG_DEBUG("Evaluating fragment");
 
@@ -130,17 +76,17 @@ TError TEvaluateController::Run(TWriterPtr writer)
             for (int i = 0; i < keyColumns.values_size(); ++i) {
                 keyColumnsVector.push_back(keyColumns.values(i));
             }
-            writer->Open(nameTable, tableSchema, keyColumnsVector);
+            Writer_->Open(nameTable, tableSchema, keyColumnsVector);
             openedWriter = true;
         }
 
         while (reader->Read(&rows)) {
             for (auto row : rows) {
                 for (int i = 0; i < row.GetValueCount(); ++i) {
-                    writer->WriteValue(row[i]);
+                    Writer_->WriteValue(row[i]);
                 }
-                if (!writer->EndRow()) {
-                    auto result = WaitFor(writer->GetReadyEvent());
+                if (!Writer_->EndRow()) {
+                    auto result = WaitFor(Writer_->GetReadyEvent());
                     if (!result.IsOK()) {
                         return result;
                     }
@@ -155,7 +101,7 @@ TError TEvaluateController::Run(TWriterPtr writer)
         }
     }
 
-    auto error = WaitFor(writer->AsyncClose());
+    auto error = WaitFor(Writer_->AsyncClose());
     if (!error.IsOK()) {
         return error;
     }

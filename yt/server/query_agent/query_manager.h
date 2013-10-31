@@ -1,0 +1,48 @@
+#pragma once
+
+#include "public.h"
+
+#include <ytlib/query_client/callbacks.h>
+#include <ytlib/query_client/executor.h>
+
+#include <core/concurrency/action_queue.h>
+
+#include <server/cell_node/public.h>
+
+namespace NYT {
+namespace NQueryAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryManager
+    : public NQueryClient::IExecutor
+    , public NQueryClient::IEvaluateCallbacks
+{
+public:
+    TQueryManager(
+        TQueryAgentConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
+
+    ~TQueryManager();
+
+    virtual TAsyncError Execute(
+        const NQueryClient::TQueryFragment& fragment,
+        NQueryClient::TWriterPtr writer) override;
+
+    virtual NQueryClient::IReaderPtr GetReader(
+        const NQueryClient::TDataSplit& dataSplit) override;
+
+private:
+    TQueryAgentConfigPtr Config;
+    NConcurrency::TThreadPoolPtr WorkerPool;
+    NCellNode::TBootstrap* Bootstrap;
+
+    NQueryClient::IExecutorPtr Evaluator;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NExecAgent
+} // namespace NYT
+

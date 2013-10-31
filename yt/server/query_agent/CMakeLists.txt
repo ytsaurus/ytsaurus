@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/query_agent )
 set( SRCS
   ${BASE}/private.cpp
   ${BASE}/query_agent_service.cpp
+  ${BASE}/query_manager.cpp
 )
 
 set( HDRS
@@ -10,6 +11,7 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/query_agent_service.h
+  ${BASE}/query_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -17,4 +19,3 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-#protoc( ${BASE}/xxx.proto YT_SOURCE_FILES )

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-
+#include "callbacks.h"
 #include "query_fragment.h"
 
 #include <core/logging/tagged_logger.h>
@@ -12,15 +12,17 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateController
+    : public TRefCounted
 {
 public:
     TEvaluateController(
         IEvaluateCallbacks* callbacks,
-        const TQueryFragment& fragment);
+        const TQueryFragment& fragment,
+        TWriterPtr writer);
 
     ~TEvaluateController();
 
-    TError Run(TWriterPtr writer);
+    TError Run();
 
     IEvaluateCallbacks* GetCallbacks()
     {
@@ -40,6 +42,7 @@ public:
 private:
     IEvaluateCallbacks* Callbacks_;
     TQueryFragment Fragment_;
+    TWriterPtr Writer_;
 
     void SetHead(const TOperator* head)
     {

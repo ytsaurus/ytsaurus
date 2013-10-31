@@ -6,6 +6,7 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <server/job_agent/public.h>
 #include <server/job_agent/job_controller.h>
 
 #include <server/cell_node/bootstrap.h>

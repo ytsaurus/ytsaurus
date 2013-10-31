@@ -5,34 +5,34 @@ namespace NChunkClient {
 
 using namespace NProto;
 
-static auto AlwaysReady = MakeFuture(TError());
-
 ///////////////////////////////////////////////////////////////////////////////
 
 TMemoryWriter::TMemoryWriter()
-    : IsClosed(false)
+    : IsClosed_(false)
 { }
-
 
 void TMemoryWriter::Open()
 { }
 
 bool TMemoryWriter::WriteBlock(const TSharedRef& block)
 {
-    Blocks.push_back(block);
+    YCHECK(!IsClosed_);
+    Blocks_.emplace_back(block);
     return true;
 }
 
 TAsyncError TMemoryWriter::GetReadyEvent()
 {
-    return AlwaysReady;
+    YCHECK(!IsClosed_);
+    return MakeFuture(TError());
 }
 
-TAsyncError TMemoryWriter::AsyncClose(const TChunkMeta& meta)
+TAsyncError TMemoryWriter::AsyncClose(const TChunkMeta& chunkMeta)
 {
-    IsClosed = true;
-    Meta = meta;
-    return AlwaysReady;
+    YCHECK(!IsClosed_);
+    ChunkMeta_ = chunkMeta;
+    IsClosed_ = true;
+    return MakeFuture(TError());
 }
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const
@@ -45,15 +45,16 @@ const std::vector<int> TMemoryWriter::GetWrittenIndexes() const
     YUNIMPLEMENTED();
 }
 
-
 std::vector<TSharedRef>& TMemoryWriter::GetBlocks()
 {
-    return Blocks;
+    YCHECK(IsClosed_);
+    return Blocks_;
 }
 
-NProto::TChunkMeta& TMemoryWriter::GetMeta()
+NProto::TChunkMeta& TMemoryWriter::GetChunkMeta()
 {
-    return Meta;
+    YCHECK(IsClosed_);
+    return ChunkMeta_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

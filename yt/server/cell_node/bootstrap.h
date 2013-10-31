@@ -30,6 +30,8 @@
 
 #include <server/hive/public.h>
 
+#include <server/query_agent/public.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -64,6 +66,7 @@ public:
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
     NHive::TCellDirectoryPtr GetCellRegistry() const;
+    NQueryAgent::TQueryManagerPtr GetQueryManager() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -106,6 +109,7 @@ private:
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
     NHive::TCellDirectoryPtr CellRegistry;
+    NQueryAgent::TQueryManagerPtr QueryManager;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;

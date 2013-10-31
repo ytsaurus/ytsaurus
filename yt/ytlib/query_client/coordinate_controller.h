@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-
+#include "callbacks.h"
 #include "query_fragment.h"
 
 #include <core/logging/tagged_logger.h>
@@ -12,15 +12,20 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoordinateController
+    : public TRefCounted
+    , public IEvaluateCallbacks
 {
 public:
     TCoordinateController(
         ICoordinateCallbacks* callbacks,
-        const TQueryFragment& fragment);
+        const TQueryFragment& fragment,
+        TWriterPtr writer);
 
     ~TCoordinateController();
 
-    TError Run(TWriterPtr writer);
+    virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override;
+
+    TError Run();
     IReaderPtr GetPeer(int i);
 
     void SplitFurther();
@@ -46,6 +51,8 @@ public:
 private:
     ICoordinateCallbacks* Callbacks_;
     TQueryFragment Fragment_;
+    TWriterPtr Writer_;
+
     std::vector<IReaderPtr> Peers_;
 
     void SetHead(const TOperator* head)

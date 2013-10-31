@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include "block_id.h"
+
 #include <ytlib/node_tracker_client/public.h>
 
 #include <core/misc/ref.h>

@@ -74,6 +74,8 @@
 
 #include <server/tablet_node/tablet_cell_controller.h>
 
+#include <server/query_agent/query_manager.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -95,6 +97,7 @@ using namespace NJobProxy;
 using namespace NDataNode;
 using namespace NTabletNode;
 using namespace NHive;
+using namespace NQueryAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -272,6 +275,8 @@ void TBootstrap::Run()
     TabletCellController = New<TTabletCellController>(Config, this);
     TabletCellController->Initialize();
 
+    QueryManager = New<TQueryManager>(Config->QueryAgent, this);
+
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
         OrchidRoot,
@@ -424,6 +429,11 @@ TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 TCellDirectoryPtr TBootstrap::GetCellRegistry() const
 {
     return CellRegistry;
+}
+
+TQueryManagerPtr TBootstrap::GetQueryManager() const
+{
+    return QueryManager;
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const

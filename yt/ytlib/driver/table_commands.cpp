@@ -316,6 +316,7 @@ void TSelectCommand::DoExecute()
         Request->Query);
 
     auto coordinator = CreateCoordinator(
+        GetCurrentInvoker(),
         Context->GetQueryCallbacksProvider()->GetCoordinateCallbacks());
 
     auto memoryWriter = New<TMemoryWriter>();
@@ -331,7 +332,7 @@ void TSelectCommand::DoExecute()
 
     auto memoryReader = New<TMemoryReader>(
         std::move(memoryWriter->GetBlocks()),
-        std::move(memoryWriter->GetMeta()));
+        std::move(memoryWriter->GetChunkMeta()));
     auto chunkReader = CreateChunkReader(
         New<TChunkReaderConfig>(),
         memoryReader);

@@ -6,8 +6,6 @@
 #include "ast.h"
 #include "ast_visitor.h"
 
-#include "executor.h"
-
 #include "graphviz.h"
 
 #include <ytlib/object_client/public.h>
@@ -44,39 +42,17 @@ const TDataSplit& GetHeaviestSplit(const TOperator* op)
     }
 }
 
-class TCoordinatedEvaluateCallbacks
-    : public IEvaluateCallbacks
-{
-public:
-    TCoordinatedEvaluateCallbacks(TCoordinateController* controller)
-        : Controller_(controller)
-    { }
-
-    virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override
-    {
-        auto objectId = NYT::FromProto<TObjectId>(dataSplit.chunk_id());
-        switch (TypeFromId(objectId)) {
-        case EObjectType::QueryFragment:
-            return Controller_->GetPeer(CounterFromId(objectId));
-        default:
-            return Controller_->GetCallbacks()->GetReader(dataSplit);
-        }
-    }
-
-private:
-    TCoordinateController* Controller_;
-
-};
-
 } // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCoordinateController::TCoordinateController(
     ICoordinateCallbacks* callbacks,
-    const TQueryFragment& fragment)
+    const TQueryFragment& fragment,
+    TWriterPtr writer)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
+    , Writer_(std::move(writer))
     , Logger(QueryClientLogger)
 {
     Logger.AddTag(Sprintf(
@@ -87,7 +63,19 @@ TCoordinateController::TCoordinateController(
 TCoordinateController::~TCoordinateController()
 { }
 
-TError TCoordinateController::Run(TWriterPtr writer)
+IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
+{
+    auto objectId = NYT::FromProto<TObjectId>(dataSplit.chunk_id());
+    LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
+    switch (TypeFromId(objectId)) {
+    case EObjectType::QueryFragment:
+        return GetPeer(CounterFromId(objectId));
+    default:
+        return GetCallbacks()->GetReader(dataSplit);
+    }
+}
+
+TError TCoordinateController::Run()
 {
     ViewFragment(Fragment_, "Coordinator -> Before");
 
@@ -101,10 +89,7 @@ TError TCoordinateController::Run(TWriterPtr writer)
 
     ViewFragment(Fragment_, "Coordinator -> Final");
 
-    TCoordinatedEvaluateCallbacks evaluateCallbacks(this);
-    TEvaluateController evaluateController(&evaluateCallbacks, Fragment_);
-
-    return evaluateController.Run(std::move(writer));
+    return New<TEvaluateController>(this, Fragment_, Writer_)->Run();
 }
 
 IReaderPtr TCoordinateController::GetPeer(int i)

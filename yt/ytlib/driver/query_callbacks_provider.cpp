@@ -23,7 +23,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/query_client/executor.h>
+#include <ytlib/query_client/callbacks.h>
+#include <ytlib/query_client/executor.h> // For DelegateToPeer
 #include <ytlib/query_client/stubs.h>
 
 #include <core/ytree/ypath_proxy.h>

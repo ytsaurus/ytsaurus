@@ -4,7 +4,9 @@
 
 #include <core/rpc/service_detail.h>
 
-#include <core/concurrency/action_queue.h>
+#include <ytlib/chunk_client/public.h>
+
+#include <ytlib/new_table_client/public.h>
 
 #include <ytlib/query_client/query_service_proxy.h>
 
@@ -19,18 +21,17 @@ class TQueryAgentService
     : public NRpc::TServiceBase
 {
 public:
-    TQueryAgentService(
-        TQueryAgentConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+    explicit TQueryAgentService(NCellNode::TBootstrap* bootstrap);
 
 private:
     typedef TQueryAgentService TThis;
     typedef NQueryClient::TQueryServiceProxy TProxy;
 
-    TQueryAgentConfigPtr Config;
+    NVersionedTableClient::TChunkWriterConfigPtr ChunkWriterConfig_;
+    NChunkClient::TEncodingWriterOptionsPtr EncodingWriterOptions_;
+
     NCellNode::TBootstrap* Bootstrap;
 
-    NConcurrency::TThreadPoolPtr WorkerPool;
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute);
 

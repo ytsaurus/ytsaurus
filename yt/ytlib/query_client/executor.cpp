@@ -30,7 +30,7 @@ class TRemoteReader
     : public IAsyncReader
 {
 public:
-    TRemoteReader(TFuture<TQueryServiceProxy::TRspExecutePtr> response)
+    explicit TRemoteReader(TFuture<TQueryServiceProxy::TRspExecutePtr> response)
         : Response_(std::move(response))
     { }
 
@@ -103,58 +103,47 @@ IReaderPtr DelegateToPeer(const TQueryFragment& fragment, IChannelPtr channel)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEvaluator
+template <class TController, class TCallbacks>
+class TControlledExecutor
     : public IExecutor
 {
 public:
-    TEvaluator(IEvaluateCallbacks* callbacks)
-        : Callbacks_(callbacks)
+    TControlledExecutor(IInvokerPtr invoker, TCallbacks* callbacks)
+        : Invoker_(std::move(invoker))
+        , Callbacks_(callbacks)
     { }
 
     virtual TAsyncError Execute(
         const TQueryFragment& fragment,
         TWriterPtr writer) override
     {
-        return MakeFuture(
-            TEvaluateController(Callbacks_, fragment).Run(std::move(writer)));
+        auto controller = New<TController>(
+            Callbacks_,
+            fragment,
+            std::move(writer));
+        return BIND(&TController::Run, controller)
+            .AsyncVia(Invoker_)
+            .Run();
     }
 
 private:
-    IEvaluateCallbacks* Callbacks_;
+    IInvokerPtr Invoker_;
+    TCallbacks* Callbacks_;
 
 };
-
-IExecutorPtr CreateEvaluator(IEvaluateCallbacks* callbacks)
-{
-    return New<TEvaluator>(callbacks);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoordinator
-    : public IExecutor
+IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
 {
-public:
-    TCoordinator(ICoordinateCallbacks* callbacks)
-        : Callbacks_(callbacks)
-    { }
+    typedef TControlledExecutor<TEvaluateController, IEvaluateCallbacks> TExecutor;
+    return New<TExecutor>(std::move(invoker), callbacks);
+}
 
-    virtual TAsyncError Execute(
-        const TQueryFragment& fragment,
-        TWriterPtr writer) override
-    {
-        return MakeFuture(
-            TCoordinateController(Callbacks_, fragment).Run(std::move(writer)));
-    }
-
-private:
-    ICoordinateCallbacks* Callbacks_;
-
-};
-
-IExecutorPtr CreateCoordinator(ICoordinateCallbacks* callbacks)
+IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
 {
-    return New<TCoordinator>(callbacks);
+    typedef TControlledExecutor<TCoordinateController, ICoordinateCallbacks> TExecutor;
+    return New<TExecutor>(std::move(invoker), callbacks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

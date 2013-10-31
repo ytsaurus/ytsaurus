@@ -25,12 +25,12 @@ public:
 
     // Possible to call after #AsyncClose.
     std::vector<TSharedRef>& GetBlocks();
-    NProto::TChunkMeta& GetMeta();
+    NProto::TChunkMeta& GetChunkMeta();
 
 private:
-    bool IsClosed;
-    std::vector<TSharedRef> Blocks;
-    NProto::TChunkMeta Meta;
+    bool IsClosed_;
+    std::vector<TSharedRef> Blocks_;
+    NProto::TChunkMeta ChunkMeta_;
 
 };
 

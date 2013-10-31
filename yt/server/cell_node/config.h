@@ -10,6 +10,8 @@
 
 #include <server/tablet_node/config.h>
 
+#include <server/query_agent/config.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -37,6 +39,9 @@ public:
     //! Tablet node configuration part.
     NTabletNode::TTabletNodeConfigPtr TabletNode;
 
+    //! Query node configuration part.
+    NQueryAgent::TQueryAgentConfigPtr QueryAgent;
+
     //! Throttling configuration for jobs-to-master communication.
     NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
 
@@ -50,6 +55,7 @@ public:
         RegisterParameter("data_node", DataNode);
         RegisterParameter("exec_agent", ExecAgent);
         RegisterParameter("tablet_node", TabletNode);
+        RegisterParameter("query_agent", QueryAgent);
         RegisterParameter("jobs_to_master_channel", JobsToMasterChannel)
             .DefaultNew();
 
