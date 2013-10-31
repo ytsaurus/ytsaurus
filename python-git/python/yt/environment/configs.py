@@ -283,6 +283,9 @@ def get_node_config():
         };
     };
 
+    query_agent = {
+    };
+
     masters = {
         addresses = [];
         rpc_timeout = 5000
