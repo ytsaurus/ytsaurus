@@ -41,7 +41,6 @@ struct TWriteRequest
     : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
-    TNullable<NTableClient::TKeyColumns> SortedBy;
     NYTree::INodePtr TableWriter;
 
     TWriteRequest()
@@ -57,9 +56,6 @@ class TWriteCommand
 {
 private:
     virtual void DoExecute() override;
-
-    void DoExecuteMounted(TTableMountInfoPtr mountInfo);
-    void DoExecuteNotMounted();
 
 };
 
@@ -99,6 +95,30 @@ struct TUnmountRequest
 
 class TUnmountCommand
     : public TTypedCommand<TUnmountRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInsertRequest
+    : public TRequest
+{
+    NYPath::TRichYPath Path;
+    NYTree::INodePtr TableWriter;
+
+    TInsertRequest()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("table_writer", TableWriter)
+            .Default(nullptr);
+    }
+};
+
+class TInsertCommand
+    : public TTypedCommand<TInsertRequest>
 {
 private:
     virtual void DoExecute() override;

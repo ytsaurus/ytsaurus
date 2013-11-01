@@ -120,6 +120,43 @@ Stroka TUnmountExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TInsertExecutor::TInsertExecutor()
+    : PathArg("path", "table path to insert into", true, "", "YPATH")
+    , ValueArg("value", "row(s) to write", false, "", "YSON")
+    , UseStdIn(true)
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(ValueArg);
+}
+
+void TInsertExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+
+    const auto& value = ValueArg.getValue();
+    if (!value.empty()) {
+        Stream.Write(value);
+        UseStdIn = false;
+    }
+
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path);
+
+    TRequestExecutor::BuildArgs(consumer);
+}
+
+TInputStream* TInsertExecutor::GetInputStream()
+{
+    return UseStdIn ? &StdInStream() : &Stream;
+}
+
+Stroka TInsertExecutor::GetCommandName() const
+{
+    return "insert";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSelectExecutor::TSelectExecutor()
     : QueryArg("query", "query to execute", true, "", "QUERY")
 {

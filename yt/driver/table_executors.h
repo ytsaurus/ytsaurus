@@ -75,6 +75,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInsertExecutor
+    : public TRequestExecutor
+{
+public:
+    TInsertExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TUnlabeledStringArg ValueArg;
+
+    bool UseStdIn;
+    TStringStream Stream;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual TInputStream* GetInputStream() override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSelectExecutor
     : public TRequestExecutor
 {
