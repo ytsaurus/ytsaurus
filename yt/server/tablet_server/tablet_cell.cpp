@@ -159,6 +159,10 @@ ETabletCellHealth TTabletCell::GetHealth() const
         return ETabletCellHealth::Degraded;
     }
 
+    if (Tablets_.empty()) {
+        return ETabletCellHealth::Initializing;
+    }
+
     return ETabletCellHealth::Failed;
 }
 

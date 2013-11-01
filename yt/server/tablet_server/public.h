@@ -18,9 +18,10 @@ DECLARE_ENUM(ETabletCellState,
 );
 
 DECLARE_ENUM(ETabletCellHealth,
-    ((Good)       (0))
-    ((Degraded)   (1))
-    ((Failed)     (2))
+    ((Initializing)(0))
+    ((Good)        (1))
+    ((Degraded)    (2))
+    ((Failed)      (3))
 );
 
 static const int TypicalCellSize = 5;
