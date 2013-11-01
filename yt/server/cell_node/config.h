@@ -4,6 +4,8 @@
 
 #include <core/rpc/config.h>
 
+#include <ytlib/hive/config.h>
+
 #include <server/misc/config.h>
 
 #include <server/exec_agent/config.h>
@@ -45,6 +47,9 @@ public:
     //! Throttling configuration for jobs-to-master communication.
     NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
 
+    //! Timestamp provider configuration for transction coordination.
+    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+
     TCellNodeConfig()
     {
         RegisterParameter("rpc_port", RpcPort)
@@ -58,6 +63,7 @@ public:
         RegisterParameter("query_agent", QueryAgent);
         RegisterParameter("jobs_to_master_channel", JobsToMasterChannel)
             .DefaultNew();
+        RegisterParameter("timestamp_provider", TimestampProvider);
 
         SetKeepOptions(true);
     }

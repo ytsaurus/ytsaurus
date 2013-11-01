@@ -35,7 +35,7 @@ public:
     const NHydra::NProto::TCellConfig& GetCellConfig() const;
     
     NHydra::IHydraManagerPtr GetHydraManager() const;
-    TSlotAutomatonPtr GetAutomaton() const;
+    TTabletAutomatonPtr GetAutomaton() const;
     IInvokerPtr GetAutomatonInvoker() const;
     
     NHive::THiveManagerPtr GetHiveManager() const;

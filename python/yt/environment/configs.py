@@ -291,6 +291,10 @@ def get_node_config():
         rpc_timeout = 5000
     };
 
+    timestamp_provider = {
+        addresses = [ ];
+    };
+
     logging = {
         rules = [
             {

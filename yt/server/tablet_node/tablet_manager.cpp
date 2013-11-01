@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "slot_automaton.h"
+#include "automaton.h"
 #include "tablet.h"
 #include "private.h"
 
@@ -20,6 +20,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NHydra;
+using namespace NCellNode;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 
@@ -30,17 +31,15 @@ static auto& Logger = TabletNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletManager::TImpl
-    : public TCompositeAutomatonPart
+    : public TTabletAutomatonPart
 {
 public:
     explicit TImpl(
         TTabletSlot* slot,
-        NCellNode::TBootstrap* bootstrap)
-        : TCompositeAutomatonPart(
-            slot->GetHydraManager(),
-            slot->GetAutomaton())
-        , Slot(slot)
-        , Bootstrap(bootstrap)
+        TBootstrap* bootstrap)
+        : TTabletAutomatonPart(
+            slot,
+            bootstrap)
     {
         VERIFY_INVOKER_AFFINITY(Slot->GetAutomatonInvoker(), AutomatonThread);
 
@@ -69,9 +68,6 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
-    TTabletSlot* Slot;
-    NCellNode::TBootstrap* Bootstrap;
-
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -170,8 +166,10 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, T
 
 TTabletManager::TTabletManager(
     TTabletSlot* slot,
-    NCellNode::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(slot, bootstrap))
+    TBootstrap* bootstrap)
+    : Impl(New<TImpl>(
+        slot,
+        bootstrap))
 { }
 
 TTabletManager::~TTabletManager()

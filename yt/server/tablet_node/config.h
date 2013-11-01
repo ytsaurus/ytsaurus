@@ -13,6 +13,15 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTransactionManagerConfig
+    : public TYsonSerializable
+{
+public:
+    TTransactionManagerConfig()
+    {
+    }
+};
+
 class TTabletNodeConfig
     : public TYsonSerializable
 {
@@ -32,6 +41,9 @@ public:
     //! Generic configuration for all Hive instances.
     NHive::THiveManagerConfigPtr Hive;
 
+    TTransactionManagerConfigPtr TransactionManager;
+    NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
+
     TTabletNodeConfig()
     {
         RegisterParameter("slots", Slots)
@@ -42,6 +54,10 @@ public:
         RegisterParameter("hydra", Hydra)
             .DefaultNew();
         RegisterParameter("hive", Hive)
+            .DefaultNew();
+        RegisterParameter("transaction_manager", TransactionManager)
+            .DefaultNew();
+        RegisterParameter("transaction_supervisor", TransactionSupervisor)
             .DefaultNew();
     }
 };

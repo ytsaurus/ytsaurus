@@ -2,8 +2,9 @@
 #include "config.h"
 #include "tablet_cell_controller.h"
 #include "serialize.h"
-#include "slot_automaton.h"
+#include "automaton.h"
 #include "tablet_manager.h"
+#include "transaction_manager.h"
 #include "private.h"
 
 #include <core/concurrency/thread_affinity.h>
@@ -18,6 +19,7 @@
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hive/cell_directory.h>
+#include <ytlib/hive/timestamp_provider.h>
 
 #include <server/hydra/changelog.h>
 #include <server/hydra/changelog_catalog.h>
@@ -28,6 +30,7 @@
 
 #include <server/hive/hive_manager.h>
 #include <server/hive/mailbox.h>
+#include <server/hive/transaction_supervisor.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -107,7 +110,7 @@ public:
         return HydraManager;
     }
 
-    TSlotAutomatonPtr GetAutomaton() const
+    TTabletAutomatonPtr GetAutomaton() const
     {
         return Automaton;
     }
@@ -207,7 +210,7 @@ public:
                 cellConfig,
                 configureInfo.peer_id());
 
-            Automaton = New<TSlotAutomaton>(Bootstrap, Owner);
+            Automaton = New<TTabletAutomaton>(Bootstrap, Owner);
 
             HydraManager = CreateDistributedHydraManager(
                 Config->TabletNode->Hydra,
@@ -231,6 +234,21 @@ public:
             TabletManager = New<TTabletManager>(
                 Owner,
                 Bootstrap);
+
+            TransactionManager = New<TTransactionManager>(
+                Config->TabletNode->TransactionManager,
+                Owner,
+                Bootstrap);
+
+            TransactionSupervisor = New<TTransactionSupervisor>(
+                Config->TabletNode->TransactionSupervisor,
+                GetAutomatonInvoker(),
+                Bootstrap->GetRpcServer(),
+                HydraManager,
+                Automaton,
+                HiveManager,
+                TransactionManager,
+                Bootstrap->GetTimestampProvider());
 
             HydraManager->Start();
             HiveManager->Start();
@@ -292,7 +310,10 @@ private:
 
     TTabletManagerPtr TabletManager;
 
-    TSlotAutomatonPtr Automaton;
+    TTransactionManagerPtr TransactionManager;
+    TTransactionSupervisorPtr TransactionSupervisor;
+
+    TTabletAutomatonPtr Automaton;
     TActionQueuePtr AutomatonQueue;
 
     NLog::TTaggedLogger Logger;
@@ -321,6 +342,12 @@ private:
         }
 
         MasterMailbox = nullptr;
+
+        TabletManager.Reset();
+
+        TransactionManager.Reset();
+
+        TransactionSupervisor.Reset();
 
         Automaton.Reset();
     }
@@ -400,7 +427,7 @@ IHydraManagerPtr TTabletSlot::GetHydraManager() const
     return Impl->GetHydraManager();
 }
 
-TSlotAutomatonPtr TTabletSlot::GetAutomaton() const
+TTabletAutomatonPtr TTabletSlot::GetAutomaton() const
 {
     return Impl->GetAutomaton();
 }

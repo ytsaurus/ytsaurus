@@ -105,6 +105,11 @@ class Holder(WinNode, Server):
             'masters' : {
               'addresses' : MasterAddresses
             },
+            'timestamp_provider' : {
+                'addresses' : MasterAddresses
+            },
+            'query_agent': {
+            },
             'data_node' : {
                 'store_locations' : [
                     { 'path' : r'%(work_dir)s\chunk_store.0' }

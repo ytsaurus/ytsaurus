@@ -16,6 +16,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/hive/public.h>
+
 #include <server/data_node/public.h>
 
 #include <server/chunk_server/public.h>
@@ -66,6 +68,7 @@ public:
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
     NHive::TCellDirectoryPtr GetCellRegistry() const;
+    NHive::ITimestampProviderPtr GetTimestampProvider() const;
     NQueryAgent::TQueryManagerPtr GetQueryManager() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
@@ -109,6 +112,7 @@ private:
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
     NHive::TCellDirectoryPtr CellRegistry;
+    NHive::ITimestampProviderPtr TimestampProvider;
     NQueryAgent::TQueryManagerPtr QueryManager;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;

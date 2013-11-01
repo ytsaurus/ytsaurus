@@ -13,11 +13,11 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! An instance of Hydra managing a number of tablets.
-class TSlotAutomaton
+class TTabletAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    explicit TSlotAutomaton(
+    explicit TTabletAutomaton(
         NCellNode::TBootstrap* bootstrap,
         TTabletSlot* slot);
 
@@ -29,6 +29,33 @@ private:
 
     TSaveContext SaveContext_;
     TLoadContext LoadContext_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletAutomatonPart
+    : public NHydra::TCompositeAutomatonPart
+{
+protected:
+    TTabletSlot* Slot;
+    NCellNode::TBootstrap* Bootstrap;
+
+    explicit TTabletAutomatonPart(
+        TTabletSlot* slot,
+        NCellNode::TBootstrap* bootstrap);
+
+    virtual bool ValidateSnapshotVersion(int version) override;
+    virtual int GetCurrentSnapshotVersion() override;
+
+    //void RegisterSaver(
+    //    int priority,
+    //    const Stroka& name,
+    //    TCallback<void(TSaveContext&)> saver);
+
+    //void RegisterLoader(
+    //    const Stroka& name,
+    //    TCallback<void(TLoadContext&)> loader);
 
 };
 

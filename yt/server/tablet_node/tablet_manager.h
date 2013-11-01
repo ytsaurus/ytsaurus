@@ -26,7 +26,6 @@ public:
 
 private:
     class TImpl;
-    
     TIntrusivePtr<TImpl> Impl;
 
 };
