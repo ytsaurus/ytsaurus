@@ -600,8 +600,7 @@ private:
 
     static std::shared_ptr<TFiberStackBase> GetStack(EFiberStack stack)
     {
-        switch (stack)
-        {
+        switch (stack) {
             case EFiberStack::Small:
                 return ObjectPool<TFiberStack<SmallFiberStackSize>>().Allocate();
             case EFiberStack::Large:

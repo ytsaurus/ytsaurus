@@ -1065,7 +1065,7 @@ private:
             case EObjectType::Group: {
                 auto* subjectGroup = subject->AsGroup();
                 return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
-                                     }
+            }
 
             default:
                 YUNREACHABLE();
