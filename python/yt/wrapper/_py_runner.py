@@ -42,7 +42,7 @@ def main():
         for rec in records:
             if "table_index" in rec.attributes:
                 table_index = rec.attributes["table_index"]
-            else:
+            if not isinstance(rec, yson.YsonEntity):
                 if table_index is not None:
                     rec.attributes["input_table_index"] = table_index
                 yield rec
@@ -60,10 +60,10 @@ def main():
     if __attributes.get("is_raw", False):
         __result = itertools.chain(*itertools.imap(__operation, sys.stdin.xreadlines()))
     else:
-        __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
-
         if isinstance(__input_format, yt.YsonFormat):
-            __records = process_input_table_index(__records)
+            __records = process_input_table_index(yson.load(sys.stdin, yson_type="list_fragment"))
+        else:
+            __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
 
         if __operation_type == "mapper":
             if __attributes.get("is_aggregator", False):
