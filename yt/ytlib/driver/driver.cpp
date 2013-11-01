@@ -135,7 +135,7 @@ public:
         REGISTER(TReadCommand,              "read",              Null,       Tabular,    false, true );
         REGISTER(TMountCommand,             "mount",             Null,       Null,       true,  false);
         REGISTER(TUnmountCommand,           "unmount",           Null,       Null,       true,  false);
-        REGISTER(TSelectCommand,            "insert",            Tabular,    Null,       true,  true );
+        REGISTER(TInsertCommand,            "insert",            Tabular,    Null,       true,  true );
         REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
@@ -320,6 +320,7 @@ private:
             , SchedulerChannel(std::move(schedulerChannel))
             , TransactionManager(std::move(transactionManager))
             , TableMountCache(std::move(tableMountCache))
+            , CellDirectory(std::move(cellDirectory))
             , QueryCallbacksProvider(std::move(queryCallbacksProvider))
             , SyncInputStream(CreateSyncInputStream(request.InputStream))
             , SyncOutputStream(CreateSyncOutputStream(request.OutputStream))

@@ -95,7 +95,7 @@ private:
 
     void RequestTableMountInfo(const TYPath& path)
     {
-        LOG_DEBUG("Requesting table mount info (Path: %s)",
+        LOG_DEBUG("Requesting table mount info for %s",
             ~path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
@@ -121,21 +121,27 @@ private:
             if (rsp->has_tablet()) {
                 const auto& tablet = rsp->tablet();
                 info->TabletId = FromProto<TObjectId>(tablet.tablet_id());
-                auto cellId = FromProto<TTabletCellId>(tablet.cell_id());
-                CellDirectory->RegisterCell(cellId, tablet.cell_config());
+                info->CellId = FromProto<TTabletCellId>(tablet.cell_id()); 
+                CellDirectory->RegisterCell(info->CellId, tablet.cell_config());
+            }
+
+            TErrorOr<TTableMountInfoPtr> promiseResult(info);
+            if (entry.Promise.IsSet()) {
+                entry.Promise = MakePromise(promiseResult);
+            } else {
+                entry.Promise.Set(promiseResult);
             }
 
             LOG_DEBUG("Table mount info received (Path: %s, TableId: %s, TabletId: %s)",
                 ~path,
                 ~ToString(info->TableId),
                 ~ToString(info->TabletId));
-            entry.Promise.Set(TErrorOr<TTableMountInfoPtr>(info));
         } else {
-            entry.Promise.Set(TError("Error getting mount info for %s",
+            auto error = TError("Error getting mount info for %s",
                 ~path)
-                << *rsp);
-            LOG_DEBUG(*rsp, "Error getting table mount info (Path: %s)",
-                ~path);
+                << *rsp;
+            entry.Promise.Set(error);
+            LOG_DEBUG(error);
         }
     }
 

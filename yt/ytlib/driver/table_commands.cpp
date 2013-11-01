@@ -279,11 +279,12 @@ void TInsertCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
+    transaction->AddParticipant(mountInfo->CellId);
+
     auto cellDirectory = Context->GetCellDirectory();
     auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
 
     TTabletServiceProxy tabletProxy(channel);
-
     auto writeReq = tabletProxy.Write();
     ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
     ToProto(writeReq->mutable_tablet_id(), mountInfo->TabletId);
