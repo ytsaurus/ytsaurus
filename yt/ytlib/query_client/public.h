@@ -28,11 +28,10 @@ typedef TIntrusivePtr<IExecutor> IExecutorPtr;
 
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 
-typedef NVersionedTableClient::IReaderPtr IReaderPtr; 
+using NVersionedTableClient::IReaderPtr;
 typedef NVersionedTableClient::TChunkWriterPtr TWriterPtr;
 
 using NVersionedTableClient::EColumnType;
-
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TKeyColumns;
 

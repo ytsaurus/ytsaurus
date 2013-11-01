@@ -33,77 +33,77 @@ const TDataSplit& GetHeaviestSplit(const TOperator* op)
 {
     switch (op->GetKind()) {
     case EOperatorKind::Scan:
-        return op->As<TScanOperator>()->DataSplit();
-    case EOperatorKind::Filter:
-        return GetHeaviestSplit(op->As<TFilterOperator>()->GetSource());
-    case EOperatorKind::Project:
-        return GetHeaviestSplit(op->As<TProjectOperator>()->GetSource());
-    default:
-        YUNREACHABLE();
+            return op->As<TScanOperator>()->DataSplit();
+        case EOperatorKind::Filter:
+            return GetHeaviestSplit(op->As<TFilterOperator>()->GetSource());
+        case EOperatorKind::Project:
+            return GetHeaviestSplit(op->As<TProjectOperator>()->GetSource());
+        default:
+            YUNREACHABLE();
     }
 }
 
 TTableSchema InferTableSchema(const TOperator* op)
 {
     switch (op->GetKind()) {
-    case EOperatorKind::Scan:
-        return GetTableSchemaFromDataSplit(op->As<TScanOperator>()->DataSplit());
-    case EOperatorKind::Filter:
-        return InferTableSchema(op->As<TFilterOperator>()->GetSource());
-    case EOperatorKind::Project: {
-        TTableSchema result;
-        auto* typedOp = op->As<TProjectOperator>();
-        for (const auto& projection : typedOp->Projections()) {
-            result.Columns().emplace_back(
-                projection->InferName(),
-                projection->Typecheck());
-        }
-        return result;
-    }
-    case EOperatorKind::Union: {
-        TTableSchema result;
-        bool didChooseTableSchema;
-        auto* typedOp = op->As<TUnionOperator>();
-        for (const auto& source : typedOp->Sources()) {
-            if (!didChooseTableSchema) {
-                result = InferTableSchema(source);
-                didChooseTableSchema = true;
-            } else {
-                YCHECK(result == InferTableSchema(source));
+        case EOperatorKind::Scan:
+            return GetTableSchemaFromDataSplit(op->As<TScanOperator>()->DataSplit());
+        case EOperatorKind::Filter:
+            return InferTableSchema(op->As<TFilterOperator>()->GetSource());
+        case EOperatorKind::Project: {
+            TTableSchema result;
+            auto* typedOp = op->As<TProjectOperator>();
+            for (const auto& projection : typedOp->Projections()) {
+                result.Columns().emplace_back(
+                    projection->InferName(),
+                    projection->Typecheck());
             }
+            return result;
         }
-        return result;
-    }
-    default:
-        YUNREACHABLE();
+        case EOperatorKind::Union: {
+            TTableSchema result;
+            bool didChooseTableSchema = false;
+            auto* typedOp = op->As<TUnionOperator>();
+            for (const auto& source : typedOp->Sources()) {
+                if (!didChooseTableSchema) {
+                    result = InferTableSchema(source);
+                    didChooseTableSchema = true;
+                } else {
+                    YCHECK(result == InferTableSchema(source));
+                }
+            }
+            return result;
+        }
+        default:
+            YUNREACHABLE();
     }
 }
 
 TKeyColumns InferKeyColumns(const TOperator* op)
 {
     switch (op->GetKind()) {
-    case EOperatorKind::Scan:
-        return GetKeyColumnsFromDataSplit(op->As<TScanOperator>()->DataSplit());
-    case EOperatorKind::Filter:
-        return InferKeyColumns(op->As<TFilterOperator>()->GetSource());
-    case EOperatorKind::Project:
-        return TKeyColumns();
-    case EOperatorKind::Union: {
-        TKeyColumns result;
-        bool didChooseKeyColumns;
-        auto* typedOp = op->As<TUnionOperator>();
-        for (const auto& source : typedOp->Sources()) {
-            if (!didChooseKeyColumns) {
-                result = InferKeyColumns(source);
-                didChooseKeyColumns = true;
-            } else {
-                YCHECK(result == InferKeyColumns(source));
+        case EOperatorKind::Scan:
+            return GetKeyColumnsFromDataSplit(op->As<TScanOperator>()->DataSplit());
+        case EOperatorKind::Filter:
+            return InferKeyColumns(op->As<TFilterOperator>()->GetSource());
+        case EOperatorKind::Project:
+            return TKeyColumns();
+        case EOperatorKind::Union: {
+            TKeyColumns result;
+            bool didChooseKeyColumns = false;
+            auto* typedOp = op->As<TUnionOperator>();
+            for (const auto& source : typedOp->Sources()) {
+                if (!didChooseKeyColumns) {
+                    result = InferKeyColumns(source);
+                    didChooseKeyColumns = true;
+                } else {
+                    YCHECK(result == InferKeyColumns(source));
+                }
             }
+            return result;
         }
-        return result;
-    }
-    default:
-        YUNREACHABLE();
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -133,10 +133,10 @@ IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
     auto objectId = GetObjectIdFromDataSplit(dataSplit);
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
     switch (TypeFromId(objectId)) {
-    case EObjectType::QueryFragment:
-        return GetPeer(CounterFromId(objectId));
-    default:
-        return GetCallbacks()->GetReader(dataSplit);
+        case EObjectType::QueryFragment:
+            return GetPeer(CounterFromId(objectId));
+        default:
+            return GetCallbacks()->GetReader(dataSplit);
     }
 }
 
@@ -171,8 +171,7 @@ void TCoordinateController::SplitFurther()
     // to
     //   U -> { S1 ... Sk }
     Rewrite(
-    [this] (TQueryContext* context, const TOperator* op) -> const TOperator*
-    {
+    [this] (TQueryContext* context, const TOperator* op) -> const TOperator* {
         if (auto* scanOp = op->As<TScanOperator>()) {
             auto objectId = GetObjectIdFromDataSplit(scanOp->DataSplit());
             LOG_DEBUG("Splitting input %s", ~ToString(objectId));
@@ -212,8 +211,7 @@ void TCoordinateController::PushdownFilters()
 {
     LOG_DEBUG("Pushing down filter operators");
     Rewrite(
-    [] (TQueryContext* context, const TOperator* op) -> const TOperator*
-    {
+    [] (TQueryContext* context, const TOperator* op) -> const TOperator* {
         // Rewrite
         //   F -> U -> { O1 ... Ok }
         // to
@@ -240,8 +238,7 @@ void TCoordinateController::PushdownProjects()
 {
     LOG_DEBUG("Pushing down project operators");
     Rewrite(
-    [this] (TQueryContext* context, const TOperator* op) -> const TOperator*
-    {
+    [this] (TQueryContext* context, const TOperator* op) -> const TOperator* {
         // Rewrute
         //   P -> U -> { O1 ... Ok }
         // to
