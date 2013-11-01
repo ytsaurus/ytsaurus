@@ -280,6 +280,7 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports["node"][2 * i + 1]
 
             config['masters']['addresses'] = self._master_addresses
+            config['timestamp_provider']['addresses'] = self._master_addresses
             config['data_node']['cache_location']['path'] = \
                 os.path.join(current, 'chunk_cache')
             config['data_node']['store_locations'].append(
