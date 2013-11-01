@@ -155,12 +155,12 @@ ETabletCellHealth TTabletCell::GetHealth() const
         return ETabletCellHealth::Good;
     }
 
-    if (leaderCount == 1 && followerCount >= Size_ / 2) {
-        return ETabletCellHealth::Degraded;
-    }
-
     if (Tablets_.empty()) {
         return ETabletCellHealth::Initializing;
+    }
+
+    if (leaderCount == 1 && followerCount >= Size_ / 2) {
+        return ETabletCellHealth::Degraded;
     }
 
     return ETabletCellHealth::Failed;
