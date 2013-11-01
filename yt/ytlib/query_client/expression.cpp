@@ -77,6 +77,7 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
         case EExpressionKind::BinaryOp: {
             auto* expr = original->As<TBinaryOpExpression>();
             auto* proto = serialized->MutableExtension(NProto::TBinaryOpExpression::binary_op_expression);
+            proto->set_opcode(expr->GetOpcode());
             ToProto(proto->mutable_lhs(), expr->GetLhs());
             ToProto(proto->mutable_rhs(), expr->GetRhs());
             break;

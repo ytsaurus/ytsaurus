@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client )
 set( SRCS
   ${BASE}/ast_visitor.cpp
+  ${BASE}/ast_helpers.cpp
   ${BASE}/graphviz.cpp
   ${BASE}/operator.cpp
   ${BASE}/expression.cpp

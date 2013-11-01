@@ -331,7 +331,6 @@ void TSelectCommand::DoExecute()
         New<TChunkReaderConfig>(),
         memoryReader);
 
-    auto output = Context->Request().OutputStream;
     TBlobOutput buffer;
     auto format = Context->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
@@ -356,21 +355,21 @@ void TSelectCommand::DoExecute()
                 const auto& value = row[i];
                 consumer->OnKeyedItem(nameTable->GetName(value.Index));
                 switch (row[i].Type) {
-                case EColumnType::Integer:
-                    consumer->OnIntegerScalar(value.Data.Integer);
-                    break;
-                case EColumnType::Double:
-                    consumer->OnDoubleScalar(value.Data.Double);
-                    break;
-                case EColumnType::String:
-                    consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                    break;
-                case EColumnType::Any:
-                    consumer->OnRaw(TStringBuf(value.Data.Any, value.Length), EYsonType::Node);
-                    break;
-                case EColumnType::Null:
-                    consumer->OnEntity();
-                    break;
+                    case EColumnType::Integer:
+                        consumer->OnIntegerScalar(value.Data.Integer);
+                        break;
+                    case EColumnType::Double:
+                        consumer->OnDoubleScalar(value.Data.Double);
+                        break;
+                    case EColumnType::String:
+                        consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                        break;
+                    case EColumnType::Any:
+                        consumer->OnRaw(TStringBuf(value.Data.Any, value.Length), EYsonType::Node);
+                        break;
+                    case EColumnType::Null:
+                        consumer->OnEntity();
+                        break;
                 }
             }
             consumer->OnEndMap();
@@ -384,6 +383,13 @@ void TSelectCommand::DoExecute()
         }
         rows.clear();
     }
+
+    auto output = Context->Request().OutputStream;
+    if (!output->Write(buffer.Begin(), buffer.Size())) {
+        auto result = WaitFor(output->GetReadyEvent());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+    buffer.Clear();
 
     ReplySuccess();
 }

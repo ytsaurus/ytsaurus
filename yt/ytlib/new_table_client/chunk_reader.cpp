@@ -279,9 +279,9 @@ bool TChunkReader::Read(std::vector<TRow> *rows)
         if (IncludeAllColumns) {
             auto variableIt = BlockReader->GetVariableIterator();
 
-            rows->push_back(TRow(
+            rows->emplace_back(
                 &MemoryPool,
-                FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount()));
+                FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount());
 
             auto& row = rows->back();
             for (const auto& column: VariableColumns) {

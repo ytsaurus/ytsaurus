@@ -43,6 +43,7 @@ TQueryManager::TQueryManager(
     , WorkerPool(New<TThreadPool>(Config->PoolSize, "QueryManager"))
     , Bootstrap(bootstrap)
 {
+    NodeDirectory = New<TNodeDirectory>();
     Evaluator = CreateEvaluator(WorkerPool->GetInvoker(), this);
 }
 

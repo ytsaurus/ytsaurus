@@ -5,6 +5,7 @@
 
 #include "ast.h"
 #include "ast_visitor.h"
+#include "ast_helpers.h"
 
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
@@ -45,19 +46,28 @@ TEvaluateController::~TEvaluateController()
 
 TError TEvaluateController::Run()
 {
-    using namespace NVersionedTableClient;
-
     LOG_DEBUG("Evaluating fragment");
 
-    std::vector<const TScanOperator*> scanOps;
-    Visit(GetHead(), [&] (const TOperator* op) {
-        if (auto* typedOp = op->As<TScanOperator>()) {
-            scanOps.push_back(typedOp);
-        }
-    });
+    switch (GetHead()->GetKind()) {
+        case EOperatorKind::Union:
+            return RunUnion();
+        case EOperatorKind::Project:
+            return RunProject();
+        default:
+            YUNIMPLEMENTED();
+    }
+}
 
-    LOG_DEBUG("Got %" PRISZT " scan operators in fragment", scanOps.size());
+TError TEvaluateController::RunUnion()
+{
+    LOG_DEBUG("Evaluating union fragment");
 
+    auto* unionOp = GetHead()->As<TUnionOperator>();
+    YCHECK(unionOp);
+
+    LOG_DEBUG("Got %" PRISZT " sources", unionOp->Sources().size());
+
+    // Prepare to write stuff.
     auto nameTable = New<TNameTable>();
     TTableSchema tableSchema;
     TKeyColumns keyColumns;
@@ -66,11 +76,9 @@ TError TEvaluateController::Run()
     std::vector<TRow> rows;
     rows.reserve(1000);
 
-    for (const auto& scanOp : scanOps) {
-        LOG_DEBUG("Opening reader");
-        auto reader = GetCallbacks()->GetReader(scanOp->DataSplit());
-        auto error = WaitFor(reader->Open(nameTable, tableSchema));
-        RETURN_IF_ERROR(error);
+    for (const auto& source : unionOp->Sources()) {
+        auto* scanOp = source->As<TScanOperator>();
+        YCHECK(scanOp);
 
         if (!didOpenWriter) {
             LOG_DEBUG("Opening writer");
@@ -78,18 +86,20 @@ TError TEvaluateController::Run()
             keyColumns = GetKeyColumnsFromDataSplit(scanOp->DataSplit());
             Writer_->Open(nameTable, tableSchema, keyColumns);
             didOpenWriter = true;
+        } else {
+            YCHECK(tableSchema == GetTableSchemaFromDataSplit(scanOp->DataSplit()));
+            YCHECK(keyColumns == GetKeyColumnsFromDataSplit(scanOp->DataSplit()));
         }
 
-        printf("about to read something from %s\n",
-            ~ToString(GetObjectIdFromDataSplit(scanOp->DataSplit())));
+        LOG_DEBUG("Opening reader");
+        auto reader = GetCallbacks()->GetReader(scanOp->DataSplit());
+        auto error = WaitFor(reader->Open(nameTable, tableSchema));
+        RETURN_IF_ERROR(error);
 
         while (true) {
             bool hasData = reader->Read(&rows);
-            printf("new batch!\n");
             for (auto row : rows) {
-                printf("new row!\n");
                 for (int i = 0; i < row.GetValueCount(); ++i) {
-                    printf("new value!\n");
                     Writer_->WriteValue(row[i]);
                 }
                 if (!Writer_->EndRow()) {
@@ -108,12 +118,147 @@ TError TEvaluateController::Run()
         }
     }
 
-    auto error = WaitFor(Writer_->AsyncClose());
-    if (!error.IsOK()) {
-        return error;
+    return WaitFor(Writer_->AsyncClose());
+}
+
+TError TEvaluateController::RunProject()
+{
+    LOG_DEBUG("Evaluating project fragment");
+
+    auto* projectOp = GetHead()->As<TProjectOperator>();
+    YCHECK(projectOp);
+
+    for (const auto& projection : projectOp->Projections()) {
+        YCHECK(projection->GetKind() == EExpressionKind::Reference);
     }
 
-    return TError();
+    const TFilterOperator* filterOp = nullptr;
+    const TScanOperator* scanOp = nullptr;
+
+    {
+        auto* currentOp = projectOp->GetSource();
+        while (currentOp) {
+            switch (currentOp->GetKind()) {
+                case EOperatorKind::Filter:
+                    filterOp = currentOp->As<TFilterOperator>();
+                    currentOp = filterOp->GetSource();
+                    break;
+                case EOperatorKind::Scan:
+                    scanOp = currentOp->As<TScanOperator>();
+                    currentOp = nullptr;
+                    break;
+                default:
+                    YUNIMPLEMENTED();
+            }
+        }
+    }
+
+    YCHECK(scanOp);
+
+    auto nameTable = New<TNameTable>();
+    auto keyColumns = InferKeyColumns(projectOp);
+    auto writerSchema = InferTableSchema(projectOp);
+    auto readerSchema = GetTableSchemaFromDataSplit(scanOp->DataSplit());
+
+    LOG_DEBUG("Opening writer");
+    Writer_->Open(nameTable, writerSchema, keyColumns);
+
+    LOG_DEBUG("Opening reader");
+    auto reader = GetCallbacks()->GetReader(scanOp->DataSplit());
+    auto error = WaitFor(reader->Open(nameTable, readerSchema));
+    RETURN_IF_ERROR(error);
+
+    std::vector<TRow> rows;
+    rows.reserve(1000);
+
+    TSmallVector<int, TypicalProjectionCount> writerIndexToReaderIndex;
+    TSmallVector<int, TypicalProjectionCount> writerIndexToNameIndex;
+    writerIndexToReaderIndex.resize(projectOp->GetProjectionCount());
+    writerIndexToNameIndex.resize(projectOp->GetProjectionCount());
+
+    for (int i = 0; i < projectOp->GetProjectionCount(); ++i) {
+        const auto& projection = projectOp->GetProjection(i);
+        auto name = projection->As<TReferenceExpression>()->GetName();
+        auto index = readerSchema.GetColumnIndex(readerSchema.GetColumnOrThrow(name));
+        writerIndexToReaderIndex[i] = index;
+        writerIndexToNameIndex[i] = nameTable->GetIndex(projection->InferName());
+    }
+
+    // Dumb way to do filter. :)
+    int lhsReaderIndex = -1;
+    i64 lhsValue = -1;
+    i64 rhsValue = -1;
+    EBinaryOp binaryOpOpcode = EBinaryOp::Equal;
+
+    if (filterOp) {
+        auto binaryOpExpr = filterOp->GetPredicate()->As<TBinaryOpExpression>();
+        YCHECK(binaryOpExpr);
+        auto lhsReferenceExpr = binaryOpExpr->GetLhs()->As<TReferenceExpression>();
+        auto rhsIntegerValueExpr = binaryOpExpr->GetRhs()->As<TIntegerLiteralExpression>();
+        YCHECK(lhsReferenceExpr);
+        YCHECK(lhsReferenceExpr->Typecheck() == EColumnType::Integer);
+        YCHECK(rhsIntegerValueExpr);
+
+        binaryOpOpcode = binaryOpExpr->GetOpcode();
+        lhsReaderIndex =
+            readerSchema.GetColumnIndex(
+                readerSchema.GetColumnOrThrow(
+                    lhsReferenceExpr->GetName()));
+        lhsValue = 0;
+        rhsValue = rhsIntegerValueExpr->GetValue();
+    }
+
+    while (true) {
+        bool hasData = reader->Read(&rows);
+        for (auto row : rows) {
+            bool predicate = true;
+            if (filterOp) {
+                lhsValue = row[lhsReaderIndex].Data.Integer;
+                switch (binaryOpOpcode) {
+                    case EBinaryOp::Less:
+                        predicate = (lhsValue < rhsValue);
+                        break;
+                    case EBinaryOp::LessOrEqual:
+                        predicate = (lhsValue <= rhsValue);
+                        break;
+                    case EBinaryOp::Equal:
+                        predicate = (lhsValue == rhsValue);
+                        break;
+                    case EBinaryOp::NotEqual:
+                        predicate = (lhsValue != rhsValue);
+                        break;
+                    case EBinaryOp::Greater:
+                        predicate = (lhsValue > rhsValue);
+                        break;
+                    case EBinaryOp::GreaterOrEqual:
+                        predicate = (lhsValue >= rhsValue);
+                        break;
+                }
+            }
+            if (!predicate) {
+                continue;
+            }
+            for (int i = 0; i < projectOp->GetProjectionCount(); ++i) {
+                TRowValue value = row[writerIndexToReaderIndex[i]];
+                value.Index = writerIndexToNameIndex[i];
+                Writer_->WriteValue(value);
+            }
+            if (!Writer_->EndRow()) {
+                auto result = WaitFor(Writer_->GetReadyEvent());
+                RETURN_IF_ERROR(result);
+            }
+        }
+        if (!hasData) {
+            break;
+        }
+        if (rows.size() < rows.capacity()) {
+            auto result = WaitFor(reader->GetReadyEvent());
+            RETURN_IF_ERROR(result);
+        }
+        rows.clear();
+    }
+
+    return WaitFor(Writer_->AsyncClose());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

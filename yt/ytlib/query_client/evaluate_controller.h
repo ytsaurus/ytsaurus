@@ -23,6 +23,9 @@ public:
     ~TEvaluateController();
 
     TError Run();
+    // XXX(sandello): Temporary functions; to be codegen'd.
+    TError RunUnion();
+    TError RunProject();
 
     IEvaluateCallbacks* GetCallbacks()
     {

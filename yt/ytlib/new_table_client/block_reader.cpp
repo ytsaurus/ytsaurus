@@ -165,11 +165,15 @@ TRowValue TBlockReader::Read(int index) const
 
 TVariableIterator TBlockReader::GetVariableIterator() const
 {
-    const char* ptr = VariableColumn + 8 * RowIndex;
-    ui32 offset = *reinterpret_cast<const ui32*>(ptr);
-    ptr += 4;
-    ui32 count = *reinterpret_cast<const ui32*>(ptr);
-    return TVariableIterator(VariableBuffer + offset, count);
+    if (!Meta.has_variable_buffer_offset()) {
+        return TVariableIterator(nullptr, 0);
+    } else {
+        const char* ptr = VariableColumn + 8 * RowIndex;
+        ui32 offset = *reinterpret_cast<const ui32*>(ptr);
+        ptr += 4;
+        ui32 count = *reinterpret_cast<const ui32*>(ptr);
+        return TVariableIterator(VariableBuffer + offset, count);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
