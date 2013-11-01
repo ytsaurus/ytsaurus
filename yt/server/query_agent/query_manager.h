@@ -2,12 +2,18 @@
 
 #include "public.h"
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/executor.h>
 
 #include <core/concurrency/action_queue.h>
 
 #include <server/cell_node/public.h>
+
+namespace NYT { namespace NNodeTrackerClient { namespace NProto {
+    class TNodeDirectory;
+} } }
 
 namespace NYT {
 namespace NQueryAgent {
@@ -25,6 +31,9 @@ public:
 
     ~TQueryManager();
 
+    void UpdateNodeDirectory(
+        const NNodeTrackerClient::NProto::TNodeDirectory& proto);
+
     virtual TAsyncError Execute(
         const NQueryClient::TQueryFragment& fragment,
         NQueryClient::TWriterPtr writer) override;
@@ -37,6 +46,7 @@ private:
     NConcurrency::TThreadPoolPtr WorkerPool;
     NCellNode::TBootstrap* Bootstrap;
 
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NQueryClient::IExecutorPtr Evaluator;
 
 };

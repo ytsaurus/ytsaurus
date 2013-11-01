@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <core/rpc/public.h>
 
 #include <core/misc/common.h>
@@ -22,7 +24,10 @@ public:
 
 };
 
-IReaderPtr DelegateToPeer(const TQueryFragment& subfragment, NRpc::IChannelPtr channel);
+IReaderPtr DelegateToPeer(
+    const TQueryFragment& subfragment,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NRpc::IChannelPtr channel);
 
 IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks);
 IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks);

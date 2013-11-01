@@ -7,17 +7,20 @@
 
 #include "query_service_proxy.h"
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
+#include <ytlib/chunk_client/async_reader.h>
+
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/chunk_reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
 
-#include <ytlib/chunk_client/async_reader.h>
-
 namespace NYT {
 namespace NQueryClient {
 
+using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -89,11 +92,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReaderPtr DelegateToPeer(const TQueryFragment& fragment, IChannelPtr channel)
+IReaderPtr DelegateToPeer(
+    const TQueryFragment& fragment,
+    TNodeDirectoryPtr nodeDirectory,
+    IChannelPtr channel)
 {
     TQueryServiceProxy proxy(channel);
 
     auto req = proxy.Execute();
+
+    nodeDirectory->DumpTo(req->mutable_node_directory());
     ToProto(req->mutable_fragment(), fragment);
 
     return CreateChunkReader(

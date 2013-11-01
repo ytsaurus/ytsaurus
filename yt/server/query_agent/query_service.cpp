@@ -55,6 +55,8 @@ TQueryService::TQueryService(TBootstrap* bootstrap)
 
 DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)
 {
+    Bootstrap->GetQueryManager()->UpdateNodeDirectory(request->node_directory());
+
     auto fragment = NQueryClient::FromProto(request->fragment());
 
     auto memoryWriter = New<TMemoryWriter>();

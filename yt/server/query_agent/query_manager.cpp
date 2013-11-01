@@ -28,6 +28,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NVersionedTableClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +49,12 @@ TQueryManager::TQueryManager(
 TQueryManager::~TQueryManager()
 { }
 
+void TQueryManager::UpdateNodeDirectory(
+    const NNodeTrackerClient::NProto::TNodeDirectory& proto)
+{
+    NodeDirectory->MergeFrom(proto);
+}
+
 TAsyncError TQueryManager::Execute(
     const TQueryFragment& fragment,
     TWriterPtr writer)
@@ -58,10 +65,7 @@ TAsyncError TQueryManager::Execute(
 
 IReaderPtr TQueryManager::GetReader(const TDataSplit& dataSplit)
 {
-    TDataSplit dataSplitCopy = dataSplit;
-    dataSplitCopy.clear_replicas();
     auto masterChannel = Bootstrap->GetMasterChannel();
-    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto blockCache = Bootstrap->GetBlockStore()->GetBlockCache();
 
     auto objectId = FromProto<TObjectId>(dataSplit.chunk_id());
@@ -70,9 +74,9 @@ IReaderPtr TQueryManager::GetReader(const TDataSplit& dataSplit)
     case EObjectType::Chunk: {
         return CreateChunkReader(
             New<TChunkReaderConfig>(),
-            dataSplitCopy,
+            dataSplit,
             std::move(masterChannel),
-            std::move(nodeDirectory),
+            NodeDirectory,
             std::move(blockCache));
     }
     default:

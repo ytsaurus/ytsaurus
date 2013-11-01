@@ -108,7 +108,8 @@ public:
                 ~descriptor.Address) << ex;
         }
 
-        return DelegateToPeer(fragment, channel);
+        // TODO(sandello): Send only relevant part of NodeDirectory_.
+        return DelegateToPeer(fragment, NodeDirectory_, channel);
     }
 
     virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override
