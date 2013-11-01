@@ -54,6 +54,9 @@ typedef TIntrusivePtr<TTabletManager> TTabletManagerPtr;
 class TTransactionManager;
 typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
 
+class TTabletService;
+typedef TIntrusivePtr<TTabletService> TTabletServicePtr;
+
 class TTablet;
 class TTransaction;
 

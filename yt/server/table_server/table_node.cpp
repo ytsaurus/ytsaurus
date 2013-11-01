@@ -49,6 +49,11 @@ bool TTableNode::IsMounted() const
     return Tablet_ != nullptr;
 }
 
+bool TTableNode::IsSorted() const
+{
+    return !ChunkList_->SortedBy().empty();
+}
+
 void TTableNode::Save(TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);

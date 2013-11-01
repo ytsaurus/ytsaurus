@@ -27,7 +27,9 @@ public:
 
     virtual NObjectClient::EObjectType GetObjectType() const;
     TTableNode* GetTrunkNode() const;
+
     bool IsMounted() const;
+    bool IsSorted() const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

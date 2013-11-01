@@ -5,6 +5,7 @@
 #include "automaton.h"
 #include "tablet_manager.h"
 #include "transaction_manager.h"
+#include "tablet_service.h"
 #include "private.h"
 
 #include <core/concurrency/thread_affinity.h>
@@ -250,8 +251,15 @@ public:
                 TransactionManager,
                 Bootstrap->GetTimestampProvider());
 
+            TabletService = New<TTabletService>(
+                Owner,
+                Bootstrap);
+
             HydraManager->Start();
             HiveManager->Start();
+
+            auto rpcServer = Bootstrap->GetRpcServer();
+            rpcServer->RegisterService(TabletService);
         }
 
         CellConfig = configureInfo.config();
@@ -313,6 +321,8 @@ private:
     TTransactionManagerPtr TransactionManager;
     TTransactionSupervisorPtr TransactionSupervisor;
 
+    TTabletServicePtr TabletService;
+
     TTabletAutomatonPtr Automaton;
     TActionQueuePtr AutomatonQueue;
 
@@ -348,6 +358,12 @@ private:
         TransactionManager.Reset();
 
         TransactionSupervisor.Reset();
+
+        if (TabletService) {
+            auto rpcServer = Bootstrap->GetRpcServer();
+            rpcServer->UnregisterService(TabletService);
+            TabletService.Reset();
+        }
 
         Automaton.Reset();
     }

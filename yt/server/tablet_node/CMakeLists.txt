@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/serialize.cpp
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
+  ${BASE}/tablet_service.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -23,6 +24,7 @@ set( HDRS
   ${BASE}/serialize.h
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
+  ${BASE}/tablet_service.h
 )
 
 list(APPEND YT_SOURCE_FILES

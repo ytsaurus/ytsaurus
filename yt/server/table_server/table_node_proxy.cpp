@@ -120,7 +120,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
 
     attributes->push_back("row_count");
     attributes->push_back("sorted");
-    attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
+    attributes->push_back(TAttributeInfo("sorted_by", node->IsSorted()));
     attributes->push_back("mounted");
     attributes->push_back(TAttributeInfo("tablet_id", node->IsMounted()));
     TBase::ListSystemAttributes(attributes);
@@ -152,11 +152,11 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "sorted") {
         BuildYsonFluently(consumer)
-            .Value(!chunkList->SortedBy().empty());
+            .Value(node->IsSorted());
         return true;
     }
 
-    if (!chunkList->SortedBy().empty()) {
+    if (node->IsSorted()) {
         if (key == "sorted_by") {
             BuildYsonFluently(consumer)
                 .List(chunkList->SortedBy());

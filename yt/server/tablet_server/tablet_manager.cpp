@@ -534,6 +534,10 @@ public:
             THROW_ERROR_EXCEPTION("Table is already mounted");
         }
 
+        if (!table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Table is not sorted");
+        }
+
         auto objectManager = Bootstrap->GetObjectManager();
         auto hiveManager = Bootstrap->GetHiveManager();
 
