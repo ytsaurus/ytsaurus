@@ -16,6 +16,22 @@ set( SRCS
 )
 
 set( HDRS
+  ${BASE}/ast.h
+  ${BASE}/ast_visitor.h
+  ${BASE}/coordinate_controller.h
+  ${BASE}/evaluate_controller.h
+  ${BASE}/executor.h
+  ${BASE}/expression.h
+  ${BASE}/graphviz.h
+  ${BASE}/lexer.h
+  ${BASE}/operator.h
+  ${BASE}/parser.hpp
+  ${BASE}/private.h
+  ${BASE}/public.h
+  ${BASE}/query_context.h
+  ${BASE}/query_fragment.h
+  ${BASE}/query_service_proxy.h
+  ${BASE}/stubs.h
 )
 
 list(APPEND YT_SOURCE_FILES
