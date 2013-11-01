@@ -42,7 +42,7 @@ Logging = {
 }
 
 MasterAddresses = opts.limit_iter('--masters',
-        ['%s:%d' % (socket.gethostname(), port) for port in xrange(8001, 8004)])
+        ['%s:%d' % (socket.getfqdn(), port) for port in xrange(8001, 8004)])
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')
