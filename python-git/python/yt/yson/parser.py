@@ -339,16 +339,56 @@ class YsonParser(YsonParserBase):
                 self._get_position_info())
         return result
 
-def load(stream):
+class StreamWrap(object):
+    def __init__(self, stream, header, footer):
+        self.stream = stream
+        self.header = header
+        self.footer = footer
+
+        self.pos = 0
+        self.state = 0
+
+    def read(self, n=None):
+        assert n == 1
+
+        if self.state == 0:
+            if self.pos == len(self.header):
+                self.state += 1
+            else:
+                res = self.header[self.pos]
+                self.pos += 1
+                return res
+
+        if self.state == 1:
+            sym = self.stream.read(1)
+            if sym:
+                return sym
+            else:
+                self.state += 1
+                self.pos = 0
+
+        if self.state == 2:
+            if self.pos == len(self.footer):
+                self.state += 1
+            else:
+                res = self.footer[self.pos]
+                self.pos += 1
+                return res
+
+        if self.state == 3:
+            return ""
+
+
+
+def load(stream, yson_type=None):
+    if yson_type == "list_fragment":
+        stream = StreamWrap(stream, "[", "]")
+    if yson_type == "map_fragment":
+        stream = StreamWrap(stream, "{", "}")
+
     parser = YsonParser(stream)
     return parser.parse()
 
 def loads(string, yson_type=None):
-    if yson_type == "list_fragment":
-        string = "[%s]" % string
-    elif yson_type == "map_fragment":
-        string = "{%s}" % string
-    else:
-        pass
-    return load(StringIO(string))
+    return load(StringIO(string), yson_type)
 
