@@ -15,6 +15,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
+#include <ytlib/new_table_client/schema.h>
+
 #include <server/object_server/type_handler_detail.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -27,6 +29,8 @@
 #include <server/tablet_node/tablet_manager.pb.h>
 
 #include <server/hive/hive_manager.h>
+
+#include <server/chunk_server/chunk_list.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -50,6 +54,7 @@ using namespace NNodeTrackerServer::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NTabletNode::NProto;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -529,6 +534,7 @@ public:
     void MountTable(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(table->IsTrunk());
 
         if (table->IsMounted()) {
             THROW_ERROR_EXCEPTION("Table is already mounted");
@@ -541,6 +547,8 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         auto hiveManager = Bootstrap->GetHiveManager();
 
+        auto tableProxy = objectManager->GetProxy(table);
+
         auto* cell = AllocateCell(); // may throw
 
         auto* tablet = CreateTablet(table, cell);
@@ -552,7 +560,16 @@ public:
 
         {
             TReqCreateTablet req;
+            
             ToProto(req.mutable_tablet_id(), tablet->GetId());
+            
+            // COMPAT(babenko): schema must be mandatory
+            auto schema = tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
+            ToProto(req.mutable_schema(), schema);
+
+            const auto* chunkList = table->GetChunkList();
+            ToProto(req.mutable_key_columns()->mutable_names(), chunkList->SortedBy());
+            
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
         }
@@ -566,6 +583,7 @@ public:
     void UnmountTable(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(table->IsTrunk());
 
         if (!table->IsMounted()) {
             THROW_ERROR_EXCEPTION("Table is not mounted");

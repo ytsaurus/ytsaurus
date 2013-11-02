@@ -1,12 +1,15 @@
 package NYT.NTabletNode.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/new_table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqCreateTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
 }
 
 message TReqRemoveTablet

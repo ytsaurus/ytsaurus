@@ -42,7 +42,10 @@ public:
     NHive::THiveManagerPtr GetHiveManager() const;
     NHive::TMailbox* GetMasterMailbox();
 
+    TTransactionManagerPtr GetTransactionManager() const;
     NHive::TTransactionSupervisorPtr GetTransactionSupervisor() const;
+
+    TTabletManagerPtr GetTabletManager() const;
     
     void Load(const NHydra::TCellGuid& cellGuid);
     void Create(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);

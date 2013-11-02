@@ -23,6 +23,7 @@ DECLARE_ENUM(ETransactionState,
 class TTransaction
     : public TRefTracked<TTransaction>
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, Id);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);

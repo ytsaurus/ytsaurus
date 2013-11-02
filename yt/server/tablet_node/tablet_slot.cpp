@@ -143,9 +143,19 @@ public:
         return MasterMailbox;
     }
 
+    TTransactionManagerPtr GetTransactionManager() const
+    {
+        return TransactionManager;
+    }
+
     TTransactionSupervisorPtr GetTransactionSupervisor() const
     {
         return TransactionSupervisor;
+    }
+
+    TTabletManagerPtr GetTabletManager() const
+    {
+        return TabletManager;
     }
 
 
@@ -505,9 +515,19 @@ TMailbox* TTabletSlot::GetMasterMailbox()
     return Impl->GetMasterMailbox();
 }
 
+TTransactionManagerPtr TTabletSlot::GetTransactionManager() const
+{
+    return Impl->GetTransactionManager();
+}
+
 TTransactionSupervisorPtr TTabletSlot::GetTransactionSupervisor() const
 {
     return Impl->GetTransactionSupervisor();
+}
+
+TTabletManagerPtr TTabletSlot::GetTabletManager() const
+{
+    return Impl->GetTabletManager();
 }
 
 void TTabletSlot::Load(const TCellGuid& cellGuid)

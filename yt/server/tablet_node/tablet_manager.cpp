@@ -3,7 +3,10 @@
 #include "tablet_slot.h"
 #include "automaton.h"
 #include "tablet.h"
+#include "transaction.h"
 #include "private.h"
+
+#include <ytlib/new_table_client/reader.h>
 
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation_context.h>
@@ -23,6 +26,7 @@ using namespace NHydra;
 using namespace NCellNode;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +65,25 @@ public:
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, MakeStrong(this)));
 
-        RegisterMethod(BIND(&TImpl::CreateTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::RemoveTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraCreateTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRemoveTablet, Unretained(this)));
+    }
+
+    TTablet* GetTabletOrThrow(const TTabletId& id)
+    {
+        auto* tablet = FindTablet(id);
+        if (!tablet) {
+            THROW_ERROR_EXCEPTION("No such tablet %s",
+                ~ToString(id));
+        }
+        return tablet;
+    }
+
+    void Write(
+        TTablet* tablet,
+        TTransaction* transaction,
+        IReaderPtr reader)
+    {
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
@@ -117,10 +138,16 @@ private:
     }
 
 
-    void CreateTablet(const TReqCreateTablet& request)
+    void HydraCreateTablet(const TReqCreateTablet& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = new TTablet(id);
+        auto schema = FromProto<TTableSchema>(request.schema());
+        auto keyColumns = FromProto<Stroka>(request.key_columns().names());
+
+        auto* tablet = new TTablet(
+            id,
+            schema,
+            keyColumns);
         TabletMap.Insert(id, tablet);
 
         auto hiveManager = Slot->GetHiveManager();
@@ -135,7 +162,7 @@ private:
             ~ToString(id));
     }
 
-    void RemoveTablet(const TReqRemoveTablet& request)
+    void HydraRemoveTablet(const TReqRemoveTablet& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
@@ -174,6 +201,22 @@ TTabletManager::TTabletManager(
 
 TTabletManager::~TTabletManager()
 { }
+
+TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
+{
+    return Impl->GetTabletOrThrow(id);
+}
+
+void TTabletManager::Write(
+    TTablet* tablet,
+    TTransaction* transaction,
+    IReaderPtr reader)
+{
+    Impl->Write(
+        tablet,
+        transaction,
+        std::move(reader));
+}
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl)
 

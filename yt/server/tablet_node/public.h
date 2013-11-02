@@ -60,6 +60,9 @@ typedef TIntrusivePtr<TTabletService> TTabletServicePtr;
 class TTablet;
 class TTransaction;
 
+class TMemoryTable;
+typedef TIntrusivePtr<TMemoryTable> TMemoryTablePtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
