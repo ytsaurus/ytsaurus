@@ -33,6 +33,9 @@ using NTransactionClient::LastCommittedTimestamp;
 class TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 
+class TTabletManagerConfig;
+typedef TIntrusivePtr<TTabletManagerConfig> TTabletManagerConfigPtr;
+
 class TTabletNodeConfig;
 typedef TIntrusivePtr<TTabletNodeConfig> TTabletNodeConfigPtr;
 
@@ -62,6 +65,12 @@ class TTransaction;
 
 class TMemoryTable;
 typedef TIntrusivePtr<TMemoryTable> TMemoryTablePtr;
+
+struct TRowGroupHeader;
+class TRowGroup;
+
+struct TRowGroupItemHeader;
+class TRowGroupItem;
 
 ////////////////////////////////////////////////////////////////////////////////
 

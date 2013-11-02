@@ -4,6 +4,7 @@
 #include "automaton.h"
 #include "tablet.h"
 #include "transaction.h"
+#include "memory_table.h"
 #include "private.h"
 
 #include <ytlib/new_table_client/reader.h>

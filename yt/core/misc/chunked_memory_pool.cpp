@@ -6,9 +6,9 @@ namespace NYT {
 
 TChunkedMemoryPool::TChunkedMemoryPool(
     size_t chunkSize,
-    size_t maxSmallBlockSize)
+    double maxSmallBlockSizeRatio)
     : ChunkSize((chunkSize + 7) & ~7) // must be aligned
-    , MaxSmallBlockSize(maxSmallBlockSize)
+    , MaxSmallBlockSize(static_cast<size_t>(ChunkSize * maxSmallBlockSizeRatio))
     , ChunkIndex(0)
     , Offset(0)
 { }
@@ -60,7 +60,10 @@ TSharedRef TChunkedMemoryPool::AllocateBlock(size_t size)
 {
     struct TChunkedMemoryPoolTag { };
     auto block = TSharedRef::Allocate<TChunkedMemoryPoolTag>(size);
-    Offset = 8 - reinterpret_cast<intptr_t>(block.Begin()) & 7; // ensure proper alignment
+    // Ensure proper initial alignment (only makes sense for 32-bit platforms).
+    if ((reinterpret_cast<intptr_t>(block.Begin()) & 7) != 0) {
+        Offset = 8 - reinterpret_cast<intptr_t>(block.Begin()) & 7;
+    }
     return block;
 }
 

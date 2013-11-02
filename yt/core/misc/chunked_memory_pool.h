@@ -12,7 +12,7 @@ class TChunkedMemoryPool
 public:
     TChunkedMemoryPool(
         size_t chunkSize = 64 * 1024, 
-        size_t maxSmallBlockSize = 16 * 1024);
+        double maxSmallBlockSizeRatio = 0.25);
 
     //! Allocates #sizes bytes without any alignment.
     char* AllocateUnaligned(size_t size);

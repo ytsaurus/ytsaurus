@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "tablet.h"
 #include "automaton.h"
+#include "memory_table.h"
 
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
@@ -36,6 +37,8 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Id_);
     Save(context, NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(Schema_));
     Save(context, KeyColumns_);
+
+    // TODO(babenko): save memory table
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -45,6 +48,8 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Id_);
     Schema_ = FromProto<TTableSchema>(Load<NVersionedTableClient::NProto::TTableSchemaExt>(context));
     Load(context, KeyColumns_);
+
+    // TODO(babenko): load memory table
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,9 +15,13 @@ class TTablet
     : public TNonCopyable
 {
 public:
+    // Read-only parameters.
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
+    
+    // Memory tables.
+    DEFINE_BYVAL_RW_PROPERTY(TMemoryTablePtr, ActiveMemoryTable);
 
 public:
     explicit TTablet(const TTabletId& id);

@@ -79,33 +79,80 @@ struct TRowValue
 
 static_assert(sizeof (TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
 
+// Forward declarations.
+int CompareRowValues(TRowValue lhs, TRowValue rhs);
+int CompareSameTypeValues(TRowValue lhs, TRowValue rhs);
+
+//! Ternary comparison predicate for TRowValue-s.
+//! Returns zero, positive or negative value depending on the outcome.
+inline int CompareRowValues(TRowValue lhs, TRowValue rhs)
+{
+    if (LIKELY(lhs.Type == rhs.Type)) {
+        return CompareSameTypeValues(lhs, rhs);
+    } else {
+        return lhs.Type - rhs.Type;
+    }
+}
+
+//! Same as #CompareRowValues but presumes that the values are of the same type.
+inline int CompareSameTypeValues(TRowValue lhs, TRowValue rhs)
+{
+    switch (lhs.Type) {
+        case EColumnType::Integer: {
+            auto lhsValue = lhs.Data.Integer;
+            auto rhsValue = rhs.Data.Integer;
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+        }
+
+        case EColumnType::String: {
+            size_t lhsLength = lhs.Length;
+            size_t rhsLength = rhs.Length;
+            size_t minLength = std::min(lhsLength, rhsLength);
+            int result = memcmp(lhs.Data.String, rhs.Data.String, minLength);
+            if (result == 0) {
+                return lhsLength - rhsLength;
+            } else {
+                return result;
+            }
+        }
+
+        case EColumnType::Any:
+            return 0; // NB: Cannot actually compare composite values.
+
+        case EColumnType::Null:
+            return 0;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRowHeader
 {
-    TRowHeader(
-        TTimestamp timestamp,
-        int valueCount,
-        bool deleted)
-        : Timestamp(timestamp)
-        , ValueCount(valueCount)
-        , Deleted(deleted)
-    { }
-
     TTimestamp Timestamp;
     i32 ValueCount;
     bool Deleted;
+    // ValueCount instances of TRowValue follow.
 };
 
 static_assert(sizeof (TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A lightweight wrapper around TRow*.
 class TRow
 {
 public:
-    FORCED_INLINE explicit TRow(TRowHeader* rowHeader)
-        : RowHeader(rowHeader)
+    FORCED_INLINE explicit TRow(TRowHeader* header)
+        : Header(header)
     { }
 
     FORCED_INLINE TRow(
@@ -113,54 +160,60 @@ public:
         int valueCount, 
         TTimestamp timestamp = NullTimestamp, 
         bool deleted = false)
-        : RowHeader(reinterpret_cast<TRowHeader*>(pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
+        : Header(reinterpret_cast<TRowHeader*>(pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
     {
-        *RowHeader = TRowHeader(timestamp, valueCount, deleted);
+        Header->Timestamp = timestamp;
+        Header->ValueCount = valueCount;
+        Header->Deleted = deleted;
     }
+
 
     FORCED_INLINE TRowValue& operator[](int index)
     {
         return *reinterpret_cast<TRowValue*>(
-            reinterpret_cast<char*>(RowHeader) +
+            reinterpret_cast<char*>(Header) +
             sizeof(TRowHeader) +
             index * sizeof(TRowValue));
-    }
-
-    FORCED_INLINE void SetTimestamp(TTimestamp timestamp)
-    {
-        RowHeader->Timestamp = timestamp;
-    }
-
-    FORCED_INLINE void SetDeletedFlag(bool deleted = true)
-    {
-        RowHeader->Deleted = deleted;
     }
 
     FORCED_INLINE const TRowValue& operator[](int index) const
     {
         return *reinterpret_cast<TRowValue*>(
-            reinterpret_cast<char*>(RowHeader) +
+            reinterpret_cast<char*>(Header) +
             sizeof(TRowHeader) +
             index * sizeof(TRowValue));
     }
 
+
     FORCED_INLINE TTimestamp GetTimestamp() const
     {
-        return RowHeader->Timestamp;
+        return Header->Timestamp;
     }
+
+    FORCED_INLINE void SetTimestamp(TTimestamp timestamp)
+    {
+        Header->Timestamp = timestamp;
+    }
+
+
+    FORCED_INLINE bool GetDeleted() const
+    {
+        return Header->Deleted;
+    }
+
+    FORCED_INLINE void SetDeleted(bool deleted = true)
+    {
+        Header->Deleted = deleted;
+    }
+
 
     FORCED_INLINE int GetValueCount() const
     {
-        return RowHeader->ValueCount;
-    }
-
-    FORCED_INLINE bool Deleted() const
-    {
-        return RowHeader->Deleted;
+        return Header->ValueCount;
     }
 
 private:
-    TRowHeader* RowHeader;
+    TRowHeader* Header;
 
 };
 

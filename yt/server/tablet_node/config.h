@@ -31,6 +31,36 @@ public:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletManagerConfig
+    : public TYsonSerializable
+{
+public:
+    size_t TreePoolChunkSize;
+    size_t RowPoolChunkSize;
+    size_t StringPoolChunkSize;
+    double PoolMaxSmallBlockRatio;
+
+    TTabletManagerConfig()
+    {
+        RegisterParameter("tree_pool_chunk_size", TreePoolChunkSize)
+            .GreaterThan(0)
+            .Default(64 * 1024);
+        RegisterParameter("row_pool_chunk_size", RowPoolChunkSize)
+            .GreaterThan(0)
+            .Default(64 * 1024);
+        RegisterParameter("string_pool_chunk_size", StringPoolChunkSize)
+            .GreaterThan(0)
+            .Default(64 * 1024);
+        RegisterParameter("pool_max_small_block_ratio", PoolMaxSmallBlockRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.25);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public TYsonSerializable
 {
@@ -53,6 +83,8 @@ public:
     TTransactionManagerConfigPtr TransactionManager;
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
+    TTabletManagerConfigPtr TabletManager;
+
     TTabletNodeConfig()
     {
         RegisterParameter("slots", Slots)
@@ -67,6 +99,8 @@ public:
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
         RegisterParameter("transaction_supervisor", TransactionSupervisor)
+            .DefaultNew();
+        RegisterParameter("tablet_manager", TabletManager)
             .DefaultNew();
     }
 };

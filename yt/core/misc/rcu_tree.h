@@ -10,7 +10,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): extract
 typedef i64 TRcuTreeTimestamp;
+
+template <class TKey, class TComparer>
+class TRcuTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): move impl to inl
 
 template <class TKey, class TComparer>
 class TRcuTree
@@ -28,26 +36,7 @@ public:
     TReader* CreateReader();
 
 private:
-    struct TNode
-    {
-        union
-        {
-            struct
-            {
-                bool Red;
-            } Flags;
-            TRcuTreeTimestamp GCTimestamp;
-        };
-        union
-        {
-            TNode* Parent;
-            TNode* GCNext;
-            TNode* FreeNext;
-        };
-        TKey Key;
-        TNode* Left;
-        TNode* Right;
-    };
+    struct TNode;
 
     TChunkedMemoryPool* Pool_;
     TComparer Comparer_;
@@ -77,6 +66,28 @@ private:
     void Rebalance(TNode* x);
     void ReplaceChild(TNode* x, TNode* y);
 
+};
+
+template <class TKey, class TComparer>
+struct TRcuTree<TKey, TComparer>::TNode
+{
+    union
+    {
+        struct
+        {
+            bool Red;
+        } Flags;
+        TRcuTreeTimestamp GCTimestamp;
+    };
+    union
+    {
+        TNode* Parent;
+        TNode* GCNext;
+        TNode* FreeNext;
+    };
+    TKey Key;
+    TNode* Left;
+    TNode* Right;
 };
 
 template <class TKey, class TComparer>
