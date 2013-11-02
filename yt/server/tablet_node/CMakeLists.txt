@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
   ${BASE}/tablet_service.cpp
+  ${BASE}/memory_table.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -25,6 +26,7 @@ set( HDRS
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
   ${BASE}/tablet_service.h
+  ${BASE}/memory_table.h
 )
 
 list(APPEND YT_SOURCE_FILES
