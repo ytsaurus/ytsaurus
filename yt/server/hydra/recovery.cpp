@@ -69,6 +69,7 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
 
     auto currentVersion = DecoratedAutomaton->GetAutomatonVersion();
     YCHECK(snapshotId <= targetVersion.SegmentId);
+    YCHECK(currentVersion <= targetVersion);
 
     LOG_INFO("Recovering from %s to %s",
         ~ToString(currentVersion),

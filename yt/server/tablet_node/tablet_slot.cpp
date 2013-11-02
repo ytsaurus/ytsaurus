@@ -22,6 +22,8 @@
 #include <ytlib/hive/cell_directory.h>
 #include <ytlib/hive/timestamp_provider.h>
 
+#include <server/election/election_manager.h>
+
 #include <server/hydra/changelog.h>
 #include <server/hydra/changelog_catalog.h>
 #include <server/hydra/snapshot.h>
@@ -121,6 +123,11 @@ public:
         return AutomatonQueue->GetInvoker();
     }
 
+    IInvokerPtr GetEpochAutomatonInvoker() const
+    {
+        return EpochAutomatonInvoker;
+    }
+
     THiveManagerPtr GetHiveManager() const
     {
         return HiveManager;
@@ -129,12 +136,10 @@ public:
     TMailbox* GetMasterMailbox()
     {
         // Create master mailbox lazily.
-
         if (!MasterMailbox) {
             auto masterCellGuid = Bootstrap->GetCellGuid();
             MasterMailbox = HiveManager->GetOrCreateMailbox(masterCellGuid);
         }
-
         return MasterMailbox;
     }
 
@@ -228,6 +233,15 @@ public:
                 CellManager,
                 ChangelogStore,
                 SnapshotStore);
+
+            HydraManager->SubscribeStartLeading(
+                BIND(&TImpl::OnStartEpoch, Unretained(this)));
+            HydraManager->SubscribeStartFollowing(
+                BIND(&TImpl::OnStartEpoch, Unretained(this)));
+            HydraManager->SubscribeStopLeading(
+                BIND(&TImpl::OnStopEpoch, Unretained(this)));
+            HydraManager->SubscribeStopFollowing(
+                BIND(&TImpl::OnStopEpoch, Unretained(this)));
 
             HiveManager = New<THiveManager>(
                 CellGuid,
@@ -331,6 +345,7 @@ private:
 
     TTabletAutomatonPtr Automaton;
     TActionQueuePtr AutomatonQueue;
+    IInvokerPtr EpochAutomatonInvoker;
 
     NLog::TTaggedLogger Logger;
 
@@ -372,6 +387,8 @@ private:
         }
 
         Automaton.Reset();
+
+        EpochAutomatonInvoker.Reset();
     }
 
     void SetCellGuid(const TCellGuid& cellGuid)
@@ -400,6 +417,20 @@ private:
     {
         SwitchTo(Bootstrap->GetControlInvoker());
         VERIFY_THREAD_AFFINITY(ControlThread);
+    }
+
+
+    void OnStartEpoch()
+    {
+        EpochAutomatonInvoker = HydraManager
+            ->GetEpochContext()
+            ->CancelableContext
+            ->CreateInvoker(GetAutomatonInvoker());
+    }
+
+    void OnStopEpoch()
+    {
+        EpochAutomatonInvoker.Reset();
     }
 
 
@@ -457,6 +488,11 @@ TTabletAutomatonPtr TTabletSlot::GetAutomaton() const
 IInvokerPtr TTabletSlot::GetAutomatonInvoker() const
 {
     return Impl->GetAutomatonInvoker();
+}
+
+IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker() const
+{
+    return Impl->GetEpochAutomatonInvoker();
 }
 
 THiveManagerPtr TTabletSlot::GetHiveManager() const

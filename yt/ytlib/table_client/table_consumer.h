@@ -102,16 +102,20 @@ class TVersionedTableConsumer
 {
 public:
     TVersionedTableConsumer(
+        const NVersionedTableClient::TTableSchema& schema,
         NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::IWriterPtr writer);
 
     TVersionedTableConsumer(
+        const NVersionedTableClient::TTableSchema& schema,
         NVersionedTableClient::TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::IWriterPtr> writers,
         int tableIndex);
 
 private:
-    void Initialize();
+    void Initialize(
+        const NVersionedTableClient::TTableSchema& schema,
+        NVersionedTableClient::TNameTablePtr nameTable);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnIntegerScalar(i64 value) override;
@@ -132,6 +136,8 @@ private:
     virtual void OnEndAttributes() override;
     virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
+    void WriteValue(const NVersionedTableClient::TRowValue& rowValue);
+
     DECLARE_ENUM(EControlState,
         (None)
         (ExpectName)
@@ -151,6 +157,8 @@ private:
 
     int Depth;
     int ColumnIndex;
+
+    std::vector<bool> FixedValueWritten;
 
 };
 

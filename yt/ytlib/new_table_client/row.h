@@ -28,6 +28,14 @@ struct TRowValue
     ui16 Type;   // EColumnType
     ui16 Index;  // Name Table index
 
+    static FORCED_INLINE TRowValue MakeNull(int index)
+    {
+        TRowValue result;
+        result.Index = index;
+        result.Type = NVersionedTableClient::EColumnType::Null;
+        return result;
+    }
+
     static FORCED_INLINE TRowValue MakeInteger(int index, i64 value)
     {
         TRowValue result;

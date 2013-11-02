@@ -35,6 +35,7 @@ class TTransactionManager::TImpl
     : public TTabletAutomatonPart
 {
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
+    DEFINE_SIGNAL(void(TTransaction*), TransactionPrepared);
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
 
@@ -95,23 +96,23 @@ public:
 
         const auto& requestExt = request.GetExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
 
-        auto id = FromProto<TTransactionId>(requestExt.transaction_id());
+        auto transactionId = FromProto<TTransactionId>(requestExt.transaction_id());
 
         auto timeout =
             requestExt.has_timeout()
             ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt.timeout()))
             : Null;
 
-        auto* transaction = new TTransaction(id);
-        TransactionMap.Insert(id, transaction);
+        auto* transaction = new TTransaction(transactionId);
+        TransactionMap.Insert(transactionId, transaction);
 
         auto actualTimeout = GetActualTimeout(timeout);
         transaction->SetTimeout(actualTimeout);
         transaction->SetState(ETransactionState::Active);
         transaction->SetStartTimestamp(startTimestamp);
 
-        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", Timeout: %" PRId64 ")",
-            ~ToString(id),
+        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", Timeout: %" PRIu64 ")",
+            ~ToString(transactionId),
             startTimestamp,
             actualTimeout.MilliSeconds());
 
@@ -119,7 +120,7 @@ public:
             CreateLease(transaction, actualTimeout);
         }
 
-        return id;
+        return transactionId;
     }
 
     void PrepareTransactionCommit(
@@ -129,6 +130,21 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetState() != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION("Transaction is not active");
+        }
+
+        transaction->SetState(persistent ? ETransactionState::PersistentlyPrepared : ETransactionState::TransientlyPrepared);
+        transaction->SetPrepareTimestamp(prepareTimestamp);
+
+        TransactionPrepared_.Fire(transaction);
+
+        LOG_DEBUG("Transaction prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRId64 ")",
+            ~ToString(transactionId),
+            ~FormatBool(persistent),
+            prepareTimestamp);
     }
 
     void CommitTransaction(
@@ -137,6 +153,26 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetState() != ETransactionState::PersistentlyPrepared &&
+            transaction->GetState() != ETransactionState::TransientlyPrepared)
+        {
+            THROW_ERROR_EXCEPTION("Cannot commit a non-prepared transaction");
+        }
+
+        if (IsLeader()) {
+            CloseLease(transaction);
+        }
+
+        transaction->SetState(ETransactionState::Committed);
+
+        TransactionAborted_.Fire(transaction);
+
+        TransactionMap.Remove(transactionId);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)",
+            ~ToString(transactionId));
     }
 
     void AbortTransaction(
@@ -144,6 +180,24 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetState() == ETransactionState::PersistentlyPrepared) {
+            THROW_ERROR_EXCEPTION("Cannot abort a persistently prepared transaction");
+        }
+
+        if (IsLeader()) {
+            CloseLease(transaction);
+        }
+
+        transaction->SetState(ETransactionState::Aborted);
+
+        TransactionAborted_.Fire(transaction);
+
+        TransactionMap.Remove(transactionId);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
+            ~ToString(transactionId));
     }
 
     void PingTransaction(
@@ -152,6 +206,22 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        
+        if (transaction->GetState() != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION("Transaction is not active");
+        }
+
+        auto it = LeaseMap.find(transaction->GetId());
+        YCHECK(it != LeaseMap.end());
+
+        auto timeout = transaction->GetTimeout();
+
+        TLeaseManager::RenewLease(it->second, timeout);
+
+        LOG_DEBUG("Transaction pinged (TransactionId: %s, Timeout: %" PRIu64 ")",
+            ~ToString(transaction->GetId()),
+            timeout.MilliSeconds());
     }
 
 private:
@@ -172,14 +242,19 @@ private:
     
     void CreateLease(const TTransaction* transaction, TDuration timeout)
     {
-        /*
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
         auto lease = TLeaseManager::CreateLease(
             timeout,
-            BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-                .Via(metaStateFacade->GetEpochInvoker()));
+            BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
+                .Via(Slot->GetEpochAutomatonInvoker()));
         YCHECK(LeaseMap.insert(std::make_pair(transaction->GetId(), lease)).second);
-        */
+    }
+
+    void CloseLease(const TTransaction* transaction)
+    {
+        auto it = LeaseMap.find(transaction->GetId());
+        YCHECK(it != LeaseMap.end());
+        TLeaseManager::CloseLease(it->second);
+        LeaseMap.erase(it);
     }
 
     void OnTransactionExpired(const TTransactionId& id)
@@ -214,6 +289,7 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        // Recreate leases for all active transactions.
         for (const auto& pair : TransactionMap) {
             const auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::Active) {
@@ -227,14 +303,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        // Reset all leases.
         for (const auto& pair : LeaseMap) {
             TLeaseManager::CloseLease(pair.second);
         }
         LeaseMap.clear();
 
+        // Reset all transiently prepared transactions back into prepared state.
         for (const auto& pair : TransactionMap) {
             auto* transaction = pair.second;
-            if (transaction->GetState() == ETransactionState::TransientPrepared) {
+            if (transaction->GetState() == ETransactionState::TransientlyPrepared) {
                 transaction->SetState(ETransactionState::Active);
             }
         }
@@ -342,6 +420,10 @@ void TTransactionManager::PingTransaction(
     Impl->PingTransaction(transactionId, request);
 }
 
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl);
 DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, *Impl);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,6 +28,21 @@ TTabletService::TTabletService(
 {
     YCHECK(Slot);
     YCHECK(Bootstrap);
+
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
+{
+    auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+    auto tabletId = FromProto<TTabletId>(request->tablet_id());
+    context->SetRequestInfo("TransactionId: %s, TabletId: %s",
+        ~ToString(transactionId),
+        ~ToString(tabletId));
+
+    // TODO(babenko)
+    
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

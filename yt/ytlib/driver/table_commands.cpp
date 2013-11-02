@@ -135,9 +135,13 @@ void TReadCommand::DoExecute()
 
 void TWriteCommand::DoExecute()
 {
+    // COMPAT(babenko): remove Request->TableReader
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableWriter,
         Request->TableWriter);
+    config = UpdateYsonSerializable(
+        config,
+        Request->GetOptions());
 
     auto writer = CreateAsyncTableWriter(
         config,
@@ -226,6 +230,9 @@ void TInsertCommand::DoExecute()
     // Parse input data.
 
     auto nameTable = New<TNameTable>();
+    for (const auto& column : mountInfo->Schema.Columns()) {
+        nameTable->RegisterName(column.Name);
+    }
 
     auto memoryWriter = New<TMemoryWriter>();
 
@@ -242,7 +249,7 @@ void TInsertCommand::DoExecute()
         mountInfo->Schema,
         mountInfo->KeyColumns);
 
-    TVersionedTableConsumer consumer(nameTable, chunkWriter);
+    TVersionedTableConsumer consumer(mountInfo->Schema, nameTable, chunkWriter);
 
     auto format = Context->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);

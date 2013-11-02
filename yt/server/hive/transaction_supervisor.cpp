@@ -477,7 +477,6 @@ private:
             ~ToString(commit->GetTransactionId()));
 
         commit->SetResult(error);
-        RemoveCommit(commit);
 
         TReqAbortFailedTransaction request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
@@ -488,10 +487,11 @@ private:
                 auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);
                 HiveManager->PostMessage(mailbox, request);
             }
+            RemoveCommit(commit);
         } else {
+            YCHECK(commit->ParticipantCellGuids().empty());
             CreateMutation(HydraManager, AutomatonInvoker, request)
                 ->Commit();
-            YCHECK(commit->ParticipantCellGuids().empty());
         }
     }
 

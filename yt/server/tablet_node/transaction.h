@@ -13,11 +13,11 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ETransactionState,
-    ((Active)             (0))
-    ((PersistentPrepared) (1))
-    ((TransientPrepared)  (2))
-    ((Committed)          (3))
-    ((Aborted)            (4))
+    ((Active)               (0))
+    ((PersistentlyPrepared) (1))
+    ((TransientlyPrepared)  (2))
+    ((Committed)            (3))
+    ((Aborted)              (4))
 );
 
 class TTransaction
@@ -28,6 +28,7 @@ class TTransaction
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
 
 public:
     explicit TTransaction(const NTransactionClient::TTransactionId& id);

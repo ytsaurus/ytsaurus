@@ -7,6 +7,7 @@
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -307,32 +308,36 @@ void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 ////////////////////////////////////////////////////////////////////////////////
 
 TVersionedTableConsumer::TVersionedTableConsumer(
+    const NVersionedTableClient::TTableSchema& schema,
     NVersionedTableClient::TNameTablePtr nameTable,
     NVersionedTableClient::IWriterPtr writer)
-    : NameTable(std::move(nameTable))
-    , CurrentTableIndex(0)
+    : CurrentTableIndex(0)
     , Writers(std::vector<NVersionedTableClient::IWriterPtr>(1, std::move(writer)))
 {
-    Initialize();
+    Initialize(schema, std::move(nameTable));
 }
 
 TVersionedTableConsumer::TVersionedTableConsumer(
+    const NVersionedTableClient::TTableSchema& schema,
     NVersionedTableClient::TNameTablePtr nameTable,
     std::vector<NVersionedTableClient::IWriterPtr> writers,
     int tableIndex)
-    : NameTable(std::move(nameTable))
-    , CurrentTableIndex(tableIndex)
+    : CurrentTableIndex(tableIndex)
     , Writers(std::move(writers))
 {
-    Initialize();
+    Initialize(schema, std::move(nameTable));
 }
 
-void TVersionedTableConsumer::Initialize()
+void TVersionedTableConsumer::Initialize(
+    const NVersionedTableClient::TTableSchema& schema,
+    NVersionedTableClient::TNameTablePtr nameTable)
 {
     CurrentWriter = Writers[CurrentTableIndex];
     ControlState = EControlState::None;
     Depth = 0;
     ColumnIndex = -1;
+    NameTable = std::move(nameTable);
+    FixedValueWritten.resize(schema.Columns().size());
 }
 
 void TVersionedTableConsumer::OnStringScalar(const TStringBuf& value)
@@ -347,8 +352,7 @@ void TVersionedTableConsumer::OnStringScalar(const TStringBuf& value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        CurrentWriter->WriteValue(NVersionedTableClient::TRowValue::MakeString(ColumnIndex, value));
-        ColumnIndex = -1;
+        WriteValue(NVersionedTableClient::TRowValue::MakeString(ColumnIndex, value));
     }
 }
 
@@ -382,8 +386,7 @@ void TVersionedTableConsumer::OnIntegerScalar(i64 value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        CurrentWriter->WriteValue(NVersionedTableClient::TRowValue::MakeInteger(ColumnIndex, value));
-        ColumnIndex = -1;
+        WriteValue(NVersionedTableClient::TRowValue::MakeInteger(ColumnIndex, value));
     }
 }
 
@@ -399,8 +402,7 @@ void TVersionedTableConsumer::OnDoubleScalar(double value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        CurrentWriter->WriteValue(NVersionedTableClient::TRowValue::MakeDouble(ColumnIndex, value));
-        ColumnIndex = -1;
+        WriteValue(NVersionedTableClient::TRowValue::MakeDouble(ColumnIndex, value));
     }
 }
 
@@ -556,6 +558,13 @@ void TVersionedTableConsumer::OnEndMap()
     if (Depth > 0) {
         THROW_ERROR_EXCEPTION("Composite types are not supported");
     } else {
+        for (int index = 0; index < static_cast<int>(FixedValueWritten.size()); ++index) {
+            if (FixedValueWritten[index]) {
+                FixedValueWritten[index] = false;
+            } else {
+                CurrentWriter->WriteValue(NVersionedTableClient::TRowValue::MakeNull(index));
+            }
+        }
         CurrentWriter->EndRow();
     }
 }
@@ -597,6 +606,15 @@ void TVersionedTableConsumer::OnEndAttributes()
 void TVersionedTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {
     YUNREACHABLE();
+}
+
+void TVersionedTableConsumer::WriteValue(const NVersionedTableClient::TRowValue& rowValue)
+{
+    if (rowValue.Index < FixedValueWritten.size()) {
+        FixedValueWritten[rowValue.Index] = true;
+    }
+    CurrentWriter->WriteValue(rowValue);
+    ColumnIndex = -1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

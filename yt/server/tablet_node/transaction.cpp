@@ -15,6 +15,7 @@ TTransaction::TTransaction(const TTransactionId& id)
     , StartTime_(TInstant::Zero())
     , State_(ETransactionState::Active)
     , StartTimestamp_(NullTimestamp)
+    , PrepareTimestamp_(NullTimestamp)
 { }
 
 void TTransaction::Save(TSaveContext& context) const
@@ -23,8 +24,9 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, Id_);
     Save(context, Timeout_);
     Save(context, StartTime_);
-    Save(context, State_ == ETransactionState::TransientPrepared ? ETransactionState(ETransactionState::Active) : State_);
+    Save(context, State_ == ETransactionState::TransientlyPrepared ? ETransactionState(ETransactionState::Active) : State_);
     Save(context, StartTimestamp_);
+    Save(context, State_ == ETransactionState::TransientlyPrepared ? NullTimestamp : PrepareTimestamp_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -35,6 +37,7 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, StartTime_);
     Load(context, State_);
     Load(context, StartTimestamp_);
+    Load(context, PrepareTimestamp_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

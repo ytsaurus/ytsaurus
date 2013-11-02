@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/tablet_client/tablet_service.pb.h>
+
 #include <server/hydra/hydra_service.h>
 
 #include <server/cell_node/public.h>
@@ -20,8 +22,12 @@ public:
         NCellNode::TBootstrap* bootstrap);
 
 private:
+    typedef TTabletService TThis;
+
     TTabletSlot* Slot;
     NCellNode::TBootstrap* Bootstrap;
+
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write);
 
 };
 

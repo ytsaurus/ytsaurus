@@ -76,7 +76,7 @@ void TChunkWriter::Open(
         }
     );
 
-    ColumnDescriptors.resize(Schema.Columns().size());
+    ColumnDescriptors.resize(InputNameTable->GetNameCount());
 
     for (const auto& column: Schema.Columns()) {
         TColumnDescriptor descriptor;
@@ -90,8 +90,7 @@ void TChunkWriter::Open(
             ColumnSizes.push_back(8);
         }
 
-        // TODO(sandello): Actually, reader should fill name table after open.
-        auto index = InputNameTable->GetOrRegisterName(column.Name);
+        auto index = InputNameTable->GetIndex(column.Name);
         ColumnDescriptors[index] = descriptor;
     }
 
@@ -110,63 +109,67 @@ void TChunkWriter::Open(
 
 void TChunkWriter::WriteValue(const TRowValue& value)
 {
+    while (ColumnDescriptors.size() <= value.Index) {
+        ColumnDescriptors.push_back(TColumnDescriptor());
+    }
+
     auto& columnDescriptor = ColumnDescriptors[value.Index];
 
     if (columnDescriptor.Type == EColumnType::Null) {
-        // Uninitialized column becomes varaible.
+        // Uninitialized column becomes variable.
         columnDescriptor.Type = EColumnType::TheBottom;
         columnDescriptor.OutputIndex = OutputNameTable->RegisterName(
             InputNameTable->GetName(value.Index));
     }
 
     switch (columnDescriptor.Type) {
-    case EColumnType::Integer:
-        YASSERT(value.Type == EColumnType::Integer || value.Type == EColumnType::Null);
-        CurrentBlock->WriteInteger(value, columnDescriptor.IndexInBlock);
-        if (columnDescriptor.IsKeyPart) {
-            if (value.Data.Integer != columnDescriptor.PreviousValue.Integer) {
-                IsNewKey = true;
+        case EColumnType::Integer:
+            YASSERT(value.Type == EColumnType::Integer || value.Type == EColumnType::Null);
+            CurrentBlock->WriteInteger(value, columnDescriptor.IndexInBlock);
+            if (columnDescriptor.IsKeyPart) {
+                if (value.Data.Integer != columnDescriptor.PreviousValue.Integer) {
+                    IsNewKey = true;
+                }
+                columnDescriptor.PreviousValue.Integer = value.Data.Integer;
             }
-            columnDescriptor.PreviousValue.Integer = value.Data.Integer;
-        }
-        break;
+            break;
 
-    case EColumnType::Double:
-        YASSERT(value.Type == EColumnType::Double || value.Type == EColumnType::Null);
-        CurrentBlock->WriteDouble(value, columnDescriptor.IndexInBlock);
-        if (columnDescriptor.IsKeyPart) {
-            if (value.Data.Double != columnDescriptor.PreviousValue.Double) {
-                IsNewKey = true;
+        case EColumnType::Double:
+            YASSERT(value.Type == EColumnType::Double || value.Type == EColumnType::Null);
+            CurrentBlock->WriteDouble(value, columnDescriptor.IndexInBlock);
+            if (columnDescriptor.IsKeyPart) {
+                if (value.Data.Double != columnDescriptor.PreviousValue.Double) {
+                    IsNewKey = true;
+                }
+                columnDescriptor.PreviousValue.Double = value.Data.Double;
             }
-            columnDescriptor.PreviousValue.Double = value.Data.Double;
-        }
-        break;
+            break;
 
-    case EColumnType::String:
-        YASSERT(value.Type == EColumnType::String || value.Type == EColumnType::Null);
-        if (columnDescriptor.IsKeyPart) {
-            auto newKey = CurrentBlock->WriteKeyString(value, columnDescriptor.IndexInBlock);
-            if (newKey != columnDescriptor.PreviousValue.String) {
-                IsNewKey = true;
+        case EColumnType::String:
+            YASSERT(value.Type == EColumnType::String || value.Type == EColumnType::Null);
+            if (columnDescriptor.IsKeyPart) {
+                auto newKey = CurrentBlock->WriteKeyString(value, columnDescriptor.IndexInBlock);
+                if (newKey != columnDescriptor.PreviousValue.String) {
+                    IsNewKey = true;
+                }
+                columnDescriptor.PreviousValue.String = newKey;
+            } else {
+                CurrentBlock->WriteString(value, columnDescriptor.IndexInBlock);
             }
-            columnDescriptor.PreviousValue.String = newKey;
-        } else {
-            CurrentBlock->WriteString(value, columnDescriptor.IndexInBlock);
-        }
-        break;
+            break;
 
-    case EColumnType::Any:
-        CurrentBlock->WriteAny(value, columnDescriptor.IndexInBlock);
-        break;
+        case EColumnType::Any:
+            CurrentBlock->WriteAny(value, columnDescriptor.IndexInBlock);
+            break;
 
-    // Variable column.
-    case EColumnType::TheBottom:
-        CurrentBlock->WriteVariable(value, columnDescriptor.OutputIndex);
-        break;
+        // Variable column.
+        case EColumnType::TheBottom:
+            CurrentBlock->WriteVariable(value, columnDescriptor.OutputIndex);
+            break;
 
-    default:
-        YUNREACHABLE();
-    };
+        default:
+            YUNREACHABLE();
+    }
 }
 
 bool TChunkWriter::EndRow(TTimestamp timestamp, bool deleted)

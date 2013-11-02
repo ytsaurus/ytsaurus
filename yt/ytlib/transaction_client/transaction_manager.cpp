@@ -327,8 +327,10 @@ public:
             reqExt->set_timeout(Timeout_->MilliSeconds());
         }
 
-        req->Invoke().Subscribe(
-            BIND(&TTransaction::OnParticipantAdded, MakeStrong(this), cellGuid));
+        // TODO(babenko): make nonblocking
+        //req->Invoke().Subscribe(
+        //    BIND(&TTransaction::OnParticipantAdded, MakeStrong(this), cellGuid));
+        OnParticipantAdded(cellGuid, req->Invoke().Get());
     }
 
 
