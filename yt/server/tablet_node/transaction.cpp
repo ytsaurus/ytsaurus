@@ -13,6 +13,8 @@ using namespace NTransactionClient;
 TTransaction::TTransaction(const TTransactionId& id)
     : Id_(id)
     , StartTime_(TInstant::Zero())
+    , State_(ETransactionState::Active)
+    , StartTimestamp_(NullTimestamp)
 { }
 
 void TTransaction::Save(TSaveContext& context) const
@@ -21,6 +23,8 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, Id_);
     Save(context, Timeout_);
     Save(context, StartTime_);
+    Save(context, State_ == ETransactionState::TransientPrepared ? ETransactionState(ETransactionState::Active) : State_);
+    Save(context, StartTimestamp_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -29,6 +33,8 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, Id_);
     Load(context, Timeout_);
     Load(context, StartTime_);
+    Load(context, State_);
+    Load(context, StartTimestamp_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

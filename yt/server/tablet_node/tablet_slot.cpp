@@ -138,6 +138,12 @@ public:
         return MasterMailbox;
     }
 
+    TTransactionSupervisorPtr GetTransactionSupervisor() const
+    {
+        return TransactionSupervisor;
+    }
+
+
     void Load(const TCellGuid& cellGuid)
     {
         // NB: Load is called from bootstrap thread.
@@ -461,6 +467,11 @@ THiveManagerPtr TTabletSlot::GetHiveManager() const
 TMailbox* TTabletSlot::GetMasterMailbox()
 {
     return Impl->GetMasterMailbox();
+}
+
+TTransactionSupervisorPtr TTabletSlot::GetTransactionSupervisor() const
+{
+    return Impl->GetTransactionSupervisor();
 }
 
 void TTabletSlot::Load(const TCellGuid& cellGuid)

@@ -37,10 +37,12 @@ public:
     NHydra::IHydraManagerPtr GetHydraManager() const;
     TTabletAutomatonPtr GetAutomaton() const;
     IInvokerPtr GetAutomatonInvoker() const;
-    
+
     NHive::THiveManagerPtr GetHiveManager() const;
     NHive::TMailbox* GetMasterMailbox();
 
+    NHive::TTransactionSupervisorPtr GetTransactionSupervisor() const;
+    
     void Load(const NHydra::TCellGuid& cellGuid);
     void Create(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);

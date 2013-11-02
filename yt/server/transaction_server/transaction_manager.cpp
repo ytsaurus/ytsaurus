@@ -629,14 +629,13 @@ void TTransactionManager::ValidateTransactionActive(const TTransaction* transact
 
 TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
 {
-    return Min(
+    return std::min(
         timeout.Get(Config->DefaultTransactionTimeout),
         Config->MaxTransactionTimeout);
 }
 
 void TTransactionManager::OnLeaderActive()
 {
-    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, TransactionMap) {
         const auto* transaction = pair.second;
         if (transaction->GetState() == ETransactionState::Active) {

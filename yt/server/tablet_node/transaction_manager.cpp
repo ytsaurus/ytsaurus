@@ -10,12 +10,18 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <ytlib/tablet_client/tablet_service.pb.h>
+
 #include <server/hydra/hydra_manager.h>
+#include <server/hydra/mutation.h>
+
+#include <server/hive/transaction_supervisor.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NTransactionClient;
+//using namespace NTransactionClient::NProto;
 using namespace NHydra;
 using namespace NCellNode;
 
@@ -87,7 +93,33 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return TTransactionId();
+        const auto& requestExt = request.GetExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
+
+        auto id = FromProto<TTransactionId>(requestExt.transaction_id());
+
+        auto timeout =
+            requestExt.has_timeout()
+            ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt.timeout()))
+            : Null;
+
+        auto* transaction = new TTransaction(id);
+        TransactionMap.Insert(id, transaction);
+
+        auto actualTimeout = GetActualTimeout(timeout);
+        transaction->SetTimeout(actualTimeout);
+        transaction->SetState(ETransactionState::Active);
+        transaction->SetStartTimestamp(startTimestamp);
+
+        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", Timeout: %" PRId64 ")",
+            ~ToString(id),
+            startTimestamp,
+            actualTimeout.MilliSeconds());
+
+        if (IsLeader()) {
+            CreateLease(transaction, actualTimeout);
+        }
+
+        return id;
     }
 
     void PrepareTransactionCommit(
@@ -130,6 +162,83 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+
+    TDuration GetActualTimeout(TNullable<TDuration> timeout)
+    {
+        return std::min(
+            timeout.Get(Config->DefaultTransactionTimeout),
+            Config->MaxTransactionTimeout);
+    }
+    
+    void CreateLease(const TTransaction* transaction, TDuration timeout)
+    {
+        /*
+        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+        auto lease = TLeaseManager::CreateLease(
+            timeout,
+            BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
+                .Via(metaStateFacade->GetEpochInvoker()));
+        YCHECK(LeaseMap.insert(std::make_pair(transaction->GetId(), lease)).second);
+        */
+    }
+
+    void OnTransactionExpired(const TTransactionId& id)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = FindTransaction(id);
+        if (transaction->GetState() != ETransactionState::Active)
+            return;
+
+        LOG_INFO("Transaction lease expired (TransactionId: %s)",
+            ~ToString(id));
+
+        auto transactionSupervisor = Slot->GetTransactionSupervisor();
+
+        NHive::NProto::TReqAbortTransaction req;
+        ToProto(req.mutable_transaction_id(), transaction->GetId());
+
+        transactionSupervisor
+            ->CreateAbortTransactionMutation(req)
+            ->OnSuccess(BIND([=] () {
+                LOG_INFO("Transaction expiration commit success (TransactionId: %s)",
+                    ~ToString(id));
+            }))
+            ->OnError(BIND([=] (const TError& error) {
+                LOG_ERROR(error, "Transaction expiration commit failed (TransactionId: %s)",
+                    ~ToString(id));
+            }))
+            ->Commit();
+    }
+
+
+    virtual void OnLeaderActive() override
+    {
+        for (const auto& pair : TransactionMap) {
+            const auto* transaction = pair.second;
+            if (transaction->GetState() == ETransactionState::Active) {
+                auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
+                CreateLease(transaction, actualTimeout);
+            }
+        }
+    }
+
+    virtual void OnStopLeading() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& pair : LeaseMap) {
+            TLeaseManager::CloseLease(pair.second);
+        }
+        LeaseMap.clear();
+
+        for (const auto& pair : TransactionMap) {
+            auto* transaction = pair.second;
+            if (transaction->GetState() == ETransactionState::TransientPrepared) {
+                transaction->SetState(ETransactionState::Active);
+            }
+        }
+    }
 
 
     void SaveKeys(TSaveContext& context)
