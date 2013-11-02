@@ -351,10 +351,10 @@ void TSelectCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
-    const int RowsChunkSize = 1000;
+    const int RowsBufferSize = 1000;
 
     std::vector<NVersionedTableClient::TRow> rows;
-    rows.reserve(RowsChunkSize);
+    rows.reserve(RowsBufferSize);
     
     while (true) {
         bool hasData = chunkReader->Read(&rows);
@@ -363,8 +363,10 @@ void TSelectCommand::DoExecute()
             consumer->OnBeginMap();
             for (int i = 0; i < row.GetValueCount(); ++i) {
                 const auto& value = row[i];
+                if (value.Type == EColumnType::Null)
+                    continue;
                 consumer->OnKeyedItem(nameTable->GetName(value.Index));
-                switch (row[i].Type) {
+                switch (value.Type) {
                     case EColumnType::Integer:
                         consumer->OnIntegerScalar(value.Data.Integer);
                         break;
@@ -377,9 +379,8 @@ void TSelectCommand::DoExecute()
                     case EColumnType::Any:
                         consumer->OnRaw(TStringBuf(value.Data.Any, value.Length), EYsonType::Node);
                         break;
-                    case EColumnType::Null:
-                        consumer->OnEntity();
-                        break;
+                    default:
+                        YUNREACHABLE();
                 }
             }
             consumer->OnEndMap();
