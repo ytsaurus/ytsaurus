@@ -1064,9 +1064,20 @@ private:
     {
         // TODO(babenko): do something smarter?
         auto cells = TabletCellMap.GetValues();
+        
+        cells.erase(
+            std::remove_if(
+                cells.begin(),
+                cells.end(),
+                [] (const TTabletCell* cell) {
+                    return cell->GetHealth() != ETabletCellHealth::Good;
+                }),
+            cells.end());
+
         if (cells.empty()) {
-            THROW_ERROR_EXCEPTION("No tablet cells registered");
+            THROW_ERROR_EXCEPTION("No healthy tablet cells");
         }
+
         return cells[RandomNumber<size_t>(cells.size())];
     }
 
