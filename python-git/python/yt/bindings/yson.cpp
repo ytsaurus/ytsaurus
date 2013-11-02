@@ -42,6 +42,7 @@ public:
 
     PyObject* iternext()
     {
+        static Py::Dict dict;
         // Read unless we have whole row
         while (!Consumer_.HasObject() && !IsStreamRead_) {
             int length = InputStream_->Read(Buffer_, BufferSize_);
@@ -62,6 +63,7 @@ public:
         // We should return pointer to alive object
         result.increment_reference_count();
         return result.ptr();
+        return dict.ptr();
     }
 
     virtual ~TYsonIter()
@@ -124,7 +126,7 @@ public:
         auto kwargs = kwargs_;
 
         auto string = ConvertToString(ExtractArgument(args, kwargs, "string"));
-        
+
         char* rawStr = PyString_AsString(*string);
         int len = string.size();
 
@@ -268,7 +270,7 @@ private:
         if (ysonType == NYson::EYsonType::Node) {
             NYTree::Consume(obj, &writer);
         } else if (ysonType == NYson::EYsonType::ListFragment) {
-            auto iterator = Py::Object(PyObject_GetIter(obj.ptr()));
+            auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
 
             PyObject *item;
             while (item = PyIter_Next(*iterator)) {
