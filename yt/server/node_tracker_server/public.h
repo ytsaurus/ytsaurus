@@ -14,6 +14,8 @@ namespace NNodeTrackerServer {
 ///////////////////////////////////////////////////////////////////////////////
 
 using NNodeTrackerClient::TNodeId;
+using NNodeTrackerClient::InvalidNodeId;
+
 using NNodeTrackerClient::TNodeDescriptor;
 
 class TNodeTracker;
