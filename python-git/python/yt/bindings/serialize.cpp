@@ -17,6 +17,7 @@ using NYTree::ENodeType;
 
 Py::Callable GetYsonType(const std::string& name)
 {
+    // TODO(ignat): make singleton
     static PyObject* ysonTypesModule = nullptr;
     if (!ysonTypesModule) {
         ysonTypesModule = PyImport_ImportModule("yt.yson.yson_types");
@@ -41,37 +42,32 @@ namespace NYTree {
 
 void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer)
 {
-    auto iterator = PyObject_GetIter(*map);
-    if (!iterator) {
-        throw Py::RuntimeError("Object is not iterable");
-    }
-
-    while (auto key = PyIter_Next(iterator)) {
-        char* keyStr = PyString_AsString(PyObject_Str(key));
-        auto value = PyMapping_GetItemString(*map, keyStr);
+    auto iterator = Py::Object(PyObject_GetIter(*map), true);
+    while (auto* next = PyIter_Next(*iterator)) {
+        Py::Object key = Py::Object(next, true);
+        char* keyStr = PyString_AsString(*Py::String(key));
+        auto value = Py::Object(PyMapping_GetItemString(*map, keyStr), true);
         consumer->OnKeyedItem(TStringBuf(keyStr));
-        Serialize(Py::Object(value), consumer);
+        Serialize(value, consumer);
     }
 }
 
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
-    static Py::String attributesStr("attributes");
-    if (PyObject_HasAttr(*obj, *attributesStr)) {
-        auto attributes = PyObject_GetAttr(*obj, *attributesStr);
-        auto map = Py::Mapping(attributes);
-        if (map.length() > 0) {
+    std::string attributesStr = "attributes";
+    if (PyObject_HasAttrString(*obj, attributesStr.c_str())) {
+        auto attributes = Py::Dict(PyObject_GetAttrString(*obj, attributesStr.c_str()), true);
+        if (attributes.length() > 0) {
             consumer->OnBeginAttributes();
-            SerializeMapFragment(map, consumer);
+            SerializeMapFragment(attributes, consumer);
             consumer->OnEndAttributes();
         }
     }
 
     if (IsStringLike(obj)) {
-        consumer->OnStringScalar(TStringBuf(PyString_AsString(PyObject_Str(*obj))));
-    }
-    else if (obj.isMapping()) {
+        consumer->OnStringScalar(TStringBuf(PyString_AsString(ConvertToString(obj).ptr())));
+    } else if (obj.isMapping()) {
         consumer->OnBeginMap();
         SerializeMapFragment(Py::Mapping(obj), consumer);
         consumer->OnEndMap();

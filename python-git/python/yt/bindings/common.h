@@ -19,7 +19,7 @@ inline bool IsStringLike(const Object& obj)
 
 inline String ConvertToString(const Object& obj)
 {
-    return String(PyObject_Str(*obj));
+    return String(PyObject_Str(*obj), true);
 }
 
 inline Object GetAttr(const Object& obj, const std::string& fieldName) {
