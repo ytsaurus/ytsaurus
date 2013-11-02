@@ -12,7 +12,9 @@ class TMemoryReader
     : public IAsyncReader
 {
 public:
-    TMemoryReader(std::vector<TSharedRef>&& blocks, NProto::TChunkMeta&& meta);
+    TMemoryReader(
+        std::vector<TSharedRef>&& blocks,
+        NProto::TChunkMeta&& meta);
 
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override;
 
