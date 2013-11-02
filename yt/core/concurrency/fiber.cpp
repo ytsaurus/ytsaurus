@@ -539,6 +539,9 @@ public:
 
     void WaitFor(TFuture<void> future, IInvokerPtr invoker)
     {
+        if (future.IsSet())
+            return; // shortcut
+
         YCHECK(future);
         YCHECK(invoker);
         YCHECK(!WaitFor_);
