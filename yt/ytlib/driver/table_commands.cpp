@@ -351,8 +351,11 @@ void TSelectCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
+    const int RowsChunkSize = 1000;
+
     std::vector<NVersionedTableClient::TRow> rows;
-    rows.reserve(1000);
+    rows.reserve(RowsChunkSize);
+    
     while (true) {
         bool hasData = chunkReader->Read(&rows);
         for (auto row : rows) {
