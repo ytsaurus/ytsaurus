@@ -57,31 +57,31 @@ int TTabletAutomatonPart::GetCurrentSnapshotVersion()
     return NTabletNode::GetCurrentSnapshotVersion();
 }
 
-//void TTabletAutomatonPart::RegisterSaver(
-//    int priority,
-//    const Stroka& name,
-//    TCallback<void(TSaveContext&)> saver)
-//{
-//    TCompositeAutomatonPart::RegisterSaver(
-//        priority,
-//        name,
-//        BIND([=] () {
-//            auto& context = Bootstrap->GetMetaStateFacade()->GetAutomaton()->SaveContext();
-//            saver.Run(context);
-//     }));
-//}
-//
-//void TTabletAutomatonPart::RegisterLoader(
-//    const Stroka& name,
-//    TCallback<void(TLoadContext&)> loader)
-//{
-//    TCompositeAutomatonPart::RegisterLoader(
-//        name,
-//        BIND([=] () {
-//            auto& context = Bootstrap->GetMetaStateFacade()->GetAutomaton()->LoadContext();
-//            loader.Run(context);
-//    }));
-//}
+void TTabletAutomatonPart::RegisterSaver(
+    int priority,
+    const Stroka& name,
+    TCallback<void(TSaveContext&)> saver)
+{
+    TCompositeAutomatonPart::RegisterSaver(
+        priority,
+        name,
+        BIND([=] () {
+            auto& context = Slot->GetAutomaton()->SaveContext();
+            saver.Run(context);
+         }));
+}
+
+void TTabletAutomatonPart::RegisterLoader(
+    const Stroka& name,
+    TCallback<void(TLoadContext&)> loader)
+{
+    TCompositeAutomatonPart::RegisterLoader(
+        name,
+        BIND([=] () {
+            auto& context = Slot->GetAutomaton()->LoadContext();
+            loader.Run(context);
+        }));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

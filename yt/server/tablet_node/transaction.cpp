@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "transaction.h"
+#include "automaton.h"
 
 #include <server/hydra/composite_automaton.h>
 

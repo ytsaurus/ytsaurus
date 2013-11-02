@@ -28,9 +28,6 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::LastCommittedTimestamp;
 
-typedef NHydra::TSaveContext TSaveContext;
-typedef NHydra::TLoadContext TLoadContext;
-
 ////////////////////////////////////////////////////////////////////////////////
     
 class TTransactionManagerConfig;
@@ -47,6 +44,9 @@ typedef TIntrusivePtr<TTabletSlot> TTabletSlotPtr;
 
 class TTabletAutomaton;
 typedef TIntrusivePtr<TTabletAutomaton> TTabletAutomatonPtr;
+
+class TSaveContext;
+class TLoadContext;
 
 class TTabletManager;
 typedef TIntrusivePtr<TTabletManager> TTabletManagerPtr;

@@ -21,7 +21,6 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NTransactionClient;
-//using namespace NTransactionClient::NProto;
 using namespace NHydra;
 using namespace NCellNode;
 
