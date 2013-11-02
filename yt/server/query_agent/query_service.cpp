@@ -69,7 +69,7 @@ DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)
         ->Execute(fragment, chunkWriter)
         .Apply(BIND([=] (TError error) {
             if (error.IsOK()) {
-                ToProto(response->mutable_chunk_meta(), memoryWriter->GetChunkMeta());
+                response->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());
                 response->Attachments() = std::move(memoryWriter->GetBlocks());
                 context->Reply();
             } else {
