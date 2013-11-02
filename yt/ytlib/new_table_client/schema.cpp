@@ -43,7 +43,8 @@ struct TSerializableColumnSchema
 
     void RegisterAll()
     {
-        RegisterParameter("name", Name);
+        RegisterParameter("name", Name)
+            .NonEmpty();
         RegisterParameter("type", Type);
     }
 };
@@ -132,6 +133,15 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 void Deserialize(TTableSchema& schema, INodePtr node)
 {
     NYTree::Deserialize(schema.Columns(), node);
+    
+    // Check for duplicate names.
+    yhash_set<Stroka> names;
+    for (const auto& column : schema.Columns()) {
+        if (!names.insert(column.Name).second) {
+            THROW_ERROR_EXCEPTION("Duplicate column %s in table schema",
+                ~column.Name.Quote());
+        }
+    }
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
