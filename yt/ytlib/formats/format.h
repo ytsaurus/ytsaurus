@@ -31,6 +31,7 @@ DECLARE_ENUM(EFormatType,
     (Dsv)
     (Yamr)
     (YamredDsv)
+    (SchemedDsv)
 );
 
 class TFormat

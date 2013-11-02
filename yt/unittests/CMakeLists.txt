@@ -36,6 +36,8 @@ set( SRCS
   ${BASE}/ref_counted_tracker_ut.cpp
   ${BASE}/rpc_ut.cpp
   ${BASE}/schema_ut.cpp
+  ${BASE}/schemed_dsv_parser_ut.cpp
+  ${BASE}/schemed_dsv_writer_ut.cpp
   ${BASE}/serialize_ut.cpp
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
