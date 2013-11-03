@@ -309,27 +309,30 @@ void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 
 TVersionedTableConsumer::TVersionedTableConsumer(
     const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns,
     NVersionedTableClient::TNameTablePtr nameTable,
     NVersionedTableClient::IWriterPtr writer)
     : CurrentTableIndex(0)
     , Writers(std::vector<NVersionedTableClient::IWriterPtr>(1, std::move(writer)))
 {
-    Initialize(schema, std::move(nameTable));
+    Initialize(schema, keyColumns, std::move(nameTable));
 }
 
 TVersionedTableConsumer::TVersionedTableConsumer(
     const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns,
     NVersionedTableClient::TNameTablePtr nameTable,
     std::vector<NVersionedTableClient::IWriterPtr> writers,
     int tableIndex)
     : CurrentTableIndex(tableIndex)
     , Writers(std::move(writers))
 {
-    Initialize(schema, std::move(nameTable));
+    Initialize(schema, keyColumns, std::move(nameTable));
 }
 
 void TVersionedTableConsumer::Initialize(
     const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns,
     NVersionedTableClient::TNameTablePtr nameTable)
 {
     CurrentWriter = Writers[CurrentTableIndex];
@@ -337,7 +340,17 @@ void TVersionedTableConsumer::Initialize(
     Depth = 0;
     ColumnIndex = -1;
     NameTable = std::move(nameTable);
-    FixedValueWritten.resize(schema.Columns().size());
+
+    // NB: Key columns must go first.
+    for (const auto& name : keyColumns) {
+        NameTable->GetOrRegisterName(name);
+    }
+
+    SchemaColumnDescriptors.resize(schema.Columns().size());
+    for (const auto& column : schema.Columns()) {
+        int id = NameTable->GetOrRegisterName(column.Name);
+        SchemaColumnDescriptors[id].Type = column.Type;
+    }
 }
 
 void TVersionedTableConsumer::OnStringScalar(const TStringBuf& value)
@@ -476,6 +489,16 @@ void TVersionedTableConsumer::ThrowMapExpected()
         << TErrorAttribute("row_index", CurrentWriter->GetRowIndex());
 }
 
+void TVersionedTableConsumer::ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EColumnType actualType)
+{
+    THROW_ERROR_EXCEPTION("Invalid type of schema column %s: expected %s, actual %s",
+        ~NameTable->GetName(columnId).Quote(),
+        ~FormatEnum(SchemaColumnDescriptors[columnId].Type).Quote(),
+        ~FormatEnum(actualType).Quote())
+        << TErrorAttribute("table_index", CurrentTableIndex)
+        << TErrorAttribute("row_index", CurrentWriter->GetRowIndex());
+}
+
 void TVersionedTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
 {
     THROW_ERROR_EXCEPTION("Control attribute %s cannot %s",
@@ -558,11 +581,11 @@ void TVersionedTableConsumer::OnEndMap()
     if (Depth > 0) {
         THROW_ERROR_EXCEPTION("Composite types are not supported");
     } else {
-        for (int index = 0; index < static_cast<int>(FixedValueWritten.size()); ++index) {
-            if (FixedValueWritten[index]) {
-                FixedValueWritten[index] = false;
+        for (int id = 0; id < static_cast<int>(SchemaColumnDescriptors.size()); ++id) {
+            if (SchemaColumnDescriptors[id].Written) {
+                SchemaColumnDescriptors[id].Written = false;
             } else {
-                CurrentWriter->WriteValue(NVersionedTableClient::TRowValue::MakeNull(index));
+                CurrentWriter->WriteValue(NVersionedTableClient::TRowValue::MakeNull(id));
             }
         }
         CurrentWriter->EndRow();
@@ -610,8 +633,14 @@ void TVersionedTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 
 void TVersionedTableConsumer::WriteValue(const NVersionedTableClient::TRowValue& rowValue)
 {
-    if (rowValue.Index < FixedValueWritten.size()) {
-        FixedValueWritten[rowValue.Index] = true;
+    int id = rowValue.Index;
+    if (id < SchemaColumnDescriptors.size()) {
+        auto type = NVersionedTableClient::EColumnType(rowValue.Type);
+        auto& descriptor = SchemaColumnDescriptors[id];
+        if (type != descriptor.Type) {
+            ThrowInvalidSchemaColumnType(id, type);
+        }
+        descriptor.Written = true;
     }
     CurrentWriter->WriteValue(rowValue);
     ColumnIndex = -1;

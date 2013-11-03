@@ -230,13 +230,6 @@ void TInsertCommand::DoExecute()
     // Parse input data.
 
     auto nameTable = New<TNameTable>();
-    // NB: Key columns must go first.
-    for (const auto& name : mountInfo->KeyColumns) {
-        nameTable->GetOrRegisterName(name);
-    }
-    for (const auto& column : mountInfo->Schema.Columns()) {
-        nameTable->GetOrRegisterName(column.Name);
-    }
 
     auto memoryWriter = New<TMemoryWriter>();
 
@@ -248,12 +241,16 @@ void TInsertCommand::DoExecute()
         encodingOptions,
         memoryWriter);
 
+    TVersionedTableConsumer consumer(
+        mountInfo->Schema,
+        mountInfo->KeyColumns,
+        nameTable,
+        chunkWriter);
+
     chunkWriter->Open(
         nameTable,
         mountInfo->Schema,
         mountInfo->KeyColumns);
-
-    TVersionedTableConsumer consumer(mountInfo->Schema, nameTable, chunkWriter);
 
     auto format = Context->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);

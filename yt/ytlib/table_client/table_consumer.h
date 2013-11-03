@@ -103,11 +103,13 @@ class TVersionedTableConsumer
 public:
     TVersionedTableConsumer(
         const NVersionedTableClient::TTableSchema& schema,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
         NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::IWriterPtr writer);
 
     TVersionedTableConsumer(
         const NVersionedTableClient::TTableSchema& schema,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
         NVersionedTableClient::TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::IWriterPtr> writers,
         int tableIndex);
@@ -115,6 +117,7 @@ public:
 private:
     void Initialize(
         const NVersionedTableClient::TTableSchema& schema,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
         NVersionedTableClient::TNameTablePtr nameTable);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -130,6 +133,7 @@ private:
     virtual void OnBeginAttributes() override;
 
     void ThrowMapExpected();
+    void ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EColumnType actualType);
     void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
 
     virtual void OnEndList() override;
@@ -158,7 +162,17 @@ private:
     int Depth;
     int ColumnIndex;
 
-    std::vector<bool> FixedValueWritten;
+    struct TColumnDescriptor
+    {
+        TColumnDescriptor()
+            : Written(false)
+        { }
+
+        bool Written;
+        NVersionedTableClient::EColumnType Type;
+    };
+
+    std::vector<TColumnDescriptor> SchemaColumnDescriptors;
 
 };
 
