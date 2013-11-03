@@ -9,6 +9,8 @@
 
 #include <ytlib/misc/sync.h>
 
+#include <ytlib/ytree/ypath_proxy.h>
+
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
@@ -22,6 +24,8 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NYTree;
+using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
@@ -43,7 +47,7 @@ TAsyncTableReader::TAsyncTableReader(
     , RichPath(richPath.Simplify())
     , IsOpen(false)
     , IsReadStarted_(false)
-    , Proxy(masterChannel)
+    , ObjectProxy(masterChannel)
     , Logger(TableReaderLogger)
 {
     YCHECK(masterChannel);
@@ -53,40 +57,71 @@ TAsyncTableReader::TAsyncTableReader(
         ~ToString(TransactionId)));
 }
 
-TFuture<TTableYPathProxy::TRspFetchPtr> TAsyncTableReader::FetchTableInfo()
+TObjectServiceProxy::TInvExecuteBatch TAsyncTableReader::FetchTableInfo()
 {
     LOG_INFO("Fetching table info");
 
-    auto fetchReq = TTableYPathProxy::Fetch(RichPath.GetPath());
-    ToProto(fetchReq->mutable_attributes(), RichPath.Attributes());
-    fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-    SetTransactionId(fetchReq, TransactionId);
-    SetSuppressAccessTracking(fetchReq, Config->SuppressAccessTracking);
-    // ToDo(psushin): enable ignoring lost chunks.
+    const auto& path = RichPath.GetPath();
+    auto batchReq = ObjectProxy.ExecuteBatch();
 
-    return Proxy.Execute(fetchReq);
+    {
+        auto req = TYPathProxy::Get(path + "/@type");
+        SetTransactionId(req, TransactionId);
+        SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
+        batchReq->AddRequest(req, "get_type");
+    }
+
+    {
+        auto req = TTableYPathProxy::Fetch(path);
+        ToProto(req->mutable_attributes(), RichPath.Attributes());
+        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        SetTransactionId(req, TransactionId);
+        SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
+        // ToDo(psushin): enable ignoring lost chunks.
+        batchReq->AddRequest(req, "fetch");
+    }
+
+    return batchReq->Invoke();
 }
 
-TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fetchRsp)
+TAsyncError TAsyncTableReader::OpenChunkReader(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
-    THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching table info");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching table info");
 
-    NodeDirectory->MergeFrom(fetchRsp->node_directory());
-    auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(fetchRsp->chunks());
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object type");
 
-    auto provider = New<TTableChunkReaderProvider>(
-        chunkSpecs,
-        Config,
-        New<TChunkReaderOptions>());
+        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+        if (type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
+                ~RichPath.GetPath(),
+                ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                ~FormatEnum(type).Quote());
+        }
+    }
 
-    Reader = New<TTableChunkSequenceReader>(
-        Config,
-        MasterChannel,
-        BlockCache,
-        NodeDirectory,
-        std::move(chunkSpecs),
-        provider);
-    return Reader->AsyncOpen();
+    {
+        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspFetch>("fetch");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table chunks");
+
+        NodeDirectory->MergeFrom(rsp->node_directory());
+        auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+
+        auto provider = New<TTableChunkReaderProvider>(
+            chunkSpecs,
+            Config,
+            New<TChunkReaderOptions>());
+
+        Reader = New<TTableChunkSequenceReader>(
+            Config,
+            MasterChannel,
+            BlockCache,
+            NodeDirectory,
+            std::move(chunkSpecs),
+            provider);
+        return Reader->AsyncOpen();
+    }
 }
 
 void TAsyncTableReader::OnChunkReaderOpened()
