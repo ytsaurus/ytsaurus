@@ -311,7 +311,7 @@ private:
                 transaction,
                 request.chunk_meta(),
                 std::move(blocks),
-                true);
+                false);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error writing rows");
         }
@@ -357,15 +357,27 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        for (auto group : transaction->LockedRowGroups()) {
-            TMemoryTable::CommitGroup(group);
+        if (!transaction->LockedRowGroups().empty()) {
+            for (auto group : transaction->LockedRowGroups()) {
+                TMemoryTable::CommitGroup(group);
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
+                ~ToString(transaction->GetId()),
+                transaction->LockedRowGroups().size());
         }
     }
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        for (auto group : transaction->LockedRowGroups()) {
-            TMemoryTable::AbortGroup(group);
+        if (!transaction->LockedRowGroups().empty()) {
+            for (auto group : transaction->LockedRowGroups()) {
+                TMemoryTable::AbortGroup(group);
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",
+                ~ToString(transaction->GetId()),
+                transaction->LockedRowGroups().size());
         }
     }
 

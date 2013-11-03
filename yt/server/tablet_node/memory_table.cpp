@@ -64,7 +64,7 @@ TMemoryTable::TMemoryTable(
     , RowPool_(Config_->RowPoolChunkSize, Config_->PoolMaxSmallBlockRatio)
     , StringPool_(Config_->StringPoolChunkSize, Config_->PoolMaxSmallBlockRatio)
     , Comparer_(new TComparer(
-        Tablet_->Schema().Columns().size()))
+        Tablet_->KeyColumns().size()))
     , Tree_(new TRcuTree<TRowGroup, TComparer>(
         &TreePool_,
         Comparer_.get()))
@@ -96,7 +96,7 @@ void TMemoryTable::WriteRows(
         bool hasData = reader->Read(&rows);
         for (auto row : rows) {
             auto group = WriteRow(transaction, row, prewrite);
-            if (lockedGroups) {
+            if (lockedGroups && group) {
                 lockedGroups->push_back(group);
             }
         }
@@ -122,33 +122,39 @@ TRowGroup TMemoryTable::WriteRow(
     int keyColumnCount = static_cast<int>(Tablet_->KeyColumns().size());
     int valueCount = row.GetValueCount() - static_cast<int>(Tablet_->KeyColumns().size());
 
-    auto createGroupItem = [&] () -> TRowGroupItem {
-        TRowGroupItem item(&RowPool_, valueCount, NullTimestamp, false);
+    auto internValues = [&] (TRowGroupItem item) {
         auto internedRow = item.GetRow();
         for (int index = 0; index < keyColumnCount; ++index) {
             InternValue(&internedRow[index], row[index]);
         }
+    };
+
+    auto createGroupItem = [&] () -> TRowGroupItem {
+        TRowGroupItem item(&RowPool_, valueCount, NullTimestamp, false);
+        internValues(item);
         return item;
     };
 
     auto lockGroup = [&] (TRowGroup group) {
         group.SetTransaction(transaction);
         group.SetPrewritten(prewrite);
-        transaction->LockedRowGroups().push_back(group);
+        if (!prewrite) {
+            transaction->LockedRowGroups().push_back(group);
+        }
     };
 
     auto newKeyProvider = [&] () -> TRowGroup {
         TRowGroup group(&RowPool_, keyColumnCount);
 
-        // Acquire lock.
+        // Acquire the lock.
         lockGroup(group);
 
-        // Copy key values.
+        // Copy keys.
         for (int index = 0; index < keyColumnCount; ++index) {
             InternValue(&group[index], row[index]);
         }
 
-        // Copy regular values.
+        // Intern the values and insert a new item.
         auto item = createGroupItem();
         item.SetNextItem(TRowGroupItem());
         group.SetFirstItem(item);
@@ -158,22 +164,32 @@ TRowGroup TMemoryTable::WriteRow(
     };
 
     auto existingKeyAcceptor = [&] (TRowGroup group) {
-        // Check for lock conflicts.
-        auto* transaction = group.GetTransaction();
-        if (transaction) {
-            THROW_ERROR_EXCEPTION("Row lock conflict with transaction %s",
-                ~ToString(transaction->GetId()));
+        // Check for a lock conflict.
+        auto* existingTransaction = group.GetTransaction();
+        if (existingTransaction) {
+            if (existingTransaction != transaction) {
+                THROW_ERROR_EXCEPTION("Row lock conflict with transaction %s",
+                    ~ToString(existingTransaction->GetId()));
+            }
+            
+            // No need to reacquire the lock.
+            YASSERT(group.GetPrewritten() == prewrite);
+
+            // Intern the values and overwrite the item.
+            auto item = group.GetFirstItem();
+            YASSERT(item);
+            internValues(item);
+        } else {
+            // Acquire the lock.
+            lockGroup(group);
+
+            // Intern the values and insert a new item.
+            auto item = createGroupItem();
+            item.SetNextItem(group.GetFirstItem());
+            group.SetFirstItem(item);
+
+            result = group;
         }
-
-        // Acquire lock.
-        lockGroup(group);
-
-        // Copy regular values.
-        auto item = createGroupItem();
-        item.SetNextItem(group.GetFirstItem());
-        group.SetFirstItem(item);
-
-        result = group;
     };
 
     Tree_->Insert(
@@ -209,7 +225,7 @@ void TMemoryTable::InternValue(TRowValue* dst, const TRowValue& src)
 void TMemoryTable::ConfirmPrewrittenGroup(TRowGroup group)
 {
     auto* transaction = group.GetTransaction();
-    YCHECK(transaction);
+    YASSERT(transaction);
 
     transaction->LockedRowGroups().push_back(group);
     group.SetPrewritten(false);

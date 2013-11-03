@@ -80,7 +80,6 @@ public:
 
         // Examine remaining stores; readjust config.
         yhash_set<TCellGuid> cellGuids;
-        int slotCount;
         {
             for (auto store : SnapshotCatalog->GetStores()) {
                 auto cellGuid = store->GetCellGuid();
@@ -88,17 +87,16 @@ public:
                 LOG_INFO("Found slot %s", ~ToString(cellGuid));
             }
 
-            slotCount = Config->TabletNode->Slots;
-            if (slotCount < cellGuids.size()) {
+            if (Config->TabletNode->Slots < cellGuids.size()) {
                 LOG_WARNING("Found %d active slots while at most %d is suggested by configuration; allowing more slots",
                     static_cast<int>(cellGuids.size()),
-                    slotCount);
-                slotCount = static_cast<int>(cellGuids.size());
+                    Config->TabletNode->Slots);
+                Config->TabletNode->Slots = static_cast<int>(cellGuids.size());
             }
         }
 
         // Create slots.
-        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
+        for (int slotIndex = 0; slotIndex < Config->TabletNode->Slots; ++slotIndex) {
             auto slot = New<TTabletSlot>(
                 slotIndex,
                 Config,
@@ -112,6 +110,7 @@ public:
             for (const auto& cellGuid : cellGuids) {
                 Slots[slotIndex]->Load(cellGuid);
                 ++slotIndex;
+                ++UsedSlotCount;
             }
         }
 

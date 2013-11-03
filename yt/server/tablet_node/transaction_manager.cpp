@@ -153,12 +153,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-
-        if (transaction->GetState() != ETransactionState::PersistentlyPrepared &&
-            transaction->GetState() != ETransactionState::TransientlyPrepared)
-        {
-            THROW_ERROR_EXCEPTION("Cannot commit a non-prepared transaction");
-        }
+        auto state = transaction->GetState();
+        YCHECK(
+            state == ETransactionState::PersistentlyPrepared ||
+            state == ETransactionState::TransientlyPrepared ||
+            state == ETransactionState::Active && !IsLeader());
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -167,7 +166,7 @@ public:
         transaction->SetCommitTimestamp(commitTimestamp);
         transaction->SetState(ETransactionState::Committed);
 
-        TransactionAborted_.Fire(transaction);
+        TransactionCommitted_.Fire(transaction);
 
         TransactionMap.Remove(transactionId);
 

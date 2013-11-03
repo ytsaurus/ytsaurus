@@ -184,13 +184,13 @@ private:
                 auto error = TError(ex);
                 LOG_DEBUG_UNLESS(IsRecovery(), error, "Simple commit has failed to prepare (TransactionId: %s)",
                     ~ToString(transactionId));
-                SetCommitFailed(commit, error);
+                SetCommitFailed(transactionId, commit, error);
                 throw;
             }
 
             ScheduleCommitReply(context, commit);
 
-            LOG_DEBUG_UNLESS("Simple commit prepared (TransactionId: %s, PrepareTimestamp: %" PRId64 ")",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %s, PrepareTimestamp: %" PRId64 ")",
                 ~ToString(transactionId),
                 prepareTimestamp);
 
@@ -274,14 +274,14 @@ private:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto commitTimestamp = TTimestamp(request.commit_timestamp());
 
+        // Commit could be missing (e.g. at followers).
         auto* commit = FindCommit(transactionId);
+
         try {
             // Any exception thrown here is caught below.
             TransactionManager->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            if (commit) {
-                SetCommitFailed(commit, ex);
-            }
+            SetCommitFailed(transactionId, commit, ex);
             return;
         }
 
@@ -333,7 +333,7 @@ private:
             // Any exception thrown here is caught below.
             DoPrepareDistributedCommit(transactionId, prepareTimestamp, coordinatorCellGuid);
         } catch (const std::exception& ex) {
-            SetCommitFailed(commit, ex);
+            SetCommitFailed(transactionId, commit, ex);
             return;
         }
 
@@ -414,7 +414,7 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), error, "Distributed commit has failed to prepare (TransactionId: %s, ParticipantCellGuid: %s)",
                 ~ToString(transactionId),
                 ~ToString(participantCellGuid));
-            SetCommitFailed(commit, error);
+            SetCommitFailed(transactionId, commit, error);
             return;
         }
 
@@ -471,10 +471,13 @@ private:
         return commit;
     }
 
-    void SetCommitFailed(TCommit* commit, const TError& error)
+    void SetCommitFailed(const TTransactionId& transactionId, TCommit* commit, const TError& error)
     {
         LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction commit failed (TransactionId: %s)",
-            ~ToString(commit->GetTransactionId()));
+            ~ToString(transactionId));
+
+        if (!commit)
+            return;
 
         commit->SetResult(error);
 
@@ -533,7 +536,7 @@ private:
             auto error = TError("Error generating commit timestamp")
                 << commitTimestampOrError;
             LOG_ERROR(error);
-            SetCommitFailed(commit, error);
+            SetCommitFailed(commit->GetTransactionId(), commit, error);
             return false;
         }
 

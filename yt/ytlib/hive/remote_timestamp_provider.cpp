@@ -16,6 +16,7 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): this needs much improvement
 class TRemoteTimestampProvider
     : public ITimestampProvider
 {
@@ -31,14 +32,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(Spinlock);
-        if (!NewTimestamp) {
-            NewTimestamp = NewPromise<TErrorOr<TTimestamp>>();
-            auto req = Proxy.GetTimestamp();
-            req->Invoke().Subscribe(
-                BIND(&TRemoteTimestampProvider::OnGetTimestampResponse, MakeStrong(this)));
-        }
-        return NewTimestamp;
+        auto req = Proxy.GetTimestamp();
+        return req->Invoke().Apply(
+            BIND(&TRemoteTimestampProvider::OnGetTimestampResponse, MakeStrong(this)));
     }
 
     virtual TTimestamp GetLatestTimestamp() override
@@ -57,16 +53,17 @@ private:
 
     TSpinLock Spinlock;
     TTimestamp LatestTimestamp;
-    TPromise<TErrorOr<TTimestamp>> NewTimestamp;
 
 
-    void OnGetTimestampResponse(TTimestampServiceProxy::TRspGetTimestampPtr rsp)
+    TErrorOr<TTimestamp> OnGetTimestampResponse(TTimestampServiceProxy::TRspGetTimestampPtr rsp)
     {
-        TGuard<TSpinLock> guard(Spinlock);
         if (rsp->IsOK()) {
-            NewTimestamp.Set(rsp->timestamp());
+            TGuard<TSpinLock> guard(Spinlock);
+            auto timestamp = TTimestamp(rsp->timestamp());
+            LatestTimestamp = std::max(LatestTimestamp, timestamp);
+            return TErrorOr<TTimestamp>(timestamp);
         } else {
-            NewTimestamp.Set(rsp->GetError());
+            return TErrorOr<TTimestamp>(rsp->GetError());
         }
     }
 

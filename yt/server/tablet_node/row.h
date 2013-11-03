@@ -128,6 +128,12 @@ public:
     }
 
 
+    FORCED_INLINE explicit operator bool()
+    {
+        return Header_ != nullptr;
+    }
+
+
     FORCED_INLINE const NVersionedTableClient::TRowValue& operator[](int index) const
     {
         return *reinterpret_cast<NVersionedTableClient::TRowValue*>(
