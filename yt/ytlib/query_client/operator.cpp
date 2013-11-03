@@ -6,8 +6,10 @@
 
 #include <core/misc/protobuf_helpers.h>
 
+#ifdef __GNUC__ 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic error "-Wswitch-enum"
+#endif
 
 namespace NYT {
 namespace NQueryClient {
@@ -132,5 +134,8 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* c
 } // namespace NQueryClient
 } // namespace NYT
 
+#ifdef __GNUC__ 
 #pragma GCC diagnostic pop
+#endif
+
 
