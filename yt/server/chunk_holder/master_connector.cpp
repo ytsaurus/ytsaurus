@@ -52,8 +52,8 @@ TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootst
     , NodeId(InvalidNodeId)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
-    YCHECK(config);
-    YCHECK(bootstrap);
+    YCHECK(Config);
+    YCHECK(Bootstrap);
 }
 
 void TMasterConnector::Start()
@@ -106,6 +106,14 @@ TNodeId TMasterConnector::GetNodeId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return NodeId;
+}
+
+
+void TMasterConnector::RegisterAlert(const Stroka& alert)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    
+    Alerts.push_back(alert);
 }
 
 void TMasterConnector::ScheduleNodeHeartbeat()
@@ -283,6 +291,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     request->set_node_id(NodeId);
 
     *request->mutable_statistics() = ComputeStatistics();
+    ToProto(request->mutable_alerts(), Alerts);
 
     ReportedAdded = AddedSinceLastSuccess;
     ReportedRemoved = RemovedSinceLastSuccess;
