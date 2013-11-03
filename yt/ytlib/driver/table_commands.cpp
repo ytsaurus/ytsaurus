@@ -336,8 +336,8 @@ void TSelectCommand::DoExecute()
     }
 
     auto memoryReader = New<TMemoryReader>(
-        std::move(memoryWriter->GetBlocks()),
-        std::move(memoryWriter->GetChunkMeta()));
+        std::move(memoryWriter->GetChunkMeta()),
+        std::move(memoryWriter->GetBlocks()));
     auto chunkReader = CreateChunkReader(
         New<TChunkReaderConfig>(),
         memoryReader);
@@ -380,7 +380,7 @@ void TSelectCommand::DoExecute()
                         consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                         break;
                     case EColumnType::Any:
-                        consumer->OnRaw(TStringBuf(value.Data.Any, value.Length), EYsonType::Node);
+                        consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                         break;
                     default:
                         YUNREACHABLE();

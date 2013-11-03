@@ -35,7 +35,7 @@ bool TVariableIterator::ParseNext(TRowValue* rowValue)
     if (length != 0) {
         YASSERT(length <= std::numeric_limits<i32>::max());
         rowValue->Length = static_cast<i32>(length);
-        rowValue->Data.Any = Opaque;
+        rowValue->Data.String = Opaque;
         rowValue->Type = EColumnType::Any;
         Opaque += length;
     } else {

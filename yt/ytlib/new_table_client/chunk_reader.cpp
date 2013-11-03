@@ -439,7 +439,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
                 const auto& pair = chunkRow[schemaIndexes[i]];
 
                 if (value.Type == EColumnType::Any) {
-                    value.Data.Any = pair.second.begin();
+                    value.Data.String = pair.second.begin();
                     value.Length = pair.second.size();
                     continue;
                 }
@@ -484,7 +484,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
 
             value.Index = NameTable->GetOrRegisterName(ToString(pair.first));
             value.Type = EColumnType::Any;
-            value.Data.Any = pair.second.begin();
+            value.Data.String = pair.second.begin();
             value.Length = pair.second.size();
         }
 

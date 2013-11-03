@@ -107,8 +107,8 @@ public:
 
         auto actualTimeout = GetActualTimeout(timeout);
         transaction->SetTimeout(actualTimeout);
-        transaction->SetState(ETransactionState::Active);
         transaction->SetStartTimestamp(startTimestamp);
+        transaction->SetState(ETransactionState::Active);
 
         LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", Timeout: %" PRIu64 ")",
             ~ToString(transactionId),
@@ -135,8 +135,8 @@ public:
             THROW_ERROR_EXCEPTION("Transaction is not active");
         }
 
-        transaction->SetState(persistent ? ETransactionState::PersistentlyPrepared : ETransactionState::TransientlyPrepared);
         transaction->SetPrepareTimestamp(prepareTimestamp);
+        transaction->SetState(persistent ? ETransactionState::PersistentlyPrepared : ETransactionState::TransientlyPrepared);
 
         TransactionPrepared_.Fire(transaction);
 
@@ -164,8 +164,8 @@ public:
             CloseLease(transaction);
         }
 
-        transaction->SetState(ETransactionState::Committed);
         transaction->SetCommitTimestamp(commitTimestamp);
+        transaction->SetState(ETransactionState::Committed);
 
         TransactionAborted_.Fire(transaction);
 

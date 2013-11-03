@@ -74,7 +74,7 @@ TMemoryTable::TMemoryTable(
 void TMemoryTable::WriteRows(
     TTransaction* transaction,
     IReaderPtr reader,
-    bool transient,
+    bool prewrite,
     std::vector<TRowGroup>* lockedGroups)
 {
     auto nameTable = New<TNameTable>();
@@ -95,7 +95,7 @@ void TMemoryTable::WriteRows(
     while (true) {
         bool hasData = reader->Read(&rows);
         for (auto row : rows) {
-            auto group = WriteRow(transaction, row, transient);
+            auto group = WriteRow(transaction, row, prewrite);
             if (lockedGroups) {
                 lockedGroups->push_back(group);
             }
@@ -115,7 +115,7 @@ void TMemoryTable::WriteRows(
 TRowGroup TMemoryTable::WriteRow(
     TTransaction* transaction,
     TRow row,
-    bool transient)
+    bool prewrite)
 {
     TRowGroup result;
 
@@ -124,16 +124,16 @@ TRowGroup TMemoryTable::WriteRow(
 
     auto createGroupItem = [&] () -> TRowGroupItem {
         TRowGroupItem item(&RowPool_, valueCount, NullTimestamp, false);
-        auto row = item.GetRow();
+        auto internedRow = item.GetRow();
         for (int index = 0; index < keyColumnCount; ++index) {
-            InternValue(row[index], &row[index]);
+            InternValue(&internedRow[index], row[index]);
         }
         return item;
     };
 
     auto lockGroup = [&] (TRowGroup group) {
         group.SetTransaction(transaction);
-        group.SetTransientLock(transient);
+        group.SetPrewritten(prewrite);
         transaction->LockedRowGroups().push_back(group);
     };
 
@@ -145,7 +145,7 @@ TRowGroup TMemoryTable::WriteRow(
 
         // Copy key values.
         for (int index = 0; index < keyColumnCount; ++index) {
-            InternValue(row[index], &group[index]);
+            InternValue(&group[index], row[index]);
         }
 
         // Copy regular values.
@@ -184,25 +184,62 @@ TRowGroup TMemoryTable::WriteRow(
     return result;
 }
 
-void TMemoryTable::InternValue(const TRowValue& src, TRowValue* dst )
+void TMemoryTable::InternValue(TRowValue* dst, const TRowValue& src)
 {
     switch (src.Type) {
         case EColumnType::Integer:
         case EColumnType::Double:
         case EColumnType::Null:
             *dst = src;
+            break;
 
         case EColumnType::String:
         case EColumnType::Any:
             dst->Type = src.Type;
             dst->Length = src.Length;
             dst->Data.String = StringPool_.AllocateUnaligned(src.Length);
-            memcpy(const_cast<char*>(src.Data.String), const_cast<char*>(dst->Data.String), src.Length);
+            memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
             break;
 
         default:
             YUNREACHABLE();
     }
+}
+
+void TMemoryTable::ConfirmPrewrittenGroup(TRowGroup group)
+{
+    auto* transaction = group.GetTransaction();
+    YCHECK(transaction);
+
+    transaction->LockedRowGroups().push_back(group);
+    group.SetPrewritten(false);
+}
+
+void TMemoryTable::CommitGroup(TRowGroup group)
+{
+    auto* transaction = group.GetTransaction();
+    YASSERT(transaction);
+
+    auto firstItem = group.GetFirstItem();
+    firstItem.GetRow().SetTimestamp(transaction->GetCommitTimestamp());
+
+    group.SetTransaction(nullptr);
+
+    // Validate timestamp ordering.
+    YASSERT(
+        !firstItem.GetNextItem() ||
+        firstItem.GetRow().GetTimestamp() > firstItem.GetNextItem().GetRow().GetTimestamp());
+}
+
+void TMemoryTable::AbortGroup(TRowGroup group)
+{
+    if (group.GetPrewritten()) {
+        auto firstItem = group.GetFirstItem();
+        firstItem.SetOrphaned(true);
+        group.SetFirstItem(firstItem.GetNextItem());
+    }
+
+    group.SetTransaction(nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

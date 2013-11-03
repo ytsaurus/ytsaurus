@@ -115,32 +115,33 @@ public:
             DoWriteRows(
                 tablet,
                 transaction,
-                std::move(chunkMeta),
-                std::move(blocks),
-                false);
+                chunkMeta,
+                blocks,
+                true);
         } catch (const std::exception& ex) {
-            // Abort just taken transient locks.
-            for (auto group : LastLockedRowGroups_) {
-                AbortGroup(transaction, group);
+            // Abort just taken locks.
+            for (auto group : LastPrewrittenRowGroups_) {
+                TMemoryTable::AbortGroup(group);
             }
             throw;
         }
 
-        int rowCount = static_cast<int>(LastLockedRowGroups_.size());
+        int rowCount = static_cast<int>(LastPrewrittenRowGroups_.size());
 
-        LOG_DEBUG("Rows written and transiently locked (TransactionId: %s, TabletId: %s, RowCount: %d)",
+        LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d)",
             ~ToString(transaction->GetId()),
             ~ToString(tablet->GetId()),
             rowCount);
 
-        for (auto group : LastLockedRowGroups_) {
-            TransientlyLockedRowGroups_.push(group);
+        for (auto group : LastPrewrittenRowGroups_) {
+            PrewrittenRowGroups_.push(group);
         }
 
         TReqWriteRows request;
         ToProto(request.mutable_transaction_id(), transaction->GetId());
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.mutable_chunk_meta()->Swap(&chunkMeta);
+        // TODO(babenko): avoid copying
         for (const auto& block : blocks) {
             request.add_blocks(ToString(block));
         }
@@ -156,8 +157,9 @@ private:
     TTabletManagerConfigPtr Config_;
 
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
-    std::vector<TRowGroup> LastLockedRowGroups_; // pooled instance
-    TRingQueue<TRowGroup> TransientlyLockedRowGroups_;
+
+    std::vector<TRowGroup> LastPrewrittenRowGroups_; // pooled instance
+    TRingQueue<TRowGroup> PrewrittenRowGroups_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -208,18 +210,18 @@ private:
 
     virtual void OnStartLeading()
     {
-        TransientlyLockedRowGroups_.clear();
+        PrewrittenRowGroups_.clear();
     }
 
     virtual void OnStopLeading()
     {
-        LOG_DEBUG("Started aborting transient locks");
-        while (!TransientlyLockedRowGroups_.empty()) {
-            auto group = TransientlyLockedRowGroups_.front();
-            TransientlyLockedRowGroups_.pop();
-            AbortGroup(group.GetTransaction(), group);
+        LOG_DEBUG("Started aborting prewritten locks");
+        while (!PrewrittenRowGroups_.empty()) {
+            auto group = PrewrittenRowGroups_.front();
+            PrewrittenRowGroups_.pop();
+            TMemoryTable::AbortGroup(group);
         }
-        LOG_DEBUG("Finished aborting transient locks");
+        LOG_DEBUG("Finished aborting prewritten locks");
     }
 
 
@@ -259,7 +261,8 @@ private:
         if (!tablet)
             return;
         
-        // TODO(babenko)
+        // TODO(babenko): flush data
+        // TODO(babenko): purge prewritten locks
 
         TabletMap_.Remove(id);
 
@@ -278,17 +281,13 @@ private:
     void HydraLeaderWriteRows(int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
-            auto group = TransientlyLockedRowGroups_.front();
-            TransientlyLockedRowGroups_.pop();
-            
-            auto* transaction = group.GetTransaction();
-            YCHECK(transaction);
-
-            transaction->LockedRowGroups().push_back(group);
-            group.SetTransientLock(false);
+            YASSERT(!PrewrittenRowGroups_.empty());
+            auto group = PrewrittenRowGroups_.front();
+            PrewrittenRowGroups_.pop();
+            TMemoryTable::ConfirmPrewrittenGroup(group);
         }
 
-        LOG_DEBUG("Transient locks confirmed (RowCount: %d)",
+        LOG_DEBUG("Prewritten rows confirmed (RowCount: %d)",
             rowCount);
     }
 
@@ -317,8 +316,8 @@ private:
             LOG_FATAL(ex, "Error writing rows");
         }
 
-        int rowCount = static_cast<int>(LastLockedRowGroups_.size());
-        LOG_DEBUG("Rows written and persistently locked (TransactionId: %s, TabletId: %s, RowCount: %d)",
+        int rowCount = static_cast<int>(LastPrewrittenRowGroups_.size());
+        LOG_DEBUG("Rows written (TransactionId: %s, TabletId: %s, RowCount: %d)",
             ~ToString(transaction->GetId()),
             ~ToString(tablet->GetId()),
             rowCount);
@@ -337,17 +336,17 @@ private:
             std::move(blocks));
 
         auto chunkReader = CreateChunkReader(
-            New<TChunkReaderConfig>(),
+            New<TChunkReaderConfig>(), // TODO(babenko): make configurable or cache this at least
             memoryReader);
 
         auto memoryTable = tablet->GetActiveMemoryTable();
 
-        LastLockedRowGroups_.clear();
+        LastPrewrittenRowGroups_.clear();
         memoryTable->WriteRows(
             transaction,
             std::move(chunkReader),
             persistent,
-            &LastLockedRowGroups_);
+            &LastPrewrittenRowGroups_);
     }
 
 
@@ -359,39 +358,15 @@ private:
     void OnTransactionCommitted(TTransaction* transaction)
     {
         for (auto group : transaction->LockedRowGroups()) {
-            CommitGroup(transaction, group);
+            TMemoryTable::CommitGroup(group);
         }
     }
 
     void OnTransactionAborted(TTransaction* transaction)
     {
         for (auto group : transaction->LockedRowGroups()) {
-            AbortGroup(transaction, group);
+            TMemoryTable::AbortGroup(group);
         }
-    }
-
-
-    void CommitGroup(TTransaction* transaction, TRowGroup group)
-    {
-        YASSERT(group.GetTransaction() == transaction);
-        ReleaseGroupLock(group);
-        auto firstItem = group.GetFirstItem();
-        firstItem.GetRow().SetTimestamp(transaction->GetCommitTimestamp());
-        YASSERT(
-            !firstItem.GetNextItem() ||
-            firstItem.GetRow().GetTimestamp() > firstItem.GetNextItem().GetRow().GetTimestamp());
-    }
-
-    void AbortGroup(TTransaction* transaction, TRowGroup group)
-    {
-        YASSERT(group.GetTransaction() == transaction);
-        ReleaseGroupLock(group);
-    }
-
-    void ReleaseGroupLock(TRowGroup group)
-    {
-        group.SetTransaction(nullptr);
-        group.SetTransientLock(false);
     }
 
 };

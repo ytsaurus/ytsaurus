@@ -27,6 +27,7 @@ set( HDRS
   ${BASE}/transaction_manager.h
   ${BASE}/tablet_service.h
   ${BASE}/memory_table.h
+  ${BASE}/row.h
 )
 
 list(APPEND YT_SOURCE_FILES

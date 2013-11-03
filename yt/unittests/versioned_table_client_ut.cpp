@@ -133,8 +133,8 @@ protected:
 
         // Initialize reader.
         MemoryReader = New<TMemoryReader>(
-            std::move(MemoryWriter->GetBlocks()),
-            std::move(MemoryWriter->GetChunkMeta()));
+            std::move(MemoryWriter->GetChunkMeta()),
+            std::move(MemoryWriter->GetBlocks()));
 
         ChunkReader = CreateChunkReader(
             New<TChunkReaderConfig>(),

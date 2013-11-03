@@ -295,8 +295,11 @@ public:
             reqExt->set_timeout(Timeout_->MilliSeconds());
         }
 
+        // TODO(babenko): make async
+        auto asyncRsp = req->Invoke();
+        asyncRsp.Get();
         StartAwaiter_->Await(
-            req->Invoke(),
+            asyncRsp,
             BIND(&TTransaction::OnParticipantAdded, MakeStrong(this), cellGuid));
     }
 

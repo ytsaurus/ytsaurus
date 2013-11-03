@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "memory_table.h" // TODO(babenko): fix include
 
 #include <core/misc/property.h>
 #include <core/misc/ref_tracked.h>

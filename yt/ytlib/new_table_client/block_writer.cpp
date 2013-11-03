@@ -122,29 +122,29 @@ void TBlockWriter::WriteVariable(const TRowValue& value, int nameTableIndex)
     if (value.Type == EColumnType::Null) {
        VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxSizeOfVarInt), 0));
     } else if (value.Type == EColumnType::Any) {
-        // Length.
+        // Length
         VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxSizeOfVarInt), value.Length));
         // Yson
-        VariableBuffer.DoWrite(value.Data.Any, value.Length);
+        VariableBuffer.DoWrite(value.Data.String, value.Length);
     } else {
         IntermediateBuffer.Clear();
         TYsonWriter writer(&IntermediateBuffer);
 
         switch (value.Type) {
-        case EColumnType::Integer:
-            writer.OnIntegerScalar(value.Data.Integer);
-            break;
-        case EColumnType::Double:
-            writer.OnDoubleScalar(value.Data.Double);
-            break;
-        case EColumnType::String:
-            writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
-            break;
-        default:
-            YUNREACHABLE();
+            case EColumnType::Integer:
+                writer.OnIntegerScalar(value.Data.Integer);
+                break;
+            case EColumnType::Double:
+                writer.OnDoubleScalar(value.Data.Double);
+                break;
+            case EColumnType::String:
+                writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                break;
+            default:
+                YUNREACHABLE();
         }
 
-        // Length.
+        // Length
         VariableBuffer.Skip(WriteVarUInt64(
             VariableBuffer.Allocate(MaxSizeOfVarInt), 
             IntermediateBuffer.Size()));
