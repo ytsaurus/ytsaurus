@@ -101,9 +101,7 @@ TAsyncError TAsyncReader::OnInfoFetched(TFileYPathProxy::TRspFetchPtr fetchRsp)
     auto nodeDirectory = New<TNodeDirectory>();
     nodeDirectory->MergeFrom(fetchRsp->node_directory());
 
-    std::vector<NChunkClient::NProto::TChunkSpec> chunks =
-        FromProto<NChunkClient::NProto::TChunkSpec>(fetchRsp->chunks());
-
+    auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(fetchRsp->chunks());
     FOREACH(const auto& chunk, chunks) {
         i64 dataSize;
         GetStatistics(chunk, &dataSize);
@@ -130,8 +128,7 @@ TAsyncError TAsyncReader::OnInfoFetched(TFileYPathProxy::TRspFetchPtr fetchRsp)
             }
             LOG_INFO("File reader opened");
             return TError();
-        })
-    );
+        }));
 }
 
 TFuture<TAsyncReader::TReadResult> TAsyncReader::AsyncRead()
@@ -150,13 +147,14 @@ TFuture<TAsyncReader::TReadResult> TAsyncReader::AsyncRead()
     }
 
     auto this_ = MakeStrong(this);
-    return result.Apply(BIND([this, this_] (TError error) -> TReadResult {
-        if (!error.IsOK()) {
-            return error;
-        }
-        auto* facade = Reader->GetFacade();
-        return facade ? facade->GetBlock() : TSharedRef();
-    }));
+    return result.Apply(
+        BIND([this, this_] (TError error) -> TReadResult {
+            if (!error.IsOK()) {
+                return error;
+            }
+            auto* facade = Reader->GetFacade();
+            return facade ? facade->GetBlock() : TSharedRef();
+        }));
 }
 
 i64 TAsyncReader::GetSize() const
