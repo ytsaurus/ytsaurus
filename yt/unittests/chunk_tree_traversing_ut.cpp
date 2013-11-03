@@ -4,6 +4,8 @@
 
 #include <ytlib/actions/invoker_util.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
