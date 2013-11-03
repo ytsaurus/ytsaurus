@@ -43,10 +43,10 @@ class YTEnvSetup(YTEnv):
 
         cls.path_to_test = path_to_test
         ports = {
-            "master": 28001,
-            "node": 27001,
-            "scheduler": 28101,
-            "proxy": 28080}
+            "master": 29001,
+            "node": 28001,
+            "scheduler": 29101,
+            "proxy": 29080}
         cls.Env = cls()
         cls.Env.set_environment(path_to_run, pids_filename, ports)
 
