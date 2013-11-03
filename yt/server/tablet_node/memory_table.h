@@ -17,6 +17,7 @@ struct TRowGroupHeader
 {
     TTransaction* Transaction;
     TRowGroupItemHeader* FirstItem;
+    bool TransientLock;
     // A sequence of TRowValue instances (representing key values) follow.
 };
 
@@ -35,6 +36,10 @@ struct TRowGroupItemHeader
 class TRowGroupItem
 {
 public:
+    FORCED_INLINE TRowGroupItem()
+        : Header_(nullptr)
+    { }
+
     FORCED_INLINE explicit TRowGroupItem(TRowGroupItemHeader* header)
         : Header_(header)
     { }
@@ -92,6 +97,10 @@ static_assert(sizeof (TRowGroupItem) == sizeof (intptr_t), "TRowGroupItem has to
 class TRowGroup
 {
 public:
+    FORCED_INLINE TRowGroup()
+        : Header_(nullptr)
+    { }
+
     FORCED_INLINE explicit TRowGroup(TRowGroupHeader* header)
         : Header_(header)
     { }
@@ -104,6 +113,7 @@ public:
             keyColumnCount * sizeof(NVersionedTableClient::TRowValue))))
     {
         Header_->Transaction = nullptr;
+        Header_->TransientLock = false;
     }
 
 
@@ -135,6 +145,17 @@ public:
     }
 
 
+    FORCED_INLINE bool GetTransientLock() const
+    {
+        return Header_->TransientLock;
+    }
+
+    FORCED_INLINE void SetTransientLock(bool value)
+    {
+        Header_->TransientLock = value;
+    }
+
+
     FORCED_INLINE TRowGroupItem GetFirstItem() const
     {
         return TRowGroupItem(Header_->FirstItem);
@@ -162,8 +183,14 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet);
 
+    void WriteRows(
+        TTransaction* transaction,
+        NVersionedTableClient::IReaderPtr reader,
+        bool transient,
+        std::vector<TRowGroup>* lockedGroups);
+
 private:
-    class TRowGroupComparer;
+    class TComparer;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
@@ -172,7 +199,19 @@ private:
     TChunkedMemoryPool RowPool_;
     TChunkedMemoryPool StringPool_;
 
-    std::unique_ptr<TRcuTree<TRowGroup, TRowGroupComparer>> Tree_;
+    std::unique_ptr<TComparer> Comparer_;
+    std::unique_ptr<TRcuTree<TRowGroup, TComparer>> Tree_;
+    TRcuTree<TRowGroup, TComparer>::TReader* TreeReader_;
+
+
+    TRowGroup WriteRow(
+        TTransaction* transaction,
+        NVersionedTableClient::TRow row,
+        bool transient);
+
+    void InternValue(
+        const NVersionedTableClient::TRowValue& src,
+        NVersionedTableClient::TRowValue* dst);
 
 };
 

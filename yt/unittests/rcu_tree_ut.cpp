@@ -26,7 +26,8 @@ struct TComparer
 TEST(TRcuTreeTest, Empty)
 {
     TChunkedMemoryPool pool;
-    TRcuTree<int, TComparer> tree(&pool, TComparer());
+    TComparer comparer;
+    TRcuTree<int, TComparer> tree(&pool, &comparer);
 
     ASSERT_EQ(tree.Size(), 0);
 
@@ -42,7 +43,8 @@ TEST(TRcuTreeTest, Empty)
 TEST(TRcuTreeTest, Singleton)
 {
     TChunkedMemoryPool pool;
-    TRcuTree<int, TComparer> tree(&pool, TComparer());
+    TComparer comparer;
+    TRcuTree<int, TComparer> tree(&pool, &comparer);
 
     ASSERT_TRUE(tree.Insert(0));
     ASSERT_EQ(tree.Size(), 1);
@@ -73,7 +75,8 @@ TEST(TRcuTreeTest, Singleton)
 TEST(TRcuTreeTest, 1to10)
 {
     TChunkedMemoryPool pool;
-    TRcuTree<int, TComparer> tree(&pool, TComparer());
+    TComparer comparer;
+    TRcuTree<int, TComparer> tree(&pool, &comparer);
 
     for (int i = 0; i < 10; ++i) {
         ASSERT_TRUE(tree.Insert(i));
@@ -103,7 +106,8 @@ TEST(TRcuTreeTest, 1to10)
 TEST(TRcuTreeTest, Random1000000)
 {
     TChunkedMemoryPool pool;
-    TRcuTree<int, TComparer> tree(&pool, TComparer());
+    TComparer comparer;
+    TRcuTree<int, TComparer> tree(&pool, &comparer);
 
     srand(42);
     std::set<int> set;

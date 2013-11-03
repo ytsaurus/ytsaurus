@@ -8,12 +8,6 @@
 
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 
-#include <ytlib/chunk_client/memory_reader.h>
-
-#include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/chunk_reader.h>
-
 #include <server/hydra/hydra_manager.h>
 
 namespace NYT {
@@ -46,6 +40,8 @@ TTabletService::TTabletService(
 
 DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
 {
+    ValidateActiveLeader();
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
     auto tabletId = FromProto<TTabletId>(request->tablet_id());
     context->SetRequestInfo("TransactionId: %s, TabletId: %s",
@@ -55,16 +51,13 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
     auto transactionManager = Slot->GetTransactionManager();
     auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
-    auto memoryReader = New<TMemoryReader>(
-        std::move(context->RequestAttachments()),
-        std::move(*request->mutable_chunk_meta()));
-    auto chunkReader = CreateChunkReader(
-        New<TChunkReaderConfig>(),
-        memoryReader);
-
     auto tabletManager = Slot->GetTabletManager();
     auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
-    tabletManager->Write(tablet, transaction, std::move(chunkReader));
+    tabletManager->Write(
+        tablet,
+        transaction,
+        std::move(*request->mutable_chunk_meta()),
+        std::move(context->RequestAttachments()));
 
     context->Reply();
 }

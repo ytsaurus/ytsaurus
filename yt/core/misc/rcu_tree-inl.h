@@ -10,7 +10,7 @@ namespace NYT {
 template <class TKey, class TComparer>
 TRcuTree<TKey, TComparer>::TRcuTree(
     TChunkedMemoryPool* pool,
-    const TComparer& comparer)
+    const TComparer* comparer)
     : Pool_(pool)
     , Comparer_(comparer)
     , Size_(0)
@@ -29,7 +29,11 @@ int TRcuTree<TKey, TComparer>::Size() const
 }
 
 template <class TKey, class TComparer>
-bool TRcuTree<TKey, TComparer>::Insert(TKey newKey, TKey* existingKey)
+template <class TPivot, class TNewKeyProvider, class TExistingKeyAcceptor>
+void TRcuTree<TKey, TComparer>::Insert(
+    TPivot pivot,
+    TNewKeyProvider newKeyProvider,
+    TExistingKeyAcceptor existingKeyAcceptor)
 {
     ++Timestamp_;
     MaybeGCCollect();
@@ -38,12 +42,10 @@ bool TRcuTree<TKey, TComparer>::Insert(TKey newKey, TKey* existingKey)
     auto* current = Root_;
     if (current) {
         while (true) {
-            int result = Comparer_(newKey, current->Key);
+            int result = (*Comparer_)(pivot, current->Key);
             if (result == 0) {
-                if (existingKey) {
-                    *existingKey = current->Key;
-                }
-                return false;
+                existingKeyAcceptor(current->Key);
+                return;
             }
             if (result < 0) {
                 auto* left = current->Left;
@@ -52,7 +54,7 @@ bool TRcuTree<TKey, TComparer>::Insert(TKey newKey, TKey* existingKey)
                     newNode->Left = newNode->Right = nullptr;
                     newNode->Parent = current;
                     newNode->Flags.Red = false;
-                    newNode->Key = newKey;
+                    newNode->Key = newKeyProvider();
                     current->Left = newNode;
                     break;
                 }
@@ -64,7 +66,7 @@ bool TRcuTree<TKey, TComparer>::Insert(TKey newKey, TKey* existingKey)
                     newNode->Left = newNode->Right = nullptr;
                     newNode->Parent = current;
                     newNode->Flags.Red = false;
-                    newNode->Key = newKey;
+                    newNode->Key = newKeyProvider();
                     current->Right = newNode; 
                     break;
                 }
@@ -75,13 +77,23 @@ bool TRcuTree<TKey, TComparer>::Insert(TKey newKey, TKey* existingKey)
         newNode = AllocateNode();
         newNode->Left = newNode->Right = newNode->Parent = nullptr;
         newNode->Flags.Red = false;
-        newNode->Key = newKey;
+        newNode->Key = newKeyProvider();
         Root_ = newNode;
     }
 
     ++Size_;
     Rebalance(newNode);
-    return true;
+}
+
+template <class TKey, class TComparer>
+bool TRcuTree<TKey, TComparer>::Insert(TKey key)
+{
+    bool result = true;
+    Insert(
+        key,
+        [key] () { return key; },
+        [key, &result] (TKey /*key*/) { result = false; });
+    return result;
 }
 
 template <class TKey, class TComparer>

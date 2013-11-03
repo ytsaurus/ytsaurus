@@ -26,11 +26,17 @@ class TRcuTree
 public:
     TRcuTree(
         TChunkedMemoryPool* pool,
-        const TComparer& comparer);
+        const TComparer* comparer);
 
     int Size() const;
 
-    bool Insert(TKey newKey, TKey* existingKey = nullptr);
+    template <class TPivot, class TNewKeyProvider, class TExistingKeyAcceptor>
+    void Insert(
+        TPivot pivot,
+        TNewKeyProvider newKeyProvider,
+        TExistingKeyAcceptor existingKeyAcceptor);
+
+    bool Insert(TKey key);
 
     class TReader;
     TReader* CreateReader();
@@ -39,7 +45,7 @@ private:
     struct TNode;
 
     TChunkedMemoryPool* Pool_;
-    TComparer Comparer_;
+    const TComparer* Comparer_;
     
     int Size_;
     TNode* Root_;
@@ -101,7 +107,7 @@ public:
         Acquire();
         auto* current = Tree_->Root_;
         while (current) {
-            int result = Comparer_(pivot, current->Key);
+            int result = (*Comparer_)(pivot, current->Key);
             if (result == 0) {
                 if (key) {
                     *key = current->Key;
@@ -134,7 +140,7 @@ public:
         Push(RightChildToToken(current));
 
         while (true) {
-            int result = Comparer_(pivot, current->Key);
+            int result = (*Comparer_)(pivot, current->Key);
             if (result == 0) {
                 return;
             }
@@ -208,7 +214,7 @@ private:
 
     TRcuTree* Tree_;
 
-    TComparer Comparer_; // to avoid indirection on Tree_
+    const TComparer* Comparer_; // to avoid indirection on Tree_
     std::atomic<TRcuTreeTimestamp> Timestamp_;
 
     // TNode* + (1 if this is a left child)

@@ -4,6 +4,8 @@
 
 #include <ytlib/new_table_client/public.h>
 
+#include <ytlib/chunk_client/chunk.pb.h>
+
 #include <server/hydra/entity_map.h>
 
 #include <server/cell_node/public.h>
@@ -20,16 +22,20 @@ class TTabletManager
 {
 public:
     explicit TTabletManager(
+        TTabletManagerConfigPtr config,
         TTabletSlot* slot,
         NCellNode::TBootstrap* bootstrap);
     ~TTabletManager();
+
+    void Initialize();
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
 
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        NVersionedTableClient::IReaderPtr reader);
+        NChunkClient::NProto::TChunkMeta chunkMeta,
+        std::vector<TSharedRef> blocks);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 

@@ -2,6 +2,7 @@ package NYT.NTabletNode.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +16,14 @@ message TReqCreateTablet
 message TReqRemoveTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqWriteRows
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid tablet_id = 2;
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
+    repeated bytes blocks = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

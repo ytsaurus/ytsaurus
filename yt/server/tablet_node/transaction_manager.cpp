@@ -165,13 +165,15 @@ public:
         }
 
         transaction->SetState(ETransactionState::Committed);
+        transaction->SetCommitTimestamp(commitTimestamp);
 
         TransactionAborted_.Fire(transaction);
 
         TransactionMap.Remove(transactionId);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)",
-            ~ToString(transactionId));
+        LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s, CommitTimestamp: %" PRId64 ")",
+            ~ToString(transactionId),
+            commitTimestamp);
     }
 
     void AbortTransaction(

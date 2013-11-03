@@ -21,8 +21,8 @@ struct TRowValue
     {
         i64         Integer;
         double      Double;
-        const char* String;
-        const char* Any;     // YSON-encoded value
+        const char* String;  // String itself for |String| type
+                             // YSON-encoded value for |Any| type
     } Data;      // Holds the value
     ui32 Length; // For variable-sized values
     ui16 Type;   // EColumnType
@@ -69,7 +69,7 @@ struct TRowValue
         TRowValue result;
         result.Index = index;
         result.Type = NVersionedTableClient::EColumnType::Any;
-        result.Data.Any = value.begin();
+        result.Data.String = value.begin();
         result.Length = value.length();
         return result;
     }

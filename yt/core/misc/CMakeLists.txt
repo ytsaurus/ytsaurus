@@ -107,6 +107,8 @@ set( HDRS
   ${BASE}/tclap_helpers.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
+  ${BASE}/rcu_tree.h
+  ${BASE}/rcu_tree-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

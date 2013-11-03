@@ -4,12 +4,21 @@
 #include "automaton.h"
 #include "tablet.h"
 #include "transaction.h"
+#include "transaction_manager.h"
 #include "memory_table.h"
+#include "config.h"
 #include "private.h"
 
+#include <core/misc/ring_queue.h>
+
+#include <ytlib/chunk_client/memory_reader.h>
+
+#include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/chunk_reader.h>
 
 #include <server/hydra/hydra_manager.h>
+#include <server/hydra/mutation.h>
 #include <server/hydra/mutation_context.h>
 
 #include <server/tablet_node/tablet_manager.pb.h>
@@ -28,6 +37,8 @@ using namespace NCellNode;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NVersionedTableClient;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,11 +51,13 @@ class TTabletManager::TImpl
 {
 public:
     explicit TImpl(
+        TTabletManagerConfigPtr config,
         TTabletSlot* slot,
         TBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
             bootstrap)
+        , Config_(config)
     {
         VERIFY_INVOKER_AFFINITY(Slot->GetAutomatonInvoker(), AutomatonThread);
 
@@ -68,7 +81,18 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraCreateTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
     }
+
+
+    void Initialize()
+    {
+        auto transactionManager = Slot->GetTransactionManager();
+        transactionManager->SubscribeTransactionPrepared(BIND(&TImpl::OnTransactionPrepared, MakeStrong(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionCommitted, MakeStrong(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeStrong(this)));
+    }
+
 
     TTablet* GetTabletOrThrow(const TTabletId& id)
     {
@@ -80,43 +104,86 @@ public:
         return tablet;
     }
 
+
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        IReaderPtr reader)
+        TChunkMeta chunkMeta,
+        std::vector<TSharedRef> blocks)
     {
+        try {
+            DoWriteRows(
+                tablet,
+                transaction,
+                std::move(chunkMeta),
+                std::move(blocks),
+                false);
+        } catch (const std::exception& ex) {
+            // Abort just taken transient locks.
+            for (auto group : LastLockedRowGroups_) {
+                AbortGroup(transaction, group);
+            }
+            throw;
+        }
+
+        int rowCount = static_cast<int>(LastLockedRowGroups_.size());
+
+        LOG_DEBUG("Rows written and transiently locked (TransactionId: %s, TabletId: %s, RowCount: %d)",
+            ~ToString(transaction->GetId()),
+            ~ToString(tablet->GetId()),
+            rowCount);
+
+        for (auto group : LastLockedRowGroups_) {
+            TransientlyLockedRowGroups_.push(group);
+        }
+
+        TReqWriteRows request;
+        ToProto(request.mutable_transaction_id(), transaction->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        request.mutable_chunk_meta()->Swap(&chunkMeta);
+        for (const auto& block : blocks) {
+            request.add_blocks(ToString(block));
+        }
+        CreateMutation(Slot->GetHydraManager(), Slot->GetAutomatonInvoker(), request)
+            ->SetAction(BIND(&TImpl::HydraLeaderWriteRows, MakeStrong(this), rowCount))
+            ->Commit();
     }
+
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
-    NHydra::TEntityMap<TTabletId, TTablet> TabletMap;
+    TTabletManagerConfigPtr Config_;
+
+    NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
+    std::vector<TRowGroup> LastLockedRowGroups_; // pooled instance
+    TRingQueue<TRowGroup> TransientlyLockedRowGroups_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     
     void SaveKeys(TSaveContext& context) const
     {
-        TabletMap.SaveKeys(context);
+        TabletMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context) const
     {
-        TabletMap.SaveValues(context);
+        TabletMap_.SaveValues(context);
     }
 
     void LoadKeys(TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletMap.LoadKeys(context);
+        TabletMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletMap.LoadValues(context);
+        TabletMap_.LoadValues(context);
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -135,7 +202,24 @@ private:
 
     void DoClear()
     {
-        TabletMap.Clear();
+        TabletMap_.Clear();
+    }
+
+
+    virtual void OnStartLeading()
+    {
+        TransientlyLockedRowGroups_.clear();
+    }
+
+    virtual void OnStopLeading()
+    {
+        LOG_DEBUG("Started aborting transient locks");
+        while (!TransientlyLockedRowGroups_.empty()) {
+            auto group = TransientlyLockedRowGroups_.front();
+            TransientlyLockedRowGroups_.pop();
+            AbortGroup(group.GetTransaction(), group);
+        }
+        LOG_DEBUG("Finished aborting transient locks");
     }
 
 
@@ -149,7 +233,12 @@ private:
             id,
             schema,
             keyColumns);
-        TabletMap.Insert(id, tablet);
+        TabletMap_.Insert(id, tablet);
+
+        auto memoryTable = New<TMemoryTable>(
+            Config_,
+            tablet);
+        tablet->SetActiveMemoryTable(memoryTable);
 
         auto hiveManager = Slot->GetHiveManager();
 
@@ -172,7 +261,7 @@ private:
         
         // TODO(babenko)
 
-        TabletMap.Remove(id);
+        TabletMap_.Remove(id);
 
         auto hiveManager = Slot->GetHiveManager();
 
@@ -186,16 +275,137 @@ private:
             ~ToString(id));
     }
 
+    void HydraLeaderWriteRows(int rowCount)
+    {
+        for (int index = 0; index < rowCount; ++index) {
+            auto group = TransientlyLockedRowGroups_.front();
+            TransientlyLockedRowGroups_.pop();
+            
+            auto* transaction = group.GetTransaction();
+            YCHECK(transaction);
+
+            transaction->LockedRowGroups().push_back(group);
+            group.SetTransientLock(false);
+        }
+
+        LOG_DEBUG("Transient locks confirmed (RowCount: %d)",
+            rowCount);
+    }
+
+    void HydraFollowerWriteRows(const TReqWriteRows& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionManager = Slot->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransaction(transactionId);
+
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = GetTablet(tabletId);
+
+        std::vector<TSharedRef> blocks;
+        for (const auto& block : request.blocks()) {
+            blocks.push_back(TSharedRef::FromRefNonOwning(TRef::FromString(block)));
+        }
+
+        try {
+            DoWriteRows(
+                tablet,
+                transaction,
+                request.chunk_meta(),
+                std::move(blocks),
+                true);
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Error writing rows");
+        }
+
+        int rowCount = static_cast<int>(LastLockedRowGroups_.size());
+        LOG_DEBUG("Rows written and persistently locked (TransactionId: %s, TabletId: %s, RowCount: %d)",
+            ~ToString(transaction->GetId()),
+            ~ToString(tablet->GetId()),
+            rowCount);
+    }
+
+
+    void DoWriteRows(
+        TTablet* tablet,
+        TTransaction* transaction,
+        TChunkMeta chunkMeta,
+        std::vector<TSharedRef> blocks,
+        bool persistent)
+    {
+        auto memoryReader = New<TMemoryReader>(
+            std::move(chunkMeta),
+            std::move(blocks));
+
+        auto chunkReader = CreateChunkReader(
+            New<TChunkReaderConfig>(),
+            memoryReader);
+
+        auto memoryTable = tablet->GetActiveMemoryTable();
+
+        LastLockedRowGroups_.clear();
+        memoryTable->WriteRows(
+            transaction,
+            std::move(chunkReader),
+            persistent,
+            &LastLockedRowGroups_);
+    }
+
+
+    void OnTransactionPrepared(TTransaction* transaction)
+    {
+        // TODO(babenko)
+    }
+
+    void OnTransactionCommitted(TTransaction* transaction)
+    {
+        for (auto group : transaction->LockedRowGroups()) {
+            CommitGroup(transaction, group);
+        }
+    }
+
+    void OnTransactionAborted(TTransaction* transaction)
+    {
+        for (auto group : transaction->LockedRowGroups()) {
+            AbortGroup(transaction, group);
+        }
+    }
+
+
+    void CommitGroup(TTransaction* transaction, TRowGroup group)
+    {
+        YASSERT(group.GetTransaction() == transaction);
+        ReleaseGroupLock(group);
+        auto firstItem = group.GetFirstItem();
+        firstItem.GetRow().SetTimestamp(transaction->GetCommitTimestamp());
+        YASSERT(
+            !firstItem.GetNextItem() ||
+            firstItem.GetRow().GetTimestamp() > firstItem.GetNextItem().GetRow().GetTimestamp());
+    }
+
+    void AbortGroup(TTransaction* transaction, TRowGroup group)
+    {
+        YASSERT(group.GetTransaction() == transaction);
+        ReleaseGroupLock(group);
+    }
+
+    void ReleaseGroupLock(TRowGroup group)
+    {
+        group.SetTransaction(nullptr);
+        group.SetTransientLock(false);
+    }
+
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TTabletManager::TTabletManager(
+    TTabletManagerConfigPtr config,
     TTabletSlot* slot,
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(
+        config,
         slot,
         bootstrap))
 { }
@@ -211,12 +421,19 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 void TTabletManager::Write(
     TTablet* tablet,
     TTransaction* transaction,
-    IReaderPtr reader)
+    TChunkMeta chunkMeta,
+    std::vector<TSharedRef> blocks)
 {
     Impl->Write(
         tablet,
         transaction,
-        std::move(reader));
+        std::move(chunkMeta),
+        std::move(blocks));
+}
+
+void TTabletManager::Initialize()
+{
+    Impl->Initialize();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl)

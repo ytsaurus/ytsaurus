@@ -230,8 +230,12 @@ void TInsertCommand::DoExecute()
     // Parse input data.
 
     auto nameTable = New<TNameTable>();
+    // NB: Key columns must go first.
+    for (const auto& name : mountInfo->KeyColumns) {
+        nameTable->GetOrRegisterName(name);
+    }
     for (const auto& column : mountInfo->Schema.Columns()) {
-        nameTable->RegisterName(column.Name);
+        nameTable->GetOrRegisterName(column.Name);
     }
 
     auto memoryWriter = New<TMemoryWriter>();
@@ -352,7 +356,6 @@ void TSelectCommand::DoExecute()
     }
 
     const int RowsBufferSize = 1000;
-
     std::vector<NVersionedTableClient::TRow> rows;
     rows.reserve(RowsBufferSize);
     

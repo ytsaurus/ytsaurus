@@ -19,6 +19,7 @@ namespace NTabletNode {
 class TTransactionManager
     : public NHive::ITransactionManager
 {
+public:
     //! Raised when a new transaction is started.
     DECLARE_SIGNAL(void(TTransaction*), TransactionStarted);
 

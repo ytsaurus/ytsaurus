@@ -13,8 +13,8 @@ class TMemoryReader
 {
 public:
     TMemoryReader(
-        std::vector<TSharedRef>&& blocks,
-        NProto::TChunkMeta&& meta);
+        NProto::TChunkMeta chunkMeta,
+        std::vector<TSharedRef> blocks);
 
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override;
 
@@ -26,8 +26,8 @@ public:
     virtual TChunkId GetChunkId() const override;
 
 private:
+    NProto::TChunkMeta ChunkMeta;
     std::vector<TSharedRef> Blocks;
-    NProto::TChunkMeta Meta;
 
 };
 

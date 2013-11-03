@@ -6,9 +6,11 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TMemoryReader::TMemoryReader(std::vector<TSharedRef>&& blocks, NProto::TChunkMeta&& meta)
-    : Blocks(blocks)
-    , Meta(meta)
+TMemoryReader::TMemoryReader(
+    NProto::TChunkMeta chunkMeta,
+    std::vector<TSharedRef> blocks)
+    : ChunkMeta(std::move(chunkMeta))
+    , Blocks(std::move(blocks))
 { }
 
 auto TMemoryReader::AsyncReadBlocks(const std::vector<int>& blockIndexes) -> TAsyncReadResult
@@ -28,7 +30,7 @@ auto TMemoryReader::AsyncGetChunkMeta(
 {
     YCHECK(!partitionTag);
 
-    return MakeFuture(TGetMetaResult(tags ? FilterChunkMetaExtensions(Meta, *tags) : Meta));
+    return MakeFuture(TGetMetaResult(tags ? FilterChunkMetaExtensions(ChunkMeta, *tags) : ChunkMeta));
 }
 
 TChunkId TMemoryReader::GetChunkId() const

@@ -30,6 +30,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TRowGroup>, LockedRowGroups);
 
 public:
     explicit TTransaction(const NTransactionClient::TTransactionId& id);

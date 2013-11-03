@@ -263,6 +263,7 @@ public:
                 Automaton);
 
             TabletManager = New<TTabletManager>(
+                Config->TabletNode->TabletManager,
                 Owner,
                 Bootstrap);
 
@@ -285,6 +286,7 @@ public:
                 Owner,
                 Bootstrap);
 
+            TabletManager->Initialize();
             HydraManager->Start();
             HiveManager->Start();
 
