@@ -287,7 +287,7 @@ private:
             TMemoryTable::ConfirmPrewrittenGroup(group);
         }
 
-        LOG_DEBUG("Prewritten rows confirmed (RowCount: %d)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Prewritten rows confirmed (RowCount: %d)",
             rowCount);
     }
 
@@ -317,7 +317,7 @@ private:
         }
 
         int rowCount = static_cast<int>(LastPrewrittenRowGroups_.size());
-        LOG_DEBUG("Rows written (TransactionId: %s, TabletId: %s, RowCount: %d)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s, RowCount: %d)",
             ~ToString(transaction->GetId()),
             ~ToString(tablet->GetId()),
             rowCount);
