@@ -7,6 +7,8 @@
         
 #include <ytlib/misc/foreach.h>
 
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NChunkClient {
 

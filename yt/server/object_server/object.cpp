@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "object.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/cypress_server/node.h>
 
 #include <server/cell_master/serialization_context.h>

@@ -4,6 +4,8 @@
 
 #include <ytlib/ytree/fluent.h>
 
+#include <numeric>
+
 namespace NYT {
 namespace NScheduler {
 

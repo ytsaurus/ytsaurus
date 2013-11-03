@@ -2,6 +2,8 @@
 #include "serialization_context.h"
 #include "bootstrap.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/node_tracker_server/node_tracker.h>
 
 #include <server/transaction_server/transaction_manager.h>
