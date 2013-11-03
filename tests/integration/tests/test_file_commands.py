@@ -10,6 +10,10 @@ class TestFileCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
 
+    def test_invalid_type(self):
+        with pytest.raises(YtError): download('//tmp')
+        with pytest.raises(YtError): upload('//tmp', '')
+
     def test_simple(self):
         content = "some_data"
         create('file', '//tmp/file')
