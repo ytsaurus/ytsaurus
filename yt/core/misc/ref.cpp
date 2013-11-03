@@ -59,6 +59,11 @@ Stroka ToString(const TRef& ref)
     return Stroka(ref.Begin(), ref.End());
 }
 
+Stroka ToString(const TSharedRef& ref)
+{
+    return ToString(TRef(ref));
+}
+
 size_t GetPageSize()
 {
     static const size_t PageSize = NSystemInfo::GetPageSize();

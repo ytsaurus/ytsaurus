@@ -330,6 +330,7 @@ const TSharedRef* end(const TSharedRefArray& array);
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRef& ref);
+Stroka ToString(const TSharedRef& ref);
 size_t GetPageSize();
 size_t RoundUpToPage(size_t bytes);
 
