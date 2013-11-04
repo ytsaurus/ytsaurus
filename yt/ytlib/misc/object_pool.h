@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <util/thread/lfstack.h>
+#include <util/thread/lfqueue.h>
 
 namespace NYT {
 
@@ -13,8 +13,7 @@ namespace NYT {
  * Instances are tracked via shared pointers with a special deleter
  * that returns spare instances back to the pool.
  *
- * Types capable of pooling must specialize #TObjectPoolCleaner
- * and provide |Clean| method.
+ * Types capable of pooling must provide |CleanPooledObject| method.
  *
  * Both the pool and the references are thread-safe.
  *
@@ -25,6 +24,8 @@ class TObjectPool
 public:
     typedef std::shared_ptr<T> TValuePtr;
 
+    TObjectPool();
+
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();
 
@@ -32,7 +33,8 @@ public:
     void Reclaim(T* obj);
 
 private:
-    TLockFreeStack<T*> PooledObjects;
+    TLockFreeQueue<T*> PooledObjects;
+    TAtomic PooledObjectCount;
 
 };
 
