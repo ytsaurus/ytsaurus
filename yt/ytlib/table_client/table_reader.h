@@ -56,8 +56,8 @@ public:
 private:
     typedef TAsyncTableReader TThis;
 
-    TFuture<TTableYPathProxy::TRspFetchPtr> FetchTableInfo();
-    TAsyncError OpenChunkReader(TTableYPathProxy::TRspFetchPtr fetchRsp);
+    NObjectClient::TObjectServiceProxy::TInvExecuteBatch FetchTableInfo();
+    TAsyncError OpenChunkReader(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
     void OnChunkReaderOpened();
 
     TTableReaderConfigPtr Config;
@@ -69,7 +69,7 @@ private:
     NYPath::TRichYPath RichPath;
     bool IsOpen;
     bool IsReadStarted_;
-    NObjectClient::TObjectServiceProxy Proxy;
+    NObjectClient::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
     TTableChunkSequenceReaderPtr Reader;

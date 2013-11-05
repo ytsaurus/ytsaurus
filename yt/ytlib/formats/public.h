@@ -19,6 +19,9 @@ typedef TIntrusivePtr<TYamrFormatConfig> TYamrFormatConfigPtr;
 class TYamredDsvFormatConfig;
 typedef TIntrusivePtr<TYamredDsvFormatConfig> TYamredDsvFormatConfigPtr;
 
+class TSchemedDsvFormatConfig;
+typedef TIntrusivePtr<TSchemedDsvFormatConfig> TSchemedDsvFormatConfigPtr;
+
 struct IYamrConsumer;
 typedef TIntrusivePtr<IYamrConsumer> IYamrConsumerPtr;
 

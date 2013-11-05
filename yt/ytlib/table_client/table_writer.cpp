@@ -192,6 +192,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
         auto req = TCypressYPathProxy::Get(path);
         SetTransactionId(req, uploadTransactionId);
         TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+        attributeFilter.Keys.push_back("type");
         attributeFilter.Keys.push_back("replication_factor");
         attributeFilter.Keys.push_back("channels");
         attributeFilter.Keys.push_back("compression_codec");
@@ -227,6 +228,14 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
 
         auto node = ConvertToNode(TYsonString(rsp->value()));
         const auto& attributes = node->Attributes();
+
+        auto type = attributes.Get<EObjectType>("type");
+        if (type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
+                ~RichPath.GetPath(),
+                ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                ~FormatEnum(type).Quote());
+        }
 
         // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
         if (Options->KeyColumns && !overwrite) {

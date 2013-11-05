@@ -258,8 +258,11 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     }
     LOG_INFO("Chunk map cleaned, %d chunks removed", count);
 
-    // Schedule an out-of-order heartbeat to notify the master about the disaster.
+    // Register an alert and
+    // schedule an out-of-order heartbeat to notify the master about the disaster.
     auto masterConnector = Bootstrap->GetMasterConnector();
+    masterConnector->RegisterAlert(Sprintf("Chunk store %s is disabled",
+        ~location->GetId()));
     masterConnector->ForceRegister();
 }
 

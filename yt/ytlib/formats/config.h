@@ -182,5 +182,56 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSchemedDsvFormatConfig
+    : public TYsonSerializable
+{
+public:
+    char RecordSeparator;
+    char FieldSeparator;
+
+    bool EnableTableIndex;
+
+    bool EnableEscaping;
+    char EscapingSymbol;
+
+    std::vector<Stroka> Columns;
+
+    TSchemedDsvFormatConfig()
+    {
+        RegisterParameter("record_separator", RecordSeparator)
+            .Default('\n');
+        RegisterParameter("field_separator", FieldSeparator)
+            .Default('\t');
+
+        RegisterParameter("enable_table_index", EnableTableIndex)
+            .Default(false);
+
+        RegisterParameter("enable_escaping", EnableEscaping)
+            .Default(true);
+        RegisterParameter("escaping_symbol", EscapingSymbol)
+            .Default('\\');
+
+        RegisterParameter("columns", Columns)
+            .Default();
+
+        RegisterValidator([&] () {
+            yhash_set<Stroka> names;
+
+            FOREACH(const auto& name, Columns) {
+                if (!names.insert(name).second) {
+                    THROW_ERROR_EXCEPTION(
+                        "Duplicate column name encountered in \"columns\": %s",
+                        ~name.Quote());
+                }
+            }
+            if (Columns.empty()) {
+                THROW_ERROR_EXCEPTION("Columns should be non-empty");
+            }
+        });
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT

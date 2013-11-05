@@ -49,18 +49,17 @@ __all__ = ["dump", "dumps"]
 def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    stream.write(dumps(object, yson_format, check_circular, encoding, indent))
+    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent))
 
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted string'''
-    if yson_format == "binary":
-        raise YsonError("binary format is not supported")
-    if yson_format == "pretty":
-        if indent is None:
-            indent = 4
-        if isinstance(indent, int):
-            indent = " " * indent
+    if yson_format is not None and yson_format != "pretty":
+        raise YsonError("binary and text format are not supported")
+    if indent is None:
+        indent = 4
+    if isinstance(indent, int):
+        indent = " " * indent
     d = Dumper(check_circular, encoding, indent)
     return d.dumps(object)
 

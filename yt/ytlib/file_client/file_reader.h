@@ -65,7 +65,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TAsyncError OnInfoFetched(TFileYPathProxy::TRspFetchPtr fetchRsp);
+    TAsyncError OnInfoFetched(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 };
 

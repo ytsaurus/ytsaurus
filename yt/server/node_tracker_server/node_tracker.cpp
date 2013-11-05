@@ -365,12 +365,12 @@ private:
                 ~node->GetState().ToString(),
                 ~ToString(statistics));
 
-            node->Statistics() = statistics;
-
             YCHECK(node->GetState() == ENodeState::Registered);
             UpdateNodeCounters(node, -1);
             node->SetState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
+
+            node->Statistics() = statistics;
 
             RenewNodeLease(node);
 
@@ -398,7 +398,9 @@ private:
                 ~ToString(statistics));
 
             YCHECK(node->GetState() == ENodeState::Online);
+
             node->Statistics() = statistics;
+            node->Alerts() = FromProto<Stroka>(request.alerts());
 
             RenewNodeLease(node);
             

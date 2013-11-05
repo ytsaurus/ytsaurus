@@ -2,6 +2,8 @@
 #include "serialization_context.h"
 #include "bootstrap.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/node_tracker_server/node_tracker.h>
 
 #include <server/transaction_server/transaction_manager.h>
@@ -35,7 +37,7 @@ using namespace NSecurityServer;
 
 int GetCurrentSnapshotVersion()
 {
-    return 26;
+    return 27;
 }
 
 NMetaState::TVersionValidator SnapshotVersionValidator()
@@ -48,7 +50,8 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
                version == 23 ||
                version == 24 ||
                version == 25 ||
-               version == 26);
+               version == 26 ||
+               version == 27);
     });
     return result;
 }

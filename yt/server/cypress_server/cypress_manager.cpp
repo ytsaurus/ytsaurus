@@ -13,6 +13,7 @@
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/ypath_detail.h>

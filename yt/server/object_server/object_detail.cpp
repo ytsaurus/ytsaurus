@@ -16,6 +16,8 @@
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/rpc.pb.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/meta_state/meta_state_manager.h>

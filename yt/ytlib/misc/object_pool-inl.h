@@ -8,10 +8,17 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TObjectPool<T>::TObjectPool()
+    : PooledObjectCount(0)
+{ }
+
+template <class T>
 typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
 {
     T* object = nullptr;
-    if (!PooledObjects.Dequeue(&object)) {
+    if (PooledObjects.Dequeue(&object)) {
+        AtomicDecrement(PooledObjectCount);
+    } else {
         object = new T();
     }
     return TValuePtr(object, [] (T* object) {
@@ -24,6 +31,14 @@ void TObjectPool<T>::Reclaim(T* obj)
 {
     CleanPooledObject(obj);
     PooledObjects.Enqueue(obj);
+    // TODO(babenko): make configurable
+    if (AtomicIncrement(PooledObjectCount) > 256) {
+        T* objToDestroy;
+        if (PooledObjects.Dequeue(&objToDestroy)) {
+            AtomicDecrement(PooledObjectCount);
+            delete objToDestroy;
+        }
+    }
 }
 
 template <class T>

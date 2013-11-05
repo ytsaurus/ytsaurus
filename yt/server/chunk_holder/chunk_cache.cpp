@@ -174,8 +174,10 @@ private:
         LOG_WARNING("Chunk cache disabled");
         Clear();
 
-        // Schedule an out-of-order heartbeat to notify the master about the disaster.
+        // Register an alert and
+        // schedule an out-of-order heartbeat to notify the master about the disaster.
         auto masterConnector = Bootstrap->GetMasterConnector();
+        masterConnector->RegisterAlert("Chunk cache is disabled");
         masterConnector->ForceRegister();
     }
 
