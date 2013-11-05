@@ -489,7 +489,7 @@ WRAPPED_FIBER_TEST(TFiberTest, TerminatedPropagated)
 
     SwitchTo(invoker1);
 
-    EXPECT_EQ(2 * 2, 5);
+    FAIL();
 }
 
 WRAPPED_FIBER_TEST(TFiberTest, CurrentInvokerAfterSwitch1)
@@ -579,7 +579,7 @@ TEST(TFiberTest, ActionQueue2)
 
     awaiter->Complete().Get();
 
-    EXPECT_EQ(sum, 45);
+    EXPECT_EQ(45, sum);
 
     actionQueue->Shutdown();
 }
@@ -609,14 +609,14 @@ TEST(TFiberTest, ActionQueue3)
 
     awaiter->Complete().Get();
 
-    EXPECT_EQ(sum, 45);
+    EXPECT_EQ(45, sum);
 
     actionQueue->Shutdown();
 }
 
 TEST(TFiberTest, CurrentInvokerSync)
 {
-    EXPECT_EQ(GetCurrentInvoker(), GetSyncInvoker())
+    EXPECT_EQ(GetSyncInvoker(), GetCurrentInvoker())
         << "Current invoker: " << typeid(*GetCurrentInvoker()).name();
 }
 
@@ -624,7 +624,7 @@ TEST(TFiberTest, CurrentInvokerInActionQueue)
 {
     auto invoker = Queue1->GetInvoker();
     BIND([=] () {
-        EXPECT_EQ(GetCurrentInvoker(), invoker);
+        EXPECT_EQ(invoker, GetCurrentInvoker());
     })
     .AsyncVia(invoker)
     .Run()

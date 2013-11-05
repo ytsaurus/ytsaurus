@@ -22,14 +22,12 @@ using namespace NVersionedTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 const Stroka TheAnswer = "the answer to life the universe and everything";
-const Stroka AdYT = "YT - the best distributed storage and computation ever! No SMS.";
-const Stroka Zero = "";
+const Stroka Advertisment = "YT - the best distributed storage and computation ever! No SMS.";
+const Stroka Empty = "";
 
-class TVersionedTableClientTest : public ::testing::Test {
-public:
-    TVersionedTableClientTest()
-    { }
-
+class TVersionedTableClientTest
+    : public ::testing::Test
+{
 private:
     virtual void SetUp() override
     {
@@ -71,7 +69,7 @@ protected:
     void WriteString(Stroka data, int index)
     {
         TRowValue value;
-        value.Data.String = ~data;
+        value.Data.String = data.c_str();
         value.Length = data.length();
         value.Type = EColumnType::String;
         value.Index = index;
@@ -96,34 +94,33 @@ protected:
     {
         TTableSchema schema;
         schema.Columns().push_back({ "banner", EColumnType::Integer });
-        schema.Columns().push_back({ "bid", EColumnType::Double });
-        schema.Columns().push_back({ "body", EColumnType::String });
+        schema.Columns().push_back({ "bid",    EColumnType::Double  });
+        schema.Columns().push_back({ "body",   EColumnType::String  });
 
         auto nameTable = New<TNameTable>();
-        EXPECT_EQ(nameTable->RegisterName("banner"), 0);
-        EXPECT_EQ(nameTable->RegisterName("bid"), 1);
-        EXPECT_EQ(nameTable->RegisterName("body"), 2);
-
-        EXPECT_EQ(nameTable->RegisterName("beer"), 3);
-        EXPECT_EQ(nameTable->RegisterName("beef"), 4);
-        EXPECT_EQ(nameTable->RegisterName("beet"), 5);
+        EXPECT_EQ(0, nameTable->RegisterName("banner"));
+        EXPECT_EQ(1, nameTable->RegisterName("bid"));
+        EXPECT_EQ(2, nameTable->RegisterName("body"));
+        EXPECT_EQ(3, nameTable->RegisterName("beer"));
+        EXPECT_EQ(4, nameTable->RegisterName("beef"));
+        EXPECT_EQ(5, nameTable->RegisterName("beet"));
 
         ChunkWriter->Open(nameTable, schema);
 
         WriteInteger(42, 0);
-        WriteDouble(42., 1);
+        WriteDouble(42.0, 1);
         WriteString(TheAnswer, 2);
         ChunkWriter->EndRow();
 
         WriteInteger(0, 0);
         WriteDouble(0.0, 1);
         WriteNull(2);
-        WriteString(Zero, 4);
+        WriteString(Empty, 4);
         ChunkWriter->EndRow();
 
         WriteInteger(1, 0);
-        WriteDouble(100., 1);
-        WriteString(AdYT, 2);
+        WriteDouble(100.0, 1);
+        WriteString(Advertisment, 2);
         WriteNull(4);
         WriteInteger(100500, 5);
         ChunkWriter->EndRow();
@@ -155,26 +152,30 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
 
     std::vector<TRow> rows;
     rows.reserve(10);
+
     EXPECT_TRUE(ChunkReader->Read(&rows));
+    EXPECT_EQ(3, rows.size());
 
-    EXPECT_EQ(rows.size(), 3);
+    EXPECT_EQ(0, nameTable->GetIndex("body"));
 
-    EXPECT_EQ(*nameTable->FindIndex("body"), 0);
+    EXPECT_EQ(1, rows[0].GetValueCount());
+    EXPECT_EQ(0, rows[0][0].Index);
+    EXPECT_EQ(EColumnType::String, rows[0][0].Type);
+    EXPECT_STREQ(~TheAnswer, ~ToStroka(rows[0][0]));
 
-    EXPECT_EQ(rows[0].GetValueCount(), 1);
-    EXPECT_EQ(rows[0][0].Index, 0);
-    EXPECT_STREQ(~ToStroka(rows[0][0]), ~TheAnswer);
+    EXPECT_EQ(1, rows[1].GetValueCount());
+    EXPECT_EQ(0, rows[1][0].Index);
+    EXPECT_EQ(EColumnType::Null, rows[1][0].Type);
 
-    EXPECT_EQ(rows[1].GetValueCount(), 1);
-    EXPECT_EQ(rows[1][0].Index, 0);
-    EXPECT_EQ(rows[1][0].Type, EColumnType::Null);
-
-    EXPECT_EQ(rows[2].GetValueCount(), 1);
-    EXPECT_EQ(rows[2][0].Index, 0);
-    EXPECT_STREQ(~ToStroka(rows[2][0]), ~AdYT);
+    EXPECT_EQ(1, rows[2].GetValueCount());
+    EXPECT_EQ(0, rows[2][0].Index);
+    EXPECT_EQ(EColumnType::String, rows[2][0].Type);
+    EXPECT_STREQ(~Advertisment, ~ToStroka(rows[2][0]));
 
     rows.clear();
+
     EXPECT_FALSE(ChunkReader->Read(&rows));
+    EXPECT_EQ(0, rows.size());
 }
 
 TEST_F(TVersionedTableClientTest, SimpleReadAll)
@@ -183,26 +184,28 @@ TEST_F(TVersionedTableClientTest, SimpleReadAll)
 
     TTableSchema schema;
     schema.Columns().push_back({ "body", EColumnType::String });
-    schema.Columns().push_back({ "bid", EColumnType::Double });
+    schema.Columns().push_back({ "bid",  EColumnType::Double });
 
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema, true).Get().IsOK());
 
     std::vector<TRow> rows;
     rows.reserve(10);
+
     EXPECT_TRUE(ChunkReader->Read(&rows));
+    EXPECT_EQ(3, rows.size());
 
-    EXPECT_EQ(rows.size(), 3);
+    EXPECT_EQ(nameTable->GetIndex("body"), 0);
+    EXPECT_EQ(nameTable->GetIndex("bid"), 1);
 
-    EXPECT_EQ(*nameTable->FindIndex("body"), 0);
-    EXPECT_EQ(*nameTable->FindIndex("bid"), 1);
-
-    EXPECT_EQ(rows[0].GetValueCount(), 3);
-    EXPECT_EQ(rows[1].GetValueCount(), 4);
-    EXPECT_EQ(rows[2].GetValueCount(), 5);
+    EXPECT_EQ(3, rows[0].GetValueCount());
+    EXPECT_EQ(4, rows[1].GetValueCount());
+    EXPECT_EQ(5, rows[2].GetValueCount());
 
     rows.clear();
+
     EXPECT_FALSE(ChunkReader->Read(&rows));
+    EXPECT_EQ(0, rows.size());
 }
 
 TEST_F(TVersionedTableClientTest, SimpleReadBadSchema)

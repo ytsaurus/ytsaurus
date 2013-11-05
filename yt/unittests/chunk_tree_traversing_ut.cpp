@@ -38,13 +38,13 @@ public:
         return GetSyncInvoker();
     }
 
-    virtual void OnPop(TChunkTree* /* chunkTree */) override
-    { }
-    
-    virtual void OnPush(TChunkTree* /* chunkTree */) override
+    virtual void OnPop(TChunkTree*) override
     { }
 
-    virtual void OnShutdown(const std::vector<TChunkTree*>& /* chunkTrees */) override
+    virtual void OnPush(TChunkTree*) override
+    { }
+
+    virtual void OnShutdown(const std::vector<TChunkTree*>&) override
     { }
 };
 

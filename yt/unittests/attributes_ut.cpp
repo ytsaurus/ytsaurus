@@ -12,17 +12,6 @@ using NYT::Null;
 using NYT::NYTree::IAttributeDictionary;
 using NYT::NYTree::CreateEphemeralAttributes;
 
-class TAttributesTest: public ::testing::Test
-{
-protected:
-    virtual void SetUp()
-    { }
-
-    virtual void TearDown()
-    { }
-};
-
-
 namespace {
 
 bool IsEqual (
@@ -43,7 +32,7 @@ bool IsEqual (
 
 } //anonymous namespace
 
-TEST_F(TAttributesTest, CheckAccessors)
+TEST(TAttributesTest, CheckAccessors)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<Stroka>("name", "Petr");
@@ -73,8 +62,7 @@ TEST_F(TAttributesTest, CheckAccessors)
     EXPECT_THROW(attributes->Get<double>("unknown_key"), std::exception);
 }
 
-
-TEST_F(TAttributesTest, MergeFromTest)
+TEST(TAttributesTest, MergeFromTest)
 {
     auto attributesX = CreateEphemeralAttributes();
     attributesX->Set<Stroka>("name", "Petr");
@@ -93,7 +81,7 @@ TEST_F(TAttributesTest, MergeFromTest)
     EXPECT_EQ(20, attributesX->Get<int>("age"));
 }
 
-TEST_F(TAttributesTest, SerializeToNode)
+TEST(TAttributesTest, SerializeToNode)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<Stroka>("name", "Petr");
@@ -104,7 +92,7 @@ TEST_F(TAttributesTest, SerializeToNode)
     EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
 }
 
-TEST_F(TAttributesTest, SerializeToProto)
+TEST(TAttributesTest, SerializeToProto)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<Stroka>("name", "Petr");
@@ -115,3 +103,4 @@ TEST_F(TAttributesTest, SerializeToProto)
     auto convertedAttributes = NYT::NYTree::FromProto(protoAttributes);
     EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
 }
+

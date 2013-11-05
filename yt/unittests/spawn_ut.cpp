@@ -17,7 +17,7 @@ TEST(TSpawnTest, Basic)
     args.push_back("ls");
 
     int pid = Spawn("/bin/ls", args);
-    EXPECT_NE(pid, 0);
+    EXPECT_NE(0, pid);
 }
 
 TEST(TSpawnTest, InvalidPath)
@@ -35,10 +35,10 @@ TEST(TSpawnTest, InvalidPath)
 
     int status;
     int result = waitpid(pid, &status, 0);
-    ASSERT_EQ(result, pid);
+    ASSERT_EQ(pid, result);
     ASSERT_TRUE(WIFEXITED(status));
     EXPECT_NE(WEXITSTATUS(status), 0);
-    EXPECT_EQ(getErrNoFromExitCode(WEXITSTATUS(status)), ENOENT);
+    EXPECT_EQ(ENOENT, getErrNoFromExitCode(WEXITSTATUS(status)));
 #endif
 }
 
@@ -47,7 +47,7 @@ TEST(TSpawnTest, BasicUsePATH)
     std::vector<Stroka> args;
     args.push_back("ls");
     int pid = Spawn("ls", args);
-    EXPECT_NE(pid, 0);
+    EXPECT_NE(0, pid);
 }
 
 TEST(TSpawnTest, ProcessReturnCode0)
@@ -62,7 +62,7 @@ TEST(TSpawnTest, ProcessReturnCode0)
     int result = waitpid(pid, &status, 0);
     ASSERT_EQ(result, pid);
     ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_EQ(WEXITSTATUS(status), 0);
+    EXPECT_EQ(0, WEXITSTATUS(status));
 }
 
 TEST(TSpawnTest, ProcessReturnCode1)
@@ -77,7 +77,7 @@ TEST(TSpawnTest, ProcessReturnCode1)
     int result = waitpid(pid, &status, 0);
     ASSERT_EQ(result, pid);
     ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_NE(WEXITSTATUS(status), 0);
+    EXPECT_NE(0, WEXITSTATUS(status));
 }
 
 TEST(TSpawnTest, Params1)
@@ -94,7 +94,7 @@ TEST(TSpawnTest, Params1)
     int result = waitpid(pid, &status, 0);
     ASSERT_EQ(result, pid);
     ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_EQ(WEXITSTATUS(status), 7);
+    EXPECT_EQ(7, WEXITSTATUS(status));
 }
 
 TEST(TSpawnTest, Params2)
@@ -111,7 +111,7 @@ TEST(TSpawnTest, Params2)
     int result = waitpid(pid, &status, 0);
     ASSERT_EQ(result, pid);
     ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_EQ(WEXITSTATUS(status), 0);
+    EXPECT_EQ(0, WEXITSTATUS(status));
 }
 
 TEST(TSpawnTest, InheritEnvironment)
@@ -132,7 +132,7 @@ TEST(TSpawnTest, InheritEnvironment)
     int result = waitpid(pid, &status, 0);
     ASSERT_EQ(result, pid);
     ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_EQ(WEXITSTATUS(status), 7);
+    EXPECT_EQ(7, WEXITSTATUS(status));
 
     unsetenv(name);
 }

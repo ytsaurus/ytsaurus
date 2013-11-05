@@ -51,3 +51,4 @@ TEST(TStringTest, CamelCaseToUnderscoreCase)
 
 } // namespace
 } // namespace NYT
+

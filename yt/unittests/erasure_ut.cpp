@@ -24,11 +24,7 @@ using namespace NYT::NErasure;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TErasureCodingTest
-    : public ::testing::Test
-{ };
-
-TEST_F(TErasureCodingTest, RandomText)
+TEST(TErasureCodingTest, RandomText)
 {
     TRand rand;
 
@@ -58,7 +54,6 @@ TEST_F(TErasureCodingTest, RandomText)
             dataBlocks.push_back(TSharedRef::FromBlob(std::move(blob)));
         }
 
-
         auto parityBlocks = codec->Encode(dataBlocks);
 
         std::vector<TSharedRef> allBlocks(dataBlocks);
@@ -71,14 +66,15 @@ TEST_F(TErasureCodingTest, RandomText)
                     erasedIndices.push_back(i);
                 }
             }
-            if (erasedIndices.size() == 1) continue;
+
+            if (erasedIndices.size() == 1)
+                continue;
 
             auto recoveryIndices = codec->GetRepairIndices(erasedIndices);
             ASSERT_EQ(static_cast<bool>(recoveryIndices), codec->CanRepair(erasedIndices));
             if (erasedIndices.size() <= guaranteedRecoveryCount[codecId]) {
                 EXPECT_TRUE(recoveryIndices);
             }
-
 
             if (recoveryIndices) {
                 std::vector<TSharedRef> aliveBlocks;
@@ -435,3 +431,4 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
 
     Cleanup(codec);
 }
+

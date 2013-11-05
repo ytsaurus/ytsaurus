@@ -131,7 +131,7 @@ TEST(TDsvWriterTest, WithoutEsacping)
 
     Stroka output = "string_with_\t_\\_=_and_\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,7 +283,7 @@ TEST(TTskvWriterTest, SimpleTabular)
         "tskv\tid=1\tguid=100500\n"
         "tskv\tid=2\tguid=20025\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST(TTskvWriterTest, Escaping)
@@ -318,7 +318,7 @@ TEST(TTskvWriterTest, Escaping)
 
         "\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST(TTskvWriterTest, EscapingOfCustomSeparator)
