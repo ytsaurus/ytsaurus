@@ -12,6 +12,14 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IPrepareCallbacks
+{
+    virtual ~IPrepareCallbacks()
+    { }
+
+    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const NYPath::TYPath& path) = 0;
+};
+
 struct IEvaluateCallbacks
 {
     virtual ~IEvaluateCallbacks()

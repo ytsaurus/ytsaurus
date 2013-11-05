@@ -1795,8 +1795,8 @@ const TSourceLocation NullSourceLocation = { 0, 0 };
 
 void TParser::error(const location_type& location, const std::string& message)
 {
-    // TODO(sandello): Better diagnostics.
-    std::cerr << message << std::endl;
+    THROW_ERROR_EXCEPTION("Error while parsing query: %s", message.c_str())
+        << TErrorAttribute("location", location.ToString());
 }
 
 } // namespace NQueryClient

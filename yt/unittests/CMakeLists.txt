@@ -63,6 +63,7 @@ set( SRCS
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
   ${BASE}/rcu_tree_ut.cpp
+  ${BASE}/query_prepare_ut.cpp
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )

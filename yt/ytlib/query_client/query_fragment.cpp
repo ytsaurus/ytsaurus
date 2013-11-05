@@ -3,6 +3,8 @@
 #include "private.h"
 #include "helpers.h"
 
+#include "callbacks.h"
+
 #include "ast.h"
 #include "ast_visitor.h"
 

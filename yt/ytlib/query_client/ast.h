@@ -1,11 +1,13 @@
 #pragma once
 
 #include "public.h"
-#include "stubs.h"
 
 #include "query_context.h"
 
+#include <ytlib/chunk_client/chunk_spec.h>
+
 #include <core/misc/array_ref.h>
+#include <core/misc/error.h>
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
 
@@ -26,6 +28,11 @@ struct TSourceLocation
     inline int GetLength() const
     {
         return end - begin;
+    }
+
+    Stroka ToString() const
+    {
+        return Sprintf("%d:%d", begin, end);
     }
 
     // Naming is to confirm to Bison interface.

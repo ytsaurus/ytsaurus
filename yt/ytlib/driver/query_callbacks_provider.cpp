@@ -25,7 +25,6 @@
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/executor.h> // For DelegateToPeer
-#include <ytlib/query_client/stubs.h>
 #include <ytlib/query_client/helpers.h>
 
 #include <core/ytree/ypath_proxy.h>
