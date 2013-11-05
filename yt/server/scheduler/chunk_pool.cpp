@@ -426,7 +426,9 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && JobCounter.GetCompleted() == 1;
+        return Finished && 
+            GetPendingJobCount() == 0 && 
+            JobCounter.GetRunning() == 0;
     }
 
     virtual int GetTotalJobCount() const override
