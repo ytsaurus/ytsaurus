@@ -22,11 +22,6 @@ using NYT::TSharedRef;
 using namespace NYT::NChunkClient;
 using namespace NYT::NErasure;
 
-Stroka ToString(TSharedRef ref)
-{
-    return NYT::ToString(TRef(ref));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TErasureCodingTest
