@@ -116,7 +116,6 @@ bool TTableNodeProxy::IsMutatingRequest(IServiceContextPtr context) const
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     const auto* node = GetThisTypedImpl();
-    const auto* chunkList = node->GetChunkList();
 
     attributes->push_back("row_count");
     attributes->push_back("sorted");

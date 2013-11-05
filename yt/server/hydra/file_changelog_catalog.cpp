@@ -459,7 +459,7 @@ private:
                 if (!entry.has_suffix(LogSuffix))
                     continue;
 
-                int id;
+                int id = NonexistingSegmentId;
                 try {
                     id = FromString<int>(GetFileNameWithoutExtension(entry));
                 } catch (const std::exception) {
