@@ -79,6 +79,8 @@ struct TRowValue
 
 static_assert(sizeof (TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
 
+////////////////////////////////////////////////////////////////////////////////
+
 // Forward declarations.
 int CompareRowValues(TRowValue lhs, TRowValue rhs);
 int CompareSameTypeValues(TRowValue lhs, TRowValue rhs);
@@ -147,7 +149,7 @@ static_assert(sizeof (TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes.
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A lightweight wrapper around TRow*.
+//! A lightweight wrapper around TRowHeader*.
 class TRow
 {
 public:
