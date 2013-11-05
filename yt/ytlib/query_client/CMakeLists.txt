@@ -31,7 +31,6 @@ set( HDRS
   ${BASE}/query_context.h
   ${BASE}/query_fragment.h
   ${BASE}/query_service_proxy.h
-  ${BASE}/stubs.h
 )
 
 list(APPEND YT_SOURCE_FILES
