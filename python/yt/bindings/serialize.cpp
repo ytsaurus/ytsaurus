@@ -57,7 +57,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
     std::string attributesStr = "attributes";
     if (PyObject_HasAttrString(*obj, attributesStr.c_str())) {
-        auto attributes = Py::Dict(PyObject_GetAttrString(*obj, attributesStr.c_str()), true);
+        auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr.c_str()), true);
         if (attributes.length() > 0) {
             consumer->OnBeginAttributes();
             SerializeMapFragment(attributes, consumer);
