@@ -2,8 +2,8 @@
 
 #ifndef _win_
 
-#include "ast.h"
-#include "ast_visitor.h"
+#include "plan_node.h"
+#include "plan_visitor.h"
 
 #include "helpers.h"
 
@@ -164,7 +164,7 @@ struct TGraphVizTraits<
 };
 
 class TGraphVizVisitor
-    : public IAstVisitor
+    : public IPlanVisitor
 {
 public:
     TGraphVizVisitor(TOutputStream& output)

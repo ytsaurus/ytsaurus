@@ -4,9 +4,9 @@
 #include "private.h"
 #include "helpers.h"
 
-#include "ast.h"
-#include "ast_visitor.h"
-#include "ast_helpers.h"
+#include "plan_node.h"
+#include "plan_visitor.h"
+#include "plan_helpers.h"
 
 #include "graphviz.h"
 

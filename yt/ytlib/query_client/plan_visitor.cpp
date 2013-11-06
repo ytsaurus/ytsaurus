@@ -1,5 +1,5 @@
-#include "ast.h"
-#include "ast_visitor.h"
+#include "plan_node.h"
+#include "plan_visitor.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -10,15 +10,15 @@ static const int TypicalQueueLength = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(IExpressionAstVisitor, nodeType)
+#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(IExpressionVisitor, nodeType)
 #include "list_of_operators.inc"
 #undef XX
 
-#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(IOperatorAstVisitor, nodeType)
+#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(IOperatorVisitor, nodeType)
 #include "list_of_expressions.inc"
 #undef XX
 
-#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(TAstVisitor, nodeType)
+#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(TPlanVisitor, nodeType)
 #include "list_of_operators.inc"
 #include "list_of_expressions.inc"
 #undef XX
@@ -28,7 +28,7 @@ static const int TypicalQueueLength = 16;
 #pragma GCC diagnostic error "-Wswitch-enum"
 #endif
 
-bool Traverse(IAstVisitor* visitor, const TOperator* root)
+bool Traverse(IPlanVisitor* visitor, const TOperator* root)
 {
     TSmallVector<const TOperator*, TypicalQueueLength> queue;
     queue.push_back(root);
@@ -69,7 +69,7 @@ bool Traverse(IAstVisitor* visitor, const TOperator* root)
     return true;
 }
 
-bool Traverse(IAstVisitor* visitor, const TExpression* root)
+bool Traverse(IPlanVisitor* visitor, const TExpression* root)
 {
     TSmallVector<const TExpression*, TypicalQueueLength> queue;
     queue.push_back(root);

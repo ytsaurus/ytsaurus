@@ -1,5 +1,5 @@
-#include "ast.h"
-#include "ast_visitor.h"
+#include "plan_node.h"
+#include "plan_visitor.h"
 #include "query_context.h"
 
 #include <yt/ytlib/query_client/operator.pb.h>

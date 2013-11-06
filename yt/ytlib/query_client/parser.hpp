@@ -42,7 +42,7 @@
 // //                    "%code requires" blocks.
 #line 19 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 
-    #include <ytlib/query_client/ast.h>
+    #include "plan_node.h"
 
     #include <cmath>
     #include <iostream>

@@ -10,10 +10,6 @@ namespace NQueryClient {
 class TOperator;
 class TExpression;
 
-class TScanOperator;
-class TFilterOperator;
-class TProjectOperator;
-
 class TQueryContext;
 
 #define AS_INTERFACE(nodeType) \
@@ -21,9 +17,9 @@ class TQueryContext;
 #define AS_IMPLEMENTATION(nodeType) \
     virtual bool Visit(const T ## nodeType *) override;
 
-struct IAstVisitor
+struct IPlanVisitor
 {
-    virtual ~IAstVisitor()
+    virtual ~IPlanVisitor()
     { }
 
 #define XX(nodeType) AS_INTERFACE(nodeType)
@@ -32,24 +28,24 @@ struct IAstVisitor
 #undef XX
 };
 
-struct IExpressionAstVisitor
-    : IAstVisitor
+struct IExpressionVisitor
+    : IPlanVisitor
 {
 #define XX(nodeType) AS_IMPLEMENTATION(nodeType)
 #include "list_of_operators.inc"
 #undef XX
 };
 
-struct IOperatorAstVisitor
-    : IAstVisitor
+struct IOperatorVisitor
+    : IPlanVisitor
 {
 #define XX(nodeType) AS_IMPLEMENTATION(nodeType)
 #include "list_of_expressions.inc"
 #undef XX
 };
 
-class TAstVisitor
-    : public IAstVisitor
+class TPlanVisitor
+    : public IPlanVisitor
 {
 // Stub out everything.
 #define XX(nodeType) AS_IMPLEMENTATION(nodeType)
@@ -66,8 +62,8 @@ bool visitorType::Visit(const T ## nodeType*) \
 { return true; }
 
 //! Runs a depth-first preorder traversal.
-bool Traverse(IAstVisitor* visitor, const TOperator* root);
-bool Traverse(IAstVisitor* visitor, const TExpression* root);
+bool Traverse(IPlanVisitor* visitor, const TOperator* root);
+bool Traverse(IPlanVisitor* visitor, const TExpression* root);
 
 //! Recursively applies the functor to the tree.
 template <class TNode, class TFunctor>

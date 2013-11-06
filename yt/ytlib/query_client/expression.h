@@ -1,10 +1,10 @@
 #pragma once
 
-#ifndef AST_H_
+#ifndef PLAN_NODE_H_
 #ifdef YCM
-#include "ast.h"
+#include "plan_node.h"
 #else
-#error "Direct inclusion of this file is not allowed, include ast.h"
+#error "Direct inclusion of this file is not allowed, include plan_node.h"
 #endif
 #endif
 
@@ -33,14 +33,14 @@ DECLARE_ENUM(EBinaryOp,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExpression
-    : public TAstNodeBase<TExpression, EExpressionKind>
+    : public TPlanNodeBase<TExpression, EExpressionKind>
 {
 public:
     TExpression(
         TQueryContext* context,
         EExpressionKind kind,
         const TSourceLocation& sourceLocation)
-        : TAstNodeBase(context, kind)
+        : TPlanNodeBase(context, kind)
         , SourceLocation_(sourceLocation)
     { }
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#ifndef AST_H_
+#ifndef PLAN_NODE_H_
 #ifdef YCM
-#include "ast.h"
+#include "plan_node.h"
 #else
-#error "Direct inclusion of this file is not allowed, include ast.h"
+#error "Direct inclusion of this file is not allowed, include plan_node.h"
 #endif
 #endif
 
@@ -21,11 +21,11 @@ DECLARE_ENUM(EOperatorKind,
 );
 
 class TOperator
-    : public TAstNodeBase<TOperator, EOperatorKind>
+    : public TPlanNodeBase<TOperator, EOperatorKind>
 {
 public:
     TOperator(TQueryContext* context, EOperatorKind kind)
-        : TAstNodeBase(context, kind)
+        : TPlanNodeBase(context, kind)
     { }
 
 };

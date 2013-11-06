@@ -17,7 +17,7 @@
 %parse-param {const TOperator** head}
 
 %code requires {
-    #include <ytlib/query_client/ast.h>
+    #include "plan_node.h"
 
     #include <cmath>
     #include <iostream>

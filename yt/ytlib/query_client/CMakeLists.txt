@@ -1,8 +1,8 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client )
 set( SRCS
-  ${BASE}/ast_visitor.cpp
-  ${BASE}/ast_helpers.cpp
+  ${BASE}/plan_visitor.cpp
+  ${BASE}/plan_helpers.cpp
   ${BASE}/graphviz.cpp
   ${BASE}/operator.cpp
   ${BASE}/expression.cpp
@@ -16,8 +16,9 @@ set( SRCS
 )
 
 set( HDRS
-  ${BASE}/ast.h
-  ${BASE}/ast_visitor.h
+  ${BASE}/plan_node.h
+  ${BASE}/plan_visitor.h
+  ${BASE}/plan_helpers.h
   ${BASE}/coordinate_controller.h
   ${BASE}/evaluate_controller.h
   ${BASE}/executor.h

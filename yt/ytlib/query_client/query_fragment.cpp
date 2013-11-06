@@ -5,8 +5,8 @@
 
 #include "callbacks.h"
 
-#include "ast.h"
-#include "ast_visitor.h"
+#include "plan_node.h"
+#include "plan_visitor.h"
 
 #include "lexer.h"
 #include "parser.hpp"
@@ -74,7 +74,7 @@ private:
 namespace {
 
 class TCheckAndPruneReferences
-    : public TAstVisitor
+    : public TPlanVisitor
 {
 public:
     explicit TCheckAndPruneReferences(TPrepareController* controller)
