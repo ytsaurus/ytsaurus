@@ -64,7 +64,7 @@ private:
     NYPath::TRichYPath RichPath;
     bool IsOpen;
     bool IsReadStarted_;
-    NObjectClient::TObjectServiceProxy Proxy;
+    NObjectClient::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
     TTableChunkSequenceReaderPtr Reader;

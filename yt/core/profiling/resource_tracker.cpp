@@ -5,16 +5,15 @@
 
 #include <core/misc/fs.h>
 #include <core/misc/proc.h>
+#include <core/misc/lfalloc_helpers.h>
 
 #include <core/ypath/token.h>
+
+#include <core/profiling/profiling_manager.h>
 
 #include <util/folder/filelist.h>
 #include <util/stream/file.h>
 #include <util/string/vector.h>
-
-#include <core/profiling/profiling_manager.h>
-
-#include <core/misc/lfalloc_helpers.h>
 
 #include <util/private/lfalloc/helpers.h>
 
@@ -143,10 +142,10 @@ void TResourceTracker::EnqueueMemoryUsage()
         // Ignore all IO exceptions.
         return;
     }
-    EnqueueLfAllocCounters();
+    EnqueueLFAllocCounters();
 }
 
-void TResourceTracker::EnqueueLfAllocCounters()
+void TResourceTracker::EnqueueLFAllocCounters()
 {
     Profiler.Enqueue("/lf_alloc/total/user_allocated", GetLFAllocCounterFull(CT_USER_ALLOC));
     Profiler.Enqueue("/lf_alloc/total/mmaped", GetLFAllocCounterFull(CT_MMAP));
@@ -158,14 +157,14 @@ void TResourceTracker::EnqueueLfAllocCounters()
     Profiler.Enqueue("/lf_alloc/total/large_blocks_allocated", GetLFAllocCounterFull(CT_LARGE_ALLOC));
     Profiler.Enqueue("/lf_alloc/total/large_blocks_deallocated", GetLFAllocCounterFull(CT_LARGE_FREE));
 
-    Profiler.Enqueue("/lf_alloc/current/system", NLfAlloc::GetCurrentSystem());
-    Profiler.Enqueue("/lf_alloc/current/small_blocks", NLfAlloc::GetCurrentSmallBlocks());
-    Profiler.Enqueue("/lf_alloc/current/large_blocks", NLfAlloc::GetCurrentLargeBlocks());
+    Profiler.Enqueue("/lf_alloc/current/system", NLFAlloc::GetCurrentSystem());
+    Profiler.Enqueue("/lf_alloc/current/small_blocks", NLFAlloc::GetCurrentSmallBlocks());
+    Profiler.Enqueue("/lf_alloc/current/large_blocks", NLFAlloc::GetCurrentLargeBlocks());
 
-    auto mmaped = NLfAlloc::GetCurrentMmaped();
+    auto mmaped = NLFAlloc::GetCurrentMmaped();
     Profiler.Enqueue("/lf_alloc/current/mmaped", mmaped);
 
-    auto used = NLfAlloc::GetCurrentUsed();
+    auto used = NLFAlloc::GetCurrentUsed();
     Profiler.Enqueue("/lf_alloc/current/used", used);
     Profiler.Enqueue("/lf_alloc/current/locked", mmaped - used);
 }

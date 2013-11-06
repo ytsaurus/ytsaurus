@@ -8,12 +8,12 @@
 #include <core/ytree/convert.h>
 
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
-#include <ytlib/table_client/table_chunk_writer.h>
-#include <ytlib/table_client/sync_writer.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+
+#include <ytlib/table_client/table_chunk_writer.h>
+#include <ytlib/table_client/sync_writer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -26,8 +26,6 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
-
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,17 +72,18 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
         IOConfig->TableWriter,
         options);
 
-    auto writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
+    auto asyncWriter = New<TTableChunkSequenceWriter>(
         IOConfig->TableWriter,
         options,
         writerProvider,
         Host->GetMasterChannel(),
         transactionId,
-        chunkListId));
+        chunkListId);
+
+    auto writer = CreateSyncWriter<TTableChunkWriter>(asyncWriter);
 
     YCHECK(Outputs.size() == index);
-    Outputs.push_back(writer);
-    OutputProviders.push_back(writerProvider);
+    Outputs.push_back(asyncWriter);
 
     return writer;
 }
@@ -150,8 +149,8 @@ std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunkIds() const
 
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
-    FOREACH (const auto& provider, OutputProviders) {
-        *result->add_output_boundary_keys() = provider->GetBoundaryKeys();
+    FOREACH (const auto& output, Outputs) {
+        *result->add_output_boundary_keys() = output->GetProvider()->GetBoundaryKeys();
     }
 }
 

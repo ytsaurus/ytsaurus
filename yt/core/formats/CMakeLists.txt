@@ -8,6 +8,8 @@ set( SRCS
   ${BASE}/json_parser.cpp
   ${BASE}/json_writer.cpp
   ${BASE}/parser.cpp
+  ${BASE}/schemed_dsv_parser.cpp
+  ${BASE}/schemed_dsv_writer.cpp
   ${BASE}/symbols.cpp
   ${BASE}/yamr_base_parser.cpp
   ${BASE}/yamr_parser.cpp
@@ -27,6 +29,8 @@ set( HDRS
   ${BASE}/json_writer.h
   ${BASE}/parser.h
   ${BASE}/public.h
+  ${BASE}/schemed_dsv_parser.h
+  ${BASE}/schemed_dsv_writer.h
   ${BASE}/symbols.h
   ${BASE}/yamr_base_parser.h
   ${BASE}/yamr_parser.h

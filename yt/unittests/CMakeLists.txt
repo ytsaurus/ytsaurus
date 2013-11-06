@@ -36,12 +36,15 @@ set( SRCS
   ${BASE}/ref_counted_tracker_ut.cpp
   ${BASE}/rpc_ut.cpp
   ${BASE}/schema_ut.cpp
+  ${BASE}/schemed_dsv_parser_ut.cpp
+  ${BASE}/schemed_dsv_writer_ut.cpp
   ${BASE}/serialize_ut.cpp
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   ${BASE}/snapshot_ut.cpp
   ${BASE}/spawn_ut.cpp
   ${BASE}/string_ut.cpp
+  ${BASE}/table_consumer_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp

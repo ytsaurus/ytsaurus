@@ -28,7 +28,10 @@ message TMetaReqUnregisterNode
 message TMetaReqIncrementalHeartbeat
 {
     required int32 node_id = 1;
+
+    // Node Tracker stuff.
     required NYT.NNodeTrackerClient.NProto.TNodeStatistics statistics = 2;
+    repeated string alerts = 5;
 
     // Chunk Manager stuff.
     repeated NNodeTrackerClient.NProto.TChunkAddInfo added_chunks = 3;

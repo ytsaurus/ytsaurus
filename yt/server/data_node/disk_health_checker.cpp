@@ -3,7 +3,9 @@
 #include "private.h"
 #include "config.h"
 
-#include <core/misc/fs.h>
+#include <ytlib/actions/future.h>
+
+#include <ytlib/misc/fs.h>
 
 #include <util/random/random.h>
 
@@ -27,12 +29,14 @@ TDiskHealthChecker::TDiskHealthChecker(
     IInvokerPtr invoker)
     : Config(config)
     , Path(path)
+    , CheckInvoker(invoker)
     , PeriodicExecutor(New<TPeriodicExecutor>(
         invoker,
         BIND(&TDiskHealthChecker::OnCheck, Unretained(this)),
         Config->CheckPeriod,
         EPeriodicExecutorMode::Manual))
     , FailedLock(0)
+    , CheckCallback(BIND(&TDiskHealthChecker::DoRunCheck, Unretained(this)))
 { }
 
 void TDiskHealthChecker::Start()
@@ -40,29 +44,41 @@ void TDiskHealthChecker::Start()
     PeriodicExecutor->Start();
 }
 
+TAsyncError TDiskHealthChecker::RunCheck()
+{
+    auto asyncError = NewPromise<TError>();
+
+    CheckCallback.AsyncVia(CheckInvoker).Run().Subscribe(
+        Config->Timeout,
+        BIND([=] (TError error) mutable {
+            asyncError.Set(error);
+        }),
+        BIND(&TDiskHealthChecker::OnCheckTimeout, MakeWeak(this), asyncError));
+    return asyncError;
+}
+
 void TDiskHealthChecker::OnCheck()
 {
-    auto this_ = MakeStrong(this);
-    RunCheck().Subscribe(
-        Config->Timeout,
-        BIND(&TDiskHealthChecker::OnCheckCompleted, MakeStrong(this)),
-        BIND(&TDiskHealthChecker::OnCheckTimeout, MakeStrong(this)));
+    RunCheck().Subscribe(BIND(&TDiskHealthChecker::OnCheckCompleted, MakeWeak(this)));;
 }
 
 void TDiskHealthChecker::OnCheckCompleted(TError error)
 {
     if (error.IsOK()) {
         PeriodicExecutor->ScheduleNext();
+    } else if (AtomicIncrement(FailedLock) == 1) {
+        Failed_.Fire();
     }
 }
 
-void TDiskHealthChecker::OnCheckTimeout()
+void TDiskHealthChecker::OnCheckTimeout(TAsyncErrorPromise result)
 {
-    LOG_ERROR("Disk health check timed out: %s", ~Path);
-    RaiseFailed();
+    auto error = TError("Disk health check timed out: %s", ~Path);
+    LOG_ERROR(error);
+    result.Set(error);
 }
 
-TAsyncError TDiskHealthChecker::RunCheck()
+TError TDiskHealthChecker::DoRunCheck()
 {
     LOG_DEBUG("Disk health check started: %s", ~Path);
 
@@ -102,19 +118,11 @@ TAsyncError TDiskHealthChecker::RunCheck()
 
         LOG_DEBUG("Disk health check finished: %s", ~Path);
 
-        return MakeFuture(TError());
+        return TError();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Disk health check failed: %s", ~Path);
-        RaiseFailed();
-
-        return MakeFuture(TError(ex));
-    }
-}
-
-void TDiskHealthChecker::RaiseFailed()
-{
-    if (AtomicIncrement(FailedLock) == 1) {
-        Failed_.Fire();
+        auto wrappedError = TError("Disk health check failed at %s", ~Path) << ex;
+        LOG_ERROR(wrappedError);
+        return wrappedError;
     }
 }
 

@@ -13,6 +13,7 @@
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/ypath_detail.h>
@@ -485,49 +486,18 @@ TError TCypressManager::ValidateLock(
             ~FormatEnum(request.Mode).Quote());
     }
 
-    // Examine existing locks.
-    // A quick check: same transaction, same or weaker lock mode (beware of Snapshot!).
-    {
-        auto it = trunkNode->LockStateMap().find(transaction);
-        if (it != trunkNode->LockStateMap().end()) {
-            const auto& existingState = it->second;
-            if (IsRedundantLockRequest(existingState, request)) {
-                *isMandatory = false;
-                return TError();
-            }
-            if (existingState.Mode == ELockMode::Snapshot) {
-                return TError(
-                    NCypressClient::EErrorCode::SameTransactionLockConflict,
-                    "Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
-                    ~FormatEnum(request.Mode).Quote(),
-                    ~GetNodePath(trunkNode, transaction),
-                    ~FormatEnum(existingState.Mode).Quote());
-            }
-        }
-    }
-
+    // Check for conflicts with other transactions.
     FOREACH (const auto& pair, trunkNode->LockStateMap()) {
         auto* existingTransaction = pair.first;
         const auto& existingState = pair.second;
 
-        // Ignore other Snapshot locks.
-        if (existingState.Mode == ELockMode::Snapshot) {
+        // Skip same transaction.
+        if (existingTransaction == transaction)
             continue;
-        }
 
-        // When a Snapshot is requested no descendant transaction (including |transaction| itself)
-        // may hold a lock other than Snapshot.
-        if (request.Mode == ELockMode::Snapshot &&
-            IsParentTransaction(existingTransaction, transaction))
-        {
-            return TError(
-                NCypressClient::EErrorCode::DescendantTransactionLockConflict,
-                "Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
-                ~FormatEnum(request.Mode).Quote(),
-                ~GetNodePath(trunkNode, transaction),
-                ~FormatEnum(existingState.Mode).Quote(),
-                ~ToString(existingTransaction->GetId()));
-        }
+        // Ignore other Snapshot locks.
+        if (existingState.Mode == ELockMode::Snapshot)
+            continue;
 
         if (!transaction || IsConcurrentTransaction(transaction, existingTransaction)) {
             // For Exclusive locks we check locks held by concurrent transactions.
@@ -573,6 +543,27 @@ TError TCypressManager::ValidateLock(
         }
     }
 
+    // Examine existing locks.
+    // A quick check: same transaction, same or weaker lock mode (beware of Snapshot!).
+    {
+        auto it = trunkNode->LockStateMap().find(transaction);
+        if (it != trunkNode->LockStateMap().end()) {
+            const auto& existingState = it->second;
+            if (IsRedundantLockRequest(existingState, request)) {
+                *isMandatory = false;
+                return TError();
+            }
+            if (existingState.Mode == ELockMode::Snapshot) {
+                return TError(
+                    NCypressClient::EErrorCode::SameTransactionLockConflict,
+                    "Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
+                    ~FormatEnum(request.Mode).Quote(),
+                    ~GetNodePath(trunkNode, transaction),
+                    ~FormatEnum(existingState.Mode).Quote());
+            }
+        }
+    }
+
     // If we're outside of a transaction then the lock is not needed.
     if (!transaction) {
         *isMandatory = false;
@@ -595,6 +586,10 @@ bool TCypressManager::IsRedundantLockRequest(
     const TTransactionLockState& state,
     const TLockRequest& request)
 {
+    if (state.Mode == ELockMode::Snapshot && request.Mode == ELockMode::Snapshot) {
+        return true;
+    }
+    
     if (state.Mode > request.Mode && request.Mode != ELockMode::Snapshot) {
         return true;
     }
@@ -633,12 +628,10 @@ bool TCypressManager::IsParentTransaction(
 }
 
 bool TCypressManager::IsConcurrentTransaction(
-    TTransaction* transaction1,
-    TTransaction* transaction2)
+    TTransaction* requestingTransaction,
+    TTransaction* existingTransaction)
 {
-    return
-        !IsParentTransaction(transaction1, transaction2) &&
-        !IsParentTransaction(transaction2, transaction1);
+    return !IsParentTransaction(requestingTransaction, existingTransaction);
 }
 
 TCypressNodeBase* TCypressManager::DoAcquireLock(TLock* lock)

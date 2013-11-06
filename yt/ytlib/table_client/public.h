@@ -13,6 +13,10 @@ template <class TChunkReader>
 class TMultiChunkSequentialReader;
 
 template <class TChunkReader>
+class TMultiChunkSequentialWriter;
+
+
+template <class TChunkReader>
 class TMultiChunkParallelReader;
 
 }
@@ -131,6 +135,9 @@ struct IPartitioner;
 
 typedef NChunkClient::TMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
 typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
+
+typedef NChunkClient::TMultiChunkSequentialWriter<TTableChunkWriter> TTableChunkSequenceWriter;
+typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

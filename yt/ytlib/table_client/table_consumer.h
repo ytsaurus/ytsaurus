@@ -41,31 +41,31 @@ public:
         , ValueWriter(&RowBuffer)
     { }
 
-private:
+    virtual void OnKeyedItem(const TStringBuf& name) override;
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnIntegerScalar(i64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnEntity() override;
     virtual void OnBeginList() override;
     virtual void OnListItem() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& name) override;
-    virtual void OnEndMap() override;
-
-    virtual void OnBeginAttributes() override;
-
-    void ThrowMapExpected();
-    void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
-
     virtual void OnEndList() override;
+    virtual void OnBeginMap() override;
+    virtual void OnEndMap() override;
+    virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
     virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
+private:
+    void ThrowError(const Stroka& message) const;
+    void ThrowMapExpected() const;
+    void ThrowEntityExpected() const;
+    void ThrowInvalidControlAttribute(const Stroka& whatsWrong) const;
+
     DECLARE_ENUM(EControlState,
         (None)
-        (ExpectName)
-        (ExpectValue)
-        (ExpectEndAttributes)
+        (ExpectControlAttributeName)
+        (ExpectControlAttributeValue)
+        (ExpectEndControlAttributes)
         (ExpectEntity)
     );
 

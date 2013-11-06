@@ -99,6 +99,7 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
         auto req = TCypressYPathProxy::Get(path);
         SetTransactionId(req, UploadTransaction);
         TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+        attributeFilter.Keys.push_back("type");
         attributeFilter.Keys.push_back("replication_factor");
         attributeFilter.Keys.push_back("account");
         attributeFilter.Keys.push_back("compression_codec");
@@ -121,7 +122,7 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
 TAsyncError TAsyncWriter::OnFileInfoReceived(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     if (!batchRsp->IsOK()) {
-        return MakeFuture(TError("Error preparing file for update")
+        return MakeFuture(TError("Error requesting file info")
             << *batchRsp);
     }
 
@@ -135,6 +136,14 @@ TAsyncError TAsyncWriter::OnFileInfoReceived(TObjectServiceProxy::TRspExecuteBat
 
         auto node = ConvertToNode(TYsonString(rsp->value()));
         const auto& attributes = node->Attributes();
+
+        auto type = attributes.Get<EObjectType>("type");
+        if (type != EObjectType::File) {
+            return MakeFuture(TError("Invalid type of %s: expected %s, actual %s",
+                ~RichPath.GetPath(),
+                ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
+                ~FormatEnum(type).Quote()));
+        }
 
         options->ReplicationFactor = attributes.Get<int>("replication_factor");
         options->Account = attributes.Get<Stroka>("account");

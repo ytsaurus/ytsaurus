@@ -57,6 +57,7 @@ public:
     NChunkClient::NProto::TDataStatistics GetOutputDataStatistics() const;
 
 protected:
+
     NScheduler::TJobIOConfigPtr IOConfig;
     IJobHost* Host;
 
@@ -64,9 +65,7 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
-    std::vector<NTableClient::ISyncWriterUnsafePtr> Outputs;
-
-    std::vector<NTableClient::TTableChunkWriterProviderPtr> OutputProviders;
+    std::vector<NTableClient::TTableChunkSequenceWriterPtr> Outputs;
 
     NLog::TLogger& Logger;
 

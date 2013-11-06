@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
-
 namespace NYT {
 namespace NNodeTrackerClient {
 
@@ -29,6 +27,8 @@ struct TTotalNodeStatistics
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
+
+class TNodeStatistics;
 
 Stroka ToString(const TNodeStatistics& statistics);
 

@@ -11,17 +11,9 @@ class TestTableCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
 
-    # test that chunks are not available from chunk_lists
-    # Issue #198
-    def test_chunk_ids(self):
-        create('table', '//tmp/t')
-        write('//tmp/t', {"a": "10"})
-
-        chunk_ids = get_chunks()
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
-
-        with pytest.raises(YtError): get('//sys/chunk_lists/"' + chunk_id + '"')
+    def test_invalid_type(self):
+        with pytest.raises(YtError): read('//tmp')
+        with pytest.raises(YtError): write('//tmp', [])
 
     def test_simple(self):
         create('table', '//tmp/table')

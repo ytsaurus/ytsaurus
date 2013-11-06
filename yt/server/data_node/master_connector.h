@@ -52,6 +52,9 @@ public:
     //! is not registered.
     TNodeId GetNodeId() const;
 
+    //! Adds a given message to the list of alerts sent to master with each heartbeat.
+    void RegisterAlert(const Stroka& alert);
+
 private:
     typedef yhash_set<TChunkPtr> TChunkSet;
 
@@ -94,6 +97,10 @@ private:
     //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
     TChunkSet ReportedRemoved;
 
+    //! A list of registered alerts.
+    std::vector<Stroka> Alerts;
+
+    
     //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleNodeHeartbeat();
 

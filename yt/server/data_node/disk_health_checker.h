@@ -5,6 +5,7 @@
 #include <core/actions/signal.h>
 
 #include <core/concurrency/periodic_executor.h>
+
 #include <core/misc/error.h>
 
 namespace NYT {
@@ -25,6 +26,10 @@ public:
         const Stroka& path,
         IInvokerPtr invoker);
 
+    //! Runs single health check. 
+    //! Don't call after #Start(), otherwise two checks may interfere.
+    TAsyncError RunCheck();
+
     void Start();
 
     DEFINE_SIGNAL(void(), Failed);
@@ -33,18 +38,27 @@ private:
     TDiskHealthCheckerConfigPtr Config;
     Stroka Path;
 
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
+    IInvokerPtr CheckInvoker;
+
+    TPeriodicInvokerPtr PeriodicInvoker;
     TAtomic FailedLock;
+
+    TCallback<TError (void)> CheckCallback;
 
     void OnCheck();
     void OnCheckCompleted(TError error);
-    void OnCheckTimeout();
+    void OnCheckTimeout(TAsyncErrorPromise result);
 
-    TAsyncError RunCheck();
-
-    void RaiseFailed();
+    TError DoRunCheck();
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAsyncError RunDiskHealthCheck(
+    TDiskHealthCheckerConfigPtr config,
+    const Stroka& path,
+    IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

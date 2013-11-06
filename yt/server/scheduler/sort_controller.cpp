@@ -371,7 +371,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddIntermediateOutputSpec(jobSpec, joblet);
+            AddIntermediateOutputSpec(jobSpec, joblet, Null);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -439,7 +439,7 @@ protected:
         {
             TTask::OnJobAborted(joblet);
 
-            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            auto abortReason = Controller->GetAbortReason(joblet);
             Controller->PartitionJobCounter.Aborted(1, abortReason);
 
             Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
@@ -596,7 +596,7 @@ protected:
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
-                AddIntermediateOutputSpec(jobSpec, joblet);
+                AddIntermediateOutputSpec(jobSpec, joblet, Controller->Spec->SortBy);
             } else {
                 jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
                 AddFinalOutputSpecs(jobSpec, joblet);
@@ -673,7 +673,7 @@ protected:
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
             Controller->SortDataSizeCounter.Aborted(joblet->InputStripeList->TotalDataSize);
-            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            auto abortReason = Controller->GetAbortReason(joblet);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->IntermediateSortJobCounter.Aborted(1, abortReason);
@@ -971,7 +971,7 @@ protected:
 
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            auto abortReason = Controller->GetAbortReason(joblet);
             Controller->SortedMergeJobCounter.Aborted(1, abortReason);
 
             Controller->UpdateAllTasksIfNeeded(Controller->SortedMergeJobCounter);
@@ -2123,6 +2123,9 @@ private:
     std::vector<TRegularUserFile> MapperFiles;
     std::vector<TUserTableFile> MapperTableFiles;
 
+    std::vector<TRegularUserFile> ReduceCombinerFiles;
+    std::vector<TUserTableFile> ReduceCombinerTableFiles;
+
     std::vector<TRegularUserFile> ReducerFiles;
     std::vector<TUserTableFile> ReducerTableFiles;
 
@@ -2161,6 +2164,13 @@ private:
                 result.push_back(std::make_pair(path, EOperationStage::Map));
             }
         }
+
+        if (Spec->ReduceCombiner) {
+            FOREACH (const auto& path, Spec->ReduceCombiner->FilePaths) {
+                result.push_back(std::make_pair(path, EOperationStage::ReduceCombiner));
+            }
+        }
+
         FOREACH (const auto& path, Spec->Reducer->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Reduce));
         }
@@ -2175,18 +2185,40 @@ private:
             return;
 
         FOREACH (const auto& file, RegularFiles) {
-            if (file.Stage == EOperationStage::Map) {
+            switch (file.Stage) {
+            case EOperationStage::Map:
                 MapperFiles.push_back(file);
-            } else {
+                break;
+
+            case EOperationStage::ReduceCombiner:
+                ReduceCombinerFiles.push_back(file);
+                break;
+
+            case EOperationStage::Reduce:
                 ReducerFiles.push_back(file);
+                break;
+
+            default:
+                YUNREACHABLE();
             }
         }
 
         FOREACH (const auto& file, TableFiles) {
-            if (file.Stage == EOperationStage::Map) {
+            switch (file.Stage) {
+            case EOperationStage::Map:
                 MapperTableFiles.push_back(file);
-            } else {
+                break;
+
+            case EOperationStage::ReduceCombiner:
+                ReduceCombinerTableFiles.push_back(file);
+                break;
+
+            case EOperationStage::Reduce:
                 ReducerTableFiles.push_back(file);
+                break;
+
+            default:
+                YUNREACHABLE();
             }
         }
 
@@ -2295,15 +2327,26 @@ private:
         }
 
         {
-            IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
-            ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            if (Spec->ReduceCombiner) {
+                IntermediateSortJobSpecTemplate.set_type(EJobType::ReduceCombiner);
+                auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+
+                InitUserJobSpecTemplate(
+                    reduceJobSpecExt->mutable_reducer_spec(),
+                    Spec->ReduceCombiner,
+                    ReduceCombinerFiles,
+                    ReduceCombinerTableFiles);
+            } else {
+                IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
+                auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+                ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            }
         }
 
         {
@@ -2377,6 +2420,12 @@ private:
                 break;
             }
 
+            case EJobType::ReduceCombiner: {
+                auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetReduceCombinerMemoryReserve());
+                break;
+            }
+
             case EJobType::SortedReduce: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetSortedReduceMemoryReserve());
@@ -2445,11 +2494,12 @@ private:
         TNodeResources result;
         result.set_user_slots(1);
         if (IsSortedMergeNeeded(partition)) {
-            result.set_cpu(1);
+            result.set_cpu(Spec->ReduceCombiner ? Spec->ReduceCombiner->CpuLimit : 1);
             result.set_memory(
                 GetSortInputIOMemorySize(stat) +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
+                (Spec->ReduceCombiner ? GetReduceCombinerMemoryReserve() : 0) +
                 GetFootprintMemorySize());
         } else {
             result.set_cpu(Spec->Reducer->CpuLimit);
@@ -2491,6 +2541,11 @@ private:
     i64 GetMapMemoryReserve() const
     {
         return GetMemoryReserve(PartitionJobCounter, Spec->Mapper);
+    }
+
+    i64 GetReduceCombinerMemoryReserve() const
+    {
+        return GetMemoryReserve(IntermediateSortJobCounter, Spec->ReduceCombiner);
     }
 
     i64 GetPartitionReduceMemoryReserve() const
@@ -2547,8 +2602,8 @@ private:
         TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
-            .Item("map_jobs").Value(PartitionJobCounter)
-            .Item("sort_jobs").Value(IntermediateSortJobCounter)
+            .Item(Spec->Mapper ? "partition_jobs" : "map_jobs").Value(PartitionJobCounter)
+            .Item(Spec->ReduceCombiner ? "reduce_combiner_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
             .Item("partition_reduce_jobs").Value(FinalSortJobCounter)
             .Item("sorted_reduce_jobs").Value(SortedMergeJobCounter);
     }

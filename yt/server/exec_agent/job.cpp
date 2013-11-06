@@ -437,7 +437,6 @@ private:
         }
     }
 
-
     void RunJobProxy()
     {
         auto asyncError = ProxyController->Run();
@@ -462,7 +461,6 @@ private:
 
         FinalizeJob();
     }
-
 
     void FinalizeJob()
     {
@@ -750,8 +748,7 @@ private:
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
-            resultError.FindMatching(EExitStatus::SigTerm))
+            resultError.FindMatching(EErrorCode::ConfigCreationFailed))
         {
             return MakeNullable(EAbortReason::Other);
         } else if (resultError.FindMatching(EErrorCode::ResourceOverdraft)) {

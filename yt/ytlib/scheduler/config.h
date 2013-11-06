@@ -226,7 +226,7 @@ public:
         : DataSizePerJob(-1)
     {
         RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("job_count", JobCount)
             .Default()
@@ -270,6 +270,10 @@ public:
             .Default(false);
         RegisterParameter("merge_by", MergeBy)
             .Default();
+
+        RegisterInitializer([&] () {
+            JobIO->TableWriter->SyncChunkSwitch = true;
+        });
     }
 
     virtual void OnLoaded() override
@@ -283,15 +287,7 @@ public:
 
 class TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
-{
-public:
-    TUnorderedMergeOperationSpec()
-    {
-        RegisterInitializer([&] () {
-            JobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-        });
-    }
-};
+{ };
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
@@ -486,8 +482,12 @@ public:
         RegisterInitializer([&] () {
             PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+            PartitionJobIO->TableWriter->SyncChunkSwitch = true;
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            SortJobIO->TableWriter->SyncChunkSwitch = true;
+
+            MergeJobIO->TableWriter->SyncChunkSwitch = true;
 
             MapSelectivityFactor = 1.0;
         });
@@ -512,9 +512,11 @@ public:
     std::vector<Stroka> ReduceBy;
 
     TUserJobSpecPtr Mapper;
+    TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
 
     TJobIOConfigPtr MapJobIO;
+    // Also works for ReduceCombiner if present.
     TJobIOConfigPtr SortJobIO;
     TJobIOConfigPtr ReduceJobIO;
 
@@ -525,6 +527,9 @@ public:
             .Default();
         // Mapper can be absent -- leave it Null by default.
         RegisterParameter("mapper", Mapper)
+            .Default();
+        // ReduceCombiner can be absent -- leave it Null by default.
+        RegisterParameter("reduce_combiner", ReduceCombiner)
             .Default();
         RegisterParameter("reducer", Reducer)
             .DefaultNew();
@@ -559,8 +564,11 @@ public:
         RegisterInitializer([&] () {
             MapJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
             MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
+            MapJobIO->TableWriter->SyncChunkSwitch = true;
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            SortJobIO->TableWriter->SyncChunkSwitch = true;
+
             ReduceJobIO->TableWriter->SyncChunkSwitch = true;
         });
     }

@@ -20,6 +20,8 @@
 
 #include <core/erasure/codec.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>

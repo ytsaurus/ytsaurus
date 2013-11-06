@@ -11,10 +11,14 @@
 #include "request_tracker.h"
 #include "config.h"
 
+#include <core/ypath/token.h>
+
 #include <ytlib/meta_state/map.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 
-#include <core/ypath/token.h>
+#include <ytlib/object_client/helpers.h>
+
+#include <ytlib/ypath/token.h>
 
 #include <server/object_server/type_handler_detail.h>
 

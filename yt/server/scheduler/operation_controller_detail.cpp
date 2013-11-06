@@ -417,6 +417,7 @@ void TOperationControllerBase::TTask::FinishInput()
 
     GetChunkPoolInput()->Finish();
     AddPendingHint();
+    CheckCompleted();
 }
 
 void TOperationControllerBase::TTask::CheckCompleted()
@@ -776,7 +777,8 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
 
 void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     TJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    TNullable<TKeyColumns> keyColumns)
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -786,6 +788,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->ChunksVital = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
+    options->KeyColumns = keyColumns;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
@@ -2831,11 +2834,13 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 {
-    if (!job) {
-        return EAbortReason::Other;
-    }
     auto error = FromProto(job->Result().error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+}
+
+EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
+{
+    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason(EAbortReason::Other);
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const
@@ -3035,6 +3040,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
+        .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)

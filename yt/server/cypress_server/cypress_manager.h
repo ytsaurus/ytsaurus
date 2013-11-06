@@ -200,8 +200,8 @@ private:
         NTransactionServer::TTransaction* transaction,
         NTransactionServer::TTransaction* parent);
     static bool IsConcurrentTransaction(
-        NTransactionServer::TTransaction* transaction1,
-        NTransactionServer::TTransaction* transaction2);
+        NTransactionServer::TTransaction* requestingTransaction,
+        NTransactionServer::TTransaction* existingTransaction);
 
     TCypressNodeBase* DoAcquireLock(TLock* lock);
     void UpdateNodeLockState(
