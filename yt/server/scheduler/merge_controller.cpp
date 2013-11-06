@@ -396,9 +396,21 @@ protected:
 
     virtual void CustomPrepare() override
     {
+        CalculateSizes();
         ProcessInputs();
         EndInputChunks();
         FinishPreparation();
+    }
+
+    void CalculateSizes()
+    {
+        auto jobCount = SuggestJobCount(
+            TotalInputDataSize,
+            Spec->DataSizePerJob,
+            Spec->JobCount);
+
+        MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
+        ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
     }
 
     void ProcessInputs()
@@ -407,15 +419,6 @@ protected:
             LOG_INFO("Processing inputs");
 
             ClearCurrentTaskStripes();
-
-            auto jobCount = SuggestJobCount(
-                TotalInputDataSize,
-                Spec->DataSizePerJob,
-                Spec->JobCount);
-
-            MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
-            ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
-
             FOREACH (auto chunk, CollectInputChunks()) {
                 ProcessInputChunk(chunk);
             }
@@ -949,11 +952,14 @@ protected:
         LOG_INFO("Adjusted key columns are %s",
             ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
 
+        CalculateSizes();
+
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config,
             Spec,
             Operation->GetOperationId(),
-            KeyColumns);
+            KeyColumns,
+            ChunkSliceSize);
 
         ChunkSplitsCollector = New<TChunkSplitsCollector>(
             NodeDirectory,
