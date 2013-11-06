@@ -79,22 +79,25 @@ TError TEvaluateController::RunUnion()
     for (const auto& source : unionOp->Sources()) {
         auto* scanOp = source->As<TScanOperator>();
         YCHECK(scanOp);
-
-        if (!didOpenWriter) {
-            LOG_DEBUG("Opening writer");
-            tableSchema = GetTableSchemaFromDataSplit(scanOp->DataSplit());
-            keyColumns = GetKeyColumnsFromDataSplit(scanOp->DataSplit());
-            Writer_->Open(nameTable, tableSchema, keyColumns);
-            didOpenWriter = true;
-        } else {
-            YCHECK(tableSchema == GetTableSchemaFromDataSplit(scanOp->DataSplit()));
-            YCHECK(keyColumns == GetKeyColumnsFromDataSplit(scanOp->DataSplit()));
-        }
+        
+        tableSchema = GetTableSchemaFromDataSplit(scanOp->DataSplit());
+        keyColumns = GetKeyColumnsFromDataSplit(scanOp->DataSplit());
 
         LOG_DEBUG("Opening reader");
         auto reader = GetCallbacks()->GetReader(scanOp->DataSplit());
         auto error = WaitFor(reader->Open(nameTable, tableSchema));
         RETURN_IF_ERROR(error);
+
+        if (!didOpenWriter) {
+            LOG_DEBUG("Opening writer");
+            Writer_->Open(nameTable, tableSchema, keyColumns);
+            didOpenWriter = true;
+        } else {
+            /*YCHECK(tableSchema == GetTableSchemaFromDataSplit(scanOp->DataSplit()));
+            YCHECK(keyColumns == GetKeyColumnsFromDataSplit(scanOp->DataSplit()));*/
+        }
+
+        
 
         while (true) {
             bool hasData = reader->Read(&rows);
@@ -118,7 +121,11 @@ TError TEvaluateController::RunUnion()
         }
     }
 
-    return WaitFor(Writer_->AsyncClose());
+    if (didOpenWriter) {
+        return WaitFor(Writer_->AsyncClose());
+    } else {
+        return TError();
+    }
 }
 
 TError TEvaluateController::RunProject()
@@ -160,13 +167,13 @@ TError TEvaluateController::RunProject()
     auto writerSchema = InferTableSchema(projectOp);
     auto readerSchema = GetTableSchemaFromDataSplit(scanOp->DataSplit());
 
-    LOG_DEBUG("Opening writer");
-    Writer_->Open(nameTable, writerSchema, keyColumns);
-
     LOG_DEBUG("Opening reader");
     auto reader = GetCallbacks()->GetReader(scanOp->DataSplit());
     auto error = WaitFor(reader->Open(nameTable, readerSchema));
     RETURN_IF_ERROR(error);
+
+    LOG_DEBUG("Opening writer");
+    Writer_->Open(nameTable, writerSchema, keyColumns);
 
     std::vector<TRow> rows;
     rows.reserve(1000);
