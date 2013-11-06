@@ -20,6 +20,11 @@ DECLARE_ENUM(EUpdateMode,
 struct TChunkOwnerYPathProxy
     : public NYTree::TYPathProxy
 {
+    static Stroka GetServiceName()
+    {
+        return "ChunkOwner";
+    }
+
     DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, PrepareForUpdate);
 };

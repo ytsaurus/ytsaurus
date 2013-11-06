@@ -12,6 +12,7 @@ message TYPathHeaderExt
     }
 
     optional bool mutating = 1 [default = false];
+    required string path = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

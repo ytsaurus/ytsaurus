@@ -954,7 +954,7 @@ void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr cont
 
     LOG_INFO_UNLESS(IsRecovery(), "Invoke: %s %s (ObjectId: %s, Mutating: %s, User: %s)",
         ~context->GetVerb(),
-        ~context->GetService(),
+        ~GetRequestYPath(context),
         ~ToString(objectId),
         ~FormatBool(isMutating),
         ~user->GetName());

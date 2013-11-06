@@ -12,9 +12,6 @@
 
 #include <core/ytree/ypath.pb.h>
 
-// TODO(babenko): eliminate this reference
-//#include <ytlib/ypath/rich.h>
-
 namespace NYT {
 namespace NYTree {
 
@@ -25,7 +22,13 @@ class TYPathRequest
     , public NRpc::IClientRequest
 {
 public:
-    TYPathRequest(const Stroka& verb, const NYPath::TYPath& path);
+    explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
+
+    TYPathRequest(
+        const Stroka& service,
+        const Stroka& verb,
+        const NYPath::TYPath& path,
+        bool mutating);
 
     virtual bool IsOneWay() const override;
     virtual NRpc::TRequestId GetRequestId() const override;
@@ -68,8 +71,20 @@ class TTypedYPathRequest
 public:
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TTypedResponse;
 
-    TTypedYPathRequest(const Stroka& verb, const NYPath::TYPath& path)
-        : TYPathRequest(verb, path)
+    explicit TTypedYPathRequest(const NRpc::NProto::TRequestHeader& header)
+        : TYPathRequest(header)
+    { }
+
+    TTypedYPathRequest(
+        const Stroka& service,
+        const Stroka& verb,
+        const NYPath::TYPath& path,
+        bool mutating)
+        : TYPathRequest(
+            service,
+            verb,
+            path,
+            mutating)
     { }
 
 protected:
@@ -79,6 +94,7 @@ protected:
         YCHECK(SerializeToProtoWithEnvelope(*this, &data));
         return data;
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,12 +142,7 @@ protected:
     \
     static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
     { \
-        auto request = New<TReq##method>(#method, path); \
-        auto* headerExt = request->Header().MutableExtension(NYT::NYTree::NProto::TYPathHeaderExt::ypath_header_ext); \
-        if (isMutating) { \
-            headerExt->set_mutating(true); \
-        } \
-        return std::move(request); \
+        return New<TReq##method>(GetServiceName(), #method, path, isMutating); \
     }
 
 #define DEFINE_YPATH_PROXY_METHOD(ns, method) \
@@ -142,23 +153,31 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TYPath& GetRequestYPath(NRpc::IServiceContextPtr context);
+
+const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
+
+void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path);
+
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
 
+//! Runs a sequence of IYPathService::Resolve calls aimed to discover the
+//! ultimate endpoint responsible for serving a given request.
 void ResolveYPath(
     IYPathServicePtr rootService,
     NRpc::IServiceContextPtr context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
-//! Asynchronously executes an untyped YPath verb against the given service.
+//! Asynchronously executes an untyped request against a given service.
 TFuture<TSharedRefArray>
 ExecuteVerb(
     IYPathServicePtr service,
     TSharedRefArray requestMessage);
 
-//! Asynchronously executes a request against the given service.
+//! Asynchronously executes a request against a given service.
 void ExecuteVerb(
     IYPathServicePtr service,
     NRpc::IServiceContextPtr context);

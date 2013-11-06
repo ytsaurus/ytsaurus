@@ -138,8 +138,8 @@ private:
                     return;
                 }
 
-                const auto& path = requestHeader.service();
-                const auto& verb = requestHeader.verb();
+                const auto& verb  = requestHeader.verb();
+                const auto& path = GetRequestYPath(requestHeader);
                 auto mutationId = GetMutationId(requestHeader);
 
                 LOG_DEBUG("Execute[%d] <- %s %s (RequestId: %s, MutationId: %s)",
@@ -267,7 +267,7 @@ private:
         auto cypressManager = Bootstrap->GetCypressManager();
         FOREACH (const auto& prerequisite, request.prerequisite_revisions()) {
             auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
-            auto path = TYPath(prerequisite.path());
+            const auto& path = prerequisite.path();
             i64 revision = prerequisite.revision();
 
             TTransaction* transaction = nullptr;

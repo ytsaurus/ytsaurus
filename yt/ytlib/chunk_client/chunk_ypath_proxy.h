@@ -15,6 +15,10 @@ namespace NChunkClient {
 struct TChunkYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
+    static Stroka GetServiceName()
+    {
+        return "Chunk";
+    }
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Confirm);
     // NB: Works only for table chunks.

@@ -105,7 +105,7 @@ void TYPathServiceBase::SerializeAttributes(
 #define IMPLEMENT_SUPPORTS_VERB_RESOLVE(verb, onPathError) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
     { \
-        NYPath::TTokenizer tokenizer(context->GetService()); \
+        NYPath::TTokenizer tokenizer(GetRequestYPath(context)); \
         switch (tokenizer.Advance()) { \
             case NYPath::ETokenType::EndOfStream: \
                 verb##Self(request, response, context); \
@@ -138,14 +138,14 @@ void TYPathServiceBase::SerializeAttributes(
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("attribute")); \
+        ThrowVerbNotSuppored(context->GetVerb(), Stroka("attribute")); \
     } \
     \
     void TSupports##verb::verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
     { \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("self")); \
+        ThrowVerbNotSuppored(context->GetVerb(), Stroka("self")); \
     } \
     \
     void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
@@ -153,7 +153,7 @@ void TYPathServiceBase::SerializeAttributes(
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("recursive")); \
+        ThrowVerbNotSuppored(context->GetVerb(), Stroka("recursive")); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(GetKey)
@@ -953,7 +953,7 @@ protected:
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s %s <- %s",
             ~GetVerb(),
-            ~GetService(),
+            ~GetRequestYPath(this),
             ~str);
     }
 
@@ -964,7 +964,7 @@ protected:
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s %s -> %s",
             ~GetVerb(),
-            ~GetService(),
+            ~GetRequestYPath(this),
             ~str);
     }
 

@@ -336,7 +336,7 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
+            LOG_DEBUG("Request sent (RequestId: %s, Service: %s, Verb: %s, Timeout: %s)",
                 ~ToString(requestId),
                 ~request->GetService(),
                 ~request->GetVerb(),

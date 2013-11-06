@@ -12,6 +12,11 @@ namespace NObjectClient {
 struct TMasterYPathProxy
     : public NYTree::TYPathProxy
 {
+    static Stroka GetServiceName()
+    {
+        return "Master";
+    }
+
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, CreateObjects);
 };
 

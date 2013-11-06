@@ -16,6 +16,8 @@
 #include <core/ypath/token.h>
 #include <core/ypath/tokenizer.h>
 
+#include <core/ytree/ypath.pb.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -23,14 +25,27 @@ namespace NYTree {
 
 using namespace NBus;
 using namespace NRpc;
+using namespace NRpc::NProto;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathRequest::TYPathRequest(const Stroka& verb, const TYPath& path)
+TYPathRequest::TYPathRequest(const TRequestHeader& header)
+    : Header_(header)
+{ }
+
+TYPathRequest::TYPathRequest(
+    const Stroka& service,
+    const Stroka& verb,
+    const TYPath& path,
+    bool mutating)
 {
+    Header_.set_service(service);
     Header_.set_verb(verb);
-    Header_.set_service(path);
+
+    auto* headerExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    headerExt->set_mutating(mutating);
+    headerExt->set_path(path);
 }
 
 bool TYPathRequest::IsOneWay() const
@@ -162,6 +177,23 @@ void TYPathResponse::DeserializeBody(const TRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TYPath& GetRequestYPath(IServiceContextPtr context)
+{
+    return GetRequestYPath(context->RequestHeader());
+}
+
+const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto& headerExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return headerExt.path();
+}
+
+void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
+{
+    auto* headerExt = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    headerExt->set_path(path);
+}
+
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath)
@@ -186,10 +218,9 @@ void ResolveYPath(
     YASSERT(suffixService);
     YASSERT(suffixPath);
 
-    const auto& path = context->GetService();
-    const auto& verb = context->GetVerb();
-
     auto currentService = rootService;
+
+    const auto& path = GetRequestYPath(context);
     auto currentPath = path;
 
     while (true) {
@@ -201,7 +232,7 @@ void ResolveYPath(
                 NYTree::EErrorCode::ResolveError,
                 "Error resolving path %s",
                 ~path)
-                << TErrorAttribute("verb", ~verb)
+                << TErrorAttribute("verb", context->GetVerb())
                 << TErrorAttribute("resolved_path", ComputeResolvedYPath(path, currentPath))
                 << ex;
         }
@@ -261,10 +292,12 @@ ExecuteVerb(
 
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-    requestHeader.set_service(suffixPath);
+    SetRequestYPath(&requestHeader, suffixPath);
+
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
     auto asyncResponseMessage = NewPromise<TSharedRefArray>();
+
     auto updatedContext = CreateYPathContext(
         updatedRequestMessage,
         suffixService->GetLoggingCategory(),

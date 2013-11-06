@@ -8,11 +8,13 @@
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/ypath_detail.h>
 
-#include <ytlib/orchid/orchid_service_proxy.h>
+#include <core/ytree/ypath.pb.h>
 
 #include <core/rpc/channel.h>
 #include <core/rpc/message.h>
 #include <core/rpc/channel_cache.h>
+
+#include <ytlib/orchid/orchid_service_proxy.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -77,7 +79,7 @@ public:
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
 
-        auto path = GetRedirectPath(manifest, context->GetService());
+        auto path = GetRedirectPath(manifest, GetRequestYPath(context));
         auto verb = context->GetVerb();
 
         auto requestMessage = context->GetRequestMessage();
@@ -87,7 +89,8 @@ public:
             return;
         }
 
-        requestHeader.set_service(path);
+        SetRequestYPath(&requestHeader, path);
+
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();

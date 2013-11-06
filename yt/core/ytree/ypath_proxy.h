@@ -11,6 +11,11 @@ namespace NYTree {
 
 struct TYPathProxy
 {
+    static Stroka GetServiceName()
+    {
+        return "Node";
+    }
+
     DEFINE_YPATH_PROXY_METHOD(NProto, GetKey);
     DEFINE_YPATH_PROXY_METHOD(NProto, Get);
     DEFINE_YPATH_PROXY_METHOD(NProto, List);

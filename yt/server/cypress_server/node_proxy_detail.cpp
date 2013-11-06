@@ -924,7 +924,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     auto type = EObjectType(request->type());
-    const auto& path = context->GetService();
+    const auto& path = GetRequestYPath(context);
 
     context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
         ~type.ToString(),
@@ -976,7 +976,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
     bool removeSource = request->remove_source();
-    auto targetPath = context->GetService();
+    auto targetPath = GetRequestYPath(context);
 
     context->SetRequestInfo("SourcePath: %s, PreserveAccount: %s, RemoveSource: %s",
         ~sourcePath,
@@ -1774,7 +1774,7 @@ void DelegateInvocation(
     typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TClientResponse;
 
-    auto clientRequest = New<TClientRequest>(context->GetVerb(), context->GetService());
+    auto clientRequest = New<TClientRequest>(context->RequestHeader());
     clientRequest->MergeFrom(*serverRequest);
 
     auto clientResponse = ExecuteVerb(service, clientRequest).Get();
