@@ -12,7 +12,7 @@ template TYsonString ConvertToYsonString<Stroka>(const Stroka&);
 
 TYsonString ConvertToYsonString(const char* value)
 {
-	return ConvertToYsonString(Stroka(value));
+    return ConvertToYsonString(Stroka(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

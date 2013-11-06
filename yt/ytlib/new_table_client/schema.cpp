@@ -125,6 +125,7 @@ int TTableSchema::GetColumnIndex(const TColumnSchema& column) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 {
     NYTree::Serialize(schema.Columns(), consumer);
@@ -169,4 +170,13 @@ bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
+
+// XXX(sandello): Apparently we have to explicitly ask for ConvertToYsonString.
+namespace NYTree {
+    template TYsonString ConvertToYsonString<
+        NVersionedTableClient::EColumnType
+    >(const NVersionedTableClient::EColumnType&);
+} // namespace NYTree
+
 } // namespace NYT
+
