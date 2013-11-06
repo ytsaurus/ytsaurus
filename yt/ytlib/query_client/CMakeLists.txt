@@ -6,7 +6,7 @@ set( SRCS
   ${BASE}/graphviz.cpp
   ${BASE}/operator.cpp
   ${BASE}/expression.cpp
-  ${BASE}/query_context.cpp
+  ${BASE}/plan_context.cpp
   ${BASE}/plan_fragment.cpp
   ${BASE}/private.cpp
   ${BASE}/helpers.cpp
@@ -29,7 +29,7 @@ set( HDRS
   ${BASE}/parser.hpp
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/query_context.h
+  ${BASE}/plan_context.h
   ${BASE}/plan_fragment.h
   ${BASE}/query_service_proxy.h
 )

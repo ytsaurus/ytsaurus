@@ -38,7 +38,7 @@ public:
         return Callbacks_;
     }
 
-    TQueryContext* GetContext()
+    TPlanContext* GetContext()
     {
         return Fragment_.GetContext().Get();
     }

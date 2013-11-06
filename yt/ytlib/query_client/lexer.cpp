@@ -33,7 +33,7 @@ static const int Lexer_en_main = 5;
 #line 112 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 } // namespace anonymous
 
-TLexer::TLexer(TQueryContext* context, const Stroka& source)
+TLexer::TLexer(TPlanContext* context, const Stroka& source)
     : Context_(context)
     , p(nullptr)
     , pe(nullptr)

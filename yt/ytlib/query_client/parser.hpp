@@ -491,7 +491,7 @@ namespace NYT { namespace NQueryClient {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TQueryContext* context_yyarg, const TOperator** head_yyarg);
+    TParser (TLexer& lexer_yyarg, TPlanContext* context_yyarg, const TOperator** head_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -701,7 +701,7 @@ namespace NYT { namespace NQueryClient {
 
     // User arguments.
     TLexer& lexer;
-    TQueryContext* context;
+    TPlanContext* context;
     const TOperator** head;
   };
 

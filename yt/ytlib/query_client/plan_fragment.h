@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "query_context.h"
+#include "plan_context.h"
 
 #include <core/misc/property.h>
 #include <core/misc/guid.h>
@@ -16,7 +16,7 @@ class TPlanFragment
 {
 public:
     explicit TPlanFragment(
-        TQueryContextPtr context,
+        TPlanContextPtr context,
         const TOperator* head = nullptr,
         const TGuid& guid = TGuid::Create());
 
@@ -26,7 +26,7 @@ public:
 
     ~TPlanFragment();
 
-    DEFINE_BYVAL_RO_PROPERTY(TQueryContextPtr, Context);
+    DEFINE_BYVAL_RO_PROPERTY(TPlanContextPtr, Context);
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Head);
     DEFINE_BYREF_RO_PROPERTY(TGuid, Guid);
 

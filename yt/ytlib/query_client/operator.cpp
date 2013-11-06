@@ -1,6 +1,6 @@
 #include "plan_node.h"
 #include "plan_visitor.h"
-#include "query_context.h"
+#include "plan_context.h"
 
 #include <yt/ytlib/query_client/operator.pb.h>
 
@@ -64,7 +64,7 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
 
 }
 
-const TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context)
+const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* context)
 {
     const TOperator* result = nullptr;
 

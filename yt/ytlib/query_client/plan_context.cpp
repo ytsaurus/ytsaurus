@@ -1,4 +1,4 @@
-#include "query_context.h"
+#include "plan_context.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -10,46 +10,46 @@ static const int FakeTableIndex = 0xdeadbabe;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryContext::TTrackedObject::TTrackedObject(TQueryContext* context)
+TPlanContext::TTrackedObject::TTrackedObject(TPlanContext* context)
     : Context_(context)
 {
     Context_->TrackedObjects_.insert(this);
 }
 
-TQueryContext::TTrackedObject::~TTrackedObject()
+TPlanContext::TTrackedObject::~TTrackedObject()
 {
     Context_ = nullptr;
 }
 
-void* TQueryContext::TTrackedObject::operator new(
+void* TPlanContext::TTrackedObject::operator new(
     size_t bytes,
-    TQueryContext* context)
+    TPlanContext* context)
 {
     return context->Allocate(bytes);
 }
 
-void TQueryContext::TTrackedObject::operator delete(
+void TPlanContext::TTrackedObject::operator delete(
     void* pointer,
-    TQueryContext* context) throw()
+    TPlanContext* context) throw()
 {
     context->Deallocate(pointer);
 }
 
-void* TQueryContext::TTrackedObject::operator new(size_t)
+void* TPlanContext::TTrackedObject::operator new(size_t)
 {
     YUNREACHABLE();
 }
 
-void TQueryContext::TTrackedObject::operator delete(void*) throw()
+void TPlanContext::TTrackedObject::operator delete(void*) throw()
 {
     YUNREACHABLE();
 }
 
-TQueryContext::TQueryContext()
+TPlanContext::TPlanContext()
     : MemoryPool_(InitialMemoryPoolSize)
 { }
 
-TQueryContext::~TQueryContext()
+TPlanContext::~TPlanContext()
 {
     FOREACH (auto& object, TrackedObjects_) {
         object->~TTrackedObject();
@@ -57,30 +57,30 @@ TQueryContext::~TQueryContext()
     }
 }
 
-void* TQueryContext::Allocate(size_t size)
+void* TPlanContext::Allocate(size_t size)
 {
     return MemoryPool_.Allocate(size);
 }
 
-void TQueryContext::Deallocate(void*)
+void TPlanContext::Deallocate(void*)
 { }
 
-TStringBuf TQueryContext::Capture(const char* begin, const char* end)
+TStringBuf TPlanContext::Capture(const char* begin, const char* end)
 {
     return TStringBuf(MemoryPool_.Append(begin, end - begin), end - begin);
 }
 
-void TQueryContext::SetDebugInformation(TDebugInformation&& debugInformation)
+void TPlanContext::SetDebugInformation(TDebugInformation&& debugInformation)
 {
     DebugInformation_ = std::move(debugInformation);
 }
 
-const TDebugInformation* TQueryContext::GetDebugInformation() const
+const TDebugInformation* TPlanContext::GetDebugInformation() const
 {
     return DebugInformation_.GetPtr();
 }
 
-int TQueryContext::GetTableIndexByAlias(const TStringBuf& alias)
+int TPlanContext::GetTableIndexByAlias(const TStringBuf& alias)
 {
     auto begin = TableDescriptors_.begin();
     auto end = TableDescriptors_.end();
@@ -93,7 +93,7 @@ int TQueryContext::GetTableIndexByAlias(const TStringBuf& alias)
         });
 
     if (it == end) {
-        it = TableDescriptors_.insert(it, TTableDescriptor());
+        it = TableDescriptors_.emplace(it);
         it->Alias = alias;
         it->Opaque = nullptr;
 
@@ -104,18 +104,18 @@ int TQueryContext::GetTableIndexByAlias(const TStringBuf& alias)
     return std::distance(begin, it);
 }
 
-int TQueryContext::GetFakeTableIndex()
+int TPlanContext::GetFakeTableIndex()
 {
     return FakeTableIndex;
 }
 
-TTableDescriptor& TQueryContext::GetTableDescriptorByIndex(int tableIndex)
+TTableDescriptor& TPlanContext::GetTableDescriptorByIndex(int tableIndex)
 {
     YASSERT(tableIndex != FakeTableIndex);
     return TableDescriptors_[tableIndex];
 }
 
-void TQueryContext::BindToTableIndex(int tableIndex, const TStringBuf& path, void* opaque)
+void TPlanContext::BindToTableIndex(int tableIndex, const TStringBuf& path, void* opaque)
 {
     auto& descriptor = GetTableDescriptorByIndex(tableIndex);
 
@@ -125,7 +125,7 @@ void TQueryContext::BindToTableIndex(int tableIndex, const TStringBuf& path, voi
     descriptor.Opaque = opaque;
 }
 
-int TQueryContext::GetTableCount() const
+int TPlanContext::GetTableCount() const
 {
     return TableDescriptors_.size();
 }

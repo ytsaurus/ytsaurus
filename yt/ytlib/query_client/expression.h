@@ -37,7 +37,7 @@ class TExpression
 {
 public:
     TExpression(
-        TQueryContext* context,
+        TPlanContext* context,
         EExpressionKind kind,
         const TSourceLocation& sourceLocation)
         : TPlanNodeBase(context, kind)
@@ -68,7 +68,7 @@ class TIntegerLiteralExpression
 {
 public:
     TIntegerLiteralExpression(
-        TQueryContext* context,
+        TPlanContext* context,
         const TSourceLocation& sourceLocation,
         i64 value)
         : TExpression(context, EExpressionKind::IntegerLiteral, sourceLocation)
@@ -100,7 +100,7 @@ class TDoubleLiteralExpression
 {
 public:
     TDoubleLiteralExpression(
-        TQueryContext* context,
+        TPlanContext* context,
         const TSourceLocation& sourceLocation,
         double value)
         : TExpression(context, EExpressionKind::DoubleLiteral, sourceLocation)
@@ -132,7 +132,7 @@ class TReferenceExpression
 {
 public:
     TReferenceExpression(
-        TQueryContext* context,
+        TPlanContext* context,
         const TSourceLocation& sourceLocation,
         int tableIndex,
         const TStringBuf& name)
@@ -174,7 +174,7 @@ public:
     typedef TSmallVector<const TExpression*, TypicalFunctionArity> TArguments;
 
     TFunctionExpression(
-        TQueryContext* context,
+        TPlanContext* context,
         const TSourceLocation& sourceLocation,
         const TStringBuf& name)
         : TExpression(context, EExpressionKind::Function, sourceLocation)
@@ -245,7 +245,7 @@ class TBinaryOpExpression
 {
 public:
     TBinaryOpExpression(
-        TQueryContext* context,
+        TPlanContext* context,
         const TSourceLocation& sourceLocation,
         EBinaryOp opcode,
         const TExpression* lhs,
@@ -325,7 +325,7 @@ protected:
 
 namespace NProto { class TExpression; }
 void ToProto(NProto::TExpression* serialized, const TExpression* original);
-const TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* context);
+const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

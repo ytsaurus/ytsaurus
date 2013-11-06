@@ -85,7 +85,7 @@ void TCoordinateController::SplitFurther()
     // to
     //   U -> { S1 ... Sk }
     Rewrite(
-    [this] (TQueryContext* context, const TOperator* op) -> const TOperator* {
+    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         if (auto* scanOp = op->As<TScanOperator>()) {
             auto objectId = GetObjectIdFromDataSplit(scanOp->DataSplit());
             LOG_DEBUG("Splitting input %s", ~ToString(objectId));
@@ -125,7 +125,7 @@ void TCoordinateController::PushdownFilters()
 {
     LOG_DEBUG("Pushing down filter operators");
     Rewrite(
-    [] (TQueryContext* context, const TOperator* op) -> const TOperator* {
+    [] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         // Rewrite
         //   F -> U -> { O1 ... Ok }
         // to
@@ -152,7 +152,7 @@ void TCoordinateController::PushdownProjects()
 {
     LOG_DEBUG("Pushing down project operators");
     Rewrite(
-    [this] (TQueryContext* context, const TOperator* op) -> const TOperator* {
+    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         // Rewrute
         //   P -> U -> { O1 ... Ok }
         // to

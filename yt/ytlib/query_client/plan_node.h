@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "query_context.h"
+#include "plan_context.h"
 #include "source_location.h"
 
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -25,12 +25,12 @@ const int TypicalProjectionCount = 4;
 
 template <class TPlanNode, class EKind>
 class TPlanNodeBase
-    : public TQueryContext::TTrackedObject
+    : public TPlanContext::TTrackedObject
 {
     EKind Kind_;
 
 public:
-    explicit TPlanNodeBase(TQueryContext* context, EKind kind)
+    explicit TPlanNodeBase(TPlanContext* context, EKind kind)
         : TTrackedObject(context)
         , Kind_(kind)
     { }

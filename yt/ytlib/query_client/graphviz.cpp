@@ -8,7 +8,7 @@
 #include "plan_node.h"
 #include "plan_visitor.h"
 #include "plan_fragment.h"
-#include "query_context.h"
+#include "plan_context.h"
 
 #include <core/misc/assert.h>
 #include <core/misc/proc.h>

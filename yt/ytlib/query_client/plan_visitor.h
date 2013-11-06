@@ -10,7 +10,8 @@ namespace NQueryClient {
 class TOperator;
 class TExpression;
 
-class TQueryContext;
+class TPlanContext;
+struct IPlanVisitor;
 
 #define AS_INTERFACE(nodeType) \
     virtual bool Visit(const T ## nodeType *) = 0;
@@ -67,7 +68,7 @@ bool Traverse(IPlanVisitor* visitor, const TExpression* root);
 
 //! Recursively applies the functor to the tree.
 template <class TNode, class TFunctor>
-const TNode* Apply(TQueryContext* context, const TNode* node, const TFunctor& functor)
+const TNode* Apply(TPlanContext* context, const TNode* node, const TFunctor& functor)
 {
     const TNode* result = functor(context, node);
 

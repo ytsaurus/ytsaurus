@@ -14,8 +14,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TypicalTableCount = 2;
-
 //! Holds useful debug information.
 //! Usually this structure is not preserved between (de)serializations.
 struct TDebugInformation
@@ -35,23 +33,23 @@ struct TTableDescriptor
     void* Opaque;
 };
 
-//! Holds query context and ASTs.
-class TQueryContext
+//! Holds query plan nodes and related stuff.
+class TPlanContext
     : public TRefCounted
 {
 public:
     class TTrackedObject
     {
     public:
-        explicit TTrackedObject(TQueryContext* context);
+        explicit TTrackedObject(TPlanContext* context);
         virtual ~TTrackedObject();
 
         // Bound objects have to be allocated through the context.
-        void* operator new(size_t, TQueryContext*);
-        void operator delete(void*, TQueryContext*) throw();
+        void* operator new(size_t, TPlanContext*);
+        void operator delete(void*, TPlanContext*) throw();
 
     protected:
-        TQueryContext* Context_;
+        TPlanContext* Context_;
 
     protected:
         // Bound objects could not be instatiated without the context.
@@ -66,8 +64,8 @@ public:
         void operator delete(void*) throw();
     };
 
-    TQueryContext();
-    ~TQueryContext();
+    TPlanContext();
+    ~TPlanContext();
 
     void* Allocate(size_t size);
     void Deallocate(void* pointer);
@@ -84,10 +82,10 @@ public:
 
 private:
     TMemoryPool MemoryPool_;
-    std::unordered_set<TTrackedObject*> TrackedObjects_;
-
     TNullable<TDebugInformation> DebugInformation_;
-    TSmallVector<TTableDescriptor, TypicalTableCount> TableDescriptors_;
+
+    std::unordered_set<TTrackedObject*> TrackedObjects_;
+    std::vector<TTableDescriptor> TableDescriptors_;
 
 };
 

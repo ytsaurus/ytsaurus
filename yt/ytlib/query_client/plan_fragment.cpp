@@ -40,7 +40,7 @@ public:
         const Stroka& source)
         : Callbacks_(callbacks)
         , Source_(source)
-        , Context_(New<TQueryContext>())
+        , Context_(New<TPlanContext>())
         , Head_(nullptr)
     { }
 
@@ -56,7 +56,7 @@ public:
         return Callbacks_;
     }
 
-    TQueryContext* GetContext()
+    TPlanContext* GetContext()
     {
         return Context_.Get();
     }
@@ -64,7 +64,7 @@ public:
 private:
     IPrepareCallbacks* Callbacks_;
     const Stroka& Source_;
-    TQueryContextPtr Context_;
+    TPlanContextPtr Context_;
     const TOperator* Head_;
 
 };
@@ -252,7 +252,7 @@ void TPrepareController::TypecheckExpressions()
 ////////////////////////////////////////////////////////////////////////////////
 
 TPlanFragment::TPlanFragment(
-    TQueryContextPtr context,
+    TPlanContextPtr context,
     const TOperator* head,
     const TGuid& guid)
     : Context_(std::move(context))
@@ -290,7 +290,7 @@ void ToProto(NProto::TPlanFragment* serialized, const TPlanFragment& fragment)
 
 TPlanFragment FromProto(const NProto::TPlanFragment& serialized)
 {
-    auto context = New<TQueryContext>();
+    auto context = New<TPlanContext>();
     return TPlanFragment(
         context,
         FromProto(serialized.head(), context.Get()),

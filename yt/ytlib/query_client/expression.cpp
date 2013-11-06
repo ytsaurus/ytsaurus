@@ -1,6 +1,6 @@
 #include "plan_node.h"
 #include "plan_visitor.h"
-#include "query_context.h"
+#include "plan_context.h"
 
 #include <yt/ytlib/query_client/expression.pb.h>
 
@@ -89,7 +89,7 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
 
 }
 
-const TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* context)
+const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext* context)
 {
     const TExpression* result = nullptr;
 

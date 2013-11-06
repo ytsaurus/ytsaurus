@@ -14,8 +14,8 @@ namespace NQueryClient {
 class TOperator;
 class TExpression;
 
-class TQueryContext;
-typedef TIntrusivePtr<TQueryContext> TQueryContextPtr;
+class TPlanContext;
+typedef TIntrusivePtr<TPlanContext> TPlanContextPtr;
 
 class TPlanFragment;
 

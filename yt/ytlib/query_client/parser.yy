@@ -13,7 +13,7 @@
 %locations
 
 %parse-param {TLexer& lexer}
-%parse-param {TQueryContext* context}
+%parse-param {TPlanContext* context}
 %parse-param {const TOperator** head}
 
 %code requires {

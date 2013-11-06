@@ -111,7 +111,7 @@ namespace {
 %% write data;
 } // namespace anonymous
 
-TLexer::TLexer(TQueryContext* context, const Stroka& source)
+TLexer::TLexer(TPlanContext* context, const Stroka& source)
     : Context_(context)
     , p(nullptr)
     , pe(nullptr)

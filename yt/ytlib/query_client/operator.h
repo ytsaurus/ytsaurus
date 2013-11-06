@@ -24,7 +24,7 @@ class TOperator
     : public TPlanNodeBase<TOperator, EOperatorKind>
 {
 public:
-    TOperator(TQueryContext* context, EOperatorKind kind)
+    TOperator(TPlanContext* context, EOperatorKind kind)
         : TPlanNodeBase(context, kind)
     { }
 
@@ -36,7 +36,7 @@ class TScanOperator
     : public TOperator
 {
 public:
-    TScanOperator(TQueryContext* context, int tableIndex)
+    TScanOperator(TPlanContext* context, int tableIndex)
         : TOperator(context, EOperatorKind::Scan)
         , TableIndex_(tableIndex)
     { }
@@ -63,7 +63,7 @@ class TUnionOperator
 public:
     typedef TSmallVector<const TOperator*, TypicalUnionArity> TSources;
 
-    TUnionOperator(TQueryContext* context)
+    TUnionOperator(TPlanContext* context)
         : TOperator(context, EOperatorKind::Union)
     { }
 
@@ -101,7 +101,7 @@ class TFilterOperator
     : public TOperator
 {
 public:
-    TFilterOperator(TQueryContext* context, const TOperator* source)
+    TFilterOperator(TPlanContext* context, const TOperator* source)
         : TOperator(context, EOperatorKind::Filter)
         , Source_(source)
     { }
@@ -128,7 +128,7 @@ class TProjectOperator
 public:
     typedef TSmallVector<const TExpression*, TypicalProjectionCount> TProjections;
 
-    TProjectOperator(TQueryContext* context, const TOperator* source)
+    TProjectOperator(TPlanContext* context, const TOperator* source)
         : TOperator(context, EOperatorKind::Project)
         , Source_(source)
     { }
@@ -174,7 +174,7 @@ private:
 
 namespace NProto { class TOperator; }
 void ToProto(NProto::TOperator* serialized, const TOperator* original);
-const TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context);
+const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
