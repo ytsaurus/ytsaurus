@@ -86,6 +86,10 @@ void PrintTo(const TStringBuf& string, ::std::ostream* os)
 
 int main(int argc, char **argv)
 {
+#ifdef _unix_
+    signal(SIGPIPE, SIG_IGN);
+#endif
+
     testing::InitGoogleTest(&argc, argv);
     int rv = RUN_ALL_TESTS();
 
