@@ -319,8 +319,6 @@ public:
     void RemoveChild(ISchedulableElementPtr child)
     {
         YCHECK(Children.erase(child) == 1);
-        // Avoid scheduling removed children.
-        ComputeAll();
     }
 
     std::vector<ISchedulableElementPtr> GetChildren() const
@@ -611,6 +609,7 @@ public:
         const Stroka& id)
         : TCompositeSchedulerElement(host)
         , TSchedulableElementBase(host)
+        , Parent_(nullptr)
         , ResourceUsage_(ZeroNodeResources())
         , ResourceUsageDiscount_(ZeroNodeResources())
         , ResourceLimits_(InfiniteNodeResources())
@@ -686,6 +685,8 @@ public:
         return result;
     }
 
+
+    DEFINE_BYVAL_RW_PROPERTY(TPool*, Parent);
 
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
@@ -886,6 +887,10 @@ public:
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
+                        .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
+                            fluent
+                                .Item("parent").Value(pool->GetParent()->GetId());
+                        })
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
@@ -988,6 +993,7 @@ private:
         YCHECK(OperationToElement.erase(operation) == 1);
         pool->RemoveChild(operationElement);
         pool->ResourceUsage() -= operationElement->ResourceUsage();
+        pool->Update();
 
         LOG_INFO("Operation removed from pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetOperationId()),
@@ -1076,28 +1082,59 @@ private:
     }
 
 
+    TCompositeSchedulerElementPtr GetPoolParentElement(TPoolPtr pool)
+    {
+        auto* parentPool = pool->GetParent();
+        return parentPool ? TCompositeSchedulerElementPtr(parentPool) : RootElement;
+    }
+
+    // Handles nullptr (aka "root") properly.
+    Stroka GetPoolId(TPoolPtr pool)
+    {
+        return pool ? pool->GetId() : Stroka("<Root>");
+    }
+
+
     void RegisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        RootElement->AddChild(pool);
+        GetPoolParentElement(pool)->AddChild(pool);
 
-        LOG_INFO("Pool registered (Pool: %s)", ~pool->GetId());
+        LOG_INFO("Pool registered (Pool: %s, Parent: %s)",
+            ~GetPoolId(pool),
+            ~GetPoolId(pool->GetParent()));
     }
 
     void UnregisterPool(TPoolPtr pool)
     {
-        YCHECK(pool->IsEmpty());
-
         YCHECK(Pools.erase(pool->GetId()) == 1);
-        RootElement->RemoveChild(pool);
+        GetPoolParentElement(pool)->RemoveChild(pool);
 
-        LOG_INFO("Pool unregistered (Pool: %s)", ~pool->GetId());
+        LOG_INFO("Pool unregistered (Pool: %s, Parent: %s)",
+            ~GetPoolId(pool),
+            ~GetPoolId(pool->GetParent()));
     }
+
+    void SetPoolParent(TPoolPtr pool, TPoolPtr parent)
+    {
+        if (pool->GetParent() == parent)
+            return;
+
+        LOG_INFO("Changing pool parent (Pool: %s, OldParent: %s, NewParent: %s)",
+            ~GetPoolId(pool),
+            ~GetPoolId(pool->GetParent()),
+            ~GetPoolId(parent));
+
+        GetPoolParentElement(pool)->RemoveChild(pool);
+        pool->SetParent(~parent);
+        GetPoolParentElement(pool)->AddChild(pool);
+    }
+
 
     TPoolPtr FindPool(const Stroka& id)
     {
         auto it = Pools.find(id);
-        return it == Pools.end() ? NULL : it->second;
+        return it == Pools.end() ? nullptr : it->second;
     }
 
     TPoolPtr GetPool(const Stroka& id)
@@ -1111,7 +1148,7 @@ private:
     TOperationElementPtr FindOperationElement(TOperationPtr operation)
     {
         auto it = OperationToElement.find(operation);
-        return it == OperationToElement.end() ? NULL : it->second;
+        return it == OperationToElement.end() ? nullptr : it->second;
     }
 
     TOperationElementPtr GetOperationElement(TOperationPtr operation)
@@ -1136,59 +1173,86 @@ private:
 
     void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error updating pools");
-            return;
-        }
+        try {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        // Build the set of potential orphans.
-        yhash_set<Stroka> orphanPoolIds;
-        FOREACH (const auto& pair, Pools) {
-            YCHECK(orphanPoolIds.insert(pair.first).second);
-        }
-
-        auto newPoolsNode = ConvertToNode(TYsonString(rsp->value()));
-        auto newPoolsMapNode = newPoolsNode->AsMap();
-        FOREACH (const auto& pair, newPoolsMapNode->GetChildren()) {
-            const auto& id = pair.first;
-            const auto& poolNode = pair.second;
-
-            // Parse config.
-            auto configNode = ConvertToNode(poolNode->Attributes());
-            TPoolConfigPtr config;
-            try {
-                config = ConvertTo<TPoolConfigPtr>(configNode);
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error parsing configuration of pool %s, defaults will be used",
-                    ~id.Quote());
-                config = New<TPoolConfig>();
+            // Build the set of potential orphans.
+            yhash_set<Stroka> orphanPoolIds;
+            FOREACH (const auto& pair, Pools) {
+                YCHECK(orphanPoolIds.insert(pair.first).second);
             }
 
-            auto existingPool = FindPool(id);
-            if (existingPool) {
-                // Reconfigure existing pool.
-                existingPool->SetConfig(config);
-                YCHECK(orphanPoolIds.erase(id) == 1);
-            } else {
-                // Create new pool.
-                auto newPool = New<TPool>(Host, id);
-                newPool->SetConfig(config);
-                RegisterPool(newPool);
-            }
-        }
+            // Track ids appearing in various branches of the tree.
+            yhash_map<Stroka, TYPath> poolIdToPath;
 
-        // Unregister orphan pools.
-        FOREACH (const auto& id, orphanPoolIds) {
-            auto pool = GetPool(id);
-            if (pool->IsEmpty()) {
-                UnregisterPool(pool);
-            } else {
-                pool->SetDefaultConfig();
-            }
-        }
+            // NB: std::function is needed by parseConfig to capture itself.
+            std::function<void(INodePtr, TPoolPtr)> parseConfig =
+                [&] (INodePtr configNode, TPoolPtr parent) {
+                    auto configMap = configNode->AsMap();
+                    for (const auto& pair : configMap->GetChildren()) {
+                        const auto& childId = pair.first;
+                        const auto& childNode = pair.second;
+                        auto childPath = childNode->GetPath();
+                        if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
+                            LOG_ERROR("Pool %s is defined both at %s and %s; skipping second occurrence",
+                                ~childId.Quote(),
+                                ~poolIdToPath[childId],
+                                ~childPath);
+                            continue;
+                        }
 
-        LOG_INFO("Pools updated");
+                        // Parse config.
+                        auto configNode = ConvertToNode(childNode->Attributes());
+                        TPoolConfigPtr config;
+                        try {
+                            config = ConvertTo<TPoolConfigPtr>(configNode);
+                        } catch (const std::exception& ex) {
+                            LOG_ERROR(ex, "Error parsing configuration of pool %s; using defaults",
+                                ~childPath.Quote());
+                            config = New<TPoolConfig>();
+                        }
+
+                        auto pool = FindPool(childId);
+                        if (pool) {
+                            // Reconfigure existing pool.
+                            pool->SetConfig(config);
+                            SetPoolParent(pool, parent);
+                            YCHECK(orphanPoolIds.erase(childId) == 1);
+                        } else {
+                            // Create new pool.
+                            pool = New<TPool>(Host, childId);
+                            pool->SetConfig(config);
+                            pool->SetParent(~parent);
+                            RegisterPool(pool);
+                        }
+
+                        // Parse children.
+                        parseConfig(childNode, ~pool);
+                    }
+                };
+
+            // Run recursive descent parsing.
+            auto poolsNode = ConvertToNode(TYsonString(rsp->value()));
+            parseConfig(poolsNode, nullptr);
+
+            // Unregister orphan pools.
+            for (const auto& id : orphanPoolIds) {
+                auto pool = GetPool(id);
+                if (pool->IsEmpty()) {
+                    UnregisterPool(pool);
+                } else {
+                    pool->SetDefaultConfig();
+                    SetPoolParent(pool, nullptr);
+                }
+            }
+
+            RootElement->Update();
+
+            LOG_INFO("Pools updated");
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error updating pools");
+        }
     }
 
 
