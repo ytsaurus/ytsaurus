@@ -1,5 +1,19 @@
 package NYT.NYTree.NProto;
 
+import "yt/core/rpc/rpc.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TYPathHeaderExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TYPathHeaderExt ypath_header_ext = 103;
+    }
+
+    optional bool mutating = 1 [default = false];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TAttributeFilter

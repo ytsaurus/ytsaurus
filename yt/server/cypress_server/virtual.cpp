@@ -65,13 +65,6 @@ public:
         return "";
     }
 
-    virtual bool IsMutatingRequest(IServiceContextPtr context) const override
-    {
-        UNUSED(context);
-
-        return false;
-    }
-
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         IYsonConsumer* /*consumer*/,
@@ -116,11 +109,6 @@ public:
     virtual Stroka GetLoggingCategory() const override
     {
         return UnderlyingService->GetLoggingCategory();
-    }
-
-    virtual bool IsMutatingRequest(IServiceContextPtr context) const override
-    {
-        return UnderlyingService->IsMutatingRequest(context);
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

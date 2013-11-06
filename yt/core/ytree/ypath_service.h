@@ -75,16 +75,6 @@ struct IYPathService
     //! to log various details about verb invocation (e.g. request and response infos).
     virtual Stroka GetLoggingCategory() const = 0;
 
-    //! Called for the target service and
-    //! returns true if the request may mutate target's state.
-    /*!
-     *  There are at least two scenarios when this call makes sense:
-     *  - Checking if we need to log the request to be able to replay it during recovery.
-     *  - Checking if the request modifies a mapped YSON file, so we need
-     *    to write it back one the processing is finished.
-     */
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const = 0;
-
 
     // Extension methods
 

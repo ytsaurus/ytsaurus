@@ -487,14 +487,6 @@ void TNontemplateCypressNodeProxyBase::SetParent(ICompositeNodePtr parent)
     impl->SetParent(parent ? ToProxy(INodePtr(parent))->GetTrunkNode() : nullptr);
 }
 
-bool TNontemplateCypressNodeProxyBase::IsMutatingRequest(NRpc::IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Copy);
-    return TNodeBase::IsMutatingRequest(context);
-}
-
 const IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes() const
 {
     return TObjectProxyBase::Attributes();

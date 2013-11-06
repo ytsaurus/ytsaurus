@@ -46,9 +46,9 @@ bool GetSuppressAccessTracking(const NRpc::NProto::TRequestHeader& header);
 struct TCypressYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, Create);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Lock);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Copy);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Create);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Lock);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Copy);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

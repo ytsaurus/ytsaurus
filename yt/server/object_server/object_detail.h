@@ -109,7 +109,6 @@ protected:
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
     virtual void AfterInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
 
     // NYTree::TSupportsAttributes members
     virtual NYTree::IAttributeDictionary* GetUserAttributes() override;
@@ -156,8 +155,6 @@ public:
     TNontemplateNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectBase* object);
-
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
 
 protected:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;

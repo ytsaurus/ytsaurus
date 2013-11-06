@@ -71,8 +71,6 @@ public:
     virtual NYTree::ICompositeNodePtr GetParent() const override;
     virtual void SetParent(NYTree::ICompositeNodePtr parent) override;
 
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
-
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 

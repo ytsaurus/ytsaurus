@@ -424,12 +424,6 @@ bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     return TNontemplateCypressNodeProxyBase::DoInvoke(context);
 }
 
-bool TChunkOwnerNodeProxy::IsMutatingRequest(NRpc::IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(PrepareForUpdate);
-    return TNontemplateCypressNodeProxyBase::IsMutatingRequest(context);
-}
-
 NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
 {
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();

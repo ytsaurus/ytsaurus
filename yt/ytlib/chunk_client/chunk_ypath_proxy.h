@@ -16,10 +16,9 @@ struct TChunkYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
 
-    DEFINE_YPATH_PROXY_METHOD(NProto, Confirm);
-
-    // NB: works only for table chunks.
-    DEFINE_YPATH_PROXY_METHOD(NChunkClient::NProto, Fetch);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Confirm);
+    // NB: Works only for table chunks.
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NChunkClient::NProto, Fetch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

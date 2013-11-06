@@ -115,12 +115,6 @@ public:
         return OrchidLogger.GetCategory();
     }
 
-    bool IsMutatingRequest(IServiceContextPtr context) const override
-    {
-        UNUSED(context);
-        return false;
-    }
-
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* /*consumer*/,

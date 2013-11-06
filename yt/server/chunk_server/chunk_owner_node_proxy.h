@@ -23,8 +23,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         TChunkOwnerBase* trunkNode);
 
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
-
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 protected:

@@ -55,8 +55,6 @@ public:
         TTransaction* transaction,
         TTableNode* trunkNode);
 
-    virtual bool IsMutatingRequest(IServiceContextPtr context) const override;
-
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
 
@@ -103,14 +101,6 @@ bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(Unmount);
     DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
     return TBase::DoInvoke(context);
-}
-
-bool TTableNodeProxy::IsMutatingRequest(IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(SetSorted);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Mount);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Unmount);
-    return TBase::IsMutatingRequest(context);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)

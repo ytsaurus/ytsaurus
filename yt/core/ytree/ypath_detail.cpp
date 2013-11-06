@@ -94,11 +94,6 @@ Stroka TYPathServiceBase::GetLoggingCategory() const
     return Logger.GetCategory();
 }
 
-bool TYPathServiceBase::IsMutatingRequest(IServiceContextPtr /*context*/) const
-{
-    return false;
-}
-
 void TYPathServiceBase::SerializeAttributes(
     NYson::IYsonConsumer* /*consumer*/,
     const TAttributeFilter& /*filter*/,
@@ -1021,11 +1016,6 @@ public:
     virtual Stroka GetLoggingCategory() const override
     {
         return UnderlyingService->GetLoggingCategory();
-    }
-
-    virtual bool IsMutatingRequest(IServiceContextPtr /*context*/) const override
-    {
-        YUNREACHABLE();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

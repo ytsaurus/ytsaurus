@@ -194,12 +194,6 @@ public:
         return ObjectServerLogger.GetCategory();
     }
 
-    virtual bool IsMutatingRequest(IServiceContextPtr context) const override
-    {
-        UNUSED(context);
-        YUNREACHABLE();
-    }
-
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* /*consumer*/,
@@ -955,7 +949,8 @@ void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr cont
 
     auto objectId = proxy->GetVersionedId();
 
-    bool isMutating = proxy->IsMutatingRequest(context);
+    const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    bool isMutating = headerExt.mutating();
 
     LOG_INFO_UNLESS(IsRecovery(), "Invoke: %s %s (ObjectId: %s, Mutating: %s, User: %s)",
         ~context->GetVerb(),

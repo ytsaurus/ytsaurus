@@ -12,7 +12,7 @@ namespace NChunkClient {
 struct TChunkListYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, Attach);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Attach);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

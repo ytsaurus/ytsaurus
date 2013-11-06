@@ -41,12 +41,6 @@ public:
         Logger = ObjectServerLogger;
     }
 
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObjects);
-        return TObjectProxyBase::IsMutatingRequest(context);
-    }
-
 private:
     typedef TNonversionedObjectProxyBase<TMasterObject> TBase;
 

@@ -31,7 +31,6 @@ public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual Stroka GetLoggingCategory() const override;
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
         const TAttributeFilter& filter,
@@ -418,11 +417,6 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
         if (action) { \
             action.Run(); \
         } \
-        return true; \
-    }
-
-#define DECLARE_YPATH_SERVICE_WRITE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
         return true; \
     }
 

@@ -48,12 +48,6 @@ public:
         Logger = ChunkServerLogger;
     }
 
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
-        return TBase::IsMutatingRequest(context);
-    }
-
 private:
     typedef TNonversionedObjectProxyBase<TChunk> TBase;
 

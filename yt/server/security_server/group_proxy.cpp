@@ -24,13 +24,6 @@ public:
         : TBase(bootstrap, group)
     { }
 
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(AddMember);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(RemoveMember);
-        return TBase::IsMutatingRequest(context);
-    }
-
 private:
     typedef TSubjectProxy<TGroup> TBase;
 

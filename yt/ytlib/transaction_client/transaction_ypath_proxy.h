@@ -12,10 +12,11 @@ namespace NTransactionClient {
 struct TTransactionYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, Commit);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Abort);
+    // NB: Not logged.
     DEFINE_YPATH_PROXY_METHOD(NProto, Ping);
-    DEFINE_YPATH_PROXY_METHOD(NProto, UnstageObject);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Commit);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Abort);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, UnstageObject);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

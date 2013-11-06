@@ -10,6 +10,9 @@
 
 #include <core/rpc/client.h>
 
+#include <core/ytree/ypath.pb.h>
+
+// TODO(babenko): eliminate this reference
 #include <ytlib/ypath/rich.h>
 
 namespace NYT {
@@ -115,7 +118,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_YPATH_PROXY_METHOD(ns, method) \
+#define DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, isMutating) \
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
@@ -123,8 +126,19 @@ protected:
     \
     static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
     { \
-        return New<TReq##method>(#method, path); \
+        auto request = New<TReq##method>(#method, path); \
+        auto* headerExt = request->Header().MutableExtension(NYT::NYTree::NProto::TYPathHeaderExt::ypath_header_ext); \
+        if (isMutating) { \
+            headerExt->set_mutating(true); \
+        } \
+        return std::move(request); \
     }
+
+#define DEFINE_YPATH_PROXY_METHOD(ns, method) \
+    DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, false)
+
+#define DEFINE_MUTATING_YPATH_PROXY_METHOD(ns, method) \
+    DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, true)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,8 +20,8 @@ DECLARE_ENUM(EUpdateMode,
 struct TChunkOwnerYPathProxy
     : public NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, PrepareForUpdate);
     DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, PrepareForUpdate);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

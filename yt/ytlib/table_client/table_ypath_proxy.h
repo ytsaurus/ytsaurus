@@ -14,10 +14,10 @@ namespace NTableClient {
 struct TTableYPathProxy
     : public NChunkClient::TChunkOwnerYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, SetSorted);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Mount);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Unmount);
     DEFINE_YPATH_PROXY_METHOD(NProto, GetMountInfo);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, SetSorted);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Mount);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Unmount);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -533,13 +533,6 @@ bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     return TYPathServiceBase::DoInvoke(context);
 }
 
-bool TObjectProxyBase::IsMutatingRequest(IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TYPathServiceBase::IsMutatingRequest(context);
-}
-
 IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
 {
     if (!UserAttributes) {
@@ -811,12 +804,6 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     TObjectBase* object)
     : TObjectProxyBase(bootstrap, object)
 { }
-
-bool TNontemplateNonversionedObjectProxyBase::IsMutatingRequest(IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TObjectProxyBase::IsMutatingRequest(context);
-}
 
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {

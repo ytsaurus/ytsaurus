@@ -62,14 +62,6 @@ public:
         Logger = TransactionServerLogger;
     }
 
-    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Commit);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(UnstageObject);
-        return TBase::IsMutatingRequest(context);
-    }
-
 private:
     typedef TNonversionedObjectProxyBase<TTransaction> TBase;
 
