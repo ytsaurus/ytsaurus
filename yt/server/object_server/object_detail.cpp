@@ -178,7 +178,7 @@ IAttributeDictionary* TObjectProxyBase::MutableAttributes()
     return GetUserAttributes();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
+DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
     context->SetRequestInfo("");
 
@@ -187,7 +187,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
+DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 {
     auto userName = request->user();
     auto permission = EPermission(request->permission());

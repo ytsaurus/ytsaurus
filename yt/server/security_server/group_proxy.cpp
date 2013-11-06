@@ -77,7 +77,7 @@ private:
         return subject;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NSecurityClient::NProto, AddMember)
+    DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, AddMember)
     {
         UNUSED(response);
 
@@ -93,7 +93,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NSecurityClient::NProto, RemoveMember)
+    DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, RemoveMember)
     {
         UNUSED(response);
 

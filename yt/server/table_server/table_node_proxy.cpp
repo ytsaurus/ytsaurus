@@ -73,10 +73,10 @@ private:
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
     virtual bool DoInvoke(IServiceContextPtr context) override;
 
-    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, SetSorted);
-    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Mount);
-    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Unmount);
-    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
 
 };
 
@@ -203,7 +203,7 @@ ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)
         : ELockMode::Exclusive;
 }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
@@ -223,7 +223,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Mount)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
 {
     ValidateNoTransaction();
     
@@ -235,7 +235,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Mount)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Unmount)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
 {
     ValidateNoTransaction();
 
@@ -247,7 +247,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Unmount)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 {
     ValidateNoTransaction();
 

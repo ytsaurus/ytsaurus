@@ -308,7 +308,7 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Fetch)
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch)
     {
         UNUSED(request);
 
@@ -329,7 +329,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Confirm)
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Confirm)
     {
         UNUSED(response);
 

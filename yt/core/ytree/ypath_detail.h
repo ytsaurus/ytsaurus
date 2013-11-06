@@ -24,6 +24,56 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DECLARE_YPATH_SERVICE_METHOD(ns, method) \
+    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef TCtx##method::TTypedRequest  TReq##method; \
+    typedef TCtx##method::TTypedResponse TRsp##method; \
+    \
+    void method##Thunk( \
+        ::NYT::NRpc::IServiceContextPtr context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        if (!typedContext->DeserializeRequest()) \
+            return; \
+        this->method( \
+            &typedContext->Request(), \
+            &typedContext->Response(), \
+            typedContext); \
+    } \
+    \
+    void method( \
+        TReq##method* request, \
+        TRsp##method* response, \
+        TCtx##method##Ptr context)
+
+#define DEFINE_YPATH_SERVICE_METHOD(type, method) \
+    void type::method( \
+        TReq##method* request, \
+        TRsp##method* response, \
+        TCtx##method##Ptr context)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DISPATCH_YPATH_SERVICE_METHOD(method) \
+    if (context->GetVerb() == #method) { \
+        ::NYT::NRpc::THandlerInvocationOptions options; \
+        method##Thunk(context, options); \
+        return true; \
+    }
+
+#define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
+    if (context->GetVerb() == #method) { \
+        ::NYT::NRpc::THandlerInvocationOptions options; \
+        options.HeavyResponse = true; \
+        options.ResponseCodec = NCompression::ECodec::Lz4; \
+        method##Thunk(context, options); \
+        return true; \
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYPathServiceBase
     : public virtual IYPathService
 {
@@ -55,7 +105,7 @@ protected:
         : public base \
     { \
     protected: \
-        DECLARE_RPC_SERVICE_METHOD(NProto, verb); \
+        DECLARE_YPATH_SERVICE_METHOD(NProto, verb); \
         virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
         virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
         virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
@@ -394,31 +444,6 @@ NRpc::IServiceContextPtr CreateYPathContext(
     TYPathResponseHandler responseHandler);
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define DISPATCH_YPATH_SERVICE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
-        ::NYT::NRpc::THandlerInvocationOptions options; \
-        auto action = method##Thunk(context, options); \
-        if (action) { \
-            action.Run(); \
-        } \
-        return true; \
-    }
-
-
-#define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
-        ::NYT::NRpc::THandlerInvocationOptions options; \
-        options.HeavyResponse = true; \
-        options.ResponseCodec = NCompression::ECodec::Lz4; \
-        auto action = method##Thunk(context, options); \
-        if (action) { \
-            action.Run(); \
-        } \
-        return true; \
-    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

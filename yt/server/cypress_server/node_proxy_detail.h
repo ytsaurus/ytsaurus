@@ -197,9 +197,9 @@ protected:
         NYTree::INodePtr value,
         bool recursive);
 
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Copy);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
 
 };
 

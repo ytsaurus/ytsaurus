@@ -651,7 +651,7 @@ void TChunkOwnerNodeProxy::ValidatePathAttributes(
     UNUSED(lowerLimit);
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
     auto mode = EUpdateMode(request->mode());
     YCHECK(mode == EUpdateMode::Append || mode == EUpdateMode::Overwrite);
@@ -740,7 +740,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
     context->SetRequestInfo("");
 
@@ -781,7 +781,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     visitor->Complete();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -125,7 +125,7 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Attach)
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Attach)
     {
         UNUSED(response);
 

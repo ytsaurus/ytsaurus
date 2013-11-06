@@ -73,7 +73,7 @@ private:
         return transaction;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
     {
         auto transactionId =
             request->has_transaction_id()

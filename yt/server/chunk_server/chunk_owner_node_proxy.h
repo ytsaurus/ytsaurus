@@ -43,8 +43,8 @@ protected:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate);
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Fetch);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
 
 };
 

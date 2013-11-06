@@ -201,7 +201,7 @@ private:
         }
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, Commit)
+    DECLARE_YPATH_SERVICE_METHOD(NTransactionClient::NProto, Commit)
     {
         UNUSED(request);
         UNUSED(response);
@@ -218,7 +218,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, Abort)
+    DECLARE_YPATH_SERVICE_METHOD(NTransactionClient::NProto, Abort)
     {
         UNUSED(request);
         UNUSED(response);
@@ -235,7 +235,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, Ping)
+    DECLARE_YPATH_SERVICE_METHOD(NTransactionClient::NProto, Ping)
     {
         UNUSED(response);
 
@@ -252,7 +252,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, UnstageObject)
+    DECLARE_YPATH_SERVICE_METHOD(NTransactionClient::NProto, UnstageObject)
     {
         UNUSED(response);
 

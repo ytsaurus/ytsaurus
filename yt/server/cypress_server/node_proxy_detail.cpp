@@ -884,7 +884,7 @@ TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
     return TClusterResources(0, 1);
 }
 
-DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 {
     auto mode = ELockMode(request->mode());
     bool waitable = request->waitable();
@@ -921,7 +921,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     auto type = EObjectType(request->type());
     const auto& path = context->GetService();
@@ -971,7 +971,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
