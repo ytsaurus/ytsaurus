@@ -313,13 +313,14 @@ TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
 
         i64 end = std::min(begin + Config_->ErasureWindowSize, ParityDataSize_);
 
-        // Generate bytes from [begin, end) for parity blocks.
-        std::vector<TSharedRef> slices;
-        FOREACH (const auto& slicer, Slicers_) {
-            slices.push_back(slicer.GetSlice(begin, end));
-        }
 
-        TDispatcher::Get()->GetErasureInvoker()->Invoke(BIND([this, this_, windowIndex, slices] () {
+        TDispatcher::Get()->GetErasureInvoker()->Invoke(BIND([this, this_, windowIndex, begin, end] () {
+            // Generate bytes from [begin, end) for parity blocks.
+            std::vector<TSharedRef> slices;
+            FOREACH (const auto& slicer, Slicers_) {
+                slices.push_back(slicer.GetSlice(begin, end));
+            }
+
             ParityBlocks_[windowIndex] = Codec_->Encode(slices);
             WindowEncodedPromise_[windowIndex].Set();
         }));
