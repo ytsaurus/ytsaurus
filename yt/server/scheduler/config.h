@@ -186,7 +186,7 @@ public:
         RegisterParameter("operations_update_period", OperationsUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(3));
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
