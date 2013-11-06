@@ -1,19 +1,19 @@
 #include "stdafx.h"
 
+#include <core/ytree/convert.h>
+#include <core/ytree/yson_consumer-mock.h>
+
 #include <ytlib/table_client/async_writer.h>
 #include <ytlib/table_client/table_consumer.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/yson_consumer-mock.h>
 
 #include <contrib/testing/framework.h>
+
+namespace NYT {
+namespace NTableClient {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::NiceMock;
-
-
-namespace NYT {
-namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +60,11 @@ public:
     }
 
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         YUNREACHABLE();
     }

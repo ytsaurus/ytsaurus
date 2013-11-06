@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "schemed_dsv_writer.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/yson/format.h>
+#include <core/yson/format.h>
 
 namespace NYT {
 namespace NFormats {

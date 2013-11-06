@@ -5,10 +5,10 @@
 #include "helpers.h"
 #include "schemed_dsv_table.h"
 
-#include <ytlib/table_client/public.h>
+#include <core/misc/blob_output.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/misc/blob_output.h>
-#include <ytlib/misc/nullable.h>
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {

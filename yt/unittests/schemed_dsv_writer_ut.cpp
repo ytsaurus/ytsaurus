@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/formats/schemed_dsv_writer.h>
+#include <core/formats/schemed_dsv_writer.h>
 
 #include <contrib/testing/framework.h>
 

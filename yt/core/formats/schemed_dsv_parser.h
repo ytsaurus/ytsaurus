@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/yson/consumer.h>
+#include <core/yson/consumer.h>
 
 namespace NYT {
 namespace NFormats {

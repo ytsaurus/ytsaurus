@@ -21,11 +21,11 @@ namespace NJobProxy {
 using namespace NYson;
 using namespace NYTree;
 using namespace NScheduler;
+using namespace NScheduler::NProto;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NTransactionClient;
-using namespace NScheduler::NProto;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,11 +117,11 @@ TDataStatistics TUserJobIO::GetInputDataStatistics() const
     return statistics;
 }
 
-NChunkClient::NProto::TDataStatistics TUserJobIO::GetOutputDataStatistics() const
+TDataStatistics TUserJobIO::GetOutputDataStatistics() const
 {
     TDataStatistics statistics = ZeroDataStatistics();
     FOREACH (const auto& output, Outputs) {
-        statistics += output->GetDataStatistics();
+        statistics += output->GetProvider()->GetDataStatistics();
     }    
     return statistics;
 }
@@ -137,7 +137,7 @@ std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
         maxSize));
 }
 
-std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunkIds() const
+std::vector<TChunkId> TUserJobIO::GetFailedChunkIds() const
 {
     std::vector<TChunkId> result;
     FOREACH (const auto& input, Inputs) {

@@ -8,7 +8,7 @@
 
 #include <core/concurrency/fiber.h>
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -84,7 +84,7 @@ void TAsyncTableReader::Open()
     }
 
     auto batchRsp = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching table info");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching table info");
 
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");

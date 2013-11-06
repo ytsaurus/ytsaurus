@@ -3,9 +3,9 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/actions/future.h>
+#include <core/actions/future.h>
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
 #include <util/random/random.h>
 

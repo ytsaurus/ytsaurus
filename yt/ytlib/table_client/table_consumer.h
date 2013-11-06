@@ -7,6 +7,7 @@
 #include <core/misc/nullable.h>
 
 #include <core/yson/consumer.h>
+#include <core/yson/writer.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -85,6 +86,7 @@ private:
     std::vector<size_t> Offsets;
 
     NYson::TYsonWriter ValueWriter;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,7 +40,7 @@ private:
 
     IInvokerPtr CheckInvoker;
 
-    TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
     TAtomic FailedLock;
 
     TCallback<TError (void)> CheckCallback;
