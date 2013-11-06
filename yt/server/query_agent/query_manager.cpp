@@ -14,7 +14,7 @@
 #include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/reader.h>
 
-#include <ytlib/query_client/query_fragment.h>
+#include <ytlib/query_client/plan_fragment.h>
 
 #include <server/data_node/block_store.h>
 
@@ -57,10 +57,10 @@ void TQueryManager::UpdateNodeDirectory(
 }
 
 TAsyncError TQueryManager::Execute(
-    const TQueryFragment& fragment,
+    const TPlanFragment& fragment,
     TWriterPtr writer)
 {
-    LOG_DEBUG("Executing query fragment %s", ~ToString(fragment.Guid()));
+    LOG_DEBUG("Executing plan fragment %s", ~ToString(fragment.Guid()));
     return Evaluator->Execute(fragment, std::move(writer));
 }
 

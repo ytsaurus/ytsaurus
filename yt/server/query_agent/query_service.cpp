@@ -6,7 +6,7 @@
 
 #include <ytlib/new_table_client/chunk_writer.h>
 
-#include <ytlib/query_client/query_fragment.h>
+#include <ytlib/query_client/plan_fragment.h>
 
 #include <core/compression/public.h>
 
@@ -57,7 +57,7 @@ DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)
 {
     Bootstrap->GetQueryManager()->UpdateNodeDirectory(request->node_directory());
 
-    auto fragment = NQueryClient::FromProto(request->fragment());
+    auto planFragment = NQueryClient::FromProto(request->plan_fragment());
 
     auto memoryWriter = New<TMemoryWriter>();
     auto chunkWriter = New<TChunkWriter>(
@@ -66,7 +66,7 @@ DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)
         memoryWriter);
 
     Bootstrap->GetQueryManager()
-        ->Execute(fragment, chunkWriter)
+        ->Execute(planFragment, chunkWriter)
         .Apply(BIND([=] (TError error) {
             if (error.IsOK()) {
                 response->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());

@@ -19,18 +19,23 @@ class IExecutor
 {
 public:
     virtual TAsyncError Execute(
-        const TQueryFragment& fragment,
+        const TPlanFragment& fragment,
         TWriterPtr writer) = 0;
 
 };
 
 IReaderPtr DelegateToPeer(
-    const TQueryFragment& subfragment,
+    const TPlanFragment& planFragment,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr channel);
 
-IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks);
-IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks);
+IExecutorPtr CreateEvaluator(
+    IInvokerPtr invoker,
+    IEvaluateCallbacks* callbacks);
+
+IExecutorPtr CreateCoordinator(
+    IInvokerPtr invoker,
+    ICoordinateCallbacks* callbacks);
 
 ////////////////////////////////////////////////////////////////////////////////
 

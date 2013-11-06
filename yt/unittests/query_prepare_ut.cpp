@@ -1,6 +1,6 @@
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/query_client/query_fragment.h>
+#include <ytlib/query_client/plan_fragment.h>
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
@@ -18,6 +18,9 @@
 using namespace NYT;
 using namespace NYT::NObjectClient;
 using namespace NYT::NQueryClient;
+
+using ::testing::HasSubstr;
+using ::testing::ContainsRegex;
 
 class TQueryPrepareTest
     : public ::testing::Test
@@ -55,14 +58,14 @@ class TQueryPrepareTest
 
 template <class TCallbacks, class TMatcher>
 void ExpectThrowsWithDiagnostics(
-    TCallbacks* callbacks,
     const Stroka& query,
+    TCallbacks* callbacks,
     TMatcher matcher)
 {
     using namespace ::testing;
     bool exceptionThrown = false;
     try {
-        PrepareQueryFragment(callbacks, query);
+        TPlanFragment::Prepare(query, callbacks);
     } catch (const std::exception& ex) {
         exceptionThrown = true;
         EXPECT_THAT(ex.what(), matcher);
@@ -72,44 +75,44 @@ void ExpectThrowsWithDiagnostics(
 
 TEST_F(TQueryPrepareTest, Simple)
 {
-    PrepareQueryFragment(this, "a, b FROM [//t] WHERE k > 3");
+    TPlanFragment::Prepare("a, b FROM [//t] WHERE k > 3", this);
     SUCCEED();
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
 {
     ExpectThrowsWithDiagnostics(
-        this,
         "bazzinga mu ha ha ha",
-        ::testing::HasSubstr("syntax error"));
+        this,
+        HasSubstr("syntax error"));
 }
 
 TEST_F(TQueryPrepareTest, BadTableName)
 {
     ExpectThrowsWithDiagnostics(
-        this,
         "a, b from [//bad/table]",
-        ::testing::HasSubstr("Could not find table //bad/table"));
+        this,
+        HasSubstr("Could not find table //bad/table"));
 }
 
 TEST_F(TQueryPrepareTest, BadColumnName)
 {
     ExpectThrowsWithDiagnostics(
-        this,
         "foo from [//t]",
-        ::testing::HasSubstr("Table //t does not have column \"foo\" in its schema"));
-    ExpectThrowsWithDiagnostics(
         this,
+        HasSubstr("Table //t does not have column \"foo\" in its schema"));
+    ExpectThrowsWithDiagnostics(
         "k from [//t] where bar = 1",
-        ::testing::HasSubstr("Table //t does not have column \"bar\" in its schema"));
+        this,
+        HasSubstr("Table //t does not have column \"bar\" in its schema"));
 }
 
 TEST_F(TQueryPrepareTest, BadTypecheck)
 {
     ExpectThrowsWithDiagnostics(
-        this,
         "k from [//t] where a > 3.1415926",
-        ::testing::ContainsRegex("Type mismatch .* in expression \"a > 3.1415926\""));
+        this,
+        ContainsRegex("Type mismatch .* in expression \"a > 3.1415926\""));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

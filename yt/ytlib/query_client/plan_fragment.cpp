@@ -1,4 +1,4 @@
-#include "query_fragment.h"
+#include "plan_fragment.h"
 
 #include "private.h"
 #include "helpers.h"
@@ -16,7 +16,7 @@
 
 #include <ytlib/new_table_client/schema.h>
 
-#include <ytlib/query_client/query_fragment.pb.h>
+#include <ytlib/query_client/plan_fragment.pb.h>
 
 #include <core/ytree/convert.h>
 
@@ -44,7 +44,7 @@ public:
         , Head_(nullptr)
     { }
 
-    TQueryFragment Run();
+    TPlanFragment Run();
 
     void ParseSource();
     void GetInitialSplits();
@@ -178,13 +178,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryFragment TPrepareController::Run()
+TPlanFragment TPrepareController::Run()
 {
     ParseSource();
     GetInitialSplits();
     CheckAndPruneReferences();
     TypecheckExpressions();
-    return TQueryFragment(std::move(Context_), Head_);
+    return TPlanFragment(std::move(Context_), Head_);
 }
 
 void TPrepareController::ParseSource()
@@ -251,7 +251,7 @@ void TPrepareController::TypecheckExpressions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryFragment::TQueryFragment(
+TPlanFragment::TPlanFragment(
     TQueryContextPtr context,
     const TOperator* head,
     const TGuid& guid)
@@ -260,38 +260,38 @@ TQueryFragment::TQueryFragment(
     , Guid_(guid)
 { }
 
-TQueryFragment::TQueryFragment(const TQueryFragment& other)
+TPlanFragment::TPlanFragment(const TPlanFragment& other)
     : Context_(other.Context_)
     , Head_(other.Head_)
     , Guid_(other.Guid_)
 { }
 
-TQueryFragment::TQueryFragment(TQueryFragment&& other)
+TPlanFragment::TPlanFragment(TPlanFragment&& other)
     : Context_(std::move(other.Context_))
     , Head_(std::move(other.Head_))
     , Guid_(std::move(other.Guid_))
 { }
 
-TQueryFragment::~TQueryFragment()
+TPlanFragment::~TPlanFragment()
 { }
 
-TQueryFragment PrepareQueryFragment(
-    IPrepareCallbacks* callbacks,
-    const Stroka& source)
+TPlanFragment TPlanFragment::Prepare(
+    const Stroka& source,
+    IPrepareCallbacks* callbacks)
 {
     return TPrepareController(callbacks, source).Run();
 }
 
-void ToProto(NProto::TQueryFragment* serialized, const TQueryFragment& fragment)
+void ToProto(NProto::TPlanFragment* serialized, const TPlanFragment& fragment)
 {
     ToProto(serialized->mutable_head(), fragment.GetHead());
     ToProto(serialized->mutable_guid(), fragment.Guid());
 }
 
-TQueryFragment FromProto(const NProto::TQueryFragment& serialized)
+TPlanFragment FromProto(const NProto::TPlanFragment& serialized)
 {
     auto context = New<TQueryContext>();
-    return TQueryFragment(
+    return TPlanFragment(
         context,
         FromProto(serialized.head(), context.Get()),
         NYT::FromProto<TGuid>(serialized.guid()));

@@ -17,7 +17,7 @@ class TExpression;
 class TQueryContext;
 typedef TIntrusivePtr<TQueryContext> TQueryContextPtr;
 
-class TQueryFragment;
+class TPlanFragment;
 
 struct IPrepareCallbacks;
 struct ICoordinateCallbacks;

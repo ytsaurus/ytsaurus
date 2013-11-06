@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "callbacks.h"
-#include "query_fragment.h"
+#include "plan_fragment.h"
 
 #include <core/logging/tagged_logger.h>
 
@@ -17,7 +17,7 @@ class TEvaluateController
 public:
     TEvaluateController(
         IEvaluateCallbacks* callbacks,
-        const TQueryFragment& fragment,
+        const TPlanFragment& fragment,
         TWriterPtr writer);
 
     ~TEvaluateController();
@@ -44,7 +44,7 @@ public:
 
 private:
     IEvaluateCallbacks* Callbacks_;
-    TQueryFragment Fragment_;
+    TPlanFragment Fragment_;
     TWriterPtr Writer_;
 
     void SetHead(const TOperator* head)

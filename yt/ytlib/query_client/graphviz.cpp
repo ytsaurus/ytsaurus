@@ -2,13 +2,13 @@
 
 #ifndef _win_
 
-#include "plan_node.h"
-#include "plan_visitor.h"
-
+#include "private.h"
 #include "helpers.h"
 
+#include "plan_node.h"
+#include "plan_visitor.h"
+#include "plan_fragment.h"
 #include "query_context.h"
-#include "query_fragment.h"
 
 #include <core/misc/assert.h>
 #include <core/misc/proc.h>
@@ -401,15 +401,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ViewFragment(const TQueryFragment& fragment, const Stroka& title_)
+void ViewPlanFragment(const TPlanFragment& planFragment, const Stroka& title_)
 {
     char name[] = "/tmp/graph.XXXXXX";
     int fd = mkstemp(name);
 
     YCHECK(fd > 0);
 
-    auto debugInformation = fragment.GetContext()->GetDebugInformation();
-    auto headOperator = fragment.GetHead();
+    auto debugInformation = planFragment.GetContext()->GetDebugInformation();
+    auto headOperator = planFragment.GetHead();
 
     try {
         TFile handle(fd);
@@ -446,7 +446,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ViewFragment(const TQueryFragment& /*fragment*/, const Stroka& /*title*/)
+void ViewPlanFragment(const TPlanFragment& /*planFragment*/, const Stroka& /*title*/)
 {
     YUNIMPLEMENTED();
 }

@@ -7,7 +7,7 @@ set( SRCS
   ${BASE}/operator.cpp
   ${BASE}/expression.cpp
   ${BASE}/query_context.cpp
-  ${BASE}/query_fragment.cpp
+  ${BASE}/plan_fragment.cpp
   ${BASE}/private.cpp
   ${BASE}/helpers.cpp
   ${BASE}/coordinate_controller.cpp
@@ -30,7 +30,7 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/query_context.h
-  ${BASE}/query_fragment.h
+  ${BASE}/plan_fragment.h
   ${BASE}/query_service_proxy.h
 )
 
@@ -44,6 +44,6 @@ ragel( ${BASE}/lexer.rl YT_SOURCE_FILES )
 
 protoc( ${BASE}/operator.proto YT_SOURCE_FILES )
 protoc( ${BASE}/expression.proto YT_SOURCE_FILES )
-protoc( ${BASE}/query_fragment.proto YT_SOURCE_FILES )
+protoc( ${BASE}/plan_fragment.proto YT_SOURCE_FILES )
 protoc( ${BASE}/query_service.proto YT_SOURCE_FILES )
 

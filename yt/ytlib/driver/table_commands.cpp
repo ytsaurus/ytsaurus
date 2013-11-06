@@ -30,7 +30,7 @@
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/row.h>
 
-#include <ytlib/query_client/query_fragment.h>
+#include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/executor.h>
 
 #include <ytlib/tablet_client/public.h>
@@ -313,9 +313,9 @@ void TSelectCommand::DoExecute()
     using namespace NChunkClient;
     using namespace NVersionedTableClient;
 
-    auto fragment = PrepareQueryFragment(
-        Context->GetQueryCallbacksProvider()->GetPrepareCallbacks(),
-        Request->Query);
+    auto fragment = TPlanFragment::Prepare(
+        Request->Query,
+        Context->GetQueryCallbacksProvider()->GetPrepareCallbacks());
 
     auto coordinator = CreateCoordinator(
         GetCurrentInvoker(),

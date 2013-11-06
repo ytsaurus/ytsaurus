@@ -12,35 +12,34 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryFragment
+class TPlanFragment
 {
 public:
-    explicit TQueryFragment(
+    explicit TPlanFragment(
         TQueryContextPtr context,
         const TOperator* head = nullptr,
         const TGuid& guid = TGuid::Create());
 
-    TQueryFragment(const TQueryFragment& other);
+    TPlanFragment(const TPlanFragment& other);
 
-    TQueryFragment(TQueryFragment&& other);
+    TPlanFragment(TPlanFragment&& other);
 
-    ~TQueryFragment();
+    ~TPlanFragment();
 
     DEFINE_BYVAL_RO_PROPERTY(TQueryContextPtr, Context);
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Head);
     DEFINE_BYREF_RO_PROPERTY(TGuid, Guid);
 
+    static TPlanFragment Prepare(
+        const Stroka& source,
+        IPrepareCallbacks* callbacks);
 };
-
-TQueryFragment PrepareQueryFragment(
-    IPrepareCallbacks* callbacks,
-    const Stroka& source);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto { class TQueryFragment; }
-void ToProto(NProto::TQueryFragment* serialized, const TQueryFragment& original);
-TQueryFragment FromProto(const NProto::TQueryFragment& serialized);
+namespace NProto { class TPlanFragment; }
+void ToProto(NProto::TPlanFragment* serialized, const TPlanFragment& original);
+TPlanFragment FromProto(const NProto::TPlanFragment& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

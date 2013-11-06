@@ -27,7 +27,7 @@ using namespace NObjectClient;
 
 TCoordinateController::TCoordinateController(
     ICoordinateCallbacks* callbacks,
-    const TQueryFragment& fragment,
+    const TPlanFragment& fragment,
     TWriterPtr writer)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
@@ -47,7 +47,7 @@ IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
     auto objectId = GetObjectIdFromDataSplit(dataSplit);
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
     switch (TypeFromId(objectId)) {
-        case EObjectType::QueryFragment:
+        case EObjectType::QueryPlan:
             return GetPeer(CounterFromId(objectId));
         default:
             return GetCallbacks()->GetReader(dataSplit);
@@ -56,17 +56,17 @@ IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
 
 TError TCoordinateController::Run()
 {
-    ViewFragment(Fragment_, "Coordinator -> Before");
+    ViewPlanFragment(Fragment_, "Coordinator -> Before");
 
     SplitFurther();
     PushdownFilters();
     PushdownProjects();
 
-    ViewFragment(Fragment_, "Coordinator -> After");
+    ViewPlanFragment(Fragment_, "Coordinator -> After");
 
     DelegateToPeers();
 
-    ViewFragment(Fragment_, "Coordinator -> Final");
+    ViewPlanFragment(Fragment_, "Coordinator -> Final");
 
     return New<TEvaluateController>(this, Fragment_, Writer_)->Run();
 }
@@ -187,7 +187,7 @@ void TCoordinateController::DelegateToPeers()
         }
     });
 
-    LOG_DEBUG("Got %d scan operators in fragment", numberOfScanOperators);
+    LOG_DEBUG("Got %d scan operators in plan fragment", numberOfScanOperators);
     if (numberOfScanOperators <= 1) {
         LOG_DEBUG("Nothing to delegate");
         return;
@@ -199,7 +199,7 @@ void TCoordinateController::DelegateToPeers()
     auto* facadeUnionOp = new (GetContext()) TUnionOperator(GetContext());
 
     for (const auto& source : unionOp->Sources()) {
-        auto fragment = TQueryFragment(GetContext(), source);
+        auto fragment = TPlanFragment(GetContext(), source);
         auto peer = GetCallbacks()->Delegate(fragment, GetHeaviestSplit(source));
 
         Peers_.emplace_back(std::move(peer));
@@ -212,7 +212,7 @@ void TCoordinateController::DelegateToPeers()
 
         SetObjectId(
             &facadeScanOp->DataSplit(),
-            MakeId(EObjectType::QueryFragment, 0xBABE, Peers_.size() - 1, 0));
+            MakeId(EObjectType::QueryPlan, 0xBABE, Peers_.size() - 1, 0));
         SetTableSchema(
             &facadeScanOp->DataSplit(),
             InferTableSchema(source));

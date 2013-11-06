@@ -93,7 +93,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IReaderPtr DelegateToPeer(
-    const TQueryFragment& fragment,
+    const TPlanFragment& planFragment,
     TNodeDirectoryPtr nodeDirectory,
     IChannelPtr channel)
 {
@@ -102,7 +102,7 @@ IReaderPtr DelegateToPeer(
     auto req = proxy.Execute();
 
     nodeDirectory->DumpTo(req->mutable_node_directory());
-    ToProto(req->mutable_fragment(), fragment);
+    ToProto(req->mutable_plan_fragment(), planFragment);
 
     return CreateChunkReader(
         New<TChunkReaderConfig>(),
@@ -122,7 +122,7 @@ public:
     { }
 
     virtual TAsyncError Execute(
-        const TQueryFragment& fragment,
+        const TPlanFragment& fragment,
         TWriterPtr writer) override
     {
         auto controller = New<TController>(

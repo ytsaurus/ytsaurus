@@ -39,7 +39,7 @@ struct ICoordinateCallbacks
         const TDataSplit& dataSplit) = 0;
 
     virtual IReaderPtr Delegate(
-        const TQueryFragment& fragment,
+        const TPlanFragment& fragment,
         const TDataSplit& colocatedDataSplit) = 0;
 
 };

@@ -89,7 +89,7 @@ public:
     }
 
     virtual IReaderPtr Delegate(
-        const TQueryFragment& fragment,
+        const TPlanFragment& fragment,
         const TDataSplit& colocatedDataSplit) override
     {
         auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(colocatedDataSplit.replicas());

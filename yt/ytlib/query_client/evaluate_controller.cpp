@@ -29,7 +29,7 @@ using namespace NConcurrency;
 
 TEvaluateController::TEvaluateController(
     IEvaluateCallbacks* callbacks,
-    const TQueryFragment& fragment,
+    const TPlanFragment& fragment,
     TWriterPtr writer)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
@@ -46,7 +46,7 @@ TEvaluateController::~TEvaluateController()
 
 TError TEvaluateController::Run()
 {
-    LOG_DEBUG("Evaluating fragment");
+    LOG_DEBUG("Evaluating plan fragment");
 
     switch (GetHead()->GetKind()) {
         case EOperatorKind::Union:

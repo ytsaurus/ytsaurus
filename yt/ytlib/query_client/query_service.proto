@@ -2,14 +2,14 @@ package NYT.NQueryClient.NProto;
 
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
-import "yt/ytlib/query_client/query_fragment.proto";
+import "yt/ytlib/query_client/plan_fragment.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecute
 {
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    required TQueryFragment fragment = 2;
+    required TPlanFragment plan_fragment = 2;
 }
 
 message TRspExecute

@@ -35,7 +35,7 @@ public:
         const NNodeTrackerClient::NProto::TNodeDirectory& proto);
 
     virtual TAsyncError Execute(
-        const NQueryClient::TQueryFragment& fragment,
+        const NQueryClient::TPlanFragment& fragment,
         NQueryClient::TWriterPtr writer) override;
 
     virtual NQueryClient::IReaderPtr GetReader(

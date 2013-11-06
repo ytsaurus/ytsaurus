@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "callbacks.h"
-#include "query_fragment.h"
+#include "plan_fragment.h"
 
 #include <core/logging/tagged_logger.h>
 
@@ -18,7 +18,7 @@ class TCoordinateController
 public:
     TCoordinateController(
         ICoordinateCallbacks* callbacks,
-        const TQueryFragment& fragment,
+        const TPlanFragment& fragment,
         TWriterPtr writer);
 
     ~TCoordinateController();
@@ -50,7 +50,7 @@ public:
 
 private:
     ICoordinateCallbacks* Callbacks_;
-    TQueryFragment Fragment_;
+    TPlanFragment Fragment_;
     TWriterPtr Writer_;
 
     std::vector<IReaderPtr> Peers_;

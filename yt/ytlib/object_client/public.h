@@ -119,7 +119,7 @@ DECLARE_ENUM(EObjectType,
 
     // Special type reserved for marking data splits for delegated subfragments
     // in query client.
-    ((QueryFragment)              (800))
+    ((QueryPlan)                  (800))
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].

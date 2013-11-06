@@ -86,7 +86,7 @@ bool HasSchema(EObjectType type)
 {
     return (type & 0x8000) == 0 &&
         type != EObjectType::Master &&
-        type != EObjectType::QueryFragment;
+        type != EObjectType::QueryPlan;
 }
 
 EObjectType SchemaTypeFromType(EObjectType type)
