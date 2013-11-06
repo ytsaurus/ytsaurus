@@ -504,14 +504,14 @@ class Finalizer(object):
             run_merge(src=table, dst=table, mode=mode,
                       spec={"combine_chunks": "true", "data_size_per_job": data_size_per_job})
         else:
-            logger.warning("Chunks of output table {0} are too small. "
-                           "This may cause suboptimal system performance. "
-                           "If this table is not temporary then consider running the following command:\n"
-                           "yt merge --mode {1} --proxy {3} --src {0} --dst {0} "
-                           "--spec '{{"
-                              "combine_chunks=true;"
-                              "data_size_per_job={2}"
-                           "}}'".format(table, mode, data_size_per_job, config.http.PROXY))
+            logger.info("Chunks of output table {0} are too small. "
+                        "This may cause suboptimal system performance. "
+                        "If this table is not temporary then consider running the following command:\n"
+                        "yt merge --mode {1} --proxy {3} --src {0} --dst {0} "
+                        "--spec '{{"
+                           "combine_chunks=true;"
+                           "data_size_per_job={2}"
+                        "}}'".format(table, mode, data_size_per_job, config.http.PROXY))
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None,

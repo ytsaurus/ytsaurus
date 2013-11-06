@@ -258,7 +258,9 @@ class WaitStrategy(object):
                     operation_result,
                     jobs_errors))
         if config.PRINT_STDERRS:
-            logger.info(get_stderrs(operation))
+            stderrs = get_stderrs(operation)
+            if stderrs:
+                logger.info("\n" + stderrs)
 
 # TODO(ignat): Fix interaction with transactions
 class AsyncStrategy(object):
