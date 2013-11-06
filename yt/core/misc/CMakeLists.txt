@@ -37,7 +37,6 @@ set( SRCS
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp
   ${BASE}/string.cpp
-  ${BASE}/tclap_helpers.cpp
   ${BASE}/url.cpp
 )
 set( HDRS
@@ -104,7 +103,6 @@ set( HDRS
   ${BASE}/stack_trace.h
   ${BASE}/string.h
   ${BASE}/sync.h
-  ${BASE}/tclap_helpers.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
   ${BASE}/rcu_tree.h

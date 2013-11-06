@@ -1,12 +1,6 @@
 #include "stdafx.h"
 #include "tclap_helpers.h"
 
-#include <core/misc/error.h>
-
-#include <core/yson/tokenizer.h>
-#include <core/yson/token.h>
-#include <core/ytree/attribute_helpers.h>
-
 #include <iterator>
 
 namespace NYT {

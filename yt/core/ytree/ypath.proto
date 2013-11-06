@@ -8,7 +8,7 @@ message TYPathHeaderExt
 {
     extend NRpc.NProto.TRequestHeader
     {
-        optional TYPathHeaderExt ypath_header_ext = 103;
+        optional TYPathHeaderExt ypath_header_ext = 104;
     }
 
     optional bool mutating = 1 [default = false];
