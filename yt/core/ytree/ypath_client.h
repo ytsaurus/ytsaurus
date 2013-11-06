@@ -13,7 +13,7 @@
 #include <core/ytree/ypath.pb.h>
 
 // TODO(babenko): eliminate this reference
-#include <ytlib/ypath/rich.h>
+//#include <ytlib/ypath/rich.h>
 
 namespace NYT {
 namespace NYTree {

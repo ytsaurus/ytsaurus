@@ -4,6 +4,8 @@
 
 #include <core/ytree/permission.h>
 
+#include <ytlib/ypath/rich.h>
+
 namespace NYT {
 namespace NDriver {
 
