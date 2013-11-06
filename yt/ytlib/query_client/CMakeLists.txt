@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/helpers.cpp
   ${BASE}/coordinate_controller.cpp
   ${BASE}/evaluate_controller.cpp
+  ${BASE}/prepare_controller.cpp
   ${BASE}/executor.cpp
 )
 
@@ -21,6 +22,7 @@ set( HDRS
   ${BASE}/plan_helpers.h
   ${BASE}/coordinate_controller.h
   ${BASE}/evaluate_controller.h
+  ${BASE}/prepare_controller.h
   ${BASE}/executor.h
   ${BASE}/expression.h
   ${BASE}/graphviz.h
