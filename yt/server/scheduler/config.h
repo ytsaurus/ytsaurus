@@ -28,9 +28,6 @@ public:
 
     TDuration FairShareUpdatePeriod;
 
-    double NewOperationWeightBoostFactor;
-    TDuration NewOperationWeightBoostPeriod;
-
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
 
@@ -46,12 +43,6 @@ public:
 
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
-
-        RegisterParameter("new_operation_weight_boost_factor", NewOperationWeightBoostFactor)
-            .GreaterThanOrEqual(1.0)
-            .Default(1.0);
-        RegisterParameter("new_operation_weight_boost_period", NewOperationWeightBoostPeriod)
-            .Default(TDuration::Minutes(0));
 
         RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
             .InRange(0.0, 1.0)

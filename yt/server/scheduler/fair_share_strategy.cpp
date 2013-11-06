@@ -198,15 +198,12 @@ public:
 
     virtual double GetWeight() const override
     {
-        return
-            TInstant::Now() < GetStartTime() + Config->NewOperationWeightBoostPeriod
-            ? Spec_->Weight * Config->NewOperationWeightBoostFactor
-            : Spec_->Weight;
+        return Spec_->Weight;
     }
 
     virtual double GetMinShareRatio() const override
     {
-        return Spec_->MinShareRatio;
+        return Spec_->Weight;
     }
 
     virtual TNodeResources GetDemand() const override
