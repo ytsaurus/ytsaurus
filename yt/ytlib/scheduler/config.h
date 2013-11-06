@@ -649,6 +649,7 @@ class TPooledOperationSpec
 public:
     TNullable<Stroka> Pool;
     double Weight;
+    double MinShareRatio;
 
     // The following settings override schedule configuration.
     TNullable<TDuration> MinSharePreemptionTimeout;
@@ -663,6 +664,9 @@ public:
         RegisterParameter("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(0.0);
+        RegisterParameter("min_share_ratio", MinShareRatio)
+            .Default(0.0)
+            .InRange(0.0, 1.0);
 
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
             .Default();

@@ -203,7 +203,7 @@ public:
 
     virtual double GetMinShareRatio() const override
     {
-        return Spec_->Weight;
+        return Spec_->MinShareRatio;
     }
 
     virtual TNodeResources GetDemand() const override
@@ -459,7 +459,9 @@ protected:
         ComputeByFitting(
             [&] (double fitFactor, ISchedulableElementPtr child) -> double {
                 const auto& childAttributes = child->Attributes();
-                double result = child->GetMinShareRatio() * fitFactor;
+                double result = 
+                    std::min(fitFactor, 1.0) * child->GetMinShareRatio() +
+                    std::max(fitFactor - 1.0, 0.0) * child->GetWeight();
                 // Never give more than max share allows.
                 result = std::min(result, childAttributes.MaxShareRatio);
                 // Never give more than demanded.
@@ -475,9 +477,10 @@ protected:
         ComputeByFitting(
             [&] (double fitFactor, ISchedulableElementPtr child) -> double {
                 const auto& childAttributes = child->Attributes();
-                double result = child->GetWeight() * fitFactor;
-                // Never give less than promised by min share.
-                result = std::max(result, childAttributes.AdjustedMinShareRatio);
+                double result =
+                    // Never give less than promised by min share.
+                    childAttributes.AdjustedMinShareRatio +
+                    std::max(fitFactor - 1.0, 0.0) * child->GetWeight();                    
                 // Never give more than demanded.
                 result = std::min(result, childAttributes.DemandRatio);
                 // Never give more than max share allows.
