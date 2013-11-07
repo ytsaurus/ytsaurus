@@ -213,8 +213,6 @@ private:
             auto cypressManager = Bootstrap->GetCypressManager();
             auto securityManager = Bootstrap->GetSecurityManager();
 
-            auto rootService = objectManager->GetRootService();
-
             // Abort all existing transactions to avoid collisions with previous (failed)
             // initialization attempts.
             AbortTransactions();
@@ -223,7 +221,6 @@ private:
             auto transactionId = StartTransaction();
 
             CreateNode(
-                rootService,
                 "//sys",
                 transactionId,
                 EObjectType::MapNode,
@@ -234,7 +231,6 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//sys/schemas",
                 transactionId,
                 EObjectType::MapNode,
@@ -246,7 +242,6 @@ private:
             FOREACH (auto type, objectManager->GetRegisteredTypes()) {
                 if (HasSchema(type)) {
                     CreateNode(
-                        rootService,
                         "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
                         transactionId,
                         EObjectType::Link,
@@ -258,7 +253,6 @@ private:
             }
 
             CreateNode(
-                rootService,
                 "//sys/scheduler",
                 transactionId,
                 EObjectType::MapNode,
@@ -268,13 +262,11 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//sys/scheduler/lock",
                 transactionId,
                 EObjectType::MapNode);
 
             CreateNode(
-                rootService,
                 "//sys/pools",
                 transactionId,
                 EObjectType::MapNode,
@@ -284,7 +276,6 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//sys/scheduler/instances",
                 transactionId,
                 EObjectType::MapNode,
@@ -294,13 +285,11 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//sys/scheduler/orchid",
                 transactionId,
                 EObjectType::Orchid);
 
             CreateNode(
-                rootService,
                 "//sys/operations",
                 transactionId,
                 EObjectType::MapNode,
@@ -310,7 +299,6 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//sys/proxies",
                 transactionId,
                 EObjectType::MapNode,
@@ -320,7 +308,6 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//sys/nodes",
                 transactionId,
                 EObjectType::CellNodeMap,
@@ -330,7 +317,6 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//sys/masters",
                 transactionId,
                 EObjectType::MapNode,
@@ -343,13 +329,11 @@ private:
                 auto addressPath = "/" + ToYPathLiteral(address);
 
                 CreateNode(
-                    rootService,
                     "//sys/masters" + addressPath,
                     transactionId,
                     EObjectType::MapNode);
 
                 CreateNode(
-                    rootService,
                     "//sys/masters" + addressPath + "/orchid",
                     transactionId,
                     EObjectType::Orchid,
@@ -360,103 +344,86 @@ private:
             }
 
             CreateNode(
-                rootService,
                 "//sys/locks",
                 transactionId,
                 EObjectType::LockMap);
 
             CreateNode(
-                rootService,
                 "//sys/chunks",
                 transactionId,
                 EObjectType::ChunkMap);
 
             CreateNode(
-                rootService,
                 "//sys/lost_chunks",
                 transactionId,
                 EObjectType::LostChunkMap);
 
             CreateNode(
-                rootService,
                 "//sys/lost_vital_chunks",
                 transactionId,
                 EObjectType::LostVitalChunkMap);
 
             CreateNode(
-                rootService,
                 "//sys/overreplicated_chunks",
                 transactionId,
                 EObjectType::OverreplicatedChunkMap);
 
             CreateNode(
-                rootService,
                 "//sys/underreplicated_chunks",
                 transactionId,
                 EObjectType::UnderreplicatedChunkMap);
 
             CreateNode(
-                rootService,
                 "//sys/data_missing_chunks",
                 transactionId,
                 EObjectType::DataMissingChunkMap);
 
             CreateNode(
-                rootService,
                 "//sys/parity_missing_chunks",
                 transactionId,
                 EObjectType::ParityMissingChunkMap);
 
             CreateNode(
-                rootService,
                 "//sys/chunk_lists",
                 transactionId,
                 EObjectType::ChunkListMap);
 
             CreateNode(
-                rootService,
                 "//sys/transactions",
                 transactionId,
                 EObjectType::TransactionMap);
 
             CreateNode(
-                rootService,
                 "//sys/topmost_transactions",
                 transactionId,
                 EObjectType::TopmostTransactionMap);
 
             CreateNode(
-                rootService,
                 "//sys/accounts",
                 transactionId,
                 EObjectType::AccountMap);
 
             CreateNode(
-                rootService,
                 "//sys/users",
                 transactionId,
                 EObjectType::UserMap);
 
             CreateNode(
-                rootService,
                 "//sys/groups",
                 transactionId,
                 EObjectType::GroupMap);
 
             CreateNode(
-                rootService,
                 "//sys/tablet_cells",
                 transactionId,
                 EObjectType::TabletCellMap);
 
             CreateNode(
-                rootService,
                 "//sys/tablets",
                 transactionId,
                 EObjectType::TabletMap);
 
             CreateNode(
-                rootService,
                 "//tmp",
                 transactionId,
                 EObjectType::MapNode,
@@ -473,7 +440,6 @@ private:
                     .EndMap());
 
             CreateNode(
-                rootService,
                 "//home",
                 transactionId,
                 EObjectType::MapNode,
@@ -530,13 +496,13 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
-    static void CreateNode(
-        IYPathServicePtr service,
+    void CreateNode(
         const TYPath& path,
         const TTransactionId& transactionId,
         EObjectType type,
         const TYsonString& attributes = TYsonString("{}"))
     {
+        auto service = Bootstrap->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
         req->set_type(type);
