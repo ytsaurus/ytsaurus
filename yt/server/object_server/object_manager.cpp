@@ -997,7 +997,6 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
 
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
-    auto userId = user->GetId();
 
     auto objectId = proxy->GetVersionedId();
 
