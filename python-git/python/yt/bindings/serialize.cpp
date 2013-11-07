@@ -96,7 +96,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TPythonObjectConsumer::TPythonObjectConsumer()
+TPythonObjectBuilder::TPythonObjectBuilder()
     : YsonMap(GetYsonType("YsonMap"))
     , YsonList(GetYsonType("YsonList"))
     , YsonString(GetYsonType("YsonString"))
@@ -105,53 +105,53 @@ TPythonObjectConsumer::TPythonObjectConsumer()
     , YsonEntity(GetYsonType("YsonEntity"))
 { }
 
-void TPythonObjectConsumer::OnStringScalar(const TStringBuf& value)
+void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
 {
     AddObject(Py::String(value), YsonString);
 }
 
-void TPythonObjectConsumer::OnIntegerScalar(i64 value)
+void TPythonObjectBuilder::OnIntegerScalar(i64 value)
 {
     AddObject(Py::Int(value), YsonInteger);
 }
 
-void TPythonObjectConsumer::OnDoubleScalar(double value)
+void TPythonObjectBuilder::OnDoubleScalar(double value)
 {
     AddObject(Py::Float(value), YsonDouble);
 }
 
-void TPythonObjectConsumer::OnEntity()
+void TPythonObjectBuilder::OnEntity()
 {
     AddObject(YsonEntity);
 }
 
-void TPythonObjectConsumer::OnBeginList()
+void TPythonObjectBuilder::OnBeginList()
 {
     auto obj = AddObject(Py::List(), YsonList);
     Push(obj, EObjectType::List);
 }
 
-void TPythonObjectConsumer::OnListItem()
+void TPythonObjectBuilder::OnListItem()
 {
 }
 
-void TPythonObjectConsumer::OnEndList()
+void TPythonObjectBuilder::OnEndList()
 {
     Pop();
 }
 
-void TPythonObjectConsumer::OnBeginMap()
+void TPythonObjectBuilder::OnBeginMap()
 {
     auto obj = AddObject(Py::Dict(), YsonMap);
     Push(obj, EObjectType::Map);
 }
 
-void TPythonObjectConsumer::OnKeyedItem(const TStringBuf& key)
+void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
 {
     Keys_.push(Stroka(key));
 }
 
-void TPythonObjectConsumer::OnEndMap()
+void TPythonObjectBuilder::OnEndMap()
 {
     Pop();
     if (ObjectStack_.empty()) {
@@ -159,18 +159,18 @@ void TPythonObjectConsumer::OnEndMap()
     }
 }
 
-void TPythonObjectConsumer::OnBeginAttributes()
+void TPythonObjectBuilder::OnBeginAttributes()
 {
     auto obj = YsonMap.apply(Py::Tuple());
     Push(obj, EObjectType::Attributes);
 }
 
-void TPythonObjectConsumer::OnEndAttributes()
+void TPythonObjectBuilder::OnEndAttributes()
 {
     Attributes_ = Pop();
 }
 
-Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj, const Py::Callable& type)
+Py::Object TPythonObjectBuilder::AddObject(const Py::Object& obj, const Py::Callable& type)
 {
     if (ObjectStack_.empty() && !Attributes_) {
         Attributes_ = Py::Dict();
@@ -183,12 +183,12 @@ Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj, const Py::Cal
     }
 }
 
-Py::Object TPythonObjectConsumer::AddObject(const Py::Callable& type)
+Py::Object TPythonObjectBuilder::AddObject(const Py::Callable& type)
 {
     return AddObject(type.apply(Py::Tuple()));
 }
 
-Py::Object TPythonObjectConsumer::AddObject(Py::Object obj)
+Py::Object TPythonObjectBuilder::AddObject(Py::Object obj)
 {
     if (ObjectStack_.empty()) {
         Objects_.push(obj);
@@ -206,12 +206,12 @@ Py::Object TPythonObjectConsumer::AddObject(Py::Object obj)
     return obj;
 }
 
-void TPythonObjectConsumer::Push(const Py::Object& obj, EObjectType objectType)
+void TPythonObjectBuilder::Push(const Py::Object& obj, EObjectType objectType)
 {
     ObjectStack_.emplace(obj, objectType);
 }
 
-Py::Object TPythonObjectConsumer::Pop()
+Py::Object TPythonObjectBuilder::Pop()
 {
     auto obj = ObjectStack_.top().first;
     ObjectStack_.pop();
@@ -219,14 +219,14 @@ Py::Object TPythonObjectConsumer::Pop()
 }
 
 
-Py::Object TPythonObjectConsumer::ExtractObject()
+Py::Object TPythonObjectBuilder::ExtractObject()
 {
     auto obj = Objects_.front();
     Objects_.pop();
     return obj;
 }
 
-bool TPythonObjectConsumer::HasObject() const
+bool TPythonObjectBuilder::HasObject() const
 {
     return !Objects_.empty();
 }

@@ -21,11 +21,11 @@ void Deserialize(Py::Object& obj, NYTree::INodePtr node);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TPythonObjectConsumer
+class TPythonObjectBuilder
     : public NYson::TYsonConsumerBase
 {
 public:
-    TPythonObjectConsumer();
+    TPythonObjectBuilder();
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnIntegerScalar(i64 value) override;
