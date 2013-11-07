@@ -45,7 +45,7 @@ void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer)
     auto iterator = Py::Object(PyObject_GetIter(*map), true);
     while (auto* next = PyIter_Next(*iterator)) {
         Py::Object key = Py::Object(next, true);
-        char* keyStr = PyString_AsString(*Py::String(key));
+        char* keyStr = PyString_AsString(ConvertToString(key).ptr());
         auto value = Py::Object(PyMapping_GetItemString(*map, keyStr), true);
         consumer->OnKeyedItem(TStringBuf(keyStr));
         Serialize(value, consumer);
@@ -55,9 +55,9 @@ void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer)
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
-    std::string attributesStr = "attributes";
-    if (PyObject_HasAttrString(*obj, attributesStr.c_str())) {
-        auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr.c_str()), true);
+    const char* attributesStr = "attributes";
+    if (PyObject_HasAttrString(*obj, attributesStr)) {
+        auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr), true);
         if (attributes.length() > 0) {
             consumer->OnBeginAttributes();
             SerializeMapFragment(attributes, consumer);
@@ -205,7 +205,7 @@ Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj)
 
 void TPythonObjectConsumer::Push(const Py::Object& obj, EObjectType objectType)
 {
-    ObjectStack_.push(std::make_pair(obj, objectType));
+    ObjectStack_.emplace(obj, objectType);
 }
 
 Py::Object TPythonObjectConsumer::Pop()
