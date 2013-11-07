@@ -3,7 +3,6 @@
 export YT_PROXY="kant.yt.yandex.net"
 
 IMPORT_QUEUE="//sys/cron/tables_to_import"
-LOCK_PATH="//sys/cron/import_lock"
 
 import_from_mr.py \
     --tables-queue "$IMPORT_QUEUE" \
