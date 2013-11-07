@@ -927,12 +927,21 @@ class TYPathServiceContext
 {
 public:
     TYPathServiceContext(
-        const TRequestHeader& header,
         TSharedRefArray requestMessage,
         TYPathResponseHandler responseHandler,
         const Stroka& loggingCategory)
-        : TServiceContextBase(header, requestMessage)
-        , ResponseHandler(responseHandler)
+        : TServiceContextBase(std::move(requestMessage))
+        , ResponseHandler(std::move(responseHandler))
+        , Logger(loggingCategory)
+    { }
+
+    TYPathServiceContext(
+        const TRequestHeader& requestHeader,
+        TSharedRefArray requestMessage,
+        TYPathResponseHandler responseHandler,
+        const Stroka& loggingCategory)
+        : TServiceContextBase(requestHeader, std::move(requestMessage))
+        , ResponseHandler(std::move(responseHandler))
         , Logger(loggingCategory)
     { }
 
@@ -951,7 +960,8 @@ protected:
     {
         Stroka str;
         AppendInfo(str, RequestInfo);
-        LOG_DEBUG("%s %s <- %s",
+        LOG_DEBUG("%s:%s %s <- %s",
+            ~GetService(),
             ~GetVerb(),
             ~GetRequestYPath(this),
             ~str);
@@ -962,7 +972,8 @@ protected:
         Stroka str;
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
-        LOG_DEBUG("%s %s -> %s",
+        LOG_DEBUG("%s:%s %s -> %s",
+            ~GetService(),
             ~GetVerb(),
             ~GetRequestYPath(this),
             ~str);
@@ -977,12 +988,24 @@ IServiceContextPtr CreateYPathContext(
 {
     YASSERT(requestMessage);
 
-    NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    return New<TYPathServiceContext>(
+        std::move(requestMessage),
+        std::move(responseHandler),
+        loggingCategory);
+}
+
+IServiceContextPtr CreateYPathContext(
+    const TRequestHeader& requestHeader,
+    TSharedRefArray requestMessage,
+    const Stroka& loggingCategory,
+    TYPathResponseHandler responseHandler)
+{
+    YASSERT(requestMessage);
+
     return New<TYPathServiceContext>(
         requestHeader,
-        requestMessage,
-        responseHandler,
+        std::move(requestMessage),
+        std::move(responseHandler),
         loggingCategory);
 }
 

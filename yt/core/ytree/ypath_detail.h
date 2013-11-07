@@ -443,6 +443,12 @@ NRpc::IServiceContextPtr CreateYPathContext(
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler);
 
+NRpc::IServiceContextPtr CreateYPathContext(
+    const NRpc::NProto::TRequestHeader& requestHeader,
+    TSharedRefArray requestMessage,
+    const Stroka& loggingCategory,
+    TYPathResponseHandler responseHandler);
+
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 
 ////////////////////////////////////////////////////////////////////////////////
