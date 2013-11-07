@@ -271,3 +271,28 @@ echo {v = 2} >&7
         assert read(output_tables[1]) == [{'v': 1}]
         assert read(output_tables[2]) == [{'v': 2}]
 
+    def test_job_count(self):
+        create('table', '//tmp/in', attributes={"compression_codec": "none"})
+        create('table', '//tmp/out')
+
+        count = 10000
+
+        # Job count works only if we have enough splits in input chunks.
+        # Its default rate 0.0001, so we should have enough rows in input table
+        write(
+            '//tmp/in',
+            [ {'key': "%.010d" % num} for num in xrange(count) ],
+            sorted_by = ['key'],
+            table_writer = {"index_rate": 0.001}
+            )
+
+        reduce(
+            in_ = '//tmp/in',
+            out = '//tmp/out',
+            command = 'cat; echo "key=10"',
+            reduce_by=['key'],
+            opt = ['/spec/data_size_per_job=1',
+                   '/spec/reducer/format=dsv'])
+
+        # Check that operation has more than 1 job
+        assert get("//tmp/out/@row_count") >= count + 2

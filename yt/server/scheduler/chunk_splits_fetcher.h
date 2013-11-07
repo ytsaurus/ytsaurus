@@ -31,7 +31,8 @@ public:
         TSchedulerConfigPtr config,
         TMergeOperationSpecBasePtr spec,
         const TOperationId& operationId,
-        const NTableClient::TKeyColumns& keyColumns);
+        const NTableClient::TKeyColumns& keyColumns,
+        i64 chunkSliceSize);
 
     void Prepare(const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& chunks);
 
@@ -67,6 +68,7 @@ private:
 
     NChunkClient::TDataNodeServiceProxy::TReqGetChunkSplitsPtr CurrentRequest;
 
+    i64 ChunkSliceSize;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

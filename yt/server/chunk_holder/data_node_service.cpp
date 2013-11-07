@@ -888,7 +888,7 @@ void TDataNodeService::MakeChunkSplits(
     sizeOverride.set_row_count(endRowIndex - startRowIndex);
     sizeOverride.set_uncompressed_data_size(
         dataSize +
-        (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
+        (std::distance(beginIt, endIt)) * dataSizeBetweenSamples);
     SetProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 }
 
