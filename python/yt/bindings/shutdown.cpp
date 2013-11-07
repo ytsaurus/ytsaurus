@@ -30,13 +30,20 @@ void RegisterShutdown()
 
 void Shutdown()
 {
-    // TODO: refactor system shutdown
-    // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp, python_bindings/driver.cpp
-    NBus::TTcpDispatcher::Get()->Shutdown();
-    NRpc::TDispatcher::Get()->Shutdown();
+    // TODO(sandello): Refactor this.
+    // XXX(sandello): Keep in sync with...
+    //   server/main.cpp
+    //   driver/main.cpp
+    //   unittests/utmain.cpp
+    //   nodejs/src/common.cpp
+    //   ../python/yt/bindings/shutdown.cpp
+    // Feel free to add your cpp here. Welcome to the Shutdown Club!
+
     NChunkClient::TDispatcher::Get()->Shutdown();
-    NProfiling::TProfilingManager::Get()->Shutdown();
+    NRpc::TDispatcher::Get()->Shutdown();
+    NBus::TTcpDispatcher::Get()->Shutdown();
     NConcurrency::TDelayedExecutor::Shutdown();
+    NProfiling::TProfilingManager::Get()->Shutdown();
     NLog::TLogManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
 }

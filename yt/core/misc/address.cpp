@@ -277,7 +277,7 @@ TAddressResolver* TAddressResolver::Get()
 void TAddressResolver::Shutdown()
 {
     if (AddressResolverQueue.HasValue()) {
-        AddressResolverQueue->Shutdown();        
+        AddressResolverQueue->Shutdown();
     }
 }
 

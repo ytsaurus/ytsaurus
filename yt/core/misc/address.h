@@ -100,6 +100,7 @@ public:
     //! Returns the singleton instance.
     static TAddressResolver* Get();
 
+    //! Shuts down all internals of address resolver.
     void Shutdown();
 
     //! Resolves #hostName asynchronously.
