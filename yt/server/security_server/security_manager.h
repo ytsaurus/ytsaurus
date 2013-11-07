@@ -112,6 +112,9 @@ public:
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const Stroka& name);
 
+    //! Returns user with a given name (throws if none).
+    TUser* GetUserByNameOrThrow(const Stroka& name);
+
     //! Finds user by id, throws if nothing is found.
     TUser* GetUserOrThrow(const TUserId& id);
 

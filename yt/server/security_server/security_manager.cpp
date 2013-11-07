@@ -472,16 +472,27 @@ public:
         return it == UserNameMap.end() ? nullptr : it->second;
     }
 
+    TUser* GetUserByNameOrThrow(const Stroka& name)
+    {
+        auto* user = FindUserByName(name);
+        if (!IsObjectAlive(user)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "No such user %s",
+                ~name.Quote());
+        }
+        return user;
+    }
+
     TUser* GetUserOrThrow(const TUserId& id)
     {
         auto* user = FindUser(id);
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
+                NSecurityClient::EErrorCode::AuthenticationError,
                 "No such user %s",
                 ~ToString(id));
         }
-
         return user;
     }
 
@@ -1525,6 +1536,11 @@ void TSecurityManager::UpdateAccountStagingUsage(
 TUser* TSecurityManager::FindUserByName(const Stroka& name)
 {
     return Impl->FindUserByName(name);
+}
+
+TUser* TSecurityManager::GetUserByNameOrThrow(const Stroka& name)
+{
+    return Impl->GetUserByNameOrThrow(name);
 }
 
 TUser* TSecurityManager::GetUserOrThrow(const TUserId& id)
