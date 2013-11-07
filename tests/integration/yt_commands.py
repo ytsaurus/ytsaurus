@@ -146,6 +146,14 @@ def read(path, **kwargs):
     command('read', kwargs, output_stream=output)
     return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
+def select(query, **kwargs):
+    kwargs["query"] = query
+    if "output_format" not in kwargs:
+        kwargs["output_format"] = yson.loads("<format=text>yson")
+    output = StringIO()
+    command('select', kwargs, output_stream=output)
+    return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
+
 def start_transaction(**kwargs):
     out = command('start_tx', kwargs)
     return out.replace('"', '').strip('\n')
