@@ -18,12 +18,12 @@ using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TYsonIter
-    : public Py::PythonClass<TYsonIter>
+class TYsonIterator
+    : public Py::PythonClass<TYsonIterator>
 {
 public:
-    TYsonIter(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
-        : Py::PythonClass<TYsonIter>::PythonClass(self, args, kwargs)
+    TYsonIterator(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+        : Py::PythonClass<TYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
     void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner)
@@ -42,7 +42,6 @@ public:
 
     PyObject* iternext()
     {
-        static Py::Dict dict;
         // Read unless we have whole row
         while (!Consumer_.HasObject() && !IsStreamRead_) {
             int length = InputStream_->Read(Buffer_, BufferSize_);
@@ -63,10 +62,9 @@ public:
         // We should return pointer to alive object
         result.increment_reference_count();
         return result.ptr();
-        return dict.ptr();
     }
 
-    virtual ~TYsonIter()
+    virtual ~TYsonIterator()
     { }
 
     static void InitType()
@@ -104,7 +102,7 @@ public:
     {
         RegisterShutdown();
 
-        TYsonIter::InitType();
+        TYsonIterator::InitType();
 
         add_keyword_method("load", &yson_module::Load, "load yson from stream");
         add_keyword_method("loads", &yson_module::Loads, "load yson from string");
@@ -192,8 +190,8 @@ private:
 
 
         if (ysonType == NYson::EYsonType::ListFragment) {
-            Py::Callable class_type(TYsonIter::type());
-            Py::PythonClassObject<TYsonIter> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
+            Py::Callable class_type(TYsonIterator::type());
+            Py::PythonClassObject<TYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
 
             auto* iter = pythonIter.getCxxObject();
             iter->Init(ysonType, inputStreamPtr, std::move(inputStream));
