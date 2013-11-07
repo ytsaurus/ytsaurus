@@ -61,13 +61,12 @@ private:
     bool Finished_;
 
     std::stack<std::pair<Py::Object, EObjectType>> ObjectStack_;
+    std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
 
-    Stroka Key_;
-    
     Py::Object AddObject(const Py::Object& obj, const Py::Callable& type);
     Py::Object AddObject(const Py::Callable& type);
-    Py::Object AddObject(const Py::Object& obj);
+    Py::Object AddObject(Py::Object obj);
 
     void Push(const Py::Object& obj, EObjectType objectType);
     Py::Object Pop();

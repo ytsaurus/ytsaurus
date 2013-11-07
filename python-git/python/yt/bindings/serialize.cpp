@@ -148,7 +148,7 @@ void TPythonObjectConsumer::OnBeginMap()
 
 void TPythonObjectConsumer::OnKeyedItem(const TStringBuf& key)
 {
-    Key_ = key;
+    Keys_.push(Stroka(key));
 }
 
 void TPythonObjectConsumer::OnEndMap()
@@ -175,11 +175,9 @@ Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj, const Py::Cal
     if (ObjectStack_.empty() && !Attributes_) {
         Attributes_ = Py::Dict();
     }
+    
     if (Attributes_) {
-        auto result = AddObject(type.apply(Py::TupleN(obj)));
-        result.setAttr("attributes", *Attributes_);
-        Attributes_ = Null;
-        return result;
+        return AddObject(type.apply(Py::TupleN(obj)));
     } else {
         return AddObject(obj);
     }
@@ -190,7 +188,7 @@ Py::Object TPythonObjectConsumer::AddObject(const Py::Callable& type)
     return AddObject(type.apply(Py::Tuple()));
 }
 
-Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj)
+Py::Object TPythonObjectConsumer::AddObject(Py::Object obj)
 {
     if (ObjectStack_.empty()) {
         Objects_.push(obj);
@@ -198,7 +196,12 @@ Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj)
     } else if (ObjectStack_.top().second == EObjectType::List) {
         PyList_Append(ObjectStack_.top().first.ptr(), *obj);
     } else {
-        PyMapping_SetItemString(*ObjectStack_.top().first, const_cast<char*>(~Key_), *obj);
+        PyMapping_SetItemString(*ObjectStack_.top().first, const_cast<char*>(~Keys_.top()), *obj);
+        Keys_.pop();
+    }
+    if (Attributes_) {
+        obj.setAttr("attributes", *Attributes_);
+        Attributes_ = Null;
     }
     return obj;
 }
