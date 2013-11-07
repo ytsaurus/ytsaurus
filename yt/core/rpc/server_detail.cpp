@@ -18,23 +18,41 @@ TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
     TSharedRefArray requestMessage)
     : RequestHeader_(header)
-    , RequestMessage(requestMessage)
-    , RequestId(header.has_request_id()
-        ? FromProto<TRequestId>(header.request_id())
-        : NullRequestId)
-    , RealmId(header.has_realm_id()
-        ? FromProto<TRealmId>(header.realm_id())
-        : NullRealmId)
-    , Replied(false)
-    , ResponseAttributes_(CreateEphemeralAttributes())
+    , RequestMessage(std::move(requestMessage))
 {
-    YASSERT(requestMessage.Size() >= 2);
-    RequestBody = requestMessage[1];
-    RequestAttachments_ = std::vector<TSharedRef>(requestMessage.Begin() + 2, requestMessage.End());
-    RequestAttributes_ =
-        header.has_attributes()
-        ? FromProto(header.attributes())
+    Initialize();
+}
+
+TServiceContextBase::TServiceContextBase(
+    TSharedRefArray requestMessage)
+    : RequestMessage(std::move(requestMessage))
+{
+    YCHECK(ParseRequestHeader(RequestMessage, &RequestHeader_));
+    Initialize();
+}
+
+void TServiceContextBase::Initialize()
+{
+    RequestId = RequestHeader_.has_request_id()
+        ? FromProto<TRequestId>(RequestHeader_.request_id())
+        : NullRequestId;
+
+    RealmId = RequestHeader_.has_realm_id()
+        ? FromProto<TRealmId>(RequestHeader_.realm_id())
+        : NullRealmId;
+
+    Replied = false;
+
+    YASSERT(RequestMessage.Size() >= 2);
+    RequestBody = RequestMessage[1];
+    RequestAttachments_ = std::vector<TSharedRef>(
+        RequestMessage.Begin() + 2,
+        RequestMessage.End());
+
+    RequestAttributes_ = RequestHeader_.has_attributes()
+        ? FromProto(RequestHeader_.attributes())
         : CreateEphemeralAttributes();
+    ResponseAttributes_ = CreateEphemeralAttributes();
 }
 
 void TServiceContextBase::Reply(const TError& error)

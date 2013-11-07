@@ -88,6 +88,9 @@ protected:
 
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 
+private:
+    void Initialize();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
