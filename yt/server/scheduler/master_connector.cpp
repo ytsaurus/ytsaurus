@@ -433,7 +433,6 @@ private:
         // - Register scheduler instance.
         void RegisterInstance()
         {
-            return; // XXX(babenko): restore when batch commit is fixed
             auto batchReq = Owner->StartBatchRequest(false);
             auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddresss);
             {
