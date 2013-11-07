@@ -88,7 +88,7 @@ private:
 
     bool IsStreamRead_;
 
-    NYTree::TPythonObjectConsumer Consumer_;
+    NYTree::TPythonObjectBuilder Consumer_;
     std::unique_ptr<NYson::TYsonParser> Parser_;
 
     static const int BufferSize_ = 1024 * 1024;
@@ -206,7 +206,7 @@ private:
             iter->Init(ysonType, inputStreamPtr, std::move(inputStream), std::move(stringHolder));
             return pythonIter;
         } else {
-            NYTree::TPythonObjectConsumer consumer;
+            NYTree::TPythonObjectBuilder consumer;
             NYson::TYsonParser parser(&consumer, ysonType);
 
             const int BufferSize = 1024 * 1024;
