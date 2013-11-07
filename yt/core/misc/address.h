@@ -100,6 +100,9 @@ public:
     //! Returns the singleton instance.
     static TAddressResolver* Get();
 
+    //! Shuts down all internals of address resolver.
+    void Shutdown();
+
     //! Resolves #hostName asynchronously.
     /*!
      *  Calls |getaddrinfo| and returns the first entry belonging to |AF_INET| or |AF_INET6| family.
