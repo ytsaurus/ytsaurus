@@ -194,9 +194,7 @@ void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
     headerExt->set_path(path);
 }
 
-TYPath ComputeResolvedYPath(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath)
+TYPath ComputeResolvedYPath(const TYPath& wholePath, const TYPath& unresolvedPath)
 {
     int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
     YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
@@ -267,9 +265,7 @@ void OnYPathResponse(
 }
 
 TFuture<TSharedRefArray>
-ExecuteVerb(
-    IYPathServicePtr service,
-    TSharedRefArray requestMessage)
+ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
 
