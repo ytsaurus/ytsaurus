@@ -1,7 +1,5 @@
 #!/bin/sh -eux
 
-export YT_PROXY="kant.yt.yandex.net"
-
 IMPORT_QUEUE="//sys/cron/tables_to_import"
 
 import_from_mr.py \
@@ -9,4 +7,7 @@ import_from_mr.py \
     --mapreduce-binary "/opt/cron/tools/mapreduce" \
     --compression-codec "gzip_best_compression" \
     --yt-pool "restricted" \
+    --skip-empty-tables \
     --fastbone
+
+cat /opt/cron/import_log | yt upload //sys/cron/import_log
