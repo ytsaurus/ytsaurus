@@ -136,7 +136,7 @@ public:
         auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
         const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         if (headerExt.mutating() &&
-            !hydraManager->GetMutationContext() &&
+            !hydraManager->IsMutating() &&
             !hydraManager->IsRecovery())
         {
             return TResolveResult::Here(path);
@@ -992,7 +992,7 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
     auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
     const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     YCHECK(!headerExt.mutating() ||
-           hydraManager->GetMutationContext() ||
+           hydraManager->IsMutating() ||
            hydraManager->IsRecovery());
 
     auto securityManager = Bootstrap->GetSecurityManager();

@@ -75,7 +75,7 @@ struct IHydraManager
     //! Returns |Null| if nothing is found.
     virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) = 0;
 
-    //! Returns the current mutation context or NULL if no mutation is currently being applied.
+    //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
     /*!
      *  Checking the return value for NULL can be useful to prevent recursive commits and only log "top-level"
      *  mutations that trigger the whole transformation chain.
@@ -83,6 +83,9 @@ struct IHydraManager
      *  \note Thread affinity: AutomatonThread
      */
     virtual TMutationContext* GetMutationContext() = 0;
+
+    //! Returns |true| if a mutation is currently being applied.
+    virtual bool IsMutating() = 0;
 
     //! Returns |true| if read-only mode is active.
     /*!

@@ -213,7 +213,7 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        if ((Options & EVirtualNodeOptions::RequireLeader) && !metaStateFacade->GetManager()->GetMutationContext()) {
+        if ((Options & EVirtualNodeOptions::RequireLeader) && !metaStateFacade->GetManager()->IsMutating()) {
             metaStateFacade->ValidateActiveLeader();
         }
 

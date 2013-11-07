@@ -484,7 +484,7 @@ private:
         TReqAbortFailedTransaction request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
 
-        if (HydraManager->GetMutationContext()) {
+        if (HydraManager->IsMutating()) {
             DoAbortFailed(commit->GetTransactionId());           
             for (const auto& cellGuid : commit->ParticipantCellGuids()) {
                 auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);

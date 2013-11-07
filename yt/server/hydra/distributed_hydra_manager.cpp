@@ -239,6 +239,11 @@ public:
         return EpochContext_;
     }
 
+    virtual bool IsMutating() override
+    {
+        return GetMutationContext() != nullptr;
+    }
+
     virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
