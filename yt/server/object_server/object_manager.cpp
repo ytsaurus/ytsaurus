@@ -131,7 +131,65 @@ public:
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        NRpc::IServiceContextPtr context) override
+        IServiceContextPtr context) override
+    {
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        if (headerExt.mutating() &&
+            !hydraManager->GetMutationContext() &&
+            !hydraManager->IsRecovery())
+        {
+            return TResolveResult::Here(path);
+        } else {
+            return DoResolve(path, std::move(context));
+        }
+    }
+
+    virtual void Invoke(IServiceContextPtr context) override
+    {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        auto userId = user->GetId();
+
+        auto mutationId = GetMutationId(context);
+
+        NProto::TReqExecute request;
+        ToProto(request.mutable_user_id(), userId);
+        // TODO(babenko): optimize, use multipart records
+        auto requestMessage = context->GetRequestMessage();
+        for (const auto& part : requestMessage) {
+            request.add_request_parts(part.Begin(), part.Size());
+        }
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager
+            ->CreateExecuteMutation(request)
+            ->SetId(mutationId)
+            ->SetAction(BIND(&TObjectManager::ExecuteMutatingRequest, objectManager, userId, context))
+            ->OnError(CreateRpcErrorHandler(context))
+            ->Commit();
+    }
+
+    virtual Stroka GetLoggingCategory() const override
+    {
+        return ObjectServerLogger.GetCategory();
+    }
+
+    // TODO(panin): remove this when getting rid of IAttributeProvider
+    virtual void SerializeAttributes(
+        NYson::IYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*filter*/,
+        bool /*sortKeys*/) override
+    {
+        YUNREACHABLE();
+    }
+
+private:
+    TBootstrap* Bootstrap;
+
+    TResolveResult DoResolve(
+        const TYPath& path,
+        IServiceContextPtr context)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
@@ -169,7 +227,8 @@ public:
                 TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
                 TObjectId objectId;
                 if (!TObjectId::FromString(objectIdString, &objectId)) {
-                    THROW_ERROR_EXCEPTION("Error parsing object id %s", ~objectIdString);
+                    THROW_ERROR_EXCEPTION("Error parsing object id %s",
+                        ~objectIdString);
                 }
 
                 auto* object = objectManager->GetObjectOrThrow(objectId);
@@ -182,29 +241,6 @@ public:
                 YUNREACHABLE();
         }
     }
-
-    virtual void Invoke(IServiceContextPtr context) override
-    {
-        UNUSED(context);
-        YUNREACHABLE();
-    }
-
-    virtual Stroka GetLoggingCategory() const override
-    {
-        return ObjectServerLogger.GetCategory();
-    }
-
-    // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
-        NYson::IYsonConsumer* /*consumer*/,
-        const TAttributeFilter& /*filter*/,
-        bool /*sortKeys*/) override
-    {
-        YUNREACHABLE();
-    }
-
-private:
-    TBootstrap* Bootstrap;
 
 };
 
@@ -342,8 +378,8 @@ TObjectManager::TObjectManager(
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap));
 
-    RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraExecute, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
     MasterObjectId = MakeWellKnownId(EObjectType::Master, Bootstrap->GetCellId());
 }
@@ -815,11 +851,18 @@ void TObjectManager::MergeAttributes(
     }
 }
 
+TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& request)
+{
+    return Bootstrap
+        ->GetMetaStateFacade()
+        ->CreateMutation(this, request, &TThis::HydraExecute);
+}
+
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
 {
     return Bootstrap
         ->GetMetaStateFacade()
-        ->CreateMutation(this, request, &TThis::DestroyObjects);
+        ->CreateMutation(this, request, &TThis::HydraDestroyObjects);
 }
 
 TFuture<void> TObjectManager::GCCollect()
@@ -837,9 +880,11 @@ TObjectBase* TObjectManager::CreateObject(
     IObjectTypeHandler::TReqCreateObjects* request,
     IObjectTypeHandler::TRspCreateObjects* response)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto handler = FindHandler(type);
     if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type: %s",
+        THROW_ERROR_EXCEPTION("Unknown object type %s",
             ~type.ToString());
     }
 
@@ -939,9 +984,16 @@ IObjectResolver* TObjectManager::GetObjectResolver()
     return ~ObjectResolver;
 }
 
-void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr context)
+void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceContextPtr context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    // Validate that mutating requests are only being invoked inside mutations or recovery.
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    YCHECK(!headerExt.mutating() ||
+           hydraManager->GetMutationContext() ||
+           hydraManager->IsRecovery());
 
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -949,123 +1001,71 @@ void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr cont
 
     auto objectId = proxy->GetVersionedId();
 
-    const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    bool isMutating = headerExt.mutating();
-
-    LOG_INFO_UNLESS(IsRecovery(), "Invoke: %s %s (ObjectId: %s, Mutating: %s, User: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %s:%s %s (ObjectId: %s, Mutating: %s, User: %s)",
+        ~context->GetService(),
         ~context->GetVerb(),
         ~GetRequestYPath(context),
         ~ToString(objectId),
-        ~FormatBool(isMutating),
+        ~FormatBool(headerExt.mutating()),
         ~user->GetName());
 
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(GetTypeTagId(TypeFromId(objectId.ObjectId)));
     tagIds.push_back(GetVerbTagId(context->GetVerb()));
 
-    if (IsRecovery() || !isMutating || HydraManager->GetMutationContext()) {
-        PROFILE_TIMING ("/request_time", tagIds) {
-            proxy->GuardedInvoke(std::move(context));
-        }
-    } else {
-        NProto::TReqExecute executeReq;
-        ToProto(executeReq.mutable_object_id(), objectId.ObjectId);
-        ToProto(executeReq.mutable_transaction_id(),  objectId.TransactionId);
-        ToProto(executeReq.mutable_user_id(), user->GetId());
-
-        auto requestMessage = context->GetRequestMessage();
-        for (const auto& part : requestMessage) {
-            executeReq.add_request_parts(part.Begin(), part.Size());
-        }
-
-        auto mutationId = GetMutationId(context);
-        auto wrappedContext = New<TServiceContextWrapper>(context);
-        auto this_ = MakeStrong(this);
-        Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation()
-            ->SetRequestData(executeReq)
-            ->SetId(mutationId)
-            ->SetAction(BIND([this, this_, objectId, userId, mutationId, tagIds, wrappedContext] () {
-                try {
-                    auto* object = GetObjectOrThrow(objectId.ObjectId);
-
-                    TTransaction* transaction = nullptr;
-                    if (objectId.TransactionId != NullTransactionId) {
-                        auto transactionManager = Bootstrap->GetTransactionManager();
-                        transaction = transactionManager->GetTransactionOrThrow(objectId.TransactionId);
-                    }
-
-                    auto securityManager = Bootstrap->GetSecurityManager();
-                    auto* user = securityManager->GetUserOrThrow(userId);
-
-                    auto proxy = GetProxy(object, transaction);
-
-                    TAuthenticatedUserGuard userGuard(securityManager, user);
-                    proxy->Invoke(std::move(wrappedContext));
-                } catch (const std::exception& ex) {
-                    wrappedContext->Reply(ex);
-                }
-
-                if (mutationId != NullMutationId) {
-                    auto responseMessage = wrappedContext->GetResponseMessage();
-                    auto responseData = responseMessage.Pack();
-                    HydraManager->GetMutationContext()->SetResponseData(std::move(responseData));
-                }
-            }))
-            ->OnSuccess(BIND([context, wrappedContext] (const TMutationResponse& response) {
-                context->Reply(wrappedContext->GetResponseMessage());
-            }))
-            ->OnError(CreateRpcErrorHandler(context))
-            ->Commit();
+    PROFILE_TIMING ("/request_time", tagIds) {
+        proxy->GuardedInvoke(std::move(context));
     }
 }
 
-void TObjectManager::ReplayVerb(const NProto::TReqExecute& request)
+void TObjectManager::ExecuteMutatingRequest(const TUserId& userId, IServiceContextPtr context)
+{
+    try {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* user = securityManager->GetUserOrThrow(userId);
+        TAuthenticatedUserGuard userGuard(securityManager, user);
+        ExecuteVerb(RootService, context);
+    } catch (const std::exception& ex) {
+        context->Reply(ex);
+    }
+
+    YCHECK(context->IsReplied());
+
+    auto mutationId = GetMutationId(context);
+    if (mutationId != NullMutationId) {
+        auto responseMessage = CreateResponseMessage(context);
+        auto responseData = responseMessage.Pack();
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        auto* mutationContext = hydraManager->GetMutationContext();
+        mutationContext->SetResponseData(std::move(responseData));
+    }
+}
+
+void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto objectId = FromProto<TObjectId>(request.object_id());
-    auto* object = FindObject(objectId);
-    if (!IsObjectAlive(object))
-        return;
-
-    auto transactionManager = Bootstrap->GetTransactionManager();
-    auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-    TTransaction* transaction = nullptr;
-    if (transactionId != NullTransactionId) {
-        transaction = transactionManager->FindTransaction(transactionId);
-        if (!IsObjectAlive(transaction))
-            return;
-    }
-
-    auto proxy = GetProxy(object, transaction);
-
-    auto securityManager = Bootstrap->GetSecurityManager();
     auto userId = FromProto<TUserId>(request.user_id());
-    auto* user = securityManager->FindUser(userId);
-    if (!IsObjectAlive(user))
-        return;
 
     std::vector<TSharedRef> parts(request.request_parts_size());
     for (int partIndex = 0; partIndex < request.request_parts_size(); ++partIndex) {
         // Construct a non-owning TSharedRef to avoid copying.
         // This is feasible since the message will outlive the request.
         const auto& part = request.request_parts(partIndex);
-        parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
+        parts[partIndex] = TSharedRef::FromRefNonOwning(TRef::FromString(part));
     }
 
     auto requestMessage = TSharedRefArray(std::move(parts));
+
     auto context = CreateYPathContext(
-        requestMessage,
-        "",
+        std::move(requestMessage),
+        "", // disable logging
         TYPathResponseHandler());
 
-    TAuthenticatedUserGuard userGuard(securityManager, user);
-    proxy->Invoke(context);
+    ExecuteMutatingRequest(userId, std::move(context));
 }
 
-void TObjectManager::DestroyObjects(const NProto::TReqDestroyObjects& request)
+void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)
 {
     for (const auto& protoId : request.object_ids()) {
         auto id = FromProto<TObjectId>(protoId);

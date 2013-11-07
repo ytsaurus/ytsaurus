@@ -6,10 +6,9 @@ import "yt/core/misc/guid.proto";
 
 message TReqExecute
 {
-    required NYT.NProto.TGuid object_id = 1;
-    required NYT.NProto.TGuid transaction_id = 2;
-    required NYT.NProto.TGuid user_id = 4;
-    repeated bytes request_parts = 3;
+    required NYT.NProto.TGuid user_id = 1;
+    // TODO(babenko): optimize, use multipart records
+    repeated bytes request_parts = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

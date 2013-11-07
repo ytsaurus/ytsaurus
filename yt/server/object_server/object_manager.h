@@ -157,6 +157,9 @@ public:
      */
     IObjectProxyPtr GetSchemaProxy(EObjectType type);
 
+    NHydra::TMutationPtr CreateExecuteMutation(
+        const NProto::TReqExecute& request);
+
     NHydra::TMutationPtr CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request);
 
@@ -244,10 +247,15 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
-    void InvokeVerb(TObjectProxyBase* proxy, NRpc::IServiceContextPtr context);
-    void ReplayVerb(const NProto::TReqExecute& request);
+    void InterceptProxyInvocation(
+        TObjectProxyBase* proxy,
+        NRpc::IServiceContextPtr context);
+    void ExecuteMutatingRequest(
+        const NSecurityServer::TUserId& userId,
+        NRpc::IServiceContextPtr context);
 
-    void DestroyObjects(const NProto::TReqDestroyObjects& request);
+    void HydraExecute(const NProto::TReqExecute& request);
+    void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
 
     NProfiling::TTagId GetTypeTagId(EObjectType type);
     NProfiling::TTagId GetVerbTagId(const Stroka& verb);

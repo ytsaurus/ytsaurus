@@ -224,7 +224,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
     Bootstrap
         ->GetObjectManager()
-        ->InvokeVerb(this, std::move(context));
+        ->InterceptProxyInvocation(this, std::move(context));
 }
 
 void TObjectProxyBase::SerializeAttributes(
