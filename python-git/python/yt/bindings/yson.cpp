@@ -26,11 +26,12 @@ public:
         : Py::PythonClass<TYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner)
+    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner, std::unique_ptr<Stroka> stringHolder)
     {
-        YCHECK(!inputStreamOwner ||  inputStreamOwner.get() == inputStream);
+        YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
         InputStream_ = inputStream;
         InputStreamOwner_ = std::move(inputStreamOwner);
+        StringHolder_ = std::move(stringHolder);
         Parser_.reset(new NYson::TYsonParser(&Consumer_, ysonType));
         IsStreamRead_ = false;
     }
@@ -45,7 +46,9 @@ public:
         // Read unless we have whole row
         while (!Consumer_.HasObject() && !IsStreamRead_) {
             int length = InputStream_->Read(Buffer_, BufferSize_);
-            Parser_->Read(TStringBuf(Buffer_, length));
+            if (length != 0) {
+                Parser_->Read(TStringBuf(Buffer_, length));
+            }
             if (BufferSize_ != length) {
                 IsStreamRead_ = true;
                 Parser_->Finish();
@@ -81,6 +84,7 @@ public:
 private:
     TInputStream* InputStream_;
     std::unique_ptr<TInputStream> InputStreamOwner_;
+    std::unique_ptr<Stroka> StringHolder_;
 
     bool IsStreamRead_;
 
@@ -115,7 +119,7 @@ public:
 
     Py::Object Load(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
-        return LoadImpl(args_, kwargs_, 0);
+        return LoadImpl(args_, kwargs_, nullptr);
     }
 
     Py::Object Loads(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -125,10 +129,11 @@ public:
 
         auto string = ConvertToString(ExtractArgument(args, kwargs, "string"));
 
-        char* rawStr = PyString_AsString(*string);
         int len = string.size();
+        std::unique_ptr<Stroka> stringHolder(new Stroka(PyString_AsString(*string), len));
+        std::unique_ptr<TInputStream> stringStream(new TStringInput(*stringHolder));
 
-        return LoadImpl(args, kwargs, std::unique_ptr<TInputStream>(new TMemoryInput(static_cast<void*>(rawStr), len)));
+        return LoadImpl(args, kwargs, std::move(stringStream), std::move(stringHolder));
     }
 
     Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -151,7 +156,11 @@ public:
     { }
 
 private:
-    Py::Object LoadImpl(const Py::Tuple& args_, const Py::Dict& kwargs_, std::unique_ptr<TInputStream> inputStream)
+    Py::Object LoadImpl(
+        const Py::Tuple& args_,
+        const Py::Dict& kwargs_,
+        std::unique_ptr<TInputStream> inputStream,
+        std::unique_ptr<Stroka> stringHolder = nullptr)
     {
         auto args = args_;
         auto kwargs = kwargs_;
@@ -194,7 +203,7 @@ private:
             Py::PythonClassObject<TYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
 
             auto* iter = pythonIter.getCxxObject();
-            iter->Init(ysonType, inputStreamPtr, std::move(inputStream));
+            iter->Init(ysonType, inputStreamPtr, std::move(inputStream), std::move(stringHolder));
             return pythonIter;
         } else {
             NYTree::TPythonObjectConsumer consumer;
@@ -202,7 +211,7 @@ private:
 
             const int BufferSize = 1024 * 1024;
             char buffer[BufferSize];
-            while (int length = inputStream->Read(buffer, BufferSize))
+            while (int length = inputStreamPtr->Read(buffer, BufferSize))
             {
                 parser.Read(TStringBuf(buffer, length));
                 if (BufferSize != length) {
