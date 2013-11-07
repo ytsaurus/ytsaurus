@@ -160,7 +160,7 @@ def import_table(object, args):
 
     if mr.is_empty(src):
         logger.info("Table '%s' is empty", src)
-        return -1
+        return None if args.skip_empty_tables else -1
 
     record_count = mr.records_count(src)
     sorted = mr.is_sorted(src)
@@ -263,6 +263,8 @@ def main():
 
     parser.add_argument("--force", action="store_true", default=False,
                         help="always drop destination table")
+    parser.add_argument("--skip-empty-tables", action="store_true", default=False,
+                        help="do not return empty source tables back to queue")
     parser.add_argument("--fastbone", action="store_true", default=False)
 
     parser.add_argument("--yt-binary")
