@@ -18,7 +18,13 @@ fi
 
 # Build and upload package
 make deb_without_test
-dupload "../${PACKAGE}_${VERSION}_amd64.changes"
+
+if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
+    REPO="precise"
+else
+    REPO="common"
+fi
+dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
 
 if [ "$PACKAGE" = "yandex-yt-python" ]; then
     # Upload egg

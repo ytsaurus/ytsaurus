@@ -55,11 +55,11 @@ target_link_libraries( yson_python
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libdriver_python.so
-  ${BASE}/driver_lib.so
+  ${BASE}/driver/driver_lib.so
 )
 
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libyson_python.so
-  ${BASE}/yson_lib.so
+  ${BASE}/yson/yson_lib.so
 )
