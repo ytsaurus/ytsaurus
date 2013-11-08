@@ -851,7 +851,6 @@ public:
             .Item("start_time").Value(element->GetStartTime())
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
-            .Item("usage_ratio").Value(element->GetUsageRatio())
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
@@ -1402,6 +1401,7 @@ private:
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
             .Item("max_share_ratio").Value(attributes.MaxShareRatio)
+            .Item("usage_ratio").Value(element->GetUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
