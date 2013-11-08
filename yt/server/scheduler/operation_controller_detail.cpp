@@ -453,6 +453,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
+    joblet->MemoryReserveEnabled = IsMemoryReserveEnabled();
+
     auto neededResources = GetNeededResources(joblet);
 
     // Check the usage against the limits. This is the last chance to give up.
@@ -2853,10 +2855,14 @@ void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jo
     }
 }
 
-i64 TOperationControllerBase::GetMemoryReserve(const TProgressCounter& jobCounter, TUserJobSpecPtr userJobSpec) const
+bool TOperationControllerBase::IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const
 {
-    bool reserveEnabled = jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Config->MaxMemoryReserveAbortJobCount;
-    if (reserveEnabled) {
+    return jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Config->MaxMemoryReserveAbortJobCount;
+}
+
+i64 TOperationControllerBase::GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const
+{
+    if (memoryReserveEnabled) {
         return static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
     } else {
         return userJobSpec->MemoryLimit;
