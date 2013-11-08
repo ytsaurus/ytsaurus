@@ -62,8 +62,12 @@ private:
         union {
             i64 Integer;
             double Double;
-            TStringBuf String;
+            struct {
+                const char* StringValue;
+                size_t StringLength;
+            };
         } PreviousValue;
+
     };
 
     TChunkWriterConfigPtr Config;

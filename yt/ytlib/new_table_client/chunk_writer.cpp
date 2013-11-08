@@ -149,10 +149,14 @@ void TChunkWriter::WriteValue(const TRowValue& value)
             YASSERT(value.Type == EColumnType::String || value.Type == EColumnType::Null);
             if (columnDescriptor.IsKeyPart) {
                 auto newKey = CurrentBlock->WriteKeyString(value, columnDescriptor.IndexInBlock);
-                if (newKey != columnDescriptor.PreviousValue.String) {
+                auto oldKey = TStringBuf(
+                    columnDescriptor.PreviousValue.StringValue,
+                    columnDescriptor.PreviousValue.StringLength);
+                if (newKey != oldKey) {
                     IsNewKey = true;
                 }
-                columnDescriptor.PreviousValue.String = newKey;
+                columnDescriptor.PreviousValue.StringValue = newKey.data();
+                columnDescriptor.PreviousValue.StringLength = newKey.length();
             } else {
                 CurrentBlock->WriteString(value, columnDescriptor.IndexInBlock);
             }
@@ -198,19 +202,19 @@ bool TChunkWriter::EndRow(TTimestamp timestamp, bool deleted)
                 const auto& column = ColumnDescriptors[id];
                 part->set_type(column.Type);
                 switch (column.Type) {
-                case EColumnType::Integer:
-                    part->set_int_value(column.PreviousValue.Integer);
-                    break;
-                case EColumnType::Double:
-                    part->set_double_value(column.PreviousValue.Double);
-                    break;
-                case EColumnType::String:
-                    part->set_str_value(
-                        column.PreviousValue.String.begin(),
-                        column.PreviousValue.String.size());
-                    break;
-                default:
-                    YUNREACHABLE();
+                    case EColumnType::Integer:
+                        part->set_int_value(column.PreviousValue.Integer);
+                        break;
+                    case EColumnType::Double:
+                        part->set_double_value(column.PreviousValue.Double);
+                        break;
+                    case EColumnType::String:
+                        part->set_str_value(
+                            column.PreviousValue.StringValue,
+                            column.PreviousValue.StringLength);
+                        break;
+                    default:
+                        YUNREACHABLE();
                 }
             }
         }
