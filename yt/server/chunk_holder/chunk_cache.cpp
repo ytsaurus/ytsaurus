@@ -77,7 +77,7 @@ public:
             }
         } catch (const std::exception& ex) {
             Location->Disable();
-            LOG_WARNING(ex, "Failed to initialize storage locations");
+            LOG_WARNING(ex, "Failed to initialize chunk cache");
             return;
         }
 

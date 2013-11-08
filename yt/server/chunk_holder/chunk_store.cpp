@@ -47,11 +47,15 @@ void TChunkStore::Initialize()
             locationConfig,
             Bootstrap);
 
+        location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
+
         std::vector<TChunkDescriptor> descriptors;
         try {
             descriptors = location->Initialize();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to initialize location %s", ~location->GetPath().Quote());
+            location->Disable();
+            LOG_ERROR(ex, "Failed to initialize location %s",
+                ~location->GetPath().Quote());
             continue;
         }
 
@@ -63,7 +67,6 @@ void TChunkStore::Initialize()
             RegisterExistingChunk(chunk);
         }
 
-        location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
         Locations_.push_back(location);
     }
 
@@ -262,7 +265,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     // schedule an out-of-order heartbeat to notify the master about the disaster.
     auto masterConnector = Bootstrap->GetMasterConnector();
     masterConnector->RegisterAlert(Sprintf("Chunk store %s is disabled",
-        ~location->GetId()));
+        ~location->GetId().Quote()));
     masterConnector->ForceRegister();
 }
 

@@ -64,6 +64,8 @@ public:
 
     bool JobProxyMemoryControl;
 
+    TNullable<Stroka> Title;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -84,6 +86,8 @@ public:
         RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
             .Default(true);
 
+        RegisterParameter("title", Title)
+            .Default(Null);
 
         SetKeepOptions(true);
 
