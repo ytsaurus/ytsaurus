@@ -17,67 +17,73 @@ namespace NVersionedTableClient {
 
 struct TRowValue
 {
+    //! Column id obtained from a name table.
+    ui16 Id;
+    //! Column type (compact EColumnType).
+    ui16 Type;
+    //! Length of variable-sized value (meaningful only for |String| and |Any| types).
+    ui32 Length;
+
     union
     {
-        i64         Integer;
-        double      Double;
-        const char* String;  // String itself for |String| type
-                             // YSON-encoded value for |Any| type
-    } Data;      // Holds the value
-    ui32 Length; // For variable-sized values
-    ui16 Type;   // EColumnType
-    ui16 Index;  // Name Table index
+        //! Integral value.
+        i64 Integer;
+        //! Floating-point value.
+        double Double;
+        //! String value for |String| type or YSON-encoded value for |Any| type.
+        const char* String;
+    } Data;
 
-    static FORCED_INLINE TRowValue MakeNull(int index)
+    static FORCED_INLINE TRowValue MakeNull(int id)
     {
         TRowValue result;
-        result.Index = index;
+        result.Id = id;
         result.Type = NVersionedTableClient::EColumnType::Null;
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeInteger(int index, i64 value)
+    static FORCED_INLINE TRowValue MakeInteger(int id, i64 value)
     {
         TRowValue result;
-        result.Index = index;
+        result.Id = id;
         result.Type = NVersionedTableClient::EColumnType::Integer;
         result.Data.Integer = value;
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeDouble(int index, double value)
+    static FORCED_INLINE TRowValue MakeDouble(int id, double value)
     {
         TRowValue result;
-        result.Index = index;
+        result.Id = id;
         result.Type = NVersionedTableClient::EColumnType::Double;
         result.Data.Double = value;
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeString(int index, const TStringBuf& value)
+    static FORCED_INLINE TRowValue MakeString(int id, const TStringBuf& value)
     {
         TRowValue result;
-        result.Index = index;
+        result.Id = id;
         result.Type = NVersionedTableClient::EColumnType::String;
-        result.Data.String = value.begin();
         result.Length = value.length();
+        result.Data.String = value.begin();
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeAny(int index, const TStringBuf& value)
+    static FORCED_INLINE TRowValue MakeAny(int id, const TStringBuf& value)
     {
         TRowValue result;
-        result.Index = index;
+        result.Id = id;
         result.Type = NVersionedTableClient::EColumnType::Any;
-        result.Data.String = value.begin();
         result.Length = value.length();
+        result.Data.String = value.begin();
         return result;
     }
 } PACK;
 
 #undef PACK
 
-static_assert(sizeof (TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
+static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,13 +118,31 @@ inline int CompareSameTypeValues(TRowValue lhs, TRowValue rhs)
             }
         }
 
+        case EColumnType::Double: {
+            auto lhsValue = lhs.Data.Double;
+            auto rhsValue = lhs.Data.Double;
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+        }
+
         case EColumnType::String: {
             size_t lhsLength = lhs.Length;
             size_t rhsLength = rhs.Length;
             size_t minLength = std::min(lhsLength, rhsLength);
-            int result = memcmp(lhs.Data.String, rhs.Data.String, minLength);
+            int result = ::memcmp(lhs.Data.String, rhs.Data.String, minLength);
             if (result == 0) {
-                return lhsLength - rhsLength;
+                if (lhsLength < rhsLength) {
+                    return -1;
+                } else if (lhsLength > rhsLength) {
+                    return +1;
+                } else {
+                    return 0;
+                }
             } else {
                 return result;
             }
@@ -137,15 +161,15 @@ inline int CompareSameTypeValues(TRowValue lhs, TRowValue rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Header which preceeds row values in memory layout.
 struct TRowHeader
 {
-    TTimestamp Timestamp;
     i32 ValueCount;
     bool Deleted;
-    // ValueCount instances of TRowValue follow.
+    TTimestamp Timestamp;
 };
 
-static_assert(sizeof (TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes.");
+static_assert(sizeof(TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,16 +183,16 @@ public:
 
     FORCED_INLINE TRow(
         TChunkedMemoryPool* pool, 
-        int valueCount, 
-        TTimestamp timestamp = NullTimestamp, 
-        bool deleted = false)
-        : Header(reinterpret_cast<TRowHeader*>(pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
+        int valueCount,
+        bool deleted = false,
+        TTimestamp timestamp = NullTimestamp)
+        : Header(reinterpret_cast<TRowHeader*>(
+            pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
     {
-        Header->Timestamp = timestamp;
         Header->ValueCount = valueCount;
         Header->Deleted = deleted;
+        Header->Timestamp = timestamp;
     }
-
 
     FORCED_INLINE TRowValue& operator[](int index)
     {
@@ -186,17 +210,10 @@ public:
             index * sizeof(TRowValue));
     }
 
-
-    FORCED_INLINE TTimestamp GetTimestamp() const
+    FORCED_INLINE int GetValueCount() const
     {
-        return Header->Timestamp;
+        return Header->ValueCount;
     }
-
-    FORCED_INLINE void SetTimestamp(TTimestamp timestamp)
-    {
-        Header->Timestamp = timestamp;
-    }
-
 
     FORCED_INLINE bool GetDeleted() const
     {
@@ -208,10 +225,14 @@ public:
         Header->Deleted = deleted;
     }
 
-
-    FORCED_INLINE int GetValueCount() const
+    FORCED_INLINE TTimestamp GetTimestamp() const
     {
-        return Header->ValueCount;
+        return Header->Timestamp;
+    }
+
+    FORCED_INLINE void SetTimestamp(TTimestamp timestamp)
+    {
+        Header->Timestamp = timestamp;
     }
 
 private:

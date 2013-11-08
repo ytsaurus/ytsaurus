@@ -26,23 +26,27 @@ bool TVariableIterator::ParseNext(TRowValue* rowValue)
         return false;
     }
 
-    ui64 index;
-    Opaque += ReadVarUInt64(Opaque, &index);
-    rowValue->Index = static_cast<i16>(index);
+    ui64 id;
+    Opaque += ReadVarUInt64(Opaque, &id);
+    YASSERT(id <= std::numeric_limits<ui16>::max());
+
+    rowValue->Id = static_cast<ui16>(id);
 
     ui64 length;
     Opaque += ReadVarUInt64(Opaque, &length);
+    YASSERT(length <= std::numeric_limits<ui32>::max());
+
     if (length != 0) {
-        YASSERT(length <= std::numeric_limits<i32>::max());
-        rowValue->Length = static_cast<i32>(length);
-        rowValue->Data.String = Opaque;
         rowValue->Type = EColumnType::Any;
+        rowValue->Length = static_cast<ui32>(length);
+        rowValue->Data.String = Opaque;
         Opaque += length;
     } else {
         rowValue->Type = EColumnType::Null;
     }
 
     --Count;
+
     return true;
 }
 

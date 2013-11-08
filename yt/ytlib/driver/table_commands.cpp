@@ -365,7 +365,7 @@ void TSelectCommand::DoExecute()
                 const auto& value = row[i];
                 if (value.Type == EColumnType::Null)
                     continue;
-                consumer->OnKeyedItem(nameTable->GetName(value.Index));
+                consumer->OnKeyedItem(nameTable->GetName(value.Id));
                 switch (value.Type) {
                     case EColumnType::Integer:
                         consumer->OnIntegerScalar(value.Data.Integer);

@@ -286,12 +286,12 @@ bool TChunkReader::Read(std::vector<TRow> *rows)
             auto& row = rows->back();
             for (const auto& column: VariableColumns) {
                 row[column.IndexInRow] = BlockReader->Read(column.IndexInBlock);
-                row[column.IndexInRow].Index = column.IndexInNameTable;
+                row[column.IndexInRow].Id = column.IndexInNameTable;
             }
 
             int index = FixedColumns.size() + VariableColumns.size();
             while (variableIt.ParseNext(&row[index])) {
-                row[index].Index = ChunkIndexToOutputIndex[row[index].Index];
+                row[index].Id = ChunkIndexToOutputIndex[row[index].Id];
             }
         } else {
             rows->push_back(TRow(&MemoryPool, FixedColumns.size()));
@@ -300,7 +300,7 @@ bool TChunkReader::Read(std::vector<TRow> *rows)
         auto& row = rows->back();
         for (const auto& column: FixedColumns) {
             row[column.IndexInRow] = BlockReader->Read(column.IndexInBlock);
-            row[column.IndexInRow].Index = column.IndexInNameTable;
+            row[column.IndexInRow].Id = column.IndexInNameTable;
         }
 
         BlockReader->NextRow();
@@ -433,7 +433,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
             } else {
                 const auto& schemaColumn = Schema.Columns()[i];
                 auto& value = outputRow[i];
-                value.Index = SchemaNameIndexes[i];
+                value.Id = SchemaNameIndexes[i];
                 value.Type = schemaColumn.Type;
 
                 const auto& pair = chunkRow[schemaIndexes[i]];
@@ -482,10 +482,10 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
             auto& value = outputRow[schemaIndexes.size() + i];
             const auto& pair = chunkRow[variableIndexes[i]];
 
-            value.Index = NameTable->GetOrRegisterName(ToString(pair.first));
+            value.Id = NameTable->GetOrRegisterName(ToString(pair.first));
             value.Type = EColumnType::Any;
-            value.Data.String = pair.second.begin();
             value.Length = pair.second.size();
+            value.Data.String = pair.second.begin();
         }
 
         if (!UnderlyingReader->FetchNext()) {

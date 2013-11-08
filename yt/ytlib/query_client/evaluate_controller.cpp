@@ -247,7 +247,7 @@ TError TEvaluateController::RunProject()
             }
             for (int i = 0; i < projectOp->GetProjectionCount(); ++i) {
                 TRowValue value = row[writerIndexToReaderIndex[i]];
-                value.Index = writerIndexToNameIndex[i];
+                value.Id = writerIndexToNameIndex[i];
                 Writer_->WriteValue(value);
             }
             if (!Writer_->EndRow()) {

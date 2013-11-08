@@ -633,7 +633,7 @@ void TVersionedTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 
 void TVersionedTableConsumer::WriteValue(const NVersionedTableClient::TRowValue& rowValue)
 {
-    int id = rowValue.Index;
+    int id = rowValue.Id;
     if (id < SchemaColumnDescriptors.size()) {
         auto type = NVersionedTableClient::EColumnType(rowValue.Type);
         auto& descriptor = SchemaColumnDescriptors[id];

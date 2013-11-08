@@ -109,17 +109,17 @@ void TChunkWriter::Open(
 
 void TChunkWriter::WriteValue(const TRowValue& value)
 {
-    while (ColumnDescriptors.size() <= value.Index) {
-        ColumnDescriptors.push_back(TColumnDescriptor());
+    while (ColumnDescriptors.size() <= value.Id) {
+        ColumnDescriptors.emplace_back();
     }
 
-    auto& columnDescriptor = ColumnDescriptors[value.Index];
+    auto& columnDescriptor = ColumnDescriptors[value.Id];
 
     if (columnDescriptor.Type == EColumnType::Null) {
         // Uninitialized column becomes variable.
         columnDescriptor.Type = EColumnType::TheBottom;
-        columnDescriptor.OutputIndex = OutputNameTable->RegisterName(
-            InputNameTable->GetName(value.Index));
+        columnDescriptor.OutputIndex =
+            OutputNameTable->RegisterName(InputNameTable->GetName(value.Id));
     }
 
     switch (columnDescriptor.Type) {
