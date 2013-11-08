@@ -404,8 +404,8 @@ class TestCypressCommands(YTEnvSetup):
     def test_get_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
 
-        assert get('//sys/transactions', attr=['state']) == {tx: to_yson_type(None, attributes={"state": "active"})}
-        assert ls('//sys/transactions', attr=['state']) == [to_yson_type(tx, attributes={"state": "active"})]
+        assert get('//sys/transactions', attr=['type']) == {tx: to_yson_type(None, attributes={"type": "transaction"})}
+        assert ls('//sys/transactions', attr=['type']) == [to_yson_type(tx, attributes={"type": "transaction"})]
 
         abort_transaction(tx)
 
