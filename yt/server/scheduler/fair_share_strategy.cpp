@@ -99,6 +99,7 @@ struct ISchedulableElement
 
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
+    virtual double GetMaxShareRatio() const = 0;
 
     virtual TNodeResources GetDemand() const = 0;
 
@@ -204,6 +205,11 @@ public:
     virtual double GetMinShareRatio() const override
     {
         return Spec_->MinShareRatio;
+    }
+
+    virtual double GetMaxShareRatio() const override
+    {
+        return Spec_->MaxShareRatio;
     }
 
     virtual TNodeResources GetDemand() const override
@@ -406,7 +412,10 @@ protected:
                 Min(Host->GetTotalResourceLimits(), child->ResourceLimits()),
                 Host->GetExecNodeCount());
             
-            childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
+            childAttributes.MaxShareRatio = std::min(
+                GetMinResourceRatio(limits, totalLimits),
+                child->GetMaxShareRatio());
+            
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
             i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
@@ -675,6 +684,11 @@ public:
     virtual double GetMinShareRatio() const override
     {
         return Config->MinShareRatio;
+    }
+
+    virtual double GetMaxShareRatio() const override
+    {
+        return Config->MaxShareRatio;
     }
 
     virtual TNodeResources GetDemand() const override
