@@ -60,6 +60,8 @@ private:
 
     TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
+
+    bool Started;
     IInvokerPtr ControlInvoker;
 
     DECLARE_ENUM(EState,
@@ -97,6 +99,8 @@ private:
     //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
     TChunkSet ReportedRemoved;
 
+    //! Protects #Alerts.
+    TSpinLock AlertsLock;
     //! A list of registered alerts.
     std::vector<Stroka> Alerts;
 
