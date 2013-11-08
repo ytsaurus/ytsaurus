@@ -32,10 +32,13 @@ def export_table(object, args):
         logger.warning("Export table '%s' is empty", src)
         return -1
 
+    if params.yt_proxy is None:
+        logger.error("You should specify yt proxy")
+        return -1
     
     old_proxy = yt.config.http.PROXY
-    yt.config.set_proxy(params.yt_proxy)
     try: 
+        yt.config.set_proxy(params.yt_proxy)
         if yt.exists(dst) and yt.records_count(dst) != 0:
             if params.force:
                 yt.remove(dst)
@@ -64,8 +67,8 @@ def export_table(object, args):
                spec={"pool": params.yt_pool,
                      "data_size_per_job": 2 * 1024 * yt.config.MB})
 
-    yt.config.set_proxy(params.yt_proxy)
     try: 
+        yt.config.set_proxy(params.yt_proxy)
         result_record_count = yt.records_count(dst)
         if record_count != result_record_count:
             logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, result_record_count)
