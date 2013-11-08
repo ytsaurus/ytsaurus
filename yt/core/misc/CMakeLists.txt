@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
+  ${BASE}/checkpointable_stream.cpp
   ${BASE}/checksum.cpp
   ${BASE}/chunked_memory_pool.cpp
   ${BASE}/chunked_output_stream.cpp
@@ -50,6 +51,7 @@ set( HDRS
   ${BASE}/blob_range.h
   ${BASE}/cache-inl.h
   ${BASE}/cache.h
+  ${BASE}/checkpointable_stream.h
   ${BASE}/checksum.h
   ${BASE}/chunked_memory_pool.h
   ${BASE}/chunked_output_stream.h

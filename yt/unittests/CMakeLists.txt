@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/bind_ut.cpp
   ${BASE}/bus_ut.cpp
   ${BASE}/callback_ut.cpp
+  ${BASE}/checkpointable_stream_ut.cpp
   ${BASE}/sync_file_changelog_ut.cpp
   ${BASE}/chunk_tree_traversing_ut.cpp
   ${BASE}/compression_ut.cpp
