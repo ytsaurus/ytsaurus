@@ -2,13 +2,16 @@ import yt.yson as yson
 from yt.bindings.driver import Driver, Request, make_request
 from yt.common import YtError, flatten, update
 
+import pytest
+
 import os
 import sys
-
 import time
 from datetime import datetime
 
 from cStringIO import StringIO
+
+only_linux = pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
 
 def get_driver():
     config_path = os.environ['YT_CONFIG']

@@ -144,7 +144,7 @@ class TestAttributes(YTEnvSetup):
         erasure_info = get('//tmp/t/@erasure_statistics')
         assert erasure_info['none']['chunk_count'] == chunk_count
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test2(self):
         tableA = '//tmp/a'
         create('table', tableA)

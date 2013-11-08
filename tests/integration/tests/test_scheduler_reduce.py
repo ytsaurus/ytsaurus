@@ -12,7 +12,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
         write(
@@ -51,7 +51,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted') == 'true'
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_cat(self):
         create('table', '//tmp/in1')
         write(
@@ -98,7 +98,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get('//tmp/out/@sorted') == 'true'
 
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_cat_teleport(self):
         create('table', '//tmp/in1')
         write(
@@ -161,7 +161,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get('//tmp/out1/@sorted') == 'true'
         assert get('//tmp/out2/@sorted') == 'true'
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_maniac_chunk(self):
         create('table', '//tmp/in1')
         write(
@@ -241,7 +241,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command = 'cat',
                 reduce_by='subkey')
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
