@@ -45,7 +45,7 @@ protected:
             fileChangelogConfig = DefaultFileChangelogConfig;
         }
 
-        TSyncFileChangelogPtr changeLog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, fileChangelogConfig);
+        auto changeLog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, fileChangelogConfig);
 
         TChangelogCreateParams changelogParams;
         changelogParams.PrevRecordCount = 0;
@@ -146,7 +146,7 @@ protected:
             changeLogFile.Resize(newFileSize);
         }
 
-        TSyncFileChangelogPtr changeLog = OpenChangelog();
+        auto changeLog = OpenChangelog();
 
         EXPECT_EQ(changeLog->GetRecordCount(), correctRecordCount);
         CheckRead<ui32>(changeLog, 0, initialRecordCount, correctRecordCount);
@@ -162,12 +162,12 @@ protected:
 TEST_F(TSyncFileChangelogTest, EmptyChangelog)
 {
     ASSERT_NO_THROW({
-        TSyncFileChangelogPtr changeLog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, New<TFileChangelogConfig>());
+        auto changeLog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, New<TFileChangelogConfig>());
         changeLog->Create(TChangelogCreateParams());
     });
 
     ASSERT_NO_THROW({
-        TSyncFileChangelogPtr changeLog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, New<TFileChangelogConfig>());
+        auto changeLog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, New<TFileChangelogConfig>());
         changeLog->Open();
     });
 }
@@ -177,14 +177,14 @@ TEST_F(TSyncFileChangelogTest, Finalized)
 {
     const int logRecordCount = 256;
     {
-        TSyncFileChangelogPtr changeLog = CreateChangelog<ui32>(logRecordCount);
-        EXPECT_EQ(IsFinalized(changeLog), false);
+        auto changeLog = CreateChangelog<ui32>(logRecordCount);
+        EXPECT_FALSE(IsFinalized(changeLog));
         Finalize(changeLog);
-        EXPECT_EQ(IsFinalized(changeLog), true);
+        EXPECT_TRUE(IsFinalized(changeLog));
     }
     {
-        TSyncFileChangelogPtr changeLog = OpenChangelog();
-        EXPECT_EQ(IsFinalized(changeLog), true);
+        auto changeLog = OpenChangelog();
+        EXPECT_TRUE(IsFinalized(changeLog));
     }
 }
 
@@ -193,13 +193,13 @@ TEST_F(TSyncFileChangelogTest, ReadWrite)
 {
     const int logRecordCount = 16;
     {
-        TSyncFileChangelogPtr changeLog = CreateChangelog<ui32>(logRecordCount);
-        EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
+        auto changeLog = CreateChangelog<ui32>(logRecordCount);
+        EXPECT_EQ(logRecordCount, changeLog->GetRecordCount());
         CheckReads<ui32>(changeLog, logRecordCount);
     }
     {
-        TSyncFileChangelogPtr changeLog = OpenChangelog();
-        EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
+        auto changeLog = OpenChangelog();
+        EXPECT_EQ(logRecordCount, changeLog->GetRecordCount());
         CheckReads<ui32>(changeLog, logRecordCount);
     }
 }
@@ -208,7 +208,7 @@ TEST_F(TSyncFileChangelogTest, TestCorrupted)
 {
     const int logRecordCount = 1024;
     {
-        TSyncFileChangelogPtr changeLog = CreateChangelog<ui32>(logRecordCount);
+        auto changeLog = CreateChangelog<ui32>(logRecordCount);
     }
 
     i64 fileSize = GetFileSize();
@@ -224,19 +224,19 @@ TEST_F(TSyncFileChangelogTest, Truncate)
     const int logRecordCount = 128;
 
     {
-        TSyncFileChangelogPtr changeLog = CreateChangelog<ui32>(logRecordCount);
+        auto changeLog = CreateChangelog<ui32>(logRecordCount);
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 
     for (int recordId = logRecordCount; recordId >= 0; --recordId) {
         {
-            TSyncFileChangelogPtr changeLog = OpenChangelog();
+            auto changeLog = OpenChangelog();
             changeLog->Seal(recordId);
         }
         {
-            TSyncFileChangelogPtr changeLog = OpenChangelog();
-            EXPECT_EQ(changeLog->GetRecordCount(), recordId);
+            auto changeLog = OpenChangelog();
+            EXPECT_EQ(recordId, changeLog->GetRecordCount());
             CheckRead<ui32>(changeLog, 0, recordId, recordId);
             changeLog->Unseal();
         }
@@ -248,27 +248,27 @@ TEST_F(TSyncFileChangelogTest, TruncateAppend)
     const int logRecordCount = 256;
 
     {
-        TSyncFileChangelogPtr changeLog = CreateChangelog<ui32>(logRecordCount);
-        EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
+        auto changeLog = CreateChangelog<ui32>(logRecordCount);
+        EXPECT_EQ(logRecordCount, changeLog->GetRecordCount());
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 
     int truncatedRecordId = logRecordCount / 2;
     {
         // Truncate
-        TSyncFileChangelogPtr changeLog = OpenChangelog();
+        auto changeLog = OpenChangelog();
         changeLog->Seal(truncatedRecordId);
         CheckRead<ui32>(changeLog, 0, truncatedRecordId, truncatedRecordId);
     }
     {
         // Append
-        TSyncFileChangelogPtr changeLog = OpenChangelog();
+        auto changeLog = OpenChangelog();
         changeLog->Unseal();
         changeLog->Append(truncatedRecordId, MakeRecords<ui32>(truncatedRecordId, logRecordCount));
     }
     {
         // Check
-        TSyncFileChangelogPtr changeLog = OpenChangelog();
+        auto changeLog = OpenChangelog();
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 }
@@ -278,10 +278,10 @@ TEST_F(TSyncFileChangelogTest, UnalighnedChecksum)
     const int logRecordCount = 256;
 
     {
-        TSyncFileChangelogPtr changeLog = CreateChangelog<ui8>(logRecordCount);
+        auto changeLog = CreateChangelog<ui8>(logRecordCount);
     }
     {
-        TSyncFileChangelogPtr changeLog = OpenChangelog();
+        auto changeLog = OpenChangelog();
         CheckRead<ui8>(changeLog, 0, logRecordCount, logRecordCount);
     }
 }
