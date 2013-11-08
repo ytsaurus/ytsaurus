@@ -402,10 +402,6 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
         UpdateLogHeader();
     }
 
-    // XXX(babenko): ignat should fix this
-    if (recordCount == 0)
-        return;
-
     auto envelope = ReadEnvelope(recordCount, recordCount);
     if (recordCount == 0) {
         Index_.clear();
