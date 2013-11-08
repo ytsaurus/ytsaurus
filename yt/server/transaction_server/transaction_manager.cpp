@@ -75,7 +75,6 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        attributes->push_back("state");
         attributes->push_back("timeout");
         attributes->push_back("uncommitted_accounting_enabled");
         attributes->push_back("staged_accounting_enabled");
@@ -94,12 +93,6 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* transaction = GetThisTypedImpl();
-
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetState());
-            return true;
-        }
 
         if (key == "timeout") {
             BuildYsonFluently(consumer)
