@@ -298,7 +298,7 @@ private:
     char str[1000000];
 };
 
-TEST_F(TSyncFileChangelogTest, Profiling)
+TEST_F(TSyncFileChangelogTest, DISABLED_Profiling)
 {
     auto fileChangelogConfig = New<TFileChangelogConfig>();
     fileChangelogConfig->IndexBlockSize = 1024 * 1024;
