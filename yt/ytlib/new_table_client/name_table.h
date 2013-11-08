@@ -4,8 +4,6 @@
 
 #include <core/misc/nullable.h>
 
-#include <yt/ytlib/new_table_client/chunk_meta.pb.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 

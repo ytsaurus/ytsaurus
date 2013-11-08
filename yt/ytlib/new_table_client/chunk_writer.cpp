@@ -109,8 +109,8 @@ void TChunkWriter::Open(
 
 void TChunkWriter::WriteValue(const TRowValue& value)
 {
-    while (ColumnDescriptors.size() <= value.Id) {
-        ColumnDescriptors.emplace_back();
+    if (ColumnDescriptors.size() <= value.Id) {
+        ColumnDescriptors.resize(value.Id);
     }
 
     auto& columnDescriptor = ColumnDescriptors[value.Id];
