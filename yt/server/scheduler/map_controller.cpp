@@ -112,7 +112,9 @@ private:
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return GetMapResources(joblet->InputStripeList->GetStatistics());
+            return GetMapResources(
+                joblet->InputStripeList->GetStatistics(),
+                joblet->MemoryReserveEnabled);
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -141,13 +143,19 @@ private:
 
         std::unique_ptr<IChunkPool> ChunkPool;
 
+        virtual bool IsMemoryReserveEnabled() const override
+        {
+            return Controller->IsMemoryReserveEnabled(Controller->JobCounter);
+        }
 
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            return GetMapResources(ChunkPool->GetApproximateStripeStatistics());
+            return GetMapResources(
+                ChunkPool->GetApproximateStripeStatistics(),
+                IsMemoryReserveEnabled());
         }
 
-        TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics) const
+        TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics, bool isReserveEnabled) const
         {
             TNodeResources result;
             result.set_user_slots(1);
@@ -157,7 +165,7 @@ private:
                     Controller->Spec->JobIO,
                     AggregateStatistics(statistics)) +
                 GetFootprintMemorySize() +
-                Controller->GetMapMemoryReserve());
+                Controller->GetMemoryReserve(isReserveEnabled, Controller->Spec->Mapper));
             return result;
         }
 
@@ -178,7 +186,10 @@ private:
             AddFinalOutputSpecs(jobSpec, joblet);
 
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
-            Controller->InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet, Controller->GetMapMemoryReserve());
+            Controller->InitUserJobSpec(
+                jobSpecExt->mutable_mapper_spec(),
+                joblet,
+                Controller->GetMemoryReserve(joblet->MemoryReserveEnabled, Controller->Spec->Mapper));
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet) override
@@ -278,11 +289,6 @@ private:
     virtual bool IsCompleted() const override
     {
         return MapTask->IsCompleted();
-    }
-
-    i64 GetMapMemoryReserve() const
-    {
-        return GetMemoryReserve(JobCounter, Spec->Mapper);
     }
 
     // Progress reporting.

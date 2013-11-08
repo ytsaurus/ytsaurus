@@ -623,6 +623,7 @@ class TPoolConfig
 public:
     double Weight;
     double MinShareRatio;
+    double MaxShareRatio;
 
     ESchedulingMode Mode;
 
@@ -635,6 +636,9 @@ public:
             .GreaterThanOrEqual(0.0);
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
+            .InRange(0.0, 1.0);
+        RegisterParameter("max_share_ratio", MaxShareRatio)
+            .Default(1.0)
             .InRange(0.0, 1.0);
 
         RegisterParameter("mode", Mode)
@@ -654,6 +658,7 @@ public:
     TNullable<Stroka> Pool;
     double Weight;
     double MinShareRatio;
+    double MaxShareRatio;
 
     // The following settings override schedule configuration.
     TNullable<TDuration> MinSharePreemptionTimeout;
@@ -670,6 +675,9 @@ public:
             .GreaterThanOrEqual(0.0);
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
+            .InRange(0.0, 1.0);
+        RegisterParameter("max_share_ratio", MaxShareRatio)
+            .Default(1.0)
             .InRange(0.0, 1.0);
 
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)

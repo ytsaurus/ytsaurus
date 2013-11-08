@@ -99,6 +99,7 @@ struct ISchedulableElement
 
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
+    virtual double GetMaxShareRatio() const = 0;
 
     virtual TNodeResources GetDemand() const = 0;
 
@@ -204,6 +205,11 @@ public:
     virtual double GetMinShareRatio() const override
     {
         return Spec_->MinShareRatio;
+    }
+
+    virtual double GetMaxShareRatio() const override
+    {
+        return Spec_->MaxShareRatio;
     }
 
     virtual TNodeResources GetDemand() const override
@@ -406,7 +412,10 @@ protected:
                 Min(Host->GetTotalResourceLimits(), child->ResourceLimits()),
                 Host->GetExecNodeCount());
             
-            childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
+            childAttributes.MaxShareRatio = std::min(
+                GetMinResourceRatio(limits, totalLimits),
+                child->GetMaxShareRatio());
+            
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
             i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
@@ -677,6 +686,11 @@ public:
         return Config->MinShareRatio;
     }
 
+    virtual double GetMaxShareRatio() const override
+    {
+        return Config->MaxShareRatio;
+    }
+
     virtual TNodeResources GetDemand() const override
     {
         auto result = ZeroNodeResources();
@@ -851,7 +865,6 @@ public:
             .Item("start_time").Value(element->GetStartTime())
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
-            .Item("usage_ratio").Value(element->GetUsageRatio())
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
@@ -1402,6 +1415,7 @@ private:
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
             .Item("max_share_ratio").Value(attributes.MaxShareRatio)
+            .Item("usage_ratio").Value(element->GetUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
