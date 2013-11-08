@@ -1,40 +1,42 @@
 #include "stdafx.h"
 #include "name_table.h"
 
+#include <ytlib/new_table_client/chunk_meta.pb.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TNameTable::GetNameCount() const
+int TNameTable::GetSize() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return IndexToName.size();
+    return IdToName.size();
 }
 
-TNullable<int> TNameTable::FindIndex(const TStringBuf& name) const
+TNullable<int> TNameTable::FindId(const TStringBuf& name) const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    auto it = NameToIndex.find(name);
-    if (it == NameToIndex.end()) {
+    auto it = NameToId.find(name);
+    if (it == NameToId.end()) {
         return Null;
     } else {
         return MakeNullable(it->second);
     }
 }
 
-int TNameTable::GetIndex(const TStringBuf& name) const
+int TNameTable::GetId(const TStringBuf& name) const
 {
-    auto index = FindIndex(name);
+    auto index = FindId(name);
     YCHECK(index);
     return *index;
 }
 
-const Stroka& TNameTable::GetName(int index) const
+const Stroka& TNameTable::GetName(int id) const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(index >= 0 && index < IndexToName.size());
-    return IndexToName[index];
+    YCHECK(id >= 0 && id < IdToName.size());
+    return IdToName[id];
 }
 
 int TNameTable::RegisterName(const TStringBuf& name)
@@ -45,36 +47,36 @@ int TNameTable::RegisterName(const TStringBuf& name)
 
 int TNameTable::DoRegisterName(const TStringBuf& name)
 {
-    int index = IndexToName.size();
-    Stroka stringName(name);
-    IndexToName.push_back(stringName);
-    YCHECK(NameToIndex.insert(std::make_pair(stringName, index)).second);
-    return index;
+    int id = IdToName.size();
+    IdToName.emplace_back(name);
+    const auto& savedName = IdToName.back();
+    YCHECK(NameToId.insert(std::make_pair(savedName, id)).second);
+    return id;
 }
 
 int TNameTable::GetOrRegisterName(const TStringBuf& name)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    auto it = NameToIndex.find(name);
-    if (it == NameToIndex.end()) {
+    auto it = NameToId.find(name);
+    if (it == NameToId.end()) {
         return DoRegisterName(name);
     } else {
         return it->second;
     }
 }
 
-void ToProto(NProto::TNameTableExt* protoNameTable, TNameTablePtr nameTable)
+void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable)
 {
     protoNameTable->clear_names();
-    for (int index = 0; index < nameTable->GetNameCount(); ++index) {
-        protoNameTable->add_names(nameTable->GetName(index));
+    for (int id = 0; id < nameTable->GetSize(); ++id) {
+        protoNameTable->add_names(nameTable->GetName(id));
     }
 }
 
 void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameTable)
 {
     *nameTable = New<TNameTable>();
-    for (const auto& name: protoNameTable.names()) {
+    for (const auto& name : protoNameTable.names()) {
         (*nameTable)->RegisterName(name);
     }
 }

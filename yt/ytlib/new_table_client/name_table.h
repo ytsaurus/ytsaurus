@@ -18,24 +18,27 @@ public:
     int RegisterName(const TStringBuf& name);
     int GetOrRegisterName(const TStringBuf& name);
 
-    TNullable<int> FindIndex(const TStringBuf& name) const;
-    int GetIndex(const TStringBuf& name) const;
+    TNullable<int> FindId(const TStringBuf& name) const;
+    int GetId(const TStringBuf& name) const;
 
-    const Stroka& GetName(int index) const;
+    const Stroka& GetName(int id) const;
 
-    int GetNameCount() const;
+    int GetSize() const;
 
 private:
     TSpinLock SpinLock;
 
-    yhash_map<TStringBuf, int> NameToIndex; // names are owned by IndexToName
-    std::vector<Stroka> IndexToName;
+    std::vector<Stroka> IdToName;
+    yhash_map<TStringBuf, int> NameToId; // String values are owned by IdToName.
 
     int DoRegisterName(const TStringBuf& name);
 
 };
 
-void ToProto(NProto::TNameTableExt* protoNameTable, TNameTablePtr nameTable);
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto { class TNameTableExt; }
+void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable);
 void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameTable);
 
 ////////////////////////////////////////////////////////////////////////////////

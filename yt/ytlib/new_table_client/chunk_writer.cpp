@@ -76,9 +76,9 @@ void TChunkWriter::Open(
         }
     );
 
-    ColumnDescriptors.resize(InputNameTable->GetNameCount());
+    ColumnDescriptors.resize(InputNameTable->GetSize());
 
-    for (const auto& column: Schema.Columns()) {
+    for (const auto& column : Schema.Columns()) {
         TColumnDescriptor descriptor;
         descriptor.IndexInBlock = ColumnSizes.size();
         descriptor.OutputIndex = OutputNameTable->RegisterName(column.Name);
@@ -90,15 +90,15 @@ void TChunkWriter::Open(
             ColumnSizes.push_back(8);
         }
 
-        auto index = InputNameTable->GetIndex(column.Name);
-        ColumnDescriptors[index] = descriptor;
+        auto id = InputNameTable->GetId(column.Name);
+        ColumnDescriptors[id] = descriptor;
     }
 
-    for (const auto& column: keyColumns) {
-        auto index = InputNameTable->GetIndex(column);
-        KeyIndexes.push_back(index);
+    for (const auto& column : keyColumns) {
+        auto id = InputNameTable->GetId(column);
+        KeyIds.push_back(id);
 
-        auto& descriptor = ColumnDescriptors[index];
+        auto& descriptor = ColumnDescriptors[id];
         YCHECK(descriptor.IndexInBlock >= 0);
         YCHECK(descriptor.Type != EColumnType::Any);
         descriptor.IsKeyPart = true;
@@ -191,11 +191,11 @@ bool TChunkWriter::EndRow(TTimestamp timestamp, bool deleted)
     if (PreviousBlock) {
         FlushPreviousBlock();
 
-        if (!KeyIndexes.empty()) {
+        if (!KeyIds.empty()) {
             auto* key = IndexExt.add_keys();
-            for (const auto& index: KeyIndexes) {
+            for (const auto& id : KeyIds) {
                 auto* part = key->add_parts();
-                const auto& column = ColumnDescriptors[index];
+                const auto& column = ColumnDescriptors[id];
                 part->set_type(column.Type);
                 switch (column.Type) {
                 case EColumnType::Integer:
@@ -278,15 +278,15 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     SetProtoExtension(Meta.mutable_extensions(), nameTableExt);
 
     NChunkClient::NProto::TMiscExt miscExt;
-    if (KeyIndexes.empty()) {
+    if (KeyIds.empty()) {
         miscExt.set_sorted(false);
     } else {
         miscExt.set_sorted(true);
 
         SetProtoExtension(Meta.mutable_extensions(), IndexExt);
         NTableClient::NProto::TKeyColumnsExt keyColumnsExt;
-        for (int index : KeyIndexes) {
-            keyColumnsExt.add_names(InputNameTable->GetName(index));
+        for (int id : KeyIds) {
+            keyColumnsExt.add_names(InputNameTable->GetName(id));
         }
         SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
     }

@@ -50,6 +50,7 @@ private:
             , OutputIndex(-1)
             , Type(EColumnType::Null)
             , IsKeyPart(false)
+            , PreviousValue({ 0 })
         { }
 
         int IndexInBlock;
@@ -58,10 +59,10 @@ private:
         // Used for versioned rowsets.
         bool IsKeyPart;
 
-        struct {
-            TStringBuf String;
-            double Double;
+        union {
             i64 Integer;
+            double Double;
+            TStringBuf String;
         } PreviousValue;
     };
 
@@ -69,7 +70,7 @@ private:
     NChunkClient::TEncodingWriterOptionsPtr Options;
     NChunkClient::IAsyncWriterPtr UnderlyingWriter;
 
-    std::vector<int> KeyIndexes;
+    std::vector<int> KeyIds;
     ERowsetType RowsetType;
     TNameTablePtr InputNameTable;
     TNameTablePtr OutputNameTable;

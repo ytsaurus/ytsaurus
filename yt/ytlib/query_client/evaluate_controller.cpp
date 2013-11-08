@@ -188,7 +188,7 @@ TError TEvaluateController::RunProject()
         auto name = projection->As<TReferenceExpression>()->GetName();
         auto index = readerSchema.GetColumnIndex(readerSchema.GetColumnOrThrow(name));
         writerIndexToReaderIndex[i] = index;
-        writerIndexToNameIndex[i] = nameTable->GetIndex(projection->InferName());
+        writerIndexToNameIndex[i] = nameTable->GetId(projection->InferName());
     }
 
     // Dumb way to do filter. :)

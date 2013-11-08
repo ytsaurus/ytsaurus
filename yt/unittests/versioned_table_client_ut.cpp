@@ -48,40 +48,27 @@ protected:
     TMemoryReaderPtr MemoryReader;
     TMemoryWriterPtr MemoryWriter;
 
-    void WriteInteger(i64 data, int index)
+    void WriteInteger(i64 value, int id)
     {
-        TRowValue value;
-        value.Data.Integer = data;
-        value.Type = EColumnType::Integer;
-        value.Index = index;
-        ChunkWriter->WriteValue(value);
+        ChunkWriter->WriteValue(TRowValue::MakeInteger(id, value));
     }
 
-    void WriteDouble(double data, int index)
+    void WriteDouble(double value, int id)
     {
-        TRowValue value;
-        value.Data.Double = data;
-        value.Type = EColumnType::Double;
-        value.Index = index;
-        ChunkWriter->WriteValue(value);
+        ChunkWriter->WriteValue(TRowValue::MakeDouble(id, value));
     }
 
-    void WriteString(Stroka data, int index)
+    void WriteString(Stroka value, int id)
     {
-        TRowValue value;
-        value.Data.String = data.c_str();
-        value.Length = data.length();
-        value.Type = EColumnType::String;
-        value.Index = index;
-        ChunkWriter->WriteValue(value);
+        ChunkWriter->WriteValue(
+            TRowValue::MakeString(
+                id,
+                TStringBuf(value.c_str(), value.length())));
     }
 
-    void WriteNull(int index)
+    void WriteNull(int id)
     {
-        TRowValue value;
-        value.Type = EColumnType::Null;
-        value.Index = index;
-        ChunkWriter->WriteValue(value);
+        ChunkWriter->WriteValue(TRowValue::MakeNull(id));
     }
 
     Stroka ToStroka(const TRowValue& value)
@@ -156,19 +143,19 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
     EXPECT_TRUE(ChunkReader->Read(&rows));
     EXPECT_EQ(3, rows.size());
 
-    EXPECT_EQ(0, nameTable->GetIndex("body"));
+    EXPECT_EQ(0, nameTable->GetId("body"));
 
     EXPECT_EQ(1, rows[0].GetValueCount());
-    EXPECT_EQ(0, rows[0][0].Index);
+    EXPECT_EQ(0, rows[0][0].Id);
     EXPECT_EQ(EColumnType::String, rows[0][0].Type);
     EXPECT_STREQ(~TheAnswer, ~ToStroka(rows[0][0]));
 
     EXPECT_EQ(1, rows[1].GetValueCount());
-    EXPECT_EQ(0, rows[1][0].Index);
+    EXPECT_EQ(0, rows[1][0].Id);
     EXPECT_EQ(EColumnType::Null, rows[1][0].Type);
 
     EXPECT_EQ(1, rows[2].GetValueCount());
-    EXPECT_EQ(0, rows[2][0].Index);
+    EXPECT_EQ(0, rows[2][0].Id);
     EXPECT_EQ(EColumnType::String, rows[2][0].Type);
     EXPECT_STREQ(~Advertisment, ~ToStroka(rows[2][0]));
 
@@ -195,8 +182,8 @@ TEST_F(TVersionedTableClientTest, SimpleReadAll)
     EXPECT_TRUE(ChunkReader->Read(&rows));
     EXPECT_EQ(3, rows.size());
 
-    EXPECT_EQ(nameTable->GetIndex("body"), 0);
-    EXPECT_EQ(nameTable->GetIndex("bid"), 1);
+    EXPECT_EQ(nameTable->GetId("body"), 0);
+    EXPECT_EQ(nameTable->GetId("bid"), 1);
 
     EXPECT_EQ(3, rows[0].GetValueCount());
     EXPECT_EQ(4, rows[1].GetValueCount());
