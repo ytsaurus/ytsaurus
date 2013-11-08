@@ -46,15 +46,21 @@ TEvaluateController::~TEvaluateController()
 
 TError TEvaluateController::Run()
 {
-    LOG_DEBUG("Evaluating plan fragment");
+    try {
+        LOG_DEBUG("Evaluating plan fragment");
 
-    switch (GetHead()->GetKind()) {
-        case EOperatorKind::Union:
-            return RunUnion();
-        case EOperatorKind::Project:
-            return RunProject();
-        default:
-            YUNIMPLEMENTED();
+        switch (GetHead()->GetKind()) {
+            case EOperatorKind::Union:
+                return RunUnion();
+            case EOperatorKind::Project:
+                return RunProject();
+            default:
+                YUNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to evaluate plan fragment") << ex;
+        LOG_ERROR(error);
+        return error;
     }
 }
 

@@ -25,13 +25,13 @@ public:
 
     virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override;
 
+    TError Prepare();
     TError Run();
-    IReaderPtr GetPeer(int i);
 
     void SplitFurther();
     void PushdownFilters();
     void PushdownProjects();
-    void DelegateToPeers();
+    void DistributeToPeers();
 
     ICoordinateCallbacks* GetCallbacks()
     {
@@ -53,7 +53,8 @@ private:
     TPlanFragment Fragment_;
     TWriterPtr Writer_;
 
-    std::vector<IReaderPtr> Peers_;
+    bool Prepared_;
+    std::vector<std::tuple<TPlanFragment, IReaderPtr>> Peers_;
 
     void SetHead(const TOperator* head)
     {

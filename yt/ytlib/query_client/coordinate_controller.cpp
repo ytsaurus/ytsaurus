@@ -32,6 +32,7 @@ TCoordinateController::TCoordinateController(
     : Callbacks_(callbacks)
     , Fragment_(fragment)
     , Writer_(std::move(writer))
+    , Prepared_(false)
     , Logger(QueryClientLogger)
 {
     Logger.AddTag(Sprintf(
@@ -47,15 +48,24 @@ IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
     auto objectId = GetObjectIdFromDataSplit(dataSplit);
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
     switch (TypeFromId(objectId)) {
-        case EObjectType::QueryPlan:
-            return GetPeer(CounterFromId(objectId));
+        case EObjectType::QueryPlan: {
+            auto peerIndex = CounterFromId(objectId);
+            YASSERT(peerIndex < Peers_.size());
+            auto peer = std::get<1>(Peers_[peerIndex]);
+            YASSERT(peer);
+            return peer;
+        }
         default:
             return GetCallbacks()->GetReader(dataSplit);
     }
 }
 
-TError TCoordinateController::Run()
+TError TCoordinateController::Prepare()
 {
+    if (Prepared_) {
+        return TError("Plan fragment is already prepared");
+    }
+
     ViewPlanFragment(Fragment_, "Coordinator -> Before");
 
     SplitFurther();
@@ -64,17 +74,33 @@ TError TCoordinateController::Run()
 
     ViewPlanFragment(Fragment_, "Coordinator -> After");
 
-    DelegateToPeers();
+    DistributeToPeers();
 
     ViewPlanFragment(Fragment_, "Coordinator -> Final");
 
-    return New<TEvaluateController>(this, Fragment_, Writer_)->Run();
+    return TError();
 }
 
-IReaderPtr TCoordinateController::GetPeer(int i)
+TError TCoordinateController::Run()
 {
-    YCHECK(i < Peers_.size());
-    return Peers_[i];
+    try {
+        LOG_DEBUG("Coordinating plan fragment");
+
+        auto error = Prepare();
+        RETURN_IF_ERROR(error);
+
+        for (auto& peer : Peers_) {
+            std::get<1>(peer) = GetCallbacks()->Delegate(
+                std::get<0>(peer),
+                GetHeaviestSplit(std::get<0>(peer).GetHead()));
+        }
+
+        return New<TEvaluateController>(this, Fragment_, Writer_)->Run();
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to coordinate plan fragment") << ex;
+        LOG_ERROR(error);
+        return error;
+    }
 }
 
 void TCoordinateController::SplitFurther()
@@ -175,9 +201,9 @@ void TCoordinateController::PushdownProjects()
     });
 }
 
-void TCoordinateController::DelegateToPeers()
+void TCoordinateController::DistributeToPeers()
 {
-    LOG_DEBUG("Delegating subfragments to peers");
+    LOG_DEBUG("Distributing plan to peers");
     YCHECK(Peers_.empty());
 
     int numberOfScanOperators = 0;
@@ -189,7 +215,7 @@ void TCoordinateController::DelegateToPeers()
 
     LOG_DEBUG("Got %d scan operators in plan fragment", numberOfScanOperators);
     if (numberOfScanOperators <= 1) {
-        LOG_DEBUG("Nothing to delegate");
+        LOG_DEBUG("Nothing to distribute");
         return;
     }
 
@@ -200,11 +226,9 @@ void TCoordinateController::DelegateToPeers()
 
     for (const auto& source : unionOp->Sources()) {
         auto fragment = TPlanFragment(GetContext(), source);
-        auto peer = GetCallbacks()->Delegate(fragment, GetHeaviestSplit(source));
+        Peers_.emplace_back(fragment, nullptr);
 
-        Peers_.emplace_back(std::move(peer));
-
-        LOG_DEBUG("Delegated subfragment %s", ~ToString(fragment.Guid()));
+        LOG_DEBUG("Created subfragment %s", ~ToString(fragment.Guid()));
 
         auto* facadeScanOp = new (GetContext()) TScanOperator(
             GetContext(),
@@ -225,7 +249,7 @@ void TCoordinateController::DelegateToPeers()
 
     SetHead(facadeUnionOp);
 
-    LOG_DEBUG("Delegated %" PRISZT " subfragments to peers", Peers_.size());
+    LOG_DEBUG("Distributed %" PRISZT " subfragments to peers", Peers_.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
