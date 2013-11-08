@@ -293,7 +293,7 @@ public:
         bool result = false;
         auto node = context->GetNode();
         auto sortedChildren = GetSortedChildren();
-        FOREACH (auto child, sortedChildren) {
+        for (const auto& child : sortedChildren) {
             if (!node->HasSpareResources()) {
                 break;
             }
@@ -370,7 +370,7 @@ protected:
     {
         auto getSum = [&] (double fitFactor) -> double {
             double sum = 0.0;
-            FOREACH (auto child, Children) {
+            for (const auto& child : Children) {
                 sum += getter(fitFactor, child);
             }
             return sum;
@@ -380,7 +380,7 @@ protected:
         double fitFactor = BinarySearch(getSum, sum);
 
         // Compute actual min shares from fit factor.
-        FOREACH (auto child, Children) {
+        for (const auto& child : Children) {
             double value = getter(fitFactor, child);
             setter(child, value);
         }
@@ -393,7 +393,7 @@ protected:
         // Compute max share ratios.
         // Compute demand ratios and their sum.
         double demandRatioSum = 0.0;
-        FOREACH (auto child, Children) {
+        for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
 
             auto demand = child->GetDemand();
@@ -431,14 +431,14 @@ protected:
         }
 
         // Propagate updates to children.
-        FOREACH (auto child, Children) {
+        for (const auto& child : Children) {
             child->Update();
         }
     }
 
     void ComputeFifo()
     {
-        FOREACH (auto child, Children) {
+        for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
             if (childAttributes.Rank == 0) {
                 childAttributes.AdjustedMinShareRatio = std::min(
@@ -456,31 +456,29 @@ protected:
 
     void ComputeFairShare()
     {
-        ComputeByFitting(
-            [&] (double fitFactor, ISchedulableElementPtr child) -> double {
-                const auto& childAttributes = child->Attributes();
-                double result = 
-                    std::min(fitFactor, 1.0) * child->GetMinShareRatio() +
-                    std::max(fitFactor - 1.0, 0.0) * child->GetWeight();
-                // Never give more than max share allows.
-                result = std::min(result, childAttributes.MaxShareRatio);
-                // Never give more than demanded.
-                result = std::min(result, childAttributes.DemandRatio);
-                return result;
-            },
-            [&] (ISchedulableElementPtr child, double value) {
-                auto& attributes = child->Attributes();
-                attributes.AdjustedMinShareRatio = value;
-            },
-            Attributes_.AdjustedMinShareRatio);
+        // Compute min shares.
+        {
+            double sum = 0.0;
+            for (const auto& child : Children) {
+                sum += child->GetMinShareRatio();
+            }
+            double fitFactor =
+                sum < Attributes_.AdjustedMinShareRatio || sum < RatioComparisonPrecision
+                ? 1.0
+                : Attributes_.AdjustedMinShareRatio / sum;
+            for (const auto& child : Children) {
+                auto& childAttributes = child->Attributes();
+                childAttributes.AdjustedMinShareRatio = child->GetMinShareRatio() * fitFactor;
+            }
+        }
 
+        // Compute fair shares.
         ComputeByFitting(
-            [&] (double fitFactor, ISchedulableElementPtr child) -> double {
+            [&] (double fitFactor, const ISchedulableElementPtr& child) -> double {
                 const auto& childAttributes = child->Attributes();
-                double result =
-                    // Never give less than promised by min share.
-                    childAttributes.AdjustedMinShareRatio +
-                    std::max(fitFactor - 1.0, 0.0) * child->GetWeight();                    
+                double result = fitFactor * child->GetWeight();
+                // Never give less than promised by min share.
+                result = std::max(result, childAttributes.AdjustedMinShareRatio);               
                 // Never give more than demanded.
                 result = std::min(result, childAttributes.DemandRatio);
                 // Never give more than max share allows.
@@ -499,7 +497,7 @@ protected:
     {
         PROFILE_TIMING ("/fair_share_sort_time") {
             std::vector<ISchedulableElementPtr> sortedChildren;
-            FOREACH (auto child, Children) {
+            for (const auto& child : Children) {
                 sortedChildren.push_back(child);
             }
 
@@ -682,7 +680,7 @@ public:
     virtual TNodeResources GetDemand() const override
     {
         auto result = ZeroNodeResources();
-        FOREACH (auto child, Children) {
+        for (const auto& child : Children) {
             result += child->GetDemand();
         }
         return result;
@@ -761,7 +759,7 @@ public:
         }
 
         // Update starvation flags for all operations.
-        FOREACH (const auto& pair, OperationToElement) {
+        for (const auto& pair : OperationToElement) {
             CheckForStarvation(pair.second);
         }
 
@@ -774,7 +772,7 @@ public:
         yhash_set<TOperationElementPtr> discountedOperations;
         yhash_set<TPoolPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        FOREACH (auto job, context->RunningJobs()) {
+        for (const auto& job : context->RunningJobs()) {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
             operationElement->ResourceUsageDiscount() += job->ResourceUsage();
@@ -796,10 +794,10 @@ public:
 
         // Reset discounts.
         node->ResourceUsageDiscount() = ZeroNodeResources();
-        FOREACH (auto operationElement, discountedOperations) {
+        for (const auto& operationElement : discountedOperations) {
             operationElement->ResourceUsageDiscount() = ZeroNodeResources();
         }
-        FOREACH (auto pool, discountedPools) {
+        for (const auto& pool : discountedPools) {
             pool->ResourceUsageDiscount() = ZeroNodeResources();
         }
 
@@ -826,7 +824,7 @@ public:
                 return false;
             }
 
-            FOREACH (auto job, context->StartedJobs()) {
+            for (const auto& job : context->StartedJobs()) {
                 if (!checkPoolLimits(job)) {
                     return false;
                 }
@@ -835,7 +833,7 @@ public:
             return true;
         };
 
-        FOREACH (auto job, preemptableJobs) {
+        for (const auto& job : preemptableJobs) {
             if (checkAllLimits())
                 break;
 
@@ -1182,7 +1180,7 @@ private:
 
             // Build the set of potential orphans.
             yhash_set<Stroka> orphanPoolIds;
-            FOREACH (const auto& pair, Pools) {
+            for (const auto& pair : Pools) {
                 YCHECK(orphanPoolIds.insert(pair.first).second);
             }
 
