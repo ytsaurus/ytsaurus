@@ -414,18 +414,14 @@ protected:
             auto& childAttributes = child->Attributes();
 
             auto demand = child->GetDemand();
+
             auto totalLimits = GetAdjustedResourceLimits(
                 demand,
                 Host->GetTotalResourceLimits(),
                 Host->GetExecNodeCount());
-            auto limits = GetAdjustedResourceLimits(
-                demand,
-                Min(Host->GetTotalResourceLimits(), child->ResourceLimits()),
-                Host->GetExecNodeCount());
-            
-            childAttributes.MaxShareRatio = std::min(
-                GetMinResourceRatio(limits, totalLimits),
-                child->GetMaxShareRatio());
+            auto limits = Min(Host->GetTotalResourceLimits(), child->ResourceLimits());
+
+            childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
             
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
