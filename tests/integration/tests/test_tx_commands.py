@@ -3,8 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-import time
-
+from time import sleep
 
 ##################################################################
 
@@ -60,7 +59,7 @@ class TestTxCommands(YTEnvSetup):
 
         remove('//tmp/value')
 
-    def test_nested_tx(self):
+    def test_nested_tx1(self):
         set('//tmp/t1', 0)
 
         tx_outer = start_transaction()
@@ -70,52 +69,68 @@ class TestTxCommands(YTEnvSetup):
 
         tx2 = start_transaction(tx = tx_outer)
 
+        assert get('//tmp/t1', tx=tx_outer) == 0
+
+        commit_transaction(tx1)
+        assert get('//tmp/t1', tx=tx_outer) == 1
+        assert get('//tmp/t1') == 0
+
+    def test_nested_tx2(self):
+        tx_outer = start_transaction()
+
+        tx1 = start_transaction(tx = tx_outer)
+        tx2 = start_transaction(tx = tx_outer)
+
         # can't be committed as long there are uncommitted transactions
         with pytest.raises(YtError): commit_transaction(tx_outer)
 
-        assert get('//tmp/t1', tx=tx_outer) == 0
-        commit_transaction(tx1)
-        assert get('//tmp/t1', tx=tx_outer) == 1
+        sleep(1)
+
+        # an attempt to commit tx_outer aborts everything
+        assert get_transactions() == []
+
+    def test_nested_tx3(self):
+        tx_outer = start_transaction()
+
+        tx1 = start_transaction(tx = tx_outer)
+        tx2 = start_transaction(tx = tx_outer)
 
         # can be aborted..
         abort_transaction(tx_outer)
         
         # and this aborts all nested transactions
-        assert get('//tmp/t1') == 0
         assert get_transactions() == []
 
     def test_timeout(self):
         tx = start_transaction(opt = '/timeout=4000')
 
         # check that transaction is still alive after 2 seconds
-        time.sleep(2)
+        sleep(2)
         self.assertItemsEqual(get_transactions(), [tx])
 
         # check that transaction is expired after 4 seconds
-        time.sleep(2)
+        sleep(2)
         self.assertItemsEqual(get_transactions(), [])
 
     def test_ping(self):
         tx = start_transaction(opt = '/timeout=4000')
 
-        time.sleep(2)
+        sleep(2)
         self.assertItemsEqual(get_transactions(), [tx])
         ping_transaction(tx)
 
-        time.sleep(3)
+        sleep(3)
         self.assertItemsEqual(get_transactions(), [tx])
         
-        abort_transaction(tx)
-
     def test_expire_outer(self):
         tx_outer = start_transaction(opt = '/timeout=4000')
         tx_inner = start_transaction(tx = tx_outer)
 
-        time.sleep(2)
+        sleep(2)
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
         ping_transaction(tx_inner)
 
-        time.sleep(3)
+        sleep(3)
         # check that outer tx expired (and therefore inner was aborted)
         self.assertItemsEqual(get_transactions(), [])
 
@@ -123,11 +138,11 @@ class TestTxCommands(YTEnvSetup):
         tx_outer = start_transaction(opt = '/timeout=4000')
         tx_inner = start_transaction(tx = tx_outer)
 
-        time.sleep(2)
+        sleep(2)
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
         ping_transaction(tx_inner, ping_ancestor_txs=True)
 
-        time.sleep(3)
+        sleep(3)
         # check that all tx are still alive
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
 
