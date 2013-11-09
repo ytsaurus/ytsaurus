@@ -33,6 +33,8 @@
 #include <server/hydra/file_snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
 
+#include <server/hive/transaction_supervisor.h>
+
 #include <server/cell_master/bootstrap.h>
 
 #include <server/cypress_server/cypress_manager.h>
@@ -54,16 +56,18 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
+using namespace NTransactionClient::NProto;
+using namespace NHive;
+using namespace NHive::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
-using namespace NTransactionClient::NProto;
-using namespace NConcurrency;
 using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Bootstrap");
+static const TDuration InitRetryPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,7 +197,7 @@ private:
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
         // We'll post an initialization callback to the state invoker instead.
-        GetEpochInvoker()->Invoke(BIND(&TImpl::InitializeIfNeeded, MakeStrong(this)));
+        ScheduleInitialize();
     }
 
     void InitializeIfNeeded()
@@ -203,19 +207,33 @@ private:
         }
     }
 
+    void ScheduleInitialize(TDuration delay = TDuration::Zero())
+    {
+        TDelayedExecutor::Submit(
+            BIND(&TImpl::InitializeIfNeeded, MakeStrong(this))
+                .Via(GetEpochInvoker()),
+            delay);
+    }
+
     // TODO(babenko): move initializer to a separate class
     void Initialize()
     {
         LOG_INFO("World initialization started");
 
         try {
+            // Check for pre-existing transactions to avoid collisions with previous (failed)
+            // initialization attempts.
+            auto transactionManager = Bootstrap->GetTransactionManager();
+            if (transactionManager->Transactions().GetSize() > 0) {
+                LOG_INFO("World initialization aborted: transactions found");
+                AbortTransactions();
+                ScheduleInitialize(InitRetryPeriod);
+                return;
+            }
+
             auto objectManager = Bootstrap->GetObjectManager();
             auto cypressManager = Bootstrap->GetCypressManager();
             auto securityManager = Bootstrap->GetSecurityManager();
-
-            // Abort all existing transactions to avoid collisions with previous (failed)
-            // initialization attempts.
-            AbortTransactions();
 
             // All initialization will be happening within this transaction.
             auto transactionId = StartTransaction();
@@ -461,12 +479,14 @@ private:
         auto transactionManager = Bootstrap->GetTransactionManager();
         auto transactionIds = ToObjectIds(transactionManager->Transactions().GetValues());
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto service = objectManager->GetRootService();
-        FOREACH (const auto& transactionId, transactionIds) {
-            auto req = TTransactionYPathProxy::Abort(FromObjectId(transactionId));
-            auto rsp = WaitFor(ExecuteVerb(service, req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
+
+        for (const auto& transactionId : transactionIds) {
+            TReqAbortTransaction req;
+            ToProto(req.mutable_transaction_id(), transactionId);
+            transactionSupervisor
+                ->CreateAbortTransactionMutation(req)
+                ->Commit();
         }
     }
 
