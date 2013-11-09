@@ -8,9 +8,9 @@ namespace NYT {
 
 namespace {
 
-struct THeader
+struct TBlockHeader
 {
-    explicit THeader(i64 length = -1)
+    explicit TBlockHeader(i64 length = -1)
         : Length(length)
     { }
 
@@ -66,13 +66,13 @@ void TCheckpointableInputStream::SkipToCheckpoint()
 bool TCheckpointableInputStream::ReadHeader()
 {
     if (!BlockStarted_) {
-        THeader header;
+        TBlockHeader header;
         i64 len = ReadPod(*UnderlyingStream_, header);
         if (len == 0) {
             return false;
         }
 
-        YCHECK(len == sizeof(THeader));
+        YCHECK(len == sizeof(TBlockHeader));
 
         BlockStarted_ = true;
         BlockLength_ = header.Length;
@@ -129,7 +129,7 @@ TCheckpointableOutputStream::TCheckpointableOutputStream(TOutputStream* underlyi
 
 void TCheckpointableOutputStream::MakeCheckpoint()
 {
-    WritePod(*UnderlyingStream_, THeader(0));
+    WritePod(*UnderlyingStream_, TBlockHeader(0));
 }
 
 void TCheckpointableOutputStream::DoWrite(const void* buf, size_t len)
@@ -138,7 +138,7 @@ void TCheckpointableOutputStream::DoWrite(const void* buf, size_t len)
         return;
     }
 
-    WritePod(*UnderlyingStream_, THeader(len));
+    WritePod(*UnderlyingStream_, TBlockHeader(len));
     UnderlyingStream_->Write(buf, len);
 }
 
