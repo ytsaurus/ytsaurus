@@ -50,7 +50,7 @@ private:
             , OutputIndex(-1)
             , Type(EColumnType::Null)
             , IsKeyPart(false)
-            , PreviousValue({ 0 })
+            , PreviousValue()
         { }
 
         int IndexInBlock;
