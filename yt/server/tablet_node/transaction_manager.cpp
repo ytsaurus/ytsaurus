@@ -157,6 +157,16 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
+        auto state = transaction->GetState();
+        if (state != ETransactionState::Active &&
+            state != ETransactionState::TransientlyPrepared &&
+            state != ETransactionState::PersistentlyPrepared)
+        {
+            THROW_ERROR_EXCEPTION("Transaction %s is in %s state",
+                ~ToString(transaction->GetId()),
+                ~FormatEnum(state).Quote());
+        }
+
         if (IsLeader()) {
             CloseLease(transaction);
         }
