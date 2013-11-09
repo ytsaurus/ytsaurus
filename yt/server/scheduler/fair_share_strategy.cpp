@@ -740,8 +740,8 @@ class TRootElement
 {
 public:
     explicit TRootElement(ISchedulerStrategyHost* host)
-        : TCompositeSchedulerElement(host)
-        , THostedElementBase(host)
+        : THostedElementBase(host)
+        , TCompositeSchedulerElement(host)
     {
         SetMode(ESchedulingMode::FairShare);
         Attributes_.FairShareRatio = 1.0;
