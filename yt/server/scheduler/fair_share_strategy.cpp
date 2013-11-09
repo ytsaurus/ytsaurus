@@ -414,18 +414,14 @@ protected:
             auto& childAttributes = child->Attributes();
 
             auto demand = child->GetDemand();
+
             auto totalLimits = GetAdjustedResourceLimits(
                 demand,
                 Host->GetTotalResourceLimits(),
                 Host->GetExecNodeCount());
-            auto limits = GetAdjustedResourceLimits(
-                demand,
-                Min(Host->GetTotalResourceLimits(), child->ResourceLimits()),
-                Host->GetExecNodeCount());
-            
-            childAttributes.MaxShareRatio = std::min(
-                GetMinResourceRatio(limits, totalLimits),
-                child->GetMaxShareRatio());
+            auto limits = Min(Host->GetTotalResourceLimits(), child->ResourceLimits());
+
+            childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
             
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
@@ -669,16 +665,19 @@ public:
         SetMode(Config->Mode);
         DefaultConfigured = false;
 
-        ResourceLimits_ = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
+        auto combinedLimits = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
+        auto perTypeLimits = InfiniteNodeResources();
         if (Config->ResourceLimits->UserSlots) {
-            ResourceLimits_.set_user_slots(*Config->ResourceLimits->UserSlots);
+            perTypeLimits.set_user_slots(*Config->ResourceLimits->UserSlots);
         }
         if (Config->ResourceLimits->Cpu) {
-            ResourceLimits_.set_cpu(*Config->ResourceLimits->Cpu);
+            perTypeLimits.set_cpu(*Config->ResourceLimits->Cpu);
         }
         if (Config->ResourceLimits->Memory) {
-            ResourceLimits_.set_memory(*Config->ResourceLimits->Memory);
+            perTypeLimits.set_memory(*Config->ResourceLimits->Memory);
         }
+
+        ResourceLimits_ = Min(combinedLimits, perTypeLimits);
     }
 
     void SetDefaultConfig()
@@ -1438,6 +1437,7 @@ private:
             .Item("scheduling_rank").Value(attributes.Rank)
             .Item("resource_demand").Value(element->GetDemand())
             .Item("resource_usage").Value(element->ResourceUsage())
+            .Item("resource_limits").Value(element->ResourceLimits())
             .Item("dominant_resource").Value(attributes.DominantResource)
             .Item("weight").Value(element->GetWeight())
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
