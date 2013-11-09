@@ -425,7 +425,15 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ValidateTransactionActive(transaction);
+    auto state = transaction->GetState();
+    if (state != ETransactionState::Active &&
+        state != ETransactionState::TransientlyPrepared &&
+        state != ETransactionState::PersistentlyPrepared)
+    {
+        THROW_ERROR_EXCEPTION("Transaction %s is in %s state",
+            ~ToString(transaction->GetId()),
+            ~FormatEnum(state).Quote());
+    }
 
     // NB: Save it for logging.
     auto id = transaction->GetId();
