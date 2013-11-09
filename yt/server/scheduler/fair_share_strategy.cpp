@@ -421,7 +421,9 @@ protected:
                 Host->GetExecNodeCount());
             auto limits = Min(Host->GetTotalResourceLimits(), child->ResourceLimits());
 
-            childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
+            childAttributes.MaxShareRatio = std::min(
+                GetMinResourceRatio(limits, totalLimits),
+                child->GetMaxShareRatio());
             
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
