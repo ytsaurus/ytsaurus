@@ -64,7 +64,8 @@ public:
             Config->CacheLocation,
             Bootstrap);
 
-        Location->SubscribeDisabled(BIND(&TImpl::OnLocationDisabled, Unretained(this)));
+        Location->SubscribeDisabled(
+            BIND(&TImpl::OnLocationDisabled, Unretained(this)));
 
         auto descriptors = Location->Initialize();
         for (const auto& descriptor : descriptors) {
