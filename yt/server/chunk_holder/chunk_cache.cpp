@@ -66,19 +66,14 @@ public:
 
         Location->SubscribeDisabled(BIND(&TImpl::OnLocationDisabled, Unretained(this)));
 
-        try {
-            FOREACH (const auto& descriptor, Location->Initialize()) {
-                auto chunk = New<TCachedChunk>(
-                    Location,
-                    descriptor,
-                    Bootstrap->GetChunkCache(),
-                    Bootstrap->GetMemoryUsageTracker());
-                Put(chunk);
-            }
-        } catch (const std::exception& ex) {
-            Location->Disable();
-            LOG_WARNING(ex, "Failed to initialize chunk cache");
-            return;
+        auto descriptors = Location->Initialize();
+        for (const auto& descriptor : descriptors) {
+            auto chunk = New<TCachedChunk>(
+                Location,
+                descriptor,
+                Bootstrap->GetChunkCache(),
+                Bootstrap->GetMemoryUsageTracker());
+            Put(chunk);
         }
 
         LOG_INFO("Chunk cache scan completed, %d chunks found", GetSize());

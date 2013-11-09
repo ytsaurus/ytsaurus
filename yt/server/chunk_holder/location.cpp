@@ -60,7 +60,7 @@ TLocation::TLocation(
     , Id(id)
     , Config(config)
     , Bootstrap(bootstrap)
-    , Enabled(0)
+    , Enabled(false)
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
@@ -222,14 +222,19 @@ IInvokerPtr TLocation::GetWriteInvoker()
 
 bool TLocation::IsEnabled() const
 {
-    return AtomicGet(Enabled) == 1;
+    return Enabled.load();
 }
 
 void TLocation::Disable()
 {
-    if (!AtomicCas(&Enabled, 0, 1))
+    if (!Enabled.exchange(false))
         return;
 
+    ScheduleDisable();
+}
+
+void TLocation::ScheduleDisable()
+{
     Bootstrap->GetControlInvoker()->Invoke(
         BIND(&TLocation::DoDisable, MakeStrong(this)));
 }
@@ -267,6 +272,20 @@ void TLocation::SetCellGuid(const TGuid& newCellGuid)
 
 std::vector<TChunkDescriptor> TLocation::Initialize()
 {
+    try {
+        auto descriptors = DoInitialize();        
+        Enabled.store(true);
+        return std::move(descriptors);
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Location %s has failed to initialize",
+            ~GetPath().Quote());
+        ScheduleDisable();
+        return std::vector<TChunkDescriptor>();
+    }
+}
+
+std::vector<TChunkDescriptor> TLocation::DoInitialize()
+{
     auto path = GetPath();
 
     if (Config->MinDiskSpace) {
@@ -303,7 +322,8 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
             fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
             chunkIds.insert(chunkId);
         } else {
-            LOG_ERROR("Unrecognized file: %s", ~fileName);
+            LOG_ERROR("Unrecognized file %s",
+                ~fileName.Quote());
         }
     }
 
@@ -375,9 +395,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
     HealthChecker->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker->Start();
 
-    AtomicSet(Enabled, 1);
-
-    return descriptors;
+    return std::move(descriptors);
 }
 
 TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
