@@ -85,20 +85,22 @@ void TFollowerTracker::SendPing(TPeerId followerId)
         return;
     }
 
-    auto version = DecoratedAutomaton->GetAutomatonVersion();
+    auto loggedVersion = DecoratedAutomaton->GetLoggedVersion();
+    auto committedVersion = DecoratedAutomaton->GetAutomatonVersion();
 
-    LOG_DEBUG("Sending ping to follower %d (CommittedVersion: %s, EpochId: %s)",
+    LOG_DEBUG("Sending ping to follower %d (LoggedVersion: %s, CommittedVersion: %s, EpochId: %s)",
         followerId,
-        ~ToString(version),
+        ~ToString(loggedVersion),
+        ~ToString(committedVersion),
         ~ToString(EpochId));
 
     THydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config->RpcTimeout);
 
     auto req = proxy.PingFollower();
-    req->set_committed_segment_id(version.SegmentId);
-    req->set_committed_record_id(version.RecordId);
     ToProto(req->mutable_epoch_id(), EpochId);
+    req->set_logged_revision(loggedVersion.ToRevision());
+    req->set_committed_revision(committedVersion.ToRevision());
     req->Invoke().Subscribe(
         BIND(&TFollowerTracker::OnPingResponse, MakeStrong(this), followerId)
             .Via(EpochControlInvoker));

@@ -61,9 +61,9 @@ message TRspLookupChangelog
 
 message TReqPingFollower
 {
-    required int32 committed_segment_id = 1;
-    required int32 committed_record_id = 2;
-    required NYT.NProto.TGuid epoch_id = 3;
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 committed_revision = 2;
+    required int64 logged_revision = 3;
 }
 
 message TRspPingFollower
@@ -75,11 +75,9 @@ message TRspPingFollower
 
 message TReqLogMutations
 {
-    required int32 start_segment_id = 1;
-    required int32 start_record_id = 2;
-    required int32 committed_segment_id = 3;
-    required int32 committed_record_id = 4;
-    required NYT.NProto.TGuid epoch_id = 5;
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 start_revision = 2;
+    required int64 committed_revision = 3;
     // Records data is passed via attachments.
 }
 
@@ -92,9 +90,8 @@ message TRspLogMutations
 
 message TReqBuildSnapshotLocal
 {
-    required int32 segment_id = 1;
-    required int32 record_id = 2;
-    required NYT.NProto.TGuid epoch_id = 3;
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 revision = 2;
 }
 
 message TRspBuildSnapshotLocal
@@ -106,9 +103,8 @@ message TRspBuildSnapshotLocal
 
 message TReqRotateChangelog
 {
-    required int32 segment_id = 1;
-    required int32 record_id = 2;
-    required NYT.NProto.TGuid epoch_id = 3;
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 revision = 2;
 }
 
 message TRspRotateChangelog
@@ -121,9 +117,9 @@ message TReqGetQuorum
 
 message TRspGetQuorum
 {
-    required bytes leader_address = 1;
-    repeated bytes follower_addresses = 2;
-    required NYT.NProto.TGuid epoch_id = 3;
+    required NYT.NProto.TGuid epoch_id = 1;
+    required bytes leader_address = 2;
+    repeated bytes follower_addresses = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

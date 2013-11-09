@@ -115,9 +115,8 @@ private:
             proxy.SetDefaultTimeout(Owner->Config->SnapshotTimeout);
 
             auto req = proxy.BuildSnapshotLocal();
-            req->set_segment_id(Version.SegmentId);
-            req->set_record_id(Version.RecordId);
             ToProto(req->mutable_epoch_id(), Owner->EpochId);
+            req->set_revision(Version.ToRevision());
 
             awaiter->Await(
                 req->Invoke(),
@@ -216,9 +215,8 @@ private:
             proxy.SetDefaultTimeout(Owner->Config->RpcTimeout);
 
             auto req = proxy.RotateChangelog();
-            req->set_segment_id(Version.SegmentId);
-            req->set_record_id(Version.RecordId);
             ToProto(req->mutable_epoch_id(), Owner->EpochId);
+            req->set_revision(Version.ToRevision());
 
             awaiter->Await(
                 req->Invoke(),

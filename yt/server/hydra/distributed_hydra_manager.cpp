@@ -494,8 +494,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto startVersion = TVersion(request->start_segment_id(), request->start_record_id());
-        auto committedVersion = TVersion(request->committed_segment_id(), request->committed_record_id());
+        auto startVersion = TVersion::FromRevision(request->start_revision());
+        auto committedVersion = TVersion::FromRevision(request->committed_revision());
         int mutationCount = static_cast<int>(request->Attachments().size());
 
         context->SetRequestInfo("StartVersion: %s, CommittedVersion: %s, EpochId: %s, MutationCount: %d",
@@ -556,10 +556,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto committedVersion = TVersion(request->committed_segment_id(), request->committed_record_id());
         auto epochId = FromProto<TEpochId>(request->epoch_id());
+        auto loggedVersion = TVersion::FromRevision(request->logged_revision());
+        auto committedVersion = TVersion::FromRevision(request->committed_revision());
 
-        context->SetRequestInfo("CommittedVersion: %s, EpochId: %s",
+        context->SetRequestInfo("LoggedVersion: %s, CommittedVersion: %s, EpochId: %s",
+            ~ToString(loggedVersion),
             ~ToString(committedVersion),
             ~ToString(epochId));
 
@@ -585,7 +587,7 @@ public:
                         ~ToString(epochId));
 
                     epochContext->EpochControlInvoker->Invoke(
-                        BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this), committedVersion));
+                        BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this), loggedVersion));
                 }
                 break;
 
@@ -605,7 +607,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto version = TVersion(request->segment_id(), request->record_id());
+        auto version = TVersion::FromRevision(request->revision());
 
         context->SetRequestInfo("EpochId: %s, Version: %s",
             ~ToString(epochId),
@@ -627,7 +629,7 @@ public:
             Restart();
             context->Reply(TError(
                 NHydra::EErrorCode::InvalidVersion,
-                "Invalid version: expected %s, received %s",
+                "Invalid logged version: expected %s, received %s",
                 ~ToString(DecoratedAutomaton_->GetLoggedVersion()),
                 ~ToString(version)));
             return;
@@ -648,7 +650,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto version = TVersion(request->segment_id(), request->record_id());
+        auto version = TVersion::FromRevision(request->revision());
 
         context->SetRequestInfo("EpochId: %s, Version: %s",
             ~ToString(epochId),
@@ -672,7 +674,7 @@ public:
                     Restart();
                     context->Reply(TError(
                         NHydra::EErrorCode::InvalidVersion,
-                        "Invalid version: expected %s, received %s",
+                        "Invalid logged version: expected %s, received %s",
                         ~ToString(DecoratedAutomaton_->GetLoggedVersion()),
                         ~ToString(version)));
                     return;

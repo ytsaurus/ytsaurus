@@ -133,11 +133,9 @@ public:
                 const auto committedVersion = Owner->DecoratedAutomaton->GetAutomatonVersion();
 
                 auto request = proxy.LogMutations();
-                request->set_start_segment_id(StartVersion.SegmentId);
-                request->set_start_record_id(StartVersion.RecordId);
-                request->set_committed_segment_id(committedVersion.SegmentId);
-                request->set_committed_record_id(committedVersion.RecordId);
                 ToProto(request->mutable_epoch_id(), Owner->EpochId);
+                request->set_start_revision(StartVersion.ToRevision());
+                request->set_committed_revision(committedVersion.ToRevision());
                 FOREACH (const auto& mutation, BatchedRecordsData) {
                     request->Attachments().push_back(mutation);
                 }
