@@ -1438,6 +1438,7 @@ private:
             .Item("scheduling_rank").Value(attributes.Rank)
             .Item("resource_demand").Value(element->GetDemand())
             .Item("resource_usage").Value(element->ResourceUsage())
+            .Item("resource_limits").Value(element->ResourceLimits())
             .Item("dominant_resource").Value(attributes.DominantResource)
             .Item("weight").Value(element->GetWeight())
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
