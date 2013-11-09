@@ -113,12 +113,27 @@ struct ISchedulableElement
 
 ////////////////////////////////////////////////////////////////////
 
+class THostedElementBase
+{
+protected:
+    ISchedulerStrategyHost* Host;
+
+
+    explicit THostedElementBase(ISchedulerStrategyHost* host)
+        : Host(host)
+    { }
+
+};
+
+////////////////////////////////////////////////////////////////////
+
 class TSchedulableElementBase
-    : public ISchedulableElement
+    : public virtual THostedElementBase
+    , public ISchedulableElement
 {
 public:
     explicit TSchedulableElementBase(ISchedulerStrategyHost* host)
-        : Host(host)
+        : THostedElementBase(host)
     { }
 
     virtual double GetUsageRatio() const override
@@ -152,9 +167,6 @@ public:
         i64 dominantLimit = GetResource(limits, attributes.DominantResource);
         return dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
     }
-
-private:
-    ISchedulerStrategyHost* Host;
 
 };
 
@@ -279,11 +291,12 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 class TCompositeSchedulerElement
-    : public virtual ISchedulerElement
+    : public virtual THostedElementBase
+    , public virtual ISchedulerElement
 {
 public:
     explicit TCompositeSchedulerElement(ISchedulerStrategyHost* host)
-        : Host(host)
+        : THostedElementBase(host)
         , Mode(ESchedulingMode::Fifo)
     { }
 
@@ -338,8 +351,6 @@ public:
     }
 
 protected:
-    ISchedulerStrategyHost* Host;
-
     ESchedulingMode Mode;
 
     yhash_set<ISchedulableElementPtr> Children;
