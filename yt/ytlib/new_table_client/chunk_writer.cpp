@@ -150,13 +150,13 @@ void TChunkWriter::WriteValue(const TRowValue& value)
             if (columnDescriptor.IsKeyPart) {
                 auto newKey = CurrentBlock->WriteKeyString(value, columnDescriptor.IndexInBlock);
                 auto oldKey = TStringBuf(
-                    columnDescriptor.PreviousValue.StringValue,
-                    columnDescriptor.PreviousValue.StringLength);
+                    columnDescriptor.PreviousValue.String,
+                    columnDescriptor.PreviousValue.Length);
                 if (newKey != oldKey) {
                     IsNewKey = true;
                 }
-                columnDescriptor.PreviousValue.StringValue = newKey.data();
-                columnDescriptor.PreviousValue.StringLength = newKey.length();
+                columnDescriptor.PreviousValue.String = newKey.data();
+                columnDescriptor.PreviousValue.Length = newKey.length();
             } else {
                 CurrentBlock->WriteString(value, columnDescriptor.IndexInBlock);
             }
@@ -210,8 +210,8 @@ bool TChunkWriter::EndRow(TTimestamp timestamp, bool deleted)
                         break;
                     case EColumnType::String:
                         part->set_str_value(
-                            column.PreviousValue.StringValue,
-                            column.PreviousValue.StringLength);
+                            column.PreviousValue.String,
+                            column.PreviousValue.Length);
                         break;
                     default:
                         YUNREACHABLE();

@@ -63,8 +63,8 @@ private:
             i64 Integer;
             double Double;
             struct {
-                const char* StringValue;
-                size_t StringLength;
+                const char* String;
+                size_t Length;
             };
         } PreviousValue;
 
