@@ -656,7 +656,7 @@ public:
         SetMode(Config->Mode);
         DefaultConfigured = false;
 
-        ResourceLimits_ = InfiniteNodeResources();
+        ResourceLimits_ = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
         if (Config->ResourceLimits->UserSlots) {
             ResourceLimits_.set_user_slots(*Config->ResourceLimits->UserSlots);
         }
@@ -798,9 +798,12 @@ public:
             discountedOperations.insert(operationElement);
             if (IsJobPreemptable(job)) {
                 auto* pool = operationElement->GetPool();
-                discountedPools.insert(pool);
+                while (pool) {
+                    discountedPools.insert(pool);
+                    pool->ResourceUsageDiscount() += job->ResourceUsage();
+                    pool = pool->GetParent();
+                }
                 node->ResourceUsageDiscount() += job->ResourceUsage();
-                pool->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
                 LOG_DEBUG("Job is preemptable (JobId: %s)",
                     ~ToString(job->GetId()));
@@ -835,7 +838,13 @@ public:
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
             auto* pool = operationElement->GetPool();
-            return Dominates(pool->ResourceLimits(), pool->ResourceUsage());
+            while (pool) {
+                if (!Dominates(pool->ResourceLimits(), pool->ResourceUsage())) {
+                    return false;
+                }
+                pool = pool->GetParent();
+            }
+            return true;
         };
 
         auto checkAllLimits = [&] () -> bool {
@@ -1440,9 +1449,15 @@ bool TOperationElement::ScheduleJobs(
 
     bool result =  false;
     while (Operation_->GetState() == EOperationState::Running && context->CanStartMoreJobs()) {
-        auto poolLimits = Pool_->ResourceLimits() - Pool_->ResourceUsage() + Pool_->ResourceUsageDiscount();
-        auto nodeLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
-        auto jobLimits = Min(poolLimits, nodeLimits);
+        // Compute job limits from node limits and pool limits. 
+        auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
+        auto* pool = Pool_;
+        while (pool) {
+            auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
+            jobLimits = Min(jobLimits, poolLimits);
+            pool = pool->GetParent();
+        }
+
         auto job = controller->ScheduleJob(context, jobLimits);
         if (!job) {
             // The first failure means that no more jobs can be scheduled.
@@ -1451,7 +1466,7 @@ bool TOperationElement::ScheduleJobs(
 
         result = true;
 
-        // Allow at most one job in starvingOnly mode.
+        // Schedule at most one job in starvingOnly mode.
         if (starvingOnly) {
             break;
         }
