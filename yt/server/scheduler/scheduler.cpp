@@ -1246,24 +1246,17 @@ private:
         LOG_INFO("Committing scheduler transactions (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
 
-        TObjectServiceProxy proxy(GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
-
-        auto scheduleCommit = [&] (ITransactionPtr transaction, const Stroka& key) {
-            auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
-            NHydra::GenerateMutationId(req);
-            batchReq->AddRequest(req, key);
-            transaction->Detach();
+        auto commitTransaction = [&] (ITransactionPtr transaction) {
+            auto asyncResult = operation->GetInputTransaction()->AsyncCommit();
+            auto result = WaitFor(asyncResult);
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
+            if (operation->GetState() != EOperationState::Completing)
+                throw TFiberTerminatedException();
         };
 
-        scheduleCommit(operation->GetInputTransaction(), "commit_in_tx");
-        scheduleCommit(operation->GetOutputTransaction(), "commit_out_tx");
-        scheduleCommit(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
-
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Operation has failed to commit");
-        if (operation->GetState() != EOperationState::Completing)
-            throw TFiberTerminatedException();
+        commitTransaction(operation->GetInputTransaction());
+        commitTransaction(operation->GetOutputTransaction());
+        commitTransaction(operation->GetSyncSchedulerTransaction());
 
         LOG_INFO("Scheduler transactions committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));

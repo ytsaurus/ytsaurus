@@ -10,6 +10,7 @@
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/delayed_executor.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/misc/address.h>
 
@@ -415,7 +416,8 @@ private:
                 RequestOperationAttributes();
                 CheckOperationTransactions();
                 DownloadSnapshots();
-                CleanupOperations();
+                AbortTransactions();
+                RemoveSnapshots();
                 InvokeWatchers();
                 GraceWait();
                 return Result;
@@ -614,47 +616,35 @@ private:
         // - Try to ping the previous incarnations of scheduler transactions.
         void CheckOperationTransactions()
         {
-            const int TransactionsPerOperation = 4;
+            auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
 
-            auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto operation, Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
-                auto schedulePing = [&] (ITransactionPtr transaction) {
-                    if (transaction) {
-                        auto req = TTransactionYPathProxy::Ping(FromObjectId(transaction->GetId()));
-                        batchReq->AddRequest(req, "ping_tx");
-                    } else {
-                        batchReq->AddRequest(nullptr, "ping_tx");
-                    }
+                auto checkTransaction = [&] (TOperationPtr operation, ITransactionPtr transaction) {
+                    if (!transaction)
+                        return;
+
+                    awaiter->Await(
+                        transaction->AsyncPing(),
+                        BIND([&] (TError error) {
+                            if (!error.IsOK() && !operation->GetCleanStart()) {
+                                operation->SetCleanStart(true);
+                                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s, TransactionId: %s)",
+                                    ~ToString(operation->GetOperationId()),
+                                    ~ToString(transaction->GetId()));
+                            }
+                        }));
                 };
 
                 // NB: Async transaction is not checked.
-                schedulePing(operation->GetUserTransaction());
-                schedulePing(operation->GetSyncSchedulerTransaction());
-                schedulePing(operation->GetInputTransaction());
-                schedulePing(operation->GetOutputTransaction());
+                checkTransaction(operation, operation->GetUserTransaction());
+                checkTransaction(operation, operation->GetSyncSchedulerTransaction());
+                checkTransaction(operation, operation->GetInputTransaction());
+                checkTransaction(operation, operation->GetOutputTransaction());
             }
 
-            auto batchRsp = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
-
-            {
-                auto rsps = batchRsp->GetResponses<TTransactionYPathProxy::TRspPing>("ping_tx");
-                YCHECK(rsps.size() == TransactionsPerOperation * Result.Operations.size());
-
-                for (int i = 0; i < static_cast<int>(Result.Operations.size()); ++i) {
-                    auto operation = Result.Operations[i];
-                    for (int j = i * TransactionsPerOperation; j < (i + 1) * TransactionsPerOperation; ++j) {
-                        auto rsp = rsps[j];
-                        if (rsp && !rsp->IsOK() && !operation->GetCleanStart()) {
-                            operation->SetCleanStart(true);
-                            LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s)",
-                                ~ToString(operation->GetOperationId()));
-                        }
-                    }
-                }
-            }
+            WaitFor(awaiter->Complete());
         }
 
         // - Check snapshots for existence and validate versions.
@@ -727,16 +717,16 @@ private:
         }
 
         // - Abort orphaned transactions.
-        // - Remove unneeded snapshots.
-        void CleanupOperations()
+        void AbortTransactions()
         {
-            auto batchReq = Owner->StartBatchRequest();
+            auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
+
             FOREACH (auto operation, Result.Operations) {
-                auto scheduleAbort = [&] (ITransactionPtr transaction) {
-                    if (transaction) {
-                        auto req = TTransactionYPathProxy::Abort(FromObjectId(transaction->GetId()));
-                        batchReq->AddRequest(req, "abort_tx");
-                    }
+                auto scheduleAbort = [=] (ITransactionPtr transaction) {
+                    if (!transaction)
+                        return;
+
+                    awaiter->Await(transaction->AsyncAbort());
                 };
 
                 // NB: Async transaction is always aborted.
@@ -758,23 +748,30 @@ private:
 
                     scheduleAbort(operation->GetOutputTransaction());
                     operation->SetOutputTransaction(nullptr);
-
-                    // Remove snapshot.
-                    {
-                        auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
-                        req->set_force(true);
-                        batchReq->AddRequest(req, "remove_snapshot");
-                    }
                 } else {
                     LOG_INFO("Reusing operation transactions (OperationId: %s)",
                         ~ToString(operation->GetOperationId()));
                 }
             }
 
+            WaitFor(awaiter->Complete());
+        }
+
+        // - Remove unneeded snapshots.
+        void RemoveSnapshots()
+        {
+            auto batchReq = Owner->StartBatchRequest();
+
+            FOREACH (auto operation, Result.Operations) {
+                if (operation->GetCleanStart()) {
+                    auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
+                    req->set_force(true);
+                    batchReq->AddRequest(req, "remove_snapshot");
+                }
+            }
+
             auto batchRsp = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
-
-            // NB: Don't check abort errors, some transactions may have already expired.
 
             {
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_snapshot");
