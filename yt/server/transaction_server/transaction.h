@@ -25,9 +25,11 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ETransactionState,
-    (Active)
-    (Committed)
-    (Aborted)
+    ((Active)                 (0))
+    ((TransientlyPrepared)    (1))
+    ((PersistentlyPrepared)   (2))
+    ((Committed)              (3))
+    ((Aborted)                (4))
 );
 
 class TTransaction

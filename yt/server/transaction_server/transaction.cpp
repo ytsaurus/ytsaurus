@@ -27,7 +27,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
-    Save(context, State_);
+    Save(context, State_ == ETransactionState::TransientlyPrepared ? ETransactionState(ETransactionState::Active) : State_);
     Save(context, Timeout_);
     Save(context, UncommittedAccountingEnabled_);
     Save(context, StagedAccountingEnabled_);

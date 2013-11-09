@@ -136,7 +136,10 @@ public:
         }
 
         transaction->SetPrepareTimestamp(prepareTimestamp);
-        transaction->SetState(persistent ? ETransactionState::PersistentlyPrepared : ETransactionState::TransientlyPrepared);
+        transaction->SetState(
+            persistent
+            ? ETransactionState::PersistentlyPrepared
+            : ETransactionState::TransientlyPrepared);
 
         TransactionPrepared_.Fire(transaction);
 
@@ -153,11 +156,6 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
-        YCHECK(
-            state == ETransactionState::PersistentlyPrepared ||
-            state == ETransactionState::TransientlyPrepared ||
-            state == ETransactionState::Active && !IsLeader());
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -309,7 +307,7 @@ private:
         }
         LeaseMap.clear();
 
-        // Reset all transiently prepared transactions back into prepared state.
+        // Reset all transiently prepared transactions back into active state.
         for (const auto& pair : TransactionMap) {
             auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::TransientlyPrepared) {

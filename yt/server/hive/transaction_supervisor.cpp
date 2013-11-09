@@ -205,8 +205,8 @@ private:
         } else {
             // Distributed commit.
             TReqCommitTransactionDistributed hydraRequest;
-            hydraRequest.mutable_transaction_id()->CopyFrom(request->transaction_id());
-            hydraRequest.mutable_participant_cell_guids()->MergeFrom(request->participant_cell_guids());
+            hydraRequest.mutable_transaction_id()->Swap(request->mutable_transaction_id());
+            hydraRequest.mutable_participant_cell_guids()->Swap(request->mutable_participant_cell_guids());
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
             CreateMutation(HydraManager, AutomatonInvoker, hydraRequest)
                 ->SetAction(BIND(&TImpl::HydraCommitTransactionDistributed, MakeStrong(this), context, hydraRequest))
@@ -274,14 +274,11 @@ private:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto commitTimestamp = TTimestamp(request.commit_timestamp());
 
-        // Commit could be missing (e.g. at followers).
-        auto* commit = FindCommit(transactionId);
-
         try {
             // Any exception thrown here is caught below.
             TransactionManager->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            SetCommitFailed(transactionId, commit, ex);
+            LOG_FATAL(ex, "Simple transaction commit failed");
             return;
         }
 
@@ -289,6 +286,8 @@ private:
             ~ToString(transactionId),
             commitTimestamp);
 
+        // Commit could be missing (e.g. at followers).
+        auto* commit = FindCommit(transactionId);
         if (commit) {
             SetCommitSucceded(commit);
         }
@@ -455,7 +454,13 @@ private:
     void HydraAbortFailedTransaction(const TReqAbortFailedTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        
         DoAbortFailed(transactionId);
+
+        auto* commit = FindCommit(transactionId);
+        if (commit) {
+            RemoveCommit(commit);
+        }
     }
 
 
@@ -482,10 +487,10 @@ private:
         commit->SetResult(error);
 
         TReqAbortFailedTransaction request;
-        ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
+        ToProto(request.mutable_transaction_id(), transactionId);
 
         if (HydraManager->IsMutating()) {
-            DoAbortFailed(commit->GetTransactionId());           
+            DoAbortFailed(transactionId);
             for (const auto& cellGuid : commit->ParticipantCellGuids()) {
                 auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);
                 HiveManager->PostMessage(mailbox, request);

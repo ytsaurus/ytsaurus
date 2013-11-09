@@ -427,13 +427,8 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 
     ValidateTransactionActive(transaction);
 
+    // NB: Save it for logging.
     auto id = transaction->GetId();
-
-    if (!transaction->NestedTransactions().empty()) {
-        THROW_ERROR_EXCEPTION("Cannot commit transaction %s since it has %d active nested transaction(s)",
-            ~ToString(id),
-            static_cast<int>(transaction->NestedTransactions().size()));
-    }
 
     if (IsLeader()) {
         CloseLease(transaction);
@@ -455,10 +450,13 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 
     ValidateTransactionActive(transaction);
 
+    auto securityManager = Bootstrap->GetSecurityManager();
+    securityManager->ValidatePermission(transaction, EPermission::Write);
+
     auto id = transaction->GetId();
 
     auto nestedTransactions = transaction->NestedTransactions();
-    FOREACH (auto* nestedTransaction, nestedTransactions) {
+    for (auto* nestedTransaction : nestedTransactions) {
         AbortTransaction(nestedTransaction);
     }
     YCHECK(transaction->NestedTransactions().empty());
@@ -479,16 +477,18 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 
 void TTransactionManager::FinishTransaction(TTransaction* transaction)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto objectManager = Bootstrap->GetObjectManager();
 
-    FOREACH (auto* object, transaction->StagedObjects()) {
+    for (auto* object : transaction->StagedObjects()) {
         auto handler = objectManager->GetHandler(object);
         handler->Unstage(object, transaction, false);
         objectManager->UnrefObject(object);
     }
     transaction->StagedObjects().clear();
 
-    FOREACH (auto* node, transaction->StagedNodes()) {
+    for (auto* node : transaction->StagedNodes()) {
         objectManager->UnrefObject(node);
     }
     transaction->StagedNodes().clear();
@@ -509,6 +509,10 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
 void TTransactionManager::PingTransaction(const TTransaction* transaction, bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    ValidateTransactionActive(transaction);
+    // TODO(babenko): possibly validate permissions?
+
     DoPingTransaction(transaction);
 
     if (pingAncestors) {
@@ -539,6 +543,8 @@ void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
 
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto* transaction = FindTransaction(id);
     if (!IsObjectAlive(transaction)) {
         THROW_ERROR_EXCEPTION(
@@ -590,7 +596,7 @@ void TTransactionManager::OnAfterSnapshotLoaded()
 
     // Reconstruct TopmostTransactions.
     TopmostTransactions_.clear();
-    FOREACH (const auto& pair, TransactionMap) {
+    for (const auto& pair : TransactionMap) {
         auto* transaction = pair.second;
         if (IsObjectAlive(transaction) && !transaction->GetParent()) {
             YCHECK(TopmostTransactions_.insert(transaction).second);
@@ -628,7 +634,9 @@ TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
 
 void TTransactionManager::OnLeaderActive()
 {
-    FOREACH (const auto& pair, TransactionMap) {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    for (const auto& pair : TransactionMap) {
         const auto* transaction = pair.second;
         if (transaction->GetState() == ETransactionState::Active) {
             auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
@@ -639,10 +647,20 @@ void TTransactionManager::OnLeaderActive()
 
 void TTransactionManager::OnStopLeading()
 {
-    FOREACH (const auto& pair, LeaseMap) {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    for (const auto& pair : LeaseMap) {
         TLeaseManager::CloseLease(pair.second);
     }
     LeaseMap.clear();
+
+    // Reset all transiently prepared transactions back into active state.
+    for (const auto& pair : TransactionMap) {
+        auto* transaction = pair.second;
+        if (transaction->GetState() == ETransactionState::TransientlyPrepared) {
+            transaction->SetState(ETransactionState::Active);
+        }
+    }
 }
 
 void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration timeout)
@@ -693,6 +711,8 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 
 TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transaction) const
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     TTransactionPath result;
     while (true) {
         result.push_back(transaction);
@@ -706,6 +726,10 @@ TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transacti
 
 void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* object)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    ValidateTransactionActive(transaction);
+
     auto objectManager = Bootstrap->GetObjectManager();
     YCHECK(transaction->StagedObjects().insert(object).second);
     objectManager->RefObject(object);
@@ -716,6 +740,8 @@ void TTransactionManager::UnstageObject(
     TObjectBase* object,
     bool recursive)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     ValidateTransactionActive(transaction);
 
     if (transaction->StagedObjects().erase(object) == 0) {
@@ -734,6 +760,10 @@ void TTransactionManager::UnstageObject(
 
 void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase* node)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    ValidateTransactionActive(transaction);
+
     auto objectManager = Bootstrap->GetObjectManager();
     transaction->StagedNodes().push_back(node);
     objectManager->RefObject(node);
@@ -743,6 +773,8 @@ TTransactionId TTransactionManager::StartTransaction(
     TTimestamp startTimestamp,
     const NHive::NProto::TReqStartTransaction& request)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto objectManager = Bootstrap->GetObjectManager();
     auto* transactionSchema = objectManager->GetSchema(EObjectType::Transaction);
 
@@ -784,28 +816,47 @@ void TTransactionManager::PrepareTransactionCommit(
     bool persistent,
     TTimestamp prepareTimestamp)
 {
-    // TODO(babenko): implement!
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto* transaction = GetTransactionOrThrow(transactionId);
+
+    ValidateTransactionActive(transaction);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    securityManager->ValidatePermission(transaction, EPermission::Write);
+
+    if (!transaction->NestedTransactions().empty()) {
+        THROW_ERROR_EXCEPTION("Cannot commit transaction %s since it has %d active nested transaction(s)",
+            ~ToString(transaction->GetId()),
+            static_cast<int>(transaction->NestedTransactions().size()));
+    }
+
+    transaction->SetState(
+        persistent
+        ? ETransactionState::PersistentlyPrepared
+        : ETransactionState::TransientlyPrepared);
+
+    LOG_DEBUG("Transaction prepared (TransactionId: %s, Presistent: %s)",
+        ~ToString(transactionId),
+        ~FormatBool(persistent));
 }
 
 void TTransactionManager::CommitTransaction(
     const TTransactionId& transactionId,
     TTimestamp /*commitTimestamp*/)
 {
-    auto* transaction = GetTransactionOrThrow(transactionId);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto securityManager = Bootstrap->GetSecurityManager();
-    securityManager->ValidatePermission(transaction, EPermission::Write);
-
+    // NB: Transaction must exist.
+    auto* transaction = GetTransaction(transactionId);
     CommitTransaction(transaction);
 }
 
 void TTransactionManager::AbortTransaction(const TTransactionId& transactionId)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto* transaction = GetTransactionOrThrow(transactionId);
-
-    auto securityManager = Bootstrap->GetSecurityManager();
-    securityManager->ValidatePermission(transaction, EPermission::Write);
-
     AbortTransaction(transaction);
 }
 
@@ -813,11 +864,10 @@ void TTransactionManager::PingTransaction(
     const TTransactionId& transactionId,
     const NHive::NProto::TReqPingTransaction& request)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     const auto& requestExt = request.GetExtension(TReqPingTransactionExt::ping_transaction_ext);
     auto* transaction = GetTransactionOrThrow(transactionId);
-
-    // TODO(babenko): possibly validate permissions?
-
     PingTransaction(transaction, requestExt.ping_ancestors());
 }
 
