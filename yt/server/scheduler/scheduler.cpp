@@ -1247,7 +1247,7 @@ private:
             ~ToString(operation->GetOperationId()));
 
         auto commitTransaction = [&] (ITransactionPtr transaction) {
-            auto asyncResult = operation->GetInputTransaction()->AsyncCommit();
+            auto asyncResult = transaction->AsyncCommit();
             auto result = WaitFor(asyncResult);
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
             if (operation->GetState() != EOperationState::Completing)
