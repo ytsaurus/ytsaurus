@@ -186,8 +186,8 @@ public:
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
         TOperationPtr operation)
-        : TSchedulableElementBase(host)
-        , THostedElementBase(host)
+        : THostedElementBase(host)
+        , TSchedulableElementBase(host)
         , Operation_(operation)
         , Pool_(nullptr)
         , Starving_(false)
@@ -634,7 +634,8 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const Stroka& id)
-        : TCompositeSchedulerElement(host)
+        : THostedElementBase(host)
+        , TCompositeSchedulerElement(host)
         , TSchedulableElementBase(host)
         , Parent_(nullptr)
         , ResourceUsage_(ZeroNodeResources())
