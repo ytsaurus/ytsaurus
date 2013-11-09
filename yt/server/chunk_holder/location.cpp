@@ -227,10 +227,9 @@ bool TLocation::IsEnabled() const
 
 void TLocation::Disable()
 {
-    if (!Enabled.exchange(false))
-        return;
-
-    ScheduleDisable();
+    if (Enabled.exchange(false)) {
+        ScheduleDisable();
+    }
 }
 
 void TLocation::ScheduleDisable()

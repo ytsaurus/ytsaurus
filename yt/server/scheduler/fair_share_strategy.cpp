@@ -397,8 +397,7 @@ protected:
     {
         // Choose dominant resource types.
         // Compute max share ratios.
-        // Compute demand ratios and their sum.
-        double demandRatioSum = 0.0;
+        // Compute demand ratios.
         for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
 
@@ -421,7 +420,6 @@ protected:
             i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
             i64 dominantDemand = GetResource(demand, childAttributes.DominantResource);
             childAttributes.DemandRatio = dominantTotalLimits == 0 ? 0.0 : (double) dominantDemand / dominantTotalLimits;
-            demandRatioSum += std::min(childAttributes.DemandRatio, childAttributes.MaxShareRatio);
         }
 
         switch (Mode) {
@@ -469,15 +467,22 @@ protected:
         {
             double sum = 0.0;
             for (const auto& child : Children) {
-                sum += child->GetMinShareRatio();
-            }
-            double fitFactor =
-                sum < Attributes_.AdjustedMinShareRatio || sum < RatioComparisonPrecision
-                ? 1.0
-                : Attributes_.AdjustedMinShareRatio / sum;
-            for (const auto& child : Children) {
                 auto& childAttributes = child->Attributes();
-                childAttributes.AdjustedMinShareRatio = child->GetMinShareRatio() * fitFactor;
+                double result = child->GetMinShareRatio();
+                // Never give more than demanded.
+                result = std::min(result, childAttributes.DemandRatio);
+                // Never give more than max share allows.
+                result = std::min(result, childAttributes.MaxShareRatio);
+                childAttributes.AdjustedMinShareRatio = result;
+                sum += result;
+            }
+            // Normalize if needed.
+            if (sum > Attributes_.AdjustedMinShareRatio) {
+                double fitFactor = Attributes_.AdjustedMinShareRatio / sum;
+                for (const auto& child : Children) {
+                    auto& childAttributes = child->Attributes();
+                    childAttributes.AdjustedMinShareRatio *= fitFactor;
+                }
             }
         }
 
