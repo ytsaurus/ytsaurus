@@ -187,6 +187,7 @@ public:
         ISchedulerStrategyHost* host,
         TOperationPtr operation)
         : TSchedulableElementBase(host)
+        , THostedElementBase(host)
         , Operation_(operation)
         , Pool_(nullptr)
         , Starving_(false)
@@ -739,6 +740,7 @@ class TRootElement
 public:
     explicit TRootElement(ISchedulerStrategyHost* host)
         : TCompositeSchedulerElement(host)
+        , THostedElementBase(host)
     {
         SetMode(ESchedulingMode::FairShare);
         Attributes_.FairShareRatio = 1.0;
