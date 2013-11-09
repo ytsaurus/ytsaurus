@@ -669,16 +669,19 @@ public:
         SetMode(Config->Mode);
         DefaultConfigured = false;
 
-        ResourceLimits_ = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
+        auto combinedLimits = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
+        auto perTypeLimits = InfiniteNodeResources();
         if (Config->ResourceLimits->UserSlots) {
-            ResourceLimits_.set_user_slots(*Config->ResourceLimits->UserSlots);
+            perTypeLimits.set_user_slots(*Config->ResourceLimits->UserSlots);
         }
         if (Config->ResourceLimits->Cpu) {
-            ResourceLimits_.set_cpu(*Config->ResourceLimits->Cpu);
+            perTypeLimits.set_cpu(*Config->ResourceLimits->Cpu);
         }
         if (Config->ResourceLimits->Memory) {
-            ResourceLimits_.set_memory(*Config->ResourceLimits->Memory);
+            perTypeLimits.set_memory(*Config->ResourceLimits->Memory);
         }
+
+        ResourceLimits_ = Min(combinedLimits, perTypeLimits);
     }
 
     void SetDefaultConfig()
