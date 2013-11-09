@@ -55,12 +55,12 @@ TEST(TCheckpointableStreamTest, Checkpoints)
     EXPECT_EQ(2, input->Read(buffer, 2));
     EXPECT_EQ("ab", TStringBuf(buffer, 2));
 
-    input->Skip();
+    input->SkipToCheckpoint();
 
     EXPECT_EQ(1, input->Read(buffer, 1));
     EXPECT_EQ("u", TStringBuf(buffer, 1));
 
-    input->Skip();
+    input->SkipToCheckpoint();
 
     EXPECT_EQ(2, input->Read(buffer, 2));
     EXPECT_EQ("ol", TStringBuf(buffer, 2));
@@ -68,7 +68,7 @@ TEST(TCheckpointableStreamTest, Checkpoints)
     EXPECT_EQ(2, input->Read(buffer, 2));
     EXPECT_EQ("ol", TStringBuf(buffer, 2));
 
-    input->Skip();
+    input->SkipToCheckpoint();
 
     EXPECT_EQ(0, input->Read(buffer, 10));
 }

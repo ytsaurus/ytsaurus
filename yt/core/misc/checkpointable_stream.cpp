@@ -8,7 +8,8 @@ namespace NYT {
 
 namespace {
 
-struct THeader {
+struct THeader
+{
     explicit THeader(i64 length = -1)
         : Length(length)
     { }
@@ -26,7 +27,7 @@ class TCheckpointableInputStream
 public:
     explicit TCheckpointableInputStream(TInputStream* underlyingStream);
 
-    virtual void Skip() override;
+    virtual void SkipToCheckpoint() override;
 
     ~TCheckpointableInputStream() throw();
 
@@ -34,38 +35,37 @@ private:
     virtual size_t DoRead(void* buf, size_t len) override;
 
     bool ReadHeader();
-    //bool ReadBlob();
 
     TInputStream* UnderlyingStream_;
 
-    i64 BlobLength_;
-    i64 Shift_;
-    bool BlobStarted_;
+    i64 BlockLength_;
+    i64 Offset_;
+    bool BlockStarted_;
 };
 
 TCheckpointableInputStream::TCheckpointableInputStream(TInputStream* underlyingStream)
     : UnderlyingStream_(underlyingStream)
-    , BlobStarted_(false)
+    , BlockStarted_(false)
 { }
 
-void TCheckpointableInputStream::Skip()
+void TCheckpointableInputStream::SkipToCheckpoint()
 {
     while (true) {
         if (!ReadHeader()) {
             break;
         }
-        if (BlobLength_ == 0) {
-            BlobStarted_ = false;
+        if (BlockLength_ == 0) {
+            BlockStarted_ = false;
             break;
         }
-        UnderlyingStream_->Skip(BlobLength_ - Shift_);
-        BlobStarted_ = false;
+        UnderlyingStream_->Skip(BlockLength_ - Offset_);
+        BlockStarted_ = false;
     }
 }
 
 bool TCheckpointableInputStream::ReadHeader()
 {
-    if (!BlobStarted_) {
+    if (!BlockStarted_) {
         THeader header;
         i64 len = ReadPod(*UnderlyingStream_, header);
         if (len == 0) {
@@ -74,9 +74,9 @@ bool TCheckpointableInputStream::ReadHeader()
 
         YCHECK(len == sizeof(THeader));
 
-        BlobStarted_ = true;
-        BlobLength_ = header.Length;
-        Shift_ = 0;
+        BlockStarted_ = true;
+        BlockLength_ = header.Length;
+        Offset_ = 0;
     }
 
     return true;
@@ -91,12 +91,12 @@ size_t TCheckpointableInputStream::DoRead(void* buf_, size_t len)
         if (!ReadHeader()) {
             break;
         }
-        i64 size = std::min(BlobLength_ - Shift_, static_cast<i64>(len) - pos);
+        i64 size = std::min(BlockLength_ - Offset_, static_cast<i64>(len) - pos);
         YCHECK(UnderlyingStream_->Read(buf + pos, size) == size);
         pos += size;
-        Shift_ += size;
-        if (Shift_ == BlobLength_) {
-            BlobStarted_ = false;
+        Offset_ += size;
+        if (Offset_ == BlockLength_) {
+            BlockStarted_ = false;
         }
     }
     return pos;
@@ -111,7 +111,7 @@ class TCheckpointableOutputStream
     : public ICheckpointableOutputStream
 {
 public:
-    TCheckpointableOutputStream(TOutputStream* underlyingStream);
+    explicit TCheckpointableOutputStream(TOutputStream* underlyingStream);
 
     virtual void MakeCheckpoint() override;
 

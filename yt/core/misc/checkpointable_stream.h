@@ -12,16 +12,14 @@ namespace NYT {
 struct ICheckpointableInputStream
     : public TInputStream
 {
-public:
-    virtual void Skip() = 0;
+    virtual void SkipToCheckpoint() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICheckpointableOutputStream
+struct ICheckpointableOutputStream
     : public TOutputStream
 {
-public:
     virtual void MakeCheckpoint() = 0;
 };
 
