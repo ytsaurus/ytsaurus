@@ -16,7 +16,10 @@
 
 #include <ytlib/orchid/orchid_service_proxy.h>
 
+#include <ytlib/hydra/rpc_helpers.h>
+
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/meta_state_facade.h>
 
 #include <server/object_server/object_manager.h>
 #include <server/object_server/object_proxy.h>
@@ -24,12 +27,16 @@
 #include <server/cypress_server/node.h>
 #include <server/cypress_server/virtual.h>
 
+#include <server/hydra/mutation_context.h>
+#include <server/hydra/hydra_manager.h>
+
 namespace NYT {
 namespace NOrchid {
 
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
+using namespace NHydra;
 using namespace NCypressServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
@@ -61,17 +68,26 @@ public:
         YCHECK(trunkNode->IsTrunk());
     }
 
-    TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr context) override
+    TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
-        UNUSED(context);
-
         return TResolveResult::Here(path);
     }
 
     void Invoke(IServiceContextPtr context) override
     {
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        
+        // Prevent regarding the request as a mutating one.
+        if (hydraManager->IsMutating()) {
+            auto* mutationContext = hydraManager->GetMutationContext();
+            mutationContext->SuppressMutation();
+        }
+
+        // Prevent doing anything during recovery.
+        if (hydraManager->IsRecovery()) {
+            return;
+        }
+
         auto manifest = LoadManifest();
 
         auto channel = ChannelCache.GetChannel(manifest->RemoteAddress);
@@ -96,7 +112,7 @@ public:
         auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        LOG_INFO("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
+        LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
             ~manifest->RemoteAddress,
             ~path,
             ~verb,
@@ -154,13 +170,14 @@ private:
         const Stroka& verb,
         TOrchidServiceProxy::TRspExecutePtr response)
     {
-        LOG_INFO(*response, "Reply from a remote Orchid received (RequestId: %s)",
-            ~ToString(context->GetRequestId()));
-
         if (response->IsOK()) {
+            LOG_DEBUG("Orchid request succeded (RequestId: %s)",
+                ~ToString(context->GetRequestId()));
             auto innerResponseMessage = TSharedRefArray(response->Attachments());
             context->Reply(innerResponseMessage);
         } else {
+            LOG_DEBUG(*response, "Orchid request failed (RequestId: %s)",
+                ~ToString(context->GetRequestId()));
             context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)",
                 ~path,
                 ~verb,
