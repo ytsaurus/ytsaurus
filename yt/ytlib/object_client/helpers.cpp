@@ -126,7 +126,7 @@ TObjectId MakeSchemaObjectId(
     return MakeWellKnownId(SchemaTypeFromType(type), cellId);
 }
 
-TObjectId puReplaceTypeInId(
+TObjectId ReplaceTypeInId(
     const TObjectId& id,
     EObjectType type)
 {
