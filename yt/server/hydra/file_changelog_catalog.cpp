@@ -12,6 +12,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/hydra/version.h>
 
@@ -273,9 +274,9 @@ private:
                 maxBytes);
         }
 
-        virtual void Seal(int recordCount) override
+        virtual TFuture<void> Seal(int recordCount) override
         {
-            SplitChangelog->Seal(recordCount);
+            return SplitChangelog->Seal(recordCount);
         }
 
         virtual void Unseal() override
@@ -522,7 +523,7 @@ private:
             int recordCount = multiplexedChangelog->GetRecordCount();
             
             if (!multiplexedChangelog->IsSealed()) {
-                multiplexedChangelog->Seal(recordCount);
+                multiplexedChangelog->Seal(recordCount).Get();
             }
             
             while (startRecordId < recordCount) {
@@ -703,7 +704,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         // Switch multiplexed changelog.
-        MultiplexedChangelog->Seal(MultiplexedChangelog->GetRecordCount());
+        WaitFor(MultiplexedChangelog->Seal(MultiplexedChangelog->GetRecordCount()));
 
         int oldId = MultiplexedChangelog->GetId();
         int newId = oldId + 1;

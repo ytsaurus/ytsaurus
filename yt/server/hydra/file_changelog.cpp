@@ -39,6 +39,9 @@ public:
         , ByteSize(0)
         , FlushPromise(NewPromise())
         , FlushForced(false)
+        , SealPromise(NewPromise())
+        , SealForced(false)
+        , SealRecordCount(-1)
     { }
 
     void Lock()
@@ -60,6 +63,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
+        YCHECK(!SealForced);
         AppendQueue.push_back(data);
         ByteSize += data.Size();
 
@@ -113,6 +117,45 @@ public:
 
         FlushForced = true;
         return FlushPromise;
+    }
+
+    void SyncSeal()
+    {
+        VERIFY_THREAD_AFFINITY(Flush);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (!SealForced)
+                return;
+        }
+
+        while (true) {
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                if (AppendQueue.empty())
+                    break;
+            }
+            SyncFlush();
+        }
+
+        PROFILE_TIMING ("/changelog_seal_io_time") {
+            Changelog->Seal(SealRecordCount);
+        }
+
+        SealPromise.Set();
+    }
+
+    TFuture<void> AsyncSeal(int recordCount)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            SealForced = true;
+            SealRecordCount = recordCount;
+        }
+
+        return SealPromise;
     }
 
     bool TrySweep()
@@ -228,8 +271,14 @@ private:
     i64 ByteSize;
     std::vector<TSharedRef> AppendQueue;
     std::vector<TSharedRef> FlushQueue;
+
     TPromise<void> FlushPromise;
     bool FlushForced;
+
+    TPromise<void> SealPromise;
+    bool SealForced;
+    int SealRecordCount;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 
@@ -320,14 +369,14 @@ public:
         changelog->Close();
     }
 
-    void Seal(TSyncFileChangelogPtr changelog, int recordCount)
+    TFuture<void> Seal(TSyncFileChangelogPtr changelog, int recordCount)
     {
-        // Validate that all changes are already flushed.
-        YCHECK(!FindQueue(changelog));
+        auto queue = GetQueueAndLock(changelog);
+        auto result = queue->AsyncSeal(recordCount);
+        queue->Unlock();
+        WakeupEvent.Signal();
 
-        PROFILE_TIMING ("/changelog_seal_time") {
-            changelog->Seal(recordCount);
-        }
+        return result;
     }
 
     void Shutdown()
@@ -417,6 +466,7 @@ private:
         // Flush the queues.
         FOREACH (auto queue, queues) {
             queue->SyncFlush();
+            queue->SyncSeal();
         }
     }
 
@@ -544,7 +594,7 @@ public:
             maxBytes);
     }
 
-    virtual void Seal(int recordCount) override
+    virtual TFuture<void> Seal(int recordCount) override
     {
         return TChangelogDispatcher::Get()->Seal(
             SyncChangelog,

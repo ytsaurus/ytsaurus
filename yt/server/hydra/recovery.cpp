@@ -163,7 +163,7 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
                 LOG_WARNING("Changelog %d is already sealed",
                     changelog->GetId());
             } else {
-                changelog->Seal(changelog->GetRecordCount());
+                WaitFor(changelog->Seal(changelog->GetRecordCount()));
             }
         }
 
@@ -220,7 +220,7 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog)
             LOG_FATAL("Cannot truncate a sealed changelog %d",
                 changelogId);
         } else {
-            changelog->Seal(remoteRecordCount);
+            WaitFor(changelog->Seal(remoteRecordCount));
         }
     } else if (localRecordCount < remoteRecordCount) {
         auto asyncResult = DownloadChangelog(

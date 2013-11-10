@@ -62,9 +62,8 @@ struct IChangelog
         int maxRecords,
         i64 maxBytes) = 0;
 
-    //! Synchronously seals the changelog truncating it if necessary.
-    //! The caller must ensure that all pending changes were flushed.
-    virtual void Seal(int recordCount) = 0;
+    //! Asynchronously seals the changelog flushing and truncating it if necessary.
+    virtual TFuture<void> Seal(int recordCount) = 0;
 
     //! Resets seal flag. Mostly useful for administrative tools.
     virtual void Unseal() = 0;

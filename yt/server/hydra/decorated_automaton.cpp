@@ -461,7 +461,7 @@ void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog)
         LOG_WARNING("Changelog %d is already sealed",
             changelog->GetId());
     } else {
-        changelog->Seal(changelog->GetRecordCount());
+        WaitFor(changelog->Seal(changelog->GetRecordCount()));
     }
 
     if (CurrentChangelog != changelog)
