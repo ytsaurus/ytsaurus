@@ -360,12 +360,8 @@ class TestTableCommands(YTEnvSetup):
         assert exists("//tmp/t/@")
         assert exists("//tmp/t/@chunk_ids")
 
-    @pytest.mark.xfail(run = False, reason = 'Should be fixed in master branch')
     def test_invalid_channels_in_create(self):
-        # ??? it doesn't work.
-        with pytest.raises(YtError):
-            create('table', '//tmp/t', attributes={'channels': '123'})
-            print >>sys.stderr, get('//tmp/t/@')
+        with pytest.raises(YtError): create('table', '//tmp/t', attributes={'channels': '123'})
 
     def test_replication_factor_attr(self):
         create('table', '//tmp/t')
