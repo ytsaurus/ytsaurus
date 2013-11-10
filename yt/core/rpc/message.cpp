@@ -62,6 +62,8 @@ TSharedRefArray CreateResponseMessage(
 
 TSharedRefArray CreateResponseMessage(IServiceContextPtr context)
 {
+    YCHECK(context->IsReplied());
+
     NProto::TResponseHeader header;
     ToProto(header.mutable_request_id(), context->GetRequestId());
     ToProto(header.mutable_error(), context->GetError());
