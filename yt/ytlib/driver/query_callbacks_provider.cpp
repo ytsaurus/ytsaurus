@@ -12,6 +12,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>

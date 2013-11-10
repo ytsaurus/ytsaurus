@@ -13,6 +13,8 @@
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
 
+#include <ytlib/object_client/helpers.h>`
+
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/concurrency/fiber.h>
