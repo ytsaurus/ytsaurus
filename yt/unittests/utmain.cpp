@@ -14,6 +14,8 @@
 
 #include <ytlib/chunk_client/dispatcher.h>
 
+#include <server/hydra/file_changelog.h>
+
 #include <util/datetime/base.h>
 
 #include <util/random/random.h>
@@ -25,60 +27,60 @@
 
 namespace NYT {
 
-    ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-    Stroka GenerateRandomFileName(const char* prefix)
-    {
-        return Sprintf("%s-%016" PRIx64 "-%016" PRIx64,
-                prefix,
-                MicroSeconds(),
-                RandomNumber<ui64>());
-    }
+Stroka GenerateRandomFileName(const char* prefix)
+{
+    return Sprintf("%s-%016" PRIx64 "-%016" PRIx64,
+            prefix,
+            MicroSeconds(),
+            RandomNumber<ui64>());
+}
 
-    ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
 namespace testing {
 
-    ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-    Matcher<const TStringBuf&>::Matcher(const Stroka& s)
-    {
-        *this = Eq(TStringBuf(s));
-    }
+Matcher<const TStringBuf&>::Matcher(const Stroka& s)
+{
+    *this = Eq(TStringBuf(s));
+}
 
-    Matcher<const TStringBuf&>::Matcher(const char* s)
-    {
-        *this = Eq(TStringBuf(s));
-    }
+Matcher<const TStringBuf&>::Matcher(const char* s)
+{
+    *this = Eq(TStringBuf(s));
+}
 
-    Matcher<const TStringBuf&>::Matcher(const TStringBuf& s)
-    {
-        *this = Eq(s);
-    }
+Matcher<const TStringBuf&>::Matcher(const TStringBuf& s)
+{
+    *this = Eq(s);
+}
 
-    Matcher<const Stroka&>::Matcher(const Stroka& s)
-    {
-        *this = Eq(s);
-    }
+Matcher<const Stroka&>::Matcher(const Stroka& s)
+{
+    *this = Eq(s);
+}
 
-    Matcher<const Stroka&>::Matcher(const char* s)
-    {
-        *this = Eq(Stroka(s));
-    }
+Matcher<const Stroka&>::Matcher(const char* s)
+{
+    *this = Eq(Stroka(s));
+}
 
-    Matcher<Stroka>::Matcher(const Stroka& s)
-    {
-        *this = Eq(s);
-    }
+Matcher<Stroka>::Matcher(const Stroka& s)
+{
+    *this = Eq(s);
+}
 
-    Matcher<Stroka>::Matcher(const char* s)
-    {
-        *this = Eq(Stroka(s));
-    }
+Matcher<Stroka>::Matcher(const char* s)
+{
+    *this = Eq(Stroka(s));
+}
 
-    ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace testing
 
@@ -110,7 +112,7 @@ int main(int argc, char **argv)
     //   ../python/yt/bindings/shutdown.cpp
     // Feel free to add your cpp here. Welcome to the Shutdown Club!
 
-    NYT::NMetaState::TAsyncChangeLog::Shutdown();
+    NYT::NHydra::ShutdownChangelogs();
     NYT::NChunkClient::TDispatcher::Get()->Shutdown();
     NYT::NRpc::TDispatcher::Get()->Shutdown();
     NYT::NBus::TTcpDispatcher::Get()->Shutdown();

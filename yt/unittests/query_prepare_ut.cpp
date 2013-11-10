@@ -1,4 +1,4 @@
-#include <ytlib/object_client/public.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 
