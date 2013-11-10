@@ -39,13 +39,13 @@ void Shutdown()
     //   ../python/yt/bindings/shutdown.cpp
     // Feel free to add your cpp here. Welcome to the Shutdown Club!
 
-    NChunkClient::TDispatcher::Get()->Shutdown();
-    NRpc::TDispatcher::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
-    NConcurrency::TDelayedExecutor::Shutdown();
+    NRpc::TDispatcher::Get()->Shutdown();
+    NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
-    NLog::TLogManager::Get()->Shutdown();
+    NConcurrency::TDelayedExecutor::Shutdown();
     TAddressResolver::Get()->Shutdown();
+    NLog::TLogManager::Get()->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
