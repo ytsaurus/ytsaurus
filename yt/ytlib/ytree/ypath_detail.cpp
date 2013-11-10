@@ -592,6 +592,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         auto newUserKeys = newAttributes->List();
+        std::sort(newUserKeys.begin(), newUserKeys.end());
 
         if (!userAttributes) {
              if (!newUserKeys.empty()) {
@@ -601,6 +602,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         auto oldUserKeys = userAttributes->List();
+        std::sort(oldUserKeys.begin(), oldUserKeys.end());
 
         FOREACH (const auto& key, newUserKeys) {
             auto newAttributeYson = newAttributes->GetYson(key);
@@ -707,10 +709,9 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
     if (tokenizer.GetToken() == WildcardToken) {
         if (userAttributes) {
             auto userKeys = userAttributes->List();
+            std::sort(userKeys.begin(), userKeys.end());
             FOREACH (const auto& key, userKeys) {
                 GuardedValidateUserAttributeUpdate(key, userAttributes->GetYson(key), Null);
-            }
-            FOREACH (const auto& key, userKeys) {
                 YCHECK(userAttributes->Remove(key));
             }
         }

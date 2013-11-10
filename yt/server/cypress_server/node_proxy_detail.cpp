@@ -342,6 +342,7 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
     if (attributes) {
         handler->SetDefaultAttributes(attributes, Transaction);
         auto keys = attributes->List();
+        std::sort(keys.begin(), keys.end());
         if (!keys.empty()) {
             auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
 
