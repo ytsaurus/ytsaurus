@@ -10,6 +10,36 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs)
+{
+    auto lhsKeys = lhs.List();
+    std::sort(lhsKeys.begin(), lhsKeys.end());
+
+    auto rhsKeys = rhs.List();
+    std::sort(rhsKeys.begin(), rhsKeys.end());
+
+    if (lhsKeys != rhsKeys) {
+        return false;
+    }
+
+    for (const auto& key : lhsKeys) {
+        auto lhsValue = lhs.Get<INodePtr>(key);
+        auto rhsValue = rhs.Get<INodePtr>(key);
+        if (!AreNodesEqual(lhsValue, rhsValue)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool operator != (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {

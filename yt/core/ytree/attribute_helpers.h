@@ -13,6 +13,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Pretty slow.
+bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs);
+bool operator != (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs);
+
 //! Creates attributes dictionary in memory
 std::unique_ptr<IAttributeDictionary> CreateEphemeralAttributes();
 
