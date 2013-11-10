@@ -491,7 +491,7 @@ private:
         }
     }
 
-    virtual void OnActiveQuorumEstablished() override
+    virtual void OnLeaderActive() override
     {
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
