@@ -67,9 +67,10 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* node = FindNode();
-        attributes->push_back(TAttributeInfo("state"));
+        attributes->push_back("state");
         attributes->push_back(TAttributeInfo("transaction_id", node && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", node));
+        attributes->push_back(TAttributeInfo("alerts", node));
         attributes->push_back(TAttributeInfo("stored_replica_count", node));
         attributes->push_back(TAttributeInfo("cached_replica_count", node));
         attributes->push_back(TAttributeInfo("tablet_slots", node));
@@ -115,6 +116,12 @@ private:
                                 .EndMap();
                         })
                     .EndMap();
+                return true;
+            }
+
+            if (key == "alerts") {
+                BuildYsonFluently(consumer)
+                    .Value(node->Alerts());
                 return true;
             }
 

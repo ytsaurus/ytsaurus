@@ -303,6 +303,8 @@ int Main(int argc, const char* argv[])
     SigAddSet(&sigset, SIGHUP);
     SigProcMask(SIG_BLOCK, &sigset, NULL);
 
+    signal(SIGPIPE, SIG_IGN);
+
 #ifndef _darwin_
     uid_t ruid, euid, suid;
     YCHECK(getresuid(&ruid, &euid, &suid) == 0);
@@ -337,8 +339,8 @@ int Main(int argc, const char* argv[])
     NBus::TTcpDispatcher::Get()->Shutdown();
     NConcurrency::TDelayedExecutor::Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
-    NLog::TLogManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
+    NLog::TLogManager::Get()->Shutdown();
 
     return exitCode;
 }

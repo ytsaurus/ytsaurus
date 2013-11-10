@@ -246,6 +246,7 @@ protected:
     //! Values must be contiguous.
     DECLARE_ENUM(EOperationStage,
         (Map)
+        (ReduceCombiner)
         (Reduce)
     );
 
@@ -293,6 +294,7 @@ protected:
             : JobIndex(-1)
             , StartRowIndex(-1)
             , OutputCookie(-1)
+            , MemoryReserveEnabled(true)
         { }
 
         explicit TJoblet(TTaskPtr task, int jobIndex)
@@ -309,6 +311,8 @@ protected:
         TJobPtr Job;
         TChunkStripeListPtr InputStripeList;
         IChunkPoolOutput::TCookie OutputCookie;
+
+        bool MemoryReserveEnabled;
 
         //! All chunk lists allocated for this job.
         /*!
@@ -462,6 +466,8 @@ protected:
 
         virtual void OnJobStarted(TJobletPtr joblet);
 
+        virtual bool IsMemoryReserveEnabled() const = 0;
+
         void AddPendingHint();
         void AddLocalityHint(const Stroka& address);
 
@@ -485,7 +491,10 @@ protected:
             TNullable<int> partitionTag);
 
         void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-        void AddIntermediateOutputSpec(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddIntermediateOutputSpec(
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
+            TJobletPtr joblet,
+            TNullable<NTableClient::TKeyColumns> keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -699,9 +708,11 @@ protected:
         const std::vector<Stroka>& prefixColumns);
 
     static EAbortReason GetAbortReason(TJobPtr job);
+    static EAbortReason GetAbortReason(TJobletPtr joblet);
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
-    i64 GetMemoryReserve(const TProgressCounter& jobCounter, TUserJobSpecPtr userJobSpec) const;
+    bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
+    i64 GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const;
 
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 

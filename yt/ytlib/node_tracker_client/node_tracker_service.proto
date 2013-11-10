@@ -72,7 +72,10 @@ message THiveCellInfo
 message TReqIncrementalHeartbeat
 {
     required int32 node_id = 1;
+
+    // Node Tracker stuff.
     required TNodeStatistics statistics = 2;
+    repeated string alerts = 5;
 
     // Chunk Manager stuff.
     repeated TChunkAddInfo added_chunks = 3;

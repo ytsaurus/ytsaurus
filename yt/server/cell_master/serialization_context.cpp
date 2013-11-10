@@ -2,6 +2,8 @@
 #include "serialization_context.h"
 #include "bootstrap.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/node_tracker_server/node_tracker.h>
 
 #include <server/transaction_server/transaction_manager.h>
@@ -55,6 +57,7 @@ bool ValidateSnapshotVersion(int version)
            version == 24 ||
            version == 25 ||
            version == 26 ||
+           version == 27 ||
            version == 100;
 }
 

@@ -56,17 +56,20 @@ static auto& Logger = DataNodeLogger;
 TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , Started(false)
     , ControlInvoker(bootstrap->GetControlInvoker())
     , State(EState::Offline)
     , NodeId(InvalidNodeId)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
-    YCHECK(config);
-    YCHECK(bootstrap);
+    YCHECK(Config);
+    YCHECK(Bootstrap);
 }
 
 void TMasterConnector::Start()
 {
+    YCHECK(!Started);
+
     // Chunk store callbacks are always called in Control thread.
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(
         BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this)));
@@ -84,11 +87,16 @@ void TMasterConnector::Start()
         BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
             .Via(ControlInvoker),
         RandomDuration(Config->HeartbeatSplay));
+
+    Started = true;
 }
 
 void TMasterConnector::ForceRegister()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!Started)
+        return;
 
     ControlInvoker->Invoke(BIND(
         &TMasterConnector::StartHeartbeats,
@@ -115,6 +123,14 @@ TNodeId TMasterConnector::GetNodeId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return NodeId;
+}
+
+void TMasterConnector::RegisterAlert(const Stroka& alert)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    
+    TGuard<TSpinLock> guard(AlertsLock);
+    Alerts.push_back(alert);
 }
 
 void TMasterConnector::ScheduleNodeHeartbeat()
@@ -292,6 +308,11 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     request->set_node_id(NodeId);
 
     *request->mutable_statistics() = ComputeStatistics();
+
+    {
+        TGuard<TSpinLock> guard(AlertsLock);
+        ToProto(request->mutable_alerts(), Alerts);
+    }
 
     ReportedAdded = AddedSinceLastSuccess;
     ReportedRemoved = RemovedSinceLastSuccess;

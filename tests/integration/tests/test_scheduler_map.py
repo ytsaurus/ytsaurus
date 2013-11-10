@@ -26,7 +26,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write('//tmp/t1', {"a": "b"})
         op_id = map(dont_track=True,
             in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"',
-            opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}'])
+            opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}',
+                 '/spec/title=MyTitle'])
 
         get('//sys/operations/%s/@spec' % op_id)
         track_op(op_id)

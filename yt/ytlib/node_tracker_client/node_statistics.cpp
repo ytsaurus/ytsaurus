@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "node_statistics.h"
 
+#include <ytlib/node_tracker_client/node.pb.h>
+
 namespace NYT {
 namespace NNodeTrackerClient {
 namespace NProto {

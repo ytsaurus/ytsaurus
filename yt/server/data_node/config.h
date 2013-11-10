@@ -92,7 +92,7 @@ public:
             .InRange(0, (i64) 1024 * 1024 * 1024)
             .Default((i64) 1024 * 1024);
         RegisterParameter("timeout", Timeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(60));
     }
 };
 

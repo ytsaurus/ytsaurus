@@ -8,9 +8,11 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/table_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -79,6 +81,12 @@ public:
     {
         auto* resultExt = result->MutableExtension(TReduceJobResultExt::reduce_job_result_ext);
         PopulateUserJobResult(resultExt->mutable_reducer_result());
+
+        // This code is required for proper handling of intermediate chunks, when
+        // PartitionReduce job is run as ReduceCombiner in MapReduce operation.
+        auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        Outputs[0]->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
+        ToProto(schedulerResultExt->mutable_chunks(), Outputs[0]->GetWrittenChunks());
     }
 
 };

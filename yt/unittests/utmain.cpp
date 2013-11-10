@@ -94,6 +94,10 @@ void PrintTo(const TStringBuf& string, ::std::ostream* os)
 
 int main(int argc, char **argv)
 {
+#ifdef _unix_
+    signal(SIGPIPE, SIG_IGN);
+#endif
+
     testing::InitGoogleTest(&argc, argv);
     int rv = RUN_ALL_TESTS();
 
@@ -106,13 +110,14 @@ int main(int argc, char **argv)
     //   ../python/yt/bindings/shutdown.cpp
     // Feel free to add your cpp here. Welcome to the Shutdown Club!
 
+    NYT::NMetaState::TAsyncChangeLog::Shutdown();
     NYT::NChunkClient::TDispatcher::Get()->Shutdown();
     NYT::NRpc::TDispatcher::Get()->Shutdown();
     NYT::NBus::TTcpDispatcher::Get()->Shutdown();
     NYT::NConcurrency::TDelayedExecutor::Shutdown();
     NYT::NProfiling::TProfilingManager::Get()->Shutdown();
-    NYT::NLog::TLogManager::Get()->Shutdown();
     NYT::TAddressResolver::Get()->Shutdown();
+    NYT::NLog::TLogManager::Get()->Shutdown();
 
     return rv;
 }

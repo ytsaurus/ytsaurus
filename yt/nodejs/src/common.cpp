@@ -141,8 +141,8 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     NBus::TTcpDispatcher::Get()->Shutdown();
     NConcurrency::TDelayedExecutor::Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
-    NLog::TLogManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
+    NLog::TLogManager::Get()->Shutdown();
 
     return Undefined();
 }

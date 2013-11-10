@@ -32,13 +32,15 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     TSchedulerConfigPtr config,
     TMergeOperationSpecBasePtr spec,
     const TOperationId& operationId,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    i64 chunkSliceSize)
     : Config(config)
     , Spec(spec)
     , KeyColumns(keyColumns)
     , Logger(OperationLogger)
+    , ChunkSliceSize(chunkSliceSize)
 {
-    YCHECK(Config->MergeJobMaxSliceDataSize > 0);
+    YCHECK(ChunkSliceSize > 0);
     Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operationId)));
 }
 
@@ -66,7 +68,7 @@ void TChunkSplitsFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     CurrentRequest = proxy.GetChunkSplits();
-    CurrentRequest->set_min_split_size(Config->MergeJobMaxSliceDataSize);
+    CurrentRequest->set_min_split_size(ChunkSliceSize);
     ToProto(CurrentRequest->mutable_key_columns(), KeyColumns);
 }
 
@@ -81,7 +83,7 @@ bool TChunkSplitsFetcher::AddChunkToRequest(
 
     auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
 
-    if (dataSize < Config->MergeJobMaxSliceDataSize ||
+    if (dataSize < ChunkSliceSize ||
         CompareKeys(boundaryKeys.start(), boundaryKeys.end(), KeyColumns.size()) == 0)
     {
         LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)",

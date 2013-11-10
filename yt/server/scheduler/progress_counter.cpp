@@ -6,6 +6,8 @@
 
 #include <numeric>
 
+#include <numeric>
+
 namespace NYT {
 namespace NScheduler {
 

@@ -118,7 +118,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
     bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
     if (!request->recursive() && isComposite && AsComposite()->GetChildCount() > 0) {
-        THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node when \"recursive\" option is not set");
+        THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
     }
 
     parent->AsComposite()->RemoveChild(this);
@@ -287,7 +287,7 @@ void TMapNodeMixin::SetChild(
 
         bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
         if (!recursive && !lastStep) {
-            THROW_ERROR_EXCEPTION("Cannot create intermediate nodes when \"recursive\" option is not set");
+            THROW_ERROR_EXCEPTION("Cannot create intermediate nodes");
         }
 
         auto newValue = lastStep ? value : factory->CreateMap();

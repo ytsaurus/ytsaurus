@@ -417,6 +417,7 @@ void TOperationControllerBase::TTask::FinishInput()
 
     GetChunkPoolInput()->Finish();
     AddPendingHint();
+    CheckCompleted();
 }
 
 void TOperationControllerBase::TTask::CheckCompleted()
@@ -450,6 +451,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
+    joblet->MemoryReserveEnabled = IsMemoryReserveEnabled();
+
     auto neededResources = GetNeededResources(joblet);
 
     // Check the usage against the limits. This is the last chance to give up.
@@ -776,7 +779,8 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
 
 void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     TJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    TNullable<TKeyColumns> keyColumns)
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -786,6 +790,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->ChunksVital = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
+    options->KeyColumns = keyColumns;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
@@ -916,7 +921,11 @@ void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Initializing operation");
+    if (Spec->Title) {
+        LOG_INFO("Initializing operation (Title: %s)", ~(*Spec->Title));
+    } else {
+        LOG_INFO("Initializing operation");
+    }
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
@@ -2831,11 +2840,13 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 {
-    if (!job) {
-        return EAbortReason::Other;
-    }
     auto error = FromProto(job->Result().error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+}
+
+EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
+{
+    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason(EAbortReason::Other);
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const
@@ -2850,10 +2861,14 @@ void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jo
     }
 }
 
-i64 TOperationControllerBase::GetMemoryReserve(const TProgressCounter& jobCounter, TUserJobSpecPtr userJobSpec) const
+bool TOperationControllerBase::IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const
 {
-    bool reserveEnabled = jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Config->MaxMemoryReserveAbortJobCount;
-    if (reserveEnabled) {
+    return jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Config->MaxMemoryReserveAbortJobCount;
+}
+
+i64 TOperationControllerBase::GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const
+{
+    if (memoryReserveEnabled) {
         return static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
     } else {
         return userJobSpec->MemoryLimit;
@@ -3035,6 +3050,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
+        .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)
@@ -3182,7 +3198,7 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable.Options->ErasureCodec);
-            double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
+            double replicationFactor = (double) 2 * codec->GetTotalPartCount() / codec->GetDataPartCount();
             result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
         }
     }

@@ -282,6 +282,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , MapperCommandArg("", "mapper_command", "mapper shell command", false, "", "STRING")
     , MapperFileArg("", "mapper_file", "additional mapper file path", false, "YPATH")
+    , ReduceCombinerCommandArg("", "reduce_combiner_command", "reduce_combiner shell command", false, "", "STRING")
+    , ReduceCombinerFileArg("", "reduce_combiner_file", "additional reduce_combiner file path", false, "YPATH")
     , ReducerCommandArg("", "reducer_command", "reducer shell command", true, "", "STRING")
     , ReducerFileArg("", "reducer_file", "additional reducer file path", false, "YPATH")
     , SortByArg("", "sort_by", "columns to sort by", true, "", "YSON_LIST_FRAGMENT")
@@ -291,6 +293,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(MapperCommandArg);
     CmdLine.add(MapperFileArg);
+    CmdLine.add(ReduceCombinerCommandArg);
+    CmdLine.add(ReduceCombinerFileArg);
     CmdLine.add(ReducerCommandArg);
     CmdLine.add(ReducerFileArg);
     CmdLine.add(SortByArg);
@@ -302,6 +306,7 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto mapperFiles = PreprocessYPaths(MapperFileArg.getValue());
+    auto reduceCombinerFiles = PreprocessYPaths(ReduceCombinerFileArg.getValue());
     auto reducerFiles = PreprocessYPaths(ReducerFileArg.getValue());
     auto sortBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortByArg.getValue(), EYsonType::ListFragment));
     auto reduceBy = ConvertTo< std::vector<Stroka> >(TYsonString(ReduceByArg.getValue(), EYsonType::ListFragment));
@@ -320,6 +325,13 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
                     .Item("mapper").BeginMap()
                         .Item("command").Value(MapperCommandArg.getValue())
                         .Item("file_paths").List(mapperFiles)
+                    .EndMap();
+            })
+            .DoIf(!ReduceCombinerCommandArg.getValue().empty(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reduce_combiner").BeginMap()
+                        .Item("command").Value(ReduceCombinerCommandArg.getValue())
+                        .Item("file_paths").List(reduceCombinerFiles)
                     .EndMap();
             })
             .Item("reducer").BeginMap()

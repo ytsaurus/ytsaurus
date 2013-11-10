@@ -7,6 +7,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/cell_master/bootstrap.h>
 
 #include <server/object_server/type_handler_detail.h>

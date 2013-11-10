@@ -39,7 +39,7 @@ class TNode
     typedef NChunkServer::TChunk TChunk;
     typedef NChunkServer::TJobPtr TJobPtr;
 
-    // Non-persistent properties.
+    // Transient properties.
     DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterPending);
     DEFINE_BYVAL_RW_PROPERTY(TAtomic, VisitMark);
     DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
@@ -48,6 +48,7 @@ class TNode
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, Alerts);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);

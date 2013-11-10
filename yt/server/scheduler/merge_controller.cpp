@@ -174,7 +174,7 @@ protected:
                     Controller->Spec->JobIO,
                     UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
                 GetFootprintMemorySize() +
-                Controller->GetAdditionalMemorySize());
+                Controller->GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
             return result;
         }
 
@@ -219,6 +219,10 @@ protected:
         //! Key for #TOutputTable::OutputChunkTreeIds.
         int PartitionIndex;
 
+        virtual bool IsMemoryReserveEnabled() const override
+        {
+            return Controller->IsMemoryReserveEnabled(Controller->JobCounter);
+        }
 
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
@@ -231,7 +235,7 @@ protected:
                     Controller->Spec->JobIO,
                     UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
                 GetFootprintMemorySize() +
-                Controller->GetAdditionalMemorySize());
+                Controller->GetAdditionalMemorySize(IsMemoryReserveEnabled()));
             return result;
         }
 
@@ -397,9 +401,21 @@ protected:
 
     virtual void CustomPrepare() override
     {
+        CalculateSizes();
         ProcessInputs();
         EndInputChunks();
         FinishPreparation();
+    }
+
+    void CalculateSizes()
+    {
+        auto jobCount = SuggestJobCount(
+            TotalInputDataSize,
+            Spec->DataSizePerJob,
+            Spec->JobCount);
+
+        MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
+        ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
     }
 
     void ProcessInputs()
@@ -408,15 +424,6 @@ protected:
             LOG_INFO("Processing inputs");
 
             ClearCurrentTaskStripes();
-
-            auto jobCount = SuggestJobCount(
-                TotalInputDataSize,
-                Spec->DataSizePerJob,
-                Spec->JobCount);
-
-            MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
-            ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
-
             FOREACH (auto chunk, CollectInputChunks()) {
                 ProcessInputChunk(chunk);
             }
@@ -497,8 +504,9 @@ protected:
     //! Returns True if the chunk can be included into the output as-is.
     virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) = 0;
 
-    virtual i64 GetAdditionalMemorySize() const
+    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const
     {
+        UNUSED(memoryReserveEnabled);
         return 0;
     }
 
@@ -950,11 +958,14 @@ protected:
         LOG_INFO("Adjusted key columns are %s",
             ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
 
+        CalculateSizes();
+
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config,
             Spec,
             Operation->GetOperationId(),
-            KeyColumns);
+            KeyColumns,
+            ChunkSliceSize);
 
         ChunkSplitsCollector = New<TChunkSplitsCollector>(
             NodeDirectory,
@@ -1614,9 +1625,9 @@ private:
         return true;
     }
 
-    virtual i64 GetAdditionalMemorySize() const override
+    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
     {
-        return GetMemoryReserve(JobCounter, Spec->Reducer);
+        return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
     }
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
@@ -1654,7 +1665,10 @@ private:
     virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetAdditionalMemorySize());
+        InitUserJobSpec(
+            jobSpecExt->mutable_reducer_spec(),
+            joblet,
+            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
     }
 
     virtual bool IsOutputLivePreviewSupported() const override

@@ -72,6 +72,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Descriptor_.Address);
     Save(context, State_);
     Save(context, Statistics_);
+    Save(context, Alerts_);
     SaveObjectRef(context, Transaction_);
     SaveObjectRefs(context, StoredReplicas_);
     SaveObjectRefs(context, CachedReplicas_);
@@ -85,6 +86,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Descriptor_.Address);
     Load(context, State_);
     Load(context, Statistics_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 27) {
+        Load(context, Alerts_);
+    }
     LoadObjectRef(context, Transaction_);
     LoadObjectRefs(context, StoredReplicas_);
     LoadObjectRefs(context, CachedReplicas_);

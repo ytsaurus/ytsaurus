@@ -5,6 +5,8 @@
 
 #include <core/erasure/public.h>
         
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NChunkClient {
 

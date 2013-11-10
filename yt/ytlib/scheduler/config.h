@@ -65,6 +65,8 @@ public:
 
     bool JobProxyMemoryControl;
 
+    TNullable<Stroka> Title;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -85,6 +87,8 @@ public:
         RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
             .Default(true);
 
+        RegisterParameter("title", Title)
+            .Default(Null);
 
         SetKeepOptions(true);
 
@@ -226,7 +230,7 @@ public:
         : DataSizePerJob(-1)
     {
         RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("job_count", JobCount)
             .Default()
@@ -270,6 +274,10 @@ public:
             .Default(false);
         RegisterParameter("merge_by", MergeBy)
             .Default();
+
+        RegisterInitializer([&] () {
+            JobIO->TableWriter->SyncChunkSwitch = true;
+        });
     }
 
     virtual void OnLoaded() override
@@ -283,15 +291,7 @@ public:
 
 class TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
-{
-public:
-    TUnorderedMergeOperationSpec()
-    {
-        RegisterInitializer([&] () {
-            JobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-        });
-    }
-};
+{ };
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
@@ -486,8 +486,12 @@ public:
         RegisterInitializer([&] () {
             PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+            PartitionJobIO->TableWriter->SyncChunkSwitch = true;
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            SortJobIO->TableWriter->SyncChunkSwitch = true;
+
+            MergeJobIO->TableWriter->SyncChunkSwitch = true;
 
             MapSelectivityFactor = 1.0;
         });
@@ -512,9 +516,11 @@ public:
     std::vector<Stroka> ReduceBy;
 
     TUserJobSpecPtr Mapper;
+    TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
 
     TJobIOConfigPtr MapJobIO;
+    // Also works for ReduceCombiner if present.
     TJobIOConfigPtr SortJobIO;
     TJobIOConfigPtr ReduceJobIO;
 
@@ -525,6 +531,9 @@ public:
             .Default();
         // Mapper can be absent -- leave it Null by default.
         RegisterParameter("mapper", Mapper)
+            .Default();
+        // ReduceCombiner can be absent -- leave it Null by default.
+        RegisterParameter("reduce_combiner", ReduceCombiner)
             .Default();
         RegisterParameter("reducer", Reducer)
             .DefaultNew();
@@ -559,8 +568,11 @@ public:
         RegisterInitializer([&] () {
             MapJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
             MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
+            MapJobIO->TableWriter->SyncChunkSwitch = true;
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            SortJobIO->TableWriter->SyncChunkSwitch = true;
+
             ReduceJobIO->TableWriter->SyncChunkSwitch = true;
         });
     }
@@ -612,6 +624,7 @@ class TPoolConfig
 public:
     double Weight;
     double MinShareRatio;
+    double MaxShareRatio;
 
     ESchedulingMode Mode;
 
@@ -624,6 +637,9 @@ public:
             .GreaterThanOrEqual(0.0);
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
+            .InRange(0.0, 1.0);
+        RegisterParameter("max_share_ratio", MaxShareRatio)
+            .Default(1.0)
             .InRange(0.0, 1.0);
 
         RegisterParameter("mode", Mode)
@@ -642,8 +658,8 @@ class TPooledOperationSpec
 public:
     TNullable<Stroka> Pool;
     double Weight;
-
     double MinShareRatio;
+    double MaxShareRatio;
 
     // The following settings override schedule configuration.
     TNullable<TDuration> MinSharePreemptionTimeout;
@@ -653,23 +669,25 @@ public:
     TPooledOperationSpec()
     {
         RegisterParameter("pool", Pool)
-            .Default(TNullable<Stroka>())
+            .Default()
             .NonEmpty();
         RegisterParameter("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(0.0);
-
         RegisterParameter("min_share_ratio", MinShareRatio)
+            .Default(0.0)
+            .InRange(0.0, 1.0);
+        RegisterParameter("max_share_ratio", MaxShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
 
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
-            .Default(Null);
+            .Default();
         RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
-            .Default(Null);
+            .Default();
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
-            .Default(Null);
+            .Default();
     }
 };
 

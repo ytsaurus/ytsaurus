@@ -29,14 +29,6 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
 
 void TSlot::Initialize()
 {
-    try {
-        NFS::ForcePath(Path, 0755);
-        SandboxPath = NFS::CombinePaths(Path, "sandbox");
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
-            ~Path.Quote()) << ex;
-    }
-
 #ifdef _linux_
     try {
         if (UserId > 0) {
@@ -45,12 +37,18 @@ void TSlot::Initialize()
         }
     } catch (const std::exception& ex) {
         // ToDo(psushin): think about more complex logic of handling fs errors.
-        LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d)",
-            UserId);
+        LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d)", UserId);
     }
 #endif
 
-    Clean();
+    try {
+        NFS::ForcePath(Path, 0755);
+        SandboxPath = NFS::CombinePaths(Path, "sandbox");
+        DoClean();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
+            ~Path.Quote()) << ex;
+    }
 }
 
 void TSlot::Acquire()
@@ -68,7 +66,7 @@ int TSlot::GetUserId() const
     return UserId;
 }
 
-void TSlot::Clean()
+void TSlot::DoClean()
 {
     try {
         if (isexist(~SandboxPath)) {
@@ -80,8 +78,19 @@ void TSlot::Clean()
         }
         IsClean = true;
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to clean sandbox directory %s",
-            ~SandboxPath.Quote());
+        auto wrappedError = TError("Failed to clean sandbox directory %s",
+            ~SandboxPath.Quote()) << ex;
+        LOG_ERROR(wrappedError);
+        THROW_ERROR wrappedError;
+    }
+}
+
+void TSlot::Clean()
+{
+    try {
+        DoClean();
+    } catch (const std::exception& ex) {
+        LOG_FATAL("%s", ex.what());
     }
 }
 
@@ -98,12 +107,10 @@ void TSlot::InitSandbox()
     try {
         NFS::ForcePath(SandboxPath, 0777);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to create sandbox directory %s",
-            ~SandboxPath.Quote());
+        LOG_FATAL(ex, "Failed to create sandbox directory %s", ~SandboxPath.Quote());
     }
 
-    LOG_INFO("Created slot sandbox directory %s",
-        ~SandboxPath.Quote());
+    LOG_INFO("Created slot sandbox directory %s", ~SandboxPath.Quote());
 
     IsClean = false;
 }

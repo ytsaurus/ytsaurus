@@ -66,22 +66,17 @@ public:
             Config->CacheLocation,
             Bootstrap);
 
-        Location->SubscribeDisabled(BIND(&TImpl::OnLocationDisabled, Unretained(this)));
+        Location->SubscribeDisabled(
+            BIND(&TImpl::OnLocationDisabled, Unretained(this)));
 
-        try {
-            auto desciptors = Location->Initialize();
-            FOREACH (const auto& descriptor, desciptors) {
-                auto chunk = New<TCachedChunk>(
-                    Location,
-                    descriptor,
-                    Bootstrap->GetChunkCache(),
-                    Bootstrap->GetMemoryUsageTracker());
-                Put(chunk);
-            }
-        } catch (const std::exception& ex) {
-            Location->Disable();
-            LOG_WARNING(ex, "Failed to initialize storage locations");
-            return;
+        auto descriptors = Location->Initialize();
+        for (const auto& descriptor : descriptors) {
+            auto chunk = New<TCachedChunk>(
+                Location,
+                descriptor,
+                Bootstrap->GetChunkCache(),
+                Bootstrap->GetMemoryUsageTracker());
+            Put(chunk);
         }
 
         LOG_INFO("Chunk cache scan completed, %d chunks found", GetSize());
@@ -161,8 +156,10 @@ private:
         LOG_WARNING("Chunk cache disabled");
         Clear();
 
-        // Schedule an out-of-order heartbeat to notify the master about the disaster.
+        // Register an alert and
+        // schedule an out-of-order heartbeat to notify the master about the disaster.
         auto masterConnector = Bootstrap->GetMasterConnector();
+        masterConnector->RegisterAlert("Chunk cache is disabled");
         masterConnector->ForceRegister();
     }
 

@@ -162,9 +162,10 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
 
     NProto::TReqIncrementalHeartbeat heartbeatReq;
     heartbeatReq.set_node_id(nodeId);
-    *heartbeatReq.mutable_statistics() = request->statistics();
-    heartbeatReq.mutable_added_chunks()->MergeFrom(request->added_chunks());
-    heartbeatReq.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
+    heartbeatReq.mutable_statistics()->Swap(request->mutable_statistics());
+    heartbeatReq.mutable_alerts()->Swap(request->mutable_alerts());
+    heartbeatReq.mutable_added_chunks()->Swap(request->mutable_added_chunks());
+    heartbeatReq.mutable_removed_chunks()->Swap(request->mutable_removed_chunks());
 
     nodeTracker
         ->CreateIncrementalHeartbeatMutation(context)
