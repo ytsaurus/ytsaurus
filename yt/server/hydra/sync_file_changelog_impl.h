@@ -222,7 +222,7 @@ private:
     TEnvelopeData ReadEnvelope(int firstRecordId, int lastRecordId);
 
     //! Reads changelog starting from the last indexed record until the end of file.
-    void ReadChangeLogUntilEnd();
+    void ReadChangelogUntilEnd();
 
     const int Id_;
     const Stroka FileName_;

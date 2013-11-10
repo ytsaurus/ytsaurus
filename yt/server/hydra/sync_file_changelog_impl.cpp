@@ -252,7 +252,7 @@ void TSyncFileChangelog::TImpl::Open()
         ReadIndex();
 
         // TODO(babenko): truncate if sealed
-        ReadChangeLogUntilEnd();
+        ReadChangelogUntilEnd();
     }
 
 
@@ -401,6 +401,10 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
         TGuard<TMutex> guard(Mutex_);
         UpdateLogHeader();
     }
+
+    // TODO(babenko): ignat@ should definitely fix this :)
+    if (recordCount == 0)
+        return;
 
     auto envelope = ReadEnvelope(recordCount, recordCount);
     if (recordCount == 0) {
@@ -556,7 +560,7 @@ void TSyncFileChangelog::TImpl::UpdateIndexHeader()
     IndexFile_->Seek(oldPosition, sSet);
 }
 
-void TSyncFileChangelog::TImpl::ReadChangeLogUntilEnd()
+void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd()
 {
     // Extract changelog properties from index.
     i64 fileLength = LogFile_->GetLength();
@@ -603,11 +607,10 @@ TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope
     int firstRecordId,
     int lastRecordId)
 {
+    // Index can be changed during Append.
     TGuard<TMutex> guard(Mutex_);
 
-    // Index can be changes during Append, so we need search under the mutex.
     TEnvelopeData result;
-    
     result.LowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1));
     
     auto it = FirstGreater(Index_, TChangelogIndexRecord(lastRecordId, -1));
