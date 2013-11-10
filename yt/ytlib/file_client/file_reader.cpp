@@ -109,7 +109,7 @@ TAsyncError TAsyncReader::OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr
 {
     if (!batchRsp->IsOK()) {
         return MakeFuture(TError("Error fetching file info")
-            << *batchRspRsp);
+            << *batchRsp);
     }
 
     {

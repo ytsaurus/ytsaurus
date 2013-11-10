@@ -13,6 +13,8 @@
 #include <core/misc/assert.h>
 #include <core/misc/proc.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <util/system/defaults.h>
 #include <util/system/file.h>
 #include <util/stream/file.h>
