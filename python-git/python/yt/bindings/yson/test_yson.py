@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from yt.yson import to_yson_type
-from yt.yson.test import TestYsonParser
+from yt.yson.test import YsonParserTestBase
 
 import yson_lib
 from yson_lib import load, loads, dump, dumps
@@ -9,11 +9,10 @@ from yson_lib import load, loads, dump, dumps
 import unittest
 
 
-class TestParser(unittest.TestCase, TestYsonParser):
-    TestYsonParser.parser = yson_lib
+class TestParser(unittest.TestCase, YsonParserTestBase):
+    YsonParserTestBase.parser = yson_lib
 
-
-class TestYsonStream(unittest.TestCase, TestYsonParser):
+class TestYsonStream(YsonParserTestBase, unittest.TestCase):
     def load_fragment(self, str):
         return list(loads(str, yson_type="list_fragment"))
     
