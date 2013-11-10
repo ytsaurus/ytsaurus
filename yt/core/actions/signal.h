@@ -9,38 +9,37 @@ namespace NYT {
 /*!
  *  A client may subscribe to the list (adding a new handler to it),
  *  unsubscribe from it (removing an earlier added handler),
- *  and fire it thus invoking the actions added so far.
+ *  and fire it thus invoking the handlers added so far.
+ *
+ *  Handlers' return values are ignored (so typically they must return |void|).
  *
  *  Lists are thread-safe.
  */
-template <class Signature>
-class TCallbackList;
-
-template <class Signature>
-class TCallbackListBase
+template <class TSignature>
+class TCallbackList
 {
 public:
     //! Adds a new handler to the list.
     /*!
-     * \param callback Handler to be added.
+     * \param callback A handler to be added.
      */
-    void Subscribe(const TCallback<Signature>& callback)
+    void Subscribe(const TCallback<TSignature>& callback)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        Callbacks.push_back(callback);
+        TGuard<TSpinLock> guard(SpinLock_);
+        Callbacks_.push_back(callback);
     }
 
     //! Removes a handler from the list.
     /*!
-     * \param callback Handler to be removed.
+     * \param callback A handler to be removed.
      * \return True if #callback was in the list of handlers.
      */
-    bool Unsubscribe(const TCallback<Signature>& callback)
+    bool Unsubscribe(const TCallback<TSignature>& callback)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        for (auto it = Callbacks.begin(); it != Callbacks.end(); ++it) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        for (auto it = Callbacks_.begin(); it != Callbacks_.end(); ++it) {
             if (it->Equals(callback)) {
-                Callbacks.erase(it);
+                Callbacks_.erase(it);
                 return true;
             }
         }
@@ -50,107 +49,36 @@ public:
     //! Clears the list of handlers.
     void Clear()
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        Callbacks.clear();
+        TGuard<TSpinLock> guard(SpinLock_);
+        Callbacks_.clear();
     }
 
-protected:
-    mutable TSpinLock SpinLock;
-    std::vector< TCallback<Signature> > Callbacks;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): generate with pump
-
-template <>
-class TCallbackList<void()>
-    : public TCallbackListBase<void()>
-{
-public:
-    //! Calls Run for all callbacks in the list.
-    void Fire() const
+    //! Invokes all handlers in the list.
+    template <class... TArgs>
+    void Fire(TArgs&&... args) const
     {
-        TGuard<TSpinLock> guard(this->SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (this->Callbacks.empty())
+        if (Callbacks_.empty())
             return;
 
-        std::vector< TCallback<void()> > callbacks(this->Callbacks);
+        std::vector<TCallback<TSignature>> callbacks(Callbacks_);
         guard.Release();
 
-        FOREACH (const auto& callback, callbacks) {
-            callback.Run();
+        for (const auto& callback : callbacks) {
+            // TODO(babenko): variadic forwarding does not work in VS2012 Nov CTP
+#ifdef _MSC_VER
+            callback.Run(args...);
+#else
+            callback.Run(std::forward<TArgs>(args)...);
+#endif
         }
     }
-};
 
-template <class A1>
-class TCallbackList<void(A1)>
-    : public TCallbackListBase<void(A1)>
-{
-public:
-    //! Calls Run for all callbacks in the list.
-    void Fire(const A1& a1) const
-    {
-        TGuard<TSpinLock> guard(this->SpinLock);
+private:
+    mutable TSpinLock SpinLock_;
+    std::vector<TCallback<TSignature>> Callbacks_;
 
-        if (this->Callbacks.empty())
-            return;
-
-        auto callbacks = this->Callbacks;
-        guard.Release();
-
-        FOREACH (const auto& callback, callbacks) {
-            callback.Run(a1);
-        }
-    }
-};
-
-template <class A1, class A2>
-class TCallbackList<void(A1, A2)>
-    : public TCallbackListBase<void(A1, A2)>
-{
-public:
-    //! Calls Run for all callbacks in the list.
-    void Fire(const A1& a1, const A2& a2) const
-    {
-        TGuard<TSpinLock> guard(this->SpinLock);
-
-        if (this->Callbacks.empty())
-            return;
-
-        auto callbacks = this->Callbacks;
-        guard.Release();
-
-        FOREACH (const auto& callback, callbacks) {
-            callback.Run(a1, a2);
-        }
-    }
-};
-
-
-template <class A1, class A2, class A3>
-class TCallbackList<void(A1, A2, A3)>
-    : public TCallbackListBase<void(A1, A2, A3)>
-{
-public:
-    //! Calls Run for all callbacks in the list.
-    void Fire(const A1& a1, const A2& a2, const A3& a3) const
-    {
-        TGuard<TSpinLock> guard(this->SpinLock);
-
-        if (this->Callbacks.empty())
-            return;
-
-        auto callbacks = this->Callbacks;
-        guard.Release();
-
-        FOREACH (const auto& callback, callbacks) {
-            callback.Run(a1, a2, a3);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
