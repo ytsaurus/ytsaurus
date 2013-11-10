@@ -393,6 +393,8 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
     YCHECK(recordCount >= 0);
 
     LOG_DEBUG("Sealing changelog with %d records", recordCount);
+    
+    auto oldRecordCount = RecordCount_;
 
     IsSealed_ = true;
     RecordCount_ = recordCount;
@@ -402,46 +404,44 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
         UpdateLogHeader();
     }
 
-    // TODO(babenko): ignat@ should definitely fix this :)
-    if (recordCount == 0)
-        return;
+    if (oldRecordCount != recordCount) {
+        auto envelope = ReadEnvelope(recordCount, recordCount);
+        if (recordCount == 0) {
+            Index_.clear();
+        } else {
+            auto cutBound =
+                envelope.LowerBound.RecordId == recordCount
+                ? envelope.LowerBound
+                : envelope.UpperBound;
+            auto indexPosition =
+                std::lower_bound(Index_.begin(), Index_.end(), cutBound) -
+                Index_.begin();
+            Index_.resize(indexPosition);
+        }
 
-    auto envelope = ReadEnvelope(recordCount, recordCount);
-    if (recordCount == 0) {
-        Index_.clear();
-    } else {
-        auto cutBound =
-            envelope.LowerBound.RecordId == recordCount
-            ? envelope.LowerBound
-            : envelope.UpperBound;
-        auto indexPosition =
-            std::lower_bound(Index_.begin(), Index_.end(), cutBound) -
-            Index_.begin();
-        Index_.resize(indexPosition);
-    }
+        i64 readSize = 0;
+        TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
+        for (int index = envelope.GetStartRecordId(); index < recordCount; ++index) {
+            TChangelogRecordHeader header;
+            readSize += ReadPodPadded(inputStream, header);
+            auto alignedSize = AlignUp(header.DataSize);
+            inputStream.Skip(alignedSize);
+            readSize += alignedSize;
+        }
 
-    i64 readSize = 0;
-    TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
-    for (int index = envelope.GetStartRecordId(); index < recordCount; ++index) {
-        TChangelogRecordHeader header;
-        readSize += ReadPodPadded(inputStream, header);
-        auto alignedSize = AlignUp(header.DataSize);
-        inputStream.Skip(alignedSize);
-        readSize += alignedSize;
-    }
+        CurrentBlockSize_ = readSize;
+        CurrentFilePosition_ = envelope.GetStartPosition() + readSize;
 
-    CurrentBlockSize_ = readSize;
-    CurrentFilePosition_ = envelope.GetStartPosition() + readSize;
+        {
+            TGuard<TMutex> guard(Mutex_);
+            
+            IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+            UpdateIndexHeader();
 
-    {
-        TGuard<TMutex> guard(Mutex_);
-        
-        IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
-        UpdateIndexHeader();
-
-        LogFile_->Resize(CurrentFilePosition_);
-        LogFile_->Flush();
-        LogFile_->Seek(0, sEnd);
+            LogFile_->Resize(CurrentFilePosition_);
+            LogFile_->Flush();
+            LogFile_->Seek(0, sEnd);
+        }
     }
 
     LOG_DEBUG("Changelog sealed");
@@ -607,6 +607,8 @@ TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope
     int firstRecordId,
     int lastRecordId)
 {
+    YCHECK(!Index_.empty());
+
     // Index can be changed during Append.
     TGuard<TMutex> guard(Mutex_);
 
