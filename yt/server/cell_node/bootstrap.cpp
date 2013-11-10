@@ -173,7 +173,6 @@ void TBootstrap::Run()
     ChunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
-    BlockStore->Initialize();
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
@@ -184,10 +183,8 @@ void TBootstrap::Run()
     MasterConnector = New<TMasterConnector>(Config->DataNode, this);
 
     ChunkStore = New<TChunkStore>(Config->DataNode, this);
-    ChunkStore->Initialize();
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
-    ChunkCache->Initialize();
 
     ReplicationInThrottler = CreateProfilingThrottlerWrapper(
         CreateLimitedThrottler(Config->DataNode->ReplicationInThrottler),
@@ -221,7 +218,6 @@ void TBootstrap::Run()
     JobProxyConfig->SupervisorConnection->Priority = 6;
 
     SlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
-    SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -278,7 +274,6 @@ void TBootstrap::Run()
     TimestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
 
     TabletCellController = New<TTabletCellController>(Config, this);
-    TabletCellController->Initialize();
 
     QueryManager = New<TQueryManager>(Config->QueryAgent, this);
 
@@ -323,6 +318,11 @@ void TBootstrap::Run()
     RpcServer->Configure(Config->RpcServer);
 
     // Do not start subsystems until everything is initialized.
+    TabletCellController->Initialize();
+    BlockStore->Initialize();
+    ChunkStore->Initialize();
+    ChunkCache->Initialize();
+    SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
     monitoringManager->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();
