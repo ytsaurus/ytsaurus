@@ -20,28 +20,7 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedUserAttributeDictionary
-    : public NYTree::IAttributeDictionary
-{
-public:
-    TVersionedUserAttributeDictionary(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        NCellMaster::TBootstrap* bootstrap);
-
-    virtual std::vector<Stroka> List() const override;
-    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& name) const override;
-    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
-    virtual bool Remove(const Stroka& key) override;
-
-protected:
-    TCypressNodeBase* TrunkNode;
-    NTransactionServer::TTransaction* Transaction;
-    NCellMaster::TBootstrap* Bootstrap;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
+class TVersionedUserAttributeDictionary;
 
 class TNontemplateCypressNodeProxyBase
     : public NYTree::TNodeBase
@@ -79,6 +58,8 @@ public:
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 protected:
+    friend class TVersionedUserAttributeDictionary;
+
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
     NTransactionServer::TTransaction* Transaction;

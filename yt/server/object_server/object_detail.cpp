@@ -80,6 +80,23 @@ bool TStagedObject::IsStaged() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserAttributeDictionary
+    : public NYTree::IAttributeDictionary
+{
+public:
+    explicit TUserAttributeDictionary(TObjectProxyBase* proxy);
+
+    // NYTree::IAttributeDictionary members
+    virtual std::vector<Stroka> List() const override;
+    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const override;
+    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool Remove(const Stroka& key) override;
+
+private:
+    TObjectProxyBase* Proxy;
+
+};
+
 TUserAttributeDictionary::TUserAttributeDictionary(TObjectProxyBase* proxy)
     : Proxy(proxy)
 { }
