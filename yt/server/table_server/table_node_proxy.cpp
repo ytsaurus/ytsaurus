@@ -205,8 +205,11 @@ ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
+    DeclareMutating();
+
     auto keyColumns = FromProto<Stroka>(request->key_columns());
-    context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+    context->SetRequestInfo("SortedBy: %s",
+        ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
@@ -225,8 +228,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
 {
+    DeclareMutating();
+
+    context->SetRequestInfo("");
+
     ValidateNoTransaction();
-    
+
     auto* impl = LockThisTypedImpl();
 
     auto tabletManager = Bootstrap->GetTabletManager();
@@ -237,6 +244,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
 {
+    DeclareMutating();
+
+    context->SetRequestInfo("");
+
     ValidateNoTransaction();
 
     auto* impl = LockThisTypedImpl();
@@ -249,6 +260,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 {
+    DeclareNonMutating();
+
+    context->SetRequestInfo("");
+
     ValidateNoTransaction();
 
     auto* impl = GetThisTypedImpl();

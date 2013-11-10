@@ -653,6 +653,8 @@ void TChunkOwnerNodeProxy::ValidatePathAttributes(
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
+    DeclareMutating();
+
     auto mode = EUpdateMode(request->mode());
     YCHECK(mode == EUpdateMode::Append || mode == EUpdateMode::Overwrite);
 
@@ -742,6 +744,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
+    DeclareNonMutating();
+
     context->SetRequestInfo("");
 
     ValidatePermission(

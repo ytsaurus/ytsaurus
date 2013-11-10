@@ -666,13 +666,17 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
 {
     AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
+
+    TObjectProxyBase::BeforeInvoke(std::move(context));
 }
 
-void TNontemplateCypressNodeProxyBase::AfterInvoke(IServiceContextPtr /*context*/)
+void TNontemplateCypressNodeProxyBase::AfterInvoke(IServiceContextPtr context)
 {
     if (!AccessTrackingSuppressed) {
         SetAccessed();
     }
+
+    TObjectProxyBase::AfterInvoke(std::move(context));
 }
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context)
@@ -886,6 +890,8 @@ TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 {
+    DeclareMutating();
+
     auto mode = ELockMode(request->mode());
     bool waitable = request->waitable();
 
@@ -923,6 +929,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
+    DeclareMutating();
+
     auto type = EObjectType(request->type());
     const auto& path = GetRequestYPath(context);
 
@@ -973,6 +981,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
+    DeclareMutating();
+
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
     bool removeSource = request->remove_source();

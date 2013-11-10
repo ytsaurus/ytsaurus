@@ -59,6 +59,9 @@ public:
 
     TRandomGenerator& RandomGenerator();
 
+    void SuppressMutation();
+    bool IsMutationSuppressed() const;
+
 private:
     TMutationContext* Parent;
     TVersion Version;
@@ -66,6 +69,7 @@ private:
     TInstant Timestamp;
     TRandomGenerator RandomGenerator_;
     TSharedRef ResponseData;
+    bool MutationSuppressed;
 
 };
 

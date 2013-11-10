@@ -206,6 +206,8 @@ private:
         UNUSED(request);
         UNUSED(response);
 
+        DeclareMutating();
+
         context->SetRequestInfo("");
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -223,6 +225,8 @@ private:
         UNUSED(request);
         UNUSED(response);
 
+        DeclareMutating();
+
         context->SetRequestInfo("");
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -239,10 +243,12 @@ private:
     {
         UNUSED(response);
 
-        bool pingAncestors = request->ping_ancestors();
-        context->SetRequestInfo("PingAncestors: %s", ~FormatBool(pingAncestors));
-
+        DeclareNonMutating();
         ValidateActiveLeader();
+
+        bool pingAncestors = request->ping_ancestors();
+        context->SetRequestInfo("PingAncestors: %s",
+            ~FormatBool(pingAncestors));
 
         auto* transaction = GetThisTypedImpl();
 

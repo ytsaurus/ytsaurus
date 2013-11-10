@@ -1028,15 +1028,17 @@ void TObjectManager::ExecuteMutatingRequest(const TUserId& userId, IServiceConte
         context->Reply(ex);
     }
 
-    YCHECK(context->IsReplied());
-
-    auto mutationId = GetMutationId(context);
-    if (mutationId != NullMutationId) {
-        auto responseMessage = CreateResponseMessage(context);
-        auto responseData = responseMessage.Pack();
-        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
-        auto* mutationContext = hydraManager->GetMutationContext();
-        mutationContext->SetResponseData(std::move(responseData));
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+	auto* mutationContext = hydraManager->GetMutationContext();
+    if (mutationContext && !mutationContext->IsMutationSuppressed()) {
+	    YCHECK(context->IsReplied());
+	    if (mutationContext->GetId() != NullMutationId) {
+	        auto responseMessage = CreateResponseMessage(context);
+	        auto responseData = responseMessage.Pack();
+	        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+	        auto* mutationContext = hydraManager->GetMutationContext();
+    	    mutationContext->SetResponseData(std::move(responseData));
+	    }
     }
 }
 

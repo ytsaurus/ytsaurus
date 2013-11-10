@@ -213,7 +213,10 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        if ((Options & EVirtualNodeOptions::RequireLeader) && !metaStateFacade->GetManager()->IsMutating()) {
+        auto hydraManager = metaStateFacade->GetManager();
+
+        // NB: IsMutating() check is needed to prevent leader fallback for propagated mutations.
+        if ((Options & EVirtualNodeOptions::RequireLeader) && !hydraManager->IsMutating()) {
             metaStateFacade->ValidateActiveLeader();
         }
 

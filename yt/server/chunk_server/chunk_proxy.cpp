@@ -312,6 +312,10 @@ private:
     {
         UNUSED(request);
 
+        DeclareNonMutating();
+
+        context->SetRequestInfo("");
+
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();
 
@@ -332,6 +336,8 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Confirm)
     {
         UNUSED(response);
+
+        DeclareMutating();
 
         auto chunkManager = Bootstrap->GetChunkManager();
 

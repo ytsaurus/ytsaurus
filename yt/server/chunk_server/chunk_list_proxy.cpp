@@ -129,9 +129,12 @@ private:
     {
         UNUSED(response);
 
+        DeclareMutating();
+
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
-        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
+        context->SetRequestInfo("Children: [%s]",
+            ~JoinToString(childrenIds));
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto chunkManager = Bootstrap->GetChunkManager();

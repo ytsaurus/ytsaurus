@@ -75,6 +75,8 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
     {
+        DeclareMutating();
+
         auto transactionId =
             request->has_transaction_id()
             ? FromProto<TTransactionId>(request->transaction_id())

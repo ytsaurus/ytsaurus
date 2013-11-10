@@ -27,6 +27,7 @@ TMutationContext::TMutationContext(
     , Version(Parent->GetVersion())
     , Request(request)
     , Timestamp(Parent->GetTimestamp())
+    , MutationSuppressed(false)
 { }
 
 TMutationContext::TMutationContext(
@@ -39,6 +40,7 @@ TMutationContext::TMutationContext(
     , Request(request)
     , Timestamp(timestamp)
     , RandomGenerator_(randomSeed)
+    , MutationSuppressed(false)
 { }
 
 TVersion TMutationContext::GetVersion() const
@@ -84,6 +86,16 @@ TSharedRef TMutationContext::GetResponseData() const
 void TMutationContext::SetResponseData(TSharedRef data)
 {
     ResponseData = std::move(data);
+}
+
+void TMutationContext::SuppressMutation()
+{
+    MutationSuppressed = true;
+}
+
+bool TMutationContext::IsMutationSuppressed() const
+{
+    return MutationSuppressed;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

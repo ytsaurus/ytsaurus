@@ -21,6 +21,8 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/hydra/rpc_helpers.h>
+
 #include <server/election/election_manager.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -180,6 +182,8 @@ IAttributeDictionary* TObjectProxyBase::MutableAttributes()
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
+    DeclareNonMutating();
+
     context->SetRequestInfo("");
 
     ToProto(response->mutable_object_id(), GetId());
@@ -189,6 +193,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetId)
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 {
+    DeclareNonMutating();
+
     auto userName = request->user();
     auto permission = EPermission(request->permission());
     context->SetRequestInfo("User: %s, Permission: %s",
@@ -502,16 +508,24 @@ void TObjectProxyBase::SerializeAttributes(
 
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
+    TError error;
     try {
         BeforeInvoke(context);
         if (!DoInvoke(context)) {
             ThrowVerbNotSuppored(context->GetVerb());
         }
-        AfterInvoke(context);
     } catch (const TNotALeaderException&) {
+        // TODO(babenko): currently broken
         ForwardToLeader(context);
+        return;
     } catch (const std::exception& ex) {
-        context->Reply(ex);
+        error = ex;
+    }
+    
+    AfterInvoke(context);
+
+    if (!error.IsOK()) {
+        context->Reply(error);
     }
 }
 
@@ -705,6 +719,21 @@ TObjectBase* TObjectProxyBase::GetSchema(EObjectType type)
 TObjectBase* TObjectProxyBase::GetThisSchema()
 {
     return GetSchema(Object->GetType());
+}
+
+void TObjectProxyBase::DeclareMutating()
+{
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    YCHECK(hydraManager->IsMutating());
+}
+
+void TObjectProxyBase::DeclareNonMutating()
+{
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    if (hydraManager->IsMutating()) {
+        auto* mutationContext = hydraManager->GetMutationContext();
+        mutationContext->SuppressMutation();
+    }
 }
 
 void TObjectProxyBase::ValidateTransaction()

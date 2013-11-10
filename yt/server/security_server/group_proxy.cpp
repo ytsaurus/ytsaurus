@@ -81,6 +81,8 @@ private:
     {
         UNUSED(response);
 
+        DeclareMutating();
+
         context->SetResponseInfo("Name: %s",
             ~request->name());
 
@@ -96,6 +98,8 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, RemoveMember)
     {
         UNUSED(response);
+
+        DeclareMutating();
 
         context->SetResponseInfo("Name: %s",
             ~request->name());
