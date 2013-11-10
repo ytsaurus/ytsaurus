@@ -38,8 +38,8 @@ protected:
         TemporaryIndexFile.reset();
     }
 
-    template <class RecordType>
-    TSyncFileChangelogPtr CreateChangelog(size_t recordsCount, TFileChangelogConfigPtr fileChangelogConfig = nullptr) const
+    template <class TRecordType>
+    TSyncFileChangelogPtr CreateChangelog(size_t recordCount, TFileChangelogConfigPtr fileChangelogConfig = nullptr) const
     {
         if (!fileChangelogConfig) {
             fileChangelogConfig = DefaultFileChangelogConfig;
@@ -51,19 +51,19 @@ protected:
         changelogParams.PrevRecordCount = 0;
 
         changeLog->Create(changelogParams);
-        auto records = MakeRecords<RecordType>(0, recordsCount);
+        auto records = MakeRecords<TRecordType>(0, recordCount);
         changeLog->Append(0, records);
         changeLog->Flush();
         return changeLog;
     }
 
-    template <class RecordType>
+    template <class TRecordType>
     std::vector<TSharedRef> MakeRecords(i32 from, i32 to) const
     {
         std::vector<TSharedRef> records(to - from);
         for (i32 recordId = from; recordId < to; ++recordId) {
-            TBlob blob(sizeof(RecordType));
-            *reinterpret_cast<RecordType*>(blob.Begin()) = static_cast<RecordType>(recordId);
+            TBlob blob(sizeof(TRecordType));
+            *reinterpret_cast<TRecordType*>(blob.Begin()) = static_cast<TRecordType>(recordId);
             records[recordId - from] = TSharedRef::FromBlob(std::move(blob));
         }
         return records;
@@ -273,7 +273,7 @@ TEST_F(TSyncFileChangelogTest, TruncateAppend)
     }
 }
 
-TEST_F(TSyncFileChangelogTest, UnalighnedChecksum)
+TEST_F(TSyncFileChangelogTest, UnalignedChecksum)
 {
     const int logRecordCount = 256;
 
@@ -340,6 +340,12 @@ TEST_F(TSyncFileChangelogTest, DISABLED_Profiling)
         }
     }
     SUCCEED();
+}
+
+TEST_F(TSyncFileChangelogTest, SealEmptyChangelog)
+{
+    auto changelog = CreateChangelog<int>(0);
+    changelog->Seal(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
