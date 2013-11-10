@@ -1,18 +1,17 @@
 #include "stdafx.h"
 
-#include <core/formats/schemed_dsv_parser.h>
-
 #include <core/ytree/yson_consumer-mock.h>
 
+#include <ytlib/formats/schemed_dsv_parser.h>
+
 #include <contrib/testing/framework.h>
+
+namespace NYT {
+namespace NFormats {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::NiceMock;
-
-
-namespace NYT {
-namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
