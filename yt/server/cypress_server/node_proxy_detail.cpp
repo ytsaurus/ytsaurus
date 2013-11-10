@@ -97,7 +97,7 @@ void TVersionedUserAttributeDictionary::SetYson(const Stroka& key, const TYsonSt
     auto objectManager = Proxy->Bootstrap->GetObjectManager();
     auto cypressManager = Proxy->Bootstrap->GetCypressManager();
 
-    auto oldValue = GetYson(key);
+    auto oldValue = FindYson(key);
     Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
 
     auto* node = cypressManager->LockNode(
@@ -118,7 +118,7 @@ bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
     auto objectManager = Proxy->Bootstrap->GetObjectManager();
     auto transactionManager = Proxy->Bootstrap->GetTransactionManager();
 
-    auto oldValue = GetYson(key);
+    auto oldValue = FindYson(key);
     Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
 
     auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
