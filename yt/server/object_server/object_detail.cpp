@@ -80,96 +80,87 @@ bool TStagedObject::IsStaged() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserAttributeDictionary
-    : public NYTree::IAttributeDictionary
+class TObjectProxyBase::TUserAttributeDictionary
+    : public IAttributeDictionary
 {
 public:
-    explicit TUserAttributeDictionary(TObjectProxyBase* proxy);
+    explicit TUserAttributeDictionary(TObjectProxyBase* proxy)
+        : Proxy(proxy)
+    { }
 
-    // NYTree::IAttributeDictionary members
-    virtual std::vector<Stroka> List() const override;
-    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const override;
-    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
-    virtual bool Remove(const Stroka& key) override;
+    // IAttributeDictionary members
+    virtual std::vector<Stroka> List() const override
+    {
+        const auto& id = Proxy->GetId();
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
+        std::vector<Stroka> keys;
+        if (attributeSet) {
+            FOREACH (const auto& pair, attributeSet->Attributes()) {
+                // Attribute cannot be empty (i.e. deleted) in null transaction.
+                YASSERT(pair.second);
+                keys.push_back(pair.first);
+            }
+        }
+        return std::move(keys);
+    }
+
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
+    {
+        const auto& id = Proxy->GetId();
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
+        if (!attributeSet) {
+            return Null;
+        }
+        auto it = attributeSet->Attributes().find(key);
+        if (it == attributeSet->Attributes().end()) {
+            return Null;
+        }
+        // Attribute cannot be empty (i.e. deleted) in null transaction.
+        YASSERT(it->second);
+        return it->second;
+    }
+
+    virtual void SetYson(const Stroka& key, const TYsonString& value) override
+    {
+        auto oldValue = FindYson(key);
+        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
+
+        const auto& id = Proxy->GetId();
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(id));
+        attributeSet->Attributes()[key] = value;
+    }
+
+    virtual bool Remove(const Stroka& key) override
+    {
+        auto oldValue = FindYson(key);
+        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
+
+        const auto& id = Proxy->GetId();
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
+        if (!attributeSet) {
+            return false;
+        }
+        auto it = attributeSet->Attributes().find(key);
+        if (it == attributeSet->Attributes().end()) {
+            return false;
+        }
+        // Attribute cannot be empty (i.e. deleted) in null transaction.
+        YASSERT(it->second);
+        attributeSet->Attributes().erase(it);
+        if (attributeSet->Attributes().empty()) {
+            objectManager->RemoveAttributes(TVersionedObjectId(id));
+        }
+        return true;
+    }
 
 private:
     TObjectProxyBase* Proxy;
 
 };
-
-TUserAttributeDictionary::TUserAttributeDictionary(TObjectProxyBase* proxy)
-    : Proxy(proxy)
-{ }
-
-std::vector<Stroka> TUserAttributeDictionary::List() const
-{
-    const auto& id = Proxy->GetId();
-    auto objectManager = Proxy->Bootstrap->GetObjectManager();
-    const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
-    std::vector<Stroka> keys;
-    if (attributeSet) {
-        FOREACH (const auto& pair, attributeSet->Attributes()) {
-            // Attribute cannot be empty (i.e. deleted) in null transaction.
-            YASSERT(pair.second);
-            keys.push_back(pair.first);
-        }
-    }
-    return std::move(keys);
-}
-
-TNullable<TYsonString> TUserAttributeDictionary::FindYson(const Stroka& key) const
-{
-    const auto& id = Proxy->GetId();
-    auto objectManager = Proxy->Bootstrap->GetObjectManager();
-    const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
-    if (!attributeSet) {
-        return Null;
-    }
-    auto it = attributeSet->Attributes().find(key);
-    if (it == attributeSet->Attributes().end()) {
-        return Null;
-    }
-    // Attribute cannot be empty (i.e. deleted) in null transaction.
-    YASSERT(it->second);
-    return it->second;
-}
-
-void TUserAttributeDictionary::SetYson(
-    const Stroka& key,
-    const NYTree::TYsonString& value)
-{
-    auto oldValue = FindYson(key);
-    Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
-
-    const auto& id = Proxy->GetId();
-    auto objectManager = Proxy->Bootstrap->GetObjectManager();
-    auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(id));
-    attributeSet->Attributes()[key] = value;
-}
-
-bool TUserAttributeDictionary::Remove(const Stroka& key)
-{
-    auto oldValue = FindYson(key);
-    Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
-
-    const auto& id = Proxy->GetId();
-    auto objectManager = Proxy->Bootstrap->GetObjectManager();
-    auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
-    if (!attributeSet) {
-        return false;
-    }
-    auto it = attributeSet->Attributes().find(key);
-    if (it == attributeSet->Attributes().end()) {
-        return false;
-    }
-    // Attribute cannot be empty (i.e. deleted) in null transaction.
-    YASSERT(it->second);
-    attributeSet->Attributes().erase(it);
-    if (attributeSet->Attributes().empty()) {
-        objectManager->RemoveAttributes(TVersionedObjectId(id));
-    }
-    return true;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

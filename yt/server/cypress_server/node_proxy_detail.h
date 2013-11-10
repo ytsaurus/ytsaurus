@@ -20,8 +20,6 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedUserAttributeDictionary;
-
 class TNontemplateCypressNodeProxyBase
     : public NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
@@ -58,7 +56,8 @@ public:
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 protected:
-    friend class TVersionedUserAttributeDictionary;
+    class TUserAttributeDictionary;
+    class TResourceUsageVisitor;
 
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
