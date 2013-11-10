@@ -6,31 +6,11 @@
 
 #include <contrib/testing/framework.h>
 
-////////////////////////////////////////////////////////////////////////////////
-
-using NYT::Null;
-using NYT::NYTree::IAttributeDictionary;
-using NYT::NYTree::CreateEphemeralAttributes;
-
+namespace NYT {
+namespace NYTree {
 namespace {
 
-bool IsEqual (
-    const IAttributeDictionary& lhs,
-    const IAttributeDictionary& rhs)
-{
-    if (lhs.List() != rhs.List()) {
-        return false;
-    }
-    FOREACH (const auto& key, lhs.List()) {
-        auto value = rhs.FindYson(key);
-        if (!value) {
-            return false;
-        }
-    }
-    return true;
-}
-
-} //anonymous namespace
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TAttributesTest, CheckAccessors)
 {
@@ -75,7 +55,7 @@ TEST(TAttributesTest, MergeFromTest)
     EXPECT_EQ("Oleg", attributesX->Get<Stroka>("name"));
     EXPECT_EQ(30, attributesX->Get<int>("age"));
 
-    NYT::NYTree::INodePtr node = ConvertToNode(NYT::NYTree::TYsonString("{age=20}"));
+    INodePtr node = ConvertToNode(TYsonString("{age=20}"));
     attributesX->MergeFrom(node->AsMap());
     EXPECT_EQ("Oleg", attributesX->Get<Stroka>("name"));
     EXPECT_EQ(20, attributesX->Get<int>("age"));
@@ -89,7 +69,7 @@ TEST(TAttributesTest, SerializeToNode)
 
     auto node = ConvertToNode(*attributes);
     auto convertedAttributes = ConvertToAttributes(node);
-    EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
+    EXPECT_EQ(*attributes, *convertedAttributes);
 }
 
 TEST(TAttributesTest, SerializeToProto)
@@ -98,9 +78,14 @@ TEST(TAttributesTest, SerializeToProto)
     attributes->Set<Stroka>("name", "Petr");
     attributes->Set<int>("age", 30);
 
-    NYT::NYTree::NProto::TAttributes protoAttributes;
-    NYT::NYTree::ToProto(&protoAttributes, *attributes);
-    auto convertedAttributes = NYT::NYTree::FromProto(protoAttributes);
-    EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
+    NProto::TAttributes protoAttributes;
+    ToProto(&protoAttributes, *attributes);
+    auto convertedAttributes = FromProto(protoAttributes);
+    EXPECT_EQ(*attributes, *convertedAttributes);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYTree
+} // namespace NYT
