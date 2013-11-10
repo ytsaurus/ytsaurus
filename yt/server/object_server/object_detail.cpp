@@ -80,17 +80,16 @@ bool TStagedObject::IsStaged() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserAttributeDictionary::TUserAttributeDictionary(
-    TObjectManagerPtr objectManager,
-    const TObjectId& objectId)
-    : ObjectManager(std::move(objectManager))
-    , ObjectId(objectId)
+TUserAttributeDictionary::TUserAttributeDictionary(TObjectProxyBase* proxy)
+    : Proxy(proxy)
 { }
 
 std::vector<Stroka> TUserAttributeDictionary::List() const
 {
+    const auto& id = Proxy->GetId();
+    auto objectManager = Proxy->Bootstrap->GetObjectManager();
+    const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
     std::vector<Stroka> keys;
-    const auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
     if (attributeSet) {
         FOREACH (const auto& pair, attributeSet->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
@@ -98,12 +97,14 @@ std::vector<Stroka> TUserAttributeDictionary::List() const
             keys.push_back(pair.first);
         }
     }
-    return keys;
+    return std::move(keys);
 }
 
 TNullable<TYsonString> TUserAttributeDictionary::FindYson(const Stroka& key) const
 {
-    const auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
+    const auto& id = Proxy->GetId();
+    auto objectManager = Proxy->Bootstrap->GetObjectManager();
+    const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
     if (!attributeSet) {
         return Null;
     }
@@ -120,13 +121,23 @@ void TUserAttributeDictionary::SetYson(
     const Stroka& key,
     const NYTree::TYsonString& value)
 {
-    auto* attributeSet = ObjectManager->GetOrCreateAttributes(TVersionedObjectId(ObjectId));
+    auto oldValue = FindYson(key);
+    Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
+
+    const auto& id = Proxy->GetId();
+    auto objectManager = Proxy->Bootstrap->GetObjectManager();
+    auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(id));
     attributeSet->Attributes()[key] = value;
 }
 
 bool TUserAttributeDictionary::Remove(const Stroka& key)
 {
-    auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
+    auto oldValue = FindYson(key);
+    Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
+
+    const auto& id = Proxy->GetId();
+    auto objectManager = Proxy->Bootstrap->GetObjectManager();
+    auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
     if (!attributeSet) {
         return false;
     }
@@ -138,7 +149,7 @@ bool TUserAttributeDictionary::Remove(const Stroka& key)
     YASSERT(it->second);
     attributeSet->Attributes().erase(it);
     if (attributeSet->Attributes().empty()) {
-        ObjectManager->RemoveAttributes(TVersionedObjectId(ObjectId));
+        objectManager->RemoveAttributes(TVersionedObjectId(id));
     }
     return true;
 }
@@ -552,9 +563,7 @@ ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
 
 std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 {
-    return std::unique_ptr<IAttributeDictionary>(new TUserAttributeDictionary(
-        Bootstrap->GetObjectManager(),
-        GetId()));
+    return std::unique_ptr<IAttributeDictionary>(new TUserAttributeDictionary(this));
 }
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)

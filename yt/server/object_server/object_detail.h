@@ -51,7 +51,7 @@ class TUserAttributeDictionary
     : public NYTree::IAttributeDictionary
 {
 public:
-    TUserAttributeDictionary(TObjectManagerPtr objectManager, const TObjectId& objectId);
+    explicit TUserAttributeDictionary(TObjectProxyBase* proxy);
 
     // NYTree::IAttributeDictionary members
     virtual std::vector<Stroka> List() const override;
@@ -59,9 +59,8 @@ public:
     virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
     virtual bool Remove(const Stroka& key) override;
 
-protected:
-    TObjectManagerPtr ObjectManager;
-    TObjectId ObjectId;
+private:
+    TObjectProxyBase* Proxy;
 
 };
 
@@ -87,6 +86,8 @@ public:
         bool sortKeys) override;
 
 protected:
+    friend class TUserAttributeDictionary;
+
     NCellMaster::TBootstrap* Bootstrap;
     TObjectBase* Object;
     std::unique_ptr<NYTree::IAttributeDictionary> UserAttributes;
