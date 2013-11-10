@@ -300,6 +300,7 @@ private:
     void Construct(As&&... as)
     {
         YASSERT(!HasValue_);
+        // TODO(babenko): variadic forwarding does not work in VS2012 Nov CTP
 #ifdef _MSC_VER
         new (&Storage_) TValueType(as...);
 #else
