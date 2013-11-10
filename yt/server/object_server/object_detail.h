@@ -46,25 +46,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We need definition of this class in header because we want to inherit it.
-class TUserAttributeDictionary
-    : public NYTree::IAttributeDictionary
-{
-public:
-    explicit TUserAttributeDictionary(TObjectProxyBase* proxy);
-
-    // NYTree::IAttributeDictionary members
-    virtual std::vector<Stroka> List() const override;
-    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const override;
-    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
-    virtual bool Remove(const Stroka& key) override;
-
-private:
-    TObjectProxyBase* Proxy;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
+class TUserAttributeDictionary;
 
 class TObjectProxyBase
     : public virtual NYTree::TSupportsAttributes

@@ -35,8 +35,6 @@ class TAttributeSet;
 class TObjectBase;
 class TNonversionedObjectBase;
 
-class TObjectProxyBase;
-
 class TSchemaObject;
 class TMasterObject;
 
