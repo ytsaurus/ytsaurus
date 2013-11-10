@@ -11,6 +11,8 @@
 
 #include <server/cell_node/public.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -48,6 +50,7 @@ public:
     void SetCellGuid(const TGuid& guid);
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
+    //! If the scan fails, the location becomes disabled, |Disabled| signal is raised, and an empty list is returned.
     std::vector<TChunkDescriptor> Initialize();
 
     //! Updates #UsedSpace and #AvailalbleSpace
@@ -137,7 +140,7 @@ private:
     TLocationConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
 
-    TAtomic Enabled;
+    std::atomic<bool> Enabled;
 
     TGuid CellGuid;
 
@@ -157,7 +160,9 @@ private:
 
     mutable NLog::TTaggedLogger Logger;
 
+    std::vector<TChunkDescriptor> DoInitialize();
     void OnHealthCheckFailed();
+    void ScheduleDisable();
     void DoDisable();
 
 };

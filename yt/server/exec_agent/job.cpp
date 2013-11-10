@@ -352,20 +352,16 @@ private:
             auto* schedulerJobSpecExt = JobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt->io_config()));
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Error deserializing job IO configuration")
-                << ex;
-            DoAbort(wrappedError);
-            return;
+            auto error = TError("Error deserializing job IO configuration") << ex;
+            THROW_ERROR error;
         }
 
         auto ioConfig = New<TJobIOConfig>();
         try {
             ioConfig->Load(ioConfigNode);
         } catch (const std::exception& ex) {
-            auto error = TError("Error validating job IO configuration")
-                << ex;
-            DoAbort(error);
-            return;
+            auto error = TError("Error validating job IO configuration") << ex;
+            THROW_ERROR error;
         }
 
         auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
@@ -384,8 +380,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError(EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
                 << ex;
-            DoAbort(error);
-            return;
+            THROW_ERROR error;
         }
     }
 
@@ -570,14 +565,10 @@ private:
 
     void PrepareRegularFile(const TRegularFileDescriptor& descriptor)
     {
-        try {
-            if (CanPrepareRegularFileViaSymlink(descriptor)) {
-                PrepareRegularFileViaSymlink(descriptor);
-            } else {
-                PrepareRegularFileViaDownload(descriptor);
-            }
-        } catch (const std::exception& ex) {
-            DoAbort(ex);
+        if (CanPrepareRegularFileViaSymlink(descriptor)) {
+            PrepareRegularFileViaSymlink(descriptor);
+        } else {
+            PrepareRegularFileViaDownload(descriptor);
         }
     }
 
@@ -696,8 +687,6 @@ private:
 
         CheckedWaitFor(DownloadChunks(descriptor.table()));
 
-        if (JobPhase > EJobPhase::Cleanup)
-            return;
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.table());

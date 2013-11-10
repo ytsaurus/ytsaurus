@@ -590,6 +590,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         auto newUserKeys = newAttributes->List();
+        std::sort(newUserKeys.begin(), newUserKeys.end());
 
         if (!userAttributes) {
              if (!newUserKeys.empty()) {
@@ -599,18 +600,15 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         auto oldUserKeys = userAttributes->List();
+        std::sort(oldUserKeys.begin(), oldUserKeys.end());
 
         FOREACH (const auto& key, newUserKeys) {
-            auto newAttributeYson = newAttributes->GetYson(key);
-            auto oldAttributeYson = userAttributes->FindYson(key);
-            GuardedValidateUserAttributeUpdate(key, oldAttributeYson, newAttributeYson);
-            userAttributes->SetYson(key, newAttributeYson);
+            auto value = newAttributes->GetYson(key);
+            userAttributes->SetYson(key, value);
         }
 
         FOREACH (const auto& key, oldUserKeys) {
             if (!newAttributes->FindYson(key)) {
-                auto oldAttributeYson = userAttributes->GetYson(key);
-                GuardedValidateUserAttributeUpdate(key, oldAttributeYson, Null);
                 userAttributes->Remove(key);
             }
         }
@@ -656,11 +654,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 THROW_ERROR_EXCEPTION("User attributes are not supported");
             }
             
-            auto oldWholeYson = userAttributes->FindYson(key);
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                GuardedValidateUserAttributeUpdate(key, oldWholeYson, newYson);
                 userAttributes->SetYson(key, newYson);
             } else {
+                auto oldWholeYson = userAttributes->FindYson(key);
                 if (!oldWholeYson) {
                     ThrowNoSuchUserAttribute(key);
                 }
@@ -669,7 +666,6 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
                 auto newWholeYson = ConvertToYsonStringStable(wholeNode);
 
-                GuardedValidateUserAttributeUpdate(key, oldWholeYson, newWholeYson);
                 userAttributes->SetYson(key, newWholeYson);
             }
         }
@@ -705,9 +701,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
     if (tokenizer.GetToken() == WildcardToken) {
         if (userAttributes) {
             auto userKeys = userAttributes->List();
-            FOREACH (const auto& key, userKeys) {
-                GuardedValidateUserAttributeUpdate(key, userAttributes->GetYson(key), Null);
-            }
+            std::sort(userKeys.begin(), userKeys.end());
             FOREACH (const auto& key, userKeys) {
                 YCHECK(userAttributes->Remove(key));
             }
@@ -731,15 +725,12 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 }
             }
 
-            GuardedValidateUserAttributeUpdate(key, userYson, Null);
             YCHECK(userAttributes->Remove(key));
         } else {
             if (userYson) {
                 auto userNode = ConvertToNode(userYson);
                 SyncYPathRemove(userNode, tokenizer.GetInput());
                 auto updatedUserYson = ConvertToYsonStringStable(userNode);
-
-                GuardedValidateUserAttributeUpdate(key, userYson, updatedUserYson);
                 userAttributes->SetYson(key, updatedUserYson);
             } else {
                 TStringStream stream;

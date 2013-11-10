@@ -46,27 +46,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We need definition of this class in header because we want to inherit it.
-class TUserAttributeDictionary
-    : public NYTree::IAttributeDictionary
-{
-public:
-    TUserAttributeDictionary(TObjectManagerPtr objectManager, const TObjectId& objectId);
-
-    // NYTree::IAttributeDictionary members
-    virtual std::vector<Stroka> List() const override;
-    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const override;
-    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
-    virtual bool Remove(const Stroka& key) override;
-
-protected:
-    TObjectManagerPtr ObjectManager;
-    TObjectId ObjectId;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TObjectProxyBase
     : public virtual NYTree::TSupportsAttributes
     , public virtual NYTree::ISystemAttributeProvider
@@ -87,6 +66,8 @@ public:
         bool sortKeys) override;
 
 protected:
+    class TUserAttributeDictionary;
+
     NCellMaster::TBootstrap* Bootstrap;
     TObjectBase* Object;
     std::unique_ptr<NYTree::IAttributeDictionary> UserAttributes;

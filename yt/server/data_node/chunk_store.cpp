@@ -47,15 +47,11 @@ void TChunkStore::Initialize()
             locationConfig,
             Bootstrap);
 
-        std::vector<TChunkDescriptor> descriptors;
-        try {
-            descriptors = location->Initialize();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to initialize location %s", ~location->GetPath().Quote());
-            continue;
-        }
+        location->SubscribeDisabled(
+            BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
 
-        FOREACH (const auto& descriptor, descriptors) {
+        auto descriptors = location->Initialize();
+        for (const auto& descriptor : descriptors) {
             auto chunk = New<TStoredChunk>(
                 location,
                 descriptor,
@@ -63,11 +59,10 @@ void TChunkStore::Initialize()
             RegisterExistingChunk(chunk);
         }
 
-        location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
         Locations_.push_back(location);
     }
 
-    FOREACH (const auto& location, Locations_) {
+    for (const auto& location : Locations_) {
         const auto& locationCellGuid = location->GetCellGuid();
         if (locationCellGuid.IsEmpty())
             continue;
@@ -181,7 +176,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
     candidates.reserve(Locations_.size());
 
     int minCount = std::numeric_limits<int>::max();
-    FOREACH (const auto& location, Locations_) {
+    for (const auto& location : Locations_) {
         if (location->IsFull() || !location->IsEnabled()) {
             continue;
         }
@@ -208,7 +203,7 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 {
     TChunks result;
     result.reserve(ChunkMap.size());
-    FOREACH (const auto& pair, ChunkMap) {
+    for (const auto& pair : ChunkMap) {
         result.push_back(pair.second);
     }
     return result;
@@ -262,7 +257,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     // schedule an out-of-order heartbeat to notify the master about the disaster.
     auto masterConnector = Bootstrap->GetMasterConnector();
     masterConnector->RegisterAlert(Sprintf("Chunk store %s is disabled",
-        ~location->GetId()));
+        ~location->GetId().Quote()));
     masterConnector->ForceRegister();
 }
 

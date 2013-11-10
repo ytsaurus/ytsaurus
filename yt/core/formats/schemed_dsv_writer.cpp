@@ -23,7 +23,12 @@ TSchemedDsvWriter::TSchemedDsvWriter(
     , ValueCount_(0)
     , TableIndex_(0)
     , State_(EState::None)
-{ }
+{
+    // Initialize Values_ with alive keys
+    for (const auto& key: Keys_) {
+        Values_[key] = TStringBuf();
+    }
+}
 
 void TSchemedDsvWriter::OnDoubleScalar(double value)
 {

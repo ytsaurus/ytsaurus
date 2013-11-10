@@ -32,7 +32,6 @@ add_msvc_precompiled_header(
 
 add_executable( ytserver
   "main.cpp"
-  ${YT_SOURCE_FILES}
 )
 
 add_library( ytserver_lib
@@ -47,6 +46,7 @@ include_directories(
 )
 
 target_link_libraries( ytserver
+  ytserver_lib
   ytlib
 )
 

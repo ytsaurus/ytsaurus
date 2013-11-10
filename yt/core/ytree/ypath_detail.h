@@ -153,6 +153,12 @@ protected:
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue);
 
+    //! Same as #ValidateUserAttributeUpdate but wraps the exceptions.
+    void GuardedValidateUserAttributeUpdate(
+        const Stroka& key,
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue);
+
     //! Called after some user attributes are changed.
     virtual void OnUserAttributesUpdated();
 
@@ -173,11 +179,6 @@ private:
     void DoRemoveAttribute(const TYPath& path);
 
     void GuardedSetSystemAttribute(const Stroka& key, const TYsonString& value);
-
-    void GuardedValidateUserAttributeUpdate(
-        const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
-        const TNullable<TYsonString>& newValue);
 
 };
 
