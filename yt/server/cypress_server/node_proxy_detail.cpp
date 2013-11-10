@@ -41,134 +41,124 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedUserAttributeDictionary
-    : public NYTree::IAttributeDictionary
+class TNontemplateCypressNodeProxyBase::TUserAttributeDictionary
+    : public IAttributeDictionary
 {
 public:
-    explicit TVersionedUserAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy);
+    explicit TUserAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy)
+        : Proxy(proxy)
+    { }
 
-    virtual std::vector<Stroka> List() const override;
-    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& name) const override;
-    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
-    virtual bool Remove(const Stroka& key) override;
+    virtual std::vector<Stroka> List() const override
+    {
+        auto keys = ListNodeAttributes(
+            Proxy->Bootstrap,
+            Proxy->TrunkNode,
+            Proxy->Transaction);
+        return std::vector<Stroka>(keys.begin(), keys.end());
+    }
+
+    virtual TNullable<TYsonString> FindYson(const Stroka& name) const override
+    {
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        auto transactionManager = Proxy->Bootstrap->GetTransactionManager();
+
+        auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
+
+        FOREACH (const auto* transaction, transactions) {
+            TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
+            const auto* userAttributes = objectManager->FindAttributes(versionedId);
+            if (userAttributes) {
+                auto it = userAttributes->Attributes().find(name);
+                if (it != userAttributes->Attributes().end()) {
+                    return it->second;
+                }
+            }
+        }
+
+        return Null;
+    }
+
+    virtual void SetYson(const Stroka& key, const TYsonString& value) override
+    {
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        auto cypressManager = Proxy->Bootstrap->GetCypressManager();
+
+        auto oldValue = FindYson(key);
+        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
+
+        auto* node = cypressManager->LockNode(
+            Proxy->TrunkNode,
+            Proxy->Transaction,
+            TLockRequest::SharedAttribute(key));
+        auto versionedId = node->GetVersionedId();
+
+        auto* userAttributes = objectManager->GetOrCreateAttributes(versionedId);
+        userAttributes->Attributes()[key] = value;
+
+        cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
+    }
+
+    virtual bool Remove(const Stroka& key) override
+    {
+        auto cypressManager = Proxy->Bootstrap->GetCypressManager();
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        auto transactionManager = Proxy->Bootstrap->GetTransactionManager();
+
+        auto oldValue = FindYson(key);
+        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
+
+        auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
+        std::reverse(transactions.begin(), transactions.end());
+
+        const TTransaction* containingTransaction = nullptr;
+        bool contains = false;
+        FOREACH (const auto* transaction, transactions) {
+            TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
+            const auto* userAttributes = objectManager->FindAttributes(versionedId);
+            if (userAttributes) {
+                auto it = userAttributes->Attributes().find(key);
+                if (it != userAttributes->Attributes().end()) {
+                    contains = it->second;
+                    if (contains) {
+                        containingTransaction = transaction;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (!contains) {
+            return false;
+        }
+
+        auto* node = cypressManager->LockNode(
+            Proxy->TrunkNode,
+            Proxy->Transaction,
+            TLockRequest::SharedAttribute(key));
+        auto versionedId = node->GetVersionedId();
+
+        if (containingTransaction == Proxy->Transaction) {
+            auto* userAttributes = objectManager->GetAttributes(versionedId);
+            YCHECK(userAttributes->Attributes().erase(key) == 1);
+        } else {
+            YCHECK(!containingTransaction);
+            auto* userAttributes = objectManager->GetOrCreateAttributes(versionedId);
+            userAttributes->Attributes()[key] = Null;
+        }
+
+        cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
+        return true;
+    }
 
 protected:
     TNontemplateCypressNodeProxyBase* Proxy;
 
 };
 
-TVersionedUserAttributeDictionary::TVersionedUserAttributeDictionary(
-    TNontemplateCypressNodeProxyBase* proxy)
-    : Proxy(proxy)
-{ }
-
-std::vector<Stroka> TVersionedUserAttributeDictionary::List() const
-{
-    auto keys = ListNodeAttributes(
-        Proxy->Bootstrap,
-        Proxy->TrunkNode,
-        Proxy->Transaction);
-    return std::vector<Stroka>(keys.begin(), keys.end());
-}
-
-TNullable<TYsonString> TVersionedUserAttributeDictionary::FindYson(const Stroka& name) const
-{
-    auto objectManager = Proxy->Bootstrap->GetObjectManager();
-    auto transactionManager = Proxy->Bootstrap->GetTransactionManager();
-
-    auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
-
-    FOREACH (const auto* transaction, transactions) {
-        TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
-        const auto* userAttributes = objectManager->FindAttributes(versionedId);
-        if (userAttributes) {
-            auto it = userAttributes->Attributes().find(name);
-            if (it != userAttributes->Attributes().end()) {
-                return it->second;
-            }
-        }
-    }
-
-    return Null;
-}
-
-void TVersionedUserAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
-{
-    auto objectManager = Proxy->Bootstrap->GetObjectManager();
-    auto cypressManager = Proxy->Bootstrap->GetCypressManager();
-
-    auto oldValue = FindYson(key);
-    Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
-
-    auto* node = cypressManager->LockNode(
-        Proxy->TrunkNode,
-        Proxy->Transaction,
-        TLockRequest::SharedAttribute(key));
-    auto versionedId = node->GetVersionedId();
-
-    auto* userAttributes = objectManager->GetOrCreateAttributes(versionedId);
-    userAttributes->Attributes()[key] = value;
-
-    cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
-}
-
-bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
-{
-    auto cypressManager = Proxy->Bootstrap->GetCypressManager();
-    auto objectManager = Proxy->Bootstrap->GetObjectManager();
-    auto transactionManager = Proxy->Bootstrap->GetTransactionManager();
-
-    auto oldValue = FindYson(key);
-    Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
-
-    auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
-    std::reverse(transactions.begin(), transactions.end());
-
-    const TTransaction* containingTransaction = nullptr;
-    bool contains = false;
-    FOREACH (const auto* transaction, transactions) {
-        TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
-        const auto* userAttributes = objectManager->FindAttributes(versionedId);
-        if (userAttributes) {
-            auto it = userAttributes->Attributes().find(key);
-            if (it != userAttributes->Attributes().end()) {
-                contains = it->second;
-                if (contains) {
-                    containingTransaction = transaction;
-                }
-                break;
-            }
-        }
-    }
-
-    if (!contains) {
-        return false;
-    }
-
-    auto* node = cypressManager->LockNode(
-        Proxy->TrunkNode,
-        Proxy->Transaction,
-        TLockRequest::SharedAttribute(key));
-    auto versionedId = node->GetVersionedId();
-
-    if (containingTransaction == Proxy->Transaction) {
-        auto* userAttributes = objectManager->GetAttributes(versionedId);
-        YCHECK(userAttributes->Attributes().erase(key) == 1);
-    } else {
-        YCHECK(!containingTransaction);
-        auto* userAttributes = objectManager->GetOrCreateAttributes(versionedId);
-        userAttributes->Attributes()[key] = Null;
-    }
-
-    cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-class TResourceUsageVisitor
+class TNontemplateCypressNodeProxyBase::TResourceUsageVisitor
     : public ICypressNodeVisitor
 {
 public:
@@ -211,8 +201,6 @@ private:
 
 };
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
@@ -227,12 +215,12 @@ public:
 
     ~TNodeFactory();
 
-    virtual NYTree::IStringNodePtr CreateString() override;
-    virtual NYTree::IIntegerNodePtr CreateInteger() override;
-    virtual NYTree::IDoubleNodePtr CreateDouble() override;
-    virtual NYTree::IMapNodePtr CreateMap() override;
-    virtual NYTree::IListNodePtr CreateList() override;
-    virtual NYTree::IEntityNodePtr CreateEntity() override;
+    virtual IStringNodePtr CreateString() override;
+    virtual IIntegerNodePtr CreateInteger() override;
+    virtual IDoubleNodePtr CreateDouble() override;
+    virtual IMapNodePtr CreateMap() override;
+    virtual IListNodePtr CreateList() override;
+    virtual IEntityNodePtr CreateEntity() override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() override;
 
@@ -242,7 +230,7 @@ public:
 
     virtual ICypressNodeProxyPtr CreateNode(
         NObjectClient::EObjectType type,
-        NYTree::IAttributeDictionary* attributes = nullptr,
+        IAttributeDictionary* attributes = nullptr,
         TReqCreate* request = nullptr,
         TRspCreate* response = nullptr) override;
 
@@ -829,7 +817,7 @@ const ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr
 
 std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateUserAttributes()
 {
-    return std::unique_ptr<IAttributeDictionary>(new TVersionedUserAttributeDictionary(this));
+    return std::unique_ptr<IAttributeDictionary>(new TUserAttributeDictionary(this));
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(

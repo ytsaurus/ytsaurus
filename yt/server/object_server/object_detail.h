@@ -46,8 +46,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserAttributeDictionary;
-
 class TObjectProxyBase
     : public virtual NYTree::TSupportsAttributes
     , public virtual NYTree::ISystemAttributeProvider
@@ -68,7 +66,7 @@ public:
         bool sortKeys) override;
 
 protected:
-    friend class TUserAttributeDictionary;
+    class TUserAttributeDictionary;
 
     NCellMaster::TBootstrap* Bootstrap;
     TObjectBase* Object;
