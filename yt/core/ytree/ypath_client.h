@@ -279,7 +279,6 @@ INodePtr CloneNode(INodePtr node);
 INodePtr UpdateNode(INodePtr base, INodePtr patch);
 
 //! Checks given nodes for deep equality.
-// TODO(babenko): currently it ignores attributes
 bool AreNodesEqual(INodePtr lhs, INodePtr rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
