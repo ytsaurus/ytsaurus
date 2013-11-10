@@ -60,6 +60,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override;
+    bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
@@ -168,6 +169,25 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     }
 
     return TBase::GetSystemAttribute(key, consumer);
+}
+
+bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
+    auto* node = LockThisTypedImpl();
+
+    if (key == "sorted_by") {
+        ValidateNoTransaction();
+
+        auto* chunkList = node->GetChunkList();
+        if (!chunkList->Children().empty() || !chunkList->Parents().empty()) {
+            THROW_ERROR_EXCEPTION("Operation is not supported");
+        }
+
+        chunkList->SortedBy() = ConvertTo<TKeyColumns>(value);
+        return true;
+    }
+
+    return TBase::SetSystemAttribute(key, value);
 }
 
 void TTableNodeProxy::ValidateUserAttributeUpdate(
