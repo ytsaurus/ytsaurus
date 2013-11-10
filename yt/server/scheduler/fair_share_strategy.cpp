@@ -1014,7 +1014,7 @@ private:
 
         operationElement->SetPool(~pool);
         pool->AddChild(operationElement);
-        pool->ResourceUsage() += operationElement->ResourceUsage();
+        IncreasePoolUsage(pool, operationElement->ResourceUsage());
 
         Host->GetMasterConnector()->AddOperationWatcherRequester(
             operation,
@@ -1031,12 +1031,11 @@ private:
     void OnOperationUnregistered(TOperationPtr operation)
     {
         auto operationElement = GetOperationElement(operation);
-        auto pool = operationElement->GetPool();
+        auto* pool = operationElement->GetPool();
 
         YCHECK(OperationToElement.erase(operation) == 1);
         pool->RemoveChild(operationElement);
-        pool->ResourceUsage() -= operationElement->ResourceUsage();
-        pool->Update();
+        IncreasePoolUsage(pool, -operationElement->ResourceUsage());
 
         LOG_INFO("Operation removed from pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetOperationId()),
@@ -1151,6 +1150,7 @@ private:
     void UnregisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.erase(pool->GetId()) == 1);
+        SetPoolParent(pool, nullptr);
         GetPoolParentElement(pool)->RemoveChild(pool);
 
         LOG_INFO("Pool unregistered (Pool: %s, Parent: %s)",
@@ -1163,14 +1163,27 @@ private:
         if (pool->GetParent() == parent)
             return;
 
-        LOG_INFO("Changing pool parent (Pool: %s, OldParent: %s, NewParent: %s)",
-            ~GetPoolId(pool),
-            ~GetPoolId(pool->GetParent()),
-            ~GetPoolId(parent));
-
+        auto* oldParent = pool->GetParent();
+        if (oldParent) {
+            IncreasePoolUsage(oldParent, -pool->ResourceUsage());
+        }
         GetPoolParentElement(pool)->RemoveChild(pool);
+
         pool->SetParent(~parent);
+        
         GetPoolParentElement(pool)->AddChild(pool);
+        if (parent) {
+            IncreasePoolUsage(parent, pool->ResourceUsage());
+        }
+    }
+
+    void IncreasePoolUsage(TPoolPtr pool, const TNodeResources& delta)
+    {
+        auto* currentPool = ~pool;
+        while (currentPool) {
+            currentPool->ResourceUsage() += delta;
+            currentPool = currentPool->GetParent();
+        }
     }
 
 
@@ -1260,15 +1273,14 @@ private:
                         if (pool) {
                             // Reconfigure existing pool.
                             pool->SetConfig(config);
-                            SetPoolParent(pool, parent);
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
                             pool = New<TPool>(Host, childId);
                             pool->SetConfig(config);
-                            pool->SetParent(~parent);
                             RegisterPool(pool);
                         }
+                        SetPoolParent(pool, parent);
 
                         // Parse children.
                         parseConfig(childNode, ~pool);
@@ -1361,8 +1373,8 @@ private:
         const TNodeResources& resourcesDelta)
     {
         element->ResourceUsage() += resourcesDelta;
-        element->GetPool()->ResourceUsage() += resourcesDelta;
-        
+        IncreasePoolUsage(element->GetPool(), resourcesDelta);
+
         const auto& attributes = element->Attributes();
         auto limits = Host->GetTotalResourceLimits();
 
