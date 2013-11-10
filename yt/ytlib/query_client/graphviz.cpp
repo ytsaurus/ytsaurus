@@ -12,6 +12,7 @@
 
 #include <core/misc/assert.h>
 #include <core/misc/proc.h>
+#include <core/misc/hash.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -25,18 +26,6 @@
 // Required in printing visitor.
 #include <core/misc/guid.h>
 #include <core/misc/protobuf_helpers.h>
-
-// Required for std::unordered_set.
-namespace std {
-template <>
-struct hash<std::pair<const void*, const void*>>
-{
-    std::size_t operator () (const std::pair<const void*, const void*>& pair) const
-    {
-        return (size_t)pair.first + (size_t)pair.second * 17;
-    }
-};
-} // namespace std
 
 namespace NYT {
 namespace NDot {
