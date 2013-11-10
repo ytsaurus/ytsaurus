@@ -166,7 +166,7 @@ public: \
     \
     void Unsubscribe##name(const ::NYT::TCallback<signature>& callback) \
     { \
-        name##_.Subscribe(callback); \
+        name##_.Unsubscribe(callback); \
     }
 
 #define DECLARE_SIGNAL(signature, name) \
