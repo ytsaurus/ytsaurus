@@ -6,7 +6,6 @@
 
 #include <core/misc/string.h>
 
-#include <ytlib/object_client/public.h>
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>

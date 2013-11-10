@@ -7,7 +7,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/object_client/public.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/chunk_reader.h>
