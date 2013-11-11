@@ -66,7 +66,7 @@ public:
         guard.Release();
 
         for (const auto& callback : callbacks) {
-            // NB: Don't forward, pass as is. Makes sense when one than one handler is attached.
+            // NB: Don't forward, pass as is. Makes sense when more than one handler is attached.
             callback.Run(args...);
         }
     }
