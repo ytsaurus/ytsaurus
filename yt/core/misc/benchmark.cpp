@@ -23,8 +23,6 @@
 
 #include "benchmark.h"
 
-#include "foreach.h"
-
 #include <algorithm>
 #include <cmath>
 #include <iostream>
