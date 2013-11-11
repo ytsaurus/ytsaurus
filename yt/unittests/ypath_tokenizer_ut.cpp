@@ -1,7 +1,6 @@
 #include "stdafx.h"
 
 #include <core/ypath/tokenizer.h>
-#include <core/misc/foreach.h>
 
 #include <contrib/testing/framework.h>
 

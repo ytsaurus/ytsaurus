@@ -1,6 +1,5 @@
 #include "stdafx.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/common.h>
 
 #include <util/generic/vector.h>

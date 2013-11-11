@@ -1,5 +1,3 @@
-#include <core/misc/foreach.h>
-
 #include <core/erasure/codec.h>
 
 #include <ytlib/chunk_client/file_reader.h>

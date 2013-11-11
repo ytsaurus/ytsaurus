@@ -1,4 +1,3 @@
-#include <core/misc/foreach.h>
 #include <core/compression/codec.h>
 
 #include <contrib/testing/framework.h>

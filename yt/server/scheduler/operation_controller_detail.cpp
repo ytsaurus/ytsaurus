@@ -2772,7 +2772,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
             auto slices = CreateChunkSlice(chunkSpec)->SliceEvenly(sliceDataSize);
             appendStripes(slices);
         } else {
-            for (const auto& slice, CreateErasureChunkSlices(chunkSpec : codecId)) {
+            for (const auto& slice : CreateErasureChunkSlices(chunkSpec, codecId)) {
                 auto slices = slice->SliceEvenly(sliceDataSize);
                 appendStripes(slices);
             }
