@@ -76,7 +76,7 @@ TAsyncError TSnapshotBuilder::Run()
 
     // Capture everything needed in Build.
     auto scheduler = Bootstrap->GetScheduler();
-    FOREACH (auto operation, scheduler->GetOperations()) {
+    for (auto operation : scheduler->GetOperations()) {
         if (operation->GetState() != EOperationState::Running)
             continue;
 
@@ -102,7 +102,7 @@ TDuration TSnapshotBuilder::GetTimeout() const
 
 void TSnapshotBuilder::Build()
 {
-    FOREACH (const auto& job, Jobs) {
+    for (const auto& job : Jobs) {
         Build(job);
     }
 }
@@ -129,7 +129,7 @@ TError TSnapshotBuilder::OnBuilt(TError error)
         return error;
     }
 
-    FOREACH (const auto& job, Jobs) {
+    for (const auto& job : Jobs) {
         UploadSnapshot(job);
     }
 

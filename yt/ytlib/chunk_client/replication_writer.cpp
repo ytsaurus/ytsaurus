@@ -642,7 +642,7 @@ void TReplicationWriter::Open()
         ~SessionType.ToString());
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
-    FOREACH (auto node, Nodes) {
+    for (auto node : Nodes) {
         auto onSuccess = BIND(
             &TReplicationWriter::OnChunkStarted,
             MakeWeak(this),
@@ -686,7 +686,7 @@ void TReplicationWriter::ShiftWindow()
         return;
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
-    FOREACH (auto node, Nodes) {
+    for (auto node : Nodes) {
         if (node->IsAlive()) {
             auto onSuccess = BIND(
                 &TReplicationWriter::OnBlockFlushed,
@@ -802,7 +802,7 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
         TError cumulativeError(
             NChunkClient::EErrorCode::AllTargetNodesFailed,
             "Not enough target nodes to finish upload");
-        FOREACH (const auto node, Nodes) {
+        for (const auto node : Nodes) {
             YCHECK(!node->IsAlive());
             cumulativeError.InnerErrors().push_back(node->Error);
         }
@@ -863,7 +863,7 @@ void TReplicationWriter::OnSessionStarted()
     LOG_INFO("Writer is ready");
 
     IsInitComplete = true;
-    FOREACH (auto& group, Window) {
+    for (auto& group : Window) {
         group->Process();
     }
 
@@ -882,7 +882,7 @@ void TReplicationWriter::CloseSession()
     LOG_INFO("Closing writer");
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
-    FOREACH (auto node, Nodes) {
+    for (auto node : Nodes) {
         if (node->IsAlive()) {
             auto onSuccess = BIND(
                 &TReplicationWriter::OnChunkFinished,
@@ -987,7 +987,7 @@ void TReplicationWriter::CancelPing(TNodePtr node)
 void TReplicationWriter::CancelAllPings()
 {
     // No thread affinity - called from dtor.
-    FOREACH (auto node, Nodes) {
+    for (auto node : Nodes) {
         CancelPing(node);
     }
 }
@@ -1121,7 +1121,7 @@ const std::vector<int> TReplicationWriter::GetWrittenIndexes() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     std::vector<int> result;
-    FOREACH (auto node, Nodes) {
+    for (auto node : Nodes) {
         if (node->IsAlive()) {
             result.push_back(node->Index);
         }

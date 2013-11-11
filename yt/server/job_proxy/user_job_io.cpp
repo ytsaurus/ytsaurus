@@ -93,7 +93,7 @@ double TUserJobIO::GetProgress() const
     i64 total = 0;
     i64 current = 0;
 
-    FOREACH (const auto& input, Inputs) {
+    for (const auto& input : Inputs) {
         total += input->GetSessionRowCount();
         current += input->GetSessionRowIndex();
     }
@@ -111,7 +111,7 @@ double TUserJobIO::GetProgress() const
 TDataStatistics TUserJobIO::GetInputDataStatistics() const
 {
     TDataStatistics statistics = ZeroDataStatistics();
-    FOREACH (const auto& input, Inputs) {
+    for (const auto& input : Inputs) {
         statistics += input->GetDataStatistics();
     }
     return statistics;
@@ -120,7 +120,7 @@ TDataStatistics TUserJobIO::GetInputDataStatistics() const
 TDataStatistics TUserJobIO::GetOutputDataStatistics() const
 {
     TDataStatistics statistics = ZeroDataStatistics();
-    FOREACH (const auto& output, Outputs) {
+    for (const auto& output : Outputs) {
         statistics += output->GetProvider()->GetDataStatistics();
     }    
     return statistics;
@@ -140,7 +140,7 @@ std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
 std::vector<TChunkId> TUserJobIO::GetFailedChunkIds() const
 {
     std::vector<TChunkId> result;
-    FOREACH (const auto& input, Inputs) {
+    for (const auto& input : Inputs) {
         auto part = input->GetFailedChunkIds();
         result.insert(result.end(), part.begin(), part.end());
     }
@@ -149,7 +149,7 @@ std::vector<TChunkId> TUserJobIO::GetFailedChunkIds() const
 
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
-    FOREACH (const auto& output, Outputs) {
+    for (const auto& output : Outputs) {
         *result->add_output_boundary_keys() = output->GetProvider()->GetBoundaryKeys();
     }
 }

@@ -94,7 +94,7 @@ template <class T, unsigned N>
 void Serialize(const TSmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    FOREACH (const auto& item, items) {
+    for (const auto& item : items) {
         consumer->OnListItem();
         Serialize(item, consumer);
     }
@@ -106,7 +106,7 @@ template <class T>
 void Serialize(const std::vector<T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    FOREACH (const auto& item, items) {
+    for (const auto& item : items) {
         consumer->OnListItem();
         Serialize(item, consumer);
     }
@@ -119,7 +119,7 @@ void Serialize(const yhash_set<T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     auto sortedItems = GetSortedIterators(items);
-    FOREACH (const auto& item, sortedItems) {
+    for (const auto& item : sortedItems) {
         consumer->OnListItem();
         Serialize(*item, consumer);
     }
@@ -132,7 +132,7 @@ void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer
 {
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(items);
-    FOREACH (const auto& pair, sortedItems) {
+    for (const auto& pair : sortedItems) {
         consumer->OnKeyedItem(pair->first);
         Serialize(pair->second, consumer);
     }
@@ -232,7 +232,7 @@ template <class T>
 void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
-    FOREACH (const auto& pair, mapNode->GetChildren()) {
+    for (const auto& pair : mapNode->GetChildren()) {
         auto& key = pair.first;
         T value;
         Deserialize(value, pair.second);

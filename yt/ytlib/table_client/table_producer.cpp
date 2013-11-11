@@ -49,7 +49,7 @@ void ProduceRow(IYsonConsumer* consumer, const TRow& row)
     consumer->OnListItem();
 
     consumer->OnBeginMap();
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         consumer->OnKeyedItem(pair.first);
         consumer->OnRaw(pair.second, EYsonType::Node);
     }

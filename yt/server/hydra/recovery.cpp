@@ -262,7 +262,7 @@ void TRecovery::ReplayChangelog(IChangelogPtr changelog, int targetRecordId)
         targetRecordId - 1,
         changelog->GetId());
 
-    FOREACH (const auto& data, recordsData)  {
+    for (const auto& data : recordsData)  {
         DecoratedAutomaton->ApplyMutationDuringRecovery(data);
     }
 }
@@ -373,7 +373,7 @@ TError TFollowerRecovery::DoRun(TVersion syncVersion)
             LOG_INFO("Logging %" PRISZT " postponed mutations",
                 mutations.size());
 
-            FOREACH (const auto& mutation, mutations) {
+            for (const auto& mutation : mutations) {
                 switch (mutation.Type) {
                     case TPostponedMutation::EType::Mutation:
                         DecoratedAutomaton->LogMutationAtFollower(mutation.RecordData, nullptr);
@@ -453,7 +453,7 @@ TError TFollowerRecovery::PostponeMutations(
         recordsData.size(),
         ~ToString(PostponedVersion));
 
-    FOREACH (const auto& data, recordsData) {
+    for (const auto& data : recordsData) {
         PostponedMutations.push_back(TPostponedMutation::CreateMutation(data));
     }
 

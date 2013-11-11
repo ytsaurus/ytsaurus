@@ -146,7 +146,7 @@ public:
 
     void Shutdown()
     {
-        FOREACH (auto& bucket, Buckets) {
+        for (auto& bucket : Buckets) {
             bucket.Queue->Shutdown();
         }
         TExecutorThread::Shutdown();
@@ -183,7 +183,7 @@ private:
         // Compute min excess over non-empty queues.
         i64 minExcess = std::numeric_limits<i64>::max();
         TBucket* minBucket = nullptr;
-        FOREACH (auto& bucket, Buckets) {
+        for (auto& bucket : Buckets) {
             if (!bucket.Queue->IsEmpty()) {
                 if (bucket.ExcessTime < minExcess) {
                     minExcess = bucket.ExcessTime;
@@ -205,7 +205,7 @@ private:
         }
 
         // Reduce excesses (with truncation).
-        FOREACH (auto& bucket, Buckets) {
+        for (auto& bucket : Buckets) {
             bucket.ExcessTime = std::max<i64>(0, bucket.ExcessTime - CurrentBucket->ExcessTime);
         }
 
@@ -280,7 +280,7 @@ public:
     void Shutdown()
     {
         Queue->Shutdown();
-        FOREACH (auto thread, Threads) {
+        for (auto thread : Threads) {
             thread->Shutdown();
         }
     }

@@ -31,12 +31,12 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     auto transactions = transactionManager->GetTransactionPath(transaction);
     std::reverse(transactions.begin(), transactions.end());
 
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
             const auto* mapNode = static_cast<const TMapNode*>(node);
-            FOREACH (const auto& pair, mapNode->KeyToChild()) {
+            for (const auto& pair : mapNode->KeyToChild()) {
                 if (!pair.second) {
                     // NB: key may be absent.
                     result.erase(pair.first);
@@ -61,7 +61,7 @@ TCypressNodeBase* FindMapNodeChild(
 
     auto transactions = transactionManager->GetTransactionPath(transaction);
 
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
@@ -89,11 +89,11 @@ yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     auto transactions = transactionManager->GetTransactionPath(transaction);
     std::reverse(transactions.begin(), transactions.end());
 
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
         const auto* userAttributes = objectManager->FindAttributes(versionedId);
         if (userAttributes) {
-            FOREACH (const auto& pair, userAttributes->Attributes()) {
+            for (const auto& pair : userAttributes->Attributes()) {
                 if (pair.second) {
                     result[pair.first] = pair.second.Get();
                 } else {
@@ -119,11 +119,11 @@ yhash_set<Stroka> ListNodeAttributes(
     auto transactions = transactionManager->GetTransactionPath(transaction);
     std::reverse(transactions.begin(), transactions.end());
 
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
         const auto* userAttributes = objectManager->FindAttributes(versionedId);
         if (userAttributes) {
-            FOREACH (const auto& pair, userAttributes->Attributes()) {
+            for (const auto& pair : userAttributes->Attributes()) {
                 if (pair.second) {
                     result.insert(pair.first);
                 } else {

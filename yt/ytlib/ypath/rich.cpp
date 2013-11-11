@@ -384,7 +384,7 @@ Stroka ToString(const TRichYPath& path)
 std::vector<TRichYPath> Simplify(const std::vector<TRichYPath>& paths)
 {
     std::vector<TRichYPath> result;
-    FOREACH (const auto& path, paths) {
+    for (const auto& path : paths) {
         result.push_back(path.Simplify());
     }
     return result;

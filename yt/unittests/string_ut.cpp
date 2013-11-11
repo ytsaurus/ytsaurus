@@ -31,7 +31,7 @@ static std::vector<TTestCase> TestCases(
 
 TEST(TStringTest, UnderscoreCaseToCamelCase)
 {
-    FOREACH(auto& testCase, TestCases) {
+    for (auto& testCase : TestCases) {
         auto result = UnderscoreCaseToCamelCase(testCase.UnderCase);
         EXPECT_STREQ(testCase.CamelCase, result.c_str())
             << "Original: \"" << testCase.UnderCase << '"';
@@ -40,7 +40,7 @@ TEST(TStringTest, UnderscoreCaseToCamelCase)
 
 TEST(TStringTest, CamelCaseToUnderscoreCase)
 {
-    FOREACH(auto& testCase, TestCases) {
+    for (auto& testCase : TestCases) {
         auto result = CamelCaseToUnderscoreCase(testCase.CamelCase);
         EXPECT_STREQ(testCase.UnderCase, result.c_str())
             << "Original: \"" << testCase.CamelCase << '"';

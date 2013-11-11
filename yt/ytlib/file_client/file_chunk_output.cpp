@@ -151,7 +151,7 @@ void TFileChunkOutput::DoFinish()
 
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = AsyncWriter->GetChunkInfo();
-        FOREACH (int index, AsyncWriter->GetWrittenIndexes()) {
+        for (int index : AsyncWriter->GetWrittenIndexes()) {
             req->add_replicas(ToProto<ui32>(Replicas[index]));
         }
         *req->mutable_chunk_meta() = Writer->GetMasterMeta();

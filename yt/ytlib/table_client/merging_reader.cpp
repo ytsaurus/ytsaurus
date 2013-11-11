@@ -54,7 +54,7 @@ public:
             TDispatcher::Get()->GetReaderInvoker());
         std::vector<TError> errors;
 
-        FOREACH (auto reader, Readers) {
+        for (auto reader : Readers) {
             awaiter->Await(
                 reader->AsyncOpen(),
                 BIND([&] (TError error) {
@@ -73,7 +73,7 @@ public:
         }
 
         // Push all non-empty readers to the heap.
-        FOREACH (auto reader, Readers) {
+        for (auto reader : Readers) {
             if (reader->GetFacade()) {
                 ReaderHeap.push_back(~reader);
             }
@@ -117,7 +117,7 @@ public:
     virtual i64 GetSessionRowCount() const override
     {
         i64 total = 0;
-        FOREACH (const auto& reader, Readers) {
+        for (const auto& reader : Readers) {
             total += reader->GetProvider()->GetRowCount();
         }
         return total;
@@ -127,7 +127,7 @@ public:
     {
         NChunkClient::NProto::TDataStatistics dataStatistics = NChunkClient::NProto::ZeroDataStatistics();
 
-        FOREACH (const auto& reader, Readers) {
+        for (const auto& reader : Readers) {
             dataStatistics += reader->GetProvider()->GetDataStatistics();
         }
         return dataStatistics;   
@@ -141,7 +141,7 @@ public:
     virtual i64 GetSessionRowIndex() const override
     {
         i64 total = 0;
-        FOREACH (const auto& reader, Readers) {
+        for (const auto& reader : Readers) {
             total += reader->GetProvider()->GetRowIndex();
         }
         return total;
@@ -155,7 +155,7 @@ public:
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         std::vector<TChunkId> result;
-        FOREACH (auto reader, Readers) {
+        for (auto reader : Readers) {
             auto part = reader->GetFailedChunkIds();
             result.insert(result.end(), part.begin(), part.end());
         }

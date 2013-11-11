@@ -49,7 +49,7 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
 
-        FOREACH (const auto& protoChunkId, request->chunk_ids()) {
+        for (const auto& protoChunkId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
@@ -64,7 +64,7 @@ private:
             ToProto(info->mutable_chunk_id(), chunkId);
             ToProto(info->mutable_replicas(), replicas);
 
-            FOREACH (auto replica, replicas) {
+            for (auto replica : replicas) {
                 nodeDirectoryBuilder.Add(replica);
             }
         }

@@ -120,7 +120,7 @@ public:
             event->Signal();
         }
 
-        FOREACH (const auto& handler, handlers) {
+        for (const auto& handler : handlers) {
             handler.Run(*Value_);
         }
     }
@@ -152,7 +152,7 @@ public:
             event->Signal();
         }
 
-        FOREACH (const auto& handler, handlers) {
+        for (const auto& handler : handlers) {
             handler.Run(*Value_);
         }
 
@@ -207,7 +207,7 @@ public:
             CancelHandlers_.swap(handlers);
         }
 
-        FOREACH (auto& handler, handlers) {
+        for (auto& handler : handlers) {
             handler.Run();
         }
     }
@@ -339,7 +339,7 @@ public:
             CancelHandlers_.clear();
         }
 
-        FOREACH (auto& handler, handlers) {
+        for (auto& handler : handlers) {
             handler.Run();
         }
     }
@@ -365,7 +365,7 @@ public:
             CancelHandlers_.clear();
         }
 
-        FOREACH (auto& handler, handlers) {
+        for (auto& handler : handlers) {
             handler.Run();
         }
 
@@ -431,7 +431,7 @@ public:
             CancelHandlers_.swap(handlers);
         }
 
-        FOREACH (auto& handler, handlers) {
+        for (auto& handler : handlers) {
             handler.Run();
         }
     }

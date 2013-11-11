@@ -240,7 +240,7 @@ private:
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
         std::vector<TPathWithStage> result;
-        FOREACH (const auto& path, Spec->Mapper->FilePaths) {
+        for (const auto& path : Spec->Mapper->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Map));
         }
         return result;

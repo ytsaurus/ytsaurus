@@ -177,7 +177,7 @@ TAsyncError TSession::PutBlocks(
     int blockIndex = startBlockIndex;
     i64 requestSize = 0;
 
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         TBlockId blockId(ChunkId, blockIndex);
         VerifyInWindow(blockIndex);
 
@@ -600,7 +600,7 @@ void TSession::MarkAllSlotsWritten()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // Mark all slots as written to notify all guys waiting on Flush.
-    FOREACH (auto& slot, Window) {
+    for (auto& slot : Window) {
         if (slot.State != ESlotState::Written) {
             slot.State = ESlotState::Written;
             slot.IsWritten.Set();
@@ -783,7 +783,7 @@ std::vector<TSessionPtr> TSessionManager::GetSessions() const
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     std::vector<TSessionPtr> result;
-    FOREACH (const auto& pair, SessionMap) {
+    for (const auto& pair : SessionMap) {
         result.push_back(pair.second);
     }
 

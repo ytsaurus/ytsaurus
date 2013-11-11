@@ -79,7 +79,7 @@ std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const
 {
     TGuard<TSpinLock> guard(SpinLock);
     std::vector<TSlot> result;
-    FOREACH (const auto& pair, Statistics) {
+    for (const auto& pair : Statistics) {
         result.push_back(pair.second);
     }
     return result;
@@ -156,7 +156,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
         "Name");
     stream << "-------------------------------------------------------------------------------------------------------------\n";
 
-    FOREACH (const auto& slot, slots) {
+    for (const auto& slot : slots) {
         totalObjectsAlive += slot.GetObjectsAlive();
         totalObjectsAllocated += slot.GetObjectsAllocated();
         totalBytesAlive += slot.GetBytesAlive();
@@ -192,7 +192,7 @@ TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
         size_t totalBytesAlive = 0;
         size_t totalBytesAllocated = 0;
 
-        FOREACH (const auto& slot, slots) {
+        for (const auto& slot : slots) {
             totalObjectsAlive += slot.GetObjectsAlive();
             totalObjectsAllocated += slot.GetObjectsAllocated();
             totalBytesAlive += slot.GetBytesAlive();

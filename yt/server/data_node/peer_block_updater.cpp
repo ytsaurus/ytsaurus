@@ -56,7 +56,7 @@ void TPeerBlockUpdater::Update()
     yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
-    FOREACH (auto block, blocks) {
+    for (auto block : blocks) {
         if (block->Source()) {
             const auto& sourceAddress = block->Source()->Address;
             TProxy::TReqUpdatePeerPtr request;
@@ -77,7 +77,7 @@ void TPeerBlockUpdater::Update()
         }
     }
 
-    FOREACH (const auto& pair, requests) {
+    for (const auto& pair : requests) {
         LOG_DEBUG("Sending peer block update request (Address: %s, ExpirationTime: %s)",
             ~pair.first,
             ~expirationTime.ToString());

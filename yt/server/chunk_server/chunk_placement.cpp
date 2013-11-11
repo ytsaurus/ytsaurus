@@ -39,7 +39,7 @@ TChunkPlacement::TChunkPlacement(
 void TChunkPlacement::Initialize()
 {
     auto nodeTracker = Bootstrap->GetNodeTracker();
-    FOREACH (auto* node, nodeTracker->Nodes().GetValues()) {
+    for (auto* node : nodeTracker->Nodes().GetValues()) {
         OnNodeRegistered(node);
     }
 }
@@ -105,7 +105,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         preferredHostName,
         EWriteSessionType::User);
 
-    FOREACH (auto* target, targets) {
+    for (auto* target : targets) {
         AddSessionHint(target, sessionType);
     }
 
@@ -133,7 +133,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         }
     }
 
-    FOREACH (auto* node, LoadRankToNode) {
+    for (auto* node : LoadRankToNode) {
         if (targets.size() == targetCount)
             break;
         if (!IsValidWriteTarget(node, sessionType))
@@ -162,7 +162,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         targetCount,
         sessionType);
 
-    FOREACH (auto* target, targets) {
+    for (auto* target : targets) {
         AddSessionHint(target, sessionType);
     }
 
@@ -179,16 +179,16 @@ TNodeList TChunkPlacement::GetWriteTargets(
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto chunkManager = Bootstrap->GetChunkManager();
 
-    FOREACH (auto replica, chunk->StoredReplicas()) {
+    for (auto replica : chunk->StoredReplicas()) {
         forbiddenNodes.insert(replica.GetPtr());
     }
 
     auto jobList = chunkManager->FindJobList(chunk);
     if (jobList) {
-        FOREACH (const auto& job, jobList->Jobs()) {
+        for (const auto& job : jobList->Jobs()) {
             auto type = job->GetType();
             if (type == EJobType::ReplicateChunk || type == EJobType::RepairChunk) {
-                FOREACH (const auto& targetAddress, job->TargetAddresses()) {
+                for (const auto& targetAddress : job->TargetAddresses()) {
                     auto* targetNode = nodeTracker->FindNodeByAddress(targetAddress);
                     if (targetNode) {
                         forbiddenNodes.insert(targetNode);
@@ -212,7 +212,7 @@ TNodeList TChunkPlacement::GetRemovalTargets(
     TSmallVector<TCandidatePair, TypicalReplicaCount> candidates;
     auto* chunk = chunkWithIndex.GetPtr();
     candidates.reserve(chunk->StoredReplicas().size());
-    FOREACH (auto replica, chunk->StoredReplicas()) {
+    for (auto replica : chunk->StoredReplicas()) {
         if (replica.GetIndex() == chunkWithIndex.GetIndex()) {
             auto* node = replica.GetPtr();
             double fillFactor = GetFillFactor(node);
@@ -230,7 +230,7 @@ TNodeList TChunkPlacement::GetRemovalTargets(
 
     // Take first count nodes.
     targets.reserve(replicaCount);
-    FOREACH (const auto& pair, candidates) {
+    for (const auto& pair : candidates) {
         if (static_cast<int>(targets.size()) >= replicaCount) {
             break;
         }
@@ -276,7 +276,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
     double maxFillFactor)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& pair, FillFactorToNode) {
+    for (const auto& pair : FillFactorToNode) {
         auto* node = pair.second;
         if (GetFillFactor(node) > maxFillFactor) {
             break;
@@ -329,7 +329,7 @@ bool TChunkPlacement::IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chu
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& job, node->Jobs()) {
+    for (const auto& job : node->Jobs()) {
         if (job->GetChunkIdWithIndex().Id == chunkWithIndex.GetPtr()->GetId()) {
             // Do not balance to a node already having a job associated with this chunk.
             return false;
@@ -355,7 +355,7 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
 
     auto chunkManager = Bootstrap->GetChunkManager();
 
-    FOREACH (auto replica, node->StoredReplicas()) {
+    for (auto replica : node->StoredReplicas()) {
         auto* chunk = replica.GetPtr();
         if (static_cast<int>(result.size()) >= replicaCount) {
             break;

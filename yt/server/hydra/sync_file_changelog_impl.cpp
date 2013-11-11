@@ -290,7 +290,7 @@ void TSyncFileChangelog::TImpl::Append(
 
     {
         TGuard<TMutex> guard(Mutex_);
-        FOREACH (const auto& record, records) {
+        for (const auto& record : records) {
             DoAppend(record);
         }
     }

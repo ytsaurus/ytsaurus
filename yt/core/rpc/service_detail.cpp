@@ -446,7 +446,7 @@ void TServiceBase::Configure(INodePtr configNode)
 {
     try {
         auto config = ConvertTo<TServiceConfigPtr>(configNode);
-        FOREACH (const auto& pair, config->Methods) {
+        for (const auto& pair : config->Methods) {
             const auto& methodName = pair.first;
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
@@ -485,7 +485,7 @@ void TServiceBase::CancelActiveRequests(const TError& error)
         requestsToCancel.swap(ActiveRequests);
     }
 
-    FOREACH (auto activeRequest, requestsToCancel) {
+    for (auto activeRequest : requestsToCancel) {
         Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
 
         auto errorMessage = CreateErrorResponseMessage(activeRequest->Id, error);

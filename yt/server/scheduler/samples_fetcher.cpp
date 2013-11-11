@@ -62,7 +62,7 @@ void TSamplesFetcher::Prepare(const std::vector<TRefCountedChunkSpecPtr>& chunks
         DesiredSampleCount);
 
     i64 totalSize = 0;
-    FOREACH (const auto& chunk, chunks) {
+    for (const auto& chunk : chunks) {
         i64 chunkDataSize;
         GetStatistics(*chunk, &chunkDataSize);
         totalSize += chunkDataSize;
@@ -141,7 +141,7 @@ TError TSamplesFetcher::ProcessResponseItem(
         chunkSamples.items_size(),
         index);
 
-    FOREACH (const auto& sample, chunkSamples.items()) {
+    for (const auto& sample : chunkSamples.items()) {
         Samples.push_back(sample);
     }
 

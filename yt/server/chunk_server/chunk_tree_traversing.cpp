@@ -430,7 +430,7 @@ protected:
     void Shutdown()
     {
         std::vector<TChunkTree*> nodes;
-        FOREACH (const auto& entry, Stack) {
+        for (const auto& entry : Stack) {
             nodes.push_back(entry.ChunkList);
         }
         TraverserCallbacks->OnShutdown(nodes);
@@ -505,7 +505,7 @@ public:
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        FOREACH (const auto& node, nodes) {
+        for (const auto& node : nodes) {
             objectManager->WeakUnrefObject(node);
         }
     }

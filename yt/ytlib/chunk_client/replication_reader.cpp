@@ -357,7 +357,7 @@ protected:
 
         PeerList.clear();
         PeerIndex = 0;
-        FOREACH (auto replica, SeedReplicas) {
+        for (auto replica : SeedReplicas) {
             const auto& descriptor = NodeDirectory->GetDescriptor(replica);
             if (!IsPeerBanned(descriptor.Address)) {
                 seedHandler(descriptor);
@@ -445,7 +445,7 @@ private:
         }
 
         SeedAddresses.clear();
-        FOREACH (auto replica, SeedReplicas) {
+        for (auto replica : SeedReplicas) {
             const auto& descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
             SeedAddresses.insert(descriptor.Address);
         }
@@ -525,7 +525,7 @@ private:
         PeerBlocksMap.clear();
 
         auto seedHandler = [&] (const TNodeDescriptor& descriptor) {
-            FOREACH (int blockIndex, BlockIndexes) {
+            for (int blockIndex : BlockIndexes) {
                 AddPeer(descriptor, blockIndex);
             }
         };
@@ -562,7 +562,7 @@ private:
     {
         std::vector<int> result;
         result.reserve(BlockIndexes.size());
-        FOREACH (int blockIndex, BlockIndexes) {
+        for (int blockIndex : BlockIndexes) {
             if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
                 result.push_back(blockIndex);
             }
@@ -582,7 +582,7 @@ private:
 
         const auto& blocksInfo = peerBlocksMapIt->second;
 
-        FOREACH (int blockIndex, indexesToFetch) {
+        for (int blockIndex : indexesToFetch) {
             if (blocksInfo.BlockIndexes.find(blockIndex) != blocksInfo.BlockIndexes.end()) {
                 result.push_back(blockIndex);
             }
@@ -598,7 +598,7 @@ private:
         if (!reader)
             return;
 
-        FOREACH (int blockIndex, BlockIndexes) {
+        for (int blockIndex : BlockIndexes) {
             if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
                 TBlockId blockId(reader->ChunkId, blockIndex);
                 auto block = reader->BlockCache->Find(blockId);
@@ -739,7 +739,7 @@ private:
                 YCHECK(FetchedBlocks.insert(std::make_pair(blockIndex, block)).second);
                 totalSize += block.Size();
             } else if (reader->Config->FetchFromPeers) {
-                FOREACH (const auto& protoP2PDescriptor, blockInfo.p2p_descriptors()) {
+                for (const auto& protoP2PDescriptor : blockInfo.p2p_descriptors()) {
                     auto p2pDescriptor= FromProto<TNodeDescriptor>(protoP2PDescriptor);
                     AddPeer(p2pDescriptor, blockIndex);
                     LOG_INFO("P2P descriptor received (Block: %d, Address: %s)",
@@ -768,7 +768,7 @@ private:
 
         std::vector<TSharedRef> blocks;
         blocks.reserve(BlockIndexes.size());
-        FOREACH (int blockIndex, BlockIndexes) {
+        for (int blockIndex : BlockIndexes) {
             auto block = FetchedBlocks[blockIndex];
             YCHECK(block);
             blocks.push_back(block);

@@ -72,7 +72,7 @@ IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
 std::vector<IJobPtr> TJobController::GetJobs()
 {
     std::vector<IJobPtr> result;
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         result.push_back(pair.second);
     }
     return result;
@@ -97,7 +97,7 @@ TNodeResources TJobController::GetResourceLimits()
 TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 {
     auto result = ZeroNodeResources();
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         if (includeWaiting || pair.second->GetState() != EJobState::Waiting) {
             auto usage = pair.second->GetResourceUsage();
             result += usage;
@@ -110,7 +110,7 @@ void TJobController::StartWaitingJobs()
 {
     auto& tracker = Bootstrap->GetMemoryUsageTracker();
 
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         auto job = pair.second;
         if (job->GetState() != EJobState::Waiting)
             continue;
@@ -278,7 +278,7 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage();
 
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         auto job = pair.second;
         auto type = EJobType(job->GetSpec().type());
         auto state = job->GetState();
@@ -307,7 +307,7 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
 
 void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
 {
-    FOREACH (const auto& protoJobId, response->jobs_to_remove()) {
+    for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
         auto job = FindJob(jobId);
         if (job) {
@@ -318,7 +318,7 @@ void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
         }
     }
 
-    FOREACH (const auto& protoJobId, response->jobs_to_abort()) {
+    for (const auto& protoJobId : response->jobs_to_abort()) {
         auto jobId = FromProto<TJobId>(protoJobId);
         auto job = FindJob(jobId);
         if (job) {
@@ -329,7 +329,7 @@ void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
         }
     }
 
-    FOREACH (auto& info, *response->mutable_jobs_to_start()) {
+    for (auto& info : *response->mutable_jobs_to_start()) {
         auto jobId = FromProto<TJobId>(info.job_id());
         const auto& resourceLimits = info.resource_limits();
         auto& spec = *info.mutable_spec();

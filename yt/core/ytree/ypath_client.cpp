@@ -615,7 +615,7 @@ TYPath GetNodeYPath(INodePtr node, INodePtr* root)
     }
     std::reverse(tokens.begin(), tokens.end());
     TYPath path;
-    FOREACH (const auto& token, tokens) {
+    for (const auto& token : tokens) {
         path.append('/');
         path.append(token);
     }
@@ -634,7 +634,7 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         auto resultMap = result->AsMap();
         auto patchMap = patch->AsMap();
         auto baseMap = base->AsMap();
-        FOREACH (const auto& key, patchMap->GetKeys()) {
+        for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
                 YCHECK(resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));

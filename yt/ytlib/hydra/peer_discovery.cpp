@@ -49,7 +49,7 @@ public:
         auto promise = Promise;
         auto awaiter = Awaiter;
 
-        FOREACH (const Stroka& address, Config->Addresses) {
+        for (const Stroka& address : Config->Addresses) {
             LOG_DEBUG("Requesting quorum information from peer %s", ~address);
 
             auto busChannel = ChannelCache.GetChannel(address);

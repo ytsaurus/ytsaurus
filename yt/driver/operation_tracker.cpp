@@ -226,7 +226,7 @@ EExitCode TOperationTracker::DumpResult()
 
         std::list<TJobId> failedJobIds;
         std::list<TJobId> stdErrJobIds;
-        FOREACH (const auto& pair, jobs->GetChildren()) {
+        for (const auto& pair : jobs->GetChildren()) {
             auto jobId = TJobId::FromString(pair.first);
             auto job = pair.second->AsMap();
 
@@ -271,7 +271,7 @@ EExitCode TOperationTracker::DumpResult()
         if (!failedJobIds.empty()) {
             printf("\n");
             printf("%" PRISZT " job(s) have failed:\n", failedJobIds.size());
-            FOREACH (const auto& jobId, failedJobIds) {
+            for (const auto& jobId : failedJobIds) {
                 auto job = jobs->GetChild(ToString(jobId));
                 auto error = ConvertTo<TError>(job->Attributes().Get<INodePtr>("error"));
                 printf("\n");
@@ -286,7 +286,7 @@ EExitCode TOperationTracker::DumpResult()
             printf("\n");
             printf("%" PRISZT " stderr(s) have been captured, use the following commands to view:\n",
                 stdErrJobIds.size());
-            FOREACH (const auto& jobId, stdErrJobIds) {
+            for (const auto& jobId : stdErrJobIds) {
                 printf("yt download '%s'\n",
                     ~GetStdErrPath(OperationId, jobId));
             }

@@ -238,7 +238,7 @@ private:
             return;
         }
 
-        FOREACH (const auto& column, Channel.GetColumns()) {
+        for (const auto& column : Channel.GetColumns()) {
             auto& columnInfo = chunkReader->ColumnsMap[TStringBuf(column)];
             columnInfo.InChannel = true;
         }
@@ -408,7 +408,7 @@ private:
         std::vector<TSequentialReader::TBlockInfo>& result,
         std::vector<TBlockInfo>& blockHeap)
     {
-        FOREACH (auto channelIdx, SelectedChannels) {
+        for (auto channelIdx : SelectedChannels) {
             const auto& protoChannel = ChannelsExt.items(channelIdx);
             int blockIndex = -1;
             i64 startRow = 0;
@@ -459,7 +459,7 @@ private:
             YCHECK(nextBlockIndex <= protoChannel.blocks_size());
 
             if (currentBlock.LastRow >= chunkReader->EndRowIndex) {
-                FOREACH (auto& block, blockHeap) {
+                for (auto& block : blockHeap) {
                     YASSERT(block.LastRow >= chunkReader->EndRowIndex);
                 }
                 break;
@@ -895,7 +895,7 @@ auto TTableChunkReader::GetColumnInfo(const TStringBuf& column) -> TColumnInfo&
 
 void TTableChunkReader::MakeCurrentRow()
 {
-    FOREACH (const auto& reader, ChannelReaders) {
+    for (const auto& reader : ChannelReaders) {
         while (reader->NextColumn()) {
             auto column = reader->GetColumn();
             auto& columnInfo = GetColumnInfo(column);
@@ -1002,7 +1002,7 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
     , Options(options)
     , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 {
-    FOREACH (const auto& chunkSpec, chunkSpecs) {
+    for (const auto& chunkSpec : chunkSpecs) {
         i64 rowCount;
         GetStatistics(chunkSpec, nullptr, &rowCount);
         RowCount_ += rowCount;
@@ -1059,7 +1059,7 @@ NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatisti
     auto dataStatistics = DataStatistics;
 
     TGuard<TSpinLock> guard(SpinLock);
-    FOREACH(const auto& reader, ActiveReaders) {
+    for (const auto& reader : ActiveReaders) {
         dataStatistics += reader->GetDataStatistics();
     }
     return dataStatistics;

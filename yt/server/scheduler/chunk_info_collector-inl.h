@@ -48,12 +48,12 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
     typedef yhash_map<NNodeTrackerClient::TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
 
-    FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
+    for (auto chunkIndex : UnfetchedChunkIndexes) {
         const auto& chunk = Chunks[chunkIndex];
         auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(chunk->chunk_id());
         bool chunkAvailable = false;
         auto replicas = FromProto<NChunkClient::TChunkReplica, NChunkClient::TChunkReplicaList>(chunk->replicas());
-        FOREACH (auto replica, replicas) {
+        for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
             if (DeadNodeIds.find(nodeId) == DeadNodeIds.end() &&
                 DeadChunkIds.find(std::make_pair(nodeId, chunkId)) == DeadChunkIds.end())
@@ -85,7 +85,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
     // Pick nodes greedily.
     auto awaiter = New<NConcurrency::TParallelAwaiter>(Invoker);
     yhash_set<int> requestedChunkIndexes;
-    FOREACH (const auto& it, nodeIts) {
+    for (const auto& it : nodeIts) {
         auto nodeId = it->first;
         const auto& descriptor = NodeDirectory->GetDescriptor(nodeId);
         const auto& address = descriptor.Address;
@@ -94,7 +94,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
 
         auto& addressChunkIndexes = it->second;
         std::vector<int> requestChunkIndexes;
-        FOREACH (int chunkIndex, addressChunkIndexes) {
+        for (int chunkIndex : addressChunkIndexes) {
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
                 YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
 

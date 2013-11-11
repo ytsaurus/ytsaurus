@@ -43,7 +43,7 @@ void TChannelWriter::InitCapacity()
 {
     Capacity += RangeSizes.GetCapacity();
     Capacity += RangeColumns.GetCapacity();
-    FOREACH (const auto& column, FixedColumns) {
+    for (const auto& column : FixedColumns) {
         Capacity += column.GetCapacity();
     }
 }
@@ -121,7 +121,7 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
 {
     TBlobOutput sizeOutput(8 * (FixedColumns.size() + 1));
 
-    FOREACH (const auto& column, FixedColumns) {
+    for (const auto& column : FixedColumns) {
         WriteVarUInt64(&sizeOutput, column.GetSize());
     }
     WriteVarUInt64(&sizeOutput, RangeColumns.GetSize());
@@ -130,7 +130,7 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
     result.reserve(FixedColumns.size() + 3);
     result.push_back(sizeOutput.Flush());
 
-    FOREACH (auto& column, FixedColumns) {
+    for (auto& column : FixedColumns) {
         auto blocks = column.FlushBuffer();
         result.insert(result.end(), blocks.begin(), blocks.end());
     }

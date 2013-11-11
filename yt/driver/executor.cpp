@@ -114,7 +114,7 @@ void TExecutor::InitConfig()
     configNode = ConvertToNode(Config);
 
     // Patch config from command line.
-    FOREACH (const auto& opt, ConfigOptArg.getValue()) {
+    for (const auto& opt : ConfigOptArg.getValue()) {
         ApplyYPathOverride(configNode, opt);
     }
 
@@ -234,7 +234,7 @@ IMapNodePtr TRequestExecutor::GetArgs()
         .EndMap();
 
     auto args = builder->EndTree()->AsMap();
-    FOREACH (const auto& opt, OptArg.getValue()) {
+    for (const auto& opt : OptArg.getValue()) {
         ApplyYPathOverride(args, opt);
     }
     return args;

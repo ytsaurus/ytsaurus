@@ -110,7 +110,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
     static void Load(yhash_map<Stroka, T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         auto mapNode = node->AsMap();
-        FOREACH (const auto& pair, mapNode->GetChildren()) {
+        for (const auto& pair : mapNode->GetChildren()) {
             const auto& key = pair.first;
             T value;
             TLoadHelper<T>::Load(
@@ -165,7 +165,7 @@ inline void InvokeForComposites(
     const NYPath::TYPath& path,
     const F& func)
 {
-    FOREACH (const auto& pair, *parameter) {
+    for (const auto& pair : *parameter) {
         InvokeForComposites(
             &pair.second,
             path + "/" + NYPath::ToYPathLiteral(pair.first),
@@ -211,7 +211,7 @@ inline void InvokeForComposites(
     const yhash_map<Stroka, T>* parameter,
     const F& func)
 {
-    FOREACH (const auto& pair, *parameter) {
+    for (const auto& pair : *parameter) {
         InvokeForComposites(
             &pair.second,
             func);
@@ -268,7 +268,7 @@ void TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 template <class T>
 void TParameter<T>::Validate(const NYPath::TYPath& path) const
 {
-    FOREACH (const auto& validator, Validators) {
+    for (const auto& validator : Validators) {
         try {
             validator.Run(Parameter);
         } catch (const std::exception& ex) {

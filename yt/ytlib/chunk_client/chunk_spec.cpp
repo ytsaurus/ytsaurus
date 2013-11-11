@@ -240,7 +240,7 @@ bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId)
         auto* codec = NErasure::GetCodec(codecId);
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
-        FOREACH (auto replica, replicas) {
+        for (auto replica : replicas) {
             missingIndexSet.reset(replica.GetIndex());
         }
         return missingIndexSet.any();

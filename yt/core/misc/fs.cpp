@@ -109,7 +109,7 @@ void CleanTempFiles(const Stroka& path)
     LOG_INFO("Cleaning temp files in %s", ~path.Quote());
 
     auto entries = EnumerateFiles(path);
-    FOREACH (const auto& entry, entries) {
+    for (const auto& entry : entries) {
         if (entry.has_suffix(TempFileSuffix)) {
             Stroka fileName = NFS::CombinePaths(path, entry);
             LOG_INFO("Removing file %s", ~fileName.Quote());

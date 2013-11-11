@@ -12,7 +12,7 @@ Stroka UnderscoreCaseToCamelCase(const Stroka& data)
     result.reserve(data.length());
     bool first = true;
     bool upper = true;
-    FOREACH (char c, data) {
+    for (char c : data) {
         if (c == '_') {
             upper = true;
         } else {
@@ -35,7 +35,7 @@ Stroka CamelCaseToUnderscoreCase(const Stroka& data)
     Stroka result;
     result.reserve(data.length() * 2);
     bool first = true;
-    FOREACH (char c, data) {
+    for (char c : data) {
         if (std::isupper(c) && std::isalpha(c)) {
             if (!first) {
                 result.push_back('_');

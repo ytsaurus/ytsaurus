@@ -65,7 +65,7 @@ TCacheBase<TKey, TValue, THash>::GetAll()
     std::vector<TValuePtr> result;
     TGuard<TSpinLock> guard(SpinLock);
     result.reserve(ValueMap.size());
-    FOREACH (const auto& pair, ValueMap) {
+    for (const auto& pair : ValueMap) {
         auto value = TRefCounted::DangerousGetPtr<TValue>(pair.second);
         if (value) {
             result.push_back(value);

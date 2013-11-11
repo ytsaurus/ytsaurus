@@ -48,7 +48,7 @@ public:
         const auto& jobSpec = Host->GetJobSpec();
         const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        FOREACH (const auto& inputSpec, schedulerJobSpecExt.input_specs()) {
+        for (const auto& inputSpec : schedulerJobSpecExt.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 

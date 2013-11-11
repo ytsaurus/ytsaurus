@@ -85,7 +85,7 @@ private:
         node->ResourceUsage() = resourceUsage;
 
         std::vector<TJobPtr> currentJobs;
-        FOREACH (const auto& jobStatus, request->jobs()) {
+        for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
             auto state = EJobState(jobStatus.state());
             auto jobType = EJobType(jobStatus.job_type());
@@ -148,7 +148,7 @@ private:
             &jobsToAbort,
             &jobsToRemove);
 
-        FOREACH (auto job, jobsToStart) {
+        for (auto job : jobsToStart) {
             const auto& chunkIdWithIndex = job->GetChunkIdWithIndex();
 
             auto* jobInfo = response->add_jobs_to_start();
@@ -192,11 +192,11 @@ private:
             }
         }
 
-        FOREACH (auto job, jobsToAbort) {
+        for (auto job : jobsToAbort) {
             ToProto(response->add_jobs_to_abort(), job->GetJobId());
         }
 
-        FOREACH (auto job, jobsToRemove) {
+        for (auto job : jobsToRemove) {
             ToProto(response->add_jobs_to_remove(), job->GetJobId());
         }
 
@@ -208,7 +208,7 @@ private:
         const std::vector<Stroka>& addresses)
     {
         auto nodeTracker = Bootstrap->GetNodeTracker();
-        FOREACH (const auto& address, addresses) {
+        for (const auto& address : addresses) {
             auto* target = nodeTracker->GetNodeByAddress(address);
             NNodeTrackerClient::ToProto(protoDescriptors->Add(), target->GetDescriptor());
         }

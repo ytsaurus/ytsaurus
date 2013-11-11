@@ -105,7 +105,7 @@ public:
         const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
         std::vector<Stroka> keys;
         if (attributeSet) {
-            FOREACH (const auto& pair, attributeSet->Attributes()) {
+            for (const auto& pair : attributeSet->Attributes()) {
                 // Attribute cannot be empty (i.e. deleted) in null transaction.
                 YASSERT(pair.second);
                 keys.push_back(pair.first);
@@ -484,12 +484,12 @@ void TObjectProxyBase::SerializeAttributes(
                     });
             }
 
-            FOREACH (const auto& key, userKeys) {
+            for (const auto& key : userKeys) {
                 attributesConsumer.OnKeyedItem(key);
                 attributesConsumer.OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
             }
 
-            FOREACH (const auto& attribute, systemAttributes) {
+            for (const auto& attribute : systemAttributes) {
                 if (attribute.IsPresent){
                     attributesConsumer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
@@ -509,7 +509,7 @@ void TObjectProxyBase::SerializeAttributes(
                 std::sort(keys.begin(), keys.end());
             }
 
-            FOREACH (const auto& key, keys) {
+            for (const auto& key : keys) {
                 TAttributeValueConsumer attributeValueConsumer(&attributesConsumer, key);
                 if (!GetSystemAttribute(key, &attributeValueConsumer)) {
                     auto value = userAttributes.FindYson(key);
@@ -698,7 +698,7 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
             Deserilize(newAcl, supportedPermissions, valueNode, securityManager);
 
             acd->ClearEntries();
-            FOREACH (const auto& ace, newAcl.Entries) {
+            for (const auto& ace : newAcl.Entries) {
                 acd->AddEntry(ace);
             }
 

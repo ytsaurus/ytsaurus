@@ -504,7 +504,7 @@ struct TVectorSerializer
     {
         using NYT::Save;
         TSizeSerializer::Save(context, objects.size());
-        FOREACH (const auto& object, objects) {
+        for (const auto& object : objects) {
             Save(context, object);
         }
     }
@@ -528,7 +528,7 @@ struct TListSerializer
     {
         using NYT::Save;
         TSizeSerializer::Save(context, objects.size());
-        FOREACH (const auto& object, objects) {
+        for (const auto& object : objects) {
             Save(context, object);
         }
     }
@@ -588,7 +588,7 @@ struct TCustomSetSerializer
         typedef typename TSet::key_type TKey;
         auto iterators = GetSortedIterators(set);
         TSizeSerializer::Save(context, iterators.size());
-        FOREACH (const auto& ptr, iterators) {
+        for (const auto& ptr : iterators) {
             TItemSerializer::Save(context, *ptr);
         }
     }
@@ -651,7 +651,7 @@ struct TCustomMapSerializer
         using NYT::Save;
         auto iterators = GetSortedIterators(map);
         TSizeSerializer::Save(context, iterators.size());
-        FOREACH (const auto& it, iterators) {
+        for (const auto& it : iterators) {
             TKeySerializer::Save(context, it->first);
             TValueSerializer::Save(context, it->second);
         }

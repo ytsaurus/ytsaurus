@@ -303,8 +303,8 @@ public:
         RegisterParameter("rules", Rules);
 
         RegisterValidator([&] () {
-            FOREACH (const auto& rule, Rules) {
-                FOREACH (const Stroka& writer, rule->Writers) {
+            for (const auto& rule : Rules) {
+                for (const Stroka& writer : rule->Writers) {
                     if (WriterConfigs.find(writer) == WriterConfigs.end()) {
                         THROW_ERROR_EXCEPTION("Unknown writer: %s", ~writer.Quote());
                     }
@@ -323,13 +323,13 @@ public:
             return it->second;
 
         yhash_set<Stroka> writerIds;
-        FOREACH (auto& rule, Rules) {
+        for (auto& rule : Rules) {
             if (rule->IsApplicable(event.Category, event.Level)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
 
-        FOREACH (const Stroka& writerId, writerIds) {
+        for (const Stroka& writerId : writerIds) {
             auto writerIt = Writers.find(writerId);
             YASSERT(writerIt != Writers.end());
             writers.push_back(writerIt->second);
@@ -342,7 +342,7 @@ public:
     ELogLevel GetMinLevel(const Stroka& category) const
     {
         ELogLevel level = ELogLevel::Maximum;
-        FOREACH (const auto& rule, Rules) {
+        for (const auto& rule : Rules) {
             if (rule->IsApplicable(category)) {
                 level = Min(level, rule->MinLevel);
             }
@@ -352,14 +352,14 @@ public:
 
     void CheckSpace()
     {
-        FOREACH (auto& pair, Writers) {
+        for (auto& pair : Writers) {
             pair.second->CheckSpace(MinDiskSpace);
         }
     }
 
     void FlushWriters()
     {
-        FOREACH (auto& pair, Writers) {
+        for (auto& pair : Writers) {
             pair.second->Flush();
         }
     }
@@ -398,7 +398,7 @@ public:
     void ReloadWriters()
     {
         AtomicIncrement(Version);
-        FOREACH (auto& pair, Writers) {
+        for (auto& pair : Writers) {
             pair.second->Reload();
         }
     }
@@ -480,7 +480,7 @@ private:
 
     void CreateWriters()
     {
-        FOREACH (const auto& pair, WriterConfigs) {
+        for (const auto& pair : WriterConfigs) {
             const auto& name = pair.first;
             const auto& config = pair.second;
             const auto& pattern = config->Pattern;
@@ -806,7 +806,7 @@ private:
 
     void Write(const TLogEvent& event)
     {
-        FOREACH (auto& writer, GetWriters(event)) {
+        for (auto& writer : GetWriters(event)) {
             LoggingProfiler.Increment(WriteCounter);
             writer->Write(event);
         }

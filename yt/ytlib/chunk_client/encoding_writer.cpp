@@ -52,7 +52,7 @@ void TEncodingWriter::WriteBlock(const TSharedRef& block)
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
 {
-    FOREACH (const auto& part, vectorizedBlock) {
+    for (const auto& part : vectorizedBlock) {
         Semaphore.Acquire(part.Size());
         AtomicAdd(UncompressedSize_, part.Size());
     }
@@ -100,7 +100,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
 
     if (!Config->VerifyCompression) {
         // We immediately release original data.
-        FOREACH (const auto& part, vectorizedBlock) {
+        for (const auto& part : vectorizedBlock) {
             sizeToRelease += part.Size();
         }
     }
@@ -124,7 +124,7 @@ void TEncodingWriter::VerifyVector(
     auto decompressedBlock = Codec->Decompress(compressedBlock);
 
     char* begin = decompressedBlock.Begin();
-    FOREACH (const auto& block, origin) {
+    for (const auto& block : origin) {
         LOG_FATAL_IF(
             !TRef::AreBitwiseEqual(TRef(begin, block.Size()), block),
             "Compression verification failed");

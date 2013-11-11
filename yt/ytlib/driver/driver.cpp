@@ -248,7 +248,7 @@ public:
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(Commands.size());
-        FOREACH (const auto& pair, Commands) {
+        for (const auto& pair : Commands) {
             result.push_back(pair.second.Descriptor);
         }
         return result;

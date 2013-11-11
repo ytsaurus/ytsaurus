@@ -9,7 +9,7 @@ namespace NCompression {
 size_t GetTotalSize(const std::vector<TSharedRef>& refs)
 {
     size_t size = 0;
-    FOREACH (const auto& ref, refs) {
+    for (const auto& ref : refs) {
         size += ref.Size();
     }
     return size;
@@ -21,7 +21,7 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks)
     struct TMergedBlockTag { };
     auto result = TSharedRef::Allocate<TMergedBlockTag>(size, false);
     size_t pos = 0;
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         std::copy(block.Begin(), block.End(), result.Begin() + pos);
         pos += block.Size();
     }

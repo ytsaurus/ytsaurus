@@ -99,7 +99,7 @@ i64 GetUserRss(int uid)
 
     auto pids = GetPidsByUid(uid);
     i64 result = 0;
-    FOREACH(int pid, pids) {
+    for (int pid : pids) {
         try {
             i64 rss = GetProcessRss(pid);
             LOG_DEBUG("PID: %d, RSS: %" PRId64,
@@ -150,7 +150,7 @@ void KilallByUid(int uid)
             // In child process.
             YCHECK(setuid(0) == 0);
 
-            FOREACH (int pid, pids) {
+            for (int pid : pids) {
                 auto result = kill(pid, 9);
                 if (result == -1) {
                     YCHECK(errno == ESRCH);
@@ -330,7 +330,7 @@ int getErrNoFromExitCode(int exitCode) {
 int Spawn(const char* path, std::vector<Stroka>& arguments)
 {
     std::vector<char *> args;
-    FOREACH (auto& x, arguments) {
+    for (auto& x : arguments) {
         args.push_back(x.begin());
     }
     args.push_back(NULL);

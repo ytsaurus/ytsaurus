@@ -91,7 +91,7 @@ private:
             }
         }
 
-        FOREACH (auto promise, releaseList) {
+        for (auto promise : releaseList) {
             promise.Set();
         }
     }

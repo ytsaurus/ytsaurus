@@ -62,7 +62,7 @@ private:
                 consumer->OnEndAttributes();
 
                 consumer->OnBeginList();
-                FOREACH (auto* child, chunkList->Children()) {
+                for (auto* child : chunkList->Children()) {
                     consumer->OnListItem();
                     TraverseTree(child, consumer);
                 }
@@ -141,7 +141,7 @@ private:
 
         std::vector<TChunkTree*> children;
         children.reserve(childrenIds.size());
-        FOREACH (const auto& childId, childrenIds) {
+        for (const auto& childId : childrenIds) {
             auto* child = chunkManager->GetChunkTreeOrThrow(childId);
             children.push_back(child);
         }

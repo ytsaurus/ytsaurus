@@ -150,7 +150,7 @@ void FilterProtoExtensions(
     const yhash_set<int>& tags)
 {
     target->Clear();
-    FOREACH (const auto& extension, source.extensions()) {
+    for (const auto& extension : source.extensions()) {
         if (tags.find(extension.tag()) != tags.end()) {
             *target->add_extensions() = extension;
         }

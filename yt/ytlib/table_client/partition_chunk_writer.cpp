@@ -126,7 +126,7 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
     int keyColumnCount = Options->KeyColumns.Get().size();
     TNonOwningKey key(keyColumnCount);
 
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         auto it = KeyColumnIndexes.find(pair.first);
         if (it != KeyColumnIndexes.end()) {
             key.SetKeyPart(it->second, pair.second, Lexer);
@@ -140,7 +140,7 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
     auto capacity = channelWriter->GetCapacity();
     auto channelSize = channelWriter->GetCurrentSize();
 
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         channelWriter->WriteRange(pair.first, pair.second);
 
         rowDataWeight += pair.first.size();
@@ -195,7 +195,7 @@ void TPartitionChunkWriter::PrepareBlock()
 
     i64 size = 0;
     auto blockParts = channelWriter->FlushBlock();
-    FOREACH (const auto& part, blockParts) {
+    for (const auto& part : blockParts) {
         size += part.Size();
     }
 
@@ -341,7 +341,7 @@ NChunkClient::NProto::TDataStatistics TPartitionChunkWriterProvider::GetDataStat
 
     auto result = DataStatistics;
 
-    FOREACH(const auto& writer, ActiveWriters) {
+    for (const auto& writer : ActiveWriters) {
         result += writer->GetDataStatistics();
     }
     return result;

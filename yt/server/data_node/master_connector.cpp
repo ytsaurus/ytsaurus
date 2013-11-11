@@ -205,7 +205,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     bool full = true;
 
     auto chunkStore = Bootstrap->GetChunkStore();
-    FOREACH (auto location, chunkStore->Locations()) {
+    for (auto location : chunkStore->Locations()) {
         auto* locationStatistics = result.add_locations();
 
         locationStatistics->set_available_space(location->GetAvailableSpace());
@@ -280,11 +280,11 @@ void TMasterConnector::SendFullNodeHeartbeat()
 
     *request->mutable_statistics() = ComputeStatistics();
 
-    FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
+    for (const auto& chunk : Bootstrap->GetChunkStore()->GetChunks()) {
         *request->add_chunks() = BuildAddChunkInfo(chunk);
     }
 
-    FOREACH (const auto& chunk, Bootstrap->GetChunkCache()->GetChunks()) {
+    for (const auto& chunk : Bootstrap->GetChunkCache()->GetChunks()) {
         *request->add_chunks() = BuildAddChunkInfo(chunk);
     }
 
@@ -317,11 +317,11 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     ReportedAdded = AddedSinceLastSuccess;
     ReportedRemoved = RemovedSinceLastSuccess;
 
-    FOREACH (auto chunk, ReportedAdded) {
+    for (auto chunk : ReportedAdded) {
         *request->add_added_chunks() = BuildAddChunkInfo(chunk);
     }
 
-    FOREACH (auto chunk, ReportedRemoved) {
+    for (auto chunk : ReportedRemoved) {
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
@@ -410,7 +410,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
     LOG_INFO("Successfully reported incremental node heartbeat to master");
 
     TChunkSet newAddedSinceLastSuccess;
-    FOREACH (const auto& id, AddedSinceLastSuccess) {
+    for (const auto& id : AddedSinceLastSuccess) {
         if (ReportedAdded.find(id) == ReportedAdded.end()) {
             newAddedSinceLastSuccess.insert(id);
         }
@@ -418,7 +418,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
     AddedSinceLastSuccess.swap(newAddedSinceLastSuccess);
 
     TChunkSet newRemovedSinceLastSuccess;
-    FOREACH (const auto& id, RemovedSinceLastSuccess) {
+    for (const auto& id : RemovedSinceLastSuccess) {
         if (ReportedRemoved.find(id) == ReportedRemoved.end()) {
             newRemovedSinceLastSuccess.insert(id);
         }

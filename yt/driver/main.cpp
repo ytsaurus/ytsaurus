@@ -205,7 +205,7 @@ private:
     void PrintAllCommands()
     {
         printf("Available commands:\n");
-        FOREACH (const auto& pair, GetSortedIterators(Executors)) {
+        for (const auto& pair : GetSortedIterators(Executors)) {
             printf("  %s\n", ~pair->first);
         }
     }

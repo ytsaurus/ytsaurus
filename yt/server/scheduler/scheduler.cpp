@@ -157,7 +157,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TOperationPtr> operations;
-        FOREACH (const auto& pair, IdToOperation) {
+        for (const auto& pair : IdToOperation) {
             operations.push_back(pair.second);
         }
         return operations;
@@ -406,7 +406,7 @@ public:
             PROFILE_TIMING ("/analysis_time") {
                 auto missingJobs = node->Jobs();
 
-                FOREACH (auto& jobStatus, *request->mutable_jobs()) {
+                for (auto& jobStatus : *request->mutable_jobs()) {
                     auto jobType = EJobType(jobStatus.job_type());
                     // Skip jobs that are not issued by the scheduler.
                     if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
@@ -438,7 +438,7 @@ public:
                 }
 
                 // Check for missing jobs.
-                FOREACH (auto job, missingJobs) {
+                for (auto job : missingJobs) {
                     LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
                         ~node->GetAddress(),
                         ~ToString(job->GetId()),
@@ -458,13 +458,13 @@ public:
                 }
             }
 
-            FOREACH (auto job, schedulingContext->PreemptedJobs()) {
+            for (auto job : schedulingContext->PreemptedJobs()) {
                 ToProto(response->add_jobs_to_abort(), job->GetId());
             }
 
             auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
             auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
-            FOREACH (auto job, schedulingContext->StartedJobs()) {
+            for (auto job : schedulingContext->StartedJobs()) {
                 auto* startInfo = response->add_jobs_to_start();
                 ToProto(startInfo->mutable_job_id(), job->GetId());
                 *startInfo->mutable_resource_limits() = job->ResourceUsage();
@@ -484,7 +484,7 @@ public:
                 context->Reply();
             }));
 
-            FOREACH (auto operation, operationsToLog) {
+            for (auto operation : operationsToLog) {
                 LogOperationProgress(operation);
             }
         } else {
@@ -544,7 +544,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TExecNodePtr> result;
-        FOREACH (const auto& pair, AddressToNode) {
+        for (const auto& pair : AddressToNode) {
             result.push_back(pair.second);
         }
         return result;
@@ -642,7 +642,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        FOREACH (auto jobTypeValue, EJobType::GetDomainValues()) {
+        for (auto jobTypeValue : EJobType::GetDomainValues()) {
             auto jobType = EJobType(jobTypeValue);
             if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
                 Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
@@ -670,7 +670,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto operations = IdToOperation;
-        FOREACH (const auto& pair, operations) {
+        for (const auto& pair : operations) {
             auto operation = pair.second;
             if (!operation->IsFinishedState()) {
                 operation->GetController()->Abort();
@@ -683,7 +683,7 @@ private:
         }
         YCHECK(IdToOperation.empty());
 
-        FOREACH (const auto& pair, AddressToNode) {
+        for (const auto& pair : AddressToNode) {
             auto node = pair.second;
             node->Jobs().clear();
         }
@@ -1030,7 +1030,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(IdToOperation.empty());
-        FOREACH (auto operation, operations) {
+        for (auto operation : operations) {
             ReviveOperation(operation);
         }
     }
@@ -1165,7 +1165,7 @@ private:
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         const auto& address = node->GetAddress();
-        FOREACH (auto job, jobs) {
+        for (auto job : jobs) {
             LOG_INFO("Aborting job on an offline node %s (JobId: %s, OperationId: %s)",
                 ~address,
                 ~ToString(job->GetId()),
@@ -1195,7 +1195,7 @@ private:
     void AbortOperationJobs(TOperationPtr operation)
     {
         auto jobs = operation->Jobs();
-        FOREACH (auto job, jobs) {
+        for (auto job : jobs) {
             AbortJob(job, TError("Operation aborted"));
             UnregisterJob(job);
         }

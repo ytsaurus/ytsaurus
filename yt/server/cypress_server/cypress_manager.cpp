@@ -478,7 +478,7 @@ TError TCypressManager::ValidateLock(
     }
 
     // Check for conflicts with other transactions.
-    FOREACH (const auto& pair, trunkNode->LockStateMap()) {
+    for (const auto& pair : trunkNode->LockStateMap()) {
         auto* existingTransaction = pair.first;
         const auto& existingState = pair.second;
 
@@ -688,7 +688,7 @@ TCypressNodeBase* TCypressManager::DoAcquireLock(TLock* lock)
         // Branch at all intermediate transactions.
         std::reverse(intermediateTransactions.begin(), intermediateTransactions.end());
         auto* currentNode = originatingNode;
-        FOREACH (auto* transactionToBranch, intermediateTransactions) {
+        for (auto* transactionToBranch : intermediateTransactions) {
             currentNode = BranchNode(currentNode, transactionToBranch, request.Mode);
         }
         return currentNode;
@@ -794,7 +794,7 @@ TCypressNodeBase* TCypressManager::LockNode(
     // Validate all potentials lock to see if we need to take at least one of them.
     // This throws an exception in case the validation fails.
     bool isMandatory = false;
-    FOREACH (auto* child, childrenToLock) {
+    for (auto* child : childrenToLock) {
         auto* trunkChild = child->GetTrunkNode();
 
         bool isChildMandatory;
@@ -825,7 +825,7 @@ TCypressNodeBase* TCypressManager::LockNode(
         });
 
     TCypressNodeBase* lockedNode = nullptr;
-    FOREACH (auto* child, childrenToLock) {
+    for (auto* child : childrenToLock) {
         auto* lock = DoCreateLock(child, transaction, request);
         auto* lockedChild = DoAcquireLock(lock);
         if (child == trunkNode) {
@@ -1042,7 +1042,7 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
 void TCypressManager::OnAfterSnapshotLoaded()
 {
     // Reconstruct immediate ancestor sets.
-    FOREACH (const auto& pair, NodeMap) {
+    for (const auto& pair : NodeMap) {
         auto* node = pair.second;
         auto* parent = node->GetParent();
         if (parent) {
@@ -1052,11 +1052,11 @@ void TCypressManager::OnAfterSnapshotLoaded()
 
     // COMPAT(babenko)
     // Fix parent links
-    FOREACH (const auto& pair1, NodeMap) {
+    for (const auto& pair1 : NodeMap) {
         auto* node = pair1.second;
         if (TypeFromId(node->GetId()) == EObjectType::MapNode) {
             auto* mapNode = static_cast<TMapNode*>(node);
-            FOREACH (const auto& pair2, mapNode->KeyToChild()) {
+            for (const auto& pair2 : mapNode->KeyToChild()) {
                 auto* child = pair2.second;
                 if (child && !child->GetParent()) {
                     LOG_WARNING("Parent link fixed (ChildId: %s, ParentId: %s)",
@@ -1110,7 +1110,7 @@ void TCypressManager::OnRecoveryComplete()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    FOREACH (const auto& pair, NodeMap) {
+    for (const auto& pair : NodeMap) {
         auto* node = pair.second;
         node->ResetWeakRefCounter();
     }
@@ -1160,11 +1160,11 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 
     auto objectManager = Bootstrap->GetObjectManager();
 
-    FOREACH (auto* lock, acquiredLocks) {
+    for (auto* lock : acquiredLocks) {
         lock->SetTrunkNode(nullptr);
     }
 
-    FOREACH (auto* lock, pendingLocks) {
+    for (auto* lock : pendingLocks) {
         LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %s)",
             ~ToString(lock->GetId()));
         lock->SetTrunkNode(nullptr);
@@ -1174,7 +1174,7 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
         objectManager->UnrefObject(lock);
     }
 
-    FOREACH (const auto& pair, lockStateMap) {
+    for (const auto& pair : lockStateMap) {
         auto* transaction = pair.first;
         YCHECK(transaction->LockedNodes().erase(trunkNode) == 1);
     }
@@ -1210,7 +1210,7 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
     TTransaction::TLockedNodeSet lockedNodes;
     transaction->LockedNodes().swap(lockedNodes);
 
-    FOREACH (auto* lock, locks) {
+    for (auto* lock : locks) {
         auto* trunkNode = lock->GetTrunkNode();
         // Decide if the lock must be promoted.
         if (promote && parentTransaction && lock->Request().Mode != ELockMode::Snapshot) {
@@ -1238,7 +1238,7 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
         }
     }
 
-    FOREACH (auto* trunkNode, lockedNodes) {
+    for (auto* trunkNode : lockedNodes) {
         YCHECK(trunkNode->LockStateMap().erase(transaction) == 1);
 
         TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
@@ -1246,7 +1246,7 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
             ~ToString(versionedId));
     }
 
-    FOREACH (auto* trunkNode, lockedNodes) {
+    for (auto* trunkNode : lockedNodes) {
         CheckPendingLocks(trunkNode);
     }
 }
@@ -1271,12 +1271,12 @@ void TCypressManager::ListSubtreeNodes(
             std::reverse(transactions.begin(), transactions.end());
 
             yhash_map<Stroka, TCypressNodeBase*> children;
-            FOREACH (auto* currentTransaction, transactions) {
+            for (auto* currentTransaction : transactions) {
                 TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
                 const auto* node = FindNode(versionedId);
                 if (node) {
                     const auto* mapNode = static_cast<const TMapNode*>(node);
-                    FOREACH (const auto& pair, mapNode->KeyToChild()) {
+                    for (const auto& pair : mapNode->KeyToChild()) {
                         if (pair.second) {
                             children[pair.first] = pair.second;
                         } else {
@@ -1287,7 +1287,7 @@ void TCypressManager::ListSubtreeNodes(
                 }
             }
 
-            FOREACH (const auto& pair, children) {
+            for (const auto& pair : children) {
                 ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
             }
 
@@ -1297,7 +1297,7 @@ void TCypressManager::ListSubtreeNodes(
         case EObjectType::ListNode: {
             auto* node = GetVersionedNode(trunkNode, transaction);
             auto* listRoot = static_cast<TListNode*>(node);
-            FOREACH (auto* trunkChild, listRoot->IndexToChild()) {
+            for (auto* trunkChild : listRoot->IndexToChild()) {
                 ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
             }
             break;
@@ -1359,7 +1359,7 @@ void TCypressManager::MergeNode(
 
 void TCypressManager::MergeNodes(TTransaction* transaction)
 {
-    FOREACH (auto* node, transaction->BranchedNodes()) {
+    for (auto* node : transaction->BranchedNodes()) {
         MergeNode(transaction, node);
     }
     transaction->BranchedNodes().clear();
@@ -1386,7 +1386,7 @@ void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
 
 void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)
 {
-    FOREACH (auto* branchedNode, transaction->BranchedNodes()) {
+    for (auto* branchedNode : transaction->BranchedNodes()) {
         RemoveBranchedNode(branchedNode);
     }
     transaction->BranchedNodes().clear();
@@ -1418,7 +1418,7 @@ void TCypressManager::OnStopLeading()
 
 void TCypressManager::UpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)
 {
-    FOREACH (const auto& update, request.updates()) {
+    for (const auto& update : request.updates()) {
         auto nodeId = FromProto<TNodeId>(update.node_id());
         auto* node = FindNode(TVersionedNodeId(nodeId));
         if (node) {

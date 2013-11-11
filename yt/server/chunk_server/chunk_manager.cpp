@@ -377,7 +377,7 @@ public:
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
 
-        FOREACH (auto clientReplica, replicas) {
+        for (auto clientReplica : replicas) {
             auto* node = nodeTracker->FindNode(clientReplica.GetNodeId());
             if (!node) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %d",
@@ -434,7 +434,7 @@ public:
 
         TNodePtrWithIndexList result;
         auto replicas = chunk->GetReplicas();
-        FOREACH (auto replica, replicas) {
+        for (auto replica : replicas) {
             if (index == GenericChunkPartIndex || replica.GetIndex() == index) {
                 result.push_back(replica);
             }
@@ -451,7 +451,7 @@ public:
         chunkList->IncrementVersion();
 
         auto objectManager = Bootstrap->GetObjectManager();
-        FOREACH (auto* child, chunkList->Children()) {
+        for (auto* child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
             objectManager->UnrefObject(child);
         }
@@ -590,7 +590,7 @@ public:
         GetOwningNodes(chunkTree, visited, &owningNodes);
 
         std::vector<TYPath> paths;
-        FOREACH (auto* node, owningNodes) {
+        for (auto* node : owningNodes) {
             auto proxy = cypressManager->GetNodeProxy(
                 node->GetTrunkNode(),
                 node->GetTransaction());
@@ -659,12 +659,12 @@ private:
             }
         };
 
-        FOREACH (auto replica, chunk->StoredReplicas()) {
+        for (auto replica : chunk->StoredReplicas()) {
             unregisterReplica(replica, false);
         }
 
         if (~chunk->CachedReplicas()) {
-            FOREACH (auto replica, *chunk->CachedReplicas()) {
+            for (auto replica : *chunk->CachedReplicas()) {
                 unregisterReplica(replica, true);
             }
         }
@@ -676,7 +676,7 @@ private:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         // Drop references to children.
-        FOREACH (auto* child, chunkList->Children()) {
+        for (auto* child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
             objectManager->UnrefObject(child);
         }
@@ -706,7 +706,7 @@ private:
             return;
 
         auto transactionManager = Bootstrap->GetTransactionManager();
-        FOREACH (auto* child, chunkList->Children()) {
+        for (auto* child : chunkList->Children()) {
             transactionManager->UnstageObject(transaction, child, true);
         }
     }
@@ -725,11 +725,11 @@ private:
 
     void OnNodeUnregistered(TNode* node)
     {
-        FOREACH (auto replica, node->StoredReplicas()) {
+        for (auto replica : node->StoredReplicas()) {
             RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Reset);
         }
 
-        FOREACH (auto replica, node->CachedReplicas()) {
+        for (auto replica : node->CachedReplicas()) {
             RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::Reset);
         }
 
@@ -765,7 +765,7 @@ private:
         YCHECK(node->StoredReplicas().empty());
         YCHECK(node->CachedReplicas().empty());
 
-        FOREACH (const auto& chunkInfo, request.chunks()) {
+        for (const auto& chunkInfo : request.chunks()) {
             ProcessAddedChunk(node, chunkInfo, false);
         }
 
@@ -779,16 +779,16 @@ private:
         const TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* /*response*/)
     {
-        FOREACH (const auto& chunkInfo, request.added_chunks()) {
+        for (const auto& chunkInfo : request.added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
         }
 
-        FOREACH (const auto& chunkInfo, request.removed_chunks()) {
+        for (const auto& chunkInfo : request.removed_chunks()) {
             ProcessRemovedChunk(node, chunkInfo);
         }
 
         std::vector<TChunkPtrWithIndex> unapprovedReplicas(node->UnapprovedReplicas().begin(), node->UnapprovedReplicas().end());
-        FOREACH (auto replica, unapprovedReplicas) {
+        for (auto replica : unapprovedReplicas) {
             RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Unapproved);
         }
         node->UnapprovedReplicas().clear();
@@ -801,7 +801,7 @@ private:
 
     void UpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
     {
-        FOREACH (const auto& update, request.updates()) {
+        for (const auto& update : request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
             auto* chunk = FindChunk(chunkId);
             if (!IsObjectAlive(chunk))
@@ -880,7 +880,7 @@ private:
         // Compute chunk replica count.
         auto nodeTracker = Bootstrap->GetNodeTracker();
         TotalReplicaCount = 0;
-        FOREACH (auto* node, nodeTracker->Nodes().GetValues()) {
+        for (auto* node : nodeTracker->Nodes().GetValues()) {
             TotalReplicaCount += node->StoredReplicas().size();
             TotalReplicaCount += node->CachedReplicas().size();
         }
@@ -960,7 +960,7 @@ private:
         auto mark = TChunkList::GenerateVisitMark();
 
         // Force all statistics to be recalculated.
-        FOREACH (auto& pair, ChunkListMap) {
+        for (auto& pair : ChunkListMap) {
             auto* chunkList = pair.second;
             ComputeStatisticsFor(chunkList, mark);
         }
@@ -976,7 +976,7 @@ private:
         NeedToRecomputeStatistics = false;
 
         // Reset runtime info.
-        FOREACH (const auto& pair, ChunkMap) {
+        for (const auto& pair : ChunkMap) {
             auto* chunk = pair.second;
             chunk->SetRefreshScheduled(false);
             chunk->SetPropertiesUpdateScheduled(false);
@@ -984,7 +984,7 @@ private:
             chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
 
-        FOREACH (const auto& pair, ChunkListMap) {
+        for (const auto& pair : ChunkListMap) {
             auto* chunkList = pair.second;
             chunkList->ResetWeakRefCounter();
         }
@@ -1231,7 +1231,7 @@ private:
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
-                FOREACH (auto* parent, chunkTree->AsChunk()->Parents()) {
+                for (auto* parent : chunkTree->AsChunk()->Parents()) {
                     GetOwningNodes(parent, visited, owningNodes);
                 }
                 break;
@@ -1239,7 +1239,7 @@ private:
             case EObjectType::ChunkList: {
                 auto* chunkList = chunkTree->AsChunkList();
                 owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
-                FOREACH (auto* parent, chunkList->Parents()) {
+                for (auto* parent : chunkList->Parents()) {
                     GetOwningNodes(parent, visited, owningNodes);
                 }
                 break;

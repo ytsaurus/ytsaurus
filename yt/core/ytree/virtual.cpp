@@ -80,7 +80,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     }
 
     writer.OnBeginMap();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         auto service = FindItemService(key);
         if (service) {
             writer.OnKeyedItem(key);
@@ -118,7 +118,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     }
 
     writer.OnBeginList();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         auto service = FindItemService(key);
         if (service) {
             writer.OnListItem();

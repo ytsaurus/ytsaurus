@@ -60,7 +60,6 @@ set( HDRS
   ${BASE}/demangle.h
   ${BASE}/enum.h
   ${BASE}/error.h
-  ${BASE}/foreach.h
   ${BASE}/fs.h
   ${BASE}/guid.h
   ${BASE}/hash.h

@@ -100,7 +100,7 @@ public:
         LOG_INFO("Looking for snapshots");
         
         auto fileNames = EnumerateFiles(path);
-        FOREACH (const auto& fileName, fileNames) {
+        for (const auto& fileName : fileNames) {
             auto extension = NFS::GetFileExtension(fileName);
             if (extension == SnapshotExtension) {
                 auto name = NFS::GetFileNameWithoutExtension(fileName);

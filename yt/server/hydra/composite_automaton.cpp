@@ -214,7 +214,7 @@ void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
     using NYT::Save;
 
     std::vector<TSaverInfo> infos;
-    FOREACH (const auto& pair, Savers) {
+    for (const auto& pair : Savers) {
         infos.push_back(pair.second);
     }
 
@@ -232,7 +232,7 @@ void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
 
     Save(context, static_cast<i32>(infos.size()));
 
-    FOREACH (const auto& info, infos) {
+    for (const auto& info : infos) {
         Save(context, info.Name);
         Save(context, static_cast<i32>(info.Part->GetCurrentSnapshotVersion()));
         info.Saver.Run();
@@ -251,7 +251,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
     LOG_INFO("Started loading composite automaton with %d parts",
         partCount);
 
-    FOREACH (auto part, Parts) {
+    for (auto part : Parts) {
         part->OnBeforeSnapshotLoaded();
     }
 
@@ -273,7 +273,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
         info.Loader.Run();
     }
 
-    FOREACH (auto part, Parts) {
+    for (auto part : Parts) {
         part->OnAfterSnapshotLoaded();
     }
 
@@ -293,7 +293,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
 void TCompositeAutomaton::Clear()
 {
-    FOREACH (auto part, Parts) {
+    for (auto part : Parts) {
         part->Clear();
     }
 }

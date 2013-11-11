@@ -424,7 +424,7 @@ protected:
             LOG_INFO("Processing inputs");
 
             ClearCurrentTaskStripes();
-            FOREACH (auto chunk, CollectInputChunks()) {
+            for (auto chunk : CollectInputChunks()) {
                 ProcessInputChunk(chunk);
             }
         }
@@ -606,7 +606,7 @@ private:
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        for (const auto& slice : CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
@@ -654,7 +654,7 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        for (const auto& slice : CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
@@ -1005,7 +1005,7 @@ protected:
     void CollectEndpoints()
     {
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
-        FOREACH (const auto& chunk, chunks) {
+        for (const auto& chunk : chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
             {
                 TKeyEndpoint endpoint;
@@ -1222,7 +1222,7 @@ private:
                     globalOpenedSlices.size(),
                     ~ToString(nextBreakpoint));
 
-                FOREACH (const auto& chunkSpec, globalOpenedSlices) {
+                for (const auto& chunkSpec : globalOpenedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(
                         chunkSpec,
                         lastBreakpoint,
@@ -1241,7 +1241,7 @@ private:
             if (!maniacs.empty()) {
                 endTask();
 
-                FOREACH(auto& chunkSpec, maniacs) {
+                for (auto& chunkSpec : maniacs) {
                     AddPendingChunk(CreateChunkSlice(chunkSpec));
                     if (HasLargeActiveTask()) {
                         EndManiacTask();
@@ -1253,7 +1253,7 @@ private:
             if (!TeleportChunks.empty()) {
                 endTask();
 
-                FOREACH(auto& chunkSpec, TeleportChunks) {
+                for (auto& chunkSpec : TeleportChunks) {
                     AddTeleportChunk(chunkSpec);
                 }
             }
@@ -1576,7 +1576,7 @@ private:
                     openedSlices.size(),
                     ~ToString(nextBreakpoint));
 
-                FOREACH (const auto& chunkSpec, openedSlices) {
+                for (const auto& chunkSpec : openedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(
                         chunkSpec,
                         lastBreakpoint,
@@ -1614,7 +1614,7 @@ private:
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
         std::vector<TPathWithStage> result;
-        FOREACH (const auto& path, Spec->Reducer->FilePaths) {
+        for (const auto& path : Spec->Reducer->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Reduce));
         }
         return result;
@@ -1673,7 +1673,7 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        FOREACH(const auto& inputTable, InputTables) {
+        for (const auto& inputTable : InputTables) {
             if (inputTable.Path.Attributes().Get<bool>("teleport", false)) {
                 return false;
             }

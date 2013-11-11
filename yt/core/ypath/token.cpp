@@ -44,7 +44,7 @@ Stroka ToYPathLiteral(const Stroka& value)
     static const char* HexChars = "0123456789abcdef";
     Stroka result;
     result.reserve(value.length() + 16);
-    FOREACH (char ch, value) {
+    for (char ch : value) {
         if (ch == '\\' || ch == '/' || ch == '@' || ch == '&' || ch == '[' || ch == '{') {
             result.append('\\');
             result.append(ch);

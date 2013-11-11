@@ -17,7 +17,7 @@ TChunkMeta FilterChunkMetaExtensions(const TChunkMeta& chunkMeta, const std::vec
 
     yhash_set<int> tagsSet(tags.begin(), tags.end());
 
-    FOREACH (const auto& extension, chunkMeta.extensions().extensions()) {
+    for (const auto& extension : chunkMeta.extensions().extensions()) {
         if (tagsSet.find(extension.tag()) != tagsSet.end()) {
             *result.mutable_extensions()->add_extensions() = extension;
         }

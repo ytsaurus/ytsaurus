@@ -23,11 +23,11 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     YCHECK(Stream);
     YCHECK(Config);
 
-    FOREACH (const auto& name, Config->KeyColumnNames) {
+    for (const auto& name : Config->KeyColumnNames) {
         YCHECK(KeyColumnNames.insert(name));
         YCHECK(KeyFields.insert(std::make_pair(name, TColumnValue())).second);
     }
-    FOREACH (const auto& name, Config->SubkeyColumnNames) {
+    for (const auto& name : Config->SubkeyColumnNames) {
         YCHECK(SubkeyColumnNames.insert(name));
         YCHECK(SubkeyFields.insert(std::make_pair(name, TColumnValue())).second);
     }
@@ -230,7 +230,7 @@ void TYamredDsvWriter::WriteYamrKey(
     i32 fieldCount)
 {
     if (fieldCount < columnNames.size()) {
-        FOREACH (const auto& column, fieldValues) {
+        for (const auto& column : fieldValues) {
             if (column.second.RowIndex != RowCount) {
                 THROW_ERROR_EXCEPTION("Missing column %s in YAMRed DSV",
                     ~Stroka(column.first).Quote());

@@ -26,7 +26,7 @@ TEntityMap<TKey, TValue, TTraits, THash>::TEntityMap(const TTraits& traits)
 template <class TKey, class TValue, class TTraits, class THash>
 TEntityMap<TKey, TValue, TTraits, THash>::~TEntityMap()
 {
-    FOREACH (const auto& pair, Map) {
+    for (const auto& pair : Map) {
         delete pair.second;
     }
     Map.clear();
@@ -107,7 +107,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::Clear()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    FOREACH (const auto& pair, Map) {
+    for (const auto& pair : Map) {
         delete pair.second;
     }
     Map.clear();
@@ -129,7 +129,7 @@ std::vector<TKey> TEntityMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeL
     std::vector<TKey> keys;
     keys.reserve(std::min(Map.size(), sizeLimit));
 
-    FOREACH (const auto& pair, Map) {
+    for (const auto& pair : Map) {
         if (keys.size() == sizeLimit) {
             break;
         }
@@ -149,7 +149,7 @@ std::vector<TValue*> TEntityMap<TKey, TValue, TTraits, THash>::GetValues(size_t 
     std::vector<TValue*> values;
     values.reserve(std::min(Map.size(), sizeLimit));
 
-    FOREACH (auto& pair, Map) {
+    for (auto& pair : Map) {
         values.push_back(pair.second);
         if (values.size() == sizeLimit) {
             break;
@@ -227,12 +227,12 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
 
     std::vector<TKey> keys;
     keys.reserve(Map.size());
-    FOREACH (const auto& pair, Map) {
+    for (const auto& pair : Map) {
         keys.push_back(pair.first);
     }
     std::sort(keys.begin(), keys.end());
 
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         auto it = Map.find(key);
         YCHECK(it != Map.end());
         Load(context, *it->second);
@@ -246,12 +246,12 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveKeys(TSaveContext& context) c
 
     std::vector<TKey> keys;
     keys.reserve(Map.size());
-    FOREACH (const auto& pair, Map) {
+    for (const auto& pair : Map) {
         keys.push_back(pair.first);
     }
     std::sort(keys.begin(), keys.end());
 
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         Save(context, key);
     }
 }
@@ -268,7 +268,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveValues(TContext& context) con
             return lhs.first < rhs.first;
         });
 
-    FOREACH (const auto& item, items) {
+    for (const auto& item : items) {
         Save(context, *item.second);
     }
 }

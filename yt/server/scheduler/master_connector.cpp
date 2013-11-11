@@ -226,7 +226,7 @@ public:
             static_cast<int>(childrenIds.size()));
 
         auto* list = GetUpdateList(operation);
-        FOREACH (const auto& childId, childrenIds) {
+        for (const auto& childId : childrenIds) {
             TLivePreviewRequest request;
             request.ChunkListId = chunkListId;
             request.ChildId = childId;
@@ -365,10 +365,10 @@ private:
         CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
 
         const auto& result = resultOrError.GetValue();
-        FOREACH (auto operation, result.Operations) {
+        for (auto operation : result.Operations) {
             CreateUpdateList(operation);
         }
-        FOREACH (auto handler, GlobalWatcherHandlers) {
+        for (auto handler : GlobalWatcherHandlers) {
             handler.Run(result.WatcherResponses);
         }
 
@@ -557,7 +557,7 @@ private:
                 LOG_INFO("Operations list received, %d operations total",
                     static_cast<int>(operationsList->GetChildCount()));
                 OperationIds.clear();
-                FOREACH (auto operationNode, operationsList->GetChildren()) {
+                for (auto operationNode : operationsList->GetChildren()) {
                     auto id = TOperationId::FromString(operationNode->GetValue<Stroka>());
                     auto state = operationNode->Attributes().Get<EOperationState>("state");
                     if (IsOperationInProgress(state)) {
@@ -575,7 +575,7 @@ private:
             {
                 LOG_INFO("Fetching attributes for %d unfinished operations",
                     static_cast<int>(OperationIds.size()));
-                FOREACH (const auto& operationId, OperationIds) {
+                for (const auto& operationId : OperationIds) {
                     auto req = TYPathProxy::Get(GetOperationPath(operationId));
                     // Keep in sync with CreateOperationFromAttributes.
                     auto* attributeFilter = req->mutable_attribute_filter();
@@ -618,7 +618,7 @@ private:
         {
             auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
 
-            FOREACH (auto operation, Result.Operations) {
+            for (auto operation : Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
                 auto checkTransaction = [&] (TOperationPtr operation, ITransactionPtr transaction) {
@@ -650,7 +650,7 @@ private:
         // - Check snapshots for existence and validate versions.
         void DownloadSnapshots()
         {
-            FOREACH (auto operation, Result.Operations) {
+            for (auto operation : Result.Operations) {
                 if (!operation->GetCleanStart()) {
                     if (!DownloadSnapshot(operation)) {
                         operation->SetCleanStart(true);
@@ -721,7 +721,7 @@ private:
         {
             auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
 
-            FOREACH (auto operation, Result.Operations) {
+            for (auto operation : Result.Operations) {
                 auto scheduleAbort = [=] (ITransactionPtr transaction) {
                     if (!transaction)
                         return;
@@ -762,7 +762,7 @@ private:
         {
             auto batchReq = Owner->StartBatchRequest();
 
-            FOREACH (auto operation, Result.Operations) {
+            for (auto operation : Result.Operations) {
                 if (operation->GetCleanStart()) {
                     auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
                     req->set_force(true);
@@ -775,7 +775,7 @@ private:
 
             {
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_snapshot");
-                FOREACH (auto rsp, rsps) {
+                for (auto rsp : rsps) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error removing snapshot");
                 }
             }
@@ -785,7 +785,7 @@ private:
         void InvokeWatchers()
         {
             auto batchReq = Owner->StartBatchRequest();
-            FOREACH (auto requester, Owner->GlobalWatcherRequesters) {
+            for (auto requester : Owner->GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
 
@@ -1056,7 +1056,7 @@ private:
         };
 
         auto operations = Bootstrap->GetScheduler()->GetOperations();
-        FOREACH (auto operation, operations) {
+        for (auto operation : operations) {
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
@@ -1070,7 +1070,7 @@ private:
         // Invoke GetId verbs for these transactions to see if they are alive.
         std::vector<TTransactionId> transactionIdsList;
         auto batchReq = StartBatchRequest();
-        FOREACH (const auto& id, watchSet) {
+        for (const auto& id : watchSet) {
             auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
             transactionIdsList.push_back(id);
             batchReq->AddRequest(checkReq, "check_tx");
@@ -1145,7 +1145,7 @@ private:
 
         // Check every operation's transactions and raise appropriate notifications.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
-        FOREACH (auto operation, operations) {
+        for (auto operation : operations) {
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
@@ -1229,7 +1229,7 @@ private:
         // Issue updates for active operations.
         std::vector<TOperationPtr> finishedOperations;
         auto awaiter = New<TParallelAwaiter>(CancelableControlInvoker);
-        FOREACH (auto& pair, UpdateLists) {
+        for (auto& pair : UpdateLists) {
             auto& list = pair.second;
             auto operation = list.Operation;
             if (operation->IsFinishedState()) {
@@ -1250,7 +1250,7 @@ private:
         awaiter->Complete(BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this)));
 
         // Cleanup finished operations.
-        FOREACH (auto operation, finishedOperations) {
+        for (auto operation : finishedOperations) {
             RemoveUpdateList(operation);
         }
     }
@@ -1344,7 +1344,7 @@ private:
         // Create jobs.
         {
             auto& requests = list->JobRequests;
-            FOREACH (const auto& request, requests) {
+            for (const auto& request : requests) {
                 auto job = request.Job;
                 auto operation = job->GetOperation();
                 auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
@@ -1424,7 +1424,7 @@ private:
 
         {
             auto rsps = batchRsp->GetResponses("update_op_node");
-            FOREACH (auto rsp, rsps) {
+            for (auto rsp : rsps) {
                 if (!rsp->IsOK()) {
                     return TError(
                         "Error updating operation node (OperationId: %s)",
@@ -1438,7 +1438,7 @@ private:
         // These requests may fail due to user transaction being aborted.
         {
             auto rsps = batchRsp->GetResponses("create_std_err");
-            FOREACH (auto rsp, rsps) {
+            for (auto rsp : rsps) {
                 if (!rsp->IsOK()) {
                     LOG_WARNING(
                         rsp->GetError(),
@@ -1450,7 +1450,7 @@ private:
 
         {
             auto rsps = batchRsp->GetResponses("update_live_preview");
-            FOREACH (auto rsp, rsps) {
+            for (auto rsp : rsps) {
                 if (!rsp->IsOK()) {
                     LOG_WARNING(
                         rsp->GetError(), 
@@ -1542,7 +1542,7 @@ private:
         // Global watchers.
         {
             auto batchReq = StartBatchRequest();
-            FOREACH (auto requester, GlobalWatcherRequesters) {
+            for (auto requester : GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
@@ -1563,14 +1563,14 @@ private:
         }
 
         // Per-operation watchers.
-        FOREACH (const auto& pair, WatcherLists) {
+        for (const auto& pair : WatcherLists) {
             const auto& list = pair.second;
             auto operation = list.Operation;
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
             auto batchReq = StartBatchRequest();
-            FOREACH (auto requester, list.WatcherRequesters) {
+            for (auto requester : list.WatcherRequesters) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
@@ -1591,7 +1591,7 @@ private:
             return;
         }
 
-        FOREACH (auto handler, GlobalWatcherHandlers) {
+        for (auto handler : GlobalWatcherHandlers) {
             handler.Run(batchRsp);
         }
 
@@ -1616,7 +1616,7 @@ private:
         if (!list)
             return;
 
-        FOREACH (auto handler, list->WatcherHandlers) {
+        for (auto handler : list->WatcherHandlers) {
             handler.Run(batchRsp);
         }
 

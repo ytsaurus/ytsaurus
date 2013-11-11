@@ -258,13 +258,13 @@ private:
     {       
         auto& request = Context->Request();
 
-        FOREACH (const auto& prerequisite, request.prerequisite_transactions()) {
+        for (const auto& prerequisite : request.prerequisite_transactions()) {
             auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
             GetPrerequisiteTransaction(transactionId);
         }
 
         auto cypressManager = Bootstrap->GetCypressManager();
-        FOREACH (const auto& prerequisite, request.prerequisite_revisions()) {
+        for (const auto& prerequisite : request.prerequisite_revisions()) {
             auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
             const auto& path = prerequisite.path();
             i64 revision = prerequisite.revision();

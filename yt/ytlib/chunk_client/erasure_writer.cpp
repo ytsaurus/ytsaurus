@@ -29,13 +29,13 @@ std::vector<std::vector<TSharedRef>> SplitBlocks(
     int groupCount)
 {
     i64 totalSize = 0;
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         totalSize += block.Size();
     }
 
     std::vector<std::vector<TSharedRef>> groups(1);
     i64 currentSize = 0;
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         groups.back().push_back(block);
         currentSize += block.Size();
         // Current group is fulfilled if currentSize / currentGroupCount >= totalSize / groupCount
@@ -88,7 +88,7 @@ public:
 
         i64 currentStart = 0;
 
-        FOREACH (auto block, Blocks_) {
+        for (auto block : Blocks_) {
             i64 innerStart = std::max((i64)0, start - currentStart);
             i64 innerEnd = std::min((i64)block.Size(), end - currentStart);
 
@@ -144,7 +144,7 @@ public:
 
     virtual void Open() override
     {
-        FOREACH (auto writer, Writers_) {
+        for (auto writer : Writers_) {
             writer->Open();
         }
     }
@@ -236,10 +236,10 @@ void TErasureWriter::PrepareBlocks()
 
     // Calculate size of parity blocks and form slicers
     ParityDataSize_ = 0;
-    FOREACH (const auto& group, Groups_) {
+    for (const auto& group : Groups_) {
         i64 size = 0;
         i64 maxBlockSize = 0;
-        FOREACH (const auto& block, group) {
+        for (const auto& block : group) {
             size += block.Size();
             maxBlockSize = std::max(maxBlockSize, (i64)block.Size());
         }
@@ -266,10 +266,10 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
 {
     int start = 0;
     NProto::TErasurePlacementExt placementExt;
-    FOREACH (const auto& group, Groups_) {
+    for (const auto& group : Groups_) {
         auto* info = placementExt.add_part_infos();
         info->set_start(start);
-        FOREACH (const auto& block, group) {
+        for (const auto& block : group) {
             info->add_block_sizes(block.Size());
         }
         start += group.size();
@@ -306,7 +306,7 @@ TError TErasureWriter::WriteDataPart(IAsyncWriterPtr writer, const std::vector<T
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         if (!writer->WriteBlock(block)) {
             auto error = WaitFor(writer->GetReadyEvent());
             if (!error.IsOK())
@@ -332,7 +332,7 @@ TError TErasureWriter::EncodeAndWriteParityBlocks()
         TDispatcher::Get()->GetErasureInvoker()->Invoke(BIND([this, this_, windowIndex, begin, end] () {
             // Generate bytes from [begin, end) for parity blocks.
             std::vector<TSharedRef> slices;
-            FOREACH (const auto& slicer, Slicers_) {
+            for (const auto& slicer : Slicers_) {
                 slices.push_back(slicer.GetSlice(begin, end));
             }
 
@@ -411,7 +411,7 @@ TAsyncError TErasureWriter::OnClosed(TError error)
     }
 
     i64 diskSpace = 0;
-    FOREACH (auto writer, Writers_) {
+    for (auto writer : Writers_) {
         diskSpace += writer->GetChunkInfo().disk_space();
     }
     ChunkInfo_.set_disk_space(diskSpace);

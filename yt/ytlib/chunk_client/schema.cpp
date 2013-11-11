@@ -103,7 +103,7 @@ TChannel::TChannel()
 
 void TChannel::AddColumn(const Stroka& column)
 {
-    FOREACH (const auto& existingColumn, Columns_) {
+    for (const auto& existingColumn : Columns_) {
         if (existingColumn == column) {
             return;
         }
@@ -125,11 +125,11 @@ void TChannel::AddRange(const Stroka& begin, const Stroka& end)
 NProto::TChannel TChannel::ToProto() const
 {
     NProto::TChannel protoChannel;
-    FOREACH (const auto& column, Columns_) {
+    for (const auto& column : Columns_) {
         protoChannel.add_columns(~column);
     }
 
-    FOREACH (const auto& range, Ranges_) {
+    for (const auto& range : Ranges_) {
         *protoChannel.add_ranges() = range.ToProto();
     }
     return protoChannel;
@@ -150,7 +150,7 @@ NYT::NChunkClient::TChannel TChannel::FromProto(const NProto::TChannel& protoCha
 
 bool TChannel::Contains(const TStringBuf& column) const
 {
-    FOREACH (const auto& oldColumn, Columns_) {
+    for (const auto& oldColumn : Columns_) {
         if (oldColumn == column) {
             return true;
         }
@@ -160,7 +160,7 @@ bool TChannel::Contains(const TStringBuf& column) const
 
 bool TChannel::Contains(const TRange& range) const
 {
-    FOREACH (const auto& currentRange, Ranges_) {
+    for (const auto& currentRange : Ranges_) {
         if (currentRange.Contains(range)) {
             return true;
         }
@@ -170,13 +170,13 @@ bool TChannel::Contains(const TRange& range) const
 
 bool TChannel::Contains(const TChannel& channel) const
 {
-    FOREACH (const auto& column, channel.Columns_) {
+    for (const auto& column : channel.Columns_) {
         if (!Contains(column)) {
             return false;
         }
     }
 
-    FOREACH (const auto& range, channel.Ranges_) {
+    for (const auto& range : channel.Ranges_) {
         if (!Contains(range)) {
             return false;
         }
@@ -187,7 +187,7 @@ bool TChannel::Contains(const TChannel& channel) const
 
 bool TChannel::ContainsInRanges(const TStringBuf& column) const
 {
-    FOREACH (const auto& range, Ranges_) {
+    for (const auto& range : Ranges_) {
         if (range.Contains(column)) {
             return true;
         }
@@ -197,13 +197,13 @@ bool TChannel::ContainsInRanges(const TStringBuf& column) const
 
 bool TChannel::Overlaps(const TRange& range) const
 {
-    FOREACH (const auto& column, Columns_) {
+    for (const auto& column : Columns_) {
         if (range.Contains(column)) {
             return true;
         }
     }
 
-    FOREACH (const auto& currentRange, Ranges_) {
+    for (const auto& currentRange : Ranges_) {
         if (currentRange.Overlaps(range)) {
             return true;
         }
@@ -214,13 +214,13 @@ bool TChannel::Overlaps(const TRange& range) const
 
 bool TChannel::Overlaps(const TChannel& channel) const
 {
-    FOREACH (const auto& column, channel.Columns_) {
+    for (const auto& column : channel.Columns_) {
         if (Contains(column)) {
             return true;
         }
     }
 
-    FOREACH (const auto& range, channel.Ranges_) {
+    for (const auto& range : channel.Ranges_) {
         if (Overlaps(range)) {
             return true;
         }
@@ -283,7 +283,7 @@ const TChannel& TChannel::Empty()
 TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
 {
     std::vector<Stroka> newColumns;
-    FOREACH (const auto& column, lhs.Columns_) {
+    for (const auto& column : lhs.Columns_) {
         if (!rhs.Contains(column)) {
             newColumns.push_back(column);
         }
@@ -291,7 +291,7 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
     lhs.Columns_.swap(newColumns);
 
     std::vector<TRange> rhsRanges(rhs.Ranges_);
-    FOREACH (const auto& column, rhs.Columns_) {
+    for (const auto& column : rhs.Columns_) {
         // Add single columns as ranges.
         Stroka rangeEnd;
         rangeEnd.reserve(column.Size() + 1);
@@ -301,8 +301,8 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
     }
 
     std::vector<TRange> newRanges;
-    FOREACH (const auto& rhsRange, rhsRanges) {
-        FOREACH (const auto& lhsRange, lhs.Ranges_) {
+    for (const auto& rhsRange : rhsRanges) {
+        for (const auto& lhsRange : lhs.Ranges_) {
             if (!lhsRange.Overlaps(rhsRange)) {
                 newRanges.push_back(lhsRange);
                 continue;
@@ -338,7 +338,7 @@ void Deserialize(TChannel& channel, INodePtr node)
     }
 
     channel = TChannel::Empty();
-    FOREACH (auto child, node->AsList()->GetChildren()) {
+    for (auto child : node->AsList()->GetChildren()) {
         switch (child->GetType()) {
             case ENodeType::String:
                 channel.AddColumn(child->GetValue<Stroka>());
@@ -438,7 +438,7 @@ void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consum
     } else if (readLimit.has_key()) {
         consumer->OnKeyedItem("key");
         consumer->OnBeginList();
-        FOREACH (const auto& part, readLimit.key().parts()) {
+        for (const auto& part : readLimit.key().parts()) {
             consumer->OnListItem();
             switch (part.type()) {
                 case EKeyPartType::String:

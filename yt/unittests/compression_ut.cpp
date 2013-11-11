@@ -18,7 +18,7 @@ class TCodecTest:
 
 TEST_F(TCodecTest, Compression)
 {
-    FOREACH (const auto& codecId, ECodec::GetDomainValues()) {
+    for (const auto& codecId : ECodec::GetDomainValues()) {
         auto codec = GetCodec(codecId);
 
         Stroka data = "hello world";
@@ -34,7 +34,7 @@ TEST_F(TCodecTest, Compression)
 
 TEST_F(TCodecTest, VectorCompression)
 {
-    FOREACH (const auto& codecId, ECodec::GetDomainValues()) {
+    for (const auto& codecId : ECodec::GetDomainValues()) {
         auto codec = GetCodec(codecId);
 
         {
@@ -69,7 +69,7 @@ TEST_F(TCodecTest, VectorCompression)
 
 
 TEST_F(TCodecTest, LargeTest) {
-    FOREACH (const auto& codecId, ECodec::GetDomainValues()) {
+    for (const auto& codecId : ECodec::GetDomainValues()) {
         auto codec = GetCodec(codecId);
 
         Stroka data(static_cast<int>(1e7), 'a');

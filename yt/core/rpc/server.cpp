@@ -71,7 +71,7 @@ public:
 
     virtual void Configure(TServerConfigPtr config) override
     {
-        FOREACH (const auto& pair, config->Services) {
+        for (const auto& pair : config->Services) {
             const auto& serviceName = pair.first;
             const auto& serviceConfig = pair.second;
             auto services = FindServices(serviceName);

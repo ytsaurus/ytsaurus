@@ -49,7 +49,7 @@ void VisitAncestors(TChunkList* chunkList, F functor)
 
         if (chunkList != nullptr) {
             // Proceed to parents.
-            FOREACH (auto* parent, chunkList->Parents()) {
+            for (auto* parent : chunkList->Parents()) {
                 queue.push_back(parent);
             }
         }

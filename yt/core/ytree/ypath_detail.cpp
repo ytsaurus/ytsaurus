@@ -322,7 +322,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
         if (systemAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
-            FOREACH (const auto& attribute, systemAttributes) {
+            for (const auto& attribute : systemAttributes) {
                 if (attribute.IsPresent) {
                     writer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
@@ -335,7 +335,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
         }
 
         if (userAttributes) {
-            FOREACH (const auto& key, userAttributes->List()) {
+            for (const auto& key : userAttributes->List()) {
                 writer.OnKeyedItem(key);
                 Consume(userAttributes->GetYson(key), &writer);
             }
@@ -401,7 +401,7 @@ TErrorOr<TYsonString> TSupportsAttributes::DoListAttributeFragment(
     TStringStream stream;
     NYson::TYsonWriter writer(&stream);
     writer.OnBeginList();
-    FOREACH (const auto& listedKey, listedKeys) {
+    for (const auto& listedKey : listedKeys) {
         writer.OnListItem();
         writer.OnStringScalar(listedKey);
     }
@@ -426,7 +426,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
 
         if (userAttributes) {
             auto userKeys = userAttributes->List();
-            FOREACH (const auto& key, userKeys) {
+            for (const auto& key : userKeys) {
                 writer.OnListItem();
                 writer.OnStringScalar(key);
             }
@@ -435,7 +435,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
         if (systemAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
-            FOREACH (const auto& attribute, systemAttributes) {
+            for (const auto& attribute : systemAttributes) {
                 if (attribute.IsPresent) {
                     writer.OnListItem();
                     writer.OnStringScalar(attribute.Key);
@@ -521,7 +521,7 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
         if (systemAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
-            FOREACH (const auto& attribute, systemAttributes) {
+            for (const auto& attribute : systemAttributes) {
                 if (attribute.Key == key && attribute.IsPresent) {
                     return TrueFuture;
                 }
@@ -571,7 +571,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
 
-            FOREACH (const auto& attribute, systemAttributes) {
+            for (const auto& attribute : systemAttributes) {
                 Stroka key(attribute.Key);
                 auto newAttributeYson = newAttributes->FindYson(key);
                 if (newAttributeYson) {
@@ -597,12 +597,12 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         auto oldUserKeys = userAttributes->List();
         std::sort(oldUserKeys.begin(), oldUserKeys.end());
 
-        FOREACH (const auto& key, newUserKeys) {
+        for (const auto& key : newUserKeys) {
             auto value = newAttributes->GetYson(key);
             userAttributes->SetYson(key, value);
         }
 
-        FOREACH (const auto& key, oldUserKeys) {
+        for (const auto& key : oldUserKeys) {
             if (!newAttributes->FindYson(key)) {
                 userAttributes->Remove(key);
             }
@@ -619,7 +619,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
         if (systemAttributeProvider) {
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
-            FOREACH (const auto& currentAttribute, systemAttributes) {
+            for (const auto& currentAttribute : systemAttributes) {
                 if (currentAttribute.Key == key) {
                     attribute = &currentAttribute;
                     break;
@@ -697,7 +697,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
         if (userAttributes) {
             auto userKeys = userAttributes->List();
             std::sort(userKeys.begin(), userKeys.end());
-            FOREACH (const auto& key, userKeys) {
+            for (const auto& key : userKeys) {
                 YCHECK(userAttributes->Remove(key));
             }
         }

@@ -879,7 +879,7 @@ void TTransactionManager::TImpl::AsyncAbortAll()
     std::vector<ITransactionPtr> transactions;
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        FOREACH (auto* rawTransaction, AliveTransactions_) {
+        for (auto* rawTransaction : AliveTransactions_) {
             auto transaction = TRefCounted::DangerousGetPtr(rawTransaction);
             if (transaction) {
                 transactions.push_back(transaction);
@@ -887,7 +887,7 @@ void TTransactionManager::TImpl::AsyncAbortAll()
         }
     }
 
-    FOREACH (const auto& transaction, transactions) {
+    for (const auto& transaction : transactions) {
         transaction->AsyncAbort();
     }
 }

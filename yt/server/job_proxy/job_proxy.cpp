@@ -147,7 +147,7 @@ void TJobProxy::Run()
 
         // For erasure chunks, replace part id with whole chunk id.
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        FOREACH (const auto& chunkId, failedChunkIds) {
+        for (const auto& chunkId : failedChunkIds) {
             auto actualChunkId = IsErasureChunkPartId(chunkId)
                 ? ErasureChunkIdFromPartId(chunkId)
                 : chunkId;

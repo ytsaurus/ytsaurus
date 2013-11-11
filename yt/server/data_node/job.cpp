@@ -438,9 +438,9 @@ private:
         auto config = Bootstrap->GetConfig()->DataNode;
 
         std::vector<IAsyncReaderPtr> readers;
-        FOREACH (int partIndex, *repairIndexes) {
+        for (int partIndex : *repairIndexes) {
             TChunkReplicaList partReplicas;
-            FOREACH (auto replica, replicas) {
+            for (auto replica : replicas) {
                 if (replica.GetIndex() == partIndex) {
                     partReplicas.push_back(replica);
                 }

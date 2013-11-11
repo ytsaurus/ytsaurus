@@ -134,7 +134,7 @@ private:
                         downloadedRecordCount + actualChunkSize - 1);
                 }
             
-                FOREACH (const auto& data, recordsData) {
+                for (const auto& data : recordsData) {
                     changelog->Append(data);
                     ++downloadedRecordCount;
                 }

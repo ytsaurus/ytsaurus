@@ -42,7 +42,7 @@ public:
             // Initialize stores.
             {
                 auto entries = EnumerateDirectories(Config->Path);
-                FOREACH (const auto& entry, entries) {
+                for (const auto& entry : entries) {
                     TCellGuid cellGuid;
                     auto cellGuidStr = GetFileNameWithoutExtension(entry);
                     if (!TCellGuid::FromString(cellGuidStr, &cellGuid)) {
@@ -65,7 +65,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock);
         std::vector<ISnapshotStorePtr> result;
-        FOREACH (const auto& pair, StoreMap) {
+        for (const auto& pair : StoreMap) {
             result.push_back(pair.second);
         }
         return result;

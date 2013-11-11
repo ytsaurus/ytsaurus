@@ -292,7 +292,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
-    FOREACH (const auto& attachment, request->Attachments()) {
+    for (const auto& attachment : request->Attachments()) {
         TBlob data;
         data.Append(attachment);
         data.Append("_", 1);

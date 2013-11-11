@@ -423,11 +423,11 @@ private:
         if (!userJobSpec)
             return;
 
-        FOREACH (const auto& descriptor, userJobSpec->regular_files()) {
+        for (const auto& descriptor : userJobSpec->regular_files()) {
             PrepareRegularFile(descriptor);
         }
 
-        FOREACH (const auto& descriptor, userJobSpec->table_files()) {
+        for (const auto& descriptor : userJobSpec->table_files()) {
             PrepareTableFile(descriptor);
         }
     }
@@ -525,7 +525,7 @@ private:
         auto chunkCache = Bootstrap->GetChunkCache();
         auto this_ = MakeStrong(this);
 
-        FOREACH (const auto chunk, fetchRsp.chunks()) {
+        for (const auto chunk : fetchRsp.chunks()) {
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
 
             if (IsErasureChunkId(chunkId)) {
@@ -556,7 +556,7 @@ private:
     {
         std::vector<NChunkClient::NProto::TChunkSpec> chunks;
         chunks.insert(chunks.end(), fetchRsp.chunks().begin(), fetchRsp.chunks().end());
-        FOREACH (auto& chunk, chunks) {
+        for (auto& chunk : chunks) {
             chunk.clear_replicas();
             chunk.add_replicas(ToProto<ui32>(TChunkReplica(InvalidNodeId, 0)));
         }

@@ -249,7 +249,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
     TYsonWriter writer(&stream);
 
     writer.OnBeginList();
-    FOREACH (const auto& pair, GetChildren()) {
+    for (const auto& pair : GetChildren()) {
         const auto& key = pair.first;
         const auto& node = pair.second;
         writer.OnListItem();

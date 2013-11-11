@@ -137,7 +137,7 @@ TAsyncError TAsyncReader::OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr
         nodeDirectory->MergeFrom(rsp->node_directory());
 
         auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-        FOREACH(const auto& chunk, chunks) {
+        for (const auto& chunk : chunks) {
             i64 dataSize;
             GetStatistics(chunk, &dataSize);
             Size += dataSize;

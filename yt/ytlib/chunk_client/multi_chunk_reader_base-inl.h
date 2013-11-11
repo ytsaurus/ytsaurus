@@ -52,7 +52,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         return;
     }
 
-    FOREACH (const auto& chunkSpec, ChunkSpecs) {
+    for (const auto& chunkSpec : ChunkSpecs) {
         if (IsUnavailable(chunkSpec)) {
             auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
             FailedChunks.push_back(chunkId);

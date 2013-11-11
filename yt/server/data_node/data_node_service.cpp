@@ -159,7 +159,7 @@ void TDataNodeService::OnGotChunkMeta(
         // Partition chunks must have only one channel.
         YCHECK(channelsExt.items_size() == 1);
 
-        FOREACH (const auto& blockInfo, channelsExt.items(0).blocks()) {
+        for (const auto& blockInfo : channelsExt.items(0).blocks()) {
             YCHECK(blockInfo.partition_tag() != DefaultPartitionTag);
             if (blockInfo.partition_tag() == partitionTag.Get()) {
                 filteredBlocks.push_back(blockInfo);
@@ -219,7 +219,7 @@ void TDataNodeService::OnProfiling()
     Profiler.Enqueue("/pending_in_size", GetPendingInSize());
 
     auto sessionManager = Bootstrap->GetSessionManager();
-    FOREACH (auto typeValue, EWriteSessionType::GetDomainValues()) {
+    for (auto typeValue : EWriteSessionType::GetDomainValues()) {
         auto type = EWriteSessionType(typeValue);
         Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
     }
@@ -379,7 +379,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             blockInfo->set_data_attached(false);
             const auto& peers = peerBlockTable->GetPeers(blockId);
             if (!peers.empty()) {
-                FOREACH (const auto& peer, peers) {
+                for (const auto& peer : peers) {
                     ToProto(blockInfo->add_p2p_descriptors(), peer.Descriptor);
                 }
                 LOG_DEBUG("GetBlocks: %" PRISZT " peers suggested for block %d",
@@ -430,7 +430,7 @@ void TDataNodeService::OnGotBlocks(TCtxGetBlocksPtr context)
     // Compute statistics.
     int blocksWithData = 0;
     int blocksWithP2P = 0;
-    FOREACH (const auto& blockInfo, response->blocks()) {
+    for (const auto& blockInfo : response->blocks()) {
         if (blockInfo.data_attached()) {
             ++blocksWithData;
         }
@@ -440,7 +440,7 @@ void TDataNodeService::OnGotBlocks(TCtxGetBlocksPtr context)
     }
 
     i64 totalSize = 0;
-    FOREACH (const auto& block, response->Attachments()) {
+    for (const auto& block : response->Attachments()) {
         totalSize += block.Size();
     }
 
@@ -560,7 +560,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TDataNodeService, UpdatePeer)
         request->block_ids_size());
 
     auto peerBlockTable = Bootstrap->GetPeerBlockTable();
-    FOREACH (const auto& block_id, request->block_ids()) {
+    for (const auto& block_id : request->block_ids()) {
         TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
         peerBlockTable->UpdatePeer(blockId, peer);
     }
@@ -575,7 +575,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
     auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
-    FOREACH (const auto& sampleRequest, request->sample_requests()) {
+    for (const auto& sampleRequest : request->sample_requests()) {
         auto* chunkSamples = response->add_samples();
         auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
@@ -624,11 +624,11 @@ void TDataNodeService::ProcessSample(
         std::back_inserter(samples),
         sampleRequest->sample_count());
 
-    FOREACH (const auto& sample, samples) {
+    for (const auto& sample : samples) {
         auto* key = chunkSamples->add_items();
 
         size_t size = 0;
-        FOREACH (const auto& column, keyColumns) {
+        for (const auto& column : keyColumns) {
             if (size >= MaxKeySize)
                 break;
 
@@ -681,7 +681,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
     auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
-    FOREACH (const auto& chunkSpec, request->chunk_specs()) {
+    for (const auto& chunkSpec : request->chunk_specs()) {
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto* splittedChunk = response->add_splitted_chunks();
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);

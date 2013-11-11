@@ -73,7 +73,7 @@ void TJsonParser::VisitAny(const TJsonValue& value)
 
 void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
 {
-    FOREACH (const auto& pair, map) {
+    for (const auto& pair : map) {
         Consumer->OnKeyedItem(DecodeString(pair.first));
         VisitAny(pair.second);
     }
@@ -82,7 +82,7 @@ void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
 void TJsonParser::VisitArray(const TJsonValue::TArray& array)
 {
     Consumer->OnBeginList();
-    FOREACH (const auto& value, array) {
+    for (const auto& value : array) {
         Consumer->OnListItem();
         VisitAny(value);
     }

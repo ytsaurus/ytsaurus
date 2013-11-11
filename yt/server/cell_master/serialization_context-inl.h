@@ -64,7 +64,7 @@ struct TObjectRefVectorSerializer
         typedef typename T::value_type V;
 
         TSizeSerializer::Save(context, objects.size());
-        FOREACH (V object, objects) {
+        for (V object : objects) {
             SaveObjectRef(context, object);
         }
     }
@@ -92,7 +92,7 @@ struct TObjectRefListSerializer
         typedef typename T::value_type V;
 
         TSizeSerializer::Save(context, objects.size());
-        FOREACH (V object, objects) {
+        for (V object : objects) {
             SaveObjectRef(context, object);
         }
     }
@@ -128,7 +128,7 @@ struct TObjectRefSetSerializer
                 return CompareObjectsForSerialization(lhs, rhs);
             });
 
-        FOREACH (V object, sortedObjects) {
+        for (V object : sortedObjects) {
             SaveObjectRef(context, object);
         }
     }
@@ -195,7 +195,7 @@ struct TObjectRefHashMapSerializer
             YCHECK(CompareObjectsForSerialization(sortedIterators[index]->first, sortedIterators[index + 1]->first));
         }
 
-        FOREACH (const auto& it, sortedIterators) {
+        for (const auto& it : sortedIterators) {
             SaveObjectRef(context, it->first);
             Save(context, it->second);
         }

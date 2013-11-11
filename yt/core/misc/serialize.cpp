@@ -14,7 +14,7 @@ TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
     // Number of bytes to hold ref sizes.
     size += sizeof(i64) * refs.size();
     // Number of bytes to hold refs.
-    FOREACH (const auto& ref, refs) {
+    for (const auto& ref : refs) {
         size += ref.Size();
     }
 
@@ -23,7 +23,7 @@ TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
     TMemoryOutput output(result.Begin(), result.Size());
 
     WritePod(output, static_cast<i32>(refs.size()));
-    FOREACH (const auto& ref, refs) {
+    for (const auto& ref : refs) {
         WritePod(output, static_cast<i64>(ref.Size()));
         Write(output, ref);
     }

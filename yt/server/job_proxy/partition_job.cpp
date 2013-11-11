@@ -75,7 +75,7 @@ public:
 
         if (PartitionJobSpecExt.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt.partition_keys_size() + 1 == PartitionJobSpecExt.partition_count());
-            FOREACH (const auto& key, PartitionJobSpecExt.partition_keys()) {
+            for (const auto& key : PartitionJobSpecExt.partition_keys()) {
                 PartitionKeys.push_back(TOwningKey::FromProto(key));
             }
             Partitioner = CreateOrderedPartitioner(&PartitionKeys);
@@ -84,7 +84,7 @@ public:
         }
 
         i64 inputDataSize = 0;
-        FOREACH(const auto& chunkSpec, chunks) {
+        for (const auto& chunkSpec : chunks) {
             i64 dataSize = 0;
             NChunkClient::GetStatistics(chunkSpec, &dataSize);
             inputDataSize += dataSize;

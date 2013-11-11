@@ -408,7 +408,7 @@ protected:
             // Compute sort data size delta.
             i64 oldSortDataSize = Controller->SortDataSizeCounter.GetTotal();
             i64 newSortDataSize = 0;
-            FOREACH (auto partition, Controller->Partitions) {
+            for (auto partition : Controller->Partitions) {
                 if (partition->Maniac) {
                     Controller->AddTaskPendingHint(partition->UnorderedMergeTask);
                 } else {
@@ -463,7 +463,7 @@ protected:
             // Dump totals.
             // Mark empty partitions are completed.
             LOG_DEBUG("Partition sizes collected");
-            FOREACH (auto partition, Controller->Partitions) {
+            for (auto partition : Controller->Partitions) {
                 i64 dataSize = partition->ChunkPoolOutput->GetTotalDataSize();
                 if (dataSize == 0) {
                     LOG_DEBUG("Partition %d is empty", partition->Index);
@@ -1107,7 +1107,7 @@ protected:
             if (!Controller->SimpleSort) {
                 auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
                 auto* inputSpec = schedulerJobSpecExt->mutable_input_specs(0);
-                FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
+                for (auto& chunk : *inputSpec->mutable_chunks()) {
                     chunk.set_partition_tag(Partition->Index);
                 }
             }
@@ -1198,10 +1198,10 @@ protected:
         std::vector<TAssignedNodePtr> nodeHeap;
         auto nodes = Host->GetExecNodes();
         auto maxResourceLimits = ZeroNodeResources();
-        FOREACH (auto node, nodes) {
+        for (auto node : nodes) {
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
         }
-        FOREACH (auto node, nodes) {
+        for (auto node : nodes) {
             double weight = GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
@@ -1210,7 +1210,7 @@ protected:
         }
 
         std::vector<TPartitionPtr> partitionsToAssign;
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             // Only take partitions for which no jobs are launched yet.
             if (partition->AddressToLocality.empty()) {
                 partitionsToAssign.push_back(partition);
@@ -1223,7 +1223,7 @@ protected:
 
         LOG_DEBUG("Assigning partitions");
 
-        FOREACH (auto partition, partitionsToAssign) {
+        for (auto partition : partitionsToAssign) {
             auto node = nodeHeap.front();
             const auto& address = node->Node->GetAddress();
 
@@ -1240,7 +1240,7 @@ protected:
                 ~address);
         }
 
-        FOREACH (auto node, nodeHeap) {
+        for (auto node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %s, Weight: %.4lf, AssignedDataSize: %" PRId64 ", AdjustedDataSize: %" PRId64 ")",
                     ~node->Node->GetAddress(),
@@ -1260,7 +1260,7 @@ protected:
             static_cast<int>(Partitions.size()),
             Spec->DataSizePerSortJob);
 
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
         }
     }
@@ -1369,7 +1369,7 @@ protected:
 
     void AddSortTasksPendingHints()
     {
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             if (!partition->Maniac) {
                 AddTaskPendingHint(partition->SortTask);
             }
@@ -1378,7 +1378,7 @@ protected:
 
     void AddMergeTasksPendingHints()
     {
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             auto taskToKick = partition->Maniac
                 ? TTaskPtr(partition->UnorderedMergeTask)
                 : TTaskPtr(partition->SortedMergeTask);
@@ -1552,7 +1552,7 @@ protected:
 
         result.Min = std::numeric_limits<i64>::max();
         result.Max = std::numeric_limits<i64>::min();
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
             if (size == 0)
                 continue;
@@ -1579,7 +1579,7 @@ protected:
             return bucket;
         };
 
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
             if (size == 0)
                 continue;
@@ -1696,7 +1696,7 @@ private:
         TAsyncError asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
             auto chunks = CollectInputChunks();
-            FOREACH (const auto& chunk, chunks) {
+            for (const auto& chunk : chunks) {
                 samplesCollector->AddChunk(chunk);
             }
 
@@ -1723,7 +1723,7 @@ private:
 
         std::vector<const TKey*> sortedSamples;
         sortedSamples.reserve(sampleCount);
-        FOREACH (const auto& sample, samples) {
+        for (const auto& sample : samples) {
             sortedSamples.push_back(&sample);
         }
 
@@ -1913,7 +1913,7 @@ private:
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(Partitions.size());
-            FOREACH (const auto& key, PartitionKeys) {
+            for (const auto& key : PartitionKeys) {
                 *partitionJobSpecExt->add_partition_keys() = key;
             }
             ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2202,18 +2202,18 @@ private:
         // Combine mapper and reducer files into a single collection.
         std::vector<TPathWithStage> result;
         if (Spec->Mapper) {
-            FOREACH (const auto& path, Spec->Mapper->FilePaths) {
+            for (const auto& path : Spec->Mapper->FilePaths) {
                 result.push_back(std::make_pair(path, EOperationStage::Map));
             }
         }
 
         if (Spec->ReduceCombiner) {
-            FOREACH (const auto& path, Spec->ReduceCombiner->FilePaths) {
+            for (const auto& path : Spec->ReduceCombiner->FilePaths) {
                 result.push_back(std::make_pair(path, EOperationStage::ReduceCombiner));
             }
         }
 
-        FOREACH (const auto& path, Spec->Reducer->FilePaths) {
+        for (const auto& path : Spec->Reducer->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Reduce));
         }
         return result;
@@ -2226,7 +2226,7 @@ private:
         if (TotalInputDataSize == 0)
             return;
 
-        FOREACH (const auto& file, RegularFiles) {
+        for (const auto& file : RegularFiles) {
             switch (file.Stage) {
             case EOperationStage::Map:
                 MapperFiles.push_back(file);
@@ -2245,7 +2245,7 @@ private:
             }
         }
 
-        FOREACH (const auto& file, TableFiles) {
+        for (const auto& file : TableFiles) {
             switch (file.Stage) {
             case EOperationStage::Map:
                 MapperTableFiles.push_back(file);

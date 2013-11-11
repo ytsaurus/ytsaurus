@@ -396,7 +396,7 @@ private:
     {
         LOG_DEBUG("Checking candidates");
 
-        FOREACH (const auto& pair, StatusTable) {
+        for (const auto& pair : StatusTable) {
             if (CheckForLeader(pair.first, pair.second)) {
                 return true;
             }
@@ -464,7 +464,7 @@ private:
     int CountVotesFor(TPeerId candidateId, const TEpochId& epochId) const
     {
         int result = 0;
-        FOREACH (const auto& pair, StatusTable) {
+        for (const auto& pair : StatusTable) {
             if (pair.second.VoteId == candidateId && pair.second.VoteEpochId == epochId) {
                 ++result;
             }
@@ -506,7 +506,7 @@ private:
     {
         // Choose the best vote.
         TStatus bestCandidate;
-        FOREACH (const auto& pair, StatusTable) {
+        for (const auto& pair : StatusTable) {
             const TStatus& currentCandidate = pair.second;
             if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&
                 IsBetterCandidate(currentCandidate, bestCandidate))

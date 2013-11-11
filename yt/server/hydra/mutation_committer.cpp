@@ -136,7 +136,7 @@ public:
                 ToProto(request->mutable_epoch_id(), Owner->EpochId);
                 request->set_start_revision(StartVersion.ToRevision());
                 request->set_committed_revision(committedVersion.ToRevision());
-                FOREACH (const auto& mutation, BatchedRecordsData) {
+                for (const auto& mutation : BatchedRecordsData) {
                     request->Attachments().push_back(mutation);
                 }
                 Awaiter->Await(
@@ -488,7 +488,7 @@ TAsyncError TFollowerCommitter::DoLogMutations(
     }
 
     TFuture<void> logResult;
-    FOREACH (const auto& recordData, recordsData) {
+    for (const auto& recordData : recordsData) {
         DecoratedAutomaton->LogMutationAtFollower(recordData, &logResult);
     }
 

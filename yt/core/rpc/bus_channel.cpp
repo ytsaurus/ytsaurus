@@ -182,7 +182,7 @@ private:
                 activeRequests.swap(ActiveRequests);
             }
 
-            FOREACH (auto& pair, activeRequests) {
+            for (auto& pair : activeRequests) {
                 const auto& requestId = pair.first;
                 auto& request = pair.second;
                 LOG_DEBUG("Request failed due to channel termination (RequestId: %s)",

@@ -78,7 +78,7 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            FOREACH (auto connection, Connections) {
+            for (auto connection : Connections) {
                 connection->Terminate(TError(
                     NRpc::EErrorCode::TransportError,
                     "Bus server terminated"));
@@ -501,14 +501,14 @@ public:
 
     virtual void Start(IMessageHandlerPtr handler) override
     {
-        FOREACH (auto server, Servers) {
+        for (auto server : Servers) {
             server->Start(handler);
         }
     }
 
     virtual void Stop() override
     {
-        FOREACH (auto server, Servers) {
+        for (auto server : Servers) {
             server->Stop();
         }
     }

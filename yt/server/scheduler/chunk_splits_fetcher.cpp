@@ -124,7 +124,7 @@ TError TChunkSplitsFetcher::ProcessResponseItem(
         responseChunks.chunk_specs_size(),
         index);
 
-    FOREACH (auto& responseChunk, responseChunks.chunk_specs()) {
+    for (auto& responseChunk : responseChunks.chunk_specs()) {
         auto split = New<TRefCountedChunkSpec>(std::move(responseChunk));
         // Adjust chunk id (makes sense for erasure chunks only).
         auto chunkId = FromProto<TChunkId>(split->chunk_id());

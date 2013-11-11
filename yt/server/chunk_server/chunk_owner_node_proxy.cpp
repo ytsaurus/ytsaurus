@@ -104,7 +104,7 @@ TFetchChunkVisitor::TFetchChunkVisitor(
     , Finished(false)
 {
     if (!Context->Request().fetch_all_meta_extensions()) {
-        FOREACH (int tag, Context->Request().extension_tags()) {
+        for (int tag : Context->Request().extension_tags()) {
             ExtensionTags.insert(tag);
         }
     }
@@ -175,7 +175,7 @@ bool TFetchChunkVisitor::OnChunk(
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
     auto replicas = chunk->GetReplicas();
-    FOREACH (auto replica, replicas) {
+    for (auto replica : replicas) {
         if (replica.GetIndex() < firstParityPartIndex) {
             NodeDirectoryBuilder.Add(replica);
             chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));

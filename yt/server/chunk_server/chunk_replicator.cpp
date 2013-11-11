@@ -106,12 +106,12 @@ void TChunkReplicator::Initialize()
     PropertiesUpdateExecutor->Start();
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
-    FOREACH (auto* node, nodeTracker->Nodes().GetValues()) {
+    for (auto* node : nodeTracker->Nodes().GetValues()) {
         OnNodeRegistered(node);
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto* chunk, chunkManager->Chunks().GetValues()) {
+    for (auto* chunk : chunkManager->Chunks().GetValues()) {
         ScheduleChunkRefresh(chunk);
         SchedulePropertiesUpdate(chunk);
     }
@@ -120,7 +120,7 @@ void TChunkReplicator::Initialize()
 void TChunkReplicator::Finalize()
 {
     // Clear JobMap, JobListMap, and unregister jobs from the nodes.
-    FOREACH (const auto& pair, JobMap) {
+    for (const auto& pair : JobMap) {
         const auto& job = pair.second;
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
     }
@@ -172,7 +172,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     int replicationFactor = chunk->GetReplicationFactor();
     TNodePtrWithIndexList decommissionedReplicas;
 
-    FOREACH (auto replica, chunk->StoredReplicas()) {
+    for (auto replica : chunk->StoredReplicas()) {
         if (IsReplicaDecommissioned(replica)) {
             ++decommissionedReplicaCount;
             decommissionedReplicas.push_back(replica);
@@ -217,7 +217,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     auto mark = TNode::GenerateVisitMark();
 
-    FOREACH (auto replica, chunk->StoredReplicas()) {
+    for (auto replica : chunk->StoredReplicas()) {
         auto* node = replica.GetPtr();
         int index = replica.GetIndex();
         if (IsReplicaDecommissioned(replica) || node->GetVisitMark() == mark) {
@@ -292,7 +292,7 @@ void TChunkReplicator::OnNodeRegistered(TNode* node)
 {
     node->ChunkRemovalQueue().clear();
 
-    FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+    for (auto& queue : node->ChunkReplicationQueues()) {
         queue.clear();
     }
 
@@ -301,7 +301,7 @@ void TChunkReplicator::OnNodeRegistered(TNode* node)
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
-    FOREACH (auto job, node->Jobs()) {
+    for (auto job : node->Jobs()) {
         UnregisterJob(
             job,
             EJobUnregisterFlags(EJobUnregisterFlags::UnregisterFromChunk | EJobUnregisterFlags::ScheduleChunkRefresh));
@@ -318,7 +318,7 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
         auto it = JobListMap.find(chunk);
         if (it != JobListMap.end()) {
             auto jobList = it->second;
-            FOREACH (auto job, jobList->Jobs()) {
+            for (auto job : jobList->Jobs()) {
                 UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
             }
             JobListMap.erase(it);
@@ -346,7 +346,7 @@ void TChunkReplicator::ProcessExistingJobs(
     const auto& address = node->GetAddress();
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& job, currentJobs) {
+    for (const auto& job : currentJobs) {
         if (job->GetType() == EJobType::Foreign)
             continue;
 
@@ -410,7 +410,7 @@ void TChunkReplicator::ProcessExistingJobs(
     // Check for missing jobs
     yhash_set<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
     std::vector<TJobPtr> missingJobs;
-    FOREACH (const auto& job, node->Jobs()) {
+    for (const auto& job : node->Jobs()) {
         if (currentJobSet.find(job) == currentJobSet.end()) {
             missingJobs.push_back(job);
             LOG_WARNING("Job is missing (JobId: %s, Address: %s)",
@@ -419,7 +419,7 @@ void TChunkReplicator::ProcessExistingJobs(
         }
     }
 
-    FOREACH (const auto& job, missingJobs) {
+    for (const auto& job : missingJobs) {
         UnregisterJob(job);
     }
 }
@@ -660,7 +660,7 @@ void TChunkReplicator::ScheduleNewJobs(
     };
 
     // Compute current data sizes for running replication and repair jobs.
-    FOREACH (auto job, node->Jobs()) {
+    for (auto job : node->Jobs()) {
         increaseRunningSizes(job);
     }
 
@@ -672,7 +672,7 @@ void TChunkReplicator::ScheduleNewJobs(
     };
 
     // Schedule replication jobs.
-    FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+    for (auto& queue : node->ChunkReplicationQueues()) {
         auto it = queue.begin();
         while (it != queue.end()) {
             if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
@@ -752,7 +752,7 @@ void TChunkReplicator::ScheduleNewJobs(
     {
         int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(node, maxJobs);
-        FOREACH (auto chunkWithIndex, chunksToBalance) {
+        for (auto chunkWithIndex : chunksToBalance) {
             if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
                 break;
             if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
@@ -804,26 +804,26 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         ResetChunkJobs(chunk);
 
         if (statistics.Status & EChunkStatus::Overreplicated) {
-            FOREACH (auto nodeWithIndex, statistics.DecommissionedRemovalRequests) {
+            for (auto nodeWithIndex : statistics.DecommissionedRemovalRequests) {
                 int index = nodeWithIndex.GetIndex();
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
                 YCHECK(nodeWithIndex.GetPtr()->ChunkRemovalQueue().insert(chunkIdWithIndex).second);
             }
 
-            FOREACH (const auto& request, statistics.BalancingRemovalRequests) {
+            for (const auto& request : statistics.BalancingRemovalRequests) {
                 int index = request.Index;
                 TChunkPtrWithIndex chunkWithIndex(chunk, index);
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
 
                 auto targets = ChunkPlacement->GetRemovalTargets(chunkWithIndex, request.Count);
-                FOREACH (auto* target, targets) {
+                for (auto* target : targets) {
                     YCHECK(target->ChunkRemovalQueue().insert(chunkIdWithIndex).second);
                 }
             }
         }
 
         if (statistics.Status & EChunkStatus::Underreplicated) {
-            FOREACH (const auto& request, statistics.ReplicationRequests) {
+            for (const auto& request : statistics.ReplicationRequests) {
                 int index = request.Index;
                 TChunkPtrWithIndex chunkWithIndex(chunk, index);
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
@@ -832,7 +832,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                 int replicaCount = statistics.ReplicaCount[index];
                 int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
 
-                FOREACH (auto replica, chunk->StoredReplicas()) {
+                for (auto replica : chunk->StoredReplicas()) {
                     if (replica.GetIndex() == index) {
                         auto* node = replica.GetPtr();
                         YCHECK(node->ChunkReplicationQueues()[priority].insert(chunkWithIndex).second);
@@ -865,11 +865,11 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
 
 void TChunkReplicator::ResetChunkJobs(TChunk* chunk)
 {
-    FOREACH (auto nodeWithIndex, chunk->StoredReplicas()) {
+    for (auto nodeWithIndex : chunk->StoredReplicas()) {
         auto* node = nodeWithIndex.GetPtr();
         TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
         TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
-        FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+        for (auto& queue : node->ChunkReplicationQueues()) {
             queue.erase(chunkWithIndex);
         }
         node->ChunkRemovalQueue().erase(chunkIdWithIndex);
@@ -903,7 +903,7 @@ bool TChunkReplicator::HasRunningJobs(TChunkPtrWithIndex replica)
         return false;
     }
 
-    FOREACH (const auto& job, jobList->Jobs()) {
+    for (const auto& job : jobList->Jobs()) {
         if (job->GetChunkIdWithIndex().Index == replica.GetIndex()) {
             return true;
         }
@@ -937,7 +937,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 {
-    FOREACH (auto replica, node->StoredReplicas()) {
+    for (auto replica : node->StoredReplicas()) {
         ScheduleChunkRefresh(replica.GetPtr());
     }
 }
@@ -1214,7 +1214,7 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
     };
 
     // Put seeds into the queue.
-    FOREACH (auto* parent, chunk->Parents()) {
+    for (auto* parent : chunk->Parents()) {
         auto* adjustedParent = FollowParentLinks(parent);
         if (adjustedParent) {
             enqueue(adjustedParent);
@@ -1226,7 +1226,7 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         auto* chunkList = queue[frontIndex++];
 
         // Examine owners, if any.
-        FOREACH (const auto* owningNode, chunkList->OwningNodes()) {
+        for (const auto* owningNode : chunkList->OwningNodes()) {
             if (owningNode->IsTrunk()) {
                 parentsVisited = true;
 
@@ -1241,7 +1241,7 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         }
 
         // Proceed to parents.
-        FOREACH (auto* parent, chunkList->Parents()) {
+        for (auto* parent : chunkList->Parents()) {
             auto* adjustedParent = FollowParentLinks(parent);
             if (adjustedParent) {
                 enqueue(adjustedParent);

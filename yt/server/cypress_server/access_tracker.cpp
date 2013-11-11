@@ -106,7 +106,7 @@ void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
 void TAccessTracker::Reset()
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, NodesWithAccessStatisticsUpdate) {
+    for (auto* node : NodesWithAccessStatisticsUpdate) {
         node->SetAccessStatisticsUpdate(nullptr);
         objectManager->WeakUnrefObject(node);
     }    

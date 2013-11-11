@@ -218,7 +218,7 @@ public:
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             const auto* node = pair.second;
             const auto& statistics = node->Statistics();
             result.AvailableSpace += statistics.total_available_space();
@@ -448,7 +448,7 @@ private:
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
 
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             const auto& address = node->GetAddress();
 
@@ -468,12 +468,12 @@ private:
         Profiler.SetEnabled(false);
 
         // Reset runtime info.
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
 
             node->ResetHints();
             
-            FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+            for (auto& queue : node->ChunkReplicationQueues()) {
                 queue.clear();
             }
 
@@ -485,7 +485,7 @@ private:
     {
         Profiler.SetEnabled(true);
 
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             RefreshNodeConfig(node);
         }
@@ -493,7 +493,7 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             if (!node->GetTransaction()) {
                 LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %d, Address: %s)",

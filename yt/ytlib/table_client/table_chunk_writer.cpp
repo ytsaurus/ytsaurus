@@ -76,7 +76,7 @@ TTableChunkWriter::TTableChunkWriter(
 
     // Init trash channel.
     auto trashChannel = TChannel::Universal();
-    FOREACH (const auto& channel, Channels) {
+    for (const auto& channel : Channels) {
         trashChannel -= channel;
     }
     Channels.push_back(trashChannel);
@@ -138,7 +138,7 @@ TTableChunkWriterFacade* TTableChunkWriter::GetFacade()
 
 void TTableChunkWriter::FinalizeRow(const TRow& row)
 {
-    FOREACH (const auto& writer, Buffers) {
+    for (const auto& writer : Buffers) {
         auto capacity = writer->GetCapacity();
         writer->EndRow();
         CurrentBufferCapacity += writer->GetCapacity() - capacity;
@@ -170,7 +170,7 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
 
     CurrentUncompressedSize = EncodingWriter->GetUncompressedSize();
 
-    FOREACH (const auto& channel, Buffers) {
+    for (const auto& channel : Buffers) {
         CurrentUncompressedSize += channel->GetCurrentSize();
     }
 
@@ -199,7 +199,7 @@ auto TTableChunkWriter::GetColumnInfo(const TStringBuf& name) ->TColumnInfo&
 
 void TTableChunkWriter::WriteValue(const std::pair<TStringBuf, TStringBuf>& value, const TColumnInfo& columnInfo)
 {
-    FOREACH (auto& channel, columnInfo.Channels) {
+    for (auto& channel : columnInfo.Channels) {
         auto capacity = channel.Writer->GetCapacity();
         if (channel.ColumnIndex == RangeColumnIndex) {
             channel.Writer->WriteRange(value.first, value.second);
@@ -222,7 +222,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     auto dataWeight = DataWeight;
 
     DataWeight += 1;
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         if (pair.first.length() > MaxColumnNameSize) {
             State.Fail(TError(
                 "Column name %s is too long: actual size %" PRISZT ", max size %" PRISZT,
@@ -301,7 +301,7 @@ void TTableChunkWriter::WriteRowUnsafe(const TRow& row)
     YASSERT(State.IsActive());
 
     DataWeight += 1;
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         auto& columnInfo = GetColumnInfo(pair.first);
         WriteValue(pair, columnInfo);
     }
@@ -335,7 +335,7 @@ void TTableChunkWriter::PrepareBlock()
 
     i64 size = 0;
     auto blockParts = channel->FlushBlock();
-    FOREACH (const auto& part, blockParts) {
+    for (const auto& part : blockParts) {
         size += part.Size();
     }
     blockInfo->set_block_size(size);
@@ -424,7 +424,7 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 {
     i64 size = sizeof(NProto::TSample);
     std::map<TStringBuf, TStringBuf> sortedRow(row.begin(), row.end());
-    FOREACH (const auto& pair, sortedRow) {
+    for (const auto& pair : sortedRow) {
         auto* part = sample->add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
         // sizeof(i32) for type field.
@@ -580,7 +580,7 @@ NChunkClient::NProto::TDataStatistics TTableChunkWriterProvider::GetDataStatisti
 
     auto result = DataStatistics;
 
-    FOREACH(const auto& writer, ActiveWriters) {
+    for (const auto& writer : ActiveWriters) {
         result += writer->GetDataStatistics();
     }
     return result;

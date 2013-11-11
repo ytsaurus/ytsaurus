@@ -269,7 +269,7 @@ private:
         }
 
         // Close reserved descriptors.
-        FOREACH (int fd, reservedDescriptors) {
+        for (int fd : reservedDescriptors) {
             SafeClose(fd);
         }
 
@@ -312,7 +312,7 @@ private:
         try {
             int activePipeCount = pipes.size();
 
-            FOREACH (auto& pipe, pipes) {
+            for (auto& pipe : pipes) {
                 pipe->PrepareProxyDescriptors();
             }
 
@@ -323,7 +323,7 @@ private:
                     << TError::FromSystem();
             }
 
-            FOREACH (auto& pipe, pipes) {
+            for (auto& pipe : pipes) {
                 epoll_event evAdd;
                 evAdd.data.u64 = 0ULL;
                 evAdd.events = pipe->GetEpollFlags();
@@ -375,7 +375,7 @@ private:
             SetError(TError("Unknown error during job IO"));
         }
 
-        FOREACH (auto& pipe, pipes) {
+        for (auto& pipe : pipes) {
             // Close can throw exception which will cause JobProxy death.
             // For now let's assume it is unrecoverable.
             // Anyway, system seems to be in a very bad state if this happens.
@@ -406,15 +406,15 @@ private:
         };
 
         // Stderr output pipe finishes first.
-        FOREACH (auto& pipe, OutputPipes) {
+        for (auto& pipe : OutputPipes) {
             finishPipe(pipe);
         }
 
-        FOREACH (auto& pipe, InputPipes) {
+        for (auto& pipe : InputPipes) {
             finishPipe(pipe);
         }
 
-        FOREACH(auto& writer, Writers) {
+        for (auto& writer : Writers) {
             try {
                 writer->Close();
             } catch (const std::exception& ex) {
@@ -433,11 +433,11 @@ private:
     void StartJob()
     {
         try {
-            FOREACH (auto& pipe, InputPipes) {
+            for (auto& pipe : InputPipes) {
                 pipe->PrepareJobDescriptors();
             }
 
-            FOREACH (auto& pipe, OutputPipes) {
+            for (auto& pipe : OutputPipes) {
                 pipe->PrepareJobDescriptors();
             }
 
@@ -536,7 +536,7 @@ private:
 
             i64 memoryLimit = UserJobSpec.memory_limit();
             i64 rss = 0;
-            FOREACH(int pid, pids) {
+            for (int pid : pids) {
                 try {
                     i64 processRss = GetProcessRss(pid);
                     // ProcessId itself is skipped since it's always 'sh'.

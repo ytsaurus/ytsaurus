@@ -19,7 +19,7 @@ TEST(TForeachTest, CommonCase)
     }
 
     std::vector<int> b;
-    FOREACH (int x, a) {
+    for (int x : a) {
         b.push_back(x);
     }
 
@@ -34,7 +34,7 @@ TEST(TForeachTest, CommonCaseReference)
     }
 
     std::vector<int> b = a;
-    FOREACH (int& x, b) {
+    for (int& x : b) {
         x += 10;
     }
 
@@ -53,7 +53,7 @@ TEST(TForeachTest, Break)
     }
 
     std::vector<int> b;
-    FOREACH (int x, a) {
+    for (int x : a) {
         if (x > 5) break;
         b.push_back(x);
     }
@@ -76,7 +76,7 @@ TEST(TForeachTest, Continue)
     }
 
     std::vector<int> b;
-    FOREACH (int x, a) {
+    for (int x : a) {
         if (x % 2 == 0) continue;
         b.push_back(x);
     }
@@ -102,9 +102,9 @@ TEST(TForeachTest, NestedLoops)
     }
 
     std::vector< std::vector<int> > b;
-    FOREACH (auto& v, a) {
+    for (auto& v : a) {
         b.push_back(std::vector<int>());
-        FOREACH (int x, v) {
+        for (int x : v) {
             b.back().push_back(x);
         }
     }
@@ -125,7 +125,7 @@ TEST(TForeachTest, CollectionGivenByResultOfFunction)
     }
 
     std::vector<int> b;
-    FOREACH (int x, GetVector(a)) {
+    for (int x : GetVector(a)) {
         b.push_back(x);
     }
 
@@ -141,7 +141,7 @@ TEST(TForeachTest, CollectionGivenByReference)
     std::vector<int>& referenceToA = a;
 
     std::vector<int> b;
-    FOREACH (int x, referenceToA) {
+    for (int x : referenceToA) {
         b.push_back(x);
     }
 
@@ -157,7 +157,7 @@ TEST(TForeachTest, CollectionGivenByConstReference)
     const std::vector<int>& referenceToA = a;
 
     std::vector<int> b;
-    FOREACH (int x, referenceToA) {
+    for (int x : referenceToA) {
         b.push_back(x);
     }
 

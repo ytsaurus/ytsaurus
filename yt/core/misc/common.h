@@ -111,7 +111,6 @@
 #include "new.h"
 #include "arcadia_helper.h"
 #include "hash.h"
-#include "foreach.h"
 
 namespace NYT {
 

@@ -65,7 +65,7 @@ public:
 
         // Fill BlockLocations_ using information about blocks in parts
         int initialPosition = 0;
-        FOREACH (int blockIndex, BlockIndexes_) {
+        for (int blockIndex : BlockIndexes_) {
             YCHECK(blockIndex >= 0);
 
             // Searching for the part of given block
@@ -548,7 +548,7 @@ TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
     YCHECK(repairedWindows.size() == ErasedIndices_.size());
     for (int i = 0; i < repairedWindows.size(); ++i) {
         auto repairedWindow = repairedWindows[i];
-        FOREACH (auto block, RepairBlockReaders_[i].Add(repairedWindow)) {
+        for (auto block : RepairBlockReaders_[i].Add(repairedWindow)) {
             RepairedBlocksQueue_.push_back(TBlock(block, ErasedIndices_[i]));
         }
     }
@@ -581,7 +581,7 @@ TAsyncError TRepairReader::RepairIfNeeded()
     i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
 
     auto collector = New<TParallelCollector<TSharedRef>>();
-    FOREACH (auto windowReader, WindowReaders_) {
+    for (auto windowReader : WindowReaders_) {
         collector->Collect(windowReader->Read(windowSize));
     }
 
@@ -616,7 +616,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
             blockCount));
     }
 
-    FOREACH (int erasedIndex, ErasedIndices_) {
+    for (int erasedIndex : ErasedIndices_) {
         std::vector<i64> blockSizes;
         if (erasedIndex < Codec_->GetDataPartCount()) {
             blockSizes = std::vector<i64>(
@@ -708,7 +708,7 @@ private:
             }
 
             // Open writers.
-            FOREACH (auto writer, Writers_) {
+            for (auto writer : Writers_) {
                 writer->Open();
             }
 
@@ -745,7 +745,7 @@ private:
             // Close all writers.
             {
                 auto collector = New<TParallelCollector<void>>();
-                FOREACH (auto writer, Writers_) {
+                for (auto writer : Writers_) {
                     collector->Collect(writer->AsyncClose(meta));
                 }
                 auto result = WaitFor(collector->Complete());

@@ -64,7 +64,7 @@ public:
 
         auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
 
-        FOREACH (const auto* transaction, transactions) {
+        for (const auto* transaction : transactions) {
             TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
             const auto* userAttributes = objectManager->FindAttributes(versionedId);
             if (userAttributes) {
@@ -112,7 +112,7 @@ public:
 
         const TTransaction* containingTransaction = nullptr;
         bool contains = false;
-        FOREACH (const auto* transaction, transactions) {
+        for (const auto* transaction : transactions) {
             TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
             const auto* userAttributes = objectManager->FindAttributes(versionedId);
             if (userAttributes) {
@@ -271,7 +271,7 @@ TNodeFactory::TNodeFactory(
 TNodeFactory::~TNodeFactory()
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, CreatedNodes) {
+    for (auto* node : CreatedNodes) {
         objectManager->UnrefObject(node);
     }
 }
@@ -357,11 +357,11 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
             trunkProxy->ListSystemAttributes(&systemAttributes);
 
             yhash_set<Stroka> systemAttributeKeys;
-            FOREACH (const auto& attribute, systemAttributes) {
+            for (const auto& attribute : systemAttributes) {
                 YCHECK(systemAttributeKeys.insert(attribute.Key).second);
             }
 
-            FOREACH (const auto& key, keys) {
+            for (const auto& key : keys) {
                 auto value = attributes->GetYson(key);
                 if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
                     trunkProxy->MutableAttributes()->SetYson(key, value);
@@ -398,7 +398,7 @@ void TNodeFactory::Commit()
 {
     if (Transaction) {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        FOREACH (auto* node, CreatedNodes) {
+        for (auto* node : CreatedNodes) {
             transactionManager->StageNode(Transaction, node);
         }
     }
@@ -840,7 +840,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
         auto cypressManager = Bootstrap->GetCypressManager();
         auto* trunkNode = node->GetTrunkNode();
         auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
-        FOREACH (auto* descendant, descendants) {
+        for (auto* descendant : descendants) {
             ValidatePermission(descendant, permission);
         }
     }
@@ -1135,14 +1135,14 @@ void TMapNodeProxy::Clear()
     typedef std::pair<Stroka, TCypressNodeBase*> TChild;
     std::vector<TChild> children;
     children.reserve(keyToChild.size());
-    FOREACH (const auto& pair, keyToChild) {
+    for (const auto& pair : keyToChild) {
         LockThisImpl(TLockRequest::SharedChild(pair.first));
         auto* childImpl = LockImpl(pair.second);
         children.push_back(std::make_pair(pair.first, childImpl));
     }
 
     // Insert tombstones (if in transaction).
-    FOREACH (const auto& pair, children) {
+    for (const auto& pair : children) {
         const auto& key = pair.first;
         auto* child = pair.second;
         DoRemoveChild(impl, key, child);
@@ -1160,7 +1160,7 @@ int TMapNodeProxy::GetChildCount() const
     // NB: No need to reverse transactions.
 
     int result = 0;
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
@@ -1177,7 +1177,7 @@ std::vector< std::pair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 
     std::vector< std::pair<Stroka, INodePtr> > result;
     result.reserve(keyToChild.size());
-    FOREACH (const auto& pair, keyToChild) {
+    for (const auto& pair : keyToChild) {
         result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
     }
 
@@ -1189,7 +1189,7 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
     auto keyToChild = GetMapNodeChildren(Bootstrap, TrunkNode, Transaction);
 
     std::vector<Stroka> result;
-    FOREACH (const auto& pair, keyToChild) {
+    for (const auto& pair : keyToChild) {
         result.push_back(pair.first);
     }
 
@@ -1291,7 +1291,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
 
     auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
 
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
@@ -1376,12 +1376,12 @@ void TListNodeProxy::Clear()
 
     // Lock children and collect impls.
     std::vector<TCypressNodeBase*> children;
-    FOREACH (auto* trunkChild, impl->IndexToChild()) {
+    for (auto* trunkChild : impl->IndexToChild()) {
         children.push_back(LockImpl(trunkChild));
     }
 
     // Detach children.
-    FOREACH (auto* child, children) {
+    for (auto* child : children) {
         DetachChild(Bootstrap, TrunkNode, child, true);
     }
 
@@ -1403,7 +1403,7 @@ std::vector<INodePtr> TListNodeProxy::GetChildren() const
     const auto* impl = GetThisTypedImpl();
     const auto& indexToChild = impl->IndexToChild();
     result.reserve(indexToChild.size());
-    FOREACH (auto* child, indexToChild) {
+    for (auto* child : indexToChild) {
         result.push_back(GetProxy(child));
     }
     return result;

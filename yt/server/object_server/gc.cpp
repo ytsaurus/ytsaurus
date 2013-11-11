@@ -56,10 +56,10 @@ void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
 {
     std::vector<TObjectBase*> allZombies;
     allZombies.reserve(Zombies.size() + LockedZombies.size());
-    FOREACH (auto* object, Zombies) {
+    for (auto* object : Zombies) {
         allZombies.push_back(object);
     }
-    FOREACH (auto* object, LockedZombies) {
+    for (auto* object : LockedZombies) {
         allZombies.push_back(object);
     }
     // NB: allZombies is vector, not hashset; manual sort needed.
@@ -141,7 +141,7 @@ void TGarbageCollector::UnlockAll()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    FOREACH (auto* object, LockedZombies) {
+    for (auto* object : LockedZombies) {
         YASSERT(object->IsLocked());
         YCHECK(Zombies.insert(object).second);
     }

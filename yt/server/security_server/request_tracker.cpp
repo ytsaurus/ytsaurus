@@ -77,7 +77,7 @@ void TRequestTracker::ChargeUser(TUser* user, int requestCount)
 void TRequestTracker::Reset()
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* user, UsersWithRequestStatisticsUpdate) {
+    for (auto* user : UsersWithRequestStatisticsUpdate) {
         user->SetRequestStatisticsUpdate(nullptr);
         objectManager->WeakUnrefObject(user);
     }    

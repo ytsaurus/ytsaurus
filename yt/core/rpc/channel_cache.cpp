@@ -64,7 +64,7 @@ void TChannelCache::Shutdown()
 
     IsTerminated  = true;
 
-    FOREACH (const auto& pair, ChannelMap) {
+    for (const auto& pair : ChannelMap) {
         pair.second->Terminate(TError(
             EErrorCode::TransportError,
             "Channel terminated"));

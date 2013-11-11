@@ -352,7 +352,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
         ~ToString(currentSession.ChunkId));
 
     std::vector<TChunkReplica> replicas;
-    FOREACH (int index, asyncWriter->GetWrittenIndexes()) {
+    for (int index : asyncWriter->GetWrittenIndexes()) {
         replicas.push_back(currentSession.Replicas[index]);
     }
 
@@ -450,7 +450,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::AttachChunks()
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
 
-    FOREACH (const auto& chunkSpec, WrittenChunks) {
+    for (const auto& chunkSpec : WrittenChunks) {
         auto req = TChunkListYPathProxy::Attach(
             NCypressClient::FromObjectId(ParentChunkListId));
         *req->add_children_ids() = chunkSpec.chunk_id();

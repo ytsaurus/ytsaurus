@@ -299,7 +299,7 @@ NChunkClient::NProto::TDataStatistics TPartitionChunkReaderProvider::GetDataStat
     TGuard<TSpinLock> guard(SpinLock);
 
     auto dataStatistics = DataStatistics;
-    FOREACH(const auto& reader, ActiveReaders) {
+    for (const auto& reader : ActiveReaders) {
         dataStatistics += reader->GetDataStatistics();
     }
     return dataStatistics;

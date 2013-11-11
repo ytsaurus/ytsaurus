@@ -184,7 +184,7 @@ TNullable<TError> TError::FindMatching(int code) const
         return *this;
     }
 
-    FOREACH (const auto& innerError, InnerErrors_) {
+    for (const auto& innerError : InnerErrors_) {
         auto innerResult = innerError.FindMatching(code);
         if (innerResult) {
             return std::move(innerResult);
@@ -256,7 +256,7 @@ void AppendError(const TError& error, int indent, Stroka* out)
     }
 
     auto keys = error.Attributes().List();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         if (key == "host" ||
             key == "datetime" ||
             key == "pid" ||
@@ -284,7 +284,7 @@ void AppendError(const TError& error, int indent, Stroka* out)
         }
     }
 
-    FOREACH (const auto& innerError, error.InnerErrors()) {
+    for (const auto& innerError : error.InnerErrors()) {
         out->append('\n');
         AppendError(innerError, indent + 2, out);
     }
@@ -316,7 +316,7 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
     }
 
     protoError->clear_inner_errors();
-    FOREACH (const auto& innerError, error.InnerErrors()) {
+    for (const auto& innerError : error.InnerErrors()) {
         ToProto(protoError->add_inner_errors(), innerError);
     }
 }
@@ -331,7 +331,7 @@ TError FromProto(const NYT::NProto::TError& protoError)
         error.Attributes().MergeFrom(*FromProto(protoError.attributes()));
     }
 
-    FOREACH (const auto& innerProtoError, protoError.inner_errors()) {
+    for (const auto& innerProtoError : protoError.inner_errors()) {
         error.InnerErrors().push_back(FromProto(innerProtoError));
     }
 
@@ -375,7 +375,7 @@ void Deserialize(TError& error, NYTree::INodePtr node)
     error.InnerErrors().clear();
     auto innerErrorsNode = mapNode->FindChild("inner_errors");
     if (innerErrorsNode) {
-        FOREACH (auto innerErrorNode, innerErrorsNode->AsList()->GetChildren()) {
+        for (auto innerErrorNode : innerErrorsNode->AsList()->GetChildren()) {
             auto innerError = ConvertTo<TError>(innerErrorNode);
             error.InnerErrors().push_back(innerError);
         }

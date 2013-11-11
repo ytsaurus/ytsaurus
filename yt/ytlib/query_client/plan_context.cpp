@@ -51,7 +51,7 @@ TPlanContext::TPlanContext()
 
 TPlanContext::~TPlanContext()
 {
-    FOREACH (auto& object, TrackedObjects_) {
+    for (auto& object : TrackedObjects_) {
         object->~TTrackedObject();
         TTrackedObject::operator delete(object, this);
     }

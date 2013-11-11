@@ -37,7 +37,7 @@ TEST(TErasureCodingTest, RandomText)
         data.push_back(static_cast<char>('a' + (std::abs(rand.random()) % 26)));
     }
 
-    FOREACH (auto codecId, ECodec::GetDomainValues()) {
+    for (auto codecId : ECodec::GetDomainValues()) {
         if (codecId == ECodec::None) {
             continue;
         }
@@ -101,7 +101,7 @@ public:
     static std::vector<TSharedRef> ToSharedRefs(const std::vector<Stroka>& strings)
     {
         std::vector<TSharedRef> refs;
-        FOREACH (const auto& str, strings) {
+        for (const auto& str : strings) {
             refs.push_back(TSharedRef::FromString(str));
         }
         return refs;
@@ -118,7 +118,7 @@ public:
             writers.push_back(NYT::New<TFileWriter>(filename));
         }
 
-        FOREACH (auto writer, writers) {
+        for (auto writer : writers) {
             writer->Open();
         }
 
@@ -128,7 +128,7 @@ public:
 
         i64 dataSize = 0;
         auto erasureWriter = CreateErasureWriter(config, codec, writers);
-        FOREACH (const auto& ref, data) {
+        for (const auto& ref : data) {
             erasureWriter->WriteBlock(ref);
             dataSize += ref.Size();
         }
@@ -136,7 +136,7 @@ public:
 
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
 
-        FOREACH (auto writer, writers) {
+        for (auto writer : writers) {
             EXPECT_TRUE(writer->AsyncClose(meta).Get().IsOK());
         }
     }
@@ -215,7 +215,7 @@ TEST_F(TErasureMixture, ReaderTest)
     {
         // Check blocks separately
         int index = 0;
-        FOREACH (const auto& ref, dataRefs) {
+        for (const auto& ref : dataRefs) {
             auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = result.GetValueOrThrow().front();
@@ -285,7 +285,7 @@ TEST_F(TErasureMixture, RepairTest1)
     auto erasureReader = CreateErasureReader(codec);
 
     int index = 0;
-    FOREACH (const auto& ref, dataRefs) {
+    for (const auto& ref : dataRefs) {
         auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = result.GetValueOrThrow().front();
@@ -346,7 +346,7 @@ TEST_F(TErasureMixture, RepairTest2)
     auto erasureReader = CreateErasureReader(codec);
 
     int index = 0;
-    FOREACH (const auto& ref, dataRefs) {
+    for (const auto& ref : dataRefs) {
         auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = result.GetValueOrThrow().front();

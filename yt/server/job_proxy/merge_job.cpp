@@ -60,8 +60,8 @@ public:
         YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
 
         std::vector<TChunkSpec> chunkSpecs;
-        FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
-            FOREACH (const auto& chunkSpec, inputSpec.chunks()) {
+        for (const auto& inputSpec : SchedulerJobSpecExt.input_specs()) {
+            for (const auto& chunkSpec : inputSpec.chunks()) {
                 chunkSpecs.push_back(chunkSpec);
             }
         }
@@ -136,7 +136,7 @@ public:
                     if (KeyColumns) {
                         key.Clear();
 
-                        FOREACH (const auto& pair, *row) {
+                        for (const auto& pair : *row) {
                             auto it = keyColumnToIndex.find(pair.first);
                             if (it != keyColumnToIndex.end()) {
                                 key.SetKeyPart(it->second, pair.second, lexer);

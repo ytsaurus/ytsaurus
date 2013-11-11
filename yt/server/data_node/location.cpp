@@ -313,7 +313,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     std::vector<TChunkDescriptor> descriptors;
     descriptors.reserve(chunkIds.size());
 
-    FOREACH (const auto& chunkId, chunkIds) {
+    for (const auto& chunkId : chunkIds) {
         auto chunkDataFileName = GetChunkFileName(chunkId);
         auto chunkMetaFileName = chunkDataFileName + ChunkMetaSuffix;
 

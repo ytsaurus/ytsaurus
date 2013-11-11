@@ -58,7 +58,7 @@ public:
              auto options = New<TChunkReaderOptions>();
             options->ReadKey = true;
 
-            FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
+            for (const auto& inputSpec : SchedulerJobSpecExt.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
                 std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 

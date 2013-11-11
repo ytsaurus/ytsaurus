@@ -430,11 +430,11 @@ public:
 
     void DestroySubject(TSubject* subject)
     {
-        FOREACH (auto* group , subject->MemberOf()) {
+        for (auto* group  : subject->MemberOf()) {
             YCHECK(group->Members().erase(subject) == 1);
         }
 
-        FOREACH (const auto& pair, subject->LinkedObjects()) {
+        for (const auto& pair : subject->LinkedObjects()) {
             auto* acd = GetAcd(pair.first);
             acd->OnSubjectDestroyed(subject, GuestUser);
         }
@@ -536,7 +536,7 @@ public:
     {
         YCHECK(GroupNameMap.erase(group->GetName()) == 1);
 
-        FOREACH (auto* subject, group->Members()) {
+        for (auto* subject : group->Members()) {
             YCHECK(subject->MemberOf().erase(group) == 1);
         }
 
@@ -726,9 +726,9 @@ public:
 
             // Check the current ACL, if any.
             if (acd) {
-                FOREACH (const auto& ace, acd->Acl().Entries) {
+                for (const auto& ace : acd->Acl().Entries) {
                     if (CheckPermissionMatch(ace.Permissions, permission)) {
-                        FOREACH (auto* subject, ace.Subjects) {
+                        for (auto* subject : ace.Subjects) {
                             if (CheckSubjectMatch(subject, user)) {
                                 result.Action = ace.Action;
                                 result.Object = currentObject;
@@ -1016,7 +1016,7 @@ private:
         bool added = subject->RecursiveMemberOf().insert(ancestorGroup).second;
         if (added && subject->GetType() == EObjectType::Group) {
             auto* subjectGroup = subject->AsGroup();
-            FOREACH (auto* member, subjectGroup->Members()) {
+            for (auto* member : subjectGroup->Members()) {
                 PropagateRecursiveMemberOf(member, ancestorGroup);
             }
         }
@@ -1024,17 +1024,17 @@ private:
 
     void RecomputeMembershipClosure()
     {
-        FOREACH (const auto& pair, UserMap) {
+        for (const auto& pair : UserMap) {
             pair.second->RecursiveMemberOf().clear();
         }
 
-        FOREACH (const auto& pair, GroupMap) {
+        for (const auto& pair : GroupMap) {
             pair.second->RecursiveMemberOf().clear();
         }
 
-        FOREACH (const auto& pair, GroupMap) {
+        for (const auto& pair : GroupMap) {
             auto* group = pair.second;
-            FOREACH (auto* member, group->Members()) {
+            for (auto* member : group->Members()) {
                 PropagateRecursiveMemberOf(member, group);
             }
         }
@@ -1136,21 +1136,21 @@ private:
     {
         // Reconstruct account name map.
         AccountNameMap.clear();
-        FOREACH (const auto& pair, AccountMap) {
+        for (const auto& pair : AccountMap) {
             auto* account = pair.second;
             YCHECK(AccountNameMap.insert(std::make_pair(account->GetName(), account)).second);
         }
 
         // Reconstruct user name map.
         UserNameMap.clear();
-        FOREACH (const auto& pair, UserMap) {
+        for (const auto& pair : UserMap) {
             auto* user = pair.second;
             YCHECK(UserNameMap.insert(std::make_pair(user->GetName(), user)).second);
         }
 
         // Reconstruct group name map.
         GroupNameMap.clear();
-        FOREACH (const auto& pair, GroupMap) {
+        for (const auto& pair : GroupMap) {
             auto* group = pair.second;
             YCHECK(GroupNameMap.insert(std::make_pair(group->GetName(), group)).second);
         }
@@ -1164,14 +1164,14 @@ private:
 
             YCHECK(Bootstrap->GetTransactionManager()->Transactions().GetSize() == 0);
 
-            FOREACH (const auto& pair, AccountMap) {
+            for (const auto& pair : AccountMap) {
                 auto* account = pair.second;
                 account->ResourceUsage() = ZeroClusterResources();
                 account->CommittedResourceUsage() = ZeroClusterResources();
             }
 
             auto cypressManager = Bootstrap->GetCypressManager();
-            FOREACH (auto* node, cypressManager->Nodes().GetValues()) {
+            for (auto* node : cypressManager->Nodes().GetValues()) {
                 auto resourceUsage = node->GetResourceUsage();
                 auto* account = node->GetAccount();
                 if (account) {
@@ -1219,7 +1219,7 @@ private:
     void InitDefaultSchemaAcds()
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        FOREACH (auto type, objectManager->GetRegisteredTypes()) {
+        for (auto type : objectManager->GetRegisteredTypes()) {
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
                 auto* acd = GetAcd(schema);
@@ -1299,7 +1299,7 @@ private:
     {
         RequestTracker->StartFlush();
 
-        FOREACH (const auto& pair, UserMap) {
+        for (const auto& pair : UserMap) {
             auto* user = pair.second;
             user->ResetRequestRate();
         }
@@ -1314,7 +1314,7 @@ private:
     void UpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
     {
         auto now = TInstant::Now();
-        FOREACH (const auto& update, request.updates()) {
+        for (const auto& update : request.updates()) {
             auto userId = FromProto<TUserId>(update.user_id());
             auto* user = FindUser(userId);
             if (user) {

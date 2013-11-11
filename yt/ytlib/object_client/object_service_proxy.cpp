@@ -79,12 +79,12 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 
     ToProto(req.mutable_part_counts(), PartCounts);
 
-    FOREACH (const auto& prerequisite, PrerequisiteTransactions_) {
+    for (const auto& prerequisite : PrerequisiteTransactions_) {
         auto* protoPrerequisite = req.add_prerequisite_transactions();
         ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
     }
 
-    FOREACH (const auto& prerequisite, PrerequisiteRevisions_) {
+    for (const auto& prerequisite : PrerequisiteRevisions_) {
         auto* protoPrerequisite = req.add_prerequisite_revisions();
         protoPrerequisite->set_path(prerequisite.Path);
         ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
@@ -125,7 +125,7 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
     int currentIndex = 0;
     BeginPartIndexes.clear();
     BeginPartIndexes.reserve(Body.part_counts_size());
-    FOREACH (int partCount, Body.part_counts()) {
+    for (int partCount : Body.part_counts()) {
         BeginPartIndexes.push_back(currentIndex);
         currentIndex += partCount;
     }
@@ -143,7 +143,7 @@ TError TObjectServiceProxy::TRspExecuteBatch::GetCumulativeError()
     }
 
     TError cumulativeError("Error communicating with master");
-    FOREACH (auto rsp, GetResponses()) {
+    for (auto rsp : GetResponses()) {
         auto error = rsp->GetError();
         if (!error.IsOK()) {
             cumulativeError.InnerErrors().push_back(error);

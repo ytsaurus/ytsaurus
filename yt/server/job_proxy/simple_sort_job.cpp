@@ -148,7 +148,7 @@ public:
 
                     keyBuffer.resize(keyBuffer.size() + keyColumnCount);
 
-                    FOREACH (const auto& pair, facade->GetRow()) {
+                    for (const auto& pair : facade->GetRow()) {
                         auto it = keyColumnToIndex.find(pair.first);
                         if (it != keyColumnToIndex.end()) {
                             auto& keyPart = keyBuffer[rowIndexBuffer.back() * keyColumnCount + it->second];

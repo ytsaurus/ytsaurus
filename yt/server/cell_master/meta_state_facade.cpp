@@ -258,7 +258,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            FOREACH (auto type, objectManager->GetRegisteredTypes()) {
+            for (auto type : objectManager->GetRegisteredTypes()) {
                 if (HasSchema(type)) {
                     CreateNode(
                         "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
@@ -344,7 +344,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            FOREACH (const auto& address, Config->Masters->Addresses) {
+            for (const auto& address : Config->Masters->Addresses) {
                 auto addressPath = "/" + ToYPathLiteral(address);
 
                 CreateNode(

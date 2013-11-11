@@ -114,7 +114,7 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         YCHECK(StoredReplicas_.erase(replica) == 1);
         UnapprovedReplicas_.erase(replica);
         ChunkRemovalQueue_.erase(TChunkIdWithIndex(replica.GetPtr()->GetId(), replica.GetIndex()));
-        FOREACH (auto& queue, ChunkReplicationQueues_) {
+        for (auto& queue : ChunkReplicationQueues_) {
             queue.erase(replica);
         }
     }

@@ -455,7 +455,7 @@ private:
         std::vector<TChangelogQueuePtr> queues;
         {
             TGuard<TSpinLock> guard(Spinlock);
-            FOREACH (const auto& pair, QueueMap) {
+            for (const auto& pair : QueueMap) {
                 const auto& queue = pair.second;
                 if (queue->IsFlushNeeded()) {
                     queues.push_back(queue);
@@ -464,7 +464,7 @@ private:
         }
 
         // Flush the queues.
-        FOREACH (auto queue, queues) {
+        for (auto queue : queues) {
             queue->SyncFlush();
             queue->SyncSeal();
         }

@@ -103,7 +103,7 @@ void TMonitoringManager::Update()
     PROFILE_TIMING ("/update_time") {
         INodePtr newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-        FOREACH (const auto& pair, ProducerMap) {
+        for (const auto& pair : ProducerMap) {
             TYsonString value = ConvertToYsonString(pair.second);
             SyncYPathSet(newRoot, pair.first, value);
         }

@@ -290,7 +290,7 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
 
     int availableCount = 0;
     int unavailableCount = 0;
-    FOREACH(const auto& chunkInfo, rsp->chunks()) {
+    for (const auto& chunkInfo : rsp->chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
         auto it = Controller->InputChunkMap.find(chunkId);
         YCHECK(it != Controller->InputChunkMap.end());
@@ -404,7 +404,7 @@ void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
-    FOREACH (auto stripe, stripes) {
+    for (auto stripe : stripes) {
         if (stripe) {
             AddInput(stripe);
         }
@@ -613,7 +613,7 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
     }
 
     if (HasInputLocality()) {
-        FOREACH (const auto& stripe, list->Stripes) {
+        for (const auto& stripe : list->Stripes) {
             Controller->AddTaskLocalityHint(this, stripe);
         }
     }
@@ -647,7 +647,7 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TNodeResources& neededResources)
 {
     auto nodes = Controller->Host->GetExecNodes();
-    FOREACH (auto node, nodes) {
+    for (auto node : nodes) {
         if (Dominates(node->ResourceLimits(), neededResources))
             return;
     }
@@ -710,7 +710,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
     auto* inputSpec = schedulerJobSpecExt->add_input_specs();
     auto list = joblet->InputStripeList;
-    FOREACH (const auto& stripe, list->Stripes) {
+    for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
@@ -723,7 +723,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
     auto list = joblet->InputStripeList;
-    FOREACH (const auto& stripe, list->Stripes) {
+    for (const auto& stripe : list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
@@ -736,10 +736,10 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe,
     TNullable<int> partitionTag)
 {
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+    for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
         ToProto(chunkSpec, *chunkSlice);
-        FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
@@ -863,7 +863,7 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
 {
     auto stripe = New<TChunkStripe>();
-    FOREACH (auto& chunkSpec, *chunkSpecs) {
+    for (auto& chunkSpec : *chunkSpecs) {
         auto chunkSlice = CreateChunkSlice(New<TRefCountedChunkSpec>(std::move(chunkSpec)));
         stripe->ChunkSlices.push_back(chunkSlice);
     }
@@ -929,13 +929,13 @@ void TOperationControllerBase::Initialize()
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
-    FOREACH (const auto& path, GetInputTablePaths()) {
+    for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
         table.Path = path;
         InputTables.push_back(table);
     }
 
-    FOREACH (const auto& path, GetOutputTablePaths()) {
+    for (const auto& path : GetOutputTablePaths()) {
         TOutputTable table;
         table.Path = path;
         if (NChunkClient::ExtractOverwriteFlag(path.Attributes())) {
@@ -1132,11 +1132,11 @@ void TOperationControllerBase::SuspendUnavailableInputStripes()
 {
     YCHECK(UnavailableInputChunkCount == 0);
 
-    FOREACH (auto& pair, InputChunkMap) {
+    for (auto& pair : InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
-            FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
+            for (const auto& inputStripe : chunkDescriptor.InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
@@ -1152,10 +1152,10 @@ void TOperationControllerBase::ReinstallLivePreview()
     auto masterConnector = Host->GetMasterConnector();
 
     if (IsOutputLivePreviewSupported()) {
-        FOREACH (const auto& table, OutputTables) {
+        for (const auto& table : OutputTables) {
             std::vector<TChunkTreeId> childrenIds;
             childrenIds.reserve(table.OutputChunkTreeIds.size());
-            FOREACH (const auto& pair, table.OutputChunkTreeIds) {
+            for (const auto& pair : table.OutputChunkTreeIds) {
                 childrenIds.push_back(pair.second);
             }
             masterConnector->AttachToLivePreview(
@@ -1168,7 +1168,7 @@ void TOperationControllerBase::ReinstallLivePreview()
     if (IsIntermediateLivePreviewSupported()) {
         std::vector<TChunkTreeId> childrenIds;
         childrenIds.reserve(ChunkOriginMap.size());
-        FOREACH (const auto& pair, ChunkOriginMap) {
+        for (const auto& pair : ChunkOriginMap) {
             if (!pair.second->IsLost) {
                 childrenIds.push_back(pair.first);
             }
@@ -1182,7 +1182,7 @@ void TOperationControllerBase::ReinstallLivePreview()
 
 void TOperationControllerBase::AbortAllJoblets()
 {
-    FOREACH (const auto& pair, JobletMap) {
+    for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
         JobCounter.Aborted(1);
         joblet->Task->OnJobAborted(joblet);
@@ -1234,7 +1234,7 @@ void TOperationControllerBase::CommitResults()
     TObjectServiceProxy proxy(AuthenticatedMasterChannel);
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (auto& table, OutputTables) {
+    for (auto& table : OutputTables) {
         auto path = FromObjectId(table.ObjectId);
         // Split large outputs into separate requests.
         {
@@ -1298,7 +1298,7 @@ void TOperationControllerBase::CommitResults()
                     YCHECK(++it == pair.second);
                 }
             } else {
-                FOREACH (const auto& pair, table.OutputChunkTreeIds) {
+                for (const auto& pair : table.OutputChunkTreeIds) {
                     addChunkTree(pair.second);
                 }
             }
@@ -1413,7 +1413,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
         const auto& result = job->Result();
         const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        FOREACH (const auto& chunkId, schedulerResultExt.failed_chunk_ids()) {
+        for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
     }
@@ -1442,14 +1442,14 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     YCHECK(UnavailableInputChunkCount >= 0);
 
     // Update replicas in place for all input chunks with current chunkId.
-    FOREACH(auto& chunkSpec, descriptor.ChunkSpecs) {
+    for (auto& chunkSpec : descriptor.ChunkSpecs) {
         chunkSpec->mutable_replicas()->Clear();
         ToProto(chunkSpec->mutable_replicas(), replicas);
     }
 
     descriptor.State = EInputChunkState::Active;
 
-    FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+    for (const auto& inputStripe : descriptor.InputStripes) {
         --inputStripe.Stripe->WaitingChunkCount;
         if (inputStripe.Stripe->WaitingChunkCount > 0)
             continue;
@@ -1480,7 +1480,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
 
         case EUnavailableChunkAction::Skip: {
             descriptor.State = EInputChunkState::Skipped;
-            FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+            for (const auto& inputStripe : descriptor.InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
                 // Remove given chunk from the stripe list.
@@ -1505,7 +1505,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
 
         case EUnavailableChunkAction::Wait: {
             descriptor.State = EInputChunkState::Waiting;
-            FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+            for (const auto& inputStripe : descriptor.InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
@@ -1677,7 +1677,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 
 void TOperationControllerBase::AddAllTaskPendingHints()
 {
-    FOREACH (auto task, Tasks) {
+    for (auto task : Tasks) {
         AddTaskPendingHint(task);
     }
 }
@@ -1700,8 +1700,8 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-        FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+    for (const auto& chunkSlice : stripe->ChunkSlices) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
             if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
@@ -1716,8 +1716,8 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     LOG_DEBUG("Task locality delays are reset");
-    FOREACH (auto group, TaskGroups) {
-        FOREACH (const auto& pair, group->DelayedTasks) {
+    for (auto group : TaskGroups) {
+        for (const auto& pair : group->DelayedTasks) {
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
                 MoveTaskToCandidates(task, group->CandidateTasks);
@@ -1761,7 +1761,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     auto node = context->GetNode();
     const auto& address = node->GetAddress();
 
-    FOREACH (auto group, TaskGroups) {
+    for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
@@ -1841,7 +1841,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
     const auto& node = context->GetNode();
     const auto& address = node->GetAddress();
 
-    FOREACH (auto group, TaskGroups) {
+    for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
@@ -2120,7 +2120,7 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
     if (IsOutputLivePreviewSupported()) {
         LOG_INFO("Preparing live preview output tables for update");
 
-        FOREACH (const auto& table, OutputTables) {
+        for (const auto& table : OutputTables) {
             addRequest(table, "prepare_output");
         }
     }
@@ -2163,13 +2163,13 @@ void TOperationControllerBase::GetObjectIds()
     TObjectServiceProxy proxy(AuthenticatedMasterChannel);
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& table, InputTables) {
+    for (const auto& table : InputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
         SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_in_id");
     }
 
-    FOREACH (const auto& table, OutputTables) {
+    for (const auto& table : OutputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
         SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_out_id");
@@ -2214,19 +2214,19 @@ void TOperationControllerBase::ValidateInputTypes()
     TObjectServiceProxy proxy(AuthenticatedMasterChannel);
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& table, InputTables) {
+    for (const auto& table : InputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
         SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_input_types");
     }
 
-    FOREACH (const auto& table, OutputTables) {
+    for (const auto& table : OutputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
         SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_output_types");
     }
 
-    FOREACH (const auto& pair, GetFilePaths()) {
+    for (const auto& pair : GetFilePaths()) {
         const auto& path = pair.first;
         auto req = TObjectYPathProxy::Get(path.GetPath() + "/@type");
         SetTransactionId(req, Operation->GetInputTransaction());
@@ -2318,7 +2318,7 @@ void TOperationControllerBase::RequestInputs()
     TObjectServiceProxy proxy(AuthenticatedMasterChannel);
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& table, InputTables) {
+    for (const auto& table : InputTables) {
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
@@ -2349,7 +2349,7 @@ void TOperationControllerBase::RequestInputs()
         }
     }
 
-    FOREACH (const auto& table, OutputTables) {
+    for (const auto& table : OutputTables) {
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
@@ -2381,7 +2381,7 @@ void TOperationControllerBase::RequestInputs()
         }
     }
 
-    FOREACH (const auto& file, RegularFiles) {
+    for (const auto& file : RegularFiles) {
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
@@ -2412,7 +2412,7 @@ void TOperationControllerBase::RequestInputs()
         }
     }
 
-    FOREACH (const auto& file, TableFiles) {
+    for (const auto& file : TableFiles) {
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
@@ -2658,7 +2658,7 @@ void TOperationControllerBase::RequestInputs()
 
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
-                FOREACH (const auto& chunk, rsp->chunks()) {
+                for (const auto& chunk : rsp->chunks()) {
                     chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
                 }
 
@@ -2690,8 +2690,8 @@ void TOperationControllerBase::RequestInputs()
 
 void TOperationControllerBase::CollectTotals()
 {
-    FOREACH (const auto& table, InputTables) {
-        FOREACH (const auto& chunk, table.FetchResponse.chunks()) {
+    for (const auto& table : InputTables) {
+        for (const auto& chunk : table.FetchResponse.chunks()) {
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
@@ -2720,7 +2720,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     std::vector<TRefCountedChunkSpecPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
-        FOREACH (const auto& chunkSpec, table.FetchResponse.chunks()) {
+        for (const auto& chunkSpec : table.FetchResponse.chunks()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec)) {
                 switch (Spec->UnavailableChunkStrategy) {
@@ -2753,14 +2753,14 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
 {
     std::vector<TChunkStripePtr> result;
     auto appendStripes = [&] (std::vector<TChunkSlicePtr> slices) {
-        FOREACH(const auto& slice, slices) {
+        for (const auto& slice : slices) {
             result.push_back(New<TChunkStripe>(slice));
         }
     };
 
     i64 sliceDataSize = std::min(maxSliceDataSize, std::max(TotalInputDataSize / jobCount, (i64)1));
 
-    FOREACH (const auto& chunkSpec, CollectInputChunks()) {
+    for (const auto& chunkSpec : CollectInputChunks()) {
         int oldSize = result.size();
 
         bool hasNontrivialLimits =
@@ -2772,7 +2772,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
             auto slices = CreateChunkSlice(chunkSpec)->SliceEvenly(sliceDataSize);
             appendStripes(slices);
         } else {
-            FOREACH(const auto& slice, CreateErasureChunkSlices(chunkSpec, codecId)) {
+            for (const auto& slice, CreateErasureChunkSlices(chunkSpec : codecId)) {
                 auto slices = slice->SliceEvenly(sliceDataSize);
                 appendStripes(slices);
             }
@@ -2789,7 +2789,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
 {
     YCHECK(!InputTables.empty());
 
-    FOREACH (const auto& table, InputTables) {
+    for (const auto& table : InputTables) {
         if (!table.KeyColumns) {
             THROW_ERROR_EXCEPTION("Input table %s is not sorted",
                 ~table.Path.GetPath());
@@ -2797,7 +2797,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
     }
 
     if (keyColumns) {
-        FOREACH (const auto& table, InputTables) {
+        for (const auto& table : InputTables) {
             if (!CheckKeyColumnsCompatible(table.KeyColumns.Get(), keyColumns.Get())) {
                 THROW_ERROR_EXCEPTION("Input table %s is sorted by columns %s that are not compatible with the requested columns %s",
                     ~table.Path.GetPath(),
@@ -2808,7 +2808,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         return keyColumns.Get();
     } else {
         const auto& referenceTable = InputTables[0];
-        FOREACH (const auto& table, InputTables) {
+        for (const auto& table : InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
                 THROW_ERROR_EXCEPTION("Key columns do not match: input table %s is sorted by columns %s while input table %s is sorted by columns %s",
                     ~table.Path.GetPath(),
@@ -2968,7 +2968,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Task = task;
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
-    FOREACH(const auto& slice, stripe->ChunkSlices) {
+    for (const auto& slice : stripe->ChunkSlices) {
         auto chunkSpec = slice->GetChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
@@ -3003,7 +3003,7 @@ void TOperationControllerBase::RegisterIntermediate(
     TotalIntermediateRowCount += outputStatistics.row_count();
     TotalIntermediateDataSize += outputStatistics.uncompressed_data_size();
 
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+    for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
@@ -3139,7 +3139,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
-        FOREACH (const auto& pair, env) {
+        for (const auto& pair : env) {
             jobSpec->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
         }
     };
@@ -3153,14 +3153,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->add_environment(Sprintf("YT_OPERATION_ID=%s",
         ~ToString(Operation->GetOperationId())));
 
-    FOREACH (const auto& file, regularFiles) {
+    for (const auto& file : regularFiles) {
         auto *descriptor = jobSpec->add_regular_files();
         *descriptor->mutable_file() = file.FetchResponse;
         descriptor->set_executable(file.Executable);
         descriptor->set_file_name(file.FileName);
     }
 
-    FOREACH (const auto& file, tableFiles) {
+    for (const auto& file : tableFiles) {
         auto* descriptor = jobSpec->add_table_files();
         *descriptor->mutable_table() = file.FetchResponse;
         descriptor->set_file_name(file.FileName);
@@ -3190,7 +3190,7 @@ void TOperationControllerBase::InitUserJobSpec(
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
 {
     i64 result = 0;
-    FOREACH (const auto& outputTable, OutputTables) {
+    for (const auto& outputTable : OutputTables) {
         if (outputTable.Options->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
                 ioConfig->TableWriter->MaxRowWeight,
@@ -3215,7 +3215,7 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     const TChunkStripeStatisticsVector& stripeStatistics) const
 {
     i64 result = 0;
-    FOREACH (const auto& stat, stripeStatistics) {
+    for (const auto& stat : stripeStatistics) {
         result += GetInputIOMemorySize(ioConfig, stat);
     }
     result += GetFinalOutputIOMemorySize(ioConfig);
@@ -3323,7 +3323,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, InputChunkSpecs);
 
     if (context.GetDirection() == EPersistenceDirection::Load) {
-        FOREACH (auto task, Tasks) {
+        for (auto task : Tasks) {
             task->Initialize();
         }
     }

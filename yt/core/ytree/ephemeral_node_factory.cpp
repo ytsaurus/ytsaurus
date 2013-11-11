@@ -100,7 +100,7 @@ public:
         }
         yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
         bool seenMatching = false;
-        FOREACH (const auto& key, keys) {
+        for (const auto& key : keys) {
             if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
                 if (!seenMatching) {
                     consumer->OnBeginAttributes();
@@ -200,7 +200,7 @@ class TMapNode
 public:
     virtual void Clear() override
     {
-        FOREACH (const auto& pair, KeyToChild) {
+        for (const auto& pair : KeyToChild) {
             pair.second->SetParent(nullptr);
         }
         KeyToChild.clear();
@@ -221,7 +221,7 @@ public:
     {
         std::vector<Stroka> result;
         result.reserve(KeyToChild.size());
-        FOREACH (const auto& pair, KeyToChild) {
+        for (const auto& pair : KeyToChild) {
             result.push_back(pair.first);
         }
         return result;
@@ -336,7 +336,7 @@ class TListNode
 public:
     virtual void Clear() override
     {
-        FOREACH (const auto& node, IndexToChild) {
+        for (const auto& node : IndexToChild) {
             node->SetParent(nullptr);
         }
         IndexToChild.clear();

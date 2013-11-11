@@ -78,7 +78,7 @@ public:
             // Initialize stores.
             {
                 auto entries = EnumerateDirectories(Config->Path);
-                FOREACH (const auto& entry, entries) {
+                for (const auto& entry : entries) {
                     if (!entry.has_suffix(SplitSuffix))
                         continue;
 
@@ -124,7 +124,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock);
         std::vector<IChangelogStorePtr> result;
-        FOREACH (const auto& pair, StoreMap) {
+        for (const auto& pair : StoreMap) {
             result.push_back(pair.second);
         }
         return result;
@@ -456,7 +456,7 @@ private:
             int minId = std::numeric_limits<int>::max();
             int maxId = std::numeric_limits<int>::min();
             
-            FOREACH (const auto& entry, entries) {
+            for (const auto& entry : entries) {
                 if (!entry.has_suffix(LogSuffix))
                     continue;
 
@@ -532,7 +532,7 @@ private:
                     recordCount,
                     Catalog->Config->ReplayBufferSize);
 
-                FOREACH (const auto& record, records) {
+                for (const auto& record : records) {
                     YCHECK(record.Size() >= sizeof (TMultiplexedRecordHeader));
                     auto* header = reinterpret_cast<const TMultiplexedRecordHeader*>(record.Begin());
 
@@ -559,7 +559,7 @@ private:
 
             LOG_INFO("Flushing split changelogs");
 
-            FOREACH (auto& pair, SplitChangelogMap) {
+            for (auto& pair : SplitChangelogMap) {
                 auto& entry = pair.second;
                 
                 LOG_INFO("Flushing split changelog %s:%d",
@@ -657,7 +657,7 @@ private:
             // Wait for the last record in active changelogs to get flushed
             // to mark the multiplexed changelog as clean.
             auto splitsFlushAwaiter = New<TParallelAwaiter>(GetSyncInvoker());
-            FOREACH (auto changelog, ActiveChangelogs) {
+            for (auto changelog : ActiveChangelogs) {
                 splitsFlushAwaiter->Await(changelog->GetLastAppendResult());
             }
             auto splitsFlushResult = splitsFlushAwaiter->Complete();
@@ -726,7 +726,7 @@ private:
         MultiplexedChangelog = newMultiplexedChangelog;
 
         auto appendResult = MakeFuture(); // pre-set in case MultiplexedBacklogQueue is empty
-        FOREACH (const auto& record, MultiplexedBacklogQueue) {
+        for (const auto& record : MultiplexedBacklogQueue) {
             appendResult = AppendToMultiplexedChangelog(record);
         }
         MultiplexedBacklogQueue.clear();

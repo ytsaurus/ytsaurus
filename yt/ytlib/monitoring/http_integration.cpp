@@ -45,7 +45,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
 void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 {
     auto params = splitStroku(query, "&");
-    FOREACH (const auto& param, params) {
+    for (const auto& param : params) {
         auto eqIndex = param.find_first_of('=');
         if (eqIndex == Stroka::npos) {
             THROW_ERROR_EXCEPTION("Missing value of query parameter %s",

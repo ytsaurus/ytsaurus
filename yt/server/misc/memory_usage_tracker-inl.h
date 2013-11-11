@@ -19,7 +19,7 @@ TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(i64 totalMemory, Strok
     , FreeMemoryCounter("/free", EmptyTagIds, EAggregateMode::Min)
     , Logger("MemoryUsage")
 {
-    FOREACH (auto value, EMemoryConsumer::GetDomainValues()) {
+    for (auto value : EMemoryConsumer::GetDomainValues()) {
         // EMemoryConsumer enum must be contiguous, without gaps.
         YCHECK(value < EMemoryConsumer::GetDomainSize());
     }
