@@ -1030,7 +1030,7 @@ void TObjectManager::ExecuteMutatingRequest(const TUserId& userId, IServiceConte
     }
 
     auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
-	auto* mutationContext = hydraManager->GetMutationContext();
+    auto* mutationContext = hydraManager->GetMutationContext();
     if (mutationContext && !mutationContext->IsMutationSuppressed()) {
 	    YCHECK(context->IsReplied());
 	    if (mutationContext->GetId() != NullMutationId) {
