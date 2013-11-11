@@ -423,7 +423,9 @@ def copy_table(source_table, destination_table, replace=True):
         if replace and exists(destination_table.name) and to_name(source_tables[0]) != to_name(destination_table):
             # in copy destination should be absent
             remove(destination_table.name)
-        mkdir(os.path.dirname(destination_table.name), recursive=True)
+        dirname = os.path.dirname(destination_table.name)
+        if dirname != "//":
+            mkdir(dirname, recursive=True)
         copy(source_tables[0].name, destination_table.name)
     else:
         source_names = [table.name for table in source_tables]
