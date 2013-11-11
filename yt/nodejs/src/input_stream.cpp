@@ -486,7 +486,7 @@ void TInputStreamWrap::DisposeHandles(std::deque<TInputPart*>* queue)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    FOREACH (auto* part, *queue) {
+    for (auto* part : *queue) {
         part->Handle.Dispose();
         part->Handle.Clear();
         delete part;

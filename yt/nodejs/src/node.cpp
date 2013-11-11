@@ -167,7 +167,7 @@ Handle<Value> ProduceV8(const INodePtr& node)
         case ENodeType::Map: {
             auto children = node->AsMap()->GetChildren();
             auto result = Object::New();
-            FOREACH (const auto& pair, children) {
+            for (const auto& pair : children) {
                 const auto& key = pair.first;
                 const auto& value = pair.second;
                 result->Set(

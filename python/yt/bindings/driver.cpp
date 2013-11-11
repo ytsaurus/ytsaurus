@@ -159,7 +159,7 @@ public:
         }
 
         auto descriptors = Py::List();
-        FOREACH (const auto& nativeDescriptor, DriverInstance_->GetCommandDescriptors()) {
+        for (const auto& nativeDescriptor : DriverInstance_->GetCommandDescriptors()) {
             Py::Callable class_type(TCommandDescriptor::type());
             Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
             descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);

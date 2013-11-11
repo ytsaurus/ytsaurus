@@ -59,7 +59,7 @@ Handle<Value> SpawnBasicYtError(const Arguments& args)
     fakeError.SetMessage(Stroka(*message, message.length()));
 
     auto children = attributes->GetChildren();
-    FOREACH (const auto& child, children) {
+    for (const auto& child : children) {
         fakeError.Attributes().Set(child.first, child.second);
     }
 
@@ -78,7 +78,7 @@ Handle<Value> ConvertErrorToV8(const TError& error)
     Local<Object> attributes = Object::New();
     {
         const auto& errorAttributes = error.Attributes();
-        FOREACH (const auto& key, errorAttributes.List()) {
+        for (const auto& key : errorAttributes.List()) {
             auto value = errorAttributes.GetYson(key);
 
             Stroka encodedValue;

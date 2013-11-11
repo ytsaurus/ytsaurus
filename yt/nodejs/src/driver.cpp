@@ -222,7 +222,7 @@ private:
             FlushFuture_.Reset();
         }
 
-        FOREACH(const auto& bit, bitsToFlush) {
+        for (const auto& bit : bitsToFlush) {
             auto keyHandle = String::New(std::get<0>(bit).c_str());
             auto valueHandle = ConvertNodeToV8Value(std::get<1>(bit));
 
@@ -386,7 +386,7 @@ void ExportEnumeration(
     auto values = E::GetDomainValues();
     Local<Array> mapping = Array::New();
 
-    FOREACH (const auto& value, values) {
+    for (const auto& value : values) {
         Stroka key = Stroka::Join(name, "_", E::GetLiteralByValue(value));
         auto keyHandle = String::NewSymbol(key.c_str());
         auto valueHandle = Integer::New(value);
@@ -572,7 +572,7 @@ Handle<Value> TDriverWrap::DoGetCommandDescriptors()
     Local<Array> result = Array::New();
 
     auto descriptors = Driver->GetCommandDescriptors();
-    FOREACH (const auto& descriptor, descriptors) {
+    for (const auto& descriptor : descriptors) {
         Local<Object> resultItem = ConvertCommandDescriptorToV8Object(descriptor);
         result->Set(result->Length(), resultItem);
     }
