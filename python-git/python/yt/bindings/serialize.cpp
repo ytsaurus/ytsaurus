@@ -243,7 +243,7 @@ void Deserialize(Py::Object& obj, INodePtr node)
     auto type = node->GetType();
     if (type == ENodeType::Map) {
         auto map = Py::Dict();
-        FOREACH (auto child, node->AsMap()->GetChildren()) {
+        for (auto child : node->AsMap()->GetChildren()) {
             Py::Object item;
             Deserialize(item, child.second);
             map.setItem(~child.first, item);
@@ -259,7 +259,7 @@ void Deserialize(Py::Object& obj, INodePtr node)
         obj = CreateYsonObject("YsonString", Py::String(~node->AsString()->GetValue()), attributes);
     } else if (type == ENodeType::List) {
         auto list = Py::List();
-        FOREACH (auto child, node->AsList()->GetChildren()) {
+        for (auto child : node->AsList()->GetChildren()) {
             Py::Object item;
             Deserialize(item, child);
             list.append(item);
