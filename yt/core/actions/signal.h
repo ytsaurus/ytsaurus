@@ -66,12 +66,8 @@ public:
         guard.Release();
 
         for (const auto& callback : callbacks) {
-            // TODO(babenko): variadic forwarding does not work in VS2012 Nov CTP
-#ifdef _MSC_VER
+            // NB: Don't forward, pass as is. Makes sense when one than one handler is attached.
             callback.Run(args...);
-#else
-            callback.Run(std::forward<TArgs>(args)...);
-#endif
         }
     }
 
