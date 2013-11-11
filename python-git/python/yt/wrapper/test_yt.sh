@@ -138,6 +138,8 @@ test_users()
 
     ./yt remove-member test_user test_group
     check "[]" `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
+
+    ./yt remove //sys/users/test_user
 }
 
 test_concurrent_upload_in_operation()
@@ -181,6 +183,7 @@ test_sorted_by()
     check "$(./yt get //home/wrapper_test/table/@sorted)" '"true"'
 }
 
+tear_down
 run_test test_tree_commands
 run_test test_file_commands
 run_test test_copy_move_link
