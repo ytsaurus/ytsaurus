@@ -99,9 +99,9 @@ class Dumper(object):
 
     def _dump_string(self, obj):
         if isinstance(obj, str):
-            return _fix_repr(repr(obj))
+            return _fix_repr(repr(str(obj)))
         elif isinstance(obj, unicode):
-            return _fix_repr(repr(obj.encode(self._encoding)))
+            return _fix_repr(repr(str(obj.encode(self._encoding))))
         else:
             assert False
 
