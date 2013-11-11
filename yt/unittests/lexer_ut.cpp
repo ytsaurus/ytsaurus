@@ -3,7 +3,6 @@
 #include <core/yson/lexer.h>
 
 #include <core/misc/nullable.h>
-#include <core/misc/foreach.h>
 
 #include <contrib/testing/framework.h>
 
