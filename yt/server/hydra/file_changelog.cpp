@@ -423,7 +423,7 @@ private:
 
         auto queue = it->second;
         queue->Lock();
-        return std::move(queue);
+        return queue;
     }
 
     TChangelogQueuePtr GetQueueAndLock(TSyncFileChangelogPtr changelog)
@@ -440,7 +440,7 @@ private:
         }
 
         queue->Lock();
-        return std::move(queue);
+        return queue;
     }
 
     void RemoveQueue(TSyncFileChangelogPtr changelog)

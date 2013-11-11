@@ -111,7 +111,7 @@ public:
                 keys.push_back(pair.first);
             }
         }
-        return std::move(keys);
+        return keys;
     }
 
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const override

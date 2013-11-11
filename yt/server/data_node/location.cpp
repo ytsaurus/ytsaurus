@@ -258,7 +258,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
     try {
         auto descriptors = DoInitialize();        
         Enabled.store(true);
-        return std::move(descriptors);
+        return descriptors;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Location %s has failed to initialize",
             ~GetPath().Quote());
@@ -387,7 +387,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     HealthChecker->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker->Start();
 
-    return std::move(descriptors);
+    return descriptors;
 }
 
 TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)

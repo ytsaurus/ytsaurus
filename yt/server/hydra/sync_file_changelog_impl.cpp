@@ -363,7 +363,7 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
         }
     }
 
-    return std::move(records);
+    return records;
 }
 
 int TSyncFileChangelog::TImpl::GetId() const

@@ -165,7 +165,7 @@ TSharedRef TPacketDecoder::AllocatePart(size_t partSize)
         }
         auto part = SmallChunk.Slice(TRef(SmallChunk.Begin() + SmallChunkUsed, partSize));
         SmallChunkUsed += partSize;
-        return std::move(part);
+        return part;
     } else {
         struct TLargeReceivedMessagePartTag { };
         return TSharedRef::Allocate<TLargeReceivedMessagePartTag>(partSize, false);
