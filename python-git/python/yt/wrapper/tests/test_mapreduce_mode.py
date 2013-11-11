@@ -403,8 +403,6 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         self.assertTrue(len(yt.get_attribute(table, "channels")) == 0)
 
     def test_mapreduce_binary(self):
-        yt.mkdir("//statbox")
-        yt.create_table("//statbox/table")
         proc = subprocess.Popen(
             "YT_USE_TOKEN=0 YT_PROXY=%s %s" %
                 (config.http.PROXY,
