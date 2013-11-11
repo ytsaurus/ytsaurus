@@ -50,17 +50,21 @@ private:
         const std::vector<Stroka>& fieldNames,
         const TStringBuf& wholeField)
     {
-        // Feel the power of arcadia util.
-        // How elegant it cuts string using the sharp axe!
-        Stroka delimiter(Config->YamrKeysSeparator);
-        Stroka wholeFieldStroka(wholeField.begin(), wholeField.end());
-        VectorStrok fields = splitStroku(
-            wholeFieldStroka,
-            delimiter.begin(),
-            /*maxFields*/ fieldNames.size());
-        // Fixing bug in arcadia logic
-        if (wholeFieldStroka.length() == 0) {
-            fields = VectorStrok(1, "");
+        static const char* emptyString = "";
+        char delimiter = Config->YamrKeysSeparator;
+
+        std::vector<TStringBuf> fields;
+        if (wholeField.length() == 0) {
+            fields = std::vector<TStringBuf>(1, TStringBuf(emptyString));
+        } else {
+            size_t position = 0;
+            while (position != TStringBuf::npos) {
+                size_t newPosition = (fields.size() + 1 == fieldNames.size())
+                    ? TStringBuf::npos
+                    : wholeField.find(delimiter, position);
+                fields.push_back(wholeField.substr(position, newPosition));
+                position = (newPosition == TStringBuf::npos) ? TStringBuf::npos : newPosition + 1;
+            }
         }
 
         if (fields.size() != fieldNames.size()) {
