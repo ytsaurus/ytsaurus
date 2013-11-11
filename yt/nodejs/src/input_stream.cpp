@@ -1,7 +1,5 @@
 #include "input_stream.h"
 
-#include <core/misc/foreach.h>
-
 #include <util/system/spinlock.h>
 
 namespace NYT {
