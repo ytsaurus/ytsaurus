@@ -81,10 +81,22 @@ public:
             .Run();
     }
 
-    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
-        const TDataSplit& split) override
+    virtual bool CanSplit(const TDataSplit& dataSplit) override
     {
-        return BIND(&TImpl::DoSplitFurther, MakeStrong(this), split)
+        auto objectId = GetObjectIdFromDataSplit(dataSplit);
+        switch (TypeFromId(objectId)) {
+            case NObjectClient::EObjectType::Table:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
+        const TDataSplit& dataSplit) override
+    {
+        // TODO(sandello): Is it safe to pass const reference here?
+        return BIND(&TImpl::DoSplitFurther, MakeStrong(this), ConstRef(dataSplit))
             .AsyncVia(GetCurrentInvoker())
             .Run();
     }
@@ -148,10 +160,8 @@ private:
         switch (TypeFromId(objectId)) {
             case NObjectClient::EObjectType::Table:
                 return DoSplitTableFurther(split);
-            case NObjectClient::EObjectType::Chunk:
-                return std::vector<TDataSplit>(1, split);
             default:
-                YUNIMPLEMENTED();
+                YUNREACHABLE();
         }
     }
 

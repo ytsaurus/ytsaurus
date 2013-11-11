@@ -26,6 +26,9 @@ public:
 
     ~TPlanFragment();
 
+    TPlanFragment& operator=(const TPlanFragment& other);
+    TPlanFragment& operator=(TPlanFragment&& other);
+
     DEFINE_BYVAL_RO_PROPERTY(TPlanContextPtr, Context);
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Head);
     DEFINE_BYREF_RO_PROPERTY(TGuid, Guid);

@@ -35,6 +35,9 @@ struct ICoordinateCallbacks
     virtual ~ICoordinateCallbacks()
     { }
 
+    virtual bool CanSplit(
+        const TDataSplit& dataSplit) = 0;
+
     virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
         const TDataSplit& dataSplit) = 0;
 

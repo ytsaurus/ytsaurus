@@ -37,6 +37,22 @@ TPlanFragment::TPlanFragment(TPlanFragment&& other)
 TPlanFragment::~TPlanFragment()
 { }
 
+TPlanFragment& TPlanFragment::operator=(const TPlanFragment& other)
+{
+    Context_ = other.Context_;
+    Head_ = other.Head_;
+    Guid_ = other.Guid_;
+    return *this;
+}
+
+TPlanFragment& TPlanFragment::operator=(TPlanFragment&& other)
+{
+    Context_ = std::move(other.Context_);
+    Head_ = std::move(other.Head_);
+    Guid_ = std::move(other.Guid_);
+    return *this;
+}
+
 TPlanFragment TPlanFragment::Prepare(
     const Stroka& source,
     IPrepareCallbacks* callbacks)

@@ -62,25 +62,17 @@ IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
     }
 }
 
-TError TCoordinateController::Prepare()
+void TCoordinateController::Prepare()
 {
     if (Prepared_) {
-        return TError("Plan fragment is already prepared");
+        THROW_ERROR_EXCEPTION("Plan fragment is already prepared");
     }
-
-    ViewPlanFragment(Fragment_, "Coordinator -> Before");
 
     SplitFurther();
     PushdownFilters();
     PushdownProjects();
 
-    ViewPlanFragment(Fragment_, "Coordinator -> After");
-
     DistributeToPeers();
-
-    ViewPlanFragment(Fragment_, "Coordinator -> Final");
-
-    return TError();
 }
 
 TError TCoordinateController::Run()
@@ -88,8 +80,7 @@ TError TCoordinateController::Run()
     try {
         LOG_DEBUG("Coordinating plan fragment");
 
-        auto error = Prepare();
-        RETURN_IF_ERROR(error);
+        Prepare();
 
         for (auto& peer : Peers_) {
             std::get<1>(peer) = GetCallbacks()->Delegate(
@@ -105,6 +96,21 @@ TError TCoordinateController::Run()
     }
 }
 
+TPlanFragment TCoordinateController::GetCoordinatorSplit() const
+{
+    return Fragment_;
+}
+
+std::vector<TPlanFragment> TCoordinateController::GetPeerSplits() const
+{
+    std::vector<TPlanFragment> result;
+    result.reserve(Peers_.size());
+    for (const auto& peer : Peers_) {
+        result.emplace_back(std::get<0>(peer));
+    }
+    return result;
+}
+
 void TCoordinateController::SplitFurther()
 {
     LOG_DEBUG("Splitting inputs");
@@ -116,7 +122,12 @@ void TCoordinateController::SplitFurther()
     [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         if (auto* scanOp = op->As<TScanOperator>()) {
             auto objectId = GetObjectIdFromDataSplit(scanOp->DataSplit());
-            LOG_DEBUG("Splitting input %s", ~ToString(objectId));
+            if (!GetCallbacks()->CanSplit(scanOp->DataSplit())) {
+                LOG_DEBUG("Skipping input %s", ~ToString(objectId));
+                return scanOp;
+            } else {
+                LOG_DEBUG("Splitting input %s", ~ToString(objectId));
+            }
 
             auto dataSplitsOrError = WaitFor(
                 GetCallbacks()->SplitFurther(scanOp->DataSplit()));
@@ -126,13 +137,8 @@ void TCoordinateController::SplitFurther()
                 dataSplits.size(),
                 ~ToString(objectId));
 
-            if (dataSplits.size() == 1) {
-                const auto& dataSplit = dataSplits[0];
-                auto* splittedScanOp = new (context) TScanOperator(
-                    context,
-                    scanOp->GetTableIndex());
-                splittedScanOp->DataSplit() = dataSplit;
-                return splittedScanOp;
+            if (dataSplits.size() == 0) {
+                THROW_ERROR_EXCEPTION("Input %s is empty", ~ToString(objectId));
             } else {
                 auto* unionOp = new (context) TUnionOperator(context);
                 for (const auto& dataSplit : dataSplits) {

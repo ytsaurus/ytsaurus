@@ -25,13 +25,11 @@ public:
 
     virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override;
 
-    TError Prepare();
-    TError Run();
+    void Prepare(); // Throws.
+    TError Run(); // Does not throw.
 
-    void SplitFurther();
-    void PushdownFilters();
-    void PushdownProjects();
-    void DistributeToPeers();
+    TPlanFragment GetCoordinatorSplit() const;
+    std::vector<TPlanFragment> GetPeerSplits() const;
 
     ICoordinateCallbacks* GetCallbacks()
     {
@@ -49,12 +47,10 @@ public:
     }
 
 private:
-    ICoordinateCallbacks* Callbacks_;
-    TPlanFragment Fragment_;
-    TWriterPtr Writer_;
-
-    bool Prepared_;
-    std::vector<std::tuple<TPlanFragment, IReaderPtr>> Peers_;
+    void SplitFurther();
+    void PushdownFilters();
+    void PushdownProjects();
+    void DistributeToPeers();
 
     void SetHead(const TOperator* head)
     {
@@ -66,6 +62,14 @@ private:
     {
         SetHead(Apply(GetContext(), GetHead(), functor));
     }
+
+private:
+    ICoordinateCallbacks* Callbacks_;
+    TPlanFragment Fragment_;
+    TWriterPtr Writer_;
+
+    bool Prepared_;
+    std::vector<std::tuple<TPlanFragment, IReaderPtr>> Peers_;
 
     NLog::TTaggedLogger Logger;
 
