@@ -39,7 +39,7 @@ def main():
     setup(
         name = "Yt",
         version = version,
-        packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment", "yt.tools", "yt.bindings"]),
+        packages = ["yt.wrapper", "yt.yson", "yt.dill", "yt.packages"],
         scripts = scripts,
 
         install_requires = requires,
