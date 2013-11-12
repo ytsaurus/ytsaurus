@@ -78,7 +78,7 @@ void TMasterConnector::Start()
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
             .Via(ControlInvoker),
-        RandomDuration(Config->HeartbeatSplay));
+        RandomDuration(Config->IncrementalHeartbeatPeriod));
 
     Started = true;
 }
@@ -130,7 +130,7 @@ void TMasterConnector::ScheduleNodeHeartbeat()
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::OnNodeHeartbeat, MakeStrong(this))
             .Via(HeartbeatInvoker),
-        Config->HeartbeatPeriod);
+        Config->IncrementalHeartbeatPeriod);
 }
 
 void TMasterConnector::ScheduleJobHeartbeat()
@@ -138,7 +138,7 @@ void TMasterConnector::ScheduleJobHeartbeat()
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::OnJobHeartbeat, MakeStrong(this))
             .Via(HeartbeatInvoker),
-        Config->HeartbeatPeriod);
+        Config->IncrementalHeartbeatPeriod);
 }
 
 void TMasterConnector::ResetAndScheduleRegister()
@@ -148,7 +148,7 @@ void TMasterConnector::ResetAndScheduleRegister()
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::SendRegister, MakeStrong(this))
             .Via(HeartbeatInvoker),
-        Config->HeartbeatPeriod);
+        Config->IncrementalHeartbeatPeriod);
 }
 
 void TMasterConnector::OnNodeHeartbeat()
@@ -360,6 +360,14 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRs
     }
 
     LOG_INFO("Successfully reported full node heartbeat to master");
+
+    // Schedule another full heartbeat.
+    if (Config->FullHeartbeatPeriod) {
+        TDelayedInvoker::Submit(
+            BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
+                .Via(HeartbeatInvoker),
+            RandomDuration(*Config->FullHeartbeatPeriod));
+    }
 
     State = EState::Online;
 

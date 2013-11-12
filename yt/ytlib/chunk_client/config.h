@@ -172,7 +172,7 @@ public:
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
-            .Default(1)
+            .Default(2)
             .GreaterThan(0);
         RegisterParameter("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
