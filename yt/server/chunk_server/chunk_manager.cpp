@@ -808,11 +808,13 @@ private:
             ProcessRemovedChunk(node, chunkInfo);
         }
 
-        std::vector<TChunkPtrWithIndex> unapprovedReplicas(node->UnapprovedReplicas().begin(), node->UnapprovedReplicas().end());
-        FOREACH (auto replica, unapprovedReplicas) {
-            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Unapproved);
-        }
-        node->UnapprovedReplicas().clear();
+
+        // TODO(babenko): restore this!
+        //std::vector<TChunkPtrWithIndex> unapprovedReplicas(node->UnapprovedReplicas().begin(), node->UnapprovedReplicas().end());
+        //FOREACH (auto replica, unapprovedReplicas) {
+        //    RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Unapproved);
+        //}
+        //node->UnapprovedReplicas().clear();
 
         if (ChunkPlacement) {
             ChunkPlacement->OnNodeUpdated(node);
