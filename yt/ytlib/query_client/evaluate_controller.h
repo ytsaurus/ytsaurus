@@ -18,7 +18,7 @@ public:
     TEvaluateController(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
-        TWriterPtr writer);
+        IWriterPtr writer);
 
     ~TEvaluateController();
 
@@ -58,7 +58,7 @@ private:
 private:
     IEvaluateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
-    TWriterPtr Writer_;
+    IWriterPtr Writer_;
 
     NLog::TTaggedLogger Logger;
 

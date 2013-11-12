@@ -123,7 +123,7 @@ public:
 
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        TWriterPtr writer) override
+        IWriterPtr writer) override
     {
         auto controller = New<TController>(
             Callbacks_,

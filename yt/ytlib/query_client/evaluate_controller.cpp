@@ -7,10 +7,10 @@
 #include "plan_visitor.h"
 #include "plan_helpers.h"
 
-#include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/row.h>
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
@@ -30,7 +30,7 @@ using namespace NConcurrency;
 TEvaluateController::TEvaluateController(
     IEvaluateCallbacks* callbacks,
     const TPlanFragment& fragment,
-    TWriterPtr writer)
+    IWriterPtr writer)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
     , Writer_(std::move(writer))

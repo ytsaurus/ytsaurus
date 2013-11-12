@@ -11,7 +11,7 @@
 #include "graphviz.h"
 
 #include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/chunk_writer.h>
+#include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -30,7 +30,7 @@ using namespace NObjectClient;
 TCoordinateController::TCoordinateController(
     ICoordinateCallbacks* callbacks,
     const TPlanFragment& fragment,
-    TWriterPtr writer)
+    IWriterPtr writer)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
     , Writer_(std::move(writer))

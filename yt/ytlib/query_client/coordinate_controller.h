@@ -19,7 +19,7 @@ public:
     TCoordinateController(
         ICoordinateCallbacks* callbacks,
         const TPlanFragment& fragment,
-        TWriterPtr writer);
+        IWriterPtr writer);
 
     ~TCoordinateController();
 
@@ -66,7 +66,7 @@ private:
 private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
-    TWriterPtr Writer_;
+    IWriterPtr Writer_;
 
     bool Prepared_;
     std::vector<std::tuple<TPlanFragment, IReaderPtr>> Peers_;

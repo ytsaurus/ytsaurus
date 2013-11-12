@@ -20,7 +20,7 @@ class IExecutor
 public:
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        TWriterPtr writer) = 0;
+        IWriterPtr writer) = 0;
 
 };
 
