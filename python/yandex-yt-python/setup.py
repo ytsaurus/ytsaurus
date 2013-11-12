@@ -18,6 +18,10 @@ class PyTest(TestCommand):
         pytest.main(self.test_args)
         subprocess.check_call("cd yt/wrapper && make clean", shell=True)
 
+def recursive(path):
+    prefix = path.strip("/").replace("/", ".") + "."
+    return map(lambda package: prefix + package, find_packages(path))
+
 def main():
     requires =["simplejson"]
     if sys.version_info[:2] <= (2, 6):
@@ -36,10 +40,11 @@ def main():
     
     version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
 
+    find_packages("yt/packages")
     setup(
         name = "Yt",
         version = version,
-        packages = ["yt.wrapper", "yt.yson", "yt.dill", "yt.packages"],
+        packages = ["yt", "yt.wrapper", "yt.yson"] + recursive("yt/packages"),
         scripts = scripts,
 
         install_requires = requires,
