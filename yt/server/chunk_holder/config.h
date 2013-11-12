@@ -101,8 +101,11 @@ class TDataNodeConfig
     : public TYsonSerializable
 {
 public:
-    //! Period between consequent heartbeats.
-    TDuration HeartbeatPeriod;
+    //! Period between consequent incremental heartbeats.
+    TDuration IncrementalHeartbeatPeriod;
+
+    //! Period between consequent full heartbeats.
+    TNullable<TDuration> FullHeartbeatPeriod;
 
     //! Random delay before first heartbeat
     TDuration HeartbeatSplay;
@@ -193,10 +196,10 @@ public:
 
     TDataNodeConfig()
     {
-        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+        RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("heartbeat_splay", HeartbeatSplay)
-            .Default(TDuration::Seconds(5));
+        RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
+            .Default(Null);
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("block_cache_size", BlockCacheSize)
