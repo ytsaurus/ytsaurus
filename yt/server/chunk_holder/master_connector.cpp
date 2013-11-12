@@ -364,7 +364,7 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRs
     if (Config->FullHeartbeatPeriod) {
         TDelayedInvoker::Submit(
             BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
-                .Via(ControlInvoker),
+                .Via(HeartbeatInvoker),
             RandomDuration(*Config->FullHeartbeatPeriod));
     }
 
