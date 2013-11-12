@@ -185,6 +185,12 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
     const char* next = FindNext(begin, end, State == EState::InsideValue ? Table.ValueStops : Table.KeyStops);
     if (next == end) {
         CurrentToken.append(begin, next);
+        if (CurrentToken.length() > NTableClient::MaxRowWeightLimit) {
+            THROW_ERROR_EXCEPTION(
+                "Current token is too large (%d > %" PRId64 ")",
+                CurrentToken.length(),
+                NTableClient::MaxRowWeightLimit);
+        }
         return end;
     }
 
@@ -330,7 +336,7 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
 
     if (BytesToRead > NTableClient::MaxRowWeightLimit) {
         THROW_ERROR_EXCEPTION(
-            "Lenval length it too large (%d > %" PRId64 ")",
+            "Lenval length is too large (%d > %" PRId64 ")",
             BytesToRead,
             NTableClient::MaxRowWeightLimit);
     }
