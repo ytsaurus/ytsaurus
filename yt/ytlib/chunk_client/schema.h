@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/schema.pb.h>
 
 #include <core/ytree/public.h>
 #include <core/yson/consumer.h>
@@ -24,6 +24,7 @@ public:
     Stroka Begin() const;
     Stroka End() const;
 
+    // TODO(sandello): Migrate to core/misc/protobuf_helpers.h.
     NProto::TRange ToProto() const;
     static TRange FromProto(const NProto::TRange& protoRange);
 
@@ -62,6 +63,7 @@ public:
     bool IsEmpty() const;
     bool IsUniversal() const;
 
+    // TODO(sandello): Migrate to core/misc/protobuf_helpers.h.
     NProto::TChannel ToProto() const;
     static TChannel FromProto(const NProto::TChannel& protoChannel);
 
@@ -91,10 +93,15 @@ void Deserialize(TChannel& channel, NYTree::INodePtr node);
 
 namespace NProto {
 
-void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
-void Deserialize(NProto::TReadLimit& readLimit, NYTree::INodePtr node);
+void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
+void Deserialize(TReadLimit& readLimit, NYTree::INodePtr node);
 
 } // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsNontrivial(const NProto::TReadLimit& limit);
+bool IsTrivial(const NProto::TReadLimit& limit);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/block_id.cpp
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_replica.cpp
+  ${BASE}/chunk_slice.cpp
   ${BASE}/chunk_spec.cpp
   ${BASE}/client_block_cache.cpp
   ${BASE}/data_statistics.cpp
@@ -33,6 +34,7 @@ set( HDRS
   ${BASE}/chunk_owner_ypath_proxy.h
   ${BASE}/chunk_replica.h
   ${BASE}/chunk_service_proxy.h
+  ${BASE}/chunk_slice.h
   ${BASE}/chunk_spec.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/client_block_cache.h
@@ -70,9 +72,10 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/chunk_spec.proto YT_SOURCE_FILES )
-protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_spec.proto YT_SOURCE_FILES )
+protoc( ${BASE}/schema.proto YT_SOURCE_FILES )
+protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_owner_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/data_node_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_service.proto YT_SOURCE_FILES )

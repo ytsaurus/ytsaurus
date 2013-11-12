@@ -14,7 +14,7 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/chunk_slice.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 

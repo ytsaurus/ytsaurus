@@ -15,10 +15,10 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
+#include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 

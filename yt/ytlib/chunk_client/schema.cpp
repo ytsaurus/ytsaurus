@@ -410,7 +410,7 @@ void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer)
 
 namespace NProto {
 
-void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consumer)
+void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer)
 {
     int fieldCount = 0;
     if (readLimit.has_row_index())   { fieldCount += 1; }
@@ -457,7 +457,7 @@ void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consum
     consumer->OnEndMap();
 }
 
-void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
+void Deserialize(TReadLimit& readLimit, INodePtr node)
 {
     if (node->GetType() != ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Unexpected read limit token: %s", ~node->GetType().ToString());
@@ -513,6 +513,22 @@ void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
 }
 
 } // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsNontrivial(const NProto::TReadLimit& limit)
+{
+    return
+        limit.has_row_index() ||
+        limit.has_key() ||
+        limit.has_chunk_index() ||
+        limit.has_offset();
+}
+
+bool IsTrivial(const NProto::TReadLimit& limit)
+{
+    return !IsNontrivial(limit);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

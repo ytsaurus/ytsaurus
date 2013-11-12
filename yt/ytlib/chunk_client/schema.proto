@@ -1,0 +1,42 @@
+package NYT.NChunkClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRange
+{
+    required bytes begin = 1;
+    required bytes end = 2;
+    required bool is_infinite = 3;
+}
+
+message TChannel
+{
+    repeated bytes columns = 1;
+    repeated TRange ranges = 2;
+}
+
+message TKeyPart
+{
+    // EKeyPartType
+    required int32 type = 1;
+    optional bytes str_value = 2;
+    optional int64 int_value = 3;
+    optional double double_value = 4;
+}
+
+message TKey
+{
+    repeated TKeyPart parts = 1;
+}
+
+// A read boundary given either by a row index, or a key, or both.
+// The boundary is inclusive or exclusive depending of the context.
+message TReadLimit
+{
+    optional int64 row_index = 1;
+    optional TKey key = 2;
+    optional int64 chunk_index = 3;
+    optional int64 offset = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

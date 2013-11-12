@@ -10,7 +10,7 @@
 
 #include <core/yson/lexer.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/schema.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -154,6 +154,7 @@ public:
 
     //! Converts the part into protobuf.
     //! Trims string part length to #maxSize if it exceeds the limit.
+    // TODO(sandello): Migrate to core/misc/protobuf_helpers.h.
     NProto::TKeyPart ToProto(size_t maxSize = 0) const
     {
         NProto::TKeyPart keyPart;
