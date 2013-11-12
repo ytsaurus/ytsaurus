@@ -58,9 +58,11 @@ def main():
 
     for i in xrange(9, 16):
         date_str = date(2013, 9, i).strftime("%Y%m%d")
-        key = os.path.join(args.path, "user_sessions", date_str)
-        if key in tables_to_remove:
-            tables_to_remove.remove(key)
+        date_str_dash = date(2013, 9, i).strftime("%Y-%m-%d")
+        for name in [date_str, date_str_dash]:
+            key = os.path.join(args.path, "user_sessions", name)
+            if key in tables_to_remove:
+                tables_to_remove.remove(key)
 
     yt.set(args.import_queue, list(tables_to_import))
     yt.set(args.remove_queue, list(tables_to_remove))
