@@ -1,7 +1,5 @@
 #include "graphviz.h"
 
-#ifndef _win_
-
 #include "private.h"
 #include "helpers.h"
 
@@ -20,7 +18,10 @@
 #include <util/stream/file.h>
 
 #include <sys/types.h>
+
+#ifndef _win_
 #include <sys/wait.h>
+#endif
 
 // Required in printing visitor.
 #include <core/misc/guid.h>
@@ -117,6 +118,8 @@ Stroka EscapeHtml(const Stroka& s)
     return r;
 }
 
+#ifndef _win_
+
 void ViewGraph(const Stroka& file)
 {
     std::vector<Stroka> args;
@@ -133,6 +136,8 @@ void ViewGraph(const Stroka& file)
 
     YCHECK(result > 0);
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -402,6 +407,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifndef _win_
 
 void ViewPlanFragment(const TPlanFragment& planFragment, const Stroka& title_)
 {
@@ -436,27 +442,30 @@ void ViewPlanFragment(const TPlanFragment& planFragment, const Stroka& title_)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NQueryClient
-} // namespace NYT
 
 #else
 
-namespace NYT {
-namespace NQueryClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ViewPlanFragment(const TPlanFragment& /*planFragment*/, const Stroka& /*title*/)
+void ViewPlanFragment(const TPlanFragment& fragment, const Stroka& title_)
 {
-    YUNIMPLEMENTED();
+    auto debugInformation = fragment.GetContext()->GetDebugInformation();
+    auto headOperator = fragment.GetHead();
+
+    TFileOutput output("query_graph.dot");
+
+    TGraphVizVisitor visitor(output);
+
+    auto title = title_;
+    if (title.empty()) {
+        title = debugInformation ? debugInformation->Source : "";
+    }
+
+    visitor.WriteHeader(title);
+    Traverse(&visitor, headOperator);
+    visitor.WriteFooter();
 }
 
+#endif
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
 } // namespace NYT
-
-#endif
-
