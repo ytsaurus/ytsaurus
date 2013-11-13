@@ -13,6 +13,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NYson;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -598,7 +599,7 @@ void TVersionedTableConsumer::OnEndMap()
             if (SchemaColumnDescriptors[id].Written) {
                 SchemaColumnDescriptors[id].Written = false;
             } else {
-                CurrentWriter->WriteValue(NVersionedTableClient::TRowValue::MakeNull(id));
+                CurrentWriter->WriteValue(TRowValue::MakeSentinel(id, EColumnType::Null));
             }
         }
         CurrentWriter->EndRow();

@@ -10,17 +10,12 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareRowValues(TRowValue lhs, TRowValue rhs)
+int CompareRowValues(const TRowValue& lhs, const TRowValue& rhs)
 {
-    if (LIKELY(lhs.Type == rhs.Type)) {
-        return CompareSameTypeValues(lhs, rhs);
-    } else {
+    if (UNLIKELY(lhs.Type != rhs.Type)) {
         return lhs.Type - rhs.Type;
     }
-}
 
-int CompareSameTypeValues(TRowValue lhs, TRowValue rhs)
-{
     switch (lhs.Type) {
         case EColumnType::Integer: {
             auto lhsValue = lhs.Data.Integer;
@@ -75,9 +70,68 @@ int CompareSameTypeValues(TRowValue lhs, TRowValue rhs)
     }
 }
 
+int CompareRows(TRow lhs, TRow rhs, int prefixLength)
+{
+    int lhsLength = std::min(lhs.GetValueCount(), prefixLength);
+    int rhsLength = std::min(rhs.GetValueCount(), prefixLength);
+    int minLength = std::min(lhsLength, rhsLength);
+    for (int index = 0; index < minLength; ++index) {
+        int result = CompareRowValues(lhs[index], rhs[index]);
+        if (result != 0) {
+            return result;
+        }
+    }
+    return lhsLength - rhsLength;
+}
+
+size_t GetHash(const TRowValue& value)
+{
+    switch (value.Type) {
+        case EColumnType::String:
+            return TStringBuf(value.Data.String, value.Length).hash();
+
+        case EColumnType::Integer:
+        case EColumnType::Double:
+            // Integer and Double are aliased.
+            return (value.Data.Integer & 0xffff) + 17 * (value.Data.Integer >> 32);
+
+        default:
+            // No idea how to hash other types.
+            return 0;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOwningRowTag { };
+
+TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType)
+{
+    auto rowData = TSharedRef::Allocate<TOwningRowTag>(
+        sizeof (TRowHeader) + sizeof (TRowValue) * (prefixLength + 1),
+        false);
+    ::memcpy(rowData.Begin(), key.RowData.Begin(), sizeof (TRowValue) * prefixLength);
+    TRow result(reinterpret_cast<TRowHeader*>(rowData.Begin()));
+    result[prefixLength] = TRowValue::MakeSentinel(0, sentinelType);
+    return TOwningRow(std::move(rowData), key.StringData);
+}
+
+TOwningRow GetKeySuccessor(const TOwningRow& key)
+{
+    return GetKeySuccessorImpl(
+        key,
+        key.GetValueCount(),
+        EColumnType::Min);
+}
+
+TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength)
+{
+    YASSERT(prefixLength <= key.GetValueCount());
+    return GetKeySuccessorImpl(
+        key,
+        prefixLength,
+        EColumnType::Max);
+}
 
 TOwningRow::TOwningRow(TRow other)
 {
@@ -96,20 +150,62 @@ TOwningRow::TOwningRow(TRow other)
         }
     }
 
-    StringData.resize(
-        64 +                           // encoded TRowHeader  (approx)
-        16 * other.GetValueCount() +   // encoded TRowValue-s (approx)
-        variableSize);                 // strings
-
+    StringData.resize(variableSize);
     char* current = const_cast<char*>(StringData.data());
-
-    current += WriteVarUInt32(current, 0); // format version
-    current += WriteVarUInt32(current, static_cast<ui32>(other.GetValueCount()));
-    current += WriteVarUInt32(current, other.GetDeleted() ? 1 : 0);
-    current += WriteVarInt64(current, other.GetTimestamp());
 
     for (int index = 0; index < other.GetValueCount(); ++index) {
         const auto& value = other[index];
+        current += WriteVarUInt32(current, value.Id);
+        current += WriteVarUInt32(current, value.Type);
+        switch (value.Type) {
+            case EColumnType::Null:
+                break;
+
+            case EColumnType::Integer:
+                current += WriteVarInt64(current, value.Data.Integer);
+                break;
+            
+            case EColumnType::Double:
+                ::memcpy(current, &value.Data.Double, sizeof (double));
+                current += sizeof (double);
+                break;
+            
+            case EColumnType::String:           
+            case EColumnType::Any:
+                ::memcpy(current, value.Data.String, value.Length);
+                current += value.Length;
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+}
+
+void ToProto(TProtoStringType* protoRow, const TOwningRow& row)
+{
+    size_t variableSize = 0;
+    for (int index = 0; index < row.GetValueCount(); ++index) {
+        const auto& otherValue = row[index];
+        if (otherValue.Type == EColumnType::String || otherValue.Type == EColumnType::Any) {
+            variableSize += otherValue.Length;
+        }
+    }
+
+    Stroka buffer;
+    buffer.resize(
+        64 +                           // encoded TRowHeader  (approx)
+        16 * row.GetValueCount() +     // encoded TRowValue-s (approx)
+        variableSize);                 // strings
+    char* current = const_cast<char*>(buffer.data());
+
+    current += WriteVarUInt32(current, 0); // format version
+    current += WriteVarUInt32(current, static_cast<ui32>(row.GetValueCount()));
+    current += WriteVarUInt32(current, row.GetDeleted() ? 1 : 0);
+    current += WriteVarInt64(current, row.GetTimestamp());
+
+    for (int index = 0; index < row.GetValueCount(); ++index) {
+        const auto& value = row[index];
         current += WriteVarUInt32(current, value.Id);
         current += WriteVarUInt32(current, value.Type);
         switch (value.Type) {
@@ -137,12 +233,8 @@ TOwningRow::TOwningRow(TRow other)
         }
     }
 
-    StringData.resize(current - StringData.data());
-}
-
-void ToProto(TProtoStringType* protoRow, const TOwningRow& row)
-{
-    *protoRow = row.StringData;
+    buffer.resize(current - buffer.data());
+    *protoRow = buffer;
 }
 
 void FromProto(TOwningRow* row, const TProtoStringType& protoRow)

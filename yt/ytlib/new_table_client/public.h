@@ -25,12 +25,14 @@ DECLARE_ENUM(ERowsetType,
 );
 
 DECLARE_ENUM(EColumnType,
-    (TheBottom)
-    (Integer)
-    (Double)
-    (String)
-    (Any)
-    (Null)
+    ((Min)         (0))
+    ((TheBottom)   (1))
+    ((Null)        (2))
+    ((Integer)     (3))
+    ((Double)      (4))
+    ((String)      (5))
+    ((Any)         (6))
+    ((Max)        (64))
 );
 
 struct TRowValue;

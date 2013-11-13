@@ -49,7 +49,7 @@ public:
         row.SetDeleted(false);
         row.SetTimestamp(NullTimestamp);
         for (int index = 0; index < valueCount; ++index) {
-            row[index] = TRowValue::MakeNull(-1);
+            row[index] = TRowValue::MakeSentinel(0, EColumnType::Null);
         }
     }
 
@@ -89,7 +89,7 @@ TEST(TRowTest, Serialize2)
 {
     TRowBuilder builder(3);
     TRow row(builder);
-    row[0] = TRowValue::MakeNull(0);
+    row[0] = TRowValue::MakeSentinel(0, EColumnType::Null);
     row[1] = TRowValue::MakeInteger(1, 42);
     row[2] = TRowValue::MakeDouble(2, 0.25);
     CheckSerialize(row);

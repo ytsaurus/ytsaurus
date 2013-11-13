@@ -43,7 +43,7 @@ private:
     int Compare(TLhs lhs, TRhs rhs) const
     {
         for (int index = 0; index < KeyColumnCount_; ++index) {
-            int result = CompareSameTypeValues(lhs[index], rhs[index]);
+            int result = CompareRowValues(lhs[index], rhs[index]);
             if (result != 0) {
                 return result;
             }

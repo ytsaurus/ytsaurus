@@ -34,7 +34,7 @@ struct TRowValue
         const char* String;
     } Data;
 
-    static FORCED_INLINE TRowValue MakeNull(int id)
+    static FORCED_INLINE TRowValue MakeSentinel(int id, EColumnType type)
     {
         TRowValue result;
         result.Id = id;
@@ -89,10 +89,14 @@ static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
 
 //! Ternary comparison predicate for TRowValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
-int CompareRowValues(TRowValue lhs, TRowValue rhs);
+int CompareRowValues(const TRowValue& lhs, const TRowValue& rhs);
 
-//! Same as #CompareRowValues but presumes that the values are of the same type.
-int CompareSameTypeValues(TRowValue lhs, TRowValue rhs);
+//! Ternary comparison predicate for TRow-s stripped to a given number of
+//! (leading) values.
+int CompareRows(TRow lhs, TRow rhs, int prefixLength = std::numeric_limits<int>::max());
+
+//! Computes hash for a given TRowValue.
+size_t GetHash(const TRowValue& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,6 +197,16 @@ static_assert(sizeof (TRow) == sizeof (intptr_t), "TRow has to be exactly sizeof
 void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
 void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
 
+TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
+
+//! Returns the successor of |key|, i.e. the key
+//! obtained from |key| by appending a |EColumnType::Min| sentinel.
+TOwningRow GetKeySuccessor(const TOwningRow& key);
+
+//! Returns the successor of |key| trimmed to a given length, i.e. the key
+//! obtained by triming |key| to |prefixLength| and appending a |EColumnType::Max| sentinel.
+TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength);
+
 //! An immutable owning version of TRow.
 /*!
  *  Instances of TOwningRow are lightweight ref-counted handles.
@@ -244,6 +258,7 @@ public:
 private:
     friend void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
     friend void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
+    friend TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
 
     FORCED_INLINE TOwningRow(TSharedRef rowData, Stroka stringData)
         : RowData(std::move(rowData))
@@ -261,7 +276,7 @@ private:
     }
 
     TSharedRef RowData; // TRowHeader plus TRowValue-s
-    Stroka StringData;  // Holds the string data
+    Stroka StringData;  // Holds string data
 
 };
 
@@ -269,3 +284,13 @@ private:
 
 } // namespace NVersionedTableClient
 } // namespace NYT
+
+//! A hasher for TRowValue.
+template <>
+struct hash<NYT::NVersionedTableClient::TRowValue>
+{
+    inline size_t operator()(const NYT::NVersionedTableClient::TRowValue& value) const
+    {
+        return GetHash(value);
+    }
+};

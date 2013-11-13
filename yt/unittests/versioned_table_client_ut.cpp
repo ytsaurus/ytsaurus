@@ -68,7 +68,7 @@ protected:
 
     void WriteNull(int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeNull(id));
+        ChunkWriter->WriteValue(TRowValue::MakeSentinel(id, EColumnType::Null));
     }
 
     Stroka ToStroka(const TRowValue& value)
