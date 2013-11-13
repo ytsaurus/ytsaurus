@@ -250,7 +250,7 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
             // Too slow because of allocations:
             // return lhs.GetString().compare(rhs.GetString());
             size_t minLen = std::min(lhs.GetStringSize(), rhs.GetStringSize());
-            int result = strncmp(lhs.Begin(), rhs.Begin(), minLen);
+            int result = memcmp(lhs.Begin(), rhs.Begin(), minLen);
             if (result != 0) {
                 return result;
             }
