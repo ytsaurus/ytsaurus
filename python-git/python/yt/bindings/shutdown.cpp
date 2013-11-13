@@ -12,6 +12,8 @@
 
 #include <ytlib/chunk_client/dispatcher.h>
 
+#include <ytlib/driver/dispatcher.h>
+
 #include <contrib/libs/pycxx/Objects.hxx>
 
 namespace NYT {
@@ -39,6 +41,7 @@ void Shutdown()
     //   ../python/yt/bindings/shutdown.cpp
     // Feel free to add your cpp here. Welcome to the Shutdown Club!
 
+    NDriver::TDispatcher::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
