@@ -51,20 +51,8 @@ TEST_F(THeapTest, All)
         --end;
     }
 
-    //for (int i = 0; i < testSize; ++i) {
-    //    if (sorted[i] != words[i]) {
-    //        std::cout << "FAIL " << sorted[i] << " " << words[i] << std::endl;
-    //        break;
-    //    }
-    //    else {
-    //        std::cout << "OK " << words[i] << std::endl;
-    //    }
-    //}
-
     EXPECT_EQ(sorted, words);
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
