@@ -2,6 +2,8 @@
 #include "private.h"
 #include "partition_chunk_reader.h"
 
+#include <core/misc/varint.h>
+
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/sequential_reader.h>
@@ -9,13 +11,10 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-#include <core/yson/varint.h>
-
 namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
-using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

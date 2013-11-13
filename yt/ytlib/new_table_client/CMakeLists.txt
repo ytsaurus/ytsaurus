@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/name_table.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
+  ${BASE}/row.cpp
 )
 
 set( HDRS

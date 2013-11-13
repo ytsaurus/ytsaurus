@@ -2,19 +2,22 @@
 #include "block_writer.h"
 #include "row.h"
 
-#include <core/yson/varint.h>
+#include <core/misc/varint.h>
+
 #include <core/yson/writer.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NYson;
 
-const ui32 ZeroOffset = 0;
-const i64 ZeroInteger = 0;
-const double ZeroDouble = 0;
+////////////////////////////////////////////////////////////////////////////////
+
+static const ui32 ZeroOffset = 0;
+static const i64 ZeroInteger = 0;
+static const double ZeroDouble = 0;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TBlockWriter::TBlockWriter(const std::vector<int> columnSizes)
     : VariableColumnCount(0)
@@ -77,7 +80,7 @@ void TBlockWriter::WriteString(const TRowValue& value, int index)
         column.NullBitMap.Push(false);
     } else {
         ui32 offset = FixedBuffer.GetSize();
-        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxSizeOfVarInt), value.Length));
+        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarintSize), value.Length));
         FixedBuffer.DoWrite(value.Data.String, value.Length);
 
         column.Stream.DoWrite(&offset, sizeof(ui32));
@@ -104,7 +107,7 @@ TStringBuf TBlockWriter::WriteKeyString(const TRowValue& value, int index)
         ui32 offset = FixedBuffer.GetSize();
         column.Stream.DoWrite(&offset, sizeof(ui32));
 
-        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxSizeOfVarInt), value.Length));
+        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarintSize), value.Length));
         char* pos = FixedBuffer.Allocate(value.Length);
         std::copy(value.Data.String, value.Data.String + value.Length, pos);
         FixedBuffer.Skip(value.Length);
@@ -117,13 +120,13 @@ void TBlockWriter::WriteVariable(const TRowValue& value, int nameTableIndex)
     ++VariableColumnCount;
 
     // Index in name table.
-    VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxSizeOfVarInt), nameTableIndex));
+    VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), nameTableIndex));
 
     if (value.Type == EColumnType::Null) {
-       VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxSizeOfVarInt), 0));
+       VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), 0));
     } else if (value.Type == EColumnType::Any) {
         // Length
-        VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxSizeOfVarInt), value.Length));
+        VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), value.Length));
         // Yson
         VariableBuffer.DoWrite(value.Data.String, value.Length);
     } else {
@@ -146,7 +149,7 @@ void TBlockWriter::WriteVariable(const TRowValue& value, int nameTableIndex)
 
         // Length
         VariableBuffer.Skip(WriteVarUInt64(
-            VariableBuffer.Allocate(MaxSizeOfVarInt), 
+            VariableBuffer.Allocate(MaxVarintSize), 
             IntermediateBuffer.Size()));
         // Yson
         VariableBuffer.DoWrite(IntermediateBuffer.Begin(), IntermediateBuffer.Size());

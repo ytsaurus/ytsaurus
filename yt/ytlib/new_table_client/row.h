@@ -38,7 +38,7 @@ struct TRowValue
     {
         TRowValue result;
         result.Id = id;
-        result.Type = NVersionedTableClient::EColumnType::Null;
+        result.Type = EColumnType::Null;
         return result;
     }
 
@@ -46,7 +46,7 @@ struct TRowValue
     {
         TRowValue result;
         result.Id = id;
-        result.Type = NVersionedTableClient::EColumnType::Integer;
+        result.Type = EColumnType::Integer;
         result.Data.Integer = value;
         return result;
     }
@@ -55,7 +55,7 @@ struct TRowValue
     {
         TRowValue result;
         result.Id = id;
-        result.Type = NVersionedTableClient::EColumnType::Double;
+        result.Type = EColumnType::Double;
         result.Data.Double = value;
         return result;
     }
@@ -64,7 +64,7 @@ struct TRowValue
     {
         TRowValue result;
         result.Id = id;
-        result.Type = NVersionedTableClient::EColumnType::String;
+        result.Type = EColumnType::String;
         result.Length = value.length();
         result.Data.String = value.begin();
         return result;
@@ -74,7 +74,7 @@ struct TRowValue
     {
         TRowValue result;
         result.Id = id;
-        result.Type = NVersionedTableClient::EColumnType::Any;
+        result.Type = EColumnType::Any;
         result.Length = value.length();
         result.Data.String = value.begin();
         return result;
@@ -87,81 +87,16 @@ static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Forward declarations.
-int CompareRowValues(TRowValue lhs, TRowValue rhs);
-int CompareSameTypeValues(TRowValue lhs, TRowValue rhs);
-
 //! Ternary comparison predicate for TRowValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
-inline int CompareRowValues(TRowValue lhs, TRowValue rhs)
-{
-    if (LIKELY(lhs.Type == rhs.Type)) {
-        return CompareSameTypeValues(lhs, rhs);
-    } else {
-        return lhs.Type - rhs.Type;
-    }
-}
+int CompareRowValues(TRowValue lhs, TRowValue rhs);
 
 //! Same as #CompareRowValues but presumes that the values are of the same type.
-inline int CompareSameTypeValues(TRowValue lhs, TRowValue rhs)
-{
-    switch (lhs.Type) {
-        case EColumnType::Integer: {
-            auto lhsValue = lhs.Data.Integer;
-            auto rhsValue = rhs.Data.Integer;
-            if (lhsValue < rhsValue) {
-                return -1;
-            } else if (lhsValue > rhsValue) {
-                return +1;
-            } else {
-                return 0;
-            }
-        }
-
-        case EColumnType::Double: {
-            auto lhsValue = lhs.Data.Double;
-            auto rhsValue = lhs.Data.Double;
-            if (lhsValue < rhsValue) {
-                return -1;
-            } else if (lhsValue > rhsValue) {
-                return +1;
-            } else {
-                return 0;
-            }
-        }
-
-        case EColumnType::String: {
-            size_t lhsLength = lhs.Length;
-            size_t rhsLength = rhs.Length;
-            size_t minLength = std::min(lhsLength, rhsLength);
-            int result = ::memcmp(lhs.Data.String, rhs.Data.String, minLength);
-            if (result == 0) {
-                if (lhsLength < rhsLength) {
-                    return -1;
-                } else if (lhsLength > rhsLength) {
-                    return +1;
-                } else {
-                    return 0;
-                }
-            } else {
-                return result;
-            }
-        }
-
-        case EColumnType::Any:
-            return 0; // NB: Cannot actually compare composite values.
-
-        case EColumnType::Null:
-            return 0;
-
-        default:
-            YUNREACHABLE();
-    }
-}
+int CompareSameTypeValues(TRowValue lhs, TRowValue rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Header which preceeds row values in memory layout.
+//! Header which precedes row values in memory layout.
 struct TRowHeader
 {
     i32 ValueCount;
@@ -194,20 +129,31 @@ public:
         Header->Timestamp = timestamp;
     }
 
+    FORCED_INLINE explicit operator bool()
+    {
+        return Header != nullptr;
+    }
+
+    FORCED_INLINE TRowHeader* GetHeader()
+    {
+        return Header;
+    }
+
+    FORCED_INLINE const TRowHeader* GetHeader() const
+    {
+        return Header;
+    }
+
     FORCED_INLINE TRowValue& operator[](int index)
     {
-        return *reinterpret_cast<TRowValue*>(
-            reinterpret_cast<char*>(Header) +
-            sizeof(TRowHeader) +
-            index * sizeof(TRowValue));
+        YASSERT(index >= 0 && index < GetValueCount());
+        return reinterpret_cast<TRowValue*>(Header + 1)[index];
     }
 
     FORCED_INLINE const TRowValue& operator[](int index) const
     {
-        return *reinterpret_cast<TRowValue*>(
-            reinterpret_cast<char*>(Header) +
-            sizeof(TRowHeader) +
-            index * sizeof(TRowValue));
+        YASSERT(index >= 0 && index < GetValueCount());
+        return reinterpret_cast<TRowValue*>(Header + 1)[index];
     }
 
     FORCED_INLINE int GetValueCount() const
@@ -241,6 +187,83 @@ private:
 };
 
 static_assert(sizeof (TRow) == sizeof (intptr_t), "TRow has to be exactly sizeof (intptr_t) bytes.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
+void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
+
+//! An immutable owning version of TRow.
+/*!
+ *  Instances of TRow are lightweight ref-counted handles.
+ *  Fixed part is stored in a (shared) blob.
+ *  Variable part is stored in a (shared) string.
+ */
+class TOwningRow
+{
+public:
+    FORCED_INLINE TOwningRow()
+    { }
+
+    TOwningRow(TRow other);
+
+    FORCED_INLINE explicit operator bool()
+    {
+        return static_cast<bool>(RowData);
+    }
+
+    FORCED_INLINE int GetValueCount() const
+    {
+        const auto* header = GetHeader();
+        return header ? header->ValueCount : 0;
+    }
+
+    FORCED_INLINE bool GetDeleted() const
+    {
+        const auto* header = GetHeader();
+        return header ? header->Deleted : false;
+    }
+
+    FORCED_INLINE TTimestamp GetTimestamp() const
+    {
+        const auto* header = GetHeader();
+        return header ? header->Timestamp : NullTimestamp;
+    }
+
+    FORCED_INLINE const TRowValue& operator[](int index) const
+    {
+        YASSERT(index >= 0 && index < GetValueCount());
+        return reinterpret_cast<const TRowValue*>(GetHeader() + 1)[index];
+    }
+
+    FORCED_INLINE operator TRow () const
+    {
+        return TRow(const_cast<TRowHeader*>(GetHeader()));
+    }
+
+private:
+    friend void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
+    friend void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
+
+    FORCED_INLINE TOwningRow(TSharedRef rowData, Stroka stringData)
+        : RowData(std::move(rowData))
+        , StringData(std::move(stringData))
+    { }
+
+    FORCED_INLINE TRowHeader* GetHeader()
+    {
+        return reinterpret_cast<TRowHeader*>(RowData.Begin());
+    }
+
+    FORCED_INLINE const TRowHeader* GetHeader() const
+    {
+        return reinterpret_cast<const TRowHeader*>(RowData.Begin());
+    }
+
+    TSharedRef RowData; // TRowHeader plus TRowValue-s
+    Stroka StringData;  // Holds the string data
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

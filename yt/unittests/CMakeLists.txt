@@ -68,6 +68,7 @@ set( SRCS
   ${BASE}/zigzag_ut.cpp
   ${BASE}/rcu_tree_ut.cpp
   ${BASE}/query_client_ut.cpp
+  ${BASE}/row_ut.cpp
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )

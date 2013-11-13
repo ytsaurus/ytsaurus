@@ -2,14 +2,12 @@
 #include "block_reader.h"
 #include "row.h"
 
-#include <core/yson/varint.h>
+#include <core/misc/varint.h>
 
 #include <util/stream/mem.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
-
-using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

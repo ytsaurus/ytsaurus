@@ -1,8 +1,8 @@
 #include "stdafx.h"
-
 #include "writer.h"
 #include "format.h"
-#include "varint.h"
+
+#include <core/misc/varint.h>
 
 namespace NYT {
 namespace NYson {

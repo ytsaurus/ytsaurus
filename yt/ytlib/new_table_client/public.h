@@ -36,6 +36,7 @@ DECLARE_ENUM(EColumnType,
 struct TRowValue;
 struct TRowHeader;
 class TRow;
+class TOwningRow;
 
 struct TColumnSchema;
 class TTableSchema;

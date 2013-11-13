@@ -5,6 +5,7 @@
 #include "small_key.h"
 
 #include <core/misc/heap.h>
+#include <core/misc/varint.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -17,7 +18,6 @@
 #include <ytlib/chunk_client/block_cache.h>
 
 #include <core/yson/lexer.h>
-#include <core/yson/varint.h>
 
 #include <util/system/yield.h>
 

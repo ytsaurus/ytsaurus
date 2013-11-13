@@ -39,6 +39,7 @@ set( SRCS
   ${BASE}/stack_trace.cpp
   ${BASE}/string.cpp
   ${BASE}/url.cpp
+  ${BASE}/varint.cpp
 )
 set( HDRS
   ${BASE}/address.h
@@ -108,6 +109,8 @@ set( HDRS
   ${BASE}/weak_ptr.h
   ${BASE}/rcu_tree.h
   ${BASE}/rcu_tree-inl.h
+  ${BASE}/varint.h
+  ${BASE}/zigzag.h
 )
 
 list(APPEND YT_SOURCE_FILES

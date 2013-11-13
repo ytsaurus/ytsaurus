@@ -1,9 +1,9 @@
 #include "stdafx.h"
 
-#include <core/yson/varint.h>
-#include <core/misc/common.h>
+#include <core/misc/varint.h>
 
 #include <util/string/escape.h>
+
 #include <util/random/random.h>
 
 #include <contrib/testing/framework.h>
@@ -15,8 +15,6 @@ using ::std::tr1::make_tuple;
 using ::testing::Values;
 
 namespace NYT {
-
-using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

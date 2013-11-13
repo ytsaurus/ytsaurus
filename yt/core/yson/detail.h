@@ -1,10 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "zigzag.h"
 
 #include <core/misc/error.h>
 #include <core/misc/property.h>
+#include <core/misc/zigzag.h>
 
 #include <core/concurrency/coroutine.h>
 

@@ -6,7 +6,6 @@ set( SRCS
   ${BASE}/parser.cpp
   ${BASE}/token.cpp
   ${BASE}/tokenizer.cpp
-  ${BASE}/varint.cpp
   ${BASE}/writer.cpp
 )
 set( HDRS
@@ -20,9 +19,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/token.h
   ${BASE}/tokenizer.h
-  ${BASE}/varint.h
   ${BASE}/writer.h
-  ${BASE}/zigzag.h
 )
 
 list(APPEND YT_SOURCE_FILES

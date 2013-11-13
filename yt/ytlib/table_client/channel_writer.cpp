@@ -3,13 +3,10 @@
 #include "value.h"
 
 #include <core/misc/blob_output.h>
-
-#include <core/yson/varint.h>
+#include <core/misc/varint.h>
 
 namespace NYT {
 namespace NTableClient {
-
-using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
 
