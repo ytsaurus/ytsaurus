@@ -21,6 +21,7 @@
 #include <ytlib/driver/private.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/config.h>
+#include <ytlib/driver/dispatcher.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
 
@@ -151,6 +152,7 @@ public:
         //   ../python/yt/bindings/shutdown.cpp
         // Feel free to add your cpp here. Welcome to the Shutdown Club!
 
+        NDriver::TDispatcher::Get()->Shutdown();
         NBus::TTcpDispatcher::Get()->Shutdown();
         NRpc::TDispatcher::Get()->Shutdown();
         NChunkClient::TDispatcher::Get()->Shutdown();
@@ -191,6 +193,7 @@ private:
             inProgress = true;
             // TODO: refactor system shutdown
             // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
+            NDriver::TDispatcher::Get()->Shutdown();
             NBus::TTcpDispatcher::Get()->Shutdown();
             NRpc::TDispatcher::Get()->Shutdown();
             NChunkClient::TDispatcher::Get()->Shutdown();
