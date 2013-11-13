@@ -14,6 +14,8 @@
 
 #include <ytlib/chunk_client/dispatcher.h>
 
+#include <ytlib/driver/dispatcher.h>
+
 extern "C" {
     // XXX(sandello): This is extern declaration of eio's internal functions.
     // -lrt will dynamically bind these symbols. We do this dirty-dirty stuff
@@ -136,6 +138,7 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     //   ../python/yt/bindings/shutdown.cpp
     // Feel free to add your cpp here. Welcome to the Shutdown Club!
 
+    NDriver::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NRpc::TDispatcher::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
