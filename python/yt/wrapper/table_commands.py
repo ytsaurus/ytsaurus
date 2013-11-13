@@ -606,7 +606,12 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
                    mapper_memory_limit=None, reducer_memory_limit=None,
-                   sort_by=None, reduce_by=None):
+                   sort_by=None, reduce_by=None,
+                   reduce_combiner=None,
+                   reduce_combiner_input_format=None, reduce_combiner_output_format=None,
+                   reduce_combiner_files=None, reduce_combiner_file_paths=None,
+                   reduce_combiner_memory_limit=None):
+
     run_map_reduce.files_to_remove = []
     def memorize_files(spec, files):
         run_map_reduce.files_to_remove += files
@@ -621,6 +626,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     map_input_format, map_output_format = _prepare_formats(format, map_input_format, map_output_format)
     reduce_input_format, reduce_output_format = _prepare_formats(format, reduce_input_format, reduce_output_format)
+    reduce_combiner_input_format, reduce_combiner_output_format = _prepare_formats(format, reduce_combiner_input_format, reduce_combiner_output_format)
 
     if sort_by is None:
         sort_by = reduce_by
@@ -633,6 +639,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                           "reduce_by": _prepare_reduce_by(reduce_by)}, _),
         lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, map_input_format, map_output_format, map_files, map_file_paths, mapper_memory_limit, None, _)),
         lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, reduce_input_format, reduce_output_format, reduce_files, reduce_file_paths, reducer_memory_limit, reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reduce_combiner", reduce_combiner, reduce_combiner_input_format, reduce_combiner_output_format, reduce_combiner_files, reduce_combiner_file_paths, reduce_combiner_memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
