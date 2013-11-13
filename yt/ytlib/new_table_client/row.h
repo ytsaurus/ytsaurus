@@ -195,7 +195,7 @@ void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
 
 //! An immutable owning version of TRow.
 /*!
- *  Instances of TRow are lightweight ref-counted handles.
+ *  Instances of TOwningRow are lightweight ref-counted handles.
  *  Fixed part is stored in a (shared) blob.
  *  Variable part is stored in a (shared) string.
  */
