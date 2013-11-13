@@ -302,7 +302,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             if check_action is not None:
                 assert check_action()
 
-    def DISABLED_test_master_mutation_id(self):
+    def test_master_mutation_id(self):
         test_dir = os.path.join(TEST_DIR, "test")
         test_dir2 = os.path.join(TEST_DIR, "test2")
         test_dir3 = os.path.join(TEST_DIR, "test3")
@@ -426,6 +426,14 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         finally:
             yt.config.RETRY_READ = old_value
 
+    def test_reduce_combiner(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table)
+        self.check(["x=1\n", "y=2\n"], sorted(list(yt.read_table(table))))
 
 # Map method for test operations with python entities
 class ChangeX__(object):
