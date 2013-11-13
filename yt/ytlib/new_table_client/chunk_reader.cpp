@@ -289,8 +289,8 @@ bool TChunkReader::Read(std::vector<TRow> *rows)
                 row[column.IndexInRow].Id = column.IndexInNameTable;
             }
 
-            int index = FixedColumns.size() + VariableColumns.size();
-            while (variableIt.ParseNext(&row[index])) {
+            for (int index = FixedColumns.size() + VariableColumns.size(); index < row.GetValueCount(); ++index) {
+                YASSERT(variableIt.ParseNext(&row[index]));
                 row[index].Id = ChunkIndexToOutputIndex[row[index].Id];
             }
         } else {
