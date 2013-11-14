@@ -37,12 +37,12 @@ def module_relpath(module_name, module_file):
 
 def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
     assert operation_type in ["mapper", "reducer"]
-    function_filename = tempfile.mkstemp(dir="/tmp", prefix=".operation.dump")[1]
+    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
-    zip_filename = tempfile.mkstemp(dir="/tmp", prefix=".modules.zip")[1]
+    zip_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".modules.zip")[1]
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
             if config.PYTHON_FUNCTION_MODULE_FILTER is not None and \
@@ -57,10 +57,10 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                     raise YtError("Cannot determine relative path of module " + str(module))
                 zip.write(file, relpath)
 
-    main_filename = tempfile.mkstemp(dir="/tmp", prefix="_main_module")[1] + ".py"
+    main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module")[1] + ".py"
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
 
-    config_filename = tempfile.mkstemp(dir="/tmp", prefix="config_dump")[1]
+    config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
     config_dict = {}
     for key in dir(format_config):
         value = format_config.__dict__[key]
