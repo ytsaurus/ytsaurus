@@ -28,6 +28,8 @@ MEMORY_LIMIT = None
 FILE_STORAGE = "//tmp/yt_wrapper/file_storage"
 TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
 
+LOCAL_TMP_DIR="/tmp"
+
 KEYBOARD_ABORT = True
 DETACHED = True
 MERGE_INSTEAD_WARNING = False
