@@ -384,7 +384,7 @@ def add_map_reduce_parser(add_parser):
     parser = add_parser("map-reduce", help="run map_reduce operation")
     parser.add_argument("--mapper", required=False)
     parser.add_argument("--reducer", required=True)
-    parser.add_argument("--reducer-combiner", required=False)
+    parser.add_argument("--reduce-combiner", required=False)
     parser.add_argument("--src", action="append", required=True)
     parser.add_argument("--dst", action="append", required=True)
     parser.add_argument("--map-file", action="append")
