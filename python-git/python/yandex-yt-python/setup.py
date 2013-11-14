@@ -19,8 +19,8 @@ class PyTest(TestCommand):
         subprocess.check_call("cd yt/wrapper && make clean", shell=True)
 
 def recursive(path):
-    prefix = path.strip("/").replace("/", ".") + "."
-    return map(lambda package: prefix + package, find_packages(path))
+    prefix = path.strip("/").replace("/", ".")
+    return map(lambda package: prefix + "." + package, find_packages(path)) + [prefix]
 
 def main():
     requires =["simplejson"]
