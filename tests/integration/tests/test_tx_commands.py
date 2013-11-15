@@ -199,3 +199,23 @@ class TestTxCommands(YTEnvSetup):
         r4 = get('//tmp/a/@revision')
         assert r4 > r1
         assert r4 > r3
+
+    def test_abort_snapshot_lock(self):
+        create('file', '//tmp/file')
+        upload('//tmp/file', 'some_data')
+
+        tx = start_transaction()
+
+        lock('//tmp/file', mode='snapshot', tx=tx)
+        remove('//tmp/file')
+        abort_transaction(tx)
+
+    def test_commit_snapshot_lock(self):
+        create('file', '//tmp/file')
+        upload('//tmp/file', 'some_data')
+
+        tx = start_transaction()
+
+        lock('//tmp/file', mode='snapshot', tx=tx)
+        remove('//tmp/file')
+        commit_transaction(tx)

@@ -637,3 +637,9 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c2 = get('//tmp/f/@access_counter')
         assert c1 == c2
+
+    def test_chunk_maps(self):
+        gc_collect()
+        assert get('//sys/chunks/@count') == 0
+        assert get('//sys/underreplicated_chunks/@count') == 0
+        assert get('//sys/overreplicated_chunks/@count') == 0

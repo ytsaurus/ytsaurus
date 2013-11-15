@@ -502,3 +502,36 @@ class TestTableCommands(YTEnvSetup):
     def test_set_sorted_by3(self):
         create('table', '//tmp/t')
         with pytest.raises(YtError): set('//tmp/t/@sorted_by', 123)
+
+    def test_statistics1(self):
+        table = '//tmp/t'
+        create('table', table)
+        set('//tmp/t/@compression_codec', 'snappy')
+        write(table, {"foo": "bar"})
+
+        for i in xrange(8):
+            merge(in_=[table, table], out="<append=true>" + table)
+
+        chunk_count = 3**8
+        assert len(get('//tmp/t/@chunk_ids')) == chunk_count
+
+        codec_info = get('//tmp/t/@compression_statistics')
+        assert codec_info['snappy']['chunk_count'] == chunk_count
+
+        erasure_info = get('//tmp/t/@erasure_statistics')
+        assert erasure_info['none']['chunk_count'] == chunk_count
+
+    @only_linux
+    def test_statistics2(self):
+        tableA = '//tmp/a'
+        create('table', tableA)
+        write(tableA, {"foo": "bar"})
+
+        tableB = '//tmp/b'
+        create('table', tableB)
+        set(tableB + '/@compression_codec', 'snappy')
+
+        map(in_=[tableA], out=[tableB], command="cat")
+
+        codec_info = get(tableB + '/@compression_statistics')
+        assert codec_info.keys() == ['snappy']
