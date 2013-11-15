@@ -30,7 +30,6 @@ class TestChunkServer(YTEnvSetup):
 
     def test_replication(self):
         create('table', '//tmp/t')
-        set('//tmp/t/@erasure_codec', erasure_codec)
         write('//tmp/t', {'a' : 'b'})
 
         sleep(2) # wait for background replication
