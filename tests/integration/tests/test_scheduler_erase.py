@@ -134,7 +134,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
 ###############################################################
 
-    #@pytest.mark.xfail(run = False, reason = 'Issue #372')
     def test_by_key(self):
         v = \
         [
