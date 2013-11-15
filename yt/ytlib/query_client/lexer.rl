@@ -27,7 +27,7 @@ typedef TParser::token_type TToken;
     kw_and = 'and'i;
     kw_or = 'or'i;
 
-    keyword = kw_from | kw_where;
+    keyword = kw_from | kw_where | kw_and | kw_or;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
     fltexp = [Ee] [+\-]? digit+;

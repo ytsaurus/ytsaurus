@@ -50,11 +50,16 @@
 %token <double> DoubleLiteral "double literal"
 %token <TStringBuf> YPathLiteral "YPath literal"
 
+%token OpModulo 37 "`%`"
+
 %token LeftParenthesis 40 "`(`"
 %token RightParenthesis 41 "`)`"
 
 %token Asterisk 42 "`*`"
+%token OpPlus 43 "`+`"
 %token Comma 44 "`,`"
+%token OpMinus 45 "`-`"
+%token OpDivide 47 "`/`"
 
 %token OpLess 60 "`<`"
 %token OpLessOrEqual "`<=`"
@@ -62,12 +67,6 @@
 %token OpNotEqual "`!=`"
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
-
-%token OpPlus "`+`"
-%token OpMinus "`-`"
-
-%token OpDivide "`/`"
-%token OpModulo "`%`"
 
 %type <TOperator*> select-clause
 %type <TOperator*> select-source
