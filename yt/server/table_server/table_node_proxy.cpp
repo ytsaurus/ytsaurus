@@ -173,11 +173,10 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
 bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
-    auto* node = LockThisTypedImpl();
-
     if (key == "sorted_by") {
         ValidateNoTransaction();
 
+        auto* node = LockThisTypedImpl();
         auto* chunkList = node->GetChunkList();
         if (!chunkList->Children().empty() || !chunkList->Parents().empty()) {
             THROW_ERROR_EXCEPTION("Operation is not supported");
