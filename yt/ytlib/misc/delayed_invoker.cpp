@@ -8,6 +8,8 @@
 #include <util/system/thread.h>
 #include <util/datetime/base.h>
 
+#include <core/misc/thread.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
