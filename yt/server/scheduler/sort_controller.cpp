@@ -2156,6 +2156,30 @@ public:
         , ReduceStartRowIndex(0)
     { }
 
+    void BuildBriefSpec(IYsonConsumer* consumer) override
+    {
+        TSortControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("mapper").BeginMap()
+                      .Item("command").Value(Spec->Mapper->Command)
+                    .EndMap();
+            })
+            .DoIf(Spec->Reducer, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reducer").BeginMap()
+                        .Item("command").Value(Spec->Reducer->Command)
+                    .EndMap();
+            })
+            .DoIf(Spec->ReduceCombiner, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reduce_combiner").BeginMap()
+                        .Item("command").Value(Spec->ReduceCombiner->Command)
+                    .EndMap();
+            });
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceController, 0xca7286bd);
 

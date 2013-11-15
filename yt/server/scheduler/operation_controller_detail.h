@@ -81,6 +81,7 @@ public:
 
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
     virtual void BuildResultYson(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) override;
 
     virtual void Persist(TPersistenceContext& context) override;
 

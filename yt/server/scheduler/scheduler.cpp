@@ -142,6 +142,13 @@ public:
     }
 
 
+    ISchedulerStrategy* GetStrategy()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Strategy.get();
+    }
+
     IYPathServicePtr GetOrchidService()
     {
         auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
@@ -1938,6 +1945,11 @@ TScheduler::~TScheduler()
 void TScheduler::Initialize()
 {
     Impl->Initialize();
+}
+
+ISchedulerStrategy* TScheduler::GetStrategy()
+{
+    return Impl->GetStrategy();
 }
 
 IYPathServicePtr TScheduler::GetOrchidService()
