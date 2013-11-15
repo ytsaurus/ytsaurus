@@ -323,7 +323,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     {
         TGuard<TSpinLock> guard(VersionSpinLock);
         ++AutomatonVersion.RecordId;
-        LoggedVersion = AutomatonVersion;
+        LoggedVersion = std::max(LoggedVersion, AutomatonVersion);
     }
 }
 
@@ -334,7 +334,7 @@ void TDecoratedAutomaton::RotateChangelogDuringRecovery()
     {
         TGuard<TSpinLock> guard(VersionSpinLock);
         AutomatonVersion = TVersion(AutomatonVersion.SegmentId + 1, 0);
-        LoggedVersion = AutomatonVersion;
+        LoggedVersion = std::max(LoggedVersion, AutomatonVersion);
     }
 }
 
