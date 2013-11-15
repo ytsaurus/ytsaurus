@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "thread.h"
 
+#include <ytlib/misc/common.h>
+
 #include <util/system/thread.i>
 
 #ifdef _unix_

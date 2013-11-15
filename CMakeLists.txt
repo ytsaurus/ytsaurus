@@ -96,6 +96,8 @@ add_subdirectory(cmake/deps-coro)
 
 add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
+add_subdirectory(library/httpserver)
+add_subdirectory(library/lfalloc)
 
 add_subdirectory(yt)
 

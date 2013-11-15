@@ -10,14 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THeapTest
-    : public ::testing::Test
-{
-};
-
-static const int testSize = 10000;
-
-Stroka getRandomString(int len) {
+Stroka GetRandomString(int len) {
     Stroka str;
     for (int i = 0; i < len; ++i) {
         str.push_back('a' + rand() % 26);
@@ -25,29 +18,22 @@ Stroka getRandomString(int len) {
     return str;
 }
 
-void print(const std::vector<Stroka>& words) {
-    for (int i = 0; i < testSize; ++i) {
-        std::cout << words[i] << "\t";
-    }
-    std::cout << std::endl;
-}
-
-TEST_F(THeapTest, All)
+TEST(THeapTest, All)
 {
     srand(0);
 
     std::vector<Stroka> words;
-    for (int i = 0; i < testSize; ++i) {
-        words.push_back(getRandomString(10));
+    for (int i = 0; i < 10000; ++i) {
+        words.push_back(GetRandomString(10));
     }
 
     auto sorted = words;
     sort(sorted.begin(), sorted.end());
 
-    MakeHeap(words.begin(), words.end(), std::greater<Stroka>());
+    NYT::MakeHeap(words.begin(), words.end(), std::greater<Stroka>());
     auto end = words.end();
     while (end != words.begin()) {
-        ExtractHeap(words.begin(), end, std::greater<Stroka>());
+        NYT::ExtractHeap(words.begin(), end, std::greater<Stroka>());
         --end;
     }
 

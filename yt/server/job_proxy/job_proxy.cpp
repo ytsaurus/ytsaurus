@@ -40,8 +40,6 @@
 
 #include <ytlib/meta_state/master_channel.h>
 
-#include <util/private/lfalloc/helpers.h>
-
 namespace NYT {
 namespace NJobProxy {
 

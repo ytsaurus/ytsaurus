@@ -147,14 +147,13 @@ private:
 
     yhash_map<const std::type_info*, TEntryPtr> TypeInfoToEntry;
     yhash_map<ui32, TEntryPtr> TagToEntry;
-    
-    
-    friend TRegistry* ::SingletonInt<TRegistry>();
+
     TRegistry();
+    DECLARE_SINGLETON_FRIEND(TRegistry);
 
     const TEntry& GetEntry(ui32 tag);
     const TEntry& GetEntry(const std::type_info& typeInfo);
-    
+
     template <class T>
     static void* DoInstantiate();;
 

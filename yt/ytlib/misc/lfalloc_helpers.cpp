@@ -1,7 +1,5 @@
 #include "lfalloc_helpers.h"
 
-#include <util/private/lfalloc/helpers.h>
-
 namespace NYT {
 namespace NLFAlloc {
 

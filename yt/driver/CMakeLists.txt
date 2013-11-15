@@ -51,7 +51,6 @@ include_directories(
   ${CMAKE_BINARY_DIR}/yt/ytlib/meta_state
 )
 
-
 target_link_libraries( yt
   ytlib
 )

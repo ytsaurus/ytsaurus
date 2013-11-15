@@ -24,9 +24,6 @@ struct TTcpDispatcherStatistics
 class TTcpDispatcher
 {
 public:
-    // TODO(babenko): move to private, required for Singleton
-    TTcpDispatcher();
-
     static TTcpDispatcher* Get();
 
     void Shutdown();
@@ -34,6 +31,9 @@ public:
     TTcpDispatcherStatistics GetStatistics();
 
 private:
+    TTcpDispatcher();
+    DECLARE_SINGLETON_FRIEND(TTcpDispatcher);
+
     friend class TTcpConnection;
     friend class TTcpClientBusProxy;
     friend class TBusServerBase;

@@ -14,8 +14,6 @@
 
 #include <ytlib/misc/lfalloc_helpers.h>
 
-#include <util/private/lfalloc/helpers.h>
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {

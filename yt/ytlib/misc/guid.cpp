@@ -5,6 +5,8 @@
 
 #include <util/datetime/cputimer.h>
 
+#include <util/digest/murmur.h>
+
 #include <util/system/atomic.h>
 #include <util/system/hostname.h>
 
