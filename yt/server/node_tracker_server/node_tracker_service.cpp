@@ -160,13 +160,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
         return;
     }
 
-    NProto::TReqIncrementalHeartbeat heartbeatReq;
-    heartbeatReq.set_node_id(nodeId);
-    heartbeatReq.mutable_statistics()->Swap(request->mutable_statistics());
-    heartbeatReq.mutable_alerts()->Swap(request->mutable_alerts());
-    heartbeatReq.mutable_added_chunks()->Swap(request->mutable_added_chunks());
-    heartbeatReq.mutable_removed_chunks()->Swap(request->mutable_removed_chunks());
-
     nodeTracker
         ->CreateIncrementalHeartbeatMutation(context)
         ->OnSuccess(CreateRpcSuccessHandler(context))
