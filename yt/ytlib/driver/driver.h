@@ -109,8 +109,6 @@ struct TCommandDescriptor
  *  Each driver instance maintains a collection of cached connections to
  *  various YT subsystems (e.g. masters, scheduler).
  *
- *  Requests are executed synchronously.
- *
  *  IDriver instances are thread-safe and reentrant.
  */
 struct IDriver
