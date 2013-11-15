@@ -34,7 +34,7 @@ void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* con
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("start_time").Value(operation->GetStartTime())
-        .Item("spec").Node(operation->GetSpec())
+        .Item("spec").Value(operation->GetSpec())
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId());
 }
