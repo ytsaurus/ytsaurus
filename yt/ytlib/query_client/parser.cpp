@@ -753,9 +753,9 @@ namespace NYT { namespace NQueryClient {
   }
 
   TParser::symbol_type
-  TParser::make_OpModule (const location_type& l)
+  TParser::make_OpModulo (const location_type& l)
   {
-    return symbol_type (token::OpModule, l);
+    return symbol_type (token::OpModulo, l);
 
   }
 
@@ -1546,7 +1546,7 @@ namespace NYT { namespace NQueryClient {
 
   case 42:
 #line 330 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Module; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
 #line 1551 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
@@ -1808,20 +1808,20 @@ namespace NYT { namespace NQueryClient {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -36;
+  const signed char TParser::yypact_ninf_ = -19;
 
   const signed char TParser::yytable_ninf_ = -1;
 
   const signed char
   TParser::yypact_[] =
   {
-      23,    -8,   -36,   -36,    28,    17,   -36,     1,   -36,   -36,
-     -36,    28,   -36,   -36,    -4,    12,   -36,     3,     7,   -12,
-     -36,    10,    23,   -36,   -36,    29,   -36,    -5,   -36,    28,
-     -36,    28,   -36,   -36,   -36,   -36,    28,   -36,   -36,   -36,
-     -36,    28,    28,   -36,   -36,   -36,    28,   -36,   -36,    28,
-     -36,    28,    12,   -36,     5,     3,     5,   -12,   -36,     3,
-     -36
+      16,    -8,   -19,   -19,    21,     8,   -19,    -1,   -19,   -19,
+     -19,    21,   -19,   -19,    -6,    11,   -19,   -11,    -3,   -12,
+     -19,    10,    16,   -19,   -19,    22,   -19,    19,   -19,    21,
+     -19,    21,   -19,   -19,   -19,   -19,    21,   -19,   -19,   -19,
+     -19,    21,    21,   -19,   -19,   -19,    21,   -19,   -19,    21,
+     -19,    21,    11,   -19,    13,   -11,    13,   -12,   -19,    30,
+     -19
   };
 
   const unsigned char
@@ -1839,9 +1839,9 @@ namespace NYT { namespace NQueryClient {
   const signed char
   TParser::yypgoto_[] =
   {
-     -36,   -36,   -36,   -36,   -36,   -36,   -36,    19,     0,   -36,
-     -36,    -9,   -36,    14,     8,   -36,   -34,   -36,   -35,   -36,
-       2,   -36
+     -19,   -19,   -19,   -19,   -19,   -19,   -19,    17,     0,   -19,
+     -19,   -13,    -9,    12,    14,   -19,     1,   -19,   -18,   -19,
+       2,   -19
   };
 
   const signed char
@@ -1855,22 +1855,22 @@ namespace NYT { namespace NQueryClient {
   const unsigned char
   TParser::yytable_[] =
   {
-       9,    54,    43,    29,    11,    21,    56,    55,    50,    30,
-      51,    26,    44,    45,    56,    59,    22,    20,    31,    32,
-      33,    47,     9,    34,    35,    37,    38,    39,    40,    39,
-      40,     1,     2,     3,    49,     4,    12,     2,     3,    53,
-       4,    48,    60,    52,    57,     0,    58,     0,     0,     0,
+       9,    29,    43,    21,    11,    32,    33,    30,    20,    34,
+      35,    26,    44,    45,    22,    37,    38,    31,    54,    39,
+      40,    47,     9,    56,     1,     2,     3,    49,     4,    12,
+       2,     3,    50,     4,    51,    39,    40,    29,    60,    48,
+      59,    52,    55,     0,    57,    53,    58,     0,     0,     0,
        0,    26
   };
 
   const signed char
   TParser::yycheck_[] =
   {
-       0,    36,    14,     7,    12,     4,    41,    41,    13,    13,
-      15,    11,    24,    25,    49,    49,    15,     0,     6,    16,
-      17,    11,    22,    20,    21,    18,    19,    22,    23,    22,
-      23,     8,     9,    10,     5,    12,     8,     9,    10,    31,
-      12,    22,    51,    29,    42,    -1,    46,    -1,    -1,    -1,
+       0,     7,    14,     4,    12,    16,    17,    13,     0,    20,
+      21,    11,    24,    25,    15,    18,    19,     6,    36,    22,
+      23,    11,    22,    41,     8,     9,    10,     5,    12,     8,
+       9,    10,    13,    12,    15,    22,    23,     7,    51,    22,
+      49,    29,    41,    -1,    42,    31,    46,    -1,    -1,    -1,
       -1,    51
   };
 
@@ -1882,7 +1882,7 @@ namespace NYT { namespace NQueryClient {
        0,     4,    15,    29,    30,    31,    34,    36,    37,     7,
       13,     6,    16,    17,    20,    21,    43,    18,    19,    22,
       23,    41,    45,    14,    24,    25,    47,    11,    33,     5,
-      13,    15,    39,    40,    44,    42,    44,    46,    34,    42,
+      13,    15,    39,    40,    44,    42,    44,    46,    34,    38,
       37
   };
 

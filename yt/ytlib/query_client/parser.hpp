@@ -316,7 +316,7 @@ namespace NYT { namespace NQueryClient {
         OpPlus = 270,
         OpMinus = 271,
         OpDivide = 272,
-        OpModule = 273
+        OpModulo = 273
       };
     };
 
@@ -521,7 +521,7 @@ namespace NYT { namespace NQueryClient {
 
     static inline
     symbol_type
-    make_OpModule (const location_type& l);
+    make_OpModulo (const location_type& l);
 
 
     /// Build a parser object.
