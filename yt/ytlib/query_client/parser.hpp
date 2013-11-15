@@ -303,20 +303,20 @@ namespace NYT { namespace NQueryClient {
         IntegerLiteral = 264,
         DoubleLiteral = 265,
         YPathLiteral = 266,
+        OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
+        OpPlus = 43,
         Comma = 44,
+        OpMinus = 45,
+        OpDivide = 47,
         OpLess = 60,
         OpLessOrEqual = 267,
         OpEqual = 61,
         OpNotEqual = 268,
         OpGreater = 62,
-        OpGreaterOrEqual = 269,
-        OpPlus = 270,
-        OpMinus = 271,
-        OpDivide = 272,
-        OpModulo = 273
+        OpGreaterOrEqual = 269
       };
     };
 
@@ -469,6 +469,10 @@ namespace NYT { namespace NQueryClient {
 
     static inline
     symbol_type
+    make_OpModulo (const location_type& l);
+
+    static inline
+    symbol_type
     make_LeftParenthesis (const location_type& l);
 
     static inline
@@ -481,7 +485,19 @@ namespace NYT { namespace NQueryClient {
 
     static inline
     symbol_type
+    make_OpPlus (const location_type& l);
+
+    static inline
+    symbol_type
     make_Comma (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpMinus (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpDivide (const location_type& l);
 
     static inline
     symbol_type
@@ -506,22 +522,6 @@ namespace NYT { namespace NQueryClient {
     static inline
     symbol_type
     make_OpGreaterOrEqual (const location_type& l);
-
-    static inline
-    symbol_type
-    make_OpPlus (const location_type& l);
-
-    static inline
-    symbol_type
-    make_OpMinus (const location_type& l);
-
-    static inline
-    symbol_type
-    make_OpDivide (const location_type& l);
-
-    static inline
-    symbol_type
-    make_OpModulo (const location_type& l);
 
 
     /// Build a parser object.

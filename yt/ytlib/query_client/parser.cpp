@@ -662,6 +662,13 @@ namespace NYT { namespace NQueryClient {
   }
 
   TParser::symbol_type
+  TParser::make_OpModulo (const location_type& l)
+  {
+    return symbol_type (token::OpModulo, l);
+
+  }
+
+  TParser::symbol_type
   TParser::make_LeftParenthesis (const location_type& l)
   {
     return symbol_type (token::LeftParenthesis, l);
@@ -683,9 +690,30 @@ namespace NYT { namespace NQueryClient {
   }
 
   TParser::symbol_type
+  TParser::make_OpPlus (const location_type& l)
+  {
+    return symbol_type (token::OpPlus, l);
+
+  }
+
+  TParser::symbol_type
   TParser::make_Comma (const location_type& l)
   {
     return symbol_type (token::Comma, l);
+
+  }
+
+  TParser::symbol_type
+  TParser::make_OpMinus (const location_type& l)
+  {
+    return symbol_type (token::OpMinus, l);
+
+  }
+
+  TParser::symbol_type
+  TParser::make_OpDivide (const location_type& l)
+  {
+    return symbol_type (token::OpDivide, l);
 
   }
 
@@ -728,34 +756,6 @@ namespace NYT { namespace NQueryClient {
   TParser::make_OpGreaterOrEqual (const location_type& l)
   {
     return symbol_type (token::OpGreaterOrEqual, l);
-
-  }
-
-  TParser::symbol_type
-  TParser::make_OpPlus (const location_type& l)
-  {
-    return symbol_type (token::OpPlus, l);
-
-  }
-
-  TParser::symbol_type
-  TParser::make_OpMinus (const location_type& l)
-  {
-    return symbol_type (token::OpMinus, l);
-
-  }
-
-  TParser::symbol_type
-  TParser::make_OpDivide (const location_type& l)
-  {
-    return symbol_type (token::OpDivide, l);
-
-  }
-
-  TParser::symbol_type
-  TParser::make_OpModulo (const location_type& l)
-  {
-    return symbol_type (token::OpModulo, l);
 
   }
 
@@ -1219,7 +1219,7 @@ namespace NYT { namespace NQueryClient {
         switch (yyn)
           {
   case 2:
-#line 104 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 103 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             *head = yystack_[0].value.as< TOperator* > ();
         }
@@ -1227,7 +1227,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 3:
-#line 111 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 110 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             auto projectOp = new (context) TProjectOperator(context, yystack_[0].value.as< TOperator* > ());
             projectOp->Projections().assign(yystack_[1].value.as< TProjectOperator::TProjections > ().begin(), yystack_[1].value.as< TProjectOperator::TProjections > ().end());
@@ -1237,13 +1237,13 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 4:
-#line 120 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 119 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TOperator* > () = yystack_[0].value.as< TOperator* > (); }
 #line 1243 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 5:
-#line 125 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 124 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TOperator* > () = yystack_[0].value.as< TOperator* > ();
         }
@@ -1251,7 +1251,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 6:
-#line 129 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 128 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             auto filterOp = new (context) TFilterOperator(context, yystack_[2].value.as< TOperator* > ());
             filterOp->SetPredicate(yystack_[0].value.as< TExpression* > ());
@@ -1261,7 +1261,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 7:
-#line 138 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 137 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             auto tableIndex = context->GetTableIndexByAlias("");
             auto scanOp = new (context) TScanOperator(context, tableIndex);
@@ -1272,7 +1272,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 8:
-#line 148 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 147 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TProjectOperator::TProjections > ().swap(yystack_[2].value.as< TProjectOperator::TProjections > ());
             yylhs.value.as< TProjectOperator::TProjections > ().push_back(yystack_[0].value.as< TExpression* > ());
@@ -1281,7 +1281,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 9:
-#line 153 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 152 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TProjectOperator::TProjections > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
@@ -1289,19 +1289,19 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 10:
-#line 160 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 159 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1295 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 11:
-#line 162 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 161 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TFunctionExpression* > (); }
 #line 1301 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 12:
-#line 167 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 166 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             auto tableIndex = context->GetTableIndexByAlias("");
             yylhs.value.as< TExpression* > () = new (context) TReferenceExpression(
@@ -1314,7 +1314,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 13:
-#line 176 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 175 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TIntegerLiteralExpression(context, yylhs.location, yystack_[0].value.as< i64 > ());
         }
@@ -1322,7 +1322,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 14:
-#line 180 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 179 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TDoubleLiteralExpression(context, yylhs.location, yystack_[0].value.as< double > ());
         }
@@ -1330,13 +1330,13 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 15:
-#line 184 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 183 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[1].value.as< TExpression* > (); }
 #line 1336 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 16:
-#line 189 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 188 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TFunctionExpression* > () = new (context) TFunctionExpression(
                 context,
@@ -1348,7 +1348,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 17:
-#line 200 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 199 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().swap(yystack_[2].value.as< TFunctionExpression::TArguments > ());
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
@@ -1357,7 +1357,7 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 18:
-#line 205 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 204 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
@@ -1365,13 +1365,13 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 19:
-#line 212 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 211 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1371 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 20:
-#line 217 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 216 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
                 context,
@@ -1384,13 +1384,13 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 21:
-#line 226 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 225 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1390 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 22:
-#line 231 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 230 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
                 context,
@@ -1403,13 +1403,13 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 23:
-#line 240 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 239 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1409 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 24:
-#line 245 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 244 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
                 context,
@@ -1422,25 +1422,25 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 25:
-#line 254 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 253 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1428 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 26:
-#line 259 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 258 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
 #line 1434 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 27:
-#line 261 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 260 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
 #line 1440 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 28:
-#line 266 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 265 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
                 context,
@@ -1453,37 +1453,37 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 29:
-#line 275 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 274 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1459 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 30:
-#line 280 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 279 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Less; }
 #line 1465 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 31:
-#line 282 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 281 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::LessOrEqual; }
 #line 1471 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 32:
-#line 284 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 283 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Greater; }
 #line 1477 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 33:
-#line 286 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 285 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::GreaterOrEqual; }
 #line 1483 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 34:
-#line 291 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 290 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
                 context,
@@ -1496,25 +1496,25 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 35:
-#line 300 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 299 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1502 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 36:
-#line 305 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 304 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Plus; }
 #line 1508 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 37:
-#line 307 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 306 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Minus; }
 #line 1514 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 38:
-#line 312 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 311 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
             yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
                 context,
@@ -1527,25 +1527,25 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 39:
-#line 321 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 320 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
 #line 1533 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 40:
-#line 326 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 325 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Multiply; }
 #line 1539 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 41:
-#line 328 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 327 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Divide; }
 #line 1545 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
 
   case 42:
-#line 330 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 329 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
 #line 1551 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
@@ -1808,20 +1808,20 @@ namespace NYT { namespace NQueryClient {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -19;
+  const signed char TParser::yypact_ninf_ = -24;
 
   const signed char TParser::yytable_ninf_ = -1;
 
   const signed char
   TParser::yypact_[] =
   {
-      16,    -8,   -19,   -19,    21,     8,   -19,    -1,   -19,   -19,
-     -19,    21,   -19,   -19,    -6,    11,   -19,   -11,    -3,   -12,
-     -19,    10,    16,   -19,   -19,    22,   -19,    19,   -19,    21,
-     -19,    21,   -19,   -19,   -19,   -19,    21,   -19,   -19,   -19,
-     -19,    21,    21,   -19,   -19,   -19,    21,   -19,   -19,    21,
-     -19,    21,    11,   -19,    13,   -11,    13,   -12,   -19,    30,
-     -19
+       7,    -6,   -24,   -24,    15,    29,   -24,    -3,   -24,   -24,
+     -24,    15,   -24,   -24,    -2,    27,   -24,     6,   -14,    -9,
+     -24,    23,     7,   -24,   -24,    31,   -24,    18,   -24,    15,
+     -24,    15,   -24,   -24,   -24,   -24,    15,   -24,   -24,   -24,
+     -24,    15,    15,   -24,   -24,   -24,    15,   -24,   -24,    15,
+     -24,    15,    27,   -24,     3,     6,     3,    -9,   -24,    30,
+     -24
   };
 
   const unsigned char
@@ -1830,8 +1830,8 @@ namespace NYT { namespace NQueryClient {
        0,    12,    13,    14,     0,     0,     2,     0,     9,    10,
       11,     0,    12,    39,     0,    21,    23,    25,    29,    35,
        1,     0,     0,     3,     4,     5,    19,     0,    18,     0,
-      15,     0,    30,    31,    32,    33,     0,    26,    27,    36,
-      37,     0,     0,    40,    41,    42,     0,     7,     8,     0,
+      15,     0,    30,    31,    32,    33,     0,    36,    37,    26,
+      27,     0,     0,    42,    40,    41,     0,     7,     8,     0,
       16,     0,    20,    22,    28,    24,    29,    34,    38,     6,
       17
   };
@@ -1839,9 +1839,9 @@ namespace NYT { namespace NQueryClient {
   const signed char
   TParser::yypgoto_[] =
   {
-     -19,   -19,   -19,   -19,   -19,   -19,   -19,    17,     0,   -19,
-     -19,   -13,    -9,    12,    14,   -19,     1,   -19,   -18,   -19,
-       2,   -19
+     -24,   -24,   -24,   -24,   -24,   -24,   -24,    16,     0,   -24,
+     -24,   -12,    -8,    11,    12,   -24,     1,   -24,   -23,   -24,
+       2,   -24
   };
 
   const signed char
@@ -1855,34 +1855,34 @@ namespace NYT { namespace NQueryClient {
   const unsigned char
   TParser::yytable_[] =
   {
-       9,    29,    43,    21,    11,    32,    33,    30,    20,    34,
-      35,    26,    44,    45,    22,    37,    38,    31,    54,    39,
-      40,    47,     9,    56,     1,     2,     3,    49,     4,    12,
-       2,     3,    50,     4,    51,    39,    40,    29,    60,    48,
-      59,    52,    55,     0,    57,    53,    58,     0,     0,     0,
+       9,    21,    37,    43,    38,    29,    44,    11,    39,    40,
+      45,    26,    30,    54,    22,     1,     2,     3,    56,    37,
+       4,    38,     9,    12,     2,     3,    32,    33,     4,    20,
+      34,    35,    50,    31,    47,    51,    49,    29,    48,    60,
+      52,    59,    55,    53,    57,     0,    58,     0,     0,     0,
        0,    26
   };
 
   const signed char
   TParser::yycheck_[] =
   {
-       0,     7,    14,     4,    12,    16,    17,    13,     0,    20,
-      21,    11,    24,    25,    15,    18,    19,     6,    36,    22,
-      23,    11,    22,    41,     8,     9,    10,     5,    12,     8,
-       9,    10,    13,    12,    15,    22,    23,     7,    51,    22,
-      49,    29,    41,    -1,    42,    31,    46,    -1,    -1,    -1,
+       0,     4,    16,    12,    18,     7,    15,    13,    22,    23,
+      19,    11,    14,    36,    17,     8,     9,    10,    41,    16,
+      13,    18,    22,     8,     9,    10,    20,    21,    13,     0,
+      24,    25,    14,     6,    11,    17,     5,     7,    22,    51,
+      29,    49,    41,    31,    42,    -1,    46,    -1,    -1,    -1,
       -1,    51
   };
 
   const unsigned char
   TParser::yystos_[] =
   {
-       0,     8,     9,    10,    12,    27,    28,    32,    33,    34,
-      35,    12,     8,    34,    38,    39,    40,    42,    44,    46,
-       0,     4,    15,    29,    30,    31,    34,    36,    37,     7,
-      13,     6,    16,    17,    20,    21,    43,    18,    19,    22,
-      23,    41,    45,    14,    24,    25,    47,    11,    33,     5,
-      13,    15,    39,    40,    44,    42,    44,    46,    34,    38,
+       0,     8,     9,    10,    13,    27,    28,    32,    33,    34,
+      35,    13,     8,    34,    38,    39,    40,    42,    44,    46,
+       0,     4,    17,    29,    30,    31,    34,    36,    37,     7,
+      14,     6,    20,    21,    24,    25,    43,    16,    18,    22,
+      23,    41,    45,    12,    15,    19,    47,    11,    33,     5,
+      14,    17,    39,    40,    44,    42,    44,    46,    34,    38,
       37
   };
 
@@ -1916,9 +1916,9 @@ namespace NYT { namespace NQueryClient {
   "\"end of stream\"", "error", "$undefined", "\"lexer failure\"",
   "\"keyword `FROM`\"", "\"keyword `WHERE`\"", "\"keyword `and`\"",
   "\"keyword `or`\"", "\"identifier\"", "\"integer literal\"",
-  "\"double literal\"", "\"YPath literal\"", "\"`(`\"", "\"`)`\"",
-  "\"`*`\"", "\"`,`\"", "\"`<`\"", "\"`<=`\"", "\"`=`\"", "\"`!=`\"",
-  "\"`>`\"", "\"`>=`\"", "\"`+`\"", "\"`-`\"", "\"`/`\"", "\"`%`\"",
+  "\"double literal\"", "\"YPath literal\"", "\"`%`\"", "\"`(`\"",
+  "\"`)`\"", "\"`*`\"", "\"`+`\"", "\"`,`\"", "\"`-`\"", "\"`/`\"",
+  "\"`<`\"", "\"`<=`\"", "\"`=`\"", "\"`!=`\"", "\"`>`\"", "\"`>=`\"",
   "$accept", "head", "select-clause", "select-source", "from-where-clause",
   "from-clause", "projections", "projection", "atomic-expr",
   "function-expr", "function-expr-args", "function-expr-arg", "or-op-expr",
@@ -1931,11 +1931,11 @@ namespace NYT { namespace NQueryClient {
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   103,   103,   110,   119,   124,   128,   137,   147,   152,
-     159,   161,   166,   175,   179,   183,   188,   199,   204,   211,
-     216,   225,   230,   239,   244,   253,   258,   260,   265,   274,
-     279,   281,   283,   285,   290,   299,   304,   306,   311,   320,
-     325,   327,   329
+       0,   102,   102,   109,   118,   123,   127,   136,   146,   151,
+     158,   160,   165,   174,   178,   182,   187,   198,   203,   210,
+     215,   224,   229,   238,   243,   252,   257,   259,   264,   273,
+     278,   280,   282,   284,   289,   298,   303,   305,   310,   319,
+     324,   326,   328
   };
 
   // Print the state stack on the debug stream.
@@ -1979,10 +1979,10 @@ namespace NYT { namespace NQueryClient {
      0,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,    12,     2,     2,
+      13,    14,    15,    16,    17,    18,     2,    19,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-      12,    13,    14,     2,    15,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-      16,    18,    20,     2,     2,     2,     2,     2,     2,     2,
+      20,    22,    24,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -2002,10 +2002,9 @@ namespace NYT { namespace NQueryClient {
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     3,     1,     2,     4,
-       5,     6,     7,     8,     9,    10,    11,    17,    19,    21,
-      22,    23,    24,    25
+       5,     6,     7,     8,     9,    10,    11,    21,    23,    25
     };
-    const unsigned int user_token_number_max_ = 273;
+    const unsigned int user_token_number_max_ = 269;
     const token_number_type undef_token_ = 2;
 
     if (static_cast<int>(t) <= yyeof_)
@@ -2018,8 +2017,8 @@ namespace NYT { namespace NQueryClient {
 
 #line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:1156
 } } // NYT::NQueryClient
-#line 2022 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:1156
-#line 333 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:1157
+#line 2021 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:1156
+#line 332 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:1157
 
 
 namespace NYT {
