@@ -41,6 +41,9 @@
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
 
+%token KwAnd "keyword `and`"
+%token KwOr "keyword `or`"
+
 %token <TStringBuf> Identifier "identifier"
 
 %token <i64> IntegerLiteral "integer literal"
@@ -60,6 +63,12 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
+%token OpPlus "`+`"
+%token OpMinus "`-`"
+
+%token OpDivide "`/`"
+%token OpModule "`%`"
+
 %type <TOperator*> select-clause
 %type <TOperator*> select-source
 %type <TOperator*> from-where-clause
@@ -74,8 +83,17 @@
 %type <TFunctionExpression::TArguments> function-expr-args
 %type <TExpression*> function-expr-arg
 
-%type <TBinaryOpExpression*> binary-rel-op-expr
-%type <EBinaryOp> binary-rel-op
+%type <TExpression*> relational-op-expr
+%type <TExpression*> or-op-expr
+%type <TExpression*> and-op-expr
+%type <TExpression*> equality-op-expr
+%type <TExpression*> multiplicative-op-expr
+%type <TExpression*> additive-op-expr
+
+%type <EBinaryOp> equality-op
+%type <EBinaryOp> relational-op
+%type <EBinaryOp> multiplicative-op
+%type <EBinaryOp> additive-op
 
 %start head
 
@@ -107,7 +125,7 @@ from-where-clause
         {
             $$ = $source;
         }
-    | from-clause[source] KwWhere binary-rel-op-expr[predicate]
+    | from-clause[source] KwWhere relational-op-expr[predicate]
         {
             auto filterOp = new (context) TFilterOperator(context, $source);
             filterOp->SetPredicate($predicate);
@@ -162,6 +180,8 @@ atomic-expr
         {
             $$ = new (context) TDoubleLiteralExpression(context, @$, $value);
         }
+	| LeftParenthesis or-op-expr[expr] RightParenthesis
+		{ $$ = $expr; }
 ;
 
 function-expr
@@ -192,8 +212,36 @@ function-expr-arg
         { $$ = $1; }
 ;
 
-binary-rel-op-expr
-    : atomic-expr[lhs] binary-rel-op[opcode] atomic-expr[rhs]
+or-op-expr
+    : or-op-expr[lhs] KwOr and-op-expr[rhs]
+        {
+            $$ = new (context) TBinaryOpExpression(
+                context,
+                @$,
+                EBinaryOp::Or,
+                $lhs,
+                $rhs);
+        }
+	| and-op-expr
+		{ $$ = $1; }
+;
+
+and-op-expr
+    : and-op-expr[lhs] KwAnd equality-op-expr[rhs]
+        {
+            $$ = new (context) TBinaryOpExpression(
+                context,
+                @$,
+                EBinaryOp::And,
+                $lhs,
+                $rhs);
+        }
+	| equality-op-expr
+		{ $$ = $1; }
+;
+
+equality-op-expr
+	: additive-op-expr[lhs] equality-op[opcode] relational-op-expr[rhs]
         {
             $$ = new (context) TBinaryOpExpression(
                 context,
@@ -202,21 +250,84 @@ binary-rel-op-expr
                 $lhs,
                 $rhs);
         }
+	| relational-op-expr
+		{ $$ = $1; }
 ;
 
-binary-rel-op
+equality-op
+    : OpEqual
+        { $$ = EBinaryOp::Equal; }
+    | OpNotEqual
+        { $$ = EBinaryOp::NotEqual; }
+;
+
+relational-op-expr
+    : relational-op-expr[lhs] relational-op[opcode] additive-op-expr[rhs]
+        {
+            $$ = new (context) TBinaryOpExpression(
+                context,
+                @$,
+                $opcode,
+                $lhs,
+                $rhs);
+        }
+	| additive-op-expr
+		{ $$ = $1; }
+;
+
+relational-op
     : OpLess
         { $$ = EBinaryOp::Less; }
     | OpLessOrEqual
         { $$ = EBinaryOp::LessOrEqual; }
-    | OpEqual
-        { $$ = EBinaryOp::Equal; }
-    | OpNotEqual
-        { $$ = EBinaryOp::NotEqual; }
     | OpGreater
         { $$ = EBinaryOp::Greater; }
     | OpGreaterOrEqual
         { $$ = EBinaryOp::GreaterOrEqual; }
+;
+
+additive-op-expr
+    : additive-op-expr[lhs] additive-op[opcode] multiplicative-op-expr[rhs]
+        {
+            $$ = new (context) TBinaryOpExpression(
+                context,
+                @$,
+                $opcode,
+                $lhs,
+                $rhs);
+        }
+	| multiplicative-op-expr
+		{ $$ = $1; }
+;
+
+additive-op
+    : OpPlus
+        { $$ = EBinaryOp::Plus; }
+    | OpMinus
+        { $$ = EBinaryOp::Minus; }
+;
+
+multiplicative-op-expr
+    : multiplicative-op-expr[lhs] multiplicative-op[opcode] atomic-expr[rhs]
+        {
+            $$ = new (context) TBinaryOpExpression(
+                context,
+                @$,
+                $opcode,
+                $lhs,
+                $rhs);
+        }
+	| atomic-expr
+		{ $$ = $1; }
+;
+
+multiplicative-op
+    : Asterisk
+        { $$ = EBinaryOp::Multiply; }
+    | OpDivide
+        { $$ = EBinaryOp::Divide; }
+	| OpModule
+        { $$ = EBinaryOp::Module; }
 ;
 
 %%

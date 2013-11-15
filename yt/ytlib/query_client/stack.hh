@@ -31,18 +31,18 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/sandello/yt/source/yt/ytlib/query_client/stack.hh
+ ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/stack.hh
  ** Define the NYT::NQueryClient::stack class.
  */
 
-#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
-# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
 
 # include <vector>
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // stack.hh:133
+#line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // stack.hh:133
 namespace NYT { namespace NQueryClient {
-#line 46 "/home/sandello/yt/source/yt/ytlib/query_client/stack.hh" // stack.hh:133
+#line 46 "/home/lukyan/dev/yt/yt/ytlib/query_client/stack.hh" // stack.hh:133
   template <class T, class S = std::vector<T> >
   class stack
   {
@@ -151,8 +151,8 @@ namespace NYT { namespace NQueryClient {
     unsigned int range_;
   };
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // stack.hh:133
+#line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // stack.hh:133
 } } // NYT::NQueryClient
-#line 157 "/home/sandello/yt/source/yt/ytlib/query_client/stack.hh" // stack.hh:133
+#line 157 "/home/lukyan/dev/yt/yt/ytlib/query_client/stack.hh" // stack.hh:133
 
-#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED

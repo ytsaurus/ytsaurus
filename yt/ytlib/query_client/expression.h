@@ -22,12 +22,23 @@ DECLARE_ENUM(EExpressionKind,
 );
 
 DECLARE_ENUM(EBinaryOp,
-    (Less)
-    (LessOrEqual)
     (Equal)
     (NotEqual)
+
+    (Less)
+    (LessOrEqual)
     (Greater)
     (GreaterOrEqual)
+
+    (Plus)
+    (Minus)
+
+    (Multiply)
+    (Divide)
+    (Module)
+
+    (And)
+    (Or)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

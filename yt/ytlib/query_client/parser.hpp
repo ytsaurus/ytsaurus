@@ -31,16 +31,16 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
+ ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
-#line 19 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 19 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 
     #include "plan_node.h"
 
@@ -52,7 +52,7 @@
         class TParser;
     } }
 
-#line 56 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 56 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 # include <vector>
@@ -81,9 +81,9 @@
 # endif /* ! defined YYDEBUG */
 #endif  /* ! defined YT_QL_YYDEBUG */
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 namespace NYT { namespace NQueryClient {
-#line 87 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 87 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 
@@ -230,41 +230,47 @@ namespace NYT { namespace NQueryClient {
     /// An auxiliary type to compute the largest semantic type.
     union union_type
     {
-      // binary-rel-op
+      // equality-op
+      // relational-op
+      // additive-op
+      // multiplicative-op
       char dummy1[sizeof(EBinaryOp)];
-
-      // binary-rel-op-expr
-      char dummy2[sizeof(TBinaryOpExpression*)];
 
       // projection
       // atomic-expr
       // function-expr-arg
-      char dummy3[sizeof(TExpression*)];
+      // or-op-expr
+      // and-op-expr
+      // equality-op-expr
+      // relational-op-expr
+      // additive-op-expr
+      // multiplicative-op-expr
+      char dummy2[sizeof(TExpression*)];
 
       // function-expr
-      char dummy4[sizeof(TFunctionExpression*)];
+      char dummy3[sizeof(TFunctionExpression*)];
 
       // function-expr-args
-      char dummy5[sizeof(TFunctionExpression::TArguments)];
+      char dummy4[sizeof(TFunctionExpression::TArguments)];
 
       // select-clause
       // select-source
       // from-where-clause
       // from-clause
-      char dummy6[sizeof(TOperator*)];
+      char dummy5[sizeof(TOperator*)];
 
       // projections
-      char dummy7[sizeof(TProjectOperator::TProjections)];
+      char dummy6[sizeof(TProjectOperator::TProjections)];
 
       // "identifier"
       // "YPath literal"
-      char dummy8[sizeof(TStringBuf)];
+      char dummy7[sizeof(TStringBuf)];
 
       // "double literal"
-      char dummy9[sizeof(double)];
+      char dummy8[sizeof(double)];
 
       // "integer literal"
-      char dummy10[sizeof(i64)];
+      char dummy9[sizeof(i64)];
 };
 
     /// Symbol semantic values.
@@ -291,20 +297,26 @@ namespace NYT { namespace NQueryClient {
         Failure = 256,
         KwFrom = 259,
         KwWhere = 260,
-        Identifier = 261,
-        IntegerLiteral = 262,
-        DoubleLiteral = 263,
-        YPathLiteral = 264,
+        KwAnd = 261,
+        KwOr = 262,
+        Identifier = 263,
+        IntegerLiteral = 264,
+        DoubleLiteral = 265,
+        YPathLiteral = 266,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
         Comma = 44,
         OpLess = 60,
-        OpLessOrEqual = 265,
+        OpLessOrEqual = 267,
         OpEqual = 61,
-        OpNotEqual = 266,
+        OpNotEqual = 268,
         OpGreater = 62,
-        OpGreaterOrEqual = 267
+        OpGreaterOrEqual = 269,
+        OpPlus = 270,
+        OpMinus = 271,
+        OpDivide = 272,
+        OpModule = 273
       };
     };
 
@@ -340,8 +352,6 @@ namespace NYT { namespace NQueryClient {
   basic_symbol (typename Base::kind_type t, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const EBinaryOp v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TBinaryOpExpression* v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TExpression* v, const location_type& l);
 
@@ -435,6 +445,14 @@ namespace NYT { namespace NQueryClient {
 
     static inline
     symbol_type
+    make_KwAnd (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwOr (const location_type& l);
+
+    static inline
+    symbol_type
     make_Identifier (const TStringBuf& v, const location_type& l);
 
     static inline
@@ -488,6 +506,22 @@ namespace NYT { namespace NQueryClient {
     static inline
     symbol_type
     make_OpGreaterOrEqual (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpPlus (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpMinus (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpDivide (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpModule (const location_type& l);
 
 
     /// Build a parser object.
@@ -595,7 +629,7 @@ namespace NYT { namespace NQueryClient {
     static const char* const yytname_[];
 #if YT_QL_YYDEBUG
   // YYRLINE[YYN] -- Source line where rule number YYN was defined.
-  static const unsigned char yyrline_[];
+  static const unsigned short int yyrline_[];
     /// Report on the debug stream that the rule \a r is going to be reduced.
     virtual void yy_reduce_print_ (int r);
     /// Print the state stack on the debug stream.
@@ -689,13 +723,13 @@ namespace NYT { namespace NQueryClient {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 26,           //< Last index in yytable_.
-      yynnts_ = 14,  //< Number of nonterminal symbols.
+      yylast_ = 51,           //< Last index in yytable_.
+      yynnts_ = 22,  //< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 11, //< Termination state number.
+      yyfinal_ = 20, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 20    //< Number of tokens.
+      yyntokens_ = 26    //< Number of tokens.
     };
 
 
@@ -706,11 +740,11 @@ namespace NYT { namespace NQueryClient {
   };
 
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 } } // NYT::NQueryClient
-#line 712 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 746 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
