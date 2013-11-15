@@ -30,3 +30,4 @@ list(APPEND YT_SOURCE_FILES
 protoc( ${BASE}/hive_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/hive_manager.proto YT_SOURCE_FILES )
 protoc( ${BASE}/transaction_supervisor.proto YT_SOURCE_FILES )
+protoc( ${BASE}/timestamp_manager.proto YT_SOURCE_FILES )

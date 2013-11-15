@@ -41,11 +41,12 @@ class TTimestampManagerConfig
     : public TYsonSerializable
 {
 public:
-    // TODO(babenko)
+    int BatchSize;
 
     TTimestampManagerConfig()
     {
-        // TODO(babenko)
+        RegisterParameter("batch_size", BatchSize)
+            .Default(10000);
     }
 };
 

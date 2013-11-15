@@ -5,6 +5,8 @@
 
 #include <core/actions/invoker_util.h>
 
+#include <core/misc/serialize.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/rpc/service_detail.h>
@@ -14,12 +16,18 @@
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/hydra_manager.h>
+#include <server/hydra/mutation.h>
+
+#include <server/hive/timestamp_manager.pb.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NHive {
 
 using namespace NRpc;
 using namespace NHydra;
+using namespace NHive::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +51,7 @@ public:
             automaton)
         , Config(config)
         , AutomatonInvoker(automatonInvoker)
-        , CurrentTimestamp(0)
+        , Committing(false)
     {
         automaton->RegisterPart(this);
         rpcServer->RegisterService(this);
@@ -57,6 +65,8 @@ public:
             ESerializationPriority::Values,
             "TimestampManager",
             BIND(&TImpl::Save, Unretained(this)));
+
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTimestamp, Unretained(this)));
     }
 
 private:
@@ -65,8 +75,12 @@ private:
     TTimestampManagerConfigPtr Config;
     IInvokerPtr AutomatonInvoker;
 
-    TAtomic CurrentTimestamp;
-
+    //! Currently available timestamp.
+    std::atomic<TTimestamp> CurrentTimestamp;
+    //! Commit must be issued when current timestamp reaches this watermark.
+    std::atomic<TTimestamp> WatermarkTimestamp;
+    //! All returned timestamps must be less than this one.
+    std::atomic<TTimestamp> PersistentTimestamp;
 
     // RPC handlers.
 
@@ -74,24 +88,97 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        response->set_timestamp(AtomicIncrement(CurrentTimestamp));
+        GetTimestampImpl(std::move(context));
+    }
+
+    void GetTimestampImpl(TCtxGetTimestampPtr context)
+    {
+        auto candindateTimestamp = CurrentTimestamp++;
+
+        if (candindateTimestamp >= PersistentTimestamp.load()) {
+            --CurrentTimestamp;
+            TGuard<TSpinLock> guard(SpinLock);
+            StartCommit();
+            PendingContexts.push_back(std::move(context));
+            return;
+        } else if (candindateTimestamp >= WatermarkTimestamp.load()) {
+            TGuard<TSpinLock> guard(SpinLock);
+            StartCommit();
+        }
+
+        auto& response = context->Response();
+        response.set_timestamp(candindateTimestamp);
         context->Reply();
+    }
+
+    TSpinLock SpinLock;
+    bool Committing;
+    std::vector<TCtxGetTimestampPtr> PendingContexts;
+
+
+    void StartCommit()
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock);
+
+        if (Committing)
+            return;
+
+        TReqCommitTimestamp hydraRequest;
+        hydraRequest.set_timestamp(PersistentTimestamp.load() + Config->BatchSize);
+        CreateMutation(HydraManager, AutomatonInvoker, hydraRequest)
+            ->OnSuccess(BIND(&TImpl::OnCommitSuccess, MakeStrong(this)))
+            ->OnError(BIND(&TImpl::OnCommitFailure, MakeStrong(this)))
+            ->Commit();
+
+        Committing = true;
+    }
+
+    void OnCommitSuccess()
+    {
+        std::vector<TCtxGetTimestampPtr> pendingContexts;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            PendingContexts.swap(pendingContexts);
+        }
+
+        for (auto context : pendingContexts) {
+            GetTimestampImpl(std::move(context));
+        }
+    }
+
+    void OnCommitFailure(const TError& error)
+    {
+
     }
 
 
     virtual void Clear() override
     {
         CurrentTimestamp = 0;
+        WatermarkTimestamp = 0;
+        PersistentTimestamp = 0;
     }
 
     void Load(TLoadContext& context)
     {
-        // TODO(babenko)
+        SetTimestamps(NYT::Load<TTimestamp>(context));
     }
 
     void Save(TSaveContext& context) const
     {
-        // TODO(babenko)
+        NYT::Save(context, PersistentTimestamp.load());
+    }
+
+
+    void HydraCommitTimestamp(const TReqCommitTimestamp& request)
+    {
+        SetTimestamps(request.timestamp());
+    }
+
+    void SetTimestamps(TTimestamp timestamp)
+    {
+        WatermarkTimestamp = timestamp - Config->BatchSize / 2;
+        PersistentTimestamp = timestamp;
     }
 
 };
