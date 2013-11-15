@@ -200,9 +200,9 @@ private:
 TTimestampManager::TTimestampManager(
     TTimestampManagerConfigPtr config,
     IInvokerPtr automatonInvoker,
-    NRpc::IRpcServerPtr rpcServer,
-    NHydra::IHydraManagerPtr hydraManager,
-    NHydra::TCompositeAutomatonPtr automaton)
+    IRpcServerPtr rpcServer,
+    IHydraManagerPtr hydraManager,
+    TCompositeAutomatonPtr automaton)
     : Impl(New<TImpl>(
         config,
         automatonInvoker,
