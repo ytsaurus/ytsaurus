@@ -28,6 +28,20 @@ class TestChunkServer(YTEnvSetup):
         chunk_id = chunk_ids[0]
         assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
 
+    def test_replication(self):
+        create('table', '//tmp/t')
+        set('//tmp/t/@erasure_codec', erasure_codec)
+        write('//tmp/t', {'a' : 'b'})
+
+        sleep(2) # wait for background replication
+
+        chunk_ids = get('//tmp/t/@chunk_ids')
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        nodes = get('#%s/@stored_replicas' % chunk_id)
+        assert len(nodes) == replica_count
+
     def _test_decommission(self, erasure_codec, replica_count):
         create('table', '//tmp/t')
         set('//tmp/t/@erasure_codec', erasure_codec)
@@ -57,4 +71,3 @@ class TestChunkServer(YTEnvSetup):
 
     def test_decommission_erasure(self):
         self._test_decommission('lrc_12_2_2', 16)
-
