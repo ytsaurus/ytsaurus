@@ -29,7 +29,6 @@ include_directories(
   ${PYTHON_INCLUDE_DIR}
 )
 
-
 add_library( driver_python SHARED
   ${BASE}/driver.cpp
   ${SRCS}
@@ -41,14 +40,16 @@ add_library( yson_python SHARED
 )
 
 target_link_libraries( driver_python
-  ytlib-without-lfalloc
+  ytlib-no-lfalloc
   ytext-pycxx
+  ytext-lfalloc-fake
   ${PYTHON_LIBRARY}
 )
 
 target_link_libraries( yson_python
-  ytlib-without-lfalloc
+  ytlib-no-lfalloc
   ytext-pycxx
+  ytext-lfalloc-fake
   ${PYTHON_LIBRARY}
 )
 
