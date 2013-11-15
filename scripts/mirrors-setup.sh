@@ -78,10 +78,14 @@ configure_github_mirror()
 configure_arcadia_mirror contrib-libs-libiconv
 configure_arcadia_mirror contrib-libs-protobuf
 configure_arcadia_mirror contrib-libs-snappy
+configure_arcadia_mirror contrib-libs-sparsehash
 configure_arcadia_mirror contrib-libs-zlib
 
 configure_arcadia_mirror util
 
+configure_arcadia_mirror library-httpserver
+configure_arcadia_mirror library-lfalloc
+configure_arcadia_mirror library-lwtrace
+
 configure_github_mirror lloyd-yajl
 configure_github_mirror joyent-libuv
-
