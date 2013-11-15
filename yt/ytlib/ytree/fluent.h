@@ -189,21 +189,9 @@ public:
         }
 
         template <class T>
-        TUnwrappedParent Value(T value)
+        TUnwrappedParent Value(const T& value)
         {
             WriteValue(this->Consumer, value);
-            return this->GetUnwrappedParent();
-        }
-
-        TUnwrappedParent Node(const TYsonString& value)
-        {
-            Consume(value, this->Consumer);
-            return this->GetUnwrappedParent();
-        }
-
-        TUnwrappedParent Node(INodePtr node)
-        {
-            VisitTree(node, this->Consumer);
             return this->GetUnwrappedParent();
         }
 
