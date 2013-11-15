@@ -43,7 +43,8 @@ public:
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : TServiceBase(
-            GetSyncInvoker(),
+            // TODO(babenko): use sync invoker 
+            automatonInvoker,
             TTimestampServiceProxy::GetServiceName(),
             HiveLogger.GetCategory())
         , TCompositeAutomatonPart(
@@ -77,10 +78,14 @@ private:
 
     //! Currently available timestamp.
     std::atomic<TTimestamp> CurrentTimestamp;
+    
     //! Commit must be issued when current timestamp reaches this watermark.
     std::atomic<TTimestamp> WatermarkTimestamp;
-    //! All returned timestamps must be less than this one.
+    
+    //! The last persistently committed timestamp.
+    //! All returned timestamps must be strictly less than this one.
     std::atomic<TTimestamp> PersistentTimestamp;
+
 
     // RPC handlers.
 
@@ -133,14 +138,20 @@ private:
         Committing = true;
     }
 
-    void OnCommitSuccess()
+    std::vector<TCtxGetTimestampPtr> FinishCommit()
     {
         std::vector<TCtxGetTimestampPtr> pendingContexts;
         {
             TGuard<TSpinLock> guard(SpinLock);
             PendingContexts.swap(pendingContexts);
+            Committing = false;
         }
+        return pendingContexts;
+    }
 
+    void OnCommitSuccess()
+    {
+        auto pendingContexts = FinishCommit();
         for (auto context : pendingContexts) {
             GetTimestampImpl(std::move(context));
         }
@@ -148,7 +159,10 @@ private:
 
     void OnCommitFailure(const TError& error)
     {
-
+        auto pendingContexts = FinishCommit();
+        for (auto context : pendingContexts) {
+            context->Reply(error);
+        }
     }
 
 
@@ -161,7 +175,10 @@ private:
 
     void Load(TLoadContext& context)
     {
-        SetTimestamps(NYT::Load<TTimestamp>(context));
+        auto timestamp = NYT::Load<TTimestamp>(context);
+        CurrentTimestamp = timestamp;
+        WatermarkTimestamp = timestamp;
+        PersistentTimestamp = timestamp;
     }
 
     void Save(TSaveContext& context) const
@@ -172,13 +189,8 @@ private:
 
     void HydraCommitTimestamp(const TReqCommitTimestamp& request)
     {
-        SetTimestamps(request.timestamp());
-    }
-
-    void SetTimestamps(TTimestamp timestamp)
-    {
-        WatermarkTimestamp = timestamp - Config->BatchSize / 2;
-        PersistentTimestamp = timestamp;
+        PersistentTimestamp = request.timestamp();
+        WatermarkTimestamp = PersistentTimestamp - Config->BatchSize / 2;
     }
 
 };
