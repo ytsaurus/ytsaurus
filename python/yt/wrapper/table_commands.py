@@ -44,13 +44,21 @@ def _prepare_source_tables(tables):
         tables = _filter_empty_tables(tables)
     return tables
 
+def _check_columns(columns, type):
+    if len(columns) == 1 and "," in columns:
+        logger.info('Comma found in column name "%s". '
+                    'Did you mean to %s by a composite key?',
+                    columns[0], type)
+
 def _prepare_reduce_by(reduce_by):
     if reduce_by is None:
         if config.USE_YAMR_SORT_REDUCE_COLUMNS:
             reduce_by = ["key"]
         else:
             raise YtError("reduce_by option is required")
-    return flatten(reduce_by)
+    reduce_by = flatten(reduce_by)
+    _check_columns(reduce_by, "reduce")
+    return reduce_by
 
 def _prepare_sort_by(sort_by):
     if sort_by is None:
@@ -58,7 +66,9 @@ def _prepare_sort_by(sort_by):
             sort_by = ["key", "subkey"]
         else:
             raise YtError("sort_by option is required")
-    return flatten(sort_by)
+    sort_by = flatten(sort_by)
+    _check_columns(sort_by, "sort")
+    return sort_by
 
 def _prepare_files(files):
     if files is None:
