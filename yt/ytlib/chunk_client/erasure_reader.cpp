@@ -629,7 +629,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
             blockSizes.back() = placementExt.parity_last_block_size();
         }
         ErasedBlockCount_ += blockSizes.size();
-        ErasedDataSize_ += std::accumulate(blockSizes.begin(), blockSizes.end(), 0);
+        ErasedDataSize_ += std::accumulate(blockSizes.begin(), blockSizes.end(), 0LL);
         RepairBlockReaders_.push_back(TRepairPartReader(blockSizes));
     }
 
