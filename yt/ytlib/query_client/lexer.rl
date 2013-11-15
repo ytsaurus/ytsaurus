@@ -24,8 +24,8 @@ typedef TParser::token_type TToken;
     kw_from = 'from'i;
     kw_where = 'where'i;
 
-	kw_and = 'and'i;
-	kw_or = 'or'i;
+    kw_and = 'and'i;
+    kw_or = 'or'i;
 
     keyword = kw_from | kw_where;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
@@ -62,7 +62,7 @@ typedef TParser::token_type TToken;
         kw_from   => { type = TToken::KwFrom;   fbreak; };
         kw_where  => { type = TToken::KwWhere;  fbreak; };
 
-		kw_and   => { type = TToken::KwAnd;   fbreak; };
+        kw_and   => { type = TToken::KwAnd;   fbreak; };
         kw_or  => { type = TToken::KwOr;  fbreak; };
 
         identifier => {

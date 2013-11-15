@@ -35,7 +35,7 @@ DECLARE_ENUM(EBinaryOp,
 
     (Multiply)
     (Divide)
-    (Module)
+    (Modulo)
 
     (And)
     (Or)

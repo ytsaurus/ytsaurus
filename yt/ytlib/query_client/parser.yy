@@ -67,7 +67,7 @@
 %token OpMinus "`-`"
 
 %token OpDivide "`/`"
-%token OpModule "`%`"
+%token OpModulo "`%`"
 
 %type <TOperator*> select-clause
 %type <TOperator*> select-source
@@ -125,7 +125,7 @@ from-where-clause
         {
             $$ = $source;
         }
-    | from-clause[source] KwWhere relational-op-expr[predicate]
+    | from-clause[source] KwWhere or-op-expr[predicate]
         {
             auto filterOp = new (context) TFilterOperator(context, $source);
             filterOp->SetPredicate($predicate);
@@ -180,8 +180,8 @@ atomic-expr
         {
             $$ = new (context) TDoubleLiteralExpression(context, @$, $value);
         }
-	| LeftParenthesis or-op-expr[expr] RightParenthesis
-		{ $$ = $expr; }
+    | LeftParenthesis or-op-expr[expr] RightParenthesis
+        { $$ = $expr; }
 ;
 
 function-expr
@@ -222,8 +222,8 @@ or-op-expr
                 $lhs,
                 $rhs);
         }
-	| and-op-expr
-		{ $$ = $1; }
+    | and-op-expr
+        { $$ = $1; }
 ;
 
 and-op-expr
@@ -236,12 +236,12 @@ and-op-expr
                 $lhs,
                 $rhs);
         }
-	| equality-op-expr
-		{ $$ = $1; }
+    | equality-op-expr
+        { $$ = $1; }
 ;
 
 equality-op-expr
-	: additive-op-expr[lhs] equality-op[opcode] relational-op-expr[rhs]
+    : additive-op-expr[lhs] equality-op[opcode] relational-op-expr[rhs]
         {
             $$ = new (context) TBinaryOpExpression(
                 context,
@@ -250,8 +250,8 @@ equality-op-expr
                 $lhs,
                 $rhs);
         }
-	| relational-op-expr
-		{ $$ = $1; }
+    | relational-op-expr
+        { $$ = $1; }
 ;
 
 equality-op
@@ -271,8 +271,8 @@ relational-op-expr
                 $lhs,
                 $rhs);
         }
-	| additive-op-expr
-		{ $$ = $1; }
+    | additive-op-expr
+        { $$ = $1; }
 ;
 
 relational-op
@@ -296,8 +296,8 @@ additive-op-expr
                 $lhs,
                 $rhs);
         }
-	| multiplicative-op-expr
-		{ $$ = $1; }
+    | multiplicative-op-expr
+        { $$ = $1; }
 ;
 
 additive-op
@@ -317,8 +317,8 @@ multiplicative-op-expr
                 $lhs,
                 $rhs);
         }
-	| atomic-expr
-		{ $$ = $1; }
+    | atomic-expr
+        { $$ = $1; }
 ;
 
 multiplicative-op
@@ -326,8 +326,8 @@ multiplicative-op
         { $$ = EBinaryOp::Multiply; }
     | OpDivide
         { $$ = EBinaryOp::Divide; }
-	| OpModule
-        { $$ = EBinaryOp::Module; }
+    | OpModulo
+        { $$ = EBinaryOp::Modulo; }
 ;
 
 %%
