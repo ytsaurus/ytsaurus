@@ -87,7 +87,9 @@ class TestTxCommands(YTEnvSetup):
         sleep(1)
 
         # an attempt to commit tx_outer aborts everything
-        assert get_transactions() == []
+        assert not exists('#' + tx_outer)
+        assert not exists('#' + tx1)
+        assert not exists('#' + tx2)
 
     def test_nested_tx3(self):
         tx_outer = start_transaction()
@@ -99,7 +101,9 @@ class TestTxCommands(YTEnvSetup):
         abort_transaction(tx_outer)
         
         # and this aborts all nested transactions
-        assert get_transactions() == []
+        assert not exists('#' + tx_outer)
+        assert not exists('#' + tx1)
+        assert not exists('#' + tx2)
 
     def test_timeout(self):
         tx = start_transaction(opt = '/timeout=4000')
