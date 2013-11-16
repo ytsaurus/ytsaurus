@@ -16,7 +16,7 @@ typedef TParser::token_type TToken;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#line 114 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 113 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 
 
 namespace {
@@ -30,7 +30,7 @@ static const int Lexer_en_ypath = 23;
 static const int Lexer_en_main = 4;
 
 
-#line 118 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 117 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 } // namespace anonymous
 
 TLexer::TLexer(TPlanContext* context, const Stroka& source)
@@ -63,7 +63,7 @@ void TLexer::Initialize(const char* begin, const char* end)
 	act = 0;
 	}
 
-#line 142 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 141 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 }
 
 TParser::token_type TLexer::GetNextToken(
@@ -116,11 +116,11 @@ _resume:
 	switch ( cs )
 	{
 tr0:
-#line 100 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 99 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::OpNotEqual; {p++; cs = 4; goto _out;} }}
 	goto st4;
 tr2:
-#line 78 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 77 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{{p = ((te))-1;}{
             type = TToken::DoubleLiteral;
             value->build(FromString<double>(ts, te - ts));
@@ -128,42 +128,42 @@ tr2:
         }}
 	goto st4;
 tr5:
-#line 108 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 107 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::End; {p++; cs = 4; goto _out;} }}
 	goto st4;
 tr8:
-#line 103 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 102 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             type = static_cast<TToken>((*p));
             {p++; cs = 4; goto _out;}
         }}
 	goto st4;
 tr18:
-#line 90 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 89 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             p--;
             {goto st23;}
         }}
 	goto st4;
 tr19:
-#line 94 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 93 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             YUNREACHABLE();
         }}
 	goto st4;
 tr20:
-#line 111 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 110 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{ location->begin = te - s; }}
 	goto st4;
 tr21:
-#line 103 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 102 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = static_cast<TToken>((*p));
             {p++; cs = 4; goto _out;}
         }}
 	goto st4;
 tr23:
-#line 78 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 77 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = TToken::DoubleLiteral;
             value->build(FromString<double>(ts, te - ts));
@@ -171,7 +171,7 @@ tr23:
         }}
 	goto st4;
 tr25:
-#line 73 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 72 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = TToken::IntegerLiteral;
             value->build(FromString<i64>(ts, te - ts));
@@ -179,15 +179,15 @@ tr25:
         }}
 	goto st4;
 tr26:
-#line 98 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 97 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::OpLessOrEqual; {p++; cs = 4; goto _out;} }}
 	goto st4;
 tr27:
-#line 99 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 98 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::OpGreaterOrEqual; {p++; cs = 4; goto _out;} }}
 	goto st4;
 tr28:
-#line 68 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 67 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = TToken::Identifier;
             value->build(Context_->Capture(ts, te));
@@ -375,31 +375,31 @@ case 12:
 tr14:
 #line 1 "NONE"
 	{te = p+1;}
-#line 68 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 67 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{act = 8;}
 	goto st13;
 tr31:
 #line 1 "NONE"
 	{te = p+1;}
-#line 65 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 64 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{act = 6;}
 	goto st13;
 tr34:
 #line 1 "NONE"
 	{te = p+1;}
-#line 62 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 61 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{act = 4;}
 	goto st13;
 tr35:
 #line 1 "NONE"
 	{te = p+1;}
-#line 66 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 65 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{act = 7;}
 	goto st13;
 tr39:
 #line 1 "NONE"
 	{te = p+1;}
-#line 63 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 62 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{act = 5;}
 	goto st13;
 st13:
@@ -581,11 +581,11 @@ case 22:
 		goto tr14;
 	goto tr28;
 tr40:
-#line 57 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 56 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;}
 	goto st23;
 tr41:
-#line 43 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 42 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             if (++rd == 1) {
                 rs = p + 1;
@@ -594,7 +594,7 @@ tr41:
 	goto st23;
 tr42:
 	cs = 23;
-#line 48 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 47 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             if (--rd == 0) {
                 re = p;
@@ -675,13 +675,13 @@ case 23:
 	_out: {}
 	}
 
-#line 153 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 152 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
     location->end = p - s;
 
     if (cs == 
 #line 683 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.cpp"
 0
-#line 155 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
+#line 154 "/home/lukyan/dev/yt/yt/ytlib/query_client/lexer.rl"
 ) {
         // TODO(sandello): Handle lexer failures.
         return TToken::Failure;
