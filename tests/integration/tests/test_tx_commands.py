@@ -14,11 +14,11 @@ class TestTxCommands(YTEnvSetup):
     def test_simple1(self):
         tx = start_transaction()
         
-        assert exists('#' + tx)
+        assert exists('//sys/transactions/' + tx)
 
         commit_transaction(tx)
 
-        assert not exists('#' + tx)
+        assert not exists('//sys/transactions/' + tx)
 
         #cannot commit committed transaction
         with pytest.raises(YtError): commit_transaction(tx)
@@ -26,11 +26,11 @@ class TestTxCommands(YTEnvSetup):
     def test_simple2(self):
         tx = start_transaction()
 
-        assert exists('#' + tx)
+        assert exists('//sys/transactions/' + tx)
         
         abort_transaction(tx)
         
-        assert not exists('#' + tx)
+        assert not exists('//sys/transactions/' + tx)
 
         #cannot commit aborted transaction
         with pytest.raises(YtError): commit_transaction(tx)
@@ -86,9 +86,9 @@ class TestTxCommands(YTEnvSetup):
         sleep(1)
 
         # an attempt to commit tx_outer aborts everything
-        assert not exists('#' + tx_outer)
-        assert not exists('#' + tx1)
-        assert not exists('#' + tx2)
+        assert not exists('//sys/transactions/' + tx_outer)
+        assert not exists('//sys/transactions/' + tx1)
+        assert not exists('//sys/transactions/' + tx2)
 
     def test_nested_tx3(self):
         tx_outer = start_transaction()
@@ -100,58 +100,58 @@ class TestTxCommands(YTEnvSetup):
         abort_transaction(tx_outer)
         
         # and this aborts all nested transactions
-        assert not exists('#' + tx_outer)
-        assert not exists('#' + tx1)
-        assert not exists('#' + tx2)
+        assert not exists('//sys/transactions/' + tx_outer)
+        assert not exists('//sys/transactions/' + tx1)
+        assert not exists('//sys/transactions/' + tx2)
 
     def test_timeout(self):
         tx = start_transaction(opt = '/timeout=4000')
 
         # check that transaction is still alive after 2 seconds
         sleep(2)
-        assert exists('#' + tx)
+        assert exists('//sys/transactions/' + tx)
 
         # check that transaction is expired after 4 seconds
         sleep(2)
-        assert not exists('#' + tx)
+        assert not exists('//sys/transactions/' + tx)
 
     def test_ping(self):
         tx = start_transaction(opt = '/timeout=4000')
 
         sleep(2)
-        assert exists('#' + tx)
+        assert exists('//sys/transactions/' + tx)
         ping_transaction(tx)
 
         sleep(3)
-        assert exists('#' + tx)
+        assert exists('//sys/transactions/' + tx)
         
     def test_expire_outer(self):
         tx_outer = start_transaction(opt = '/timeout=4000')
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(2)
-        assert exists('#' + tx_inner)
-        assert exists('#' + tx_outer)
+        assert exists('//sys/transactions/' + tx_inner)
+        assert exists('//sys/transactions/' + tx_outer)
         ping_transaction(tx_inner)
 
         sleep(3)
         # check that outer tx expired (and therefore inner was aborted)
-        assert not exists('#' + tx_inner)
-        assert not exists('#' + tx_outer)
+        assert not exists('//sys/transactions/' + tx_inner)
+        assert not exists('//sys/transactions/' + tx_outer)
 
     def test_ping_ancestors(self):
         tx_outer = start_transaction(opt = '/timeout=4000')
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(2)
-        assert exists('#' + tx_inner)
-        assert exists('#' + tx_outer)
+        assert exists('//sys/transactions/' + tx_inner)
+        assert exists('//sys/transactions/' + tx_outer)
         ping_transaction(tx_inner, ping_ancestor_txs=True)
 
         sleep(3)
         # check that all tx are still alive
-        assert exists('#' + tx_inner)
-        assert exists('#' + tx_outer)
+        assert exists('//sys/transactions/' + tx_inner)
+        assert exists('//sys/transactions/' + tx_outer)
 
     def test_tx_not_staged(self):
         tx_outer = start_transaction()
