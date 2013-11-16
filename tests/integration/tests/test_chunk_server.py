@@ -9,7 +9,6 @@ from time import sleep
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
-    START_SCHEDULER = False
 
     def test_owning_nodes1(self):
         create('table', '//tmp/t')

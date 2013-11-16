@@ -9,7 +9,6 @@ from time import sleep
 class TestNodeTracker(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
-    START_SCHEDULER = False
 
     def test_ban(self):
         nodes = ls('//sys/nodes')

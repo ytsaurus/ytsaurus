@@ -13,7 +13,6 @@ from time import sleep
 class TestUsers(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
-    START_SCHEDULER = False
 
     def test_user_ban1(self):
         create_user('u')

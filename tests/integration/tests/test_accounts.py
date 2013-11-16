@@ -9,7 +9,6 @@ from yt_commands import *
 class TestAccounts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
-    START_SCHEDULER = False
 
 
     def _get_account_disk_space(self, account):
