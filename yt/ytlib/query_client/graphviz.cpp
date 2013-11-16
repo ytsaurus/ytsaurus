@@ -407,56 +407,20 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-#ifndef _win_
 
-void ViewPlanFragment(const TPlanFragment& planFragment, const Stroka& title_)
-{
-    char name[] = "/tmp/graph.XXXXXX";
-    int fd = mkstemp(name);
-
-    YCHECK(fd > 0);
-
-    auto debugInformation = planFragment.GetContext()->GetDebugInformation();
-    auto headOperator = planFragment.GetHead();
-
-    try {
-        TFile handle(fd);
-        TFileOutput output(handle);
-
-        TGraphVizVisitor visitor(output);
-
-        auto title = title_;
-        if (title.empty()) {
-            title = debugInformation ? debugInformation->Source : "";
-        }
-
-        visitor.WriteHeader(title);
-        Traverse(&visitor, headOperator);
-        visitor.WriteFooter();
-
-        NDot::ViewGraph(name);
-        ::unlink(name);
-    } catch (...) {
-        ::unlink(name);
-        throw;
-    }
-}
-
-
-#else
-
-void ViewPlanFragment(const TPlanFragment& fragment, const Stroka& title_)
+void DumpPlanFragment(
+    const TPlanFragment& fragment,
+    TOutputStream& output,
+    const Stroka& title)
 {
     auto debugInformation = fragment.GetContext()->GetDebugInformation();
     auto headOperator = fragment.GetHead();
 
-    TFileOutput output("query_graph.dot");
-
     TGraphVizVisitor visitor(output);
 
-    auto title = title_;
-    if (title.empty()) {
-        title = debugInformation ? debugInformation->Source : "";
+    auto actualTitle = title;
+    if (actualTitle.empty()) {
+        actualTitle = debugInformation ? debugInformation->Source : "";
     }
 
     visitor.WriteHeader(title);
@@ -464,7 +428,40 @@ void ViewPlanFragment(const TPlanFragment& fragment, const Stroka& title_)
     visitor.WriteFooter();
 }
 
+void DumpPlanFragmentToFile(
+    const TPlanFragment& fragment,
+    const Stroka& file,
+    const Stroka& title)
+{
+    TFileOutput output(file);
+    DumpPlanFragment(fragment, output, title);
+}
+
+void ViewPlanFragment(const TPlanFragment& fragment, const Stroka& title)
+{
+#ifndef _win_
+    char file[] = "/tmp/graph.XXXXXX";
+    int fd = mkstemp(file);
+
+    YCHECK(fd > 0);
+
+    try {
+        TFile handle(fd);
+        TFileOutput output(handle);
+
+        DumpPlanFragment(fragment, output, title);
+        NDot::ViewGraph(file);
+
+        ::unlink(file);
+    } catch (...) {
+        ::unlink(file);
+        throw;
+    }
+#else
+    YUNIMPLEMENTED();
 #endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
