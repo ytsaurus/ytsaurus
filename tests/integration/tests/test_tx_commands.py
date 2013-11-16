@@ -14,12 +14,11 @@ class TestTxCommands(YTEnvSetup):
     def test_simple1(self):
         tx = start_transaction()
         
-        #check that transaction is on the master (also within a tx)
-        self.assertItemsEqual(get_transactions(), [tx])
+        assert exists('#' + tx)
 
         commit_transaction(tx)
-        #check that transaction no longer exists
-        self.assertItemsEqual(get_transactions(), [])
+
+        assert not exists('#' + tx)
 
         #cannot commit committed transaction
         with pytest.raises(YtError): commit_transaction(tx)
@@ -27,11 +26,11 @@ class TestTxCommands(YTEnvSetup):
     def test_simple2(self):
         tx = start_transaction()
 
-        self.assertItemsEqual(get_transactions(), [tx])
+        assert exists('#' + tx)
         
         abort_transaction(tx)
-        #check that transaction no longer exists
-        self.assertItemsEqual(get_transactions(), [])
+        
+        assert not exists('#' + tx)
 
         #cannot commit aborted transaction
         with pytest.raises(YtError): commit_transaction(tx)
@@ -110,45 +109,49 @@ class TestTxCommands(YTEnvSetup):
 
         # check that transaction is still alive after 2 seconds
         sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx])
+        assert exists('#' + tx)
 
         # check that transaction is expired after 4 seconds
         sleep(2)
-        self.assertItemsEqual(get_transactions(), [])
+        assert not exists('#' + tx)
 
     def test_ping(self):
         tx = start_transaction(opt = '/timeout=4000')
 
         sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx])
+        assert exists('#' + tx)
         ping_transaction(tx)
 
         sleep(3)
-        self.assertItemsEqual(get_transactions(), [tx])
+        assert exists('#' + tx)
         
     def test_expire_outer(self):
         tx_outer = start_transaction(opt = '/timeout=4000')
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        assert exists('#' + tx_inner)
+        assert exists('#' + tx_outer)
         ping_transaction(tx_inner)
 
         sleep(3)
         # check that outer tx expired (and therefore inner was aborted)
-        self.assertItemsEqual(get_transactions(), [])
+        assert not exists('#' + tx_inner)
+        assert not exists('#' + tx_outer)
 
     def test_ping_ancestors(self):
         tx_outer = start_transaction(opt = '/timeout=4000')
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        assert exists('#' + tx_inner)
+        assert exists('#' + tx_outer)
         ping_transaction(tx_inner, ping_ancestor_txs=True)
 
         sleep(3)
         # check that all tx are still alive
-        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        assert exists('#' + tx_inner)
+        assert exists('#' + tx_outer)
 
     def test_tx_not_staged(self):
         tx_outer = start_transaction()
@@ -161,16 +164,34 @@ class TestTxCommands(YTEnvSetup):
         tx2 = start_transaction(tx = tx1)
         tx3 = start_transaction(tx = tx1)
 
-        self.assertItemsEqual(get_transactions(), [tx1, tx2, tx3])
-        self.assertItemsEqual(get_topmost_transactions(), [tx1])
+        txs = get_transactions()
+        assert tx1 in txs
+        assert tx2 in txs
+        assert tx3 in txs
+        topmost_txs = get_topmost_transactions()
+        assert tx1 in topmost_txs
+        assert not (tx2 in topmost_txs)
+        assert not (tx3 in topmost_txs)
 
         abort_transaction(tx2)
-        self.assertItemsEqual(get_transactions(), [tx1, tx3])
-        self.assertItemsEqual(get_topmost_transactions(), [tx1])
+        txs = get_transactions()
+        assert tx1 in txs
+        assert not (tx2 in txs)
+        assert tx3 in txs
+        topmost_txs = get_topmost_transactions()
+        assert tx1 in topmost_txs
+        assert not (tx2 in topmost_txs)
+        assert not (tx3 in topmost_txs)
 
         abort_transaction(tx1)
-        self.assertItemsEqual(get_transactions(), [])
-        self.assertItemsEqual(get_topmost_transactions(), [])
+        txs = get_transactions()
+        assert not(tx1 in txs)
+        assert not (tx2 in txs)
+        assert not (tx3 in txs)
+        topmost_txs = get_topmost_transactions()
+        assert not (tx1 in topmost_txs)
+        assert not (tx2 in topmost_txs)
+        assert not (tx3 in topmost_txs)
 
     def test_revision1(self):
         set('//tmp/a', 'b')
