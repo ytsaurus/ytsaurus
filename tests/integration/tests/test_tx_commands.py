@@ -9,7 +9,7 @@ from time import sleep
 
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 0
+    NUM_NODES = 3
 
     def test_simple1(self):
         tx = start_transaction()
