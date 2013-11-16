@@ -101,6 +101,15 @@ class TRcuTree<TKey, TComparer>::TReader
     : public TIntrinsicRefCounted
 {
 public:
+    explicit TReader(TRcuTree* tree)
+        : Tree_(tree)
+        , Comparer_(Tree_->Comparer_)
+        , Timestamp_(InactiveReaderTimestamp)
+        , StackTop_(Stack_.data() - 1)
+        , StackBottom_(Stack_.data())
+    { }
+
+
     template <class TPivot>
     bool Find(TPivot pivot, TKey* key = nullptr)
     {
@@ -207,9 +216,6 @@ public:
     }
 
 private:
-    template <class T, class... As>
-    friend TIntrusivePtr<T> NYT::New(As&&...);
-
     friend class TRcuTree;
 
     TRcuTree* Tree_;
@@ -222,15 +228,6 @@ private:
     std::array<intptr_t, 128> Stack_;
     intptr_t* StackTop_;
     intptr_t* StackBottom_;
-
-
-    explicit TReader(TRcuTree* tree)
-        : Tree_(tree)
-        , Comparer_(Tree_->Comparer_)
-        , Timestamp_(InactiveReaderTimestamp)
-        , StackTop_(Stack_.data() - 1)
-        , StackBottom_(Stack_.data())
-    { }
 
 
     void Acquire()
