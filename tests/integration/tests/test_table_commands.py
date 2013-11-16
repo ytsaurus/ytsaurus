@@ -10,6 +10,7 @@ from time import sleep
 class TestTableCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
+    START_SCHEDULER = True
 
     def test_invalid_type(self):
         with pytest.raises(YtError): read('//tmp')
