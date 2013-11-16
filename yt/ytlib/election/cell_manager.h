@@ -17,14 +17,14 @@ namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellManagerPtr CreateCellManager(
-    TCellConfigPtr config,
-    TPeerId selfId);
-
 class TCellManager
     : public TRefCounted
 {
 public:
+    TCellManager(
+        TCellConfigPtr config,
+        TPeerId selfId);
+
     const TCellGuid& GetCellGuid() const;
     TPeerId GetSelfId() const;
     const Stroka& GetSelfAddress() const;
@@ -44,9 +44,6 @@ public:
     DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
 
 private:
-    template <class T, class... As>
-    friend TIntrusivePtr<T> NYT::New(As&&...);
-
     TCellConfigPtr Config;
     TPeerId SelfId;
 
@@ -58,10 +55,6 @@ private:
 
     NLog::TTaggedLogger Logger;
          
-
-    TCellManager(
-        TCellConfigPtr config,
-        TPeerId selfId);
 
     void BuildTags();
 

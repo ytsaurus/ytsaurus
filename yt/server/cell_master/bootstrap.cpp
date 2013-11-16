@@ -250,7 +250,7 @@ void TBootstrap::Run()
             ~selfAddress.Quote());
     }
 
-    CellManager = CreateCellManager(
+    CellManager = New<TCellManager>(
         Config->Masters,
         selfId);
 

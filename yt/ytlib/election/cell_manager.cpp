@@ -161,13 +161,6 @@ IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
     return realmChannel;
 }
 
-TCellManagerPtr CreateCellManager(
-    TCellConfigPtr config,
-    TPeerId selfId)
-{
-    return NYT::New<TCellManager>(config, selfId);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NElection

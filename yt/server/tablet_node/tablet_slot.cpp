@@ -228,7 +228,7 @@ public:
             PeerId = configureInfo.peer_id();
             State = EPeerState::Elections;
 
-            CellManager = CreateCellManager(
+            CellManager = New<TCellManager>(
                 cellConfig,
                 configureInfo.peer_id());
 
