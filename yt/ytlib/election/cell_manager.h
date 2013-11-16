@@ -44,8 +44,8 @@ public:
     DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
 
 private:
-    template <class TType, class A1, class A2>
-    friend TIntrusivePtr<TType> NYT::New(A1&&, A2&&);
+    template <class T, class... As>
+    friend TIntrusivePtr<T> NYT::New(As&&...);
 
     TCellConfigPtr Config;
     TPeerId SelfId;

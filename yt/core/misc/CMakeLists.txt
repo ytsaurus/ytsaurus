@@ -42,6 +42,7 @@ set( SRCS
   ${BASE}/varint.cpp
 )
 set( HDRS
+  ${BASE}/new.h
   ${BASE}/address.h
   ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
@@ -129,5 +130,4 @@ protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 protoc( ${BASE}/protobuf_helpers.proto YT_SOURCE_FILES )
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
 
-PUMP( ${BASE}/new.h.pump YT_SOURCE_FILES )
 PUMP( ${BASE}/preprocessor-gen.h.pump YT_SOURCE_FILES )

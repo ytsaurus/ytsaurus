@@ -207,8 +207,8 @@ public:
     }
 
 private:
-    template <class TType, class A1>
-    friend TIntrusivePtr<TType> NYT::New(A1&&);
+    template <class T, class... As>
+    friend TIntrusivePtr<T> NYT::New(As&&...);
 
     friend class TRcuTree;
 

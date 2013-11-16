@@ -301,7 +301,7 @@ private:
     {
         YASSERT(!HasValue_);
         // TODO(babenko): variadic forwarding does not work in VS2012 Nov CTP
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && _MSC_VER < 1800
         new (&Storage_) TValueType(as...);
 #else
         new (&Storage_) TValueType(std::forward<As>(as)...);
