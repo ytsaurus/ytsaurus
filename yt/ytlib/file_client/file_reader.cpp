@@ -6,7 +6,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/transaction_client/transaction.h>
 

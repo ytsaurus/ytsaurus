@@ -16,7 +16,7 @@
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 

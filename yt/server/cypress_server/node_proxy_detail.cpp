@@ -9,6 +9,7 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/node_detail.h>

@@ -15,6 +15,7 @@
 #include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/transaction_client/transaction.h>
 

@@ -14,6 +14,7 @@
 #include <core/concurrency/fiber.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/object_client/public.h>
 
