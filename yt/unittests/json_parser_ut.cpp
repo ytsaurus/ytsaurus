@@ -345,7 +345,6 @@ TEST(TJsonParserTest, SomeHackyTest)
     ParseJson(&stream, &Mock);
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
