@@ -148,5 +148,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLookupRequest
+    : public TRequest
+{
+    std::vector<NYTree::INodePtr> Key;
+    NTransactionClient::TTimestamp Timestamp;
+
+    TLookupRequest()
+    {
+        RegisterParameter("key", Key);
+        RegisterParameter("timestamp", Timestamp)
+            .Default(NTransactionClient::LastCommittedTimestamp);
+    }
+};
+
+class TLookupCommand
+    : public TTypedCommand<TLookupRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

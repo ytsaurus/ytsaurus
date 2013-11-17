@@ -79,6 +79,7 @@ public:
         RegisterExecutor(New<TUnmountExecutor>());
         RegisterExecutor(New<TInsertExecutor>());
         RegisterExecutor(New<TSelectExecutor>());
+        RegisterExecutor(New<TLookupExecutor>());
 
         RegisterExecutor(New<TMapExecutor>());
         RegisterExecutor(New<TMergeExecutor>());

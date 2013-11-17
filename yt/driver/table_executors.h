@@ -33,7 +33,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TUnlabeledStringArg ValueArg;
-    TCLAP::ValueArg<Stroka> SortedBy;
+    TCLAP::ValueArg<Stroka> SortedByArg;
 
     bool UseStdIn;
     TStringStream Stream;
@@ -103,6 +103,22 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<Stroka> QueryArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLookupExecutor
+    : public TRequestExecutor
+{
+public:
+    TLookupExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<Stroka> KeyArg;
+    TCLAP::ValueArg<NTransactionClient::TTimestamp> TimestampArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

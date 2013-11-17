@@ -137,6 +137,7 @@ public:
         REGISTER(TUnmountCommand,           "unmount",           Null,       Null,       true,  false);
         REGISTER(TInsertCommand,            "insert",            Tabular,    Null,       true,  true );
         REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
+        REGISTER(TLookupCommand,            "lookup",            Null,       Tabular,    false, true );
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
         REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);

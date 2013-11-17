@@ -37,18 +37,18 @@ Stroka TReadExecutor::GetCommandName() const
 TWriteExecutor::TWriteExecutor()
     : PathArg("path", "table path to write", true, "", "YPATH")
     , ValueArg("value", "row(s) to write", false, "", "YSON")
-    , SortedBy("", "sorted_by", "key columns names (for sorted write)", false, "", "YSON_LIST_FRAGMENT")
+    , SortedByArg("", "sorted_by", "key columns names (for sorted write)", false, "", "YSON_LIST_FRAGMENT")
     , UseStdIn(true)
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
-    CmdLine.add(SortedBy);
+    CmdLine.add(SortedByArg);
 }
 
 void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
-    auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedBy.getValue(), EYsonType::ListFragment));
+    auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
 
     const auto& value = ValueArg.getValue();
     if (!value.empty()) {
@@ -172,6 +172,32 @@ void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
 Stroka TSelectExecutor::GetCommandName() const 
 {
     return "select";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLookupExecutor::TLookupExecutor()
+    : KeyArg("key", "key to lookup", true, "", "YSON_LIST_FRAGMENT")
+    , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
+{
+    CmdLine.add(KeyArg);
+    CmdLine.add(TimestampArg);
+}
+
+void TLookupExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto key = ConvertTo<std::vector<INodePtr>>(TYsonString(KeyArg.getValue(), EYsonType::ListFragment));
+
+    BuildYsonMapFluently(consumer)
+        .Item("key").Value(key)
+        .DoIf(TimestampArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("timestamp").Value(TimestampArg.getValue());
+        });
+}
+
+Stroka TLookupExecutor::GetCommandName() const
+{
+    return "lookup";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
