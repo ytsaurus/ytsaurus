@@ -6,6 +6,7 @@
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
 #include "serialization_context.h"
+#include "scheduler_strategy.h"
 
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -853,11 +854,15 @@ private:
         StartConnecting();
     }
 
-    static TYsonString BuildOperationYson(TOperationPtr operation)
+    TYsonString BuildOperationYson(TOperationPtr operation)
     {
         return BuildYsonStringFluently()
             .BeginAttributes()
                 .Do(BIND(&BuildOperationAttributes, operation))
+                .Item("brief_spec").BeginMap()
+                    .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Bootstrap->GetScheduler()->GetStrategy(), operation))
+                .EndMap()
                 .Item("progress").BeginMap().EndMap()
                 .Item("opaque").Value("true")
             .EndAttributes()

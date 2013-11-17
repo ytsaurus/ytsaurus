@@ -51,6 +51,12 @@ struct ISchedulerStrategy
     //! Provides a string describing operation status and statistics.
     virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) = 0;
 
+    //! Called for a just initialized operation to construct its brief spec
+    //! to be used by UI.
+    virtual void BuildBriefSpec(
+        TOperationPtr operation,
+        NYson::IYsonConsumer* consumer) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

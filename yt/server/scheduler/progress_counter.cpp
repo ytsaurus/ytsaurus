@@ -89,7 +89,7 @@ i64 TProgressCounter::GetFailed() const
 
 i64 TProgressCounter::GetAborted() const
 {
-    return std::accumulate(Aborted_.begin(), Aborted_.end(), 0);
+    return std::accumulate(Aborted_.begin(), Aborted_.end(), 0LL);
 }
 
 i64 TProgressCounter::GetAborted(EAbortReason reason) const

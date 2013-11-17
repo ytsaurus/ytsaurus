@@ -83,11 +83,11 @@ void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(inputs)
-            .Item("output_table_paths").List(outputs)
+            .Item("input_table_paths").Value(inputs)
+            .Item("output_table_paths").Value(outputs)
             .Item("mapper").BeginMap()
                 .Item("command").Value(CommandArg.getValue())
-                .Item("file_paths").List(files)
+                .Item("file_paths").Value(files)
             .EndMap()
         .EndMap();
 
@@ -125,17 +125,17 @@ TMergeExecutor::TMergeExecutor()
 void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
-    auto outupts = PreprocessYPath(OutArg.getValue());
+    auto outputs = PreprocessYPath(OutArg.getValue());
     auto mergeBy = ConvertTo< std::vector<Stroka> >(TYsonString(MergeByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(inputs)
-            .Item("output_table_path").Value(outupts)
+            .Item("input_table_paths").Value(inputs)
+            .Item("output_table_path").Value(outputs)
             .Item("mode").Value(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Value(CombineArg.getValue())
             .DoIf(!mergeBy.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("merge_by").List(mergeBy);
+                fluent.Item("merge_by").Value(mergeBy);
             })
         .EndMap();
 
@@ -172,9 +172,9 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(inputs)
+            .Item("input_table_paths").Value(inputs)
             .Item("output_table_path").Value(outputs)
-            .Item("sort_by").List(sortBy)
+            .Item("sort_by").Value(sortBy)
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -250,14 +250,14 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(inputs)
-            .Item("output_table_paths").List(outputs)
+            .Item("input_table_paths").Value(inputs)
+            .Item("output_table_paths").Value(outputs)
             .DoIf(!reduceBy.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("reduce_by").List(reduceBy);
+                fluent.Item("reduce_by").Value(reduceBy);
             })
             .Item("reducer").BeginMap()
                 .Item("command").Value(CommandArg.getValue())
-                .Item("file_paths").List(files)
+                .Item("file_paths").Value(files)
             .EndMap()
         .EndMap();
 
@@ -312,30 +312,30 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(inputs)
-            .Item("output_table_paths").List(outputs)
-            .Item("sort_by").List(sortBy)
+            .Item("input_table_paths").Value(inputs)
+            .Item("output_table_paths").Value(outputs)
+            .Item("sort_by").Value(sortBy)
             .DoIf(!reduceBy.empty(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("reduce_by").List(reduceBy);
+                    .Item("reduce_by").Value(reduceBy);
             })
             .DoIf(!MapperCommandArg.getValue().empty(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
                         .Item("command").Value(MapperCommandArg.getValue())
-                        .Item("file_paths").List(mapperFiles)
+                        .Item("file_paths").Value(mapperFiles)
                     .EndMap();
             })
             .DoIf(!ReduceCombinerCommandArg.getValue().empty(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("reduce_combiner").BeginMap()
                         .Item("command").Value(ReduceCombinerCommandArg.getValue())
-                        .Item("file_paths").List(reduceCombinerFiles)
+                        .Item("file_paths").Value(reduceCombinerFiles)
                     .EndMap();
             })
             .Item("reducer").BeginMap()
                 .Item("command").Value(ReducerCommandArg.getValue())
-                .Item("file_paths").List(reducerFiles)
+                .Item("file_paths").Value(reducerFiles)
             .EndMap()
        .EndMap();
 

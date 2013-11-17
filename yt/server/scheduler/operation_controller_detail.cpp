@@ -3066,6 +3066,13 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
+void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
+        .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
+}
+
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
 {
     return std::vector<TPathWithStage>();

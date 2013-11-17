@@ -939,6 +939,13 @@ public:
             });
     }
 
+    virtual void BuildBriefSpec(TOperationPtr operation, IYsonConsumer* consumer) override
+    {
+        auto element = GetOperationElement(operation);
+        BuildYsonMapFluently(consumer)
+            .Item("pool").Value(element->GetPool()->GetId());
+    }
+
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* Host;
