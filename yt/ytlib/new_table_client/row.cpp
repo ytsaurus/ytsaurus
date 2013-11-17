@@ -101,18 +101,58 @@ size_t GetHash(const TRowValue& value)
     }
 }
 
+size_t GetRowDataSize(int valueCount)
+{
+    return sizeof (TRowHeader) + sizeof (TRowValue) * valueCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRowBuilder::TRowBuilder(int capacity)
+    : Capacity_(std::max(capacity, 4))
+    , Data_(new char[GetRowDataSize(Capacity_)])
+{
+    auto* header = GetHeader();
+    header->ValueCount = 0;
+    header->Deleted = false;
+    header->Timestamp = NullTimestamp;
+}
+
+void TRowBuilder::AddValue(const TRowValue& value)
+{
+    if (GetRow().GetValueCount() == Capacity_) {
+        int newCapacity = Capacity_ * 2;
+        std::unique_ptr<char[]> newData(new char[GetRowDataSize(newCapacity)]);
+        ::memcpy(newData.get(), Data_.get(), GetRowDataSize(Capacity_));
+        std::swap(Data_, newData);
+        Capacity_ = newCapacity;
+    }
+
+    auto* header = GetHeader();
+    auto row = GetRow();
+    row[header->ValueCount++] = value;
+}
+
+TRow TRowBuilder::GetRow() const
+{
+    return TRow(GetHeader());
+}
+
+TRowHeader* TRowBuilder::GetHeader() const
+{
+    return reinterpret_cast<TRowHeader*>(Data_.get());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOwningRowTag { };
 
 TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType)
 {
-    auto rowData = TSharedRef::Allocate<TOwningRowTag>(
-        sizeof (TRowHeader) + sizeof (TRowValue) * (prefixLength + 1),
-        false);
-    ::memcpy(rowData.Begin(), key.RowData.Begin(), sizeof (TRowValue) * prefixLength);
+    auto rowData = TSharedRef::Allocate<TOwningRowTag>(GetRowDataSize(prefixLength + 1), false);
+    ::memcpy(rowData.Begin(), key.RowData.Begin(), GetRowDataSize(prefixLength));
     TRow result(reinterpret_cast<TRowHeader*>(rowData.Begin()));
-    result[prefixLength] = TRowValue::MakeSentinel(0, sentinelType);
+    result[prefixLength] = TRowValue::MakeSentinel(sentinelType);
     return TOwningRow(std::move(rowData), key.StringData);
 }
 
@@ -138,7 +178,7 @@ TOwningRow::TOwningRow(TRow other)
     if (!other)
         return;
 
-    size_t fixedSize = sizeof (TRowHeader) + sizeof (TRowValue) * other.GetValueCount();
+    size_t fixedSize = GetRowDataSize(other.GetValueCount());
     RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
     ::memcpy(RowData.Begin(), other.GetHeader(), fixedSize);
 
@@ -248,7 +288,7 @@ void FromProto(TOwningRow* row, const TProtoStringType& protoRow)
     ui32 valueCount;
     current += ReadVarUInt32(current, &valueCount);
     
-    size_t fixedSize = sizeof (TRowHeader) + sizeof (TRowValue) * valueCount;
+    size_t fixedSize = GetRowDataSize(valueCount);
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
     

@@ -151,11 +151,13 @@ private:
 struct TLookupRequest
     : public TRequest
 {
+    NYPath::TRichYPath Path;
     std::vector<NYTree::INodePtr> Key;
     NTransactionClient::TTimestamp Timestamp;
 
     TLookupRequest()
     {
+        RegisterParameter("path", Path);
         RegisterParameter("key", Key);
         RegisterParameter("timestamp", Timestamp)
             .Default(NTransactionClient::LastCommittedTimestamp);

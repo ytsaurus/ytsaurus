@@ -34,7 +34,7 @@ struct TRowValue
         const char* String;
     } Data;
 
-    static FORCED_INLINE TRowValue MakeSentinel(int id, EColumnType type)
+    static FORCED_INLINE TRowValue MakeSentinel(EColumnType type, int id = 0)
     {
         TRowValue result;
         result.Id = id;
@@ -42,7 +42,7 @@ struct TRowValue
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeInteger(int id, i64 value)
+    static FORCED_INLINE TRowValue MakeInteger(i64 value, int id = 0)
     {
         TRowValue result;
         result.Id = id;
@@ -51,7 +51,7 @@ struct TRowValue
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeDouble(int id, double value)
+    static FORCED_INLINE TRowValue MakeDouble(double value, int id = 0)
     {
         TRowValue result;
         result.Id = id;
@@ -60,7 +60,7 @@ struct TRowValue
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeString(int id, const TStringBuf& value)
+    static FORCED_INLINE TRowValue MakeString(const TStringBuf& value, int id = 0)
     {
         TRowValue result;
         result.Id = id;
@@ -70,7 +70,7 @@ struct TRowValue
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeAny(int id, const TStringBuf& value)
+    static FORCED_INLINE TRowValue MakeAny(const TStringBuf& value, int id = 0)
     {
         TRowValue result;
         result.Id = id;
@@ -97,6 +97,9 @@ int CompareRows(TRow lhs, TRow rhs, int prefixLength = std::numeric_limits<int>:
 
 //! Computes hash for a given TRowValue.
 size_t GetHash(const TRowValue& value);
+
+//! Returns the number of bytes needed to store the fixed part of the row (header + values).
+size_t GetRowDataSize(int valueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,6 +194,28 @@ private:
 };
 
 static_assert(sizeof (TRow) == sizeof (intptr_t), "TRow has to be exactly sizeof (intptr_t) bytes.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A helper used for constructing TRow instances.
+/*!
+ *  Owns TRowValue array. Does not own the data.
+ */
+class TRowBuilder
+{
+public:
+    explicit TRowBuilder(int capacity = 16);
+
+    void AddValue(const TRowValue& value);
+    TRow GetRow() const;
+
+private:
+    int Capacity_;
+    std::unique_ptr<char[]> Data_;
+
+    TRowHeader* GetHeader() const;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

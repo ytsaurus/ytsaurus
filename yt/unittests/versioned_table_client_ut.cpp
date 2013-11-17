@@ -50,25 +50,22 @@ protected:
 
     void WriteInteger(i64 value, int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeInteger(id, value));
+        ChunkWriter->WriteValue(TRowValue::MakeInteger(value, id));
     }
 
     void WriteDouble(double value, int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeDouble(id, value));
+        ChunkWriter->WriteValue(TRowValue::MakeDouble(value, id));
     }
 
-    void WriteString(Stroka value, int id)
+    void WriteString(const Stroka& value, int id)
     {
-        ChunkWriter->WriteValue(
-            TRowValue::MakeString(
-                id,
-                TStringBuf(value.c_str(), value.length())));
+        ChunkWriter->WriteValue(TRowValue::MakeString(value, id));
     }
 
     void WriteNull(int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeSentinel(id, EColumnType::Null));
+        ChunkWriter->WriteValue(TRowValue::MakeSentinel(EColumnType::Null, id));
     }
 
     Stroka ToStroka(const TRowValue& value)

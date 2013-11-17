@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/new_table_client/public.h>
+
 #include <server/hydra/entity_map.h>
 #include <server/hydra/mutation.h>
 
@@ -40,6 +42,8 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
+
+    NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
 
     void MountTable(NTableServer::TTableNode* table);
     void UnmountTable(NTableServer::TTableNode* table);

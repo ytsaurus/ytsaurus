@@ -7,13 +7,18 @@
 #include <core/concurrency/fiber.h>
 
 #include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
+
+#include <ytlib/chunk_client/memory_writer.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NVersionedTableClient;
 using namespace NConcurrency;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,12 +68,17 @@ TMemoryTable::TMemoryTable(
     , TreePool_(Config_->TreePoolChunkSize, Config_->PoolMaxSmallBlockRatio)
     , RowPool_(Config_->RowPoolChunkSize, Config_->PoolMaxSmallBlockRatio)
     , StringPool_(Config_->StringPoolChunkSize, Config_->PoolMaxSmallBlockRatio)
+    , NameTable_(New<TNameTable>())
     , Comparer_(new TComparer(
         Tablet_->KeyColumns().size()))
     , Tree_(new TRcuTree<TRowGroup, TComparer>(
         &TreePool_,
         Comparer_.get()))
-{ }
+{
+    for (const auto& column : Tablet_->Schema().Columns()) {
+        NameTable_->RegisterName(column.Name);
+    }
+}
 
 void TMemoryTable::WriteRows(
     TTransaction* transaction,
@@ -94,7 +104,7 @@ void TMemoryTable::WriteRows(
     while (true) {
         bool hasData = reader->Read(&rows);
         for (auto row : rows) {
-            auto group = WriteRow(transaction, row, prewrite);
+            auto group = WriteRow(nameTable, transaction, row, prewrite);
             if (lockedGroups && group) {
                 lockedGroups->push_back(group);
             }
@@ -112,6 +122,7 @@ void TMemoryTable::WriteRows(
 }
 
 TRowGroup TMemoryTable::WriteRow(
+    TNameTablePtr nameTable,
     TTransaction* transaction,
     TRow row,
     bool prewrite)
@@ -119,17 +130,25 @@ TRowGroup TMemoryTable::WriteRow(
     TRowGroup result;
 
     int keyColumnCount = static_cast<int>(Tablet_->KeyColumns().size());
-    int valueCount = row.GetValueCount() - static_cast<int>(Tablet_->KeyColumns().size());
+    int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
+    int valueCount = row.GetValueCount();
 
     auto internValues = [&] (TRowGroupItem item) {
         auto internedRow = item.GetRow();
-        for (int index = 0; index < keyColumnCount; ++index) {
-            InternValue(&internedRow[index], row[index]);
+        for (int index = keyColumnCount; index < valueCount; ++index) {
+            const auto& rowValue = row[index];
+            auto& internedRowValue = internedRow[index - keyColumnCount];
+            InternValue(&internedRowValue, rowValue);
+            if (rowValue.Id >= schemaColumnCount) {
+                internedRowValue.Id = NameTable_->GetOrRegisterName(nameTable->GetName(rowValue.Id));
+            } else {
+                internedRowValue.Id = index;
+            }
         }
     };
 
     auto createGroupItem = [&] () -> TRowGroupItem {
-        TRowGroupItem item(&RowPool_, valueCount, NullTimestamp, false);
+        TRowGroupItem item(&RowPool_, valueCount - keyColumnCount, NullTimestamp, false);
         internValues(item);
         return item;
     };
@@ -150,7 +169,9 @@ TRowGroup TMemoryTable::WriteRow(
 
         // Copy keys.
         for (int index = 0; index < keyColumnCount; ++index) {
-            InternValue(&group[index], row[index]);
+            auto& internedValue = group[index];
+            InternValue(&internedValue, row[index]);
+            internedValue.Id = index;
         }
 
         // Intern the values and insert a new item.
@@ -255,6 +276,74 @@ void TMemoryTable::AbortGroup(TRowGroup group)
     }
 
     group.SetTransaction(nullptr);
+}
+
+void TMemoryTable::LookupRows(
+    TRow key,
+    TTimestamp timestamp,
+    TChunkMeta* chunkMeta,
+    std::vector<TSharedRef>* blocks)
+{
+    auto memoryWriter = New<TMemoryWriter>();
+
+    auto chunkWriter = New<TChunkWriter>(
+        New<TChunkWriterConfig>(), // TODO(babenko): make static
+        New<TEncodingWriterOptions>(), // TODO(babenko): make static
+        memoryWriter);
+
+    chunkWriter->Open(
+        NameTable_,
+        Tablet_->Schema(),
+        Tablet_->KeyColumns());
+
+    auto* scanner = Tree_->AllocateScanner();
+
+    TRowGroup group;
+    if (scanner->Find(key, &group)) {
+        auto groupItem = FetchGroupItem(group, timestamp);
+        if (groupItem) {
+            // Key
+            for (int index = 0; index < static_cast<int>(Tablet_->KeyColumns().size()); ++index) {
+                const auto& value = group[index];
+                chunkWriter->WriteValue(value);
+            }
+            // Value
+            auto row = groupItem.GetRow();
+            for (int index = 0; index < row.GetValueCount(); ++index) {
+                const auto& value = row[index];
+                chunkWriter->WriteValue(value);
+            }
+            chunkWriter->EndRow();
+        }
+    }
+
+    Tree_->FreeScanner(scanner);
+
+    auto closeResult = WaitFor(chunkWriter->AsyncClose());
+    THROW_ERROR_EXCEPTION_IF_FAILED(closeResult);
+
+    *chunkMeta = std::move(memoryWriter->GetChunkMeta());
+    *blocks = std::move(memoryWriter->GetBlocks());
+}
+
+TRowGroupItem TMemoryTable::FetchGroupItem(
+    TRowGroup group,
+    TTimestamp timestamp)
+{
+    auto item = group.GetFirstItem();
+    while (item) {
+        if (!item.GetOrphaned()) {
+            auto row = item.GetRow();
+            // TODO(babenko): fixme
+            if (timestamp == LastCommittedTimestamp ||
+                row.GetTimestamp() <= timestamp)
+            {
+                return item;
+            }
+        }
+        item = item.GetNextItem();
+    }
+    return TRowGroupItem();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

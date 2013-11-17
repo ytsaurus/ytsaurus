@@ -53,7 +53,7 @@ public:
     void FreeScanner(TScanner* scanner);
 
 private:
-    friend class TScanner;
+    friend class TRcuTreeScanner<TKey, TComparer>;
     struct TNode;
 
     TChunkedMemoryPool* Pool_;
@@ -95,32 +95,11 @@ private:
 };
 
 template <class TKey, class TComparer>
-struct TRcuTree<TKey, TComparer>::TNode
-{
-    union
-    {
-        struct
-        {
-            bool Red;
-        } Flags;
-        TRcuTreeTimestamp GCTimestamp;
-    };
-    union
-    {
-        TNode* Parent;
-        TNode* Next;
-    };
-    TKey Key;
-    TNode* Left;
-    TNode* Right;
-};
-
-template <class TKey, class TComparer>
 class TRcuTreeScanner
 {
 private:
     typedef TRcuTree<TKey, TComparer> TTree;
-    friend class TTree;
+    friend class TRcuTree<TKey, TComparer>;
 
     typedef TRcuTreeScanner<TKey, TComparer> TScanner;
 

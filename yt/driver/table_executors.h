@@ -117,6 +117,7 @@ public:
     TLookupExecutor();
 
 private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::UnlabeledValueArg<Stroka> KeyArg;
     TCLAP::ValueArg<NTransactionClient::TTimestamp> TimestampArg;
 

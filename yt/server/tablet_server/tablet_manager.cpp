@@ -264,6 +264,31 @@ public:
     }
 
 
+    TTableSchema GetTableSchema(TTableNode* table)
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto tableProxy = objectManager->GetProxy(table);
+
+        // COMPAT(babenko): schema must be mandatory
+        auto schema = tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
+        const auto& sortedBy = table->GetChunkList()->SortedBy();
+
+        // Ensure that every key column is mentioned in schema.
+        // Move all key columns up the front.
+        for (int keyIndex = 0; keyIndex < static_cast<int>(sortedBy.size()); ++keyIndex) {
+            auto* column = schema.FindColumn(sortedBy[keyIndex]);
+            if (!column) {
+                THROW_ERROR_EXCEPTION("Schema does define a key column %s",
+                    ~sortedBy[keyIndex].Quote());
+            }
+            int schemaIndex = schema.GetColumnIndex(*column);
+            if (schemaIndex != keyIndex) {
+                std::swap(schema.Columns()[schemaIndex], schema.Columns()[keyIndex]);
+            }
+        }
+        return schema;
+    }
+
     void MountTable(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -277,32 +302,26 @@ public:
             THROW_ERROR_EXCEPTION("Table is not sorted");
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto hiveManager = Bootstrap->GetHiveManager();
-
-        auto tableProxy = objectManager->GetProxy(table);
+        auto schema = GetTableSchema(table); // may throw
 
         auto* cell = AllocateCell(); // may throw
 
         auto* tablet = CreateTablet(table, cell);
         tablet->SetState(ETabletState::Initializing);
         table->SetTablet(tablet);
+
+        auto objectManager = Bootstrap->GetObjectManager();
         objectManager->RefObject(tablet);
 
         YCHECK(cell->Tablets().insert(tablet).second);
 
         {
-            TReqCreateTablet req;
-            
+            TReqCreateTablet req;           
             ToProto(req.mutable_tablet_id(), tablet->GetId());
-            
-            // COMPAT(babenko): schema must be mandatory
-            auto schema = tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
             ToProto(req.mutable_schema(), schema);
-
-            const auto* chunkList = table->GetChunkList();
-            ToProto(req.mutable_key_columns()->mutable_names(), chunkList->SortedBy());
+            ToProto(req.mutable_key_columns()->mutable_names(), table->GetChunkList()->SortedBy());
             
+            auto hiveManager = Bootstrap->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
         }
@@ -912,6 +931,11 @@ TMutationPtr TTabletManager::CreateSetCellStateMutation(const TReqSetCellState& 
 TMutationPtr TTabletManager::CreateRevokePeerMutation(const TReqRevokePeer& request)
 {
     return Impl->CreateRevokePeerMutation(request);
+}
+
+TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
+{
+    return Impl->GetTableSchema(table);
 }
 
 void TTabletManager::MountTable(TTableNode* table)

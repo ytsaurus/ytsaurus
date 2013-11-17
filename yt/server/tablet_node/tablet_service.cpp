@@ -36,6 +36,7 @@ TTabletService::TTabletService(
     YCHECK(Bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Lookup));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
@@ -58,6 +59,30 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
         transaction,
         std::move(*request->mutable_chunk_meta()),
         std::move(context->RequestAttachments()));
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTabletService, Lookup)
+{
+    ValidateActiveLeader();
+
+    auto tabletId = FromProto<TTabletId>(request->tablet_id());
+    auto timestamp = TTimestamp(request->timestamp());
+    auto key = FromProto<TOwningRow>(request->key());
+    
+    context->SetRequestInfo("TabletId: %s, Timestamp: %" PRId64,
+        ~ToString(tabletId),
+        timestamp);
+
+    auto tabletManager = Slot->GetTabletManager();
+    auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
+    tabletManager->Lookup(
+        tablet,
+        key,
+        timestamp,
+        response->mutable_chunk_meta(),
+        &response->Attachments());
 
     context->Reply();
 }

@@ -150,6 +150,17 @@ public:
             ->Commit();
     }
 
+    void Lookup(
+        TTablet* tablet,
+        TRow key,
+        TTimestamp timestamp,
+        TChunkMeta* chunkMeta,
+        std::vector<TSharedRef>* blocks)
+    {
+        auto memoryTable = tablet->GetActiveMemoryTable();
+        memoryTable->LookupRows(key, timestamp, chunkMeta, blocks);
+    }
+
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
@@ -405,6 +416,11 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
     return Impl->GetTabletOrThrow(id);
 }
 
+void TTabletManager::Initialize()
+{
+    Impl->Initialize();
+}
+
 void TTabletManager::Write(
     TTablet* tablet,
     TTransaction* transaction,
@@ -418,9 +434,19 @@ void TTabletManager::Write(
         std::move(blocks));
 }
 
-void TTabletManager::Initialize()
+void TTabletManager::Lookup(
+    TTablet* tablet,
+    TRow key,
+    TTimestamp timestamp,
+    TChunkMeta* chunkMeta,
+    std::vector<TSharedRef>* blocks)
 {
-    Impl->Initialize();
+    Impl->Lookup(
+        tablet,
+        key,
+        timestamp,
+        chunkMeta,
+        blocks);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl)

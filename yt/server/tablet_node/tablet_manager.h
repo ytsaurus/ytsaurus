@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/transaction_client/public.h>
+
 #include <ytlib/new_table_client/public.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
@@ -36,6 +38,13 @@ public:
         TTransaction* transaction,
         NChunkClient::NProto::TChunkMeta chunkMeta,
         std::vector<TSharedRef> blocks);
+
+    void Lookup(
+        TTablet* tablet,
+        NVersionedTableClient::TRow key,
+        NTransactionClient::TTimestamp timestamp,
+        NChunkClient::NProto::TChunkMeta* chunkMeta,
+        std::vector<TSharedRef>* blocks);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 

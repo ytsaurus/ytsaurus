@@ -177,18 +177,22 @@ Stroka TSelectExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TLookupExecutor::TLookupExecutor()
-    : KeyArg("key", "key to lookup", true, "", "YSON_LIST_FRAGMENT")
+    : PathArg("path", "table path to lookup", true, "", "YPATH")
+    , KeyArg("key", "key to lookup", true, "", "YSON_LIST_FRAGMENT")
     , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
 {
+    CmdLine.add(PathArg);
     CmdLine.add(KeyArg);
     CmdLine.add(TimestampArg);
 }
 
 void TLookupExecutor::BuildArgs(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
     auto key = ConvertTo<std::vector<INodePtr>>(TYsonString(KeyArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
+        .Item("path").Value(path)
         .Item("key").Value(key)
         .DoIf(TimestampArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("timestamp").Value(TimestampArg.getValue());

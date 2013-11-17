@@ -36,33 +36,6 @@ bool AreRowsEqual(TRow lhs, TRow rhs)
     return true;
 }
 
-class TRowBuilder
-{
-public:
-    explicit TRowBuilder(int valueCount)
-        : Data(new char[sizeof (TRowHeader) + sizeof (TRowValue) * valueCount])
-    {
-        auto* header = reinterpret_cast<TRowHeader*>(Data.get());
-        header->ValueCount = valueCount;
-
-        TRow row(*this);
-        row.SetDeleted(false);
-        row.SetTimestamp(NullTimestamp);
-        for (int index = 0; index < valueCount; ++index) {
-            row[index] = TRowValue::MakeSentinel(0, EColumnType::Null);
-        }
-    }
-
-    operator TRow()
-    {
-        return TRow(reinterpret_cast<TRowHeader*>(Data.get()));
-    }
-
-private:
-    std::unique_ptr<char[]> Data;
-
-};
-
 void CheckSerialize(TRow row)
 {
     TOwningRow owningRow(row);
@@ -77,8 +50,8 @@ void CheckSerialize(TRow row)
 
 TEST(TRowTest, Serialize1)
 {
-    TRowBuilder builder(0);
-    TRow row(builder);
+    TRowBuilder builder;
+    auto row = builder.GetRow();
     row.SetDeleted(true);
     row.SetTimestamp(123);
     CheckSerialize(row);
@@ -87,26 +60,24 @@ TEST(TRowTest, Serialize1)
 
 TEST(TRowTest, Serialize2)
 {
-    TRowBuilder builder(3);
-    TRow row(builder);
-    row[0] = TRowValue::MakeSentinel(0, EColumnType::Null);
-    row[1] = TRowValue::MakeInteger(1, 42);
-    row[2] = TRowValue::MakeDouble(2, 0.25);
-    CheckSerialize(row);
+    TRowBuilder builder;
+    builder.AddValue(TRowValue::MakeSentinel(EColumnType::Null, 0));
+    builder.AddValue(TRowValue::MakeInteger(42, 1));
+    builder.AddValue(TRowValue::MakeDouble(0.25, 2));
+    CheckSerialize(builder.GetRow());
 }
 
 TEST(TRowTest, Serialize3)
 {
     // TODO(babenko): cannot test Any type at the moment since CompareRowValues does not work
     // for it.
-    TRowBuilder builder(5);
-    TRow row(builder);
-    row[0] = TRowValue::MakeString(10, "string1");
-    row[1] = TRowValue::MakeInteger(20, 1234);
-    row[2] = TRowValue::MakeString(30, "string2");
-    row[3] = TRowValue::MakeDouble(1000, 4321.0);
-    row[4] = TRowValue::MakeString(10000, "");
-    CheckSerialize(row);
+    TRowBuilder builder;
+    builder.AddValue(TRowValue::MakeString("string1", 10));
+    builder.AddValue(TRowValue::MakeInteger(1234, 20));
+    builder.AddValue(TRowValue::MakeString("string2", 30));
+    builder.AddValue(TRowValue::MakeDouble(4321.0, 1000));
+    builder.AddValue(TRowValue::MakeString("", 10000));
+    CheckSerialize(builder.GetRow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

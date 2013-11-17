@@ -5,6 +5,12 @@
 
 #include <core/misc/rcu_tree.h>
 
+#include <ytlib/transaction_client/public.h>
+
+#include <ytlib/new_table_client/public.h>
+
+#include <ytlib/chunk_client/chunk.pb.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -28,6 +34,12 @@ public:
     static void CommitGroup(TRowGroup group);
     static void AbortGroup(TRowGroup group);
 
+    void LookupRows(
+        NVersionedTableClient::TRow key,
+        NTransactionClient::TTimestamp timestamp,
+        NChunkClient::NProto::TChunkMeta* chunkMeta,
+        std::vector<TSharedRef>* blocks);
+
 private:
     class TComparer;
 
@@ -38,11 +50,14 @@ private:
     TChunkedMemoryPool RowPool_;
     TChunkedMemoryPool StringPool_;
 
+    NVersionedTableClient::TNameTablePtr NameTable_;
+
     std::unique_ptr<TComparer> Comparer_;
     std::unique_ptr<TRcuTree<TRowGroup, TComparer>> Tree_;
 
 
     TRowGroup WriteRow(
+        NVersionedTableClient::TNameTablePtr nameTable,
         TTransaction* transaction,
         NVersionedTableClient::TRow row,
         bool prewrite);
@@ -50,6 +65,10 @@ private:
     void InternValue(
         NVersionedTableClient::TRowValue* dst,
         const NVersionedTableClient::TRowValue& src);
+
+    TRowGroupItem FetchGroupItem(
+        TRowGroup group,
+        NTransactionClient::TTimestamp timestamp);
 
 };
 

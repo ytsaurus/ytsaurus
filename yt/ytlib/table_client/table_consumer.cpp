@@ -379,7 +379,7 @@ void TVersionedTableConsumer::OnStringScalar(const TStringBuf& value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(NVersionedTableClient::TRowValue::MakeString(ColumnIndex, value));
+        WriteValue(NVersionedTableClient::TRowValue::MakeString(value, ColumnIndex));
     }
 }
 
@@ -413,7 +413,7 @@ void TVersionedTableConsumer::OnIntegerScalar(i64 value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(NVersionedTableClient::TRowValue::MakeInteger(ColumnIndex, value));
+        WriteValue(NVersionedTableClient::TRowValue::MakeInteger(value, ColumnIndex));
     }
 }
 
@@ -429,7 +429,7 @@ void TVersionedTableConsumer::OnDoubleScalar(double value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(NVersionedTableClient::TRowValue::MakeDouble(ColumnIndex, value));
+        WriteValue(NVersionedTableClient::TRowValue::MakeDouble(value, ColumnIndex));
     }
 }
 
@@ -599,7 +599,7 @@ void TVersionedTableConsumer::OnEndMap()
             if (SchemaColumnDescriptors[id].Written) {
                 SchemaColumnDescriptors[id].Written = false;
             } else {
-                CurrentWriter->WriteValue(TRowValue::MakeSentinel(id, EColumnType::Null));
+                CurrentWriter->WriteValue(TRowValue::MakeSentinel(EColumnType::Null, id));
             }
         }
         CurrentWriter->EndRow();

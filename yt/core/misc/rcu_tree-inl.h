@@ -8,6 +8,29 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TComparer>
+struct TRcuTree<TKey, TComparer>::TNode
+{
+    union
+    {
+        struct
+        {
+            bool Red;
+        } Flags;
+        TRcuTreeTimestamp GCTimestamp;
+    };
+    union
+    {
+        TNode* Parent;
+        TNode* Next;
+    };
+    TKey Key;
+    TNode* Left;
+    TNode* Right;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TComparer>
 TRcuTree<TKey, TComparer>::TRcuTree(
     TChunkedMemoryPool* pool,
     const TComparer* comparer)

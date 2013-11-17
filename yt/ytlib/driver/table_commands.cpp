@@ -34,6 +34,7 @@
 #include <ytlib/query_client/executor.h>
 
 #include <ytlib/tablet_client/public.h>
+#include <ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <ytlib/hive/cell_directory.h>
 
@@ -42,6 +43,7 @@
 
 #include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/row.h>
 
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -347,7 +349,7 @@ void TSelectCommand::DoExecute()
     {
         auto error = WaitFor(chunkReader->Open(
             nameTable,
-            NVersionedTableClient::TTableSchema(),
+            TTableSchema(),
             true));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
@@ -409,6 +411,125 @@ void TSelectCommand::DoExecute()
 
 void TLookupCommand::DoExecute()
 {
+    auto tableMountCache = Context->GetTableMountCache();
+    auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
+
+    const auto& mountInfo = mountInfoOrError.GetValue();
+    if (mountInfo->TabletId == NullTabletId) {
+        THROW_ERROR_EXCEPTION("Table is not mounted");
+    }
+
+    auto cellDirectory = Context->GetCellDirectory();
+    auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
+
+    TTabletServiceProxy proxy(channel);
+    auto req = proxy.Lookup();
+    ToProto(req->mutable_tablet_id(), mountInfo->TabletId);
+    req->set_timestamp(Request->Timestamp);
+    
+    TRowBuilder keyBuilder;
+    std::vector<TYsonString> anyValues;
+    for (auto keyPart : Request->Key) {
+        switch (keyPart->GetType()) {
+            case ENodeType::Integer:
+                keyBuilder.AddValue(TRowValue::MakeInteger(keyPart->GetValue<i64>()));
+                break;
+            case ENodeType::Double:
+                keyBuilder.AddValue(TRowValue::MakeDouble(keyPart->GetValue<double>()));
+                break;
+            case ENodeType::String:
+                // NB: keyPart will hold the value.
+                keyBuilder.AddValue(TRowValue::MakeString(keyPart->GetValue<Stroka>()));
+                break;
+            default: {
+                // NB: Hold the serialized value explicitly.
+                auto anyValue = ConvertToYsonString(keyPart);
+                anyValues.push_back(anyValue);
+                keyBuilder.AddValue(TRowValue::MakeAny(anyValue.Data()));
+                break;
+            }
+        }
+    }
+
+    auto key = keyBuilder.GetRow();
+    ToProto(req->mutable_key(), key);
+
+    auto rsp = WaitFor(req->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+    // TODO(babenko): eliminate copy-paste (see TSelectCommand::DoExecute).
+    auto memoryReader = New<TMemoryReader>(
+        std::move(*rsp->mutable_chunk_meta()),
+        std::move(rsp->Attachments()));
+    auto chunkReader = CreateChunkReader(
+        New<TChunkReaderConfig>(),
+        memoryReader);
+
+    TBlobOutput buffer;
+    auto format = Context->GetOutputFormat();
+    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+
+    auto nameTable = New<TNameTable>();
+    {
+        auto error = WaitFor(chunkReader->Open(
+            nameTable,
+            TTableSchema(),
+            true));
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    }
+
+    const int RowsBufferSize = 1000;
+    std::vector<NVersionedTableClient::TRow> rows;
+    rows.reserve(RowsBufferSize);
+
+    while (true) {
+        bool hasData = chunkReader->Read(&rows);
+        for (auto row : rows) {
+            consumer->OnListItem();
+            consumer->OnBeginMap();
+            for (int i = 0; i < row.GetValueCount(); ++i) {
+                const auto& value = row[i];
+                if (value.Type == EColumnType::Null)
+                    continue;
+                consumer->OnKeyedItem(nameTable->GetName(value.Id));
+                switch (value.Type) {
+                    case EColumnType::Integer:
+                        consumer->OnIntegerScalar(value.Data.Integer);
+                        break;
+                    case EColumnType::Double:
+                        consumer->OnDoubleScalar(value.Data.Double);
+                        break;
+                    case EColumnType::String:
+                        consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                        break;
+                    case EColumnType::Any:
+                        consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
+            }
+            consumer->OnEndMap();
+        }
+        if (!hasData) {
+            break;
+        }
+        if (rows.size() < rows.capacity()) {
+            auto result = WaitFor(chunkReader->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+        rows.clear();
+    }
+
+    auto output = Context->Request().OutputStream;
+    if (!output->Write(buffer.Begin(), buffer.Size())) {
+        auto result = WaitFor(output->GetReadyEvent());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+    buffer.Clear();
+
+    ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

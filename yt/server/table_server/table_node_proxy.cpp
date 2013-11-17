@@ -286,12 +286,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ValidateNoTransaction();
 
     auto* impl = GetThisTypedImpl();
-    auto proxy = GetProxy(impl);
 
     ToProto(response->mutable_table_id(), impl->GetId());
 
-    // COMPAT(babenko): schema must be mandatory
-    auto schema = proxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
+    auto tabletManager = Bootstrap->GetTabletManager();
+    auto schema = tabletManager->GetTableSchema(impl);
     ToProto(response->mutable_schema(), schema);
 
     const auto* chunkList = impl->GetChunkList();

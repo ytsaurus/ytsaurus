@@ -37,3 +37,18 @@ message TRspWrite
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqLookup
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bytes key = 2;
+    required int64 timestamp = 3;
+}
+
+message TRspLookup
+{
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 1;
+    // Chunk blocks are passed via attachments.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
