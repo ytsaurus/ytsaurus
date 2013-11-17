@@ -276,9 +276,7 @@ private:
 
         virtual TFuture<void> Seal(int recordCount) override
         {
-            // XXX(babenko): fix this!
-            return MakeFuture();
-            //return SplitChangelog->Seal(recordCount);
+            return SplitChangelog->Seal(recordCount);
         }
 
         virtual void Unseal() override

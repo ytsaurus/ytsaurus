@@ -44,6 +44,7 @@ public:
         , SealRecordCount(-1)
     { }
 
+
     void Lock()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -58,52 +59,20 @@ public:
         AtomicDecrement(UseCount);
     }
 
-    TFuture<void> Append(const TSharedRef& data)
+
+    TFuture<void> Append(TSharedRef data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
         YCHECK(!SealForced);
-        AppendQueue.push_back(data);
+        AppendQueue.push_back(std::move(data));
         ByteSize += data.Size();
 
         YCHECK(FlushPromise);
         return FlushPromise;
     }
 
-    void SyncFlush()
-    {
-        VERIFY_THREAD_AFFINITY(Flush);
-
-        TPromise<void> promise;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-
-            YCHECK(FlushQueue.empty());
-            FlushQueue.swap(AppendQueue);
-            ByteSize = 0;
-
-            YCHECK(FlushPromise);
-            promise = FlushPromise;
-            FlushPromise = NewPromise();
-            FlushForced = false;
-        }
-
-        if (!FlushQueue.empty()) {
-            PROFILE_TIMING ("/changelog_flush_io_time") {
-                Changelog->Append(FlushedRecordCount, FlushQueue);
-                Changelog->Flush();
-            }
-        }
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            FlushedRecordCount += FlushQueue.size();
-            FlushQueue.clear();
-        }
-
-        promise.Set();
-    }
 
     TFuture<void> AsyncFlush()
     {
@@ -119,32 +88,6 @@ public:
         return FlushPromise;
     }
 
-    void SyncSeal()
-    {
-        VERIFY_THREAD_AFFINITY(Flush);
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (!SealForced)
-                return;
-        }
-
-        while (true) {
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                if (AppendQueue.empty())
-                    break;
-            }
-            SyncFlush();
-        }
-
-        PROFILE_TIMING ("/changelog_seal_io_time") {
-            Changelog->Seal(SealRecordCount);
-        }
-
-        SealPromise.Set();
-    }
-
     TFuture<void> AsyncSeal(int recordCount)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -158,33 +101,8 @@ public:
         return SealPromise;
     }
 
-    bool TrySweep()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
 
-        TPromise<void> promise;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-
-            if (!AppendQueue.empty() || !FlushQueue.empty()) {
-                return false;
-            }
-
-            if (UseCount != 0) {
-                return false;
-            }
-
-            promise = FlushPromise;
-            FlushPromise.Reset();
-            FlushForced = false;
-        }
-
-        promise.Set();
-
-        return true;
-    }
-
-    bool IsFlushNeeded()
+    bool HasPendingActions()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -202,8 +120,51 @@ public:
             return true;
         }
 
+        if (SealForced) {
+            return true;
+        }
+
         return false;
     }
+
+    void RunPendingActions()
+    {
+        VERIFY_THREAD_AFFINITY(SyncThread);
+
+        SyncFlush();
+        SyncSeal();
+    }
+
+    bool TrySweep()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TPromise<void> promise;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            if (!AppendQueue.empty() || !FlushQueue.empty()) {
+                return false;
+            }
+
+            if (SealForced && !SealPromise.IsSet()) {
+                return false;
+            }
+
+            if (UseCount != 0) {
+                return false;
+            }
+
+            promise = FlushPromise;
+            FlushPromise.Reset();
+            FlushForced = false;
+        }
+
+        promise.Set();
+
+        return true;
+    }
+    
 
     std::vector<TSharedRef> Read(int recordId, int maxRecords, i64 maxBytes)
     {
@@ -280,7 +241,7 @@ private:
     int SealRecordCount;
 
 
-    DECLARE_THREAD_AFFINITY_SLOT(Flush);
+    DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
 
     static void CopyRecords(
@@ -301,6 +262,63 @@ private:
                 beginIt,
                 endIt);
         }
+    }
+
+
+    void SyncFlush()
+    {
+        TPromise<void> flushPromise;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            YCHECK(FlushQueue.empty());
+            FlushQueue.swap(AppendQueue);
+            ByteSize = 0;
+
+            YCHECK(FlushPromise);
+            flushPromise = FlushPromise;
+            FlushPromise = NewPromise();
+            FlushForced = false;
+        }
+
+        if (!FlushQueue.empty()) {
+            PROFILE_TIMING("/changelog_flush_io_time") {
+                Changelog->Append(FlushedRecordCount, FlushQueue);
+                Changelog->Flush();
+            }
+        }
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            FlushedRecordCount += FlushQueue.size();
+            FlushQueue.clear();
+        }
+
+        flushPromise.Set();
+    }
+
+    void SyncSeal()
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (!SealForced)
+                return;
+        }
+
+        while (true) {
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                if (AppendQueue.empty())
+                    break;
+            }
+            SyncFlush();
+        }
+
+        PROFILE_TIMING("/changelog_seal_io_time") {
+            Changelog->Seal(SealRecordCount);
+        }
+
+        SealPromise.Set();
     }
 
 };
@@ -457,16 +475,15 @@ private:
             TGuard<TSpinLock> guard(Spinlock);
             for (const auto& pair : QueueMap) {
                 const auto& queue = pair.second;
-                if (queue->IsFlushNeeded()) {
+                if (queue->HasPendingActions()) {
                     queues.push_back(queue);
                 }
             }
         }
 
-        // Flush the queues.
+        // Flush and seal the changelogs.
         for (auto queue : queues) {
-            queue->SyncFlush();
-            queue->SyncSeal();
+            queue->RunPendingActions();
         }
     }
 
