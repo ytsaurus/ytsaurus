@@ -68,7 +68,6 @@ TMemoryTable::TMemoryTable(
     , Tree_(new TRcuTree<TRowGroup, TComparer>(
         &TreePool_,
         Comparer_.get()))
-    , TreeReader_(Tree_->CreateReader())
 { }
 
 void TMemoryTable::WriteRows(

@@ -40,7 +40,6 @@ private:
 
     std::unique_ptr<TComparer> Comparer_;
     std::unique_ptr<TRcuTree<TRowGroup, TComparer>> Tree_;
-    TRcuTree<TRowGroup, TComparer>::TReader* TreeReader_;
 
 
     TRowGroup WriteRow(

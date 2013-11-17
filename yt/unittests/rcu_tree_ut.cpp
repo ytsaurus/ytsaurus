@@ -23,112 +23,141 @@ struct TComparer
     }
 };
 
-TEST(TRcuTreeTest, Empty)
+class TRcuTreeTest
+    : public ::testing::Test
 {
-    TChunkedMemoryPool pool;
-    TComparer comparer;
-    TRcuTree<int, TComparer> tree(&pool, &comparer);
-
-    ASSERT_EQ(tree.Size(), 0);
-
-    auto* reader = tree.CreateReader();
+public:
+    TChunkedMemoryPool Pool;
+    TComparer Comparer;
+    TRcuTree<int, TComparer> Tree;
     
-    ASSERT_FALSE(reader->Find(1));
+    TRcuTreeTest()
+        : Tree(&Pool, &Comparer)
+    { }
 
-    reader->BeginScan(1);
-    ASSERT_FALSE(reader->IsValid());
-    reader->EndScan();
+};
+
+TEST_F(TRcuTreeTest, ScannerPooling1)
+{
+    auto* scanner1 = Tree.AllocateScanner();
+    auto* scanner2 = Tree.AllocateScanner();
+    ASSERT_NE(scanner1, scanner2);
 }
 
-TEST(TRcuTreeTest, Singleton)
+TEST_F(TRcuTreeTest, ScannerPooling2)
 {
-    TChunkedMemoryPool pool;
-    TComparer comparer;
-    TRcuTree<int, TComparer> tree(&pool, &comparer);
+    auto* scanner1 = Tree.AllocateScanner();
+    auto* scanner2 = Tree.AllocateScanner();
+    ASSERT_NE(scanner1, scanner2);
 
-    ASSERT_TRUE(tree.Insert(0));
-    ASSERT_EQ(tree.Size(), 1);
-
-    auto* reader = tree.CreateReader();
-
-    ASSERT_FALSE(reader->Find(1));
-
-    reader->BeginScan(1);
-    ASSERT_FALSE(reader->IsValid());
-    reader->EndScan();
-
-    reader->BeginScan(-1);
-    ASSERT_TRUE(reader->IsValid());
-    ASSERT_EQ(reader->GetCurrentKey(), 0);
-    reader->Advance();
-    ASSERT_FALSE(reader->IsValid());
-    reader->EndScan();
-
-    reader->BeginScan(0);
-    ASSERT_TRUE(reader->IsValid());
-    ASSERT_EQ(reader->GetCurrentKey(), 0);
-    reader->Advance();
-    ASSERT_FALSE(reader->IsValid());
-    reader->EndScan();
+    Tree.FreeScanner(scanner1);
+    auto* scanner3 = Tree.AllocateScanner();
+    ASSERT_EQ(scanner1, scanner3);
 }
 
-TEST(TRcuTreeTest, 1to10)
+TEST_F(TRcuTreeTest, ScannerPooling3)
 {
-    TChunkedMemoryPool pool;
-    TComparer comparer;
-    TRcuTree<int, TComparer> tree(&pool, &comparer);
+    auto* scanner1 = Tree.AllocateScanner();
+    auto* scanner2 = Tree.AllocateScanner();
+    auto* scanner3 = Tree.AllocateScanner();
+    ASSERT_NE(scanner1, scanner2);
+    ASSERT_NE(scanner1, scanner3);
 
+    Tree.FreeScanner(scanner2);
+    auto* scanner4 = Tree.AllocateScanner();
+    ASSERT_EQ(scanner2, scanner4);
+}
+
+TEST_F(TRcuTreeTest, Empty)
+{
+    ASSERT_EQ(Tree.Size(), 0);
+
+    auto* scanner = Tree.AllocateScanner();
+    
+    ASSERT_FALSE(scanner->Find(1));
+
+    scanner->BeginScan(1);
+    ASSERT_FALSE(scanner->IsValid());
+    scanner->EndScan();
+}
+
+TEST_F(TRcuTreeTest, Singleton)
+{
+    ASSERT_TRUE(Tree.Insert(0));
+    ASSERT_EQ(Tree.Size(), 1);
+
+    auto* scanner = Tree.AllocateScanner();
+
+    ASSERT_FALSE(scanner->Find(1));
+
+    scanner->BeginScan(1);
+    ASSERT_FALSE(scanner->IsValid());
+    scanner->EndScan();
+
+    scanner->BeginScan(-1);
+    ASSERT_TRUE(scanner->IsValid());
+    ASSERT_EQ(scanner->GetCurrentKey(), 0);
+    scanner->Advance();
+    ASSERT_FALSE(scanner->IsValid());
+    scanner->EndScan();
+
+    scanner->BeginScan(0);
+    ASSERT_TRUE(scanner->IsValid());
+    ASSERT_EQ(scanner->GetCurrentKey(), 0);
+    scanner->Advance();
+    ASSERT_FALSE(scanner->IsValid());
+    scanner->EndScan();
+}
+
+TEST_F(TRcuTreeTest, 1to10)
+{
     for (int i = 0; i < 10; ++i) {
-        ASSERT_TRUE(tree.Insert(i));
+        ASSERT_TRUE(Tree.Insert(i));
     }
-    ASSERT_EQ(tree.Size(), 10);
+    ASSERT_EQ(Tree.Size(), 10);
 
-    auto* reader = tree.CreateReader();
+    auto* scanner = Tree.AllocateScanner();
 
     for (int i = 0; i < 10; ++i) {
-        reader->BeginScan(i);
+        scanner->BeginScan(i);
         for (int j = i; j < 10; ++j) {
-            ASSERT_TRUE(reader->IsValid());
-            ASSERT_EQ(reader->GetCurrentKey(), j);
-            reader->Advance();
+            ASSERT_TRUE(scanner->IsValid());
+            ASSERT_EQ(scanner->GetCurrentKey(), j);
+            scanner->Advance();
         }
-        ASSERT_FALSE(reader->IsValid());
-        reader->EndScan();
+        ASSERT_FALSE(scanner->IsValid());
+        scanner->EndScan();
     }
 
     for (int i = 0; i < 10; ++i) {
-        ASSERT_TRUE(reader->Find(i));
+        ASSERT_TRUE(scanner->Find(i));
     }
-    ASSERT_FALSE(reader->Find(-1));
-    ASSERT_FALSE(reader->Find(11));
+    ASSERT_FALSE(scanner->Find(-1));
+    ASSERT_FALSE(scanner->Find(11));
 }
 
-TEST(TRcuTreeTest, Random1000000)
+TEST_F(TRcuTreeTest, Random1000000)
 {
-    TChunkedMemoryPool pool;
-    TComparer comparer;
-    TRcuTree<int, TComparer> tree(&pool, &comparer);
-
     srand(42);
     std::set<int> set;
     for (int i = 0; i < 1000000; ++i) {
         int value = rand();
-        ASSERT_EQ(tree.Insert(value), set.insert(value).second);
+        ASSERT_EQ(Tree.Insert(value), set.insert(value).second);
     }
-    ASSERT_EQ(tree.Size(), set.size());
+    ASSERT_EQ(Tree.Size(), set.size());
 
-    auto* reader = tree.CreateReader();
+    auto* scanner = Tree.AllocateScanner();
     for (int value : set) {
-        ASSERT_TRUE(reader->Find(value));
+        ASSERT_TRUE(scanner->Find(value));
     }
 
-    reader->BeginScan(*set.begin());
+    scanner->BeginScan(*set.begin());
     for (int value : set) {
-        ASSERT_TRUE(reader->IsValid());
-        ASSERT_EQ(reader->GetCurrentKey(), value);
-        reader->Advance();
+        ASSERT_TRUE(scanner->IsValid());
+        ASSERT_EQ(scanner->GetCurrentKey(), value);
+        scanner->Advance();
     }
-    reader->EndScan();
+    scanner->EndScan();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,25 +16,43 @@ TRcuTree<TKey, TComparer>::TRcuTree(
     , Size_(0)
     , Root_(nullptr)
     , Timestamp_(0)
-    , GCSize_(0)
-    , GCHead_(nullptr)
-    , GCTail_(nullptr)
-    , FreeHead_(nullptr)
-{ }
+    , FirstActiveScanner_(nullptr)
+    , FirstInactiveScanner_(nullptr)
+    , InactiveScannerCount_(0)
+    , GCNodeCount_(0)
+    , FirstGCNode_(nullptr)
+    , LastGCNode_(nullptr)
+    , FirstFreeNode_(nullptr)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+}
+
+template <class TKey, class TComparer>
+TRcuTree<TKey, TComparer>::~TRcuTree()
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    DestroyScannerList(FirstActiveScanner_);
+    DestroyScannerList(FirstInactiveScanner_);
+}
 
 template <class TKey, class TComparer>
 int TRcuTree<TKey, TComparer>::Size() const
 {
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
     return Size_;
 }
 
 template <class TKey, class TComparer>
-template <class TPivot, class TNewKeyProvider, class TExistingKeyAcceptor>
+template <class TPivot, class TNewKeyProvider, class TExistingKeyConsumer>
 void TRcuTree<TKey, TComparer>::Insert(
     TPivot pivot,
     TNewKeyProvider newKeyProvider,
-    TExistingKeyAcceptor existingKeyAcceptor)
+    TExistingKeyConsumer existingKeyConsumer)
 {
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
     ++Timestamp_;
     MaybeGCCollect();
 
@@ -44,7 +62,7 @@ void TRcuTree<TKey, TComparer>::Insert(
         while (true) {
             int result = (*Comparer_)(pivot, current->Key);
             if (result == 0) {
-                existingKeyAcceptor(current->Key);
+                existingKeyConsumer(current->Key);
                 return;
             }
             if (result < 0) {
@@ -88,6 +106,8 @@ void TRcuTree<TKey, TComparer>::Insert(
 template <class TKey, class TComparer>
 bool TRcuTree<TKey, TComparer>::Insert(TKey key)
 {
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
     bool result = true;
     Insert(
         key,
@@ -280,19 +300,71 @@ void TRcuTree<TKey, TComparer>::ReplaceChild(TNode* x, TNode* y)
 }
 
 template <class TKey, class TComparer>
-typename TRcuTree<TKey, TComparer>::TReader* TRcuTree<TKey, TComparer>::CreateReader()
+typename TRcuTree<TKey, TComparer>::TScanner* TRcuTree<TKey, TComparer>::AllocateScanner()
 {
-    auto reader = New<TReader>(this);
-    Readers_.push_back(reader);
-    return reader.Get();
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    TScanner* scanner;
+    if (FirstInactiveScanner_) {
+        // Take from pool.
+        scanner = FirstInactiveScanner_;
+        FirstInactiveScanner_ = FirstInactiveScanner_->NextScanner_;
+        --InactiveScannerCount_;
+    } else {
+        // Create a new one.
+        scanner = new TScanner(this);
+    }
+    
+    // Push to active list.
+    if (FirstActiveScanner_) {
+        FirstActiveScanner_->PrevScanner_ = scanner;
+    }
+    scanner->NextScanner_ = FirstActiveScanner_;
+    scanner->PrevScanner_ = nullptr;
+    FirstActiveScanner_ = scanner;
+    
+    return scanner;
+}
+
+template <class TKey, class TComparer>
+void TRcuTree<TKey, TComparer>::FreeScanner(TScanner* scanner)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    // Remove from active list.
+    if (scanner->NextScanner_) {
+        scanner->NextScanner_->PrevScanner_ = scanner->PrevScanner_;
+    }
+    if (scanner->PrevScanner_) {
+        scanner->PrevScanner_->NextScanner_ = scanner->NextScanner_;
+    }
+    if (scanner == FirstActiveScanner_) {
+        FirstActiveScanner_ = scanner->NextScanner_;
+    }
+
+    if (InactiveScannerCount_ < MaxPooledScanners) {
+        // Tidy up.
+        scanner->EndScan();
+
+        // Push to inactive list.
+        scanner->NextScanner_ = FirstInactiveScanner_;
+        scanner->PrevScanner_ = nullptr;
+        FirstInactiveScanner_ = scanner;
+        ++InactiveScannerCount_;
+    } else {
+        // Destroy.
+        delete scanner;
+    }
 }
 
 template <class TKey, class TComparer>
 TRcuTreeTimestamp TRcuTree<TKey, TComparer>::ComputeEarliestReaderTimestamp()
 {
     auto result = std::numeric_limits<TRcuTreeTimestamp>::max();
-    for (const auto& reader : Readers_) {
-        result = std::min(result, reader->Timestamp_.load());
+    auto* current = FirstActiveScanner_;
+    while (current) {
+        result = std::min(result, current->Timestamp_.load());
+        current = current->NextScanner_;
     }
     return result;
 }
@@ -300,10 +372,10 @@ TRcuTreeTimestamp TRcuTree<TKey, TComparer>::ComputeEarliestReaderTimestamp()
 template <class TKey, class TComparer>
 typename TRcuTree<TKey, TComparer>::TNode* TRcuTree<TKey, TComparer>::AllocateNode()
 {
-    if (FreeHead_) {
-        auto* node = FreeHead_;
-        FreeHead_ = node->FreeNext;
-        --GCSize_;
+    if (FirstFreeNode_) {
+        auto* node = FirstFreeNode_;
+        FirstFreeNode_ = node->Next;
+        --GCNodeCount_;
         return node;
     } else {
         return Pool_->Allocate<TNode>();
@@ -313,39 +385,241 @@ typename TRcuTree<TKey, TComparer>::TNode* TRcuTree<TKey, TComparer>::AllocateNo
 template <class TKey, class TComparer>
 void TRcuTree<TKey, TComparer>::FreeNode(TNode* node)
 {
-    ++GCSize_;
+    ++GCNodeCount_;
     node->GCTimestamp = Timestamp_.load(std::memory_order_relaxed);
-    node->GCNext = nullptr;
-    if (GCTail_) {
-        YASSERT(GCHead_); 
-        GCTail_->GCNext = node;
+    node->Next = nullptr;
+    if (LastGCNode_) {
+        YASSERT(FirstGCNode_); 
+        LastGCNode_->Next = node;
     } else {
-        YASSERT(!GCHead_); 
-        GCHead_ = GCTail_= node;        
+        YASSERT(!FirstGCNode_); 
+        FirstGCNode_ = LastGCNode_= node;        
     }
-    GCTail_ = node;
+    LastGCNode_ = node;
 }
 
 template <class TKey, class TComparer>
 void TRcuTree<TKey, TComparer>::MaybeGCCollect()
 {
-    if (GCSize_ < MaxGCSize)
+    if (GCNodeCount_ < MaxGCSize)
         return;
 
     auto readerTimestamp = ComputeEarliestReaderTimestamp();
-    auto* node = GCHead_;
+    auto* node = FirstGCNode_;
     while (node && node->GCTimestamp < readerTimestamp) {
-        auto* nextNode = node->GCNext;
-        node->FreeNext = FreeHead_;
-        FreeHead_ = node;
-        GCSize_--;
+        auto* nextNode = node->Next;
+        node->Next = FirstFreeNode_;
+        FirstFreeNode_ = node;
+        GCNodeCount_--;
         node = nextNode;
     }
 
-    GCHead_ = node;
-    if (!GCHead_) {
-        GCTail_ = nullptr;
+    FirstGCNode_ = node;
+    if (!FirstGCNode_) {
+        LastGCNode_ = nullptr;
     }
+}
+
+template <class TKey, class TComparer>
+void TRcuTree<TKey, TComparer>::DestroyScannerList(TScanner* first)
+{
+    auto* current = first;
+    while (current) {
+        auto* next = current->NextScanner_;
+        delete current;
+        current = next;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TComparer>
+TRcuTreeScanner<TKey, TComparer>::TRcuTreeScanner(TTree* tree)
+    : Tree_(tree)
+    , NextScanner_(nullptr)
+    , PrevScanner_(nullptr)
+    , Comparer_(Tree_->Comparer_)
+    , Timestamp_(TTree::InactiveReaderTimestamp)
+    , StackTop_(Stack_.data() - 1)
+    , StackBottom_(Stack_.data())
+{ }
+
+template <class TKey, class TComparer>
+template <class TPivot>
+bool TRcuTreeScanner<TKey, TComparer>::Find(TPivot pivot, TKey* key /*= nullptr*/)
+{
+    Acquire();
+    auto* current = Tree_->Root_;
+    while (current) {
+        int result = (*Comparer_)(pivot, current->Key);
+        if (result == 0) {
+            if (key) {
+                *key = current->Key;
+            }
+            Release();
+            return true;
+        }
+        if (result < 0) {
+            current = current->Left;
+        }
+        else {
+            current = current->Right;
+        }
+    }
+    Release();
+    return false;
+}
+
+template <class TKey, class TComparer>
+template <class TPivot>
+void TRcuTreeScanner<TKey, TComparer>::BeginScan(TPivot pivot)
+{
+    Acquire();
+    Reset();
+
+    auto* current = Tree_->Root_;
+    if (!current) {
+        return;
+    }
+
+    Push(RightChildToToken(current));
+
+    while (true) {
+        int result = (*Comparer_)(pivot, current->Key);
+        if (result == 0) {
+            return;
+        }
+        if (result < 0) {
+            auto* left = current->Left;
+            if (!left) {
+                return;
+            }
+            Push(LeftChildToToken(left));
+            current = left;
+        }
+        else {
+            auto* right = current->Right;
+            if (!right) {
+                Advance();
+                return;
+            }
+            Push(RightChildToToken(right));
+            current = right;
+        }
+    }
+}
+
+template <class TKey, class TComparer>
+bool TRcuTreeScanner<TKey, TComparer>::IsValid() const
+{
+    return StackTop_ >= StackBottom_;
+}
+
+template <class TKey, class TComparer>
+TKey TRcuTreeScanner<TKey, TComparer>::GetCurrentKey() const
+{
+    YASSERT(IsValid());
+    return TokenToChild(Peek())->Key;
+}
+
+template <class TKey, class TComparer>
+void TRcuTreeScanner<TKey, TComparer>::Advance()
+{
+    YASSERT(IsValid());
+    auto* current = TokenToChild(Peek());
+    auto* right = current->Right;
+    if (right) {
+        Push(RightChildToToken(right));
+        auto* left = right->Left;
+        while (left) {
+            Push(LeftChildToToken(left));
+            left = left->Left;
+        }
+    }
+    else {
+        while (true) {
+            if (!IsValid()) {
+                return;
+            }
+            if (IsLeftChild(Peek())) {
+                Pop();
+                return;
+            }
+            Pop();
+        }
+    }
+}
+
+template <class TKey, class TComparer>
+void TRcuTreeScanner<TKey, TComparer>::EndScan()
+{
+    Release();
+    Reset();
+}
+
+template <class TKey, class TComparer>
+void TRcuTreeScanner<TKey, TComparer>::Acquire()
+{
+    auto timestamp = Tree_->Timestamp_.load();
+    Timestamp_.store(timestamp);
+}
+
+template <class TKey, class TComparer>
+void TRcuTreeScanner<TKey, TComparer>::Release()
+{
+    Timestamp_.store(TTree::InactiveReaderTimestamp);
+}
+
+template <class TKey, class TComparer>
+void TRcuTreeScanner<TKey, TComparer>::Reset()
+{
+    StackTop_ = StackBottom_ - 1;
+}
+
+template <class TKey, class TComparer>
+typename TRcuTreeScanner<TKey, TComparer>::TNode* TRcuTreeScanner<TKey, TComparer>::TokenToChild(intptr_t token)
+{
+    return reinterpret_cast<TNode*>(token & ~1);
+}
+
+template <class TKey, class TComparer>
+intptr_t TRcuTreeScanner<TKey, TComparer>::LeftChildToToken(TNode* node)
+{
+    auto token = reinterpret_cast<intptr_t>(node);
+    YASSERT((token & 1) == 0);
+    return token | 1;
+}
+
+template <class TKey, class TComparer>
+intptr_t TRcuTreeScanner<TKey, TComparer>::RightChildToToken(TNode* node)
+{
+    auto token = reinterpret_cast<intptr_t>(node);
+    YASSERT((token & 1) == 0);
+    return token;
+}
+
+template <class TKey, class TComparer>
+bool TRcuTreeScanner<TKey, TComparer>::IsLeftChild(intptr_t token)
+{
+    return (token & 1) != 0;
+}
+
+template <class TKey, class TComparer>
+void TRcuTreeScanner<TKey, TComparer>::Push(intptr_t value)
+{
+    *++StackTop_ = value;
+}
+
+template <class TKey, class TComparer>
+intptr_t TRcuTreeScanner<TKey, TComparer>::Peek() const
+{
+    return *StackTop_;
+}
+
+template <class TKey, class TComparer>
+void TRcuTreeScanner<TKey, TComparer>::Pop()
+{
+    --StackTop_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
