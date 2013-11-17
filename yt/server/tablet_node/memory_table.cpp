@@ -319,8 +319,11 @@ void TMemoryTable::LookupRows(
 
     Tree_->FreeScanner(scanner);
 
-    auto closeResult = WaitFor(chunkWriter->AsyncClose());
-    THROW_ERROR_EXCEPTION_IF_FAILED(closeResult);
+    {
+        // The writer is typically synchronous.
+        auto error = WaitFor(chunkWriter->AsyncClose());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    }
 
     *chunkMeta = std::move(memoryWriter->GetChunkMeta());
     *blocks = std::move(memoryWriter->GetBlocks());
