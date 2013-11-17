@@ -180,8 +180,8 @@ TSyncFileChangelog::TImpl::TImpl(
     , IndexFileName_(path + IndexSuffix)
     , Config_(config)
     , IsOpen_(false)
-    , IsSealed_(false)
     , RecordCount_(-1)
+    , SealedRecordCount_(TChangelogHeader::NotSealedRecordCount)
     , CurrentBlockSize_(-1)
     , CurrentFilePosition_(-1)
     , LastFlushed_(TInstant::Now())
@@ -247,18 +247,24 @@ void TSyncFileChangelog::TImpl::Open()
 
         PrevRecordCount_ = header.PrevRecordCount;
         IsOpen_ = true;
-        IsSealed_ = header.SealedRecordCount != TChangelogHeader::NotSealedRecordCount;
+        SealedRecordCount_ = header.SealedRecordCount;
 
         ReadIndex();
 
-        // TODO(babenko): truncate if sealed
         ReadChangelogUntilEnd();
+
+        if (IsSealed() && SealedRecordCount_ != RecordCount_) {
+            THROW_ERROR_EXCEPTION(
+                "Incorrect changelog: number or records (%d) less than sealed number (%d)",
+                RecordCount_,
+                SealedRecordCount_);
+        }
     }
 
 
     LOG_DEBUG("Changelog opened (RecordCount: %d, Sealed: %s)",
         RecordCount_,
-        ~FormatBool(IsSealed_));
+        ~FormatBool(IsSealed()));
 }
 
 void TSyncFileChangelog::TImpl::Close()
@@ -282,7 +288,7 @@ void TSyncFileChangelog::TImpl::Append(
     const std::vector<TSharedRef>& records)
 {
     YCHECK(IsOpen_);
-    YCHECK(!IsSealed_);
+    YCHECK(!IsSealed());
     YCHECK(firstRecordId == RecordCount_);
 
     LOG_DEBUG("Appending %" PRISZT " records to changelog",
@@ -383,21 +389,20 @@ int TSyncFileChangelog::TImpl::GetRecordCount() const
 
 bool TSyncFileChangelog::TImpl::IsSealed() const
 {
-    return IsSealed_;
+    return SealedRecordCount_ != TChangelogHeader::NotSealedRecordCount;
 }
 
 void TSyncFileChangelog::TImpl::Seal(int recordCount)
 {
     YCHECK(IsOpen_);
-    YCHECK(!IsSealed_);
+    YCHECK(!IsSealed());
     YCHECK(recordCount >= 0);
 
     LOG_DEBUG("Sealing changelog with %d records", recordCount);
     
     auto oldRecordCount = RecordCount_;
 
-    IsSealed_ = true;
-    RecordCount_ = recordCount;
+    SealedRecordCount_ = RecordCount_ = recordCount;
 
     {
         TGuard<TMutex> guard(Mutex_);
@@ -450,11 +455,11 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
 void TSyncFileChangelog::TImpl::Unseal()
 {
     YCHECK(IsOpen_);
-    YCHECK(IsSealed_);
+    YCHECK(IsSealed());
 
     LOG_DEBUG("Unsealing changelog");
 
-    IsSealed_ = false;
+    SealedRecordCount_ = TChangelogHeader::NotSealedRecordCount;
 
     {
         TGuard<TMutex> guard(Mutex_);
@@ -524,6 +529,9 @@ void TSyncFileChangelog::TImpl::ReadIndex()
         for (int i = 0; i < indexHeader.IndexSize; ++i) {
             TChangelogIndexRecord indexRecord;
             ReadPod(indexStream, indexRecord);
+            if (IsSealed() && indexRecord.RecordId >= SealedRecordCount_) {
+                break;
+            }
             Index_.push_back(indexRecord);
         }
     }
@@ -546,7 +554,7 @@ void TSyncFileChangelog::TImpl::UpdateLogHeader()
     TChangelogHeader header(
         Id_,
         PrevRecordCount_,
-        IsSealed_ ? RecordCount_ : TChangelogHeader::NotSealedRecordCount);
+        SealedRecordCount_);
     WritePod(*LogFile_, header);
     LogFile_->Seek(oldPosition, sSet);
 }
@@ -590,11 +598,17 @@ void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd()
     while (CurrentFilePosition_ < fileLength) {
         // Record size also counts size of record header.
         recordInfo = ReadRecord(logFileReader);
-        if (!recordInfo || recordInfo->Id != RecordCount_) {
+        if (!recordInfo || recordInfo->Id != RecordCount_ || RecordCount_ == SealedRecordCount_) {
             // Broken changelog case.
-            LOG_ERROR("Broken record found, changelog trimmed (RecordId: %d, Offset: %" PRId64 ")",
-                RecordCount_,
-                CurrentFilePosition_);
+            if (!recordInfo || recordInfo->Id != RecordCount_) {
+                LOG_ERROR("Broken record found, changelog trimmed (RecordId: %d, Offset: %" PRId64 ")",
+                    RecordCount_,
+                    CurrentFilePosition_);
+            } else {
+                LOG_ERROR("Excess records found, sealed changelog trimmed (RecordId: %d, Offset: %" PRId64 ")",
+                    RecordCount_,
+                    CurrentFilePosition_);
+            }
             LogFile_->Resize(CurrentFilePosition_);
             LogFile_->Seek(0, sEnd);
             break;

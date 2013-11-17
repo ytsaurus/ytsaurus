@@ -157,6 +157,21 @@ protected:
         EXPECT_EQ(changelog->GetRecordCount(), initialRecordCount);
         CheckRead<ui32>(changelog, 0, initialRecordCount, initialRecordCount);
     }
+
+    void TestSealedTrimmed(i64 sealedRecordCount)
+    {
+        {
+            TFile changeLogFile(TemporaryFile->Name(), RdWr);
+            // Hack changelog to change sealed record count
+            changeLogFile.Seek(16, sSet);
+            WritePod(changeLogFile, sealedRecordCount);
+        }
+
+        auto changelog = OpenChangelog();
+
+        EXPECT_EQ(changelog->GetRecordCount(), sealedRecordCount);
+        CheckRead<ui32>(changelog, 0, sealedRecordCount, sealedRecordCount);
+    }
 };
 
 TEST_F(TSyncFileChangelogTest, EmptyChangelog)
@@ -217,6 +232,19 @@ TEST_F(TSyncFileChangelogTest, TestCorrupted)
     TestCorrupted(fileSize + 1, logRecordCount, logRecordCount);
     TestCorrupted(fileSize + 1000, logRecordCount, logRecordCount);
     TestCorrupted(fileSize + 50000, logRecordCount, logRecordCount);
+}
+
+TEST_F(TSyncFileChangelogTest, TestSealedCorrupted)
+{
+    const int logRecordCount = 1024;
+    {
+        auto changelog = CreateChangelog<ui32>(logRecordCount);
+    }
+
+    TestSealedTrimmed(512);
+    ASSERT_THROW(TestSealedTrimmed(1024), std::exception);
+    TestSealedTrimmed(3);
+    TestSealedTrimmed(0);
 }
 
 TEST_F(TSyncFileChangelogTest, Truncate)

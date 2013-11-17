@@ -24,7 +24,7 @@ struct TChangelogHeader
     static const ui64 ExpectedSignature = 0x323030304C435459ull; // YTCL0003
 
     //! Indicates that the changelog is not yet sealed.
-    static const i32 NotSealedRecordCount = -1;
+    static const i32 NotSealedRecordCount = -2;
 
     ui64 Signature;
     i32 ChangelogId;
@@ -230,8 +230,8 @@ private:
     const TFileChangelogConfigPtr Config_;
 
     bool IsOpen_;
-    bool IsSealed_;
-    int RecordCount_;
+    i32 RecordCount_;
+    i32 SealedRecordCount_;
     i64 CurrentBlockSize_;
     i64 CurrentFilePosition_;
     TInstant LastFlushed_;
