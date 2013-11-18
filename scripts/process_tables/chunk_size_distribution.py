@@ -38,11 +38,11 @@ if __name__ == "__main__":
 
     number_of_chunks = 0
 
-    for table in yt.search("/", node_type="table", attributes=["compressed_data_size", "chunk_count"], exclude=args.filter_out):
+    for table in yt.search("/", node_type="table", attributes=["compressed_data_size", "chunk_count", "modification_time"], exclude=args.filter_out):
         chunk_count = int(table.attributes["chunk_count"])
         if chunk_count == 0: continue
 
-        modification_time = parse(yt.get_attribute(table, "modification_time")).replace(tzinfo=None)
+        modification_time = parse(table.attributes["modification_time"]).replace(tzinfo=None)
         if  datetime.utcnow() - modification_time < timedelta(args.minimal_age):
             continue
 
