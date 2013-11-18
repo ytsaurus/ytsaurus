@@ -69,8 +69,8 @@ void GetStatistics(
     i64* rowCount,
     i64* valueCount)
 {
-    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.extensions());
-    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(chunkSpec.extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(chunkSpec.chunk_meta().extensions());
 
     if (sizeOverrideExt) {
         if (dataSize) {
@@ -99,7 +99,7 @@ TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec)
     result->clear_start_limit();
     result->clear_end_limit();
 
-    RemoveProtoExtension<TSizeOverrideExt>(result->mutable_extensions());
+    RemoveProtoExtension<TSizeOverrideExt>(result->mutable_chunk_meta()->mutable_extensions());
 
     return result;
 }

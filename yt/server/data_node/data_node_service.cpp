@@ -835,7 +835,7 @@ void TDataNodeService::MakeChunkSplits(
     auto createNewSplit = [&] () {
         currentSplit = splittedChunk->add_chunk_specs();
         currentSplit->CopyFrom(*chunkSpec);
-        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(currentSplit->extensions());
+        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(currentSplit->chunk_meta().extensions());
         startRowIndex = endRowIndex;
         dataSize = 0;
     };
@@ -864,14 +864,14 @@ void TDataNodeService::MakeChunkSplits(
             auto key = beginIt->key();
 
             *boundaryKeysExt.mutable_end() = key;
-            SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
+            SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
 
             endRowIndex = beginIt->row_index();
 
             TSizeOverrideExt sizeOverride;
             sizeOverride.set_row_count(endRowIndex - startRowIndex);
             sizeOverride.set_uncompressed_data_size(dataSize);
-            SetProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
+            SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
 
             key = GetKeySuccessor(key);
             *currentSplit->mutable_end_limit()->mutable_key() = key;
@@ -882,7 +882,7 @@ void TDataNodeService::MakeChunkSplits(
         }
     }
 
-    SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
+    SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
     endRowIndex = (--endIt)->row_index();
 
     TSizeOverrideExt sizeOverride;
@@ -890,7 +890,7 @@ void TDataNodeService::MakeChunkSplits(
     sizeOverride.set_uncompressed_data_size(
         dataSize +
         (std::distance(beginIt, endIt)) * dataSizeBetweenSamples);
-    SetProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
+    SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

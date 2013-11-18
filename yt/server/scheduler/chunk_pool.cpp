@@ -1165,7 +1165,7 @@ public:
             ElementaryStripes.push_back(elementaryStripe);
 
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->extensions());
+                chunkSlice->GetChunkSpec()->chunk_meta().extensions());
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
@@ -1177,7 +1177,7 @@ public:
             }
 
             RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -1201,7 +1201,7 @@ public:
         // Remove all partition extensions.
         for (auto chunkSlice : stripe->ChunkSlices) {
             RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and

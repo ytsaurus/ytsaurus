@@ -23,14 +23,14 @@ NObjectClient::TObjectId GetObjectIdFromDataSplit(const TDataSplit& dataSplit)
 TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
 {
     auto tableSchemaProto = GetProtoExtension<TTableSchemaProto>(
-        dataSplit.extensions());
+        dataSplit.chunk_meta().extensions());
     return NYT::FromProto<TTableSchema>(tableSchemaProto);
 }
 
 TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
 {
     auto keyColumnsProto = GetProtoExtension<TKeyColumnsProto>(
-        dataSplit.extensions());
+        dataSplit.chunk_meta().extensions());
     return NYT::FromProto<Stroka>(keyColumnsProto.names());
 }
 
@@ -44,7 +44,7 @@ void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema)
     TTableSchemaProto tableSchemaProto;
     ToProto(&tableSchemaProto, tableSchema);
     SetProtoExtension<TTableSchemaProto>(
-        dataSplit->mutable_extensions(),
+        dataSplit->mutable_chunk_meta()->mutable_extensions(),
         tableSchemaProto);
 }
 
@@ -53,7 +53,7 @@ void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns)
     TKeyColumnsProto keyColumnsProto;
     ToProto(keyColumnsProto.mutable_names(), keyColumns);
     SetProtoExtension<TKeyColumnsProto>(
-        dataSplit->mutable_extensions(),
+        dataSplit->mutable_chunk_meta()->mutable_extensions(),
         keyColumnsProto);
 }
 

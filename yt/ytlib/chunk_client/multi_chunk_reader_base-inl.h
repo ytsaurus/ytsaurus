@@ -96,7 +96,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
             auto& chunkSpec = sortedChunkSpecs[PrefetchWindow];
             i64 currentSize;   
             NChunkClient::GetStatistics(chunkSpec, &currentSize);
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 
             // block that possibly exceeds group size + block used by upper level chunk reader.
             i64 chunkBufferSize = ChunkReaderMemorySize + 2 * miscExt.max_block_size();

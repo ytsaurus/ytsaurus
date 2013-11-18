@@ -108,7 +108,7 @@ TRefCountedChunkSpecPtr TChunkSlice::GetChunkSpec() const
 
 i64 TChunkSlice::GetMaxBlockSize() const
 {
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkSpec->extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkSpec->chunk_meta().extensions());
     return miscExt.max_block_size();
 }
 
@@ -209,7 +209,7 @@ void ToProto(TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
         chunkSpec->mutable_end_limit()->CopyFrom(chunkSlice.EndLimit);
     }
 
-    SetProtoExtension(chunkSpec->mutable_extensions(), chunkSlice.SizeOverrideExt);
+    SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), chunkSlice.SizeOverrideExt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

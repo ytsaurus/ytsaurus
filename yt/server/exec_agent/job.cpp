@@ -579,7 +579,7 @@ private:
         }
 
         const auto& chunk = descriptor.file().chunks(0);
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.chunk_meta().extensions());
         auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
         auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
         return !IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None);

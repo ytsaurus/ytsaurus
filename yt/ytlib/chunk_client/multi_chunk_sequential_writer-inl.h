@@ -374,7 +374,9 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
         auto& chunkSpec = WrittenChunks[chunkIndex];
         NYT::ToProto(chunkSpec.mutable_chunk_id(), currentSession.ChunkId);
         NYT::ToProto(chunkSpec.mutable_replicas(), replicas);
-        *chunkSpec.mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
+        chunkSpec.mutable_chunk_meta()->set_type(chunkWriter->GetSchedulerMeta().type());
+        chunkSpec.mutable_chunk_meta()->set_version(chunkWriter->GetSchedulerMeta().version());
+        *chunkSpec.mutable_chunk_meta()->mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
     }
 
     batchReq->Invoke().Subscribe(BIND(

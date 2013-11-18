@@ -328,7 +328,9 @@ private:
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(chunk->GetErasureCodec());
-        chunkSpec->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
+        chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
+        chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+        chunkSpec->mutable_chunk_meta()->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 
         context->Reply();
     }

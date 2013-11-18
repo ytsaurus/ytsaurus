@@ -185,11 +185,14 @@ bool TFetchChunkVisitor::OnChunk(
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(erasureCodecId);
 
+    chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
+    chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+
     if (Context->Request().fetch_all_meta_extensions()) {
-        *chunkSpec->mutable_extensions() = chunk->ChunkMeta().extensions();
+        *chunkSpec->mutable_chunk_meta()->mutable_extensions() = chunk->ChunkMeta().extensions();
     } else {
         FilterProtoExtensions(
-            chunkSpec->mutable_extensions(),
+            chunkSpec->mutable_chunk_meta()->mutable_extensions(),
             chunk->ChunkMeta().extensions(),
             ExtensionTags);
     }

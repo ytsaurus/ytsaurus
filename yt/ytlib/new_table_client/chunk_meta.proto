@@ -53,4 +53,10 @@ message TKeyColumnsExt
     repeated string names = 1;
 }
 
+message TBoundaryKeys
+{
+    required bytes start = 1;
+    required bytes end = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

@@ -187,19 +187,19 @@ private:
 
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
         typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
-        auto originalKeyColumns = GetProtoExtension<TProtoKeyColumns>(dataSplit.extensions());
-        auto originalTableSchema = GetProtoExtension<TProtoTableSchema>(dataSplit.extensions());
+        auto originalKeyColumns = GetProtoExtension<TProtoKeyColumns>(dataSplit.chunk_meta().extensions());
+        auto originalTableSchema = GetProtoExtension<TProtoTableSchema>(dataSplit.chunk_meta().extensions());
 
         for (auto& chunkSpec : chunkSpecs) {
-            auto keyColumns = FindProtoExtension<TProtoKeyColumns>(chunkSpec.extensions());
-            auto tableSchema = FindProtoExtension<TProtoTableSchema>(chunkSpec.extensions());
+            auto keyColumns = FindProtoExtension<TProtoKeyColumns>(chunkSpec.chunk_meta().extensions());
+            auto tableSchema = FindProtoExtension<TProtoTableSchema>(chunkSpec.chunk_meta().extensions());
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
             YCHECK(!keyColumns);
             YCHECK(!tableSchema);
 
-            SetProtoExtension(chunkSpec.mutable_extensions(), originalKeyColumns);
-            SetProtoExtension(chunkSpec.mutable_extensions(), originalTableSchema);
+            SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), originalKeyColumns);
+            SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), originalTableSchema);
         }
 
         return chunkSpecs;

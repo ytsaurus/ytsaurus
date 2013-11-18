@@ -227,7 +227,7 @@ TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 
     i64 startOffset = 0;
     if (chunkSpec.has_start_limit() && chunkSpec.start_limit().has_offset()) {

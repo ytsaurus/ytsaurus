@@ -2930,7 +2930,7 @@ void TOperationControllerBase::RegisterOutput(
     auto& table = OutputTables[tableIndex];
 
     if (table.Options->KeyColumns && IsSortedOutputSupported()) {
-        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->extensions());
+        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
         RegisterEndpoints(boundaryKeys, key, &table);
     }
 

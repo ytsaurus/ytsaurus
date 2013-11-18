@@ -525,7 +525,7 @@ protected:
         YCHECK(!IsNontrivial(chunkSpec.start_limit()));
         YCHECK(!IsNontrivial(chunkSpec.end_limit()));
 
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
@@ -1006,7 +1006,7 @@ protected:
     {
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
         for (const auto& chunk : chunks) {
-            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
+            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->chunk_meta().extensions());
             {
                 TKeyEndpoint endpoint;
                 endpoint.Type = EEndpointType::Left;

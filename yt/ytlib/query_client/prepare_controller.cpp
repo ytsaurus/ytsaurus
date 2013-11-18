@@ -53,7 +53,7 @@ public:
     {
         // Scan operators are always visited in the end,
         // because they are leaf nodes.
-        auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(op->DataSplit().extensions());
+        auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(op->DataSplit().chunk_meta().extensions());
         auto& liveColumns = LiveColumns_[op->GetTableIndex()];
 
         {
@@ -67,7 +67,7 @@ public:
                 }
             }
             SetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(
-                op->AsMutable<TScanOperator>()->DataSplit().mutable_extensions(),
+                op->AsMutable<TScanOperator>()->DataSplit().mutable_chunk_meta()->mutable_extensions(),
                 filteredTableSchema);
         }
 

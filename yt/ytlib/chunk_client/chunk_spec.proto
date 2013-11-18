@@ -3,6 +3,7 @@ package NYT.NChunkClient.NProto;
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/protobuf_helpers.proto";
 import "yt/ytlib/chunk_client/schema.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +24,8 @@ message TChunkSpec
     // Column filter.
     optional TChannel channel = 5;
 
-    required NYT.NProto.TExtensionSet extensions = 6;
+    // Deprecated.
+    // required NYT::NProto::TExtensionSet extensions = 6;
 
     optional int32 table_index = 7 [default = -1];
 
@@ -32,6 +34,8 @@ message TChunkSpec
     optional int32 erasure_codec = 9 [default = 0];
 
     optional int64 table_row_index = 10 [default = 0];
+
+    required TChunkMeta chunk_meta = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
