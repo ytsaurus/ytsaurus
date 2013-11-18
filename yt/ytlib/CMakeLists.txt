@@ -35,11 +35,23 @@ add_msvc_precompiled_header(
 )
 
 add_library( ytlib STATIC
-    ${YT_SOURCE_FILES}
+  ${YT_SOURCE_FILES}
 )
+
 target_link_libraries ( ytlib
   ytcore
 )
+
+if (YT_BUILD_ENABLE_LLVM)
+  llvm_map_components_to_libraries(REQ_LLVM_LIBRARIES jit native)
+  target_link_libraries ( ytlib
+    ${REQ_LLVM_LIBRARIES}
+  )
+
+  include_directories(
+    ${LLVM_INCLUDE_DIRS}
+  )
+endif()
 
 if (HAVE_LIBUNWIND)
   target_link_libraries( ytlib unwind )

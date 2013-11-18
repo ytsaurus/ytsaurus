@@ -10,6 +10,7 @@ option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
 option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
+option(YT_BUILD_ENABLE_LLVM        "Build LLVM extensions" FALSE)
 option(YT_BUILD_HAVE_RAGEL         "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON         "Do you have Bison 3.0?" FALSE)
 option(YT_BUILD_YTCORE_SHARED      "Build ytcore as a shared lib" FALSE)
@@ -70,6 +71,18 @@ check_include_files(unwind.h       HAVE_UNWIND_H)
 check_include_files(unistd.h       HAVE_UNISTD_H)
 
 include(PCFromUcontext)
+
+if (YT_BUILD_ENABLE_LLVM)
+  find_package(LLVM)
+
+  if( NOT LLVM_FOUND )
+    message(FATAL_ERROR "LLVM package can't be found. Set CMAKE_PREFIX_PATH variable to LLVM's installation prefix.")
+  endif()
+
+  link_directories( ${LLVM_LIBRARY_DIRS} )
+
+  add_definitions(-DYT_USE_LLVM)
+endif()
 
 find_library(HAVE_LIBUNWIND unwind)
 
