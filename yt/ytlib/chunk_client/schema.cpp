@@ -268,16 +268,18 @@ TChannel CreateEmpty()
 
 } // namespace
 
+TChannel UniversalChannel = CreateUniversal();
+
 const TChannel& TChannel::Universal()
 {
-    static auto result = CreateUniversal();
-    return result;
+    return UniversalChannel;
 }
+
+TChannel EmptyChannel = CreateEmpty();
 
 const TChannel& TChannel::Empty()
 {
-    static auto result = CreateEmpty();
-    return result;
+    return EmptyChannel;
 }
 
 TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
