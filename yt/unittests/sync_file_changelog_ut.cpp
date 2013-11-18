@@ -171,6 +171,13 @@ protected:
 
         EXPECT_EQ(changelog->GetRecordCount(), sealedRecordCount);
         CheckRead<ui32>(changelog, 0, sealedRecordCount, sealedRecordCount);
+
+        changelog->Unseal();
+        changelog->Append(sealedRecordCount, MakeRecords<ui32>(changelog->GetRecordCount(), changelog->GetRecordCount() + 1));
+        changelog->Flush();
+
+        EXPECT_EQ(sealedRecordCount + 1, changelog->GetRecordCount());
+        CheckRead<ui32>(changelog, 0, changelog->GetRecordCount(), changelog->GetRecordCount());
     }
 };
 
