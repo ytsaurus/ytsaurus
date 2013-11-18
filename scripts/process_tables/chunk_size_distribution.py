@@ -6,6 +6,9 @@ from argparse import ArgumentParser
 
 import logging
 
+from dateutil.parser import parse
+from datetime import datetime, timedelta
+
 logger = logging.getLogger("Cron")
 logger.setLevel(level="INFO")
 
@@ -22,8 +25,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--minimum-number-of-chunks", type=int, default=10)
     parser.add_argument("--maximum-chunk-size", type=int, default=100 *1024 * 1024)
+    parser.add_argument("--minimal-age", type=int, default=0)
     parser.add_argument("--filter-out", action="append")
-    
+
     args = parser.parse_args()
 
     if args.proxy is not None:
@@ -37,6 +41,10 @@ if __name__ == "__main__":
     for table in yt.search("/", node_type="table", attributes=["compressed_data_size", "chunk_count"], exclude=args.filter_out):
         chunk_count = int(table.attributes["chunk_count"])
         if chunk_count == 0: continue
+
+        modification_time = parse(yt.get_attribute(table, "modification_time")).replace(tzinfo=None)
+        if  datetime.utcnow() - modification_time < timedelta(args.minimal_age):
+            continue
 
         weight = float(table.attributes["compressed_data_size"]) / float(chunk_count)
 
