@@ -9,8 +9,10 @@ set( SRCS
 set( HDRS
   ${BASE}/bind_helpers.h
   ${BASE}/bind_mpl.h
+  ${BASE}/callback.h
   ${BASE}/callback_forward.h
   ${BASE}/callback_internal.h
+  ${BASE}/callback_via.h
   ${BASE}/cancelable_context.h
   ${BASE}/common.h
   ${BASE}/future-inl.h
@@ -27,5 +29,3 @@ list(APPEND YT_SOURCE_FILES
 
 PUMP( ${BASE}/bind.h.pump YT_SOURCE_FILES )
 PUMP( ${BASE}/bind_internal.h.pump YT_SOURCE_FILES )
-PUMP( ${BASE}/callback.h.pump YT_SOURCE_FILES )
-PUMP( ${BASE}/callback_via.h.pump YT_SOURCE_FILES )
