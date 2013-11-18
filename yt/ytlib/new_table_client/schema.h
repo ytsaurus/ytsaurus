@@ -27,10 +27,10 @@ class TTableSchemaExt;
 struct TColumnSchema
 {
     TColumnSchema();
-    TColumnSchema(const Stroka& name, EColumnType type);
+    TColumnSchema(const Stroka& name, ERowValueType type);
 
     Stroka Name;
-    EColumnType Type;
+    ERowValueType Type;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);

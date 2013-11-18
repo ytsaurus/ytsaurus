@@ -503,7 +503,7 @@ void TVersionedTableConsumer::ThrowMapExpected()
         << TErrorAttribute("row_index", CurrentWriter->GetRowIndex());
 }
 
-void TVersionedTableConsumer::ThrowInvalidSchemaColumnType(int columnId, EColumnType actualType)
+void TVersionedTableConsumer::ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::ERowValueType actualType)
 {
     THROW_ERROR_EXCEPTION("Invalid type of schema column %s: expected %s, actual %s",
         ~NameTable->GetName(columnId).Quote(),
@@ -649,7 +649,7 @@ void TVersionedTableConsumer::WriteValue(const TUnversionedValue& value)
 {
     int id = value.Id;
     if (id < SchemaColumnDescriptors.size()) {
-        auto type = EColumnType(value.Type);
+        auto type = NVersionedTableClient::EColumnType(rowValue.Type);
         auto& descriptor = SchemaColumnDescriptors[id];
         if (type != descriptor.Type) {
             ThrowInvalidSchemaColumnType(id, type);

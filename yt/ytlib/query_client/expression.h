@@ -60,7 +60,7 @@ public:
         return Null;
     }
 
-    virtual EColumnType Typecheck() const = 0;
+    virtual ERowValueType Typecheck() const = 0;
 
     virtual Stroka InferName() const = 0;
 
@@ -91,9 +91,9 @@ public:
         return expr->GetKind() == EExpressionKind::IntegerLiteral;
     }
 
-    virtual EColumnType Typecheck() const override
+    virtual ERowValueType Typecheck() const override
     {
-        return EColumnType::Integer;
+        return ERowValueType::Integer;
     }
 
     virtual Stroka InferName() const override
@@ -123,9 +123,9 @@ public:
         return expr->GetKind() == EExpressionKind::DoubleLiteral;
     }
 
-    virtual EColumnType Typecheck() const override
+    virtual ERowValueType Typecheck() const override
     {
-        return EColumnType::Double;
+        return ERowValueType::Double;
     }
 
     virtual Stroka InferName() const override
@@ -150,7 +150,7 @@ public:
         : TExpression(context, EExpressionKind::Reference, sourceLocation)
         , TableIndex_(tableIndex)
         , Name_(name)
-        , CachedType_(EColumnType::TheBottom)
+        , CachedType_(ERowValueType::TheBottom)
         , CachedKeyIndex_(-1)
     { }
 
@@ -159,7 +159,7 @@ public:
         return expr->GetKind() == EExpressionKind::Reference;
     }
 
-    virtual EColumnType Typecheck() const override
+    virtual ERowValueType Typecheck() const override
     {
         return CachedType_;
     }
@@ -172,7 +172,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Name);
 
-    DEFINE_BYVAL_RW_PROPERTY(EColumnType, CachedType);
+    DEFINE_BYVAL_RW_PROPERTY(ERowValueType, CachedType);
     DEFINE_BYVAL_RW_PROPERTY(int, CachedKeyIndex);
 
 };
@@ -202,7 +202,7 @@ public:
         return Arguments_;
     }
 
-    virtual EColumnType Typecheck() const override
+    virtual ERowValueType Typecheck() const override
     {
         // TODO(sandello): We should register functions with their signatures.
         YUNIMPLEMENTED();
@@ -279,7 +279,7 @@ public:
         return MakeArrayRef(Subexpressions_);
     }
 
-    virtual EColumnType Typecheck() const override
+    virtual ERowValueType Typecheck() const override
     {
         auto lhsType = GetLhs()->Typecheck();
         auto rhsType = GetRhs()->Typecheck();
@@ -294,7 +294,7 @@ public:
 
         // XXX(sandello): As we do not have boolean type, we cast cmps to int.
         // TODO(sandello): For arithmetic exprs we have to return different value.
-        return EColumnType::Integer;
+        return ERowValueType::Integer;
     }
 
     virtual Stroka InferName() const override

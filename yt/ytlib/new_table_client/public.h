@@ -24,7 +24,7 @@ DECLARE_ENUM(ERowsetType,
     (Versioned)   // With timestamps and tombstones
 );
 
-DECLARE_ENUM(EColumnType,
+DECLARE_ENUM(ERowValueType,
     ((Min)         (0))
     ((TheBottom)   (1))
     ((Null)        (2))

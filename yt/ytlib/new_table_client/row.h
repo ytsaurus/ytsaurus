@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/chunk_client/schema.pb.h>
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/varint.h>
 
@@ -14,7 +15,7 @@ struct TUnversionedValue
 {
     //! Column id obtained from a name table.
     ui16 Id;
-    //! Column type (EColumnType).
+    //! Column type (compact ERowValueType).
     ui16 Type;
     //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
     ui32 Length;
@@ -33,7 +34,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = EColumnType::Null;
+        result.Type = ERowValueType::Null;
         return result;
     }
 
@@ -41,7 +42,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = EColumnType::Integer;
+        result.Type = ERowValueType::Integer;
         result.Data.Integer = value;
         return result;
     }
@@ -50,7 +51,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = EColumnType::Double;
+        result.Type = ERowValueType::Double;
         result.Data.Double = value;
         return result;
     }
@@ -59,7 +60,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = EColumnType::String;
+        result.Type = ERowValueType::String;
         result.Length = value.length();
         result.Data.String = value.begin();
         return result;
@@ -69,7 +70,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = EColumnType::Any;
+        result.Type = ERowValueType::Any;
         result.Length = value.length();
         result.Data.String = value.begin();
         return result;
@@ -233,9 +234,8 @@ private:
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
-
-//! For friendship with TOwningRow.
-TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EColumnType sentinelType);
+//void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
+TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
 
 //! Returns the successor of |key|, i.e. the key
 //! obtained from |key| by appending a |EColumnType::Min| sentinel.
@@ -337,6 +337,7 @@ public:
 private:
     friend void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
     friend void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
+    //friend void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
     friend TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
 
 

@@ -31,7 +31,7 @@ typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 using NVersionedTableClient::IReaderPtr;
 using NVersionedTableClient::IWriterPtr;
 
-using NVersionedTableClient::EColumnType;
+using NVersionedTableClient::ERowValueType;
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TKeyColumns;
 

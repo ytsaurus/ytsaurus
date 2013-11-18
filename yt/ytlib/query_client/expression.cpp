@@ -123,7 +123,7 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
                 NullSourceLocation,
                 data.table_index(),
                 data.name());
-            typedResult->SetCachedType(EColumnType(data.cached_type()));
+            typedResult->SetCachedType(ERowValueType(data.cached_type()));
             typedResult->SetCachedKeyIndex(data.cached_key_index());
             YASSERT(!result);
             result = typedResult;

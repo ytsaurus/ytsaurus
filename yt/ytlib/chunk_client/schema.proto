@@ -34,9 +34,13 @@ message TKey
 message TReadLimit
 {
     optional int64 row_index = 1;
+
+    // Deprecated
     optional TKey key = 2;
+
     optional int64 chunk_index = 3;
     optional int64 offset = 4;
+    //optional bytes key = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

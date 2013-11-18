@@ -211,7 +211,7 @@ TError TEvaluateController::RunProject()
         auto lhsReferenceExpr = binaryOpExpr->GetLhs()->As<TReferenceExpression>();
         auto rhsIntegerValueExpr = binaryOpExpr->GetRhs()->As<TIntegerLiteralExpression>();
         YCHECK(lhsReferenceExpr);
-        YCHECK(lhsReferenceExpr->Typecheck() == EColumnType::Integer);
+        YCHECK(lhsReferenceExpr->Typecheck() == ERowValueType::Integer);
         YCHECK(rhsIntegerValueExpr);
 
         binaryOpOpcode = binaryOpExpr->GetOpcode();

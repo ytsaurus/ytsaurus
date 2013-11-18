@@ -18,10 +18,10 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnSchema::TColumnSchema()
-    : Type(EColumnType::Null)
+    : Type(ERowValueType::Null)
 { }
 
-TColumnSchema::TColumnSchema(const Stroka& name, EColumnType type)
+TColumnSchema::TColumnSchema(const Stroka& name, ERowValueType type)
     : Name(name)
     , Type(type)
 { }
@@ -73,7 +73,7 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->Name = protoSchema.name();
-    schema->Type = EColumnType(protoSchema.type());
+    schema->Type = ERowValueType(protoSchema.type());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,8 +174,8 @@ bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
 // XXX(sandello): Apparently we have to explicitly ask for ConvertToYsonString.
 namespace NYTree {
     template TYsonString ConvertToYsonString<
-        NVersionedTableClient::EColumnType
-    >(const NVersionedTableClient::EColumnType&);
+        NVersionedTableClient::ERowValueType
+    >(const NVersionedTableClient::ERowValueType&);
 } // namespace NYTree
 
 } // namespace NYT

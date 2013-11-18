@@ -1,8 +1,14 @@
 #include "stdafx.h"
 #include "row.h"
 
+#include <core/misc/varint.h>
+
+#include <util/stream/str.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +19,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     }
 
     switch (lhs.Type) {
-        case EColumnType::Integer: {
+        case ERowValueType::Integer: {
             auto lhsValue = lhs.Data.Integer;
             auto rhsValue = rhs.Data.Integer;
             if (lhsValue < rhsValue) {
@@ -25,7 +31,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
                                    }
 
-        case EColumnType::Double: {
+        case ERowValueType::Double: {
             auto lhsValue = lhs.Data.Double;
             auto rhsValue = lhs.Data.Double;
             if (lhsValue < rhsValue) {
@@ -37,7 +43,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
                                   }
 
-        case EColumnType::String: {
+        case ERowValueType::String: {
             size_t lhsLength = lhs.Length;
             size_t rhsLength = rhs.Length;
             size_t minLength = std::min(lhsLength, rhsLength);
@@ -55,10 +61,10 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
                                   }
 
-        case EColumnType::Any:
+        case ERowValueType::Any:
             return 0; // NB: Cannot actually compare composite values.
 
-        case EColumnType::Null:
+        case ERowValueType::Null:
             return 0;
 
         default:
@@ -113,7 +119,7 @@ TOwningKey GetKeySuccessor(const TOwningKey& key)
     return GetKeySuccessorImpl(
         key,
         key.GetValueCount(),
-        EColumnType::Min);
+        ERowValueType::Min);
 }
 
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
@@ -122,7 +128,7 @@ TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
     return GetKeySuccessorImpl(
         key,
         prefixLength,
-        EColumnType::Max);
+        ERowValueType::Max);
 }
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
@@ -210,20 +216,20 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
         value.Type = static_cast<ui16>(type);
 
         switch (value.Type) {
-            case EColumnType::Null:
+            case ERowValueType::Null:
                 break;
 
-            case EColumnType::Integer:
+            case ERowValueType::Integer:
                 current += ReadVarInt64(current, &value.Data.Integer);
                 break;
             
-            case EColumnType::Double:
+            case ERowValueType::Double:
                 ::memcpy(&value.Data.Double, current, sizeof (double));
                 current += sizeof (double);
                 break;
             
-            case EColumnType::String:           
-            case EColumnType::Any:
+            case ERowValueType::String:
+            case ERowValueType::Any:
                 current += ReadVarUInt32(current, &value.Length);
                 value.Data.String = current;
                 current += value.Length;
@@ -236,6 +242,76 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 
     *row = TUnversionedOwningRow(std::move(rowData), protoRow);
 }
+
+/*
+void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
+{
+    size_t fixedSize = sizeof (TRowHeader) + sizeof (TRowValue) * protoKey.parts_size();
+    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
+
+    header->ValueCount = static_cast<i32>(protoKey.parts_size());
+    header->Deleted = false;
+    header->Timestamp = NullTimestamp;
+
+    Stroka stringData;
+
+    auto* values = reinterpret_cast<TRowValue*>(header + 1);
+    for (int index = 0; index < protoKey.parts_size(); ++index) {
+        auto& value = values[index];
+
+        // No idea, what name table to use, and what column names really are.
+        value.Id = -1;
+
+        auto& keyPart = protoKey.parts(index);
+        switch (keyPart.type()) {
+            case EKeyPartType::Null:
+                value.Type = ERowValueType::Null;
+                break;
+
+            case EKeyPartType::Integer:
+                value.Type = ERowValueType::Integer;
+                value.Data.Integer = keyPart.int_value();
+                break;
+
+            case EKeyPartType::Double:
+                value.Type = ERowValueType::Double;
+                value.Data.Double = keyPart.double_value();
+                break;
+
+            case EKeyPartType::String:
+                value.Type = ERowValueType::String;
+                // Remember offset, we cannot store pointer right now,
+                // because stringData may be reallocated.
+                value.Data.Integer = stringData.length();
+                value.Length = keyPart.str_value().length();
+                stringData.append(keyPart.str_value());
+                break;
+
+            case EKeyPartType::MinSentinel:
+                value.Type = ERowValueType::Min;
+                break;
+
+            case EKeyPartType::MaxSentinel:
+                value.Type = ERowValueType::Max;
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    for (int index = 0; index < protoKey.parts_size(); ++index) {
+        auto& value = values[index];
+        if (value.Type == ERowValueType::String) {
+            // Convert offset to pointer.
+            value.Data.String = ~stringData + value.Data.Integer;
+        }
+    }
+
+    *row = TOwningRow(std::move(rowData), stringData);
+}
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

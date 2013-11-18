@@ -133,7 +133,7 @@ private:
     virtual void OnBeginAttributes() override;
 
     void ThrowMapExpected();
-    void ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EColumnType actualType);
+    void ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::ERowValueType actualType);
     void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
 
     virtual void OnEndList() override;
@@ -169,7 +169,7 @@ private:
         { }
 
         bool Written;
-        NVersionedTableClient::EColumnType Type;
+        NVersionedTableClient::ERowValueType Type;
     };
 
     std::vector<TColumnDescriptor> SchemaColumnDescriptors;
