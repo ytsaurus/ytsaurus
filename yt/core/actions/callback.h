@@ -1,5 +1,3 @@
-$$ Please, use Pump to convert this source file to valid C++ header.
-$$ Note that lines in this file could be longer than 80 symbols.
 #pragma once
 
 /*
@@ -14,10 +12,6 @@ $$ Note that lines in this file could be longer than 80 symbols.
 // See bind.h for an extended commentary.
 //==============================================================================
 */
-
-$$ See bind.h.pump.
-$var MAX_ARITY = 7
-
 // NOTE: Header files that do not require the full definition of #TCallback<> or
 // #TClosure should include "callback_forward.h" instead of this file.
 
@@ -143,11 +137,12 @@ TPromise<T> NewPromise();
 // compiler that the template only has 1 type parameter which is the function
 // signature that the #TCallback<> is representing.
 //
-// After this, create template specializations for 0-$(MAX_ARITY) parameters. Note that
+// After this, create template specializations for 0-7 parameters. Note that
 // even though the template type list grows, the specialization still has
 // only one type: the function signature.
 //
-// If you are thinking of forward declaring #TCallback<> in your own header file,
+// If you are thinking of forward declaring #TCallback<> in your own header
+// file,
 // please include "callback_forward.h" instead.
 //
 
@@ -199,24 +194,12 @@ struct TFutureHelper< TPromise<R> >
 } // namespace NDetail
 
 
-$range ARITY 0..MAX_ARITY
-$for ARITY [[
-$range ARG 1..ARITY
-
-$if ARITY == 0 [[
-template <class R>
-class TCallback<R()>
+template <class R, class... TArgs>
+class TCallback<R(TArgs...)>
     : public NYT::NDetail::TCallbackBase
 {
-]] $else [[
-template <class R, $for ARG , [[class A$(ARG)]]>
-class TCallback<R($for ARG , [[A$(ARG)]])>
-    : public NYT::NDetail::TCallbackBase
-{
-]]
-
 public:
-    typedef R(Signature)($for ARG , [[A$(ARG)]]);
+    typedef R(Signature)(TArgs...);
 
     TCallback()
         : TCallbackBase(TIntrusivePtr< NYT::NDetail::TBindStateBase >())
@@ -247,53 +230,37 @@ public:
     }
 
     using TCallbackBase::Equals;
-    
+
     TCallback& operator=(const TCallback& other)
     {
         TCallback(other).Swap(*this);
         return *this;
     }
- 
+
     TCallback& operator=(TCallback&& other)
     {
         TCallback(std::move(other)).Swap(*this);
         return *this;
     }
 
-    R Run($for ARG , [[A$(ARG) a$(ARG)]]) const
+    R Run(TArgs... args) const
     {
         TTypedInvokeFunction invokeFunction =
             reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
-        return invokeFunction(BindState.Get()[[]]
-$if ARITY != 0 [[,
-            [[]]
-]]
-$for ARG ,
-            [[std::forward<A$(ARG)>(a$(ARG))]]);
+        return invokeFunction(BindState.Get(),
+            std::forward<TArgs>(args)...);
     }
 
     // XXX(sandello): This is legacy. Due to forced migration to new callbacks.
-    TCallback Via(
-        TIntrusivePtr<IInvoker> invoker);
-
-$if ARITY == 0 [[
-    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType()>
-]] $else [[
-    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType($for ARG , [[A$(ARG)]])>
-]]
-    
+    TCallback Via(TIntrusivePtr<IInvoker> invoker);
+    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType(TArgs...)>
     AsyncVia(TIntrusivePtr<IInvoker> invoker);
 
 private:
     typedef R(*TTypedInvokeFunction)(
-        NYT::NDetail::TBindStateBase*[[]]
-$if ARITY != 0 [[, ]]
-$for ARG , [[A$(ARG)&&]]);
+        NYT::NDetail::TBindStateBase*, TArgs&& ...);
 
 };
-
-
-]] $$ for ARITY
 // Syntactic sugar to make Callbacks<void()> easier to declare since it
 // will be used in a lot of APIs with delayed execution.
 typedef TCallback<void()> TClosure;
@@ -303,6 +270,4 @@ typedef TCallback<void()> TClosure;
 } // namespace NYT
 
 #include "bind.h"
-#define CALLBACK_VIA_H_
 #include "callback_via.h"
-#undef CALLBACK_VIA_H_
