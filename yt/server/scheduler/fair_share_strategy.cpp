@@ -1436,15 +1436,6 @@ private:
             job->SetPreemptable(false);
             job->SetJobListIterator(--nonpreemptableJobs.end());
         }
-
-        int newNonpreemptableListSize = static_cast<int>(nonpreemptableJobs.size());
-
-        LOG_DEBUG_IF(
-            oldNonpreemptableListSize != newNonpreemptableListSize,
-            "Nonpreemptable jobs changed: %d -> %d (OperationId: %s)",
-            oldNonpreemptableListSize,
-            newNonpreemptableListSize,
-            ~ToString(element->GetOperation()->GetOperationId()));
     }
 
 
