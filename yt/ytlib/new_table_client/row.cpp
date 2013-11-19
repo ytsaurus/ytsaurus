@@ -89,11 +89,11 @@ int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 size_t GetHash(const TUnversionedValue& value)
 {
     switch (value.Type) {
-        case EColumnType::String:
+        case ERowValueType::String:
             return TStringBuf(value.Data.String, value.Length).hash();
 
-        case EColumnType::Integer:
-        case EColumnType::Double:
+        case ERowValueType::Integer:
+        case ERowValueType::Double:
             // Integer and Double are aliased.
             return (value.Data.Integer & 0xffff) + 17 * (value.Data.Integer >> 32);
 
@@ -136,7 +136,7 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
     size_t variableSize = 0;
     for (int index = 0; index < row.GetValueCount(); ++index) {
         const auto& otherValue = row[index];
-        if (otherValue.Type == EColumnType::String || otherValue.Type == EColumnType::Any) {
+        if (otherValue.Type == ERowValueType::String || otherValue.Type == ERowValueType::Any) {
             variableSize += otherValue.Length;
         }
     }
@@ -156,20 +156,20 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
         current += WriteVarUInt32(current, value.Id);
         current += WriteVarUInt32(current, value.Type);
         switch (value.Type) {
-            case EColumnType::Null:
+            case ERowValueType::Null:
                 break;
 
-            case EColumnType::Integer:
+            case ERowValueType::Integer:
                 current += WriteVarInt64(current, value.Data.Integer);
                 break;
             
-            case EColumnType::Double:
+            case ERowValueType::Double:
                 ::memcpy(current, &value.Data.Double, sizeof (double));
                 current += sizeof (double);
                 break;
             
-            case EColumnType::String:           
-            case EColumnType::Any:
+            case ERowValueType::String:           
+            case ERowValueType::Any:
                 current += WriteVarUInt32(current, value.Length);
                 ::memcpy(current, value.Data.String, value.Length);
                 current += value.Length;

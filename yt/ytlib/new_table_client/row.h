@@ -30,7 +30,7 @@ struct TUnversionedValue
         const char* String;
     } Data;
 
-    static FORCED_INLINE TUnversionedValue MakeSentinel(EColumnType type, int id = 0)
+    static FORCED_INLINE TUnversionedValue MakeSentinel(ERowValueType type, int id = 0)
     {
         TUnversionedValue result;
         result.Id = id;
@@ -238,16 +238,12 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
 
 //! Returns the successor of |key|, i.e. the key
-//! obtained from |key| by appending a |EColumnType::Min| sentinel.
+//! obtained from |key| by appending a |ERowValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(const TOwningKey& key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
-//! obtained by triming |key| to |prefixLength| and appending a |EColumnType::Max| sentinel.
-TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOwningRowTag { };
+//! obtained by triming |key| to |prefixLength| and appending a |ERowValueType::Max| sentinel.
+TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength);
 
 //! An immutable owning version of TRow.
 /*!

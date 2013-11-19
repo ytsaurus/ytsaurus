@@ -599,7 +599,7 @@ void TVersionedTableConsumer::OnEndMap()
             if (SchemaColumnDescriptors[id].Written) {
                 SchemaColumnDescriptors[id].Written = false;
             } else {
-                CurrentWriter->WriteValue(TUnversionedValue::MakeSentinel(EColumnType::Null, id));
+                CurrentWriter->WriteValue(TUnversionedValue::MakeSentinel(ERowValueType::Null, id));
             }
         }
         CurrentWriter->EndRow();

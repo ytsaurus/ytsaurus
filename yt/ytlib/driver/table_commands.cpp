@@ -490,20 +490,20 @@ void TLookupCommand::DoExecute()
             consumer->OnBeginMap();
             for (int i = 0; i < row.GetValueCount(); ++i) {
                 const auto& value = row[i];
-                if (value.Type == EColumnType::Null)
+                if (value.Type == ERowValueType::Null)
                     continue;
                 consumer->OnKeyedItem(nameTable->GetName(value.Id));
                 switch (value.Type) {
-                    case EColumnType::Integer:
+                    case ERowValueType::Integer:
                         consumer->OnIntegerScalar(value.Data.Integer);
                         break;
-                    case EColumnType::Double:
+                    case ERowValueType::Double:
                         consumer->OnDoubleScalar(value.Data.Double);
                         break;
-                    case EColumnType::String:
+                    case ERowValueType::String:
                         consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                         break;
-                    case EColumnType::Any:
+                    case ERowValueType::Any:
                         consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                         break;
                     default:

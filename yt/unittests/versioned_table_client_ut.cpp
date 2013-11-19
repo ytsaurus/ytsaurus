@@ -65,7 +65,7 @@ protected:
 
     void WriteNull(int id)
     {
-        ChunkWriter->WriteValue(TUnversionedValue::MakeSentinel(EColumnType::Null, id));
+        ChunkWriter->WriteValue(TUnversionedValue::MakeSentinel(ERowValueType::Null, id));
     }
 
     Stroka ToStroka(const TUnversionedValue& value)
