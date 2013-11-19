@@ -3,6 +3,7 @@ from common import update_from_env
 PROXY = None
 
 TOKEN = None
+TOKEN_PATH = None
 USE_TOKEN = True
 
 ACCEPT_ENCODING = "gzip, identity"
