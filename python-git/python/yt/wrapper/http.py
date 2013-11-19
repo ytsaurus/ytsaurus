@@ -115,7 +115,9 @@ def get_api(proxy, version=None):
 def get_token():
     token = http_config.TOKEN
     if token is None:
-        token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
+        token_path = http_config.TOKEN_PATH
+        if token_path is None:
+            token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
         if os.path.isfile(token_path):
             token = open(token_path).read().strip()
     if token is not None:
