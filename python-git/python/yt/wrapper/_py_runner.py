@@ -57,23 +57,28 @@ def main():
             rec.attributes = {}
             yield rec
 
-    if __attributes.get("is_raw", False):
-        __result = itertools.chain(*itertools.imap(__operation, sys.stdin.xreadlines()))
-    else:
-        if isinstance(__input_format, yt.YsonFormat):
-            __records = process_input_table_index(yson.load(sys.stdin, yson_type="list_fragment"))
-        else:
-            __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
+    is_raw = __attributes.get("is_raw", False)
 
-        if __operation_type == "mapper":
-            if __attributes.get("is_aggregator", False):
-                __result = __operation(__records)
-            else:
-                __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
+    if is_raw:
+        __records = sys.stdin.xreadlines()
+    elif isinstance(__input_format, yt.YsonFormat):
+        __records = process_input_table_index(yson.load(sys.stdin, yson_type="list_fragment"))
+    else:
+        __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
+
+    if __operation_type == "mapper":
+        if __attributes.get("is_aggregator", False):
+            __result = __operation(__records)
         else:
-            __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: extract_key(rec, __keys, __input_format))))
-        if isinstance(__input_format, yt.YsonFormat):
-            __result = process_output_table_index(__result)
+            __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
+    else:
+        __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: extract_key(rec, __keys, __input_format))))
+
+    if is_raw:
+        pass
+    elif isinstance(__input_format, yt.YsonFormat):
+        __result = process_output_table_index(__result)
+    else:
         __result = itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result)
 
     sys.stdout.writelines(__result)
