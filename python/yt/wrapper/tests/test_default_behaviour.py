@@ -254,6 +254,9 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                 sum += int(rec.get("y", 1))
             yield {"x": key["x"], "y": sum}
 
+        @yt.raw
+        def change_field(line):
+            yield "z=8\n"
 
         table = TEST_DIR + "/table"
 
@@ -269,6 +272,10 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
         self.assertItemsEqual(["x=2\ty=3\n"], yt.read_table(table))
+
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.run_map(change_field, table, table)
+        self.assertItemsEqual(["z=8\n", "z=8\n"], yt.read_table(table))
 
     def test_binary_data_with_dsv(self):
         record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
