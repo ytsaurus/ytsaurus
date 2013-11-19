@@ -83,9 +83,11 @@ configure_arcadia_mirror contrib-libs-zlib
 
 configure_arcadia_mirror util
 
+configure_arcadia_mirror library-blockcodecs
 configure_arcadia_mirror library-httpserver
 configure_arcadia_mirror library-lfalloc
 configure_arcadia_mirror library-lwtrace
+configure_arcadia_mirror library-messagebus
 
 configure_github_mirror lloyd-yajl
 configure_github_mirror joyent-libuv
