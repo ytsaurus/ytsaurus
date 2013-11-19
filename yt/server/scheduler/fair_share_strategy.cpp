@@ -1401,8 +1401,6 @@ private:
             return limit == 0 ? 1.0 : (double) usage / limit;
         };
 
-        int oldNonpreemptableListSize = static_cast<int>(nonpreemptableJobs.size());
-
         // Remove nonpreemptable jobs exceeding the fair share.
         while (!nonpreemptableJobs.empty()) {
             if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= attributes.FairShareRatio)
