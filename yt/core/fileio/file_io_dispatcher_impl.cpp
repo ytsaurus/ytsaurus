@@ -4,10 +4,10 @@ namespace NYT {
 namespace NFileIO {
 
 TFileIODispatcher::TImpl::TImpl()
-    : Thread(ThreadFunc, this),
-      Stopped(false),
-      StopWatcher(EventLoop),
-      RegisterWatcher(EventLoop)
+    : Thread(ThreadFunc, this)
+    , Stopped(false)
+    , StopWatcher(EventLoop)
+    , RegisterWatcher(EventLoop)
 {
     StopWatcher.set<TImpl, &TImpl::OnStop>(this);
     RegisterWatcher.set<TImpl, &TImpl::OnRegister>(this);
@@ -35,7 +35,7 @@ TAsyncError TFileIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TRegisterEntry entry(watcher);
+    TRegisterEntry entry(std::move(watcher));
     RegisterQueue.Enqueue(entry);
     RegisterWatcher.send();
 
@@ -58,7 +58,7 @@ void TFileIODispatcher::TImpl::OnRegister(ev::async&, int)
         try {
             entry.Watcher->Start(EventLoop);
             entry.Promise.Set(TError());
-        } catch (std::exception& ex) {
+        } catch (const std::exception& ex) {
             entry.Promise.Set(ex);
         }
     }

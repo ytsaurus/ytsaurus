@@ -32,6 +32,7 @@ public:
     void Shutdown();
 
     TAsyncError AsyncRegister(IFDWatcherPtr watcher);
+
 private:
     TThread Thread;
     ev::dynamic_loop EventLoop;
@@ -42,12 +43,12 @@ private:
     struct TRegisterEntry
     {
         TRegisterEntry()
-        {}
+        { }
 
         explicit TRegisterEntry(IFDWatcherPtr watcher)
             : Watcher(std::move(watcher))
             , Promise(NewPromise<TError>())
-        {}
+        { }
 
         IFDWatcherPtr Watcher;
         TPromise<TError> Promise;
