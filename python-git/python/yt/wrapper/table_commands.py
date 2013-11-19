@@ -143,10 +143,12 @@ def _remove_tables(tables):
                 _remove_locks(table)
             remove(table)
 
-def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, memory_limit, reduce_by, spec):
+def _add_user_command_spec(op_type, binary, format, input_format, output_format, files, file_paths, memory_limit, reduce_by, spec):
     if binary is None:
         return spec, []
+
     files = _prepare_files(files)
+    input_format, output_format = _prepare_formats(format, input_format, output_format)
     binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format, reduce_by)
     spec = update(
         {
@@ -634,10 +636,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         _remove_tables(destination_table)
         return
 
-    map_input_format, map_output_format = _prepare_formats(format, map_input_format, map_output_format)
-    reduce_input_format, reduce_output_format = _prepare_formats(format, reduce_input_format, reduce_output_format)
-    reduce_combiner_input_format, reduce_combiner_output_format = _prepare_formats(format, reduce_combiner_input_format, reduce_combiner_output_format)
-
     if sort_by is None:
         sort_by = reduce_by
 
@@ -647,9 +645,9 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
                           "reduce_by": _prepare_reduce_by(reduce_by)}, _),
-        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, map_input_format, map_output_format, map_files, map_file_paths, mapper_memory_limit, None, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, reduce_input_format, reduce_output_format, reduce_files, reduce_file_paths, reducer_memory_limit, reduce_by, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reduce_combiner", reduce_combiner, reduce_combiner_input_format, reduce_combiner_output_format, reduce_combiner_files, reduce_combiner_file_paths, reduce_combiner_memory_limit, reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, format, map_input_format, map_output_format, map_files, map_file_paths, mapper_memory_limit, None, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, format, reduce_input_format, reduce_output_format, reduce_files, reduce_file_paths, reducer_memory_limit, reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reduce_combiner", reduce_combiner, format, reduce_combiner_input_format, reduce_combiner_output_format, reduce_combiner_files, reduce_combiner_file_paths, reduce_combiner_memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -706,7 +704,6 @@ def run_operation(binary, source_table, destination_table,
             reduce_by = _prepare_reduce_by(reduce_by)
 
     destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec)
-    input_format, output_format = _prepare_formats(format, input_format, output_format)
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
         _remove_tables(destination_table)
@@ -723,7 +720,7 @@ def run_operation(binary, source_table, destination_table,
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
         lambda _: update({"memory_limit": memory_limit}, _) if memory_limit is not None else _,
-        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, memory_limit, reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, format, input_format, output_format, files, file_paths, memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
