@@ -25,6 +25,8 @@ using NObjectClient::NullTransactionId;
 
 typedef i64 TTimestamp;
 const TTimestamp NullTimestamp = 0;
+const TTimestamp MinTimestamp = 0;
+const TTimestamp MaxTimestamp = 0x7fffffffffffffff;
 const TTimestamp LastCommittedTimestamp = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
