@@ -313,7 +313,7 @@ void TBootstrap::Run()
         timestampProvider);
 
     HiveManager->Start();
-
+    TransactionSupervisor->Start();
     ObjectManager->Initialize();
     SecurityManager->Initialize();
     NodeTracker->Initialize();

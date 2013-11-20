@@ -21,6 +21,9 @@ public:
         TTabletSlot* slot,
         NCellNode::TBootstrap* bootstrap);
 
+    void Start();
+    void Stop();
+
 private:
     typedef TTabletService TThis;
 

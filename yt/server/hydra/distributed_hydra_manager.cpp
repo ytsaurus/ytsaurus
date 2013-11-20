@@ -869,6 +869,10 @@ public:
         StopEpoch();
         ControlState_ = EPeerState::Stopped;
 
+        ElectionManager_->Stop();
+
+        RpcServer->UnregisterService(this);
+
         LOG_INFO("Hydra instance stopped");
     }
 

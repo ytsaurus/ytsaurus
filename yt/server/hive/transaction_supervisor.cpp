@@ -108,8 +108,18 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         Automaton->RegisterPart(this);
+    }
+
+    void Start()
+    {
         RpcServer->RegisterService(this);
     }
+
+    void Stop()
+    {
+        RpcServer->UnregisterService(this);
+    }
+
 
     TMutationPtr CreateStartTransactionMutation(const TReqStartTransaction& request)
     {
@@ -670,6 +680,16 @@ TTransactionSupervisor::TTransactionSupervisor(
         transactionManager,
         timestampProvider))
 { }
+
+void TTransactionSupervisor::Start()
+{
+    Impl->Start();
+}
+
+void TTransactionSupervisor::Stop()
+{
+    Impl->Stop();
+}
 
 TMutationPtr TTransactionSupervisor::CreateStartTransactionMutation(const TReqStartTransaction& request)
 {

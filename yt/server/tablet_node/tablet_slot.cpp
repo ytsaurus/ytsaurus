@@ -286,12 +286,11 @@ public:
                 Owner,
                 Bootstrap);
 
+            TransactionSupervisor->Start();
             TabletManager->Initialize();
             HydraManager->Start();
             HiveManager->Start();
-
-            auto rpcServer = Bootstrap->GetRpcServer();
-            rpcServer->RegisterService(TabletService);
+            TabletService->Start();
         }
 
         CellConfig = configureInfo.config();
@@ -390,11 +389,13 @@ private:
 
         TransactionManager.Reset();
 
-        TransactionSupervisor.Reset();
+        if (TransactionSupervisor) {
+            TransactionSupervisor->Stop();
+            TransactionSupervisor.Reset();
+        }
 
         if (TabletService) {
-            auto rpcServer = Bootstrap->GetRpcServer();
-            rpcServer->UnregisterService(TabletService);
+            TabletService->Stop();
             TabletService.Reset();
         }
 

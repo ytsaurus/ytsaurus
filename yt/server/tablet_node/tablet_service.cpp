@@ -6,9 +6,13 @@
 #include "transaction.h"
 #include "private.h"
 
+#include <core/rpc/server.h>
+
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <server/hydra/hydra_manager.h>
+
+#include <server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -37,6 +41,18 @@ TTabletService::TTabletService(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Lookup));
+}
+
+void TTabletService::Start()
+{
+    auto rpcServer = Bootstrap->GetRpcServer();
+    rpcServer->RegisterService(this);
+}
+
+void TTabletService::Stop()
+{
+    auto rpcServer = Bootstrap->GetRpcServer();
+    rpcServer->UnregisterService(this);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)

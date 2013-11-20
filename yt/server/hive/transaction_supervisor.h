@@ -29,6 +29,9 @@ public:
         ITransactionManagerPtr transactionManager,
         NHive::ITimestampProviderPtr timestampProvider);
 
+    void Start();
+    void Stop();
+
     NHydra::TMutationPtr CreateStartTransactionMutation(const NProto::TReqStartTransaction& request);
     NHydra::TMutationPtr CreateCommitTransactionMutation(const NProto::TReqCommitTransaction& request);
     NHydra::TMutationPtr CreateAbortTransactionMutation(const NProto::TReqAbortTransaction& request);
