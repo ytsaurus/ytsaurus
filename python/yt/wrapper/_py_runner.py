@@ -66,7 +66,7 @@ def main():
     else:
         __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
 
-    if __operation_type == "mapper":
+    if __operation_type == "mapper" or is_raw:
         if __attributes.get("is_aggregator", False):
             __result = __operation(__records)
         else:
