@@ -110,8 +110,8 @@ private:
     bool CheckQuorum();
 
     void StartVotingRound();
-    void StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch);
-    void StartVoting();
+    void StartVoteFor(TPeerId voteId, const TEpochId& voteEpochId);
+    void StartVoteForSelf();
 
     void StartLeading();
     void StartFollowing(TPeerId leaderId, const TEpochId& epoch);
@@ -362,10 +362,17 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    bool ProcessVote(TPeerId id, const TStatus& status)
+
+    void ProcessVote(TPeerId id, const TStatus& status)
     {
+        YCHECK(id != InvalidPeerId);
         StatusTable[id] = status;
-        return CheckForLeader();
+
+        for (const auto& pair : StatusTable) {
+            if (CheckForLeader(pair.first, pair.second)) {
+                break;
+            }
+        }
     }
 
     void OnResponse(TPeerId id, TElectionServiceProxy::TRspGetStatusPtr response)
@@ -392,28 +399,9 @@ private:
         ProcessVote(id, TStatus(state, vote, priority, epochId));
     }
 
-    bool CheckForLeader()
+    bool CheckForLeader(TPeerId candidateId, const TStatus& candidateStatus)
     {
-        LOG_DEBUG("Checking candidates");
-
-        for (const auto& pair : StatusTable) {
-            if (CheckForLeader(pair.first, pair.second)) {
-                return true;
-            }
-        }
-
-        LOG_DEBUG("No leader candidate found");
-
-        return false;
-    }
-
-    bool CheckForLeader(
-        TPeerId candidateId,
-        const TStatus& candidateStatus)
-    {
-        if (!IsFeasibleCandidate(candidateId, candidateStatus)) {
-            LOG_DEBUG("Candidate %d is not feasible",
-                candidateId);
+        if (!IsFeasibleLeader(candidateId, candidateStatus)) {
             return false;
         }
 
@@ -431,10 +419,6 @@ private:
 
         // Check for quorum.
         if (voteCount < quorum) {
-            LOG_DEBUG("Candidate %d has too few votes: %d < %d",
-                candidateId,
-                voteCount,
-                quorum);
             return false;
         }
 
@@ -472,13 +456,12 @@ private:
         return result;
     }
 
-    bool IsFeasibleCandidate(
-        TPeerId candidateId,
-        const TStatus& candidateStatus) const
+    bool IsFeasibleLeader(TPeerId candidateId, const TStatus& candidateStatus) const
     {
         // He must be voting for himself.
-        if (candidateId != candidateStatus.VoteId)
+        if (candidateId != candidateStatus.VoteId) {
             return false;
+        }
 
         if (candidateId == Owner->CellManager->GetSelfId()) {
             // Check that we're voting.
@@ -491,7 +474,7 @@ private:
     }
 
     // Compare votes lexicographically by (priority, id).
-    bool IsBetterCandidate(const TStatus& lhs, const TStatus& rhs) const
+    static bool IsBetterCandidate(const TStatus& lhs, const TStatus& rhs)
     {
         if (lhs.Priority > rhs.Priority)
             return true;
@@ -502,32 +485,32 @@ private:
         return lhs.VoteId < rhs.VoteId;
     }
 
-    void ChooseVote()
-    {
-        // Choose the best vote.
-        TStatus bestCandidate;
-        for (const auto& pair : StatusTable) {
-            const TStatus& currentCandidate = pair.second;
-            if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&
-                IsBetterCandidate(currentCandidate, bestCandidate))
-            {
-                bestCandidate = currentCandidate;
-            }
-        }
-
-        // Extract the status of the best candidate.
-        // His status must be present in the table by the above checks.
-        const TStatus& candidateStatus = StatusTable[bestCandidate.VoteId];
-        Owner->StartVoteFor(candidateStatus.VoteId, candidateStatus.VoteEpochId);
-    }
-
     void OnComplete()
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
         LOG_DEBUG("Voting round completed");
 
-        ChooseVote();
+        // Choose the best vote.
+        TNullable<TStatus> bestCandidate;
+        for (const auto& pair : StatusTable) {
+            const auto& currentCandidate = pair.second;
+            if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&
+                (!bestCandidate || IsBetterCandidate(currentCandidate, *bestCandidate)))
+            {
+                bestCandidate = currentCandidate;
+            }
+        }
+
+        if (bestCandidate) {
+            // Extract the status of the best candidate.
+            // His status must be present in the table by the above checks.
+            const auto& candidateStatus = StatusTable[bestCandidate->VoteId];
+            Owner->StartVoteFor(candidateStatus.VoteId, candidateStatus.VoteEpochId);
+        }
+        else {
+            Owner->StartVoteForSelf();
+        }
     }
 
 };
@@ -674,7 +657,7 @@ void TElectionManager::TImpl::OnFollowerPingTimeout()
     LOG_INFO("No recurrent ping from leader within timeout");
 
     StopFollowing();
-    StartVoting();
+    StartVoteForSelf();
 }
 
 void TElectionManager::TImpl::DoStart()
@@ -682,7 +665,7 @@ void TElectionManager::TImpl::DoStart()
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Stopped);
 
-    StartVoting();
+    StartVoteForSelf();
 }
 
 void TElectionManager::TImpl::DoStop()
@@ -722,13 +705,13 @@ void TElectionManager::TImpl::DoRestart()
         case EPeerState::Leading:
             LOG_INFO("Leader restart forced");
             StopLeading();
-            StartVoting();
+            StartVoteForSelf();
             break;
 
         case EPeerState::Following:
             LOG_INFO("Follower restart forced");
             StopFollowing();
-            StartVoting();
+            StartVoteForSelf();
             break;
 
         default:
@@ -755,13 +738,14 @@ void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteE
     VoteId = voteId;
     VoteEpochId = voteEpoch;
 
-    TDelayedExecutor::Submit(
-        BIND(&TThis::StartVotingRound, MakeStrong(this))
-            .Via(ControlEpochInvoker),
-        Config->VotingRoundInterval);
+    LOG_DEBUG("Voting for another candidate (VoteId: %d, VoteEpochId: %s)",
+        VoteId,
+        ~ToString(VoteEpochId));
+
+    StartVotingRound();
 }
 
-void TElectionManager::TImpl::StartVoting()
+void TElectionManager::TImpl::StartVoteForSelf()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -773,10 +757,9 @@ void TElectionManager::TImpl::StartVoting()
     EpochContext = New<TEpochContext>();
     ControlEpochInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
 
-    auto priority = ElectionCallbacks->GetPriority();
-
-    LOG_DEBUG("Voting for self (Priority: %s, VoteEpochId: %s)",
-        ~ElectionCallbacks->FormatPriority(priority),
+    LOG_DEBUG("Voting for self (VoteId: %d, Priority: %s, VoteEpochId: %s)",
+        VoteId,
+        ~ElectionCallbacks->FormatPriority(ElectionCallbacks->GetPriority()),
         ~ToString(VoteEpochId));
 
     StartVotingRound();
@@ -787,20 +770,24 @@ void TElectionManager::TImpl::StartVotingRound()
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Voting);
 
-    New<TVotingRound>(this)->Run();
+    auto round = New<TVotingRound>(this);
+    TDelayedExecutor::Submit(
+        BIND(&TVotingRound::Run, round)
+            .Via(ControlEpochInvoker),
+        Config->VotingRoundInterval);
 }
 
 void TElectionManager::TImpl::StartFollowing(
     TPeerId leaderId,
-    const TEpochId& epoch)
+    const TEpochId& epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Following);
     VoteId = leaderId;
-    VoteEpochId = epoch;
+    VoteEpochId = epochId;
 
-    InitEpochContext(leaderId, epoch);
+    InitEpochContext(leaderId, epochId);
 
     PingTimeoutCookie = TDelayedExecutor::Submit(
         BIND(&TThis::OnFollowerPingTimeout, MakeStrong(this))
