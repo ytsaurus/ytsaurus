@@ -42,7 +42,7 @@ def main():
     
     if args.compression_codec is not None:
         ratio = get_compression_ratio(args.src, args.compression_codec)
-        yt.set(args.src + "/@compression_codec", args.compression_codec)
+        yt.set(args.dst + "/@compression_codec", args.compression_codec)
     else:
         ratio = yt.get(args.src + "/@compression_ratio")
 
