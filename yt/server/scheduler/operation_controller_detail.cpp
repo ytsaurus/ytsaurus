@@ -919,11 +919,8 @@ void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Spec->Title) {
-        LOG_INFO("Initializing operation (Title: %s)", ~(*Spec->Title));
-    } else {
-        LOG_INFO("Initializing operation");
-    }
+    LOG_INFO("Initializing operation (Title: %s)",
+        Spec->Title ? ~(*Spec->Title) : "<Null>");
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
