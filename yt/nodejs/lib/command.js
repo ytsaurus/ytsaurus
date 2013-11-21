@@ -215,6 +215,7 @@ YtCommand.prototype._epilogue = function(result) {
     "use strict";
     this.__DBG("_epilogue");
 
+    var sent_headers = !!this.rsp._header;
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
         this.rsp.setHeader("X-YT-Error", result.toJson());
