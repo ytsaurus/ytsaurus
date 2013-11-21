@@ -32,7 +32,10 @@ void TDriverResponse::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& output
 
 Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 {
+    Py_BEGIN_ALLOW_THREADS
     Response_.Get();
+    Py_END_ALLOW_THREADS
+
     return Py::None();
 }
     

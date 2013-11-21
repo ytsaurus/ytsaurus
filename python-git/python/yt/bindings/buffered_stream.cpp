@@ -167,7 +167,12 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
         throw Py::RuntimeError("Incorrect arguments for read function");
     }
 
-    auto result = Stream_->Read(size.asLongLong());
+    TSharedRef result;
+    {
+        Py_BEGIN_ALLOW_THREADS
+        result = Stream_->Read(size.asLongLong());
+        Py_END_ALLOW_THREADS
+    }
     return Py::String(result.Begin(), result.Size());
 }
 
