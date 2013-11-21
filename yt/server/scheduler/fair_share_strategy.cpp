@@ -890,6 +890,7 @@ public:
         auto element = GetOperationElement(operation);
         auto pool = element->GetPool();
         BuildYsonMapFluently(consumer)
+            .Item("pool").Value(pool->GetId())
             .Item("start_time").Value(element->GetStartTime())
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
@@ -903,6 +904,7 @@ public:
         auto pool = element->GetPool();
         const auto& attributes = pool->Attributes();
         BuildYsonMapFluently(consumer)
+            .Item("pool").Value(pool->GetId())
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
