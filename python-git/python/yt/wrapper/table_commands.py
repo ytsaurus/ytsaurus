@@ -576,7 +576,7 @@ class Finalizer(object):
             for table in map(to_name, self.output_tables):
                 if is_empty(table):
                     remove_with_empty_dirs(table)
-        if config.REMOVE_TEMP_FILES:
+        if config.REMOVE_UPLOADED_FILES:
             for file in self.files:
                 remove(file, force=True)
 
