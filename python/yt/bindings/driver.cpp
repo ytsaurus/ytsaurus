@@ -239,6 +239,8 @@ public:
     driver_module()
         : Py::ExtensionModule<driver_module>("driver")
     {
+        PyEval_InitThreads();
+
         RegisterShutdown();
 
         TDriver::InitType();
