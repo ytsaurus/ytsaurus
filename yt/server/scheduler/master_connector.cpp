@@ -864,6 +864,7 @@ private:
                     .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Bootstrap->GetScheduler()->GetStrategy(), operation))
                 .EndMap()
                 .Item("progress").BeginMap().EndMap()
+                .Item("brief_progress").BeginMap().EndMap()
                 .Item("opaque").Value("true")
             .EndAttributes()
             .BeginMap()
@@ -881,6 +882,7 @@ private:
             .BeginMap()
                 .Do(BIND(&BuildOperationAttributes, operation))
                 .Item("progress").BeginMap().EndMap()
+                .Item("breif_progress").BeginMap().EndMap()
             .EndMap();
     }
 
@@ -1313,21 +1315,33 @@ private:
             batchReq->AddRequest(req, "update_op_node");
         }
 
-        // Set progress.
         if ((state == EOperationState::Running || IsOperationFinished(state)) && controller) {
-            auto req = TYPathProxy::Set(operationPath + "/@progress");
-            req->set_value(BuildYsonStringFluently()
-                .BeginMap()
-                    .Do(BIND(&IOperationController::BuildProgressYson, controller))
-                .EndMap().Data());
-            batchReq->AddRequest(req, "update_op_node");
+            // Set progress.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@progress");
+                req->set_value(BuildYsonStringFluently()
+                    .BeginMap()
+                        .Do(BIND(&IOperationController::BuildProgress, controller))
+                    .EndMap().Data());
+                batchReq->AddRequest(req, "update_op_node");
+
+            }
+            // Set brief progress.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
+                req->set_value(BuildYsonStringFluently()
+                    .BeginMap()
+                        .Do(BIND(&IOperationController::BuildBriefProgress, controller))
+                    .EndMap().Data());
+                batchReq->AddRequest(req, "update_op_node");
+            }
         }
 
         // Set result.
         if (operation->IsFinishedState() && controller) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
             req->set_value(ConvertToYsonString(BIND(
-                &IOperationController::BuildResultYson,
+                &IOperationController::BuildResult,
                 controller)).Data());
             batchReq->AddRequest(req, "update_op_node");
         }

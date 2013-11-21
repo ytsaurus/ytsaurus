@@ -20,7 +20,7 @@ public:
     virtual void ScheduleJobs(ISchedulingContext* /*context*/) override
     { }
 
-    virtual void BuildOperationProgressYson(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
+    virtual void BuildOperationProgress(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
     { }
 
     virtual Stroka GetOperationLoggingProgress(TOperationPtr /*operation*/) override
@@ -28,7 +28,7 @@ public:
         return "";
     }
 
-    virtual void BuildOrchidYson(IYsonConsumer* /*consumer*/) override
+    virtual void BuildOrchid(IYsonConsumer* /*consumer*/) override
     { }
 
     virtual void BuildBriefSpec(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override

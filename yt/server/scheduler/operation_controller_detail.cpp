@@ -3023,7 +3023,7 @@ void TOperationControllerBase::RemoveJoblet(TJobPtr job)
     YCHECK(JobletMap.erase(job->GetId()) == 1);
 }
 
-void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
+void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -3052,7 +3052,15 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
+void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    BuildYsonMapFluently(consumer)
+        .Item("jobs").Value(JobCounter);
+}
+
+void TOperationControllerBase::BuildResult(IYsonConsumer* consumer)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

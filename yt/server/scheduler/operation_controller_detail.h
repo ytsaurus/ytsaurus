@@ -79,8 +79,9 @@ public:
     virtual int GetTotalJobCount() override;
     virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() override;
 
-    virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
-    virtual void BuildResultYson(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildProgress(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildResult(NYson::IYsonConsumer* consumer) override;
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) override;
 
     virtual void Persist(TPersistenceContext& context) override;

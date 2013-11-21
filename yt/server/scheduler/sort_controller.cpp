@@ -2108,9 +2108,9 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) override
     {
-        TSortControllerBase::BuildProgressYson(consumer);
+        TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
             .Item("partition_jobs").Value(PartitionJobCounter)
@@ -2650,9 +2650,9 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) override
     {
-        TSortControllerBase::BuildProgressYson(consumer);
+        TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
             .Item(Spec->Mapper ? "partition_jobs" : "map_jobs").Value(PartitionJobCounter)
