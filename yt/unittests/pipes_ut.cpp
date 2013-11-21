@@ -97,7 +97,7 @@ TBlob readAll(TAsyncReader& reader)
         whole.Append(data.Begin(), data.Size());
 
         if ((!isClosed) && (data.Size() == 0)) {
-            TError error = reader.GetReadState().Get();
+            TError error = reader.GetReadyEvent().Get();
         }
     }
     return whole;

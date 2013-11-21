@@ -48,13 +48,13 @@ void TAsyncWriter::OnWrite(ev::io&, int)
         }
     }
 
-    if (WriteStatePromise.HasValue()) {
+    if (ReadyPromise.HasValue()) {
         if (LastSystemError == 0) {
-            WriteStatePromise->Set(TError());
+            ReadyPromise->Set(TError());
         } else {
-            WriteStatePromise->Set(TError::FromSystem(LastSystemError));
+            ReadyPromise->Set(TError::FromSystem(LastSystemError));
         }
-        WriteStatePromise.Reset();
+        ReadyPromise.Reset();
     }
 }
 
@@ -84,7 +84,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
         }
     }
 
-    YCHECK(!WriteStatePromise.HasValue());
+    YCHECK(!ReadyPromise.HasValue());
 
     YCHECK(bytesWritten <= size);
     WriteBuffer.Append(data + bytesWritten, size);
@@ -99,13 +99,13 @@ TAsyncError TAsyncWriter::Close()
     TGuard<TSpinLock> guard(WriteLock);
 
     NeedToClose = true;
-    YCHECK(!WriteStatePromise.HasValue());
+    YCHECK(!ReadyPromise.HasValue());
 
-    WriteStatePromise.Assign(NewPromise<TError>());
-    return WriteStatePromise->ToFuture();
+    ReadyPromise.Assign(NewPromise<TError>());
+    return ReadyPromise->ToFuture();
 }
 
-TAsyncError TAsyncWriter::GetWriteState()
+TAsyncError TAsyncWriter::GetReadyEvent()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -116,8 +116,8 @@ TAsyncError TAsyncWriter::GetWriteState()
     } else if (WriteBuffer.Size() < WriteBufferSize) {
         return MakePromise<TError>(TError());
     } else {
-        WriteStatePromise.Assign(NewPromise<TError>());
-        return WriteStatePromise->ToFuture();
+        ReadyPromise.Assign(NewPromise<TError>());
+        return ReadyPromise->ToFuture();
     }
 }
 

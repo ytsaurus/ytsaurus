@@ -18,7 +18,7 @@ public:
 
     bool Write(const void* data, size_t size);
     TAsyncError Close();
-    TAsyncError GetWriteState();
+    TAsyncError GetReadyEvent();
 
     virtual void Start(ev::dynamic_loop& eventLoop);
 
@@ -27,7 +27,7 @@ private:
 
     ev::io FDWatcher;
 
-    TNullable<TAsyncErrorPromise> WriteStatePromise;
+    TNullable<TAsyncErrorPromise> ReadyPromise;
 
     int FD;
 
