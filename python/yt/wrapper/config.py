@@ -3,7 +3,8 @@ from common import update_from_env, die
 USE_HOSTS = True
 HOSTS = "hosts"
 
-REMOVE_TEMP_FILES = False
+REMOVE_TEMP_FILES = True
+REMOVE_UPLOADED_FILES = False
 FILE_PLACEMENT_STRATEGY = "hash"
 
 ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = False
