@@ -3069,6 +3069,10 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
+        .DoIf(Spec->Title, [&] (TFluentMap fluent) {
+            fluent
+                .Item("title").Value(*Spec->Title);
+        })
         .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
