@@ -23,6 +23,9 @@ public:
     virtual void BuildOperationProgress(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
     { }
 
+    virtual void BuildBriefOperationProgress(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
+    { }
+
     virtual Stroka GetOperationLoggingProgress(TOperationPtr /*operation*/) override
     {
         return "";
