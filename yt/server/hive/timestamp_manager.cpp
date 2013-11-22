@@ -123,6 +123,7 @@ private:
                 if (CurrentTimestamp.load() >= PersistentTimestamp.load()) {
                     StartCommit();
                     PendingContexts.push_back(context);
+                    break;
                 }
             }
         }
