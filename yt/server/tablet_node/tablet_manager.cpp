@@ -105,61 +105,61 @@ public:
     }
 
 
-    void Write(
-        TTablet* tablet,
-        TTransaction* transaction,
-        TChunkMeta chunkMeta,
-        std::vector<TSharedRef> blocks)
-    {
-        try {
-            DoWriteRows(
-                tablet,
-                transaction,
-                chunkMeta,
-                blocks,
-                true);
-        } catch (const std::exception& ex) {
-            // Abort just taken locks.
-            for (auto group : LastPrewrittenRowGroups_) {
-                TMemoryTable::AbortGroup(group);
-            }
-            throw;
-        }
+    //void Write(
+    //    TTablet* tablet,
+    //    TTransaction* transaction,
+    //    TChunkMeta chunkMeta,
+    //    std::vector<TSharedRef> blocks)
+    //{
+    //    try {
+    //        DoWriteRows(
+    //            tablet,
+    //            transaction,
+    //            chunkMeta,
+    //            blocks,
+    //            true);
+    //    } catch (const std::exception& ex) {
+    //        // Abort just taken locks.
+    //        for (auto group : LastPrewrittenRowGroups_) {
+    //            TMemoryTable::AbortGroup(group);
+    //        }
+    //        throw;
+    //    }
 
-        int rowCount = static_cast<int>(LastPrewrittenRowGroups_.size());
+    //    int rowCount = static_cast<int>(LastPrewrittenRowGroups_.size());
 
-        LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d)",
-            ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()),
-            rowCount);
+    //    LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d)",
+    //        ~ToString(transaction->GetId()),
+    //        ~ToString(tablet->GetId()),
+    //        rowCount);
 
-        for (auto group : LastPrewrittenRowGroups_) {
-            PrewrittenRowGroups_.push(group);
-        }
+    //    for (auto group : LastPrewrittenRowGroups_) {
+    //        PrewrittenRowGroups_.push(group);
+    //    }
 
-        TReqWriteRows request;
-        ToProto(request.mutable_transaction_id(), transaction->GetId());
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.mutable_chunk_meta()->Swap(&chunkMeta);
-        // TODO(babenko): avoid copying
-        for (const auto& block : blocks) {
-            request.add_blocks(ToString(block));
-        }
-        CreateMutation(Slot->GetHydraManager(), Slot->GetAutomatonInvoker(), request)
-            ->SetAction(BIND(&TImpl::HydraLeaderWriteRows, MakeStrong(this), rowCount))
-            ->Commit();
-    }
+    //    TReqWriteRows request;
+    //    ToProto(request.mutable_transaction_id(), transaction->GetId());
+    //    ToProto(request.mutable_tablet_id(), tablet->GetId());
+    //    request.mutable_chunk_meta()->Swap(&chunkMeta);
+    //    // TODO(babenko): avoid copying
+    //    for (const auto& block : blocks) {
+    //        request.add_blocks(ToString(block));
+    //    }
+    //    CreateMutation(Slot->GetHydraManager(), Slot->GetAutomatonInvoker(), request)
+    //        ->SetAction(BIND(&TImpl::HydraLeaderWriteRows, MakeStrong(this), rowCount))
+    //        ->Commit();
+    //}
 
-    void Lookup(
-        TTablet* tablet,
-        TRow key,
-        TTimestamp timestamp,
-        TChunkMeta* chunkMeta,
-        std::vector<TSharedRef>* blocks)
-    {
-        auto memoryTable = tablet->GetActiveMemoryTable();
-        memoryTable->LookupRows(key, timestamp, chunkMeta, blocks);
-    }
+    //void Lookup(
+    //    TTablet* tablet,
+    //    TRow key,
+    //    TTimestamp timestamp,
+    //    TChunkMeta* chunkMeta,
+    //    std::vector<TSharedRef>* blocks)
+    //{
+    //    auto memoryTable = tablet->GetActiveMemoryTable();
+    //    memoryTable->LookupRows(key, timestamp, chunkMeta, blocks);
+    //}
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
@@ -169,8 +169,8 @@ private:
 
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
 
-    std::vector<TRowGroup> LastPrewrittenRowGroups_; // pooled instance
-    TRingQueue<TRowGroup> PrewrittenRowGroups_;
+    //std::vector<TRowGroup> LastPrewrittenRowGroups_; // pooled instance
+    //TRingQueue<TRowGroup> PrewrittenRowGroups_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -221,19 +221,19 @@ private:
 
     virtual void OnStartLeading()
     {
-        PrewrittenRowGroups_.clear();
+        //PrewrittenRowGroups_.clear();
     }
 
-    virtual void OnStopLeading()
-    {
-        LOG_DEBUG("Started aborting prewritten locks");
-        while (!PrewrittenRowGroups_.empty()) {
-            auto group = PrewrittenRowGroups_.front();
-            PrewrittenRowGroups_.pop();
-            TMemoryTable::AbortGroup(group);
-        }
-        LOG_DEBUG("Finished aborting prewritten locks");
-    }
+    //virtual void OnStopLeading()
+    //{
+    //    LOG_DEBUG("Started aborting prewritten locks");
+    //    while (!PrewrittenRowGroups_.empty()) {
+    //        auto group = PrewrittenRowGroups_.front();
+    //        PrewrittenRowGroups_.pop();
+    //        TMemoryTable::AbortGroup(group);
+    //    }
+    //    LOG_DEBUG("Finished aborting prewritten locks");
+    //}
 
 
     void HydraCreateTablet(const TReqCreateTablet& request)
@@ -291,15 +291,15 @@ private:
 
     void HydraLeaderWriteRows(int rowCount)
     {
-        for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!PrewrittenRowGroups_.empty());
-            auto group = PrewrittenRowGroups_.front();
-            PrewrittenRowGroups_.pop();
-            TMemoryTable::ConfirmPrewrittenGroup(group);
-        }
+        //for (int index = 0; index < rowCount; ++index) {
+        //    YASSERT(!PrewrittenRowGroups_.empty());
+        //    auto group = PrewrittenRowGroups_.front();
+        //    PrewrittenRowGroups_.pop();
+        //    TMemoryTable::ConfirmPrewrittenGroup(group);
+        //}
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Prewritten rows confirmed (RowCount: %d)",
-            rowCount);
+        //LOG_DEBUG_UNLESS(IsRecovery(), "Prewritten rows confirmed (RowCount: %d)",
+        //    rowCount);
     }
 
     void HydraFollowerWriteRows(const TReqWriteRows& request)
@@ -327,11 +327,11 @@ private:
             LOG_FATAL(ex, "Error writing rows");
         }
 
-        int rowCount = static_cast<int>(LastPrewrittenRowGroups_.size());
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s, RowCount: %d)",
-            ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()),
-            rowCount);
+        //int rowCount = static_cast<int>(LastPrewrittenRowGroups_.size());
+        //LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s, RowCount: %d)",
+        //    ~ToString(transaction->GetId()),
+        //    ~ToString(tablet->GetId()),
+        //    rowCount);
     }
 
 
@@ -352,12 +352,12 @@ private:
 
         auto memoryTable = tablet->GetActiveMemoryTable();
 
-        LastPrewrittenRowGroups_.clear();
-        memoryTable->WriteRows(
-            transaction,
-            std::move(chunkReader),
-            persistent,
-            &LastPrewrittenRowGroups_);
+        //LastPrewrittenRowGroups_.clear();
+        //memoryTable->WriteRows(
+        //    transaction,
+        //    std::move(chunkReader),
+        //    persistent,
+        //    &LastPrewrittenRowGroups_);
     }
 
 
@@ -368,28 +368,28 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        if (!transaction->LockedRowGroups().empty()) {
-            for (auto group : transaction->LockedRowGroups()) {
-                TMemoryTable::CommitGroup(group);
-            }
+        //if (!transaction->LockedRowGroups().empty()) {
+        //    for (auto group : transaction->LockedRowGroups()) {
+        //        TMemoryTable::CommitGroup(group);
+        //    }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
-                ~ToString(transaction->GetId()),
-                transaction->LockedRowGroups().size());
-        }
+        //    LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
+        //        ~ToString(transaction->GetId()),
+        //        transaction->LockedRowGroups().size());
+        //}
     }
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        if (!transaction->LockedRowGroups().empty()) {
-            for (auto group : transaction->LockedRowGroups()) {
-                TMemoryTable::AbortGroup(group);
-            }
+        //if (!transaction->LockedRowGroups().empty()) {
+        //    for (auto group : transaction->LockedRowGroups()) {
+        //        TMemoryTable::AbortGroup(group);
+        //    }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",
-                ~ToString(transaction->GetId()),
-                transaction->LockedRowGroups().size());
-        }
+        //    LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",
+        //        ~ToString(transaction->GetId()),
+        //        transaction->LockedRowGroups().size());
+        //}
     }
 
 };
@@ -421,33 +421,33 @@ void TTabletManager::Initialize()
     Impl->Initialize();
 }
 
-void TTabletManager::Write(
-    TTablet* tablet,
-    TTransaction* transaction,
-    TChunkMeta chunkMeta,
-    std::vector<TSharedRef> blocks)
-{
-    Impl->Write(
-        tablet,
-        transaction,
-        std::move(chunkMeta),
-        std::move(blocks));
-}
-
-void TTabletManager::Lookup(
-    TTablet* tablet,
-    TRow key,
-    TTimestamp timestamp,
-    TChunkMeta* chunkMeta,
-    std::vector<TSharedRef>* blocks)
-{
-    Impl->Lookup(
-        tablet,
-        key,
-        timestamp,
-        chunkMeta,
-        blocks);
-}
+//void TTabletManager::Write(
+//    TTablet* tablet,
+//    TTransaction* transaction,
+//    TChunkMeta chunkMeta,
+//    std::vector<TSharedRef> blocks)
+//{
+//    Impl->Write(
+//        tablet,
+//        transaction,
+//        std::move(chunkMeta),
+//        std::move(blocks));
+//}
+//
+//void TTabletManager::Lookup(
+//    TTablet* tablet,
+//    TRow key,
+//    TTimestamp timestamp,
+//    TChunkMeta* chunkMeta,
+//    std::vector<TSharedRef>* blocks)
+//{
+//    Impl->Lookup(
+//        tablet,
+//        key,
+//        timestamp,
+//        chunkMeta,
+//        blocks);
+//}
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl)
 

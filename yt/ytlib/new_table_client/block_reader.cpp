@@ -18,7 +18,7 @@ TVariableIterator::TVariableIterator(const char* opaque, int count)
     YASSERT(Count >= 0);
 }
 
-bool TVariableIterator::ParseNext(TRowValue* rowValue)
+bool TVariableIterator::ParseNext(TVersionedValue* value)
 {
     if (Count == 0) {
         return false;
@@ -28,19 +28,19 @@ bool TVariableIterator::ParseNext(TRowValue* rowValue)
     Opaque += ReadVarUInt64(Opaque, &id);
     YASSERT(id <= std::numeric_limits<ui16>::max());
 
-    rowValue->Id = static_cast<ui16>(id);
+    value->Id = static_cast<ui16>(id);
 
     ui64 length;
     Opaque += ReadVarUInt64(Opaque, &length);
     YASSERT(length <= std::numeric_limits<ui32>::max());
 
     if (length != 0) {
-        rowValue->Type = EColumnType::Any;
-        rowValue->Length = static_cast<ui32>(length);
-        rowValue->Data.String = Opaque;
+        value->Type = EColumnType::Any;
+        value->Length = static_cast<ui32>(length);
+        value->Data.String = Opaque;
         Opaque += length;
     } else {
-        rowValue->Type = EColumnType::Null;
+        value->Type = EColumnType::Null;
     }
 
     --Count;
@@ -131,12 +131,12 @@ bool TBlockReader::GetEndOfKeyFlag() const
     return EndOfKeyFlags.Get(RowIndex);
 }
 
-TRowValue TBlockReader::Read(int index) const
+TVersionedValue TBlockReader::Read(int index) const
 {
     YASSERT(index < Columns.size());
     const auto& column = Columns[index];
 
-    TRowValue value;
+    TVersionedValue value;
     if (column.NullBitMap.Get(RowIndex)) {
         value.Type = column.Type;
 

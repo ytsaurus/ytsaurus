@@ -107,7 +107,7 @@ void TChunkWriter::Open(
     CurrentBlock.reset(new TBlockWriter(ColumnSizes));
 }
 
-void TChunkWriter::WriteValue(const TRowValue& value)
+void TChunkWriter::WriteValue(const TVersionedValue& value)
 {
     if (ColumnDescriptors.size() <= value.Id) {
         ColumnDescriptors.resize(value.Id + 1);
@@ -176,7 +176,16 @@ void TChunkWriter::WriteValue(const TRowValue& value)
     }
 }
 
-bool TChunkWriter::EndRow(TTimestamp timestamp, bool deleted)
+void TChunkWriter::WriteValue(const TUnversionedValue& value)
+{
+    // TODO(babenko): avoid copying
+    TVersionedValue versionedValue;
+    static_cast<TUnversionedValue&>(versionedValue) = value;
+    versionedValue.Timestamp = NullTimestamp;
+    WriteValue(versionedValue);
+}
+
+bool TChunkWriter::EndRow()
 {
     if (RowsetType == ERowsetType::Versioned && RowIndex > 0) {
         if (PreviousBlock) {
@@ -184,10 +193,12 @@ bool TChunkWriter::EndRow(TTimestamp timestamp, bool deleted)
         } else {
             CurrentBlock->PushEndOfKey(IsNewKey);
         }
-        CurrentBlock->WriteTimestamp(timestamp, deleted, TimestampIndex);
+        // TODO(babenko): fixme
+        //CurrentBlock->WriteTimestamp(timestamp, deleted, TimestampIndex);
         IsNewKey = false;
     } else {
-        YASSERT(timestamp == NullTimestamp);
+        // TODO(babenko): fixme
+        //YASSERT(timestamp == NullTimestamp);
     }
 
     CurrentBlock->EndRow();

@@ -355,7 +355,7 @@ void TSelectCommand::DoExecute()
     }
 
     const int RowsBufferSize = 1000;
-    std::vector<NVersionedTableClient::TRow> rows;
+    std::vector<NVersionedTableClient::TVersionedRow> rows;
     rows.reserve(RowsBufferSize);
     
     while (true) {
@@ -428,25 +428,25 @@ void TLookupCommand::DoExecute()
     ToProto(req->mutable_tablet_id(), mountInfo->TabletId);
     req->set_timestamp(Request->Timestamp);
     
-    TRowBuilder keyBuilder;
+    TUnversionedRowBuilder keyBuilder;
     std::vector<TYsonString> anyValues;
     for (auto keyPart : Request->Key) {
         switch (keyPart->GetType()) {
             case ENodeType::Integer:
-                keyBuilder.AddValue(TRowValue::MakeInteger(keyPart->GetValue<i64>()));
+                keyBuilder.AddValue(TUnversionedValue::MakeInteger(keyPart->GetValue<i64>()));
                 break;
             case ENodeType::Double:
-                keyBuilder.AddValue(TRowValue::MakeDouble(keyPart->GetValue<double>()));
+                keyBuilder.AddValue(TUnversionedValue::MakeDouble(keyPart->GetValue<double>()));
                 break;
             case ENodeType::String:
                 // NB: keyPart will hold the value.
-                keyBuilder.AddValue(TRowValue::MakeString(keyPart->GetValue<Stroka>()));
+                keyBuilder.AddValue(TUnversionedValue::MakeString(keyPart->GetValue<Stroka>()));
                 break;
             default: {
                 // NB: Hold the serialized value explicitly.
                 auto anyValue = ConvertToYsonString(keyPart);
                 anyValues.push_back(anyValue);
-                keyBuilder.AddValue(TRowValue::MakeAny(anyValue.Data()));
+                keyBuilder.AddValue(TUnversionedValue::MakeAny(anyValue.Data()));
                 break;
             }
         }
@@ -480,7 +480,7 @@ void TLookupCommand::DoExecute()
     }
 
     const int RowsBufferSize = 1000;
-    std::vector<NVersionedTableClient::TRow> rows;
+    std::vector<NVersionedTableClient::TVersionedRow> rows;
     rows.reserve(RowsBufferSize);
 
     while (true) {

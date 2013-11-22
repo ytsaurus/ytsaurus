@@ -50,25 +50,25 @@ protected:
 
     void WriteInteger(i64 value, int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeInteger(value, id));
+        ChunkWriter->WriteValue(TUnversionedValue::MakeInteger(value, id));
     }
 
     void WriteDouble(double value, int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeDouble(value, id));
+        ChunkWriter->WriteValue(TUnversionedValue::MakeDouble(value, id));
     }
 
     void WriteString(const Stroka& value, int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeString(value, id));
+        ChunkWriter->WriteValue(TUnversionedValue::MakeString(value, id));
     }
 
     void WriteNull(int id)
     {
-        ChunkWriter->WriteValue(TRowValue::MakeSentinel(EColumnType::Null, id));
+        ChunkWriter->WriteValue(TUnversionedValue::MakeSentinel(EColumnType::Null, id));
     }
 
-    Stroka ToStroka(const TRowValue& value)
+    Stroka ToStroka(const TUnversionedValue& value)
     {
         YCHECK(value.Type == EColumnType::String);
         return Stroka(value.Data.String, value.Length);
@@ -134,7 +134,7 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema).Get().IsOK());
 
-    std::vector<TRow> rows;
+    std::vector<TVersionedRow> rows;
     rows.reserve(10);
 
     EXPECT_TRUE(ChunkReader->Read(&rows));
@@ -173,7 +173,7 @@ TEST_F(TVersionedTableClientTest, SimpleReadAll)
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema, true).Get().IsOK());
 
-    std::vector<TRow> rows;
+    std::vector<TVersionedRow> rows;
     rows.reserve(10);
 
     EXPECT_TRUE(ChunkReader->Read(&rows));

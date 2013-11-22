@@ -31,16 +31,18 @@ public:
         TNameTablePtr nameTable,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns = TKeyColumns(),
-        ERowsetType type = ERowsetType::Simple) final;
+        ERowsetType type = ERowsetType::Simple) final override;
 
-    virtual void WriteValue(const TRowValue& value) final;
-    virtual bool EndRow(TTimestamp timestamp = NullTimestamp, bool deleted = false) final;
+    virtual void WriteValue(const TVersionedValue& value) final override;
+    virtual void WriteValue(const TUnversionedValue& value) final override;
 
-    virtual TAsyncError GetReadyEvent() final;
+    virtual bool EndRow() final override;
 
-    virtual TAsyncError AsyncClose() final;
+    virtual TAsyncError GetReadyEvent() final override;
 
-    virtual i64 GetRowIndex() const final;
+    virtual TAsyncError AsyncClose() final override;
+
+    virtual i64 GetRowIndex() const final override;
 
 private:
     struct TColumnDescriptor

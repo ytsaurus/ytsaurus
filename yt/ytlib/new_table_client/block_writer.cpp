@@ -42,7 +42,7 @@ void TBlockWriter::WriteTimestamp(TTimestamp value, bool deleted, int index)
     column.Stream.DoWrite(&value, sizeof(TTimestamp));
 }
 
-void TBlockWriter::WriteInteger(const TRowValue& value, int index)
+void TBlockWriter::WriteInteger(const TVersionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -56,7 +56,7 @@ void TBlockWriter::WriteInteger(const TRowValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteDouble(const TRowValue& value, int index)
+void TBlockWriter::WriteDouble(const TVersionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -70,7 +70,7 @@ void TBlockWriter::WriteDouble(const TRowValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteString(const TRowValue& value, int index)
+void TBlockWriter::WriteString(const TVersionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -88,12 +88,12 @@ void TBlockWriter::WriteString(const TRowValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteAny(const TRowValue& value, int index)
+void TBlockWriter::WriteAny(const TVersionedValue& value, int index)
 {
     WriteString(value, index);
 }
 
-TStringBuf TBlockWriter::WriteKeyString(const TRowValue& value, int index)
+TStringBuf TBlockWriter::WriteKeyString(const TVersionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -115,7 +115,7 @@ TStringBuf TBlockWriter::WriteKeyString(const TRowValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteVariable(const TRowValue& value, int nameTableIndex)
+void TBlockWriter::WriteVariable(const TVersionedValue& value, int nameTableIndex)
 {
     ++VariableColumnCount;
 

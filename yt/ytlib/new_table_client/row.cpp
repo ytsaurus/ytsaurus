@@ -1,16 +1,12 @@
 #include "stdafx.h"
 #include "row.h"
 
-#include <core/misc/varint.h>
-
-#include <util/stream/str.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareRowValues(const TRowValue& lhs, const TRowValue& rhs)
+int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (UNLIKELY(lhs.Type != rhs.Type)) {
         return lhs.Type - rhs.Type;
@@ -70,7 +66,7 @@ int CompareRowValues(const TRowValue& lhs, const TRowValue& rhs)
     }
 }
 
-int CompareRows(TRow lhs, TRow rhs, int prefixLength)
+int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 {
     int lhsLength = std::min(lhs.GetValueCount(), prefixLength);
     int rhsLength = std::min(rhs.GetValueCount(), prefixLength);
@@ -84,7 +80,7 @@ int CompareRows(TRow lhs, TRow rhs, int prefixLength)
     return lhsLength - rhsLength;
 }
 
-size_t GetHash(const TRowValue& value)
+size_t GetHash(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EColumnType::String:
@@ -101,62 +97,18 @@ size_t GetHash(const TRowValue& value)
     }
 }
 
-size_t GetRowDataSize(int valueCount)
-{
-    return sizeof (TRowHeader) + sizeof (TRowValue) * valueCount;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowBuilder::TRowBuilder(int capacity)
-    : Capacity_(std::max(capacity, 4))
-    , Data_(new char[GetRowDataSize(Capacity_)])
+TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EColumnType sentinelType)
 {
-    auto* header = GetHeader();
-    header->ValueCount = 0;
-    header->Deleted = false;
-    header->Timestamp = NullTimestamp;
+    auto rowData = TSharedRef::Allocate<TOwningRowTag>(GetRowDataSize<TUnversionedValue>(prefixLength + 1), false);
+    ::memcpy(rowData.Begin(), key.RowData.Begin(), GetRowDataSize<TUnversionedValue>(prefixLength));
+    TKey result(reinterpret_cast<TRowHeader*>(rowData.Begin()));
+    result[prefixLength] = TUnversionedValue::MakeSentinel(sentinelType);
+    return TOwningKey(std::move(rowData), key.StringData);
 }
 
-void TRowBuilder::AddValue(const TRowValue& value)
-{
-    if (GetRow().GetValueCount() == Capacity_) {
-        int newCapacity = Capacity_ * 2;
-        std::unique_ptr<char[]> newData(new char[GetRowDataSize(newCapacity)]);
-        ::memcpy(newData.get(), Data_.get(), GetRowDataSize(Capacity_));
-        std::swap(Data_, newData);
-        Capacity_ = newCapacity;
-    }
-
-    auto* header = GetHeader();
-    auto row = GetRow();
-    row[header->ValueCount++] = value;
-}
-
-TRow TRowBuilder::GetRow() const
-{
-    return TRow(GetHeader());
-}
-
-TRowHeader* TRowBuilder::GetHeader() const
-{
-    return reinterpret_cast<TRowHeader*>(Data_.get());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOwningRowTag { };
-
-TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType)
-{
-    auto rowData = TSharedRef::Allocate<TOwningRowTag>(GetRowDataSize(prefixLength + 1), false);
-    ::memcpy(rowData.Begin(), key.RowData.Begin(), GetRowDataSize(prefixLength));
-    TRow result(reinterpret_cast<TRowHeader*>(rowData.Begin()));
-    result[prefixLength] = TRowValue::MakeSentinel(sentinelType);
-    return TOwningRow(std::move(rowData), key.StringData);
-}
-
-TOwningRow GetKeySuccessor(const TOwningRow& key)
+TOwningKey GetKeySuccessor(const TOwningKey& key)
 {
     return GetKeySuccessorImpl(
         key,
@@ -164,7 +116,7 @@ TOwningRow GetKeySuccessor(const TOwningRow& key)
         EColumnType::Min);
 }
 
-TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength)
+TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
 {
     YASSERT(prefixLength <= key.GetValueCount());
     return GetKeySuccessorImpl(
@@ -173,56 +125,7 @@ TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength)
         EColumnType::Max);
 }
 
-TOwningRow::TOwningRow(TRow other)
-{
-    if (!other)
-        return;
-
-    size_t fixedSize = GetRowDataSize(other.GetValueCount());
-    RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
-    ::memcpy(RowData.Begin(), other.GetHeader(), fixedSize);
-
-    size_t variableSize = 0;
-    for (int index = 0; index < other.GetValueCount(); ++index) {
-        const auto& otherValue = other[index];
-        if (otherValue.Type == EColumnType::String || otherValue.Type == EColumnType::Any) {
-            variableSize += otherValue.Length;
-        }
-    }
-
-    StringData.resize(variableSize);
-    char* current = const_cast<char*>(StringData.data());
-
-    for (int index = 0; index < other.GetValueCount(); ++index) {
-        const auto& value = other[index];
-        current += WriteVarUInt32(current, value.Id);
-        current += WriteVarUInt32(current, value.Type);
-        switch (value.Type) {
-            case EColumnType::Null:
-                break;
-
-            case EColumnType::Integer:
-                current += WriteVarInt64(current, value.Data.Integer);
-                break;
-            
-            case EColumnType::Double:
-                ::memcpy(current, &value.Data.Double, sizeof (double));
-                current += sizeof (double);
-                break;
-            
-            case EColumnType::String:           
-            case EColumnType::Any:
-                ::memcpy(current, value.Data.String, value.Length);
-                current += value.Length;
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-}
-
-void ToProto(TProtoStringType* protoRow, const TOwningRow& row)
+void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
 {
     size_t variableSize = 0;
     for (int index = 0; index < row.GetValueCount(); ++index) {
@@ -235,14 +138,12 @@ void ToProto(TProtoStringType* protoRow, const TOwningRow& row)
     Stroka buffer;
     buffer.resize(
         64 +                           // encoded TRowHeader  (approx)
-        16 * row.GetValueCount() +     // encoded TRowValue-s (approx)
+        16 * row.GetValueCount() +     // encoded TUnversionedValue-s (approx)
         variableSize);                 // strings
     char* current = const_cast<char*>(buffer.data());
 
     current += WriteVarUInt32(current, 0); // format version
     current += WriteVarUInt32(current, static_cast<ui32>(row.GetValueCount()));
-    current += WriteVarUInt32(current, row.GetDeleted() ? 1 : 0);
-    current += WriteVarInt64(current, row.GetTimestamp());
 
     for (int index = 0; index < row.GetValueCount(); ++index) {
         const auto& value = row[index];
@@ -277,7 +178,7 @@ void ToProto(TProtoStringType* protoRow, const TOwningRow& row)
     *protoRow = buffer;
 }
 
-void FromProto(TOwningRow* row, const TProtoStringType& protoRow)
+void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 {
     char* current = const_cast<char*>(protoRow.data());
 
@@ -288,20 +189,13 @@ void FromProto(TOwningRow* row, const TProtoStringType& protoRow)
     ui32 valueCount;
     current += ReadVarUInt32(current, &valueCount);
     
-    size_t fixedSize = GetRowDataSize(valueCount);
+    size_t fixedSize = GetRowDataSize<TUnversionedValue>(valueCount);
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
     
     header->ValueCount = static_cast<i32>(valueCount);
 
-    ui32 deleted;
-    current += ReadVarUInt32(current, &deleted);
-    YCHECK(deleted == 0 || deleted == 1);
-    header->Deleted = (deleted == 1);
-
-    current += ReadVarInt64(current, &header->Timestamp);
-
-    auto* values = reinterpret_cast<TRowValue*>(header + 1);
+    auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
     for (int index = 0; index < valueCount; ++index) {
         auto& value = values[index];
         
@@ -340,7 +234,7 @@ void FromProto(TOwningRow* row, const TProtoStringType& protoRow)
         }
     }
 
-    *row = TOwningRow(std::move(rowData), protoRow);
+    *row = TUnversionedOwningRow(std::move(rowData), protoRow);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

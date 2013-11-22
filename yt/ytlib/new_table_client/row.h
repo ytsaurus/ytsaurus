@@ -3,25 +3,20 @@
 #include "public.h"
 
 #include <core/misc/chunked_memory_pool.h>
+#include <core/misc/varint.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _MSC_VER
-    #define PACK
-#else
-    #define PACK __attribute__((aligned(16), packed))
-#endif
-
-struct TRowValue
+struct TUnversionedValue
 {
     //! Column id obtained from a name table.
     ui16 Id;
-    //! Column type (compact EColumnType).
+    //! Column type (EColumnType).
     ui16 Type;
-    //! Length of variable-sized value (meaningful only for |String| and |Any| types).
+    //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
     ui32 Length;
 
     union
@@ -34,35 +29,35 @@ struct TRowValue
         const char* String;
     } Data;
 
-    static FORCED_INLINE TRowValue MakeSentinel(EColumnType type, int id = 0)
+    static FORCED_INLINE TUnversionedValue MakeSentinel(EColumnType type, int id = 0)
     {
-        TRowValue result;
+        TUnversionedValue result;
         result.Id = id;
         result.Type = EColumnType::Null;
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeInteger(i64 value, int id = 0)
+    static FORCED_INLINE TUnversionedValue MakeInteger(i64 value, int id = 0)
     {
-        TRowValue result;
+        TUnversionedValue result;
         result.Id = id;
         result.Type = EColumnType::Integer;
         result.Data.Integer = value;
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeDouble(double value, int id = 0)
+    static FORCED_INLINE TUnversionedValue MakeDouble(double value, int id = 0)
     {
-        TRowValue result;
+        TUnversionedValue result;
         result.Id = id;
         result.Type = EColumnType::Double;
         result.Data.Double = value;
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeString(const TStringBuf& value, int id = 0)
+    static FORCED_INLINE TUnversionedValue MakeString(const TStringBuf& value, int id = 0)
     {
-        TRowValue result;
+        TUnversionedValue result;
         result.Id = id;
         result.Type = EColumnType::String;
         result.Length = value.length();
@@ -70,52 +65,64 @@ struct TRowValue
         return result;
     }
 
-    static FORCED_INLINE TRowValue MakeAny(const TStringBuf& value, int id = 0)
+    static FORCED_INLINE TUnversionedValue MakeAny(const TStringBuf& value, int id = 0)
     {
-        TRowValue result;
+        TUnversionedValue result;
         result.Id = id;
         result.Type = EColumnType::Any;
         result.Length = value.length();
         result.Data.String = value.begin();
         return result;
     }
-} PACK;
+};
 
-#undef PACK
-
-static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
+static_assert(sizeof(TUnversionedValue) == 16, "TUnversionedValue has to be exactly 16 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Ternary comparison predicate for TRowValue-s.
+struct TVersionedValue
+    : public TUnversionedValue
+{
+    TTimestamp Timestamp;
+};
+
+static_assert(sizeof(TVersionedValue) == 24, "TVersionedValue has to be exactly 24 bytes.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
-int CompareRowValues(const TRowValue& lhs, const TRowValue& rhs);
+int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
 //! Ternary comparison predicate for TRow-s stripped to a given number of
 //! (leading) values.
-int CompareRows(TRow lhs, TRow rhs, int prefixLength = std::numeric_limits<int>::max());
+int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength = std::numeric_limits<int>::max());
 
-//! Computes hash for a given TRowValue.
-size_t GetHash(const TRowValue& value);
+//! Computes hash for a given TUnversionedValue.
+size_t GetHash(const TUnversionedValue& value);
 
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
-size_t GetRowDataSize(int valueCount);
+template <class TValue>
+FORCED_INLINE size_t GetRowDataSize(int valueCount)
+{
+    return sizeof (TRowHeader) + sizeof (TValue) * valueCount;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Header which precedes row values in memory layout.
 struct TRowHeader
 {
-    i32 ValueCount;
-    bool Deleted;
-    TTimestamp Timestamp;
+    ui32 ValueCount;
+    ui32 Padding;
 };
 
-static_assert(sizeof(TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes.");
+static_assert(sizeof(TRowHeader) == 8, "TRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A lightweight wrapper around TRowHeader*.
+//! A lightweight wrapper around TRowHeader* plus an array of values.
+template <class TValue>
 class TRow
 {
 public:
@@ -125,15 +132,11 @@ public:
 
     FORCED_INLINE TRow(
         TChunkedMemoryPool* pool, 
-        int valueCount,
-        bool deleted = false,
-        TTimestamp timestamp = NullTimestamp)
+        int valueCount)
         : Header(reinterpret_cast<TRowHeader*>(
-            pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
+            pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TUnversionedValue))))
     {
         Header->ValueCount = valueCount;
-        Header->Deleted = deleted;
-        Header->Timestamp = timestamp;
     }
 
     FORCED_INLINE explicit operator bool()
@@ -151,16 +154,16 @@ public:
         return Header;
     }
 
-    FORCED_INLINE TRowValue& operator[](int index)
+    FORCED_INLINE TValue& operator[](int index)
     {
         YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<TRowValue*>(Header + 1)[index];
+        return reinterpret_cast<TValue*>(Header + 1)[index];
     }
 
-    FORCED_INLINE const TRowValue& operator[](int index) const
+    FORCED_INLINE const TValue& operator[](int index) const
     {
         YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<TRowValue*>(Header + 1)[index];
+        return reinterpret_cast<TValue*>(Header + 1)[index];
     }
 
     FORCED_INLINE int GetValueCount() const
@@ -168,69 +171,83 @@ public:
         return Header->ValueCount;
     }
 
-    FORCED_INLINE bool GetDeleted() const
-    {
-        return Header->Deleted;
-    }
-
-    FORCED_INLINE void SetDeleted(bool deleted = true)
-    {
-        Header->Deleted = deleted;
-    }
-
-    FORCED_INLINE TTimestamp GetTimestamp() const
-    {
-        return Header->Timestamp;
-    }
-
-    FORCED_INLINE void SetTimestamp(TTimestamp timestamp)
-    {
-        Header->Timestamp = timestamp;
-    }
-
 private:
     TRowHeader* Header;
 
 };
 
-static_assert(sizeof (TRow) == sizeof (intptr_t), "TRow has to be exactly sizeof (intptr_t) bytes.");
+static_assert(sizeof(TVersionedRow)   == sizeof (intptr_t), "TVersionedRow size must match that of a pointer.");
+static_assert(sizeof(TUnversionedRow) == sizeof (intptr_t), "TVersionedRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A helper used for constructing TRow instances.
 /*!
- *  Owns TRowValue array. Does not own the data.
+ *  Owns TUnversionedValue array. Does not own the data.
  */
+template <class TValue>
 class TRowBuilder
 {
 public:
-    explicit TRowBuilder(int capacity = 16);
+    explicit TRowBuilder(int capacity = 16)
+        : Capacity_(std::max(capacity, 4))
+        , Data_(new char[GetRowDataSize<TValue>(Capacity_)])
+    {
+        auto* header = GetHeader();
+        header->ValueCount = 0;
+    }
 
-    void AddValue(const TRowValue& value);
-    TRow GetRow() const;
+    void AddValue(const TValue& value)
+    {
+        if (GetRow().GetValueCount() == Capacity_) {
+            int newCapacity = Capacity_ * 2;
+            std::unique_ptr<char[]> newData(new char[GetRowDataSize<TValue>(newCapacity)]);
+            ::memcpy(newData.get(), Data_.get(), GetRowDataSize<TValue>(Capacity_));
+            std::swap(Data_, newData);
+            Capacity_ = newCapacity;
+        }
+    
+        auto* header = GetHeader();
+        auto row = GetRow();
+        row[header->ValueCount++] = value;
+    }
+
+    TRow<TValue> GetRow() const
+    {
+        return TRow<TValue>(GetHeader());
+    }
 
 private:
     int Capacity_;
     std::unique_ptr<char[]> Data_;
 
-    TRowHeader* GetHeader() const;
+
+    TRowHeader* GetHeader() const
+    {
+        return reinterpret_cast<TRowHeader*>(Data_.get());
+    }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
-void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
+void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
+void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 
-TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
+//! For friendship with TOwningRow.
+TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EColumnType sentinelType);
 
 //! Returns the successor of |key|, i.e. the key
 //! obtained from |key| by appending a |EColumnType::Min| sentinel.
-TOwningRow GetKeySuccessor(const TOwningRow& key);
+TOwningKey GetKeySuccessor(const TOwningKey& key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by triming |key| to |prefixLength| and appending a |EColumnType::Max| sentinel.
-TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength);
+TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOwningRowTag { };
 
 //! An immutable owning version of TRow.
 /*!
@@ -238,13 +255,62 @@ TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength);
  *  Fixed part is stored in a (shared) blob.
  *  Variable part is stored in a (shared) string.
  */
+template <class TValue>
 class TOwningRow
 {
 public:
     FORCED_INLINE TOwningRow()
     { }
 
-    TOwningRow(TRow other);
+    TOwningRow(TRow<TValue> other)
+    {
+        if (!other)
+            return;
+
+        size_t fixedSize = GetRowDataSize<TValue>(other.GetValueCount());
+        RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+        ::memcpy(RowData.Begin(), other.GetHeader(), fixedSize);
+
+        size_t variableSize = 0;
+        for (int index = 0; index < other.GetValueCount(); ++index) {
+            const auto& otherValue = other[index];
+            if (otherValue.Type == EColumnType::String || otherValue.Type == EColumnType::Any) {
+                variableSize += otherValue.Length;
+            }
+        }
+
+        StringData.resize(variableSize);
+        char* current = const_cast<char*>(StringData.data());
+
+        for (int index = 0; index < other.GetValueCount(); ++index) {
+            const auto& value = other[index];
+            current += WriteVarUInt32(current, value.Id);
+            current += WriteVarUInt32(current, value.Type);
+            switch (value.Type) {
+            case EColumnType::Null:
+                break;
+
+            case EColumnType::Integer:
+                current += WriteVarInt64(current, value.Data.Integer);
+                break;
+
+            case EColumnType::Double:
+                ::memcpy(current, &value.Data.Double, sizeof (double));
+                current += sizeof (double);
+                break;
+
+            case EColumnType::String:
+            case EColumnType::Any:
+                ::memcpy(current, value.Data.String, value.Length);
+                current += value.Length;
+                break;
+
+            default:
+                YUNREACHABLE();
+            }
+        }
+    }
+
 
     FORCED_INLINE explicit operator bool()
     {
@@ -254,36 +320,29 @@ public:
     FORCED_INLINE int GetValueCount() const
     {
         const auto* header = GetHeader();
-        return header ? header->ValueCount : 0;
+        return header ? static_cast<int>(header->ValueCount) : 0;
     }
 
-    FORCED_INLINE bool GetDeleted() const
-    {
-        const auto* header = GetHeader();
-        return header ? header->Deleted : false;
-    }
-
-    FORCED_INLINE TTimestamp GetTimestamp() const
-    {
-        const auto* header = GetHeader();
-        return header ? header->Timestamp : NullTimestamp;
-    }
-
-    FORCED_INLINE const TRowValue& operator[](int index) const
+    FORCED_INLINE const TUnversionedValue& operator[](int index) const
     {
         YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<const TRowValue*>(GetHeader() + 1)[index];
+        return reinterpret_cast<const TUnversionedValue*>(GetHeader() + 1)[index];
     }
 
-    FORCED_INLINE operator TRow () const
+    FORCED_INLINE operator TRow<TValue> () const
     {
-        return TRow(const_cast<TRowHeader*>(GetHeader()));
+        return TRow<TValue>(const_cast<TRowHeader*>(GetHeader()));
     }
 
 private:
     friend void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
     friend void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
     friend TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
+
+
+    TSharedRef RowData; // TRowHeader plus TUnversionedValue-s
+    Stroka StringData;  // Holds string data
+
 
     FORCED_INLINE TOwningRow(TSharedRef rowData, Stroka stringData)
         : RowData(std::move(rowData))
@@ -300,9 +359,6 @@ private:
         return reinterpret_cast<const TRowHeader*>(RowData.Begin());
     }
 
-    TSharedRef RowData; // TRowHeader plus TRowValue-s
-    Stroka StringData;  // Holds string data
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,12 +366,13 @@ private:
 } // namespace NVersionedTableClient
 } // namespace NYT
 
-//! A hasher for TRowValue.
+//! A hasher for TUnversionedValue.
 template <>
-struct hash<NYT::NVersionedTableClient::TRowValue>
+struct hash<NYT::NVersionedTableClient::TUnversionedValue>
 {
-    inline size_t operator()(const NYT::NVersionedTableClient::TRowValue& value) const
+    inline size_t operator()(const NYT::NVersionedTableClient::TUnversionedValue& value) const
     {
         return GetHash(value);
     }
 };
+

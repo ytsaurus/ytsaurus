@@ -24,7 +24,9 @@ struct IReader
     //! If |rows->size() < rows->capacity()|, the client should wait for ready event before next call to #Read.
     //! Can throw, e.g. if some values in chunk are incompatible with schema.
     //! |rows| must be initially empty
-    virtual bool Read(std::vector<TRow>* rows) = 0;
+    virtual bool Read(std::vector<TVersionedRow>* rows) = 0;
+
+    // TODO(babenko): provide Read(std::vector<TUnversionedRow>* rows)
 
     virtual TAsyncError GetReadyEvent() = 0;
 

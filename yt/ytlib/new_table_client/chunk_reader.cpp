@@ -66,7 +66,7 @@ public:
         bool includeAllColumns,
         ERowsetType type) override;
 
-    virtual bool Read(std::vector<TRow>* rows) override;
+    virtual bool Read(std::vector<TVersionedRow>* rows) override;
     virtual TAsyncError GetReadyEvent() override;
 
 private:
@@ -252,7 +252,7 @@ void TChunkReader::DoOpen()
     }
 }
 
-bool TChunkReader::Read(std::vector<TRow> *rows)
+bool TChunkReader::Read(std::vector<TVersionedRow> *rows)
 {
     YCHECK(rows->empty());
 
@@ -294,7 +294,7 @@ bool TChunkReader::Read(std::vector<TRow> *rows)
                 row[index].Id = ChunkIndexToOutputIndex[row[index].Id];
             }
         } else {
-            rows->push_back(TRow(&MemoryPool, FixedColumns.size()));
+            rows->push_back(TVersionedRow(&MemoryPool, FixedColumns.size()));
         }
 
         auto& row = rows->back();
@@ -357,7 +357,7 @@ public:
         bool includeAllColumns,
         ERowsetType type) override;
 
-    virtual bool Read(std::vector<TRow>* rows) override;
+    virtual bool Read(std::vector<TVersionedRow>* rows) override;
     virtual TAsyncError GetReadyEvent() override;
 
 private:
@@ -399,7 +399,7 @@ TAsyncError TTableChunkReaderAdapter::Open(
     return UnderlyingReader->AsyncOpen();
 }
 
-bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
+bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
 {
     YCHECK(rows->capacity() > 0);
 
@@ -424,12 +424,12 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
             }
         }
 
-        rows->push_back(TRow(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
+        rows->push_back(TVersionedRow(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
         auto& outputRow = rows->back();
 
         for (int i = 0; i < schemaIndexes.size(); ++i) {
             if (schemaIndexes[i] < 0) {
-                outputRow[i] = TRowValue();
+                outputRow[i].Type = EColumnType::Null;
             } else {
                 const auto& schemaColumn = Schema.Columns()[i];
                 auto& value = outputRow[i];

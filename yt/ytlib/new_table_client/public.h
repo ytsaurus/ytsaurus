@@ -35,10 +35,26 @@ DECLARE_ENUM(EColumnType,
     ((Max)        (64))
 );
 
-struct TRowValue;
+struct TUnversionedValue;
+struct TVersionedValue;
 struct TRowHeader;
+
+template <class TValue>
 class TRow;
+typedef TRow<TVersionedValue>   TVersionedRow;
+typedef TRow<TUnversionedValue> TUnversionedRow;
+typedef TUnversionedRow TKey;
+
+template <class TValue>
 class TOwningRow;
+typedef TOwningRow<TVersionedRow>     TVersionedOwningRow;
+typedef TOwningRow<TUnversionedValue> TUnversionedOwningRow;
+typedef TUnversionedOwningRow TOwningKey;
+
+template <class TValue>
+class TRowBuilder;
+typedef TRowBuilder<TVersionedValue>   TVersionedRowBuilder;
+typedef TRowBuilder<TUnversionedValue> TUnversionedRowBuilder;
 
 struct TColumnSchema;
 class TTableSchema;

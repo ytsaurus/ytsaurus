@@ -79,7 +79,8 @@ TError TEvaluateController::RunUnion()
     TKeyColumns keyColumns;
     bool didOpenWriter = false;
 
-    std::vector<TRow> rows;
+    // TODO(babenko): switch to TUnversionedRow
+    std::vector<TVersionedRow> rows;
     rows.reserve(1000);
 
     for (const auto& source : unionOp->Sources()) {
@@ -181,7 +182,8 @@ TError TEvaluateController::RunProject()
     LOG_DEBUG("Opening writer");
     Writer_->Open(nameTable, writerSchema, keyColumns);
 
-    std::vector<TRow> rows;
+    // TODO(babenko): switch to TUnversionedRow
+    std::vector<TVersionedRow> rows;
     rows.reserve(1000);
 
     TSmallVector<int, TypicalProjectionCount> writerIndexToReaderIndex;
@@ -252,7 +254,7 @@ TError TEvaluateController::RunProject()
                 continue;
             }
             for (int i = 0; i < projectOp->GetProjectionCount(); ++i) {
-                TRowValue value = row[writerIndexToReaderIndex[i]];
+                auto value = row[writerIndexToReaderIndex[i]];
                 value.Id = writerIndexToNameIndex[i];
                 Writer_->WriteValue(value);
             }

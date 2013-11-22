@@ -20,8 +20,10 @@ struct IWriter
         const TKeyColumns& keyColumns = TKeyColumns(),
         ERowsetType type = ERowsetType::Simple) = 0;
 
-    virtual void WriteValue(const TRowValue& value) = 0;
-    virtual bool EndRow(TTimestamp timestamp = NullTimestamp, bool deleted = false) = 0;
+    virtual void WriteValue(const TVersionedValue& value) = 0;
+    virtual void WriteValue(const TUnversionedValue& value) = 0;
+
+    virtual bool EndRow() = 0;
 
     virtual TAsyncError GetReadyEvent() = 0;
 

@@ -140,7 +140,7 @@ private:
     virtual void OnEndAttributes() override;
     virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
-    void WriteValue(const NVersionedTableClient::TRowValue& rowValue);
+    void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
 
     DECLARE_ENUM(EControlState,
         (None)

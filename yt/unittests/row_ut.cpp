@@ -12,7 +12,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AreRowsEqual(TRow lhs, TRow rhs)
+bool AreRowsEqual(TUnversionedRow lhs, TUnversionedRow rhs)
 {
     if (!lhs && rhs)
         return false;
@@ -23,10 +23,6 @@ bool AreRowsEqual(TRow lhs, TRow rhs)
 
     if (lhs.GetValueCount() != rhs.GetValueCount())
         return false;
-    if (lhs.GetDeleted() != rhs.GetDeleted())
-        return false;
-    if (lhs.GetTimestamp() != rhs.GetTimestamp())
-        return false;
 
     for (int index = 0; index < lhs.GetValueCount(); ++index) {
         if (CompareRowValues(lhs[index], rhs[index]) != 0)
@@ -36,47 +32,44 @@ bool AreRowsEqual(TRow lhs, TRow rhs)
     return true;
 }
 
-void CheckSerialize(TRow row)
+void CheckSerialize(TUnversionedRow row)
 {
-    TOwningRow owningRow(row);
+    TUnversionedOwningRow owningRow(row);
 
     ASSERT_TRUE(AreRowsEqual(row, owningRow));
 
     auto protoRow = NYT::ToProto<Stroka>(owningRow);
-    auto owningRow2 =  NYT::FromProto<TOwningRow>(protoRow);
+    auto owningRow2 =  NYT::FromProto<TUnversionedOwningRow>(protoRow);
 
     ASSERT_TRUE(AreRowsEqual(owningRow, owningRow2));
 }
 
-TEST(TRowTest, Serialize1)
+TEST(TUnversionedRowTest, Serialize1)
 {
-    TRowBuilder builder;
+    TUnversionedRowBuilder builder;
     auto row = builder.GetRow();
-    row.SetDeleted(true);
-    row.SetTimestamp(123);
     CheckSerialize(row);
-
 }
 
-TEST(TRowTest, Serialize2)
+TEST(TUnversionedRowTest, Serialize2)
 {
-    TRowBuilder builder;
-    builder.AddValue(TRowValue::MakeSentinel(EColumnType::Null, 0));
-    builder.AddValue(TRowValue::MakeInteger(42, 1));
-    builder.AddValue(TRowValue::MakeDouble(0.25, 2));
+    TUnversionedRowBuilder builder;
+    builder.AddValue(TUnversionedValue::MakeSentinel(EColumnType::Null, 0));
+    builder.AddValue(TUnversionedValue::MakeInteger(42, 1));
+    builder.AddValue(TUnversionedValue::MakeDouble(0.25, 2));
     CheckSerialize(builder.GetRow());
 }
 
-TEST(TRowTest, Serialize3)
+TEST(TUnversionedRowTest, Serialize3)
 {
     // TODO(babenko): cannot test Any type at the moment since CompareRowValues does not work
     // for it.
-    TRowBuilder builder;
-    builder.AddValue(TRowValue::MakeString("string1", 10));
-    builder.AddValue(TRowValue::MakeInteger(1234, 20));
-    builder.AddValue(TRowValue::MakeString("string2", 30));
-    builder.AddValue(TRowValue::MakeDouble(4321.0, 1000));
-    builder.AddValue(TRowValue::MakeString("", 10000));
+    TUnversionedRowBuilder builder;
+    builder.AddValue(TUnversionedValue::MakeString("string1", 10));
+    builder.AddValue(TUnversionedValue::MakeInteger(1234, 20));
+    builder.AddValue(TUnversionedValue::MakeString("string2", 30));
+    builder.AddValue(TUnversionedValue::MakeDouble(4321.0, 1000));
+    builder.AddValue(TUnversionedValue::MakeString("", 10000));
     CheckSerialize(builder.GetRow());
 }
 
