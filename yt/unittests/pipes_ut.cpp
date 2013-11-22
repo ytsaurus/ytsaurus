@@ -53,6 +53,48 @@ TEST(TFileIODispatcher, RegisterFail)
     EXPECT_FALSE(error.Get().IsOK());
 }
 
+TEST(TNonBlockReader, BrandNew)
+{
+    int pipefds[2];
+    int err = pipe2(pipefds, O_NONBLOCK);
+
+    ASSERT_TRUE(err == 0);
+
+    NDetail::TNonBlockReader reader(pipefds[0]);
+    EXPECT_TRUE(reader.IsBufferEmpty());
+
+    EXPECT_FALSE(reader.IsBufferFull());
+    EXPECT_FALSE(reader.IsReady());
+    EXPECT_FALSE(reader.InFailedState());
+}
+
+TEST(TNonBlockReader, TryReadNeverBlocks)
+{
+    int pipefds[2];
+    int err = pipe2(pipefds, O_NONBLOCK);
+
+    ASSERT_TRUE(err == 0);
+
+    NDetail::TNonBlockReader reader(pipefds[0]);
+    reader.TryReadInBuffer();
+
+    EXPECT_FALSE(reader.IsReady());
+}
+
+TEST(TNonBlockReader, Failed)
+{
+    int pipefds[2];
+    int err = pipe2(pipefds, O_NONBLOCK);
+
+    ASSERT_TRUE(err == 0);
+    NDetail::TNonBlockReader reader(pipefds[0]);
+
+    close(pipefds[0]);
+    reader.TryReadInBuffer();
+
+    EXPECT_TRUE(reader.InFailedState());
+}
+
 TEST(TFileIODispatcher, ReadSomethingSpin)
 {
     TFileIODispatcher dispatcher;
