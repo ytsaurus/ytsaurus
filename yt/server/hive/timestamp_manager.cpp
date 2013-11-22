@@ -27,6 +27,7 @@ namespace NHive {
 
 using namespace NRpc;
 using namespace NHydra;
+using namespace NTransactionClient;
 using namespace NHive::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,8 +44,7 @@ public:
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : TServiceBase(
-            // TODO(babenko): use sync invoker 
-            automatonInvoker,
+            GetSyncInvoker(),
             TTimestampServiceProxy::GetServiceName(),
             HiveLogger.GetCategory())
         , TCompositeAutomatonPart(
@@ -76,10 +76,11 @@ private:
     TTimestampManagerConfigPtr Config;
     IInvokerPtr AutomatonInvoker;
 
+
     //! Currently available timestamp.
     std::atomic<TTimestamp> CurrentTimestamp;
     
-    //! Commit must be issued when current timestamp reaches this watermark.
+    //! Start advancing persistent timestamp when current timestamp reaches this watermark.
     std::atomic<TTimestamp> WatermarkTimestamp;
     
     //! The last persistently committed timestamp.
@@ -98,22 +99,33 @@ private:
 
     void GetTimestampImpl(TCtxGetTimestampPtr context)
     {
-        auto candindateTimestamp = CurrentTimestamp++;
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        if (candindateTimestamp >= PersistentTimestamp.load()) {
-            --CurrentTimestamp;
-            TGuard<TSpinLock> guard(SpinLock);
-            StartCommit();
-            PendingContexts.push_back(std::move(context));
-            return;
-        } else if (candindateTimestamp >= WatermarkTimestamp.load()) {
-            TGuard<TSpinLock> guard(SpinLock);
-            StartCommit();
+        while (true) {
+            // Fast path.
+            if (CurrentTimestamp.load() < PersistentTimestamp.load()) {
+                auto candindateTimestamp = CurrentTimestamp++;
+                if (candindateTimestamp < PersistentTimestamp.load()) {
+                    if (candindateTimestamp >= WatermarkTimestamp.load()) {
+                        TGuard<TSpinLock> guard(SpinLock);
+                        StartCommit();
+                    }
+                    auto& response = context->Response();
+                    response.set_timestamp(candindateTimestamp);
+                    context->Reply();
+                    return;
+                }
+            }
+
+            // Slow path.
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                if (CurrentTimestamp.load() >= PersistentTimestamp.load()) {
+                    StartCommit();
+                    PendingContexts.push_back(std::move(context));
+                }
+            }
         }
-
-        auto& response = context->Response();
-        response.set_timestamp(candindateTimestamp);
-        context->Reply();
     }
 
     TSpinLock SpinLock;
@@ -128,12 +140,15 @@ private:
         if (Committing)
             return;
 
+        // Prevent more attempts to start commit.
+        WatermarkTimestamp = PersistentTimestamp.load();
+
         TReqCommitTimestamp hydraRequest;
         hydraRequest.set_timestamp(PersistentTimestamp.load() + Config->BatchSize);
         CreateMutation(HydraManager, AutomatonInvoker, hydraRequest)
             ->OnSuccess(BIND(&TImpl::OnCommitSuccess, MakeStrong(this)))
             ->OnError(BIND(&TImpl::OnCommitFailure, MakeStrong(this)))
-            ->Commit();
+            ->PostCommit();
 
         Committing = true;
     }
@@ -168,17 +183,16 @@ private:
 
     virtual void Clear() override
     {
-        CurrentTimestamp = 0;
-        WatermarkTimestamp = 0;
-        PersistentTimestamp = 0;
+        TGuard<TSpinLock> guard(SpinLock);
+        CurrentTimestamp = MaxTimestamp;
+        WatermarkTimestamp = MaxTimestamp;
+        PersistentTimestamp = MinTimestamp;
     }
 
     void Load(TLoadContext& context)
     {
-        auto timestamp = NYT::Load<TTimestamp>(context);
-        CurrentTimestamp = timestamp;
-        WatermarkTimestamp = timestamp;
-        PersistentTimestamp = timestamp;
+        Clear();
+        PersistentTimestamp = NYT::Load<TTimestamp>(context);
     }
 
     void Save(TSaveContext& context) const
@@ -186,11 +200,27 @@ private:
         NYT::Save(context, PersistentTimestamp.load());
     }
 
+    virtual void OnLeaderActive() override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        WatermarkTimestamp = PersistentTimestamp.load();
+        CurrentTimestamp = PersistentTimestamp.load();
+    }
+
+    virtual void OnStopLeading() override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        WatermarkTimestamp = MaxTimestamp;
+        CurrentTimestamp = MaxTimestamp;
+    }
+
 
     void HydraCommitTimestamp(const TReqCommitTimestamp& request)
     {
-        PersistentTimestamp = request.timestamp();
-        WatermarkTimestamp = PersistentTimestamp - Config->BatchSize / 2;
+        TGuard<TSpinLock> guard(SpinLock);
+        auto timestamp = request.timestamp();
+        WatermarkTimestamp = timestamp - Config->BatchSize / 2;
+        PersistentTimestamp = timestamp;
     }
 
 };
