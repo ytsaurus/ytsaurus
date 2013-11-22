@@ -429,7 +429,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
 
         for (int i = 0; i < schemaIndexes.size(); ++i) {
             if (schemaIndexes[i] < 0) {
-                outputRow[i].Type = EColumnType::Null;
+                outputRow[i].Type = ERowValueType::Null;
             } else {
                 const auto& schemaColumn = Schema.Columns()[i];
                 auto& value = outputRow[i];

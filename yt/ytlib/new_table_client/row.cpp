@@ -105,7 +105,7 @@ size_t GetHash(const TUnversionedValue& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EColumnType sentinelType)
+TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, ERowValueType sentinelType)
 {
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(GetRowDataSize<TUnversionedValue>(prefixLength + 1), false);
     ::memcpy(rowData.Begin(), key.RowData.Begin(), GetRowDataSize<TUnversionedValue>(prefixLength));

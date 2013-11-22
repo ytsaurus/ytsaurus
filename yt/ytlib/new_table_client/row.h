@@ -91,6 +91,17 @@ static_assert(sizeof(TVersionedValue) == 24, "TVersionedValue has to be exactly 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Header which precedes row values in memory layout.
+struct TRowHeader
+{
+    ui32 ValueCount;
+    ui32 Padding;
+};
+
+static_assert(sizeof(TRowHeader) == 8, "TRowHeader has to be exactly 8 bytes.");
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
@@ -108,17 +119,6 @@ FORCED_INLINE size_t GetRowDataSize(int valueCount)
 {
     return sizeof (TRowHeader) + sizeof (TValue) * valueCount;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Header which precedes row values in memory layout.
-struct TRowHeader
-{
-    ui32 ValueCount;
-    ui32 Padding;
-};
-
-static_assert(sizeof(TRowHeader) == 8, "TRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,8 +234,10 @@ private:
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
+
 //void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
-TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
+
+TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, ERowValueType sentinelType);
 
 //! Returns the successor of |key|, i.e. the key
 //! obtained from |key| by appending a |ERowValueType::Min| sentinel.
@@ -243,7 +245,11 @@ TOwningKey GetKeySuccessor(const TOwningKey& key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by triming |key| to |prefixLength| and appending a |ERowValueType::Max| sentinel.
-TOwningRow GetKeyPrefixSuccessor(const TOwningRow& key, int prefixLength);
+TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOwningRowTag { };
 
 //! An immutable owning version of TRow.
 /*!
@@ -270,7 +276,7 @@ public:
         size_t variableSize = 0;
         for (int index = 0; index < other.GetValueCount(); ++index) {
             const auto& otherValue = other[index];
-            if (otherValue.Type == EColumnType::String || otherValue.Type == EColumnType::Any) {
+            if (otherValue.Type == ERowValueType::String || otherValue.Type == ERowValueType::Any) {
                 variableSize += otherValue.Length;
             }
         }
@@ -283,20 +289,20 @@ public:
             current += WriteVarUInt32(current, value.Id);
             current += WriteVarUInt32(current, value.Type);
             switch (value.Type) {
-            case EColumnType::Null:
+            case ERowValueType::Null:
                 break;
 
-            case EColumnType::Integer:
+            case ERowValueType::Integer:
                 current += WriteVarInt64(current, value.Data.Integer);
                 break;
 
-            case EColumnType::Double:
+            case ERowValueType::Double:
                 ::memcpy(current, &value.Data.Double, sizeof (double));
                 current += sizeof (double);
                 break;
 
-            case EColumnType::String:
-            case EColumnType::Any:
+            case ERowValueType::String:
+            case ERowValueType::Any:
                 ::memcpy(current, value.Data.String, value.Length);
                 current += value.Length;
                 break;
@@ -331,10 +337,10 @@ public:
     }
 
 private:
-    friend void ToProto(TProtoStringType* protoRow, const TOwningRow& row);
-    friend void FromProto(TOwningRow* row, const TProtoStringType& protoRow);
-    //friend void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
-    friend TOwningRow GetKeySuccessorImpl(const TOwningRow& key, int prefixLength, EColumnType sentinelType);
+    friend void ToProto(TProtoStringType* protoRow, const TOwningRow<TValue>& row);
+    friend void FromProto(TOwningRow<TValue>* row, const TProtoStringType& protoRow);
+    //friend void FromProto(TOwningRow<TValue>* row, const NChunkClient::NProto::TKey& protoKey);
+    friend TOwningRow<TValue> GetKeySuccessorImpl(const TOwningRow<TValue>& key, int prefixLength, ERowValueType sentinelType);
 
 
     TSharedRef RowData; // TRowHeader plus TUnversionedValue-s

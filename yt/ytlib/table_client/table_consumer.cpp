@@ -649,7 +649,7 @@ void TVersionedTableConsumer::WriteValue(const TUnversionedValue& value)
 {
     int id = value.Id;
     if (id < SchemaColumnDescriptors.size()) {
-        auto type = NVersionedTableClient::EColumnType(rowValue.Type);
+        auto type = NVersionedTableClient::ERowValueType(value.Type);
         auto& descriptor = SchemaColumnDescriptors[id];
         if (type != descriptor.Type) {
             ThrowInvalidSchemaColumnType(id, type);
