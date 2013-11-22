@@ -89,7 +89,7 @@ TEST(TNonBlockReader, Failed)
     ASSERT_TRUE(err == 0);
     NDetail::TNonBlockReader reader(pipefds[0]);
 
-    close(pipefds[0]);
+    ASSERT_TRUE(close(pipefds[0]) == 0);
     reader.TryReadInBuffer();
 
     EXPECT_TRUE(reader.InFailedState());
@@ -110,8 +110,8 @@ TEST(TFileIODispatcher, ReadSomethingSpin)
     ASSERT_TRUE(error.Get().IsOK());
 
     std::string message("Hello pipe!\n");
-    write(pipefds[1], message.c_str(), message.size());
-    close(pipefds[1]);
+    ASSERT_TRUE(write(pipefds[1], message.c_str(), message.size()) == message.size());
+    ASSERT_TRUE(close(pipefds[1]) == 0);
 
     bool isClosed = false;
     TBlob data, whole;
@@ -120,15 +120,14 @@ TEST(TFileIODispatcher, ReadSomethingSpin)
     {
         std::tie(data, isClosed) = reader->Read();
         whole.Append(data.Begin(), data.Size());
-
     }
 
     EXPECT_EQ(std::string(whole.Begin(), whole.End()), message);
 
-    close(pipefds[0]);
+    ASSERT_TRUE(close(pipefds[0]) == -1);
 }
 
-TBlob readAll(TAsyncReader& reader)
+TBlob ReadAll(TAsyncReader& reader)
 {
     bool isClosed = false;
     TBlob data, whole;
@@ -139,7 +138,7 @@ TBlob readAll(TAsyncReader& reader)
         whole.Append(data.Begin(), data.Size());
 
         if ((!isClosed) && (data.Size() == 0)) {
-            TError error = reader.GetReadyEvent().Get();
+            auto error = reader.GetReadyEvent().Get();
         }
     }
     return whole;
@@ -160,14 +159,12 @@ TEST(TFileIODispatcher, ReadSomethingWait)
     ASSERT_TRUE(error.Get().IsOK());
 
     std::string message("Hello pipe!\n");
-    write(pipefds[1], message.c_str(), message.size());
-    close(pipefds[1]);
+    ASSERT_EQ(write(pipefds[1], message.c_str(), message.size()), message.size());
+    ASSERT_EQ(close(pipefds[1]), 0);
 
-    TBlob whole = readAll(*reader);
+    TBlob whole = ReadAll(*reader);
 
     EXPECT_EQ(std::string(whole.Begin(), whole.End()), message);
-
-    close(pipefds[0]);
 }
 
 TEST(TFileIODispatcher, ReadWrite)
@@ -195,7 +192,7 @@ TEST(TFileIODispatcher, ReadWrite)
     writer->Write(text.c_str(), text.size());
     TAsyncError errorsOnClose = writer->Close();
 
-    TBlob textFromPipe = readAll(*reader);
+    TBlob textFromPipe = ReadAll(*reader);
 
     EXPECT_TRUE(errorsOnClose.Get().IsOK());
     EXPECT_EQ(std::string(textFromPipe.Begin(), textFromPipe.End()), text);
