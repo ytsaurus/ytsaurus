@@ -235,8 +235,6 @@ private:
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 
-//void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
-
 TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
 
 //! Returns the successor of |key|, i.e. the key
@@ -337,10 +335,9 @@ public:
     }
 
 private:
-    friend void ToProto(TProtoStringType* protoRow, const TOwningRow<TValue>& row);
-    friend void FromProto(TOwningRow<TValue>* row, const TProtoStringType& protoRow);
-    //friend void FromProto(TOwningRow<TValue>* row, const NChunkClient::NProto::TKey& protoKey);
-    friend TOwningRow<TValue> GetKeySuccessorImpl(const TOwningRow<TValue>& key, int prefixLength, EValueType sentinelType);
+    friend void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
+    friend void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
+    friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
 
 
     TSharedRef RowData; // TRowHeader plus TUnversionedValue-s
