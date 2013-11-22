@@ -19,6 +19,7 @@
 
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/replication_writer.h>
+#include <ytlib/chunk_client/chunk_helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -61,43 +62,10 @@ void TFileChunkOutput::Open()
         Options->ReplicationFactor,
         Config->UploadReplicationFactor);
 
-    LOG_INFO("Creating chunk");
     auto nodeDirectory = New<TNodeDirectory>();
-    {
-        TObjectServiceProxy proxy(MasterChannel);
-
-        auto req = TMasterYPathProxy::CreateObjects();
-        ToProto(req->mutable_transaction_id(), TransactionId);
-        req->set_type(EObjectType::Chunk);
-        req->set_account(Options->Account);
-        NMetaState::GenerateMutationId(req);
-
-        auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
-        reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-        reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
-        reqExt->set_replication_factor(Options->ReplicationFactor);
-        reqExt->set_movable(Config->ChunksMovable);
-        reqExt->set_vital(Options->ChunksVital);
-
-        auto rsp = proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            auto wrappedError = TError(
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
-                "Error creating chunk") << *rsp;
-            THROW_ERROR_EXCEPTION(wrappedError);
-        }
-
-        ChunkId = FromProto<TGuid>(rsp->object_ids(0));
-
-        const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk_ext);
-        nodeDirectory->MergeFrom(rspExt.node_directory());
-        Replicas = FromProto<TChunkReplica>(rspExt.replicas());
-        if (Replicas.size() < Config->UploadReplicationFactor) {
-            THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
-                static_cast<int>(Replicas.size()),
-                Config->UploadReplicationFactor);
-        }
-    }
+    
+    auto rsp = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
+    OnChunkCreated(rsp, Config, Options, &ChunkId, &Replicas, nodeDirectory);
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
 

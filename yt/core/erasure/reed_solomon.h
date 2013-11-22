@@ -19,23 +19,23 @@ class TCauchyReedSolomon
 public:
     TCauchyReedSolomon(int blockCount, int parityCount, int wordSize);
 
-    virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) override;
+    virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) const override;
 
     virtual std::vector<TSharedRef> Decode(
         const std::vector<TSharedRef>& blocks,
-        const TPartIndexList& erasedIndices) override;
+        const TPartIndexList& erasedIndices) const override;
 
-    virtual bool CanRepair(const TPartIndexList& erasedIndices) override;
+    virtual bool CanRepair(const TPartIndexList& erasedIndices) const override;
 
-    virtual bool CanRepair(const TPartIndexSet& erasedIndicesMask) override;
+    virtual bool CanRepair(const TPartIndexSet& erasedIndicesMask) const override;
 
-    virtual TNullable<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) override;
+    virtual TNullable<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) const override;
 
-    virtual int GetDataPartCount() override;
+    virtual int GetDataPartCount() const override;
 
-    virtual int GetParityPartCount() override;
+    virtual int GetParityPartCount() const override;
 
-    virtual int GetWordSize() override;
+    virtual int GetWordSize() const override;
 
 private:
     int DataPartCount_;

@@ -461,7 +461,7 @@ protected:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() override
+    virtual Stroka GetLoggingProgress() const override
     {
         return Sprintf(
             "Jobs = {T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 "}, "
@@ -737,7 +737,7 @@ public:
         , Spec(spec)
     { }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) override
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TOrderedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
@@ -981,7 +981,7 @@ protected:
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config,
             Spec,
-            Operation->GetOperationId(),
+            Operation->GetId(),
             KeyColumns,
             ChunkSliceSize);
 
@@ -1408,7 +1408,7 @@ public:
         , TeleportOutputTable(Null)
     { }
 
-    void BuildBriefSpec(IYsonConsumer* consumer) override
+    void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TSortedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)

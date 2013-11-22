@@ -122,6 +122,25 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
     }
 };
 
+// map
+template <class T>
+struct TLoadHelper<std::map<Stroka, T>, void>
+{
+    static void Load(std::map<Stroka, T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+    {
+        auto mapNode = node->AsMap();
+        FOREACH (const auto& pair, mapNode->GetChildren()) {
+            const auto& key = pair.first;
+            T value;
+            TLoadHelper<T>::Load(
+                value,
+                pair.second,
+                path + "/" + NYPath::ToYPathLiteral(key));
+            parameter.insert(std::make_pair(key, std::move(value)));
+        }
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // all

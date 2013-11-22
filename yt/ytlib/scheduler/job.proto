@@ -298,3 +298,19 @@ message TReduceJobResultExt
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Remote copy jobs.
+
+message TRemoteCopyJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TRemoteCopyJobSpecExt remote_copy_job_spec_ext = 106;
+    }
+
+    required string master_discovery_config = 1;
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory remote_node_directory = 2;
+    required string network_name = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,7 @@
 #include "operation_controller.h"
 #include "map_controller.h"
 #include "merge_controller.h"
+#include "remote_copy_controller.h"
 #include "sort_controller.h"
 #include "helpers.h"
 #include "master_connector.h"
@@ -38,6 +39,7 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 
@@ -57,8 +59,11 @@
 #include <ytlib/meta_state/public.h>
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <ytlib/cell_directory/cell_directory.h>
+
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
+
 
 namespace NYT {
 namespace NScheduler {
@@ -252,7 +257,7 @@ public:
 
     TExecNodePtr GetOrRegisterNode(const TNodeDescriptor& descriptor)
     {
-        auto it = AddressToNode_.find(descriptor.Address);
+        auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
         if (it == AddressToNode_.end()) {
             return RegisterNode(descriptor);
         }
@@ -317,8 +322,8 @@ public:
             ~user);
 
 
-        LOG_INFO("Total resource limits (OperationId: %s, ResourceLimits: {%s})", 
-            ~ToString(operationId), 
+        LOG_INFO("Total resource limits (OperationId: %s, ResourceLimits: {%s})",
+            ~ToString(operationId),
             ~FormatResources(GetTotalResourceLimits()));
 
         IOperationControllerPtr controller;
@@ -353,20 +358,20 @@ public:
 
         if (operation->IsFinishingState()) {
             LOG_INFO(error, "Operation is already finishing (OperationId: %s, State: %s)",
-                ~ToString(operation->GetOperationId()),
+                ~ToString(operation->GetId()),
                 ~operation->GetState().ToString());
             return operation->GetFinished();
         }
 
         if (operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already finished (OperationId: %s, State: %s)",
-                ~ToString(operation->GetOperationId()),
+                ~ToString(operation->GetId()),
                 ~operation->GetState().ToString());
             return operation->GetFinished();
         }
 
         LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
-            ~ToString(operation->GetOperationId()),
+            ~ToString(operation->GetId()),
             ~operation->GetState().ToString());
 
         TerminateOperation(
@@ -392,8 +397,8 @@ public:
         operation->SetSuspended(true);
 
         LOG_INFO("Operation suspended (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
-        
+            ~ToString(operation->GetId()));
+
         return MakeFuture(TError());
     }
 
@@ -409,7 +414,7 @@ public:
         operation->SetSuspended(false);
 
         LOG_INFO("Operation resumed (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
 
         return MakeFuture(TError());
     }
@@ -476,7 +481,7 @@ public:
                     LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
                         ~node->GetAddress(),
                         ~ToString(job->GetId()),
-                        ~ToString(job->GetOperation()->GetOperationId()));
+                        ~ToString(job->GetOperation()->GetId()));
                     AbortJob(job, TError("Job vanished"));
                     UnregisterJob(job);
                 }
@@ -558,9 +563,21 @@ public:
         return Bootstrap_->GetMasterChannel();
     }
 
+    virtual NCellDirectory::TCellDirectoryPtr GetCellDirectory() override
+    {
+        return Bootstrap_->GetCellDirectory();
+    }
+
     virtual TTransactionManagerPtr GetTransactionManager() override
     {
         return Bootstrap_->GetTransactionManager();
+    }
+
+    TTransactionManagerPtr GetTransactionManagerForTransaction(const TTransactionId& transactionId)
+    {
+        auto cellId = GetCellId(transactionId, EObjectType::Transaction);
+        auto masterChannel = Bootstrap_->GetCellDirectory()->GetChannelOrThrow(cellId);
+        return New<TTransactionManager>(Bootstrap_->GetConfig()->TransactionManager, masterChannel);
     }
 
     virtual IInvokerPtr GetControlInvoker() override
@@ -573,7 +590,7 @@ public:
         return BackgroundQueue_->GetInvoker();
     }
 
-    virtual std::vector<TExecNodePtr> GetExecNodes() override
+    virtual std::vector<TExecNodePtr> GetExecNodes() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -584,7 +601,7 @@ public:
         return result;
     }
 
-    virtual int GetExecNodeCount() override
+    virtual int GetExecNodeCount() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -600,7 +617,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
 
         if (operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
@@ -624,7 +641,7 @@ public:
     virtual void OnOperationFailed(TOperationPtr operation, const TError& error) override
     {
         LOG_INFO(error, "Operation failed (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
 
         TerminateOperation(
             operation,
@@ -810,18 +827,16 @@ private:
         if (operation->GetState() != EOperationState::Initializing)
             throw TFiberTerminatedException();
 
-        try {
-            StartAsyncSchedulerTransaction(operation);
-            StartSyncSchedulerTransaction(operation);
-            StartIOTransactions(operation);
+        auto controller = operation->GetController();
 
-            {
-                auto asyncResult = MasterConnector_->CreateOperationNode(operation);
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Initializing)
-                    throw TFiberTerminatedException();
-            }
+        try {
+            controller->InitTransactions();
+
+            auto asyncResult = MasterConnector_->CreateOperationNode(operation);
+            auto result = WaitFor(asyncResult);
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            if (operation->GetState() != EOperationState::Initializing)
+                throw TFiberTerminatedException();
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
@@ -832,7 +847,6 @@ private:
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
-        auto controller = operation->GetController();
         controller->GetCancelableControlInvoker()->Invoke(BIND(
             &TImpl::DoPrepareOperation,
             MakeStrong(this),
@@ -840,7 +854,7 @@ private:
 
         return TError();
     }
-    
+
     void DoPrepareOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -848,7 +862,7 @@ private:
         if (operation->GetState() != EOperationState::Initializing)
             throw TFiberTerminatedException();
 
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
 
         try {
             // Run async preparation.
@@ -883,193 +897,6 @@ private:
         // #OnOperationFailed to inform the scheduler about the outcome.
     }
 
-
-    void StartSyncSchedulerTransaction(TOperationPtr operation)
-    {
-        auto operationId = operation->GetOperationId();
-
-        LOG_INFO("Starting sync scheduler transaction (OperationId: %s)",
-            ~ToString(operationId));
-
-        TObjectServiceProxy proxy(GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
-
-        {
-            auto userTransaction = operation->GetUserTransaction();
-            auto req = TMasterYPathProxy::CreateObjects();
-            if (userTransaction) {
-                ToProto(req->mutable_transaction_id(), userTransaction->GetId());
-            }
-            req->set_type(EObjectType::Transaction);
-
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
-            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
-
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Sprintf("Scheduler sync for operation %s",
-                ~ToString(operation->GetOperationId())));
-            ToProto(req->mutable_object_attributes(), *attributes);
-
-            GenerateMutationId(req);
-            batchReq->AddRequest(req, "start_sync_tx");
-        }
-
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting sync scheduler transaction");
-        if (operation->GetState() != EOperationState::Initializing &&
-            operation->GetState() != EOperationState::Reviving)
-            throw TFiberTerminatedException();
-
-        auto transactionManager = GetTransactionManager();
-
-        {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx");
-            auto transactionid = FromProto<TObjectId>(rsp->object_ids(0));
-            TTransactionAttachOptions options(transactionid);
-            options.AutoAbort = false;
-            options.Ping = true;
-            options.PingAncestors = false;
-            operation->SetSyncSchedulerTransaction(transactionManager->Attach(options));
-        }
-
-        LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %s, OperationId: %s)",
-            ~ToString(operation->GetSyncSchedulerTransaction()->GetId()),
-            ~ToString(operationId));
-    }
-
-    void StartAsyncSchedulerTransaction(TOperationPtr operation)
-    {
-        auto operationId = operation->GetOperationId();
-
-        LOG_INFO("Starting async scheduler transaction (OperationId: %s)",
-            ~ToString(operationId));
-
-        TObjectServiceProxy proxy(GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
-
-        {
-            auto req = TMasterYPathProxy::CreateObjects();
-            req->set_type(EObjectType::Transaction);
-
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
-            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
-            reqExt->set_enable_uncommitted_accounting(false);
-            reqExt->set_enable_staged_accounting(false);
-
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Sprintf("Scheduler async for operation %s",
-                ~ToString(operationId)));
-            ToProto(req->mutable_object_attributes(), *attributes);
-
-            GenerateMutationId(req);
-            batchReq->AddRequest(req, "start_async_tx");
-        }
-
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting async scheduler transaction");
-        if (operation->GetState() != EOperationState::Initializing &&
-            operation->GetState() != EOperationState::Reviving)
-            throw TFiberTerminatedException();
-
-        auto transactionManager = GetTransactionManager();
-
-        {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx");
-            auto transactionid = FromProto<TObjectId>(rsp->object_ids(0));
-            TTransactionAttachOptions options(transactionid);
-            options.AutoAbort = false;
-            options.Ping = true;
-            options.PingAncestors = false;
-            operation->SetAsyncSchedulerTransaction(transactionManager->Attach(options));
-        }
-
-        LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %s, OperationId: %s)",
-            ~ToString(operation->GetAsyncSchedulerTransaction()->GetId()),
-            ~ToString(operationId));
-    }
-
-    void StartIOTransactions(TOperationPtr operation)
-    {
-        auto operationId = operation->GetOperationId();
-
-        LOG_INFO("Starting IO transactions (OperationId: %s)",
-            ~ToString(operationId));
-
-        TObjectServiceProxy proxy(GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
-        auto parentTransactionId = operation->GetSyncSchedulerTransaction()->GetId();
-
-        {
-            auto req = TMasterYPathProxy::CreateObjects();
-            ToProto(req->mutable_transaction_id(), parentTransactionId);
-            req->set_type(EObjectType::Transaction);
-
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
-            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
-
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Sprintf("Scheduler input for operation %s",
-                ~ToString(operation->GetOperationId())));
-            ToProto(req->mutable_object_attributes(), *attributes);
-
-            NMetaState::GenerateMutationId(req);
-            batchReq->AddRequest(req, "start_in_tx");
-        }
-
-        {
-            auto req = TMasterYPathProxy::CreateObjects();
-            ToProto(req->mutable_transaction_id(), parentTransactionId);
-            req->set_type(EObjectType::Transaction);
-
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
-            reqExt->set_enable_uncommitted_accounting(false);
-            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
-
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Sprintf("Scheduler output for operation %s",
-                ~ToString(operationId)));
-            ToProto(req->mutable_object_attributes(), *attributes);
-
-            NMetaState::GenerateMutationId(req);
-            batchReq->AddRequest(req, "start_out_tx");
-        }
-
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting IO transactions");
-        if (operation->GetState() != EOperationState::Initializing &&
-            operation->GetState() != EOperationState::Reviving)
-            throw TFiberTerminatedException();
-
-        auto transactionManager = GetTransactionManager();
-
-        {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_in_tx");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
-            auto id = FromProto<TTransactionId>(rsp->object_ids(0));
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
-            options.Ping = true;
-            operation->SetInputTransaction(transactionManager->Attach(options));
-        }
-
-        {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_out_tx");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
-            auto id = FromProto<TTransactionId>(rsp->object_ids(0));
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
-            options.Ping = true;
-            operation->SetOutputTransaction(transactionManager->Attach(options));
-        }
-
-        LOG_INFO("IO transactions started (InputTransactionId: %s, OutputTranasctionId: %s, OperationId: %s)",
-            ~ToString(operation->GetInputTransaction()->GetId()),
-            ~ToString(operation->GetOutputTransaction()->GetId()),
-            ~ToString(operationId));
-    }
-
-
-
     void ReviveOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1082,7 +909,7 @@ private:
 
     void ReviveOperation(TOperationPtr operation)
     {
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %s)",
             ~ToString(operationId));
@@ -1117,20 +944,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // Question(ignat): Who catch this exception?
         if (operation->GetState() != EOperationState::Reviving)
             throw TFiberTerminatedException();
 
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
+        auto controller = operation->GetController();
 
         try {
-            // NB: Async transaction is always restarted, even if operation state is being recovered.
-            StartAsyncSchedulerTransaction(operation);
-
-            if (operation->GetCleanStart()) {
-                StartSyncSchedulerTransaction(operation);
-                StartIOTransactions(operation);
-            }
-
+            controller->InitTransactions();
             {
                 auto asyncResult = MasterConnector_->ResetRevivingOperationNode(operation);
                 auto result = WaitFor(asyncResult);
@@ -1179,7 +1001,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Node online (Descriptor: %s)", ~ToString(descriptor));
+        LOG_INFO("Node online (Descriptor: %s)", ~ToString(descriptor.GetDefaultAddress()));
 
         auto node = New<TExecNode>(descriptor);
 
@@ -1214,7 +1036,7 @@ private:
             LOG_INFO("Aborting job on an offline node %s (JobId: %s, OperationId: %s)",
                 ~address,
                 ~ToString(job->GetId()),
-                ~ToString(job->GetOperation()->GetOperationId()));
+                ~ToString(job->GetOperation()->GetId()));
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
@@ -1224,7 +1046,7 @@ private:
 
     void RegisterOperation(TOperationPtr operation)
     {
-        YCHECK(IdToOperation_.insert(std::make_pair(operation->GetOperationId(), operation)).second);
+        YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
 
         auto mutationId = operation->GetMutationId();
         if (mutationId != NullMutationId) {
@@ -1234,7 +1056,7 @@ private:
         OperationRegistered_.Fire(operation);
 
         LOG_DEBUG("Operation registered (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
     void AbortOperationJobs(TOperationPtr operation)
@@ -1250,7 +1072,7 @@ private:
 
     void UnregisterOperation(TOperationPtr operation)
     {
-        YCHECK(IdToOperation_.erase(operation->GetOperationId()) == 1);
+        YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
 
         auto mutationId = operation->GetMutationId();
         if (mutationId != NullMutationId) {
@@ -1260,7 +1082,7 @@ private:
         OperationUnregistered_.Fire(operation);
 
         LOG_DEBUG("Operation unregistered (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
     void LogOperationProgress(TOperationPtr operation)
@@ -1271,7 +1093,7 @@ private:
         LOG_DEBUG("Progress: %s, %s (OperationId: %s)",
             ~operation->GetController()->GetLoggingProgress(),
             ~Strategy_->GetOperationLoggingProgress(operation),
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -1289,29 +1111,31 @@ private:
         YCHECK(operation->GetState() == EOperationState::Completing);
 
         LOG_INFO("Committing scheduler transactions (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
 
-        TObjectServiceProxy proxy(GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchRequest = TMultiCellBatchRequest(Bootstrap_->GetCellDirectory(), true);
 
         auto scheduleCommit = [&] (ITransactionPtr transaction, const Stroka& key) {
-            auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
-            NMetaState::GenerateMutationId(req);
-            batchReq->AddRequest(req, key);
-            transaction->Detach();
+            if (transaction) {
+                auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
+                NMetaState::GenerateMutationId(req);
+                batchRequest.AddRequestForTransaction(req, key, transaction->GetId());
+                transaction->Detach();
+            }
         };
 
         scheduleCommit(operation->GetInputTransaction(), "commit_in_tx");
         scheduleCommit(operation->GetOutputTransaction(), "commit_out_tx");
         scheduleCommit(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
 
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Operation has failed to commit");
+        auto batchResponse = batchRequest.Execute();
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchResponse.GetCumulativeError(), "Operation has failed to commit");
+
         if (operation->GetState() != EOperationState::Completing)
             throw TFiberTerminatedException();
 
         LOG_INFO("Scheduler transactions committed (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
 
         // NB: Never commit async transaction since it's used for writing Live Preview tables.
         operation->GetAsyncSchedulerTransaction()->Abort();
@@ -1326,7 +1150,8 @@ private:
             }
         };
 
-        // NB: No need to abort IO transactions since they are nested inside sync transaction.
+        abortTransaction(operation->GetInputTransaction());
+        abortTransaction(operation->GetOutputTransaction());
         abortTransaction(operation->GetSyncSchedulerTransaction());
         abortTransaction(operation->GetAsyncSchedulerTransaction());
     }
@@ -1349,7 +1174,7 @@ private:
         YCHECK(IdToJob_.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(operation->Jobs().insert(job).second);
         YCHECK(node->Jobs().insert(job).second);
-        
+
         job->GetNode()->ResourceUsage() += job->ResourceUsage();
 
         JobStarted_.Fire(job);
@@ -1357,7 +1182,7 @@ private:
         LOG_DEBUG("Job registered (JobId: %s, JobType: %s, OperationId: %s)",
             ~ToString(job->GetId()),
             ~job->GetType().ToString(),
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
     void UnregisterJob(TJobPtr job)
@@ -1375,7 +1200,7 @@ private:
 
         LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
             ~ToString(job->GetId()),
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
     void AbortJob(TJobPtr job, const TError& error)
@@ -1400,7 +1225,7 @@ private:
     {
         LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
             ~ToString(job->GetId()),
-            ~ToString(job->GetOperation()->GetOperationId()));
+            ~ToString(job->GetOperation()->GetId()));
 
         job->GetNode()->ResourceUsage() -= job->ResourceUsage();
         JobUpdated_.Fire(job, -job->ResourceUsage());
@@ -1581,6 +1406,8 @@ private:
                 return CreateReduceController(Config_, this, operation);
             case EOperationType::MapReduce:
                 return CreateMapReduceController(Config_, this, operation);
+            case EOperationType::RemoteCopy:
+                return CreateRemoteCopyController(Config_, this, operation);
             default:
                 YUNREACHABLE();
         }
@@ -1591,7 +1418,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
+
+        LOG_INFO("Completing operation (OperationId: %s)",
+            ~ToString(operationId));
 
         if (operation->GetState() != EOperationState::Completing)
             throw TFiberTerminatedException();
@@ -1617,7 +1447,7 @@ private:
 
             CommitSchedulerTransactions(operation);
 
-            LOG_INFO("Operation committed (OperationId: %s)",
+            LOG_INFO("Operation transactions committed (OperationId: %s)",
                 ~ToString(operationId));
 
             YCHECK(operation->GetState() == EOperationState::Completing);
@@ -1633,7 +1463,7 @@ private:
             FinishOperation(operation);
         } catch (const std::exception& ex) {
             OnOperationFailed(operation, ex);
-        }       
+        }
     }
 
     void TerminateOperation(
@@ -1669,7 +1499,7 @@ private:
         SetOperationFinalState(operation, finalState, error);
 
         AbortSchedulerTransactions(operation);
-        
+
         // Second flush: ensure that the state is changed to its final value.
         {
             auto asyncResult = MasterConnector_->FlushOperationNode(operation);
@@ -1710,7 +1540,7 @@ private:
         auto state = operation->GetState();
         bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
-            .Item(ToString(operation->GetOperationId())).BeginMap()
+            .Item(ToString(operation->GetId())).BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
@@ -1809,7 +1639,7 @@ private:
         Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
             ~job->GetType().ToString(),
             ~state.ToString(),
-            ~ToString(operation->GetOperationId())));
+            ~ToString(operation->GetId())));
 
         // Check if the job is running on a proper node.
         const auto& expectedAddress = job->GetNode()->GetAddress();
@@ -1868,7 +1698,7 @@ private:
                         ~jobAddress,
                         ~job->GetType().ToString(),
                         ~ToString(jobId),
-                        ~ToString(operation->GetOperationId()));
+                        ~ToString(operation->GetId()));
                     ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
                     switch (state) {

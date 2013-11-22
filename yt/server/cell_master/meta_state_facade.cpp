@@ -278,6 +278,28 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/tokens",
+                transactionId,
+                EObjectType::Document,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("value").BeginMap()
+                        .EndMap()
+                    .EndMap());
+
+            CreateNode(
+                rootService,
+                "//sys/clusters",
+                transactionId,
+                EObjectType::Document,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("value").BeginMap()
+                        .EndMap()
+                    .EndMap());
+
+            CreateNode(
+                rootService,
                 "//sys/scheduler/instances",
                 transactionId,
                 EObjectType::MapNode,

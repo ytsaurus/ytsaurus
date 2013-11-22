@@ -74,18 +74,22 @@ public:
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;
 
-    virtual TCancelableContextPtr GetCancelableContext() override;
-    virtual IInvokerPtr GetCancelableControlInvoker() override;
-    virtual IInvokerPtr GetCancelableBackgroundInvoker() override;
+    virtual TCancelableContextPtr GetCancelableContext() const override;
+    virtual IInvokerPtr GetCancelableControlInvoker() const override;
+    virtual IInvokerPtr GetCancelableBackgroundInvoker() const override;
 
-    virtual int GetPendingJobCount() override;
-    virtual int GetTotalJobCount() override;
-    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() override;
+    virtual int GetPendingJobCount() const override;
+    virtual int GetTotalJobCount() const override;
+    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const override;
 
-    virtual void BuildProgress(NYson::IYsonConsumer* consumer) override;
-    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) override;
-    virtual void BuildResult(NYson::IYsonConsumer* consumer) override;
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildResult(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
+
+    virtual void InitTransactions() override;
+
+    virtual bool NeedsAllChunkParts() const override;
 
     virtual void Persist(TPersistenceContext& context) override;
 
@@ -109,6 +113,8 @@ protected:
     TOperation* Operation;
 
     NRpc::IChannelPtr AuthenticatedMasterChannel;
+    NRpc::IChannelPtr AuthenticatedInputMasterChannel;
+    NRpc::IChannelPtr AuthenticatedOutputMasterChannel;
     mutable NLog::TTaggedLogger Logger;
 
     TCancelableContextPtr CancelableContext;
@@ -591,9 +597,14 @@ protected:
 
     // Preparation.
     TError DoPrepare();
-    void GetObjectIds();
+    void GetInputObjectIds();
+    void GetOutputObjectIds();
     void ValidateInputTypes();
-    void RequestInputs();
+    void ValidateOutputTypes();
+    void ValidateFileTypes();
+    void RequestInputObjects();
+    void RequestOutputObjects();
+    void RequestFileObjects();
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
     void CollectTotals();
@@ -603,6 +614,12 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
+    // Initialize transactions
+    void StartAsyncSchedulerTransaction();
+    void StartSyncSchedulerTransaction();
+    void StartIOTransactions();
+    virtual void StartInputTransaction(NObjectClient::TTransactionId parentTransactionId);
+    virtual void StartOutputTransaction(NObjectClient::TTransactionId parentTransactionId);
 
     // Completion.
     TError DoCommit();
@@ -704,6 +721,9 @@ protected:
 
     //! Enables sorted output from user jobs.
     virtual bool IsSortedOutputSupported() const;
+    
+    //! Enables fetching all input replicas (not only data)
+    virtual bool IsParityReplicasFetchEnabled() const;
 
     //! If |true| then all jobs started within the operation must
     //! preserve row count. This invariant is checked for each completed job.
@@ -808,7 +828,7 @@ private:
         : public virtual TRefCounted
     {
     public:
-        explicit TInputChunkScratcher(TOperationControllerBase* controller);
+        TInputChunkScratcher(TOperationControllerBase* controller, NRpc::IChannelPtr masterChannel);
 
         //! Starts periodic polling.
         /*!
@@ -859,6 +879,8 @@ private:
 
     static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);
 
+    NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
+        const NObjectClient::TTransactionId& transactionId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,8 +41,8 @@ public:
             .Default(9001);
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10001);
-        RegisterParameter("masters", Masters).
-            DefaultNew();
+        RegisterParameter("masters", Masters)
+            .DefaultNew();
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
         RegisterParameter("scheduler", Scheduler)

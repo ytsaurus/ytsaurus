@@ -41,14 +41,14 @@ TSnapshotDownloader::TSnapshotDownloader(
     YCHECK(operation);
 
     Logger.AddTag(Sprintf("OperationId: %s",
-        ~ToString(operation->GetOperationId())));
+        ~ToString(operation->GetId())));
 }
 
 void TSnapshotDownloader::Run()
 {
     LOG_INFO("Starting downloading snapshot");
 
-    auto snapshotPath = GetSnapshotPath(Operation->GetOperationId());
+    auto snapshotPath = GetSnapshotPath(Operation->GetId());
     auto reader = New<TAsyncReader>(
         Config->SnapshotReader,
         Bootstrap->GetMasterChannel(),

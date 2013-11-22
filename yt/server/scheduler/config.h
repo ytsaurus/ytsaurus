@@ -81,6 +81,8 @@ public:
 
     TDuration WatchersUpdatePeriod;
 
+    TDuration CellDirectoryUpdatePeriod;
+
     TDuration ResourceDemandSanityCheckPeriod;
 
     TDuration LockTransactionTimeout;
@@ -173,6 +175,7 @@ public:
     NYTree::INodePtr SortedMergeOperationSpec;
     NYTree::INodePtr MapReduceOperationSpec;
     NYTree::INodePtr SortOperationSpec;
+    NYTree::INodePtr RemoteCopyOperationSpec;
 
     //! Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
@@ -208,6 +211,8 @@ public:
         RegisterParameter("operations_update_period", OperationsUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("cell_directory_update_period", CellDirectoryUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
             .Default(TDuration::Seconds(15));
@@ -317,6 +322,8 @@ public:
         RegisterParameter("map_reduce_operation_spec", MapReduceOperationSpec)
             .Default(nullptr);
         RegisterParameter("sort_operation_spec", SortOperationSpec)
+            .Default(nullptr);
+        RegisterParameter("remote_copy_operation_spec", RemoteCopyOperationSpec)
             .Default(nullptr);
 
         RegisterParameter("max_job_count", MaxJobCount)

@@ -24,6 +24,7 @@ IAsyncReaderPtr CreateReplicationReader(
     const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
+    const Stroka& networkName = NNodeTrackerClient::DefaultNetworkName,
     EReadSessionType sessionType = EReadSessionType::User,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

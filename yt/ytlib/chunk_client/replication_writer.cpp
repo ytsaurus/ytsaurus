@@ -59,8 +59,8 @@ struct TNode
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
         , Descriptor(descriptor)
-        , LightProxy(LightNodeChannelCache->GetChannel(descriptor.Address))
-        , HeavyProxy(HeavyNodeChannelCache->GetChannel(descriptor.Address))
+        , LightProxy(LightNodeChannelCache->GetChannel(descriptor.GetDefaultAddress()))
+        , HeavyProxy(HeavyNodeChannelCache->GetChannel(descriptor.GetDefaultAddress()))
     { }
 
     bool IsAlive() const
@@ -389,7 +389,7 @@ TProxy::TInvPutBlocks TGroup::PutBlocks(TNodePtr node)
     LOG_DEBUG("Ready to put blocks (Blocks: %d-%d, Address: %s, Size: %" PRId64 ")",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~node->Descriptor.Address,
+        ~node->Descriptor.GetDefaultAddress(),
         Size);
 
     auto this_ = MakeStrong(this);
@@ -397,7 +397,7 @@ TProxy::TInvPutBlocks TGroup::PutBlocks(TNodePtr node)
         LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
             StartBlockIndex,
             GetEndBlockIndex(),
-            ~node->Descriptor.Address);
+            ~node->Descriptor.GetDefaultAddress());
 
         return req->Invoke();
     }));
@@ -417,7 +417,7 @@ void TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr rsp)
     LOG_DEBUG("Blocks are put (Blocks: %d-%d, Address: %s)",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~node->Descriptor.Address);
+        ~node->Descriptor.GetDefaultAddress());
 }
 
 void TGroup::SendGroup(TNodePtr srcNode)
@@ -455,8 +455,8 @@ TProxy::TInvSendBlocks TGroup::SendBlocks(
     LOG_DEBUG("Sending blocks (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~srcNode->Descriptor.Address,
-        ~dstNode->Descriptor.Address);
+        ~srcNode->Descriptor.GetDefaultAddress(),
+        ~dstNode->Descriptor.GetDefaultAddress());
 
     auto req = srcNode->LightProxy.SendBlocks();
 
@@ -511,8 +511,8 @@ void TGroup::OnSentBlocks(
     LOG_DEBUG("Blocks are sent (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~srcNode->Descriptor.Address,
-        ~dstNode->Descriptor.Address);
+        ~srcNode->Descriptor.GetDefaultAddress(),
+        ~dstNode->Descriptor.GetDefaultAddress());
 
     IsSentTo[dstNode->Index] = true;
 }
@@ -718,7 +718,7 @@ TProxy::TInvFlushBlock TReplicationWriter::FlushBlock(TNodePtr node, int blockIn
 
     LOG_DEBUG("Flushing block (Block: %d, Address: %s)",
         blockIndex,
-        ~node->Descriptor.Address);
+        ~node->Descriptor.GetDefaultAddress());
 
     auto req = node->LightProxy.FlushBlock();
     ToProto(req->mutable_chunk_id(), ChunkId);
@@ -733,7 +733,7 @@ void TReplicationWriter::OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::T
 
     LOG_DEBUG("Block flushed (Block: %d, Address: %s)",
         blockIndex,
-        ~node->Descriptor.Address);
+        ~node->Descriptor.GetDefaultAddress());
 }
 
 void TReplicationWriter::OnWindowShifted(int lastFlushedBlock)
@@ -794,7 +794,7 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
         return;
 
     auto wrappedError = TError("Node %s failed",
-        ~node->Descriptor.Address)
+        ~node->Descriptor.GetDefaultAddress())
         << error;
     LOG_ERROR(wrappedError);
 
@@ -836,7 +836,7 @@ void TReplicationWriter::CheckResponse(
 
 TProxy::TInvStartChunk TReplicationWriter::StartChunk(TNodePtr node)
 {
-    LOG_DEBUG("Starting chunk (Address: %s)", ~node->Descriptor.Address);
+    LOG_DEBUG("Starting chunk (Address: %s)", ~node->Descriptor.GetDefaultAddress());
 
     auto req = node->LightProxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
@@ -850,7 +850,7 @@ void TReplicationWriter::OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Chunk started (Address: %s)", ~node->Descriptor.Address);
+    LOG_DEBUG("Chunk started (Address: %s)", ~node->Descriptor.GetDefaultAddress());
 
     StartPing(node);
 }
@@ -910,7 +910,7 @@ void TReplicationWriter::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkP
 
     auto& chunkInfo = rsp->chunk_info();
     LOG_DEBUG("Chunk finished (Address: %s, DiskSpace: %" PRId64 ")",
-        ~node->Descriptor.Address,
+        ~node->Descriptor.GetDefaultAddress(),
         chunkInfo.disk_space());
 
     // If ChunkInfo is set.
@@ -919,7 +919,7 @@ void TReplicationWriter::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkP
             ChunkInfo.disk_space() != chunkInfo.disk_space())
         {
             LOG_FATAL("Mismatched chunk info reported by node (Address: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
-                ~node->Descriptor.Address,
+                ~node->Descriptor.GetDefaultAddress(),
                 ~ChunkInfo.DebugString(),
                 ~chunkInfo.DebugString());
         }
@@ -933,7 +933,7 @@ TProxy::TInvFinishChunk TReplicationWriter::FinishChunk(TNodePtr node)
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     LOG_DEBUG("Finishing chunk (Address: %s)",
-        ~node->Descriptor.Address);
+        ~node->Descriptor.GetDefaultAddress());
 
     auto req = node->LightProxy.FinishChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
@@ -969,7 +969,7 @@ void TReplicationWriter::SendPing(TNodeWeakPtr node)
     }
 
     LOG_DEBUG("Sending ping (Address: %s)",
-        ~node_->Descriptor.Address);
+        ~node_->Descriptor.GetDefaultAddress());
 
     auto req = node_->LightProxy.PingSession();
     ToProto(req->mutable_chunk_id(), ChunkId);

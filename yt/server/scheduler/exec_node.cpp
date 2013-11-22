@@ -36,7 +36,7 @@ bool TExecNode::HasSpareResources() const
 
 const Stroka& TExecNode::GetAddress() const
 {
-    return Descriptor_.Address;
+    return Descriptor_.GetDefaultAddress();
 }
 
 ////////////////////////////////////////////////////////////////////

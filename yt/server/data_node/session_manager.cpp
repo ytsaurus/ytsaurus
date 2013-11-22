@@ -234,7 +234,7 @@ TAsyncError TSession::SendBlocks(
 
     Ping();
 
-    TProxy proxy(ChannelCache.GetChannel(target.Address));
+    TProxy proxy(ChannelCache.GetChannel(target.GetDefaultAddress()));
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();

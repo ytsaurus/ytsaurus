@@ -64,6 +64,7 @@ public:
         const TNullable<TNodeDescriptor>& localDescriptor,
         const TChunkId& chunkId,
         const TChunkReplicaList& seedReplicas,
+        const Stroka& networkName,
         EReadSessionType sessionType,
         IThroughputThrottlerPtr throttler)
         : Config(config)
@@ -71,6 +72,7 @@ public:
         , NodeDirectory(nodeDirectory)
         , LocalDescriptor(localDescriptor)
         , ChunkId(chunkId)
+        , NetworkName_(networkName)
         , SessionType(sessionType)
         , Throttler(throttler)
         , Logger(ChunkReaderLogger)
@@ -97,7 +99,7 @@ public:
         LOG_INFO("Reader initialized (InitialSeedReplicas: [%s], FetchPromPeers: %s, LocalDescriptor: %s, EnableCaching: %s)",
             ~JoinToString(InitialSeedReplicas, TChunkReplicaAddressFormatter(NodeDirectory)),
             ~ToString(Config->FetchFromPeers),
-            LocalDescriptor ? ~ToString(LocalDescriptor->Address) : "<Null>",
+            LocalDescriptor ? ~ToString(LocalDescriptor->GetAddressOrThrow(NetworkName_)) : "<Null>",
             ~FormatBool(Config->EnableNodeCaching));
     }
 
@@ -122,6 +124,7 @@ private:
     TNodeDirectoryPtr NodeDirectory;
     TNullable<TNodeDescriptor> LocalDescriptor;
     TChunkId ChunkId;
+    Stroka NetworkName_;
     EReadSessionType SessionType;
     IThroughputThrottlerPtr Throttler;
     NLog::TTaggedLogger Logger;
@@ -237,6 +240,9 @@ protected:
     //! Translates node ids to node descriptors.
     TNodeDirectoryPtr NodeDirectory;
 
+    //! Name of the network to use from descriptor.
+    Stroka NetworkName_;
+
     //! Zero based retry index (less than |Reader->Config->RetryCount|).
     int RetryIndex;
 
@@ -267,6 +273,7 @@ protected:
     explicit TSessionBase(TReplicationReader* reader)
         : Reader(reader)
         , NodeDirectory(reader->NodeDirectory)
+        , NetworkName_(reader->NetworkName_)
         , RetryIndex(0)
         , PassIndex(0)
         , PeerIndex(0)
@@ -361,7 +368,8 @@ protected:
         PeerIndex = 0;
         FOREACH (auto replica, SeedReplicas) {
             const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-            if (!IsPeerBanned(descriptor.Address)) {
+            auto address = descriptor.FindAddress(NetworkName_);
+            if (address && !IsPeerBanned(*address)) {
                 seedHandler(descriptor);
             }
         }
@@ -449,7 +457,12 @@ private:
         SeedAddresses.clear();
         FOREACH (auto replica, SeedReplicas) {
             const auto& descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
-            SeedAddresses.insert(descriptor.Address);
+            auto address = descriptor.FindAddress(NetworkName_);
+            if (address) {
+                SeedAddresses.insert(*address);
+            } else {
+                LOG_WARNING("Cannot find %s address for %s", ~NetworkName_, ~descriptor.GetDefaultAddress());
+            }
         }
 
         // Prefer local node if in seeds.
@@ -540,7 +553,7 @@ private:
 
     void AddPeer(const TNodeDescriptor& nodeDescriptor, int blockIndex)
     {
-        const auto& address = nodeDescriptor.Address;
+        const auto& address = nodeDescriptor.GetAddress(NetworkName_);
         auto peerBlocksMapIt = PeerBlocksMap.find(address);
         if (peerBlocksMapIt == PeerBlocksMap.end()) {
             peerBlocksMapIt = PeerBlocksMap.insert(std::make_pair(address, TPeerBlocksInfo())).first;
@@ -579,7 +592,7 @@ private:
         std::vector<int> result;
         result.reserve(indexesToFetch.size());
 
-        auto peerBlocksMapIt = PeerBlocksMap.find(nodeDescriptor.Address);
+        auto peerBlocksMapIt = PeerBlocksMap.find(nodeDescriptor.GetAddress(NetworkName_));
         YCHECK(peerBlocksMapIt != PeerBlocksMap.end());
 
         const auto& blocksInfo = peerBlocksMapIt->second;
@@ -638,14 +651,14 @@ private:
             auto currentDescriptor = PickNextPeer();
             auto blockIndexes = GetRequestBlockIndexes(currentDescriptor, unfetchedBlockIndexes);
 
-            if (!IsPeerBanned(currentDescriptor.Address) && !blockIndexes.empty()) {
+            if (!IsPeerBanned(currentDescriptor.GetAddress(NetworkName_)) && !blockIndexes.empty()) {
                 LOG_INFO("Requesting blocks from peer (Address: %s, Blocks: [%s])",
-                    ~currentDescriptor.Address,
+                    ~currentDescriptor.GetAddress(NetworkName_),
                     ~JoinToString(unfetchedBlockIndexes));
 
                 IChannelPtr channel;
                 try {
-                    channel = LightNodeChannelCache->GetChannel(currentDescriptor.Address);
+                    channel = LightNodeChannelCache->GetChannel(currentDescriptor.GetAddress(NetworkName_));
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
                     continue;
@@ -676,7 +689,7 @@ private:
                 break;
             }
 
-            LOG_INFO("Skipping peer (Address: %s)", ~currentDescriptor.Address);
+            LOG_INFO("Skipping peer (Address: %s)", ~currentDescriptor.GetAddress(NetworkName_));
         }
     }
 
@@ -685,7 +698,7 @@ private:
         TDataNodeServiceProxy::TReqGetBlocksPtr req,
         TDataNodeServiceProxy::TRspGetBlocksPtr rsp)
     {
-        const auto& requestedAddress = requestedDescriptor.Address;
+        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
         if (!rsp->IsOK()) {
             RegisterError(TError("Error fetching blocks from node %s",
                 ~requestedAddress)
@@ -713,7 +726,7 @@ private:
             return MakeFuture();
         }
 
-        const auto& requestedAddress = requestedDescriptor.Address;
+        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
         LOG_INFO("Started processing block response (Address: %s)", ~requestedAddress);
 
         size_t blockCount = req->block_indexes_size();
@@ -742,11 +755,15 @@ private:
                 totalSize += block.Size();
             } else if (reader->Config->FetchFromPeers) {
                 FOREACH (const auto& protoP2PDescriptor, blockInfo.p2p_descriptors()) {
-                    auto p2pDescriptor= FromProto<TNodeDescriptor>(protoP2PDescriptor);
-                    AddPeer(p2pDescriptor, blockIndex);
-                    LOG_INFO("P2P descriptor received (Block: %d, Address: %s)",
-                        blockIndex,
-                        ~p2pDescriptor.Address);
+                    auto p2pDescriptor = FromProto<TNodeDescriptor>(protoP2PDescriptor);
+                    if (p2pDescriptor.FindAddress(NetworkName_)) {
+                        AddPeer(p2pDescriptor, blockIndex);
+                        LOG_INFO("P2P descriptor received (Block: %d, Address: %s)",
+                            blockIndex,
+                            ~p2pDescriptor.GetAddress(NetworkName_));
+                    } else {
+                        LOG_WARNING("Cannot find %s address for %s", ~NetworkName_, ~p2pDescriptor.GetDefaultAddress());
+                    }
                 }
             }
         }
@@ -871,7 +888,7 @@ private:
         }
 
         const auto& descriptor = PeerList[PeerIndex];
-        const auto& address = descriptor.Address;
+        const auto& address = descriptor.GetAddress(NetworkName_);
 
         LOG_INFO("Requesting chunk meta (Address: %s)", ~address);
 
@@ -902,11 +919,11 @@ private:
     }
 
     void OnGetChunkMetaResponse(
-        const TNodeDescriptor& nodeDescriptor,
+        const TNodeDescriptor& descriptor,
         TDataNodeServiceProxy::TRspGetChunkMetaPtr rsp)
     {
         if (!rsp->IsOK()) {
-            OnGetChunkMetaResponseFailed(nodeDescriptor, *rsp);
+            OnGetChunkMetaResponseFailed(descriptor, *rsp);
             return;
         }
 
@@ -917,7 +934,7 @@ private:
         const TNodeDescriptor& descriptor,
         const TError& error)
     {
-        const auto& address = descriptor.Address;
+        const auto& address = descriptor.GetAddress(NetworkName_);
 
         LOG_WARNING(error, "Error requesting chunk meta (Address: %s)",
             ~address);
@@ -975,6 +992,7 @@ IAsyncReaderPtr CreateReplicationReader(
     const TNullable<TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
+    const Stroka& networkName,
     EReadSessionType sessionType,
     IThroughputThrottlerPtr throttler)
 {
@@ -991,6 +1009,7 @@ IAsyncReaderPtr CreateReplicationReader(
         localDescriptor,
         chunkId,
         seedReplicas,
+        networkName,
         sessionType,
         throttler);
     reader->Initialize();

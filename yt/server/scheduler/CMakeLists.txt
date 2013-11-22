@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/operation_controller_detail.cpp
   ${BASE}/private.cpp
   ${BASE}/progress_counter.cpp
+  ${BASE}/remote_copy_controller.cpp
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_service.cpp
@@ -49,6 +50,7 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/progress_counter.h
   ${BASE}/public.h
+  ${BASE}/remote_copy_controller.h
   ${BASE}/samples_fetcher.h
   ${BASE}/scheduler.h
   ${BASE}/scheduler_service.h

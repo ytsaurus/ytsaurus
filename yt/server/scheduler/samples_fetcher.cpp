@@ -84,7 +84,7 @@ const std::vector<TKey>& TSamplesFetcher::GetSamples() const
 
 void TSamplesFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
 {
-    auto channel = ChannelCache.GetChannel(descriptor.Address);
+    auto channel = ChannelCache.GetChannel(descriptor.GetDefaultAddress());
     auto retryingChannel = CreateRetryingChannel(Config->NodeChannel, channel);
     TDataNodeServiceProxy proxy(retryingChannel);
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);

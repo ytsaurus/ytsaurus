@@ -4,6 +4,13 @@
 
 #include <core/yson/public.h>
 
+#include <core/ytree/public.h>
+
+#include <ytlib/object_client/public.h>
+#include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/cell_directory/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -21,5 +28,70 @@ Stroka TrimCommandForBriefSpec(const Stroka& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMultiCellBatchResponse
+{
+public:
+    TMultiCellBatchResponse(
+        const std::vector<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr>& batchResponses,
+        const std::vector<std::pair<int, int>>& index);
+
+    int GetSize() const;
+
+    TError GetCumulativeError() const;
+
+    template <class TTypedResponse>
+    TIntrusivePtr<TTypedResponse> GetResponse(int index) const;
+    NYTree::TYPathResponsePtr GetResponse(int index) const;
+
+    template <class TTypedResponse>
+    TIntrusivePtr<TTypedResponse> FindResponse(const Stroka& key) const;
+    template <class TTypedResponse>
+    TIntrusivePtr<TTypedResponse> GetResponse(const Stroka& key) const;
+    NYTree::TYPathResponsePtr FindResponse(const Stroka& key) const;
+    NYTree::TYPathResponsePtr GetResponse(const Stroka& key) const;
+
+    template <class TTypedResponse>
+    std::vector< TIntrusivePtr<TTypedResponse> > GetResponses(const Stroka& key = "") const;
+    std::vector<NYTree::TYPathResponsePtr> GetResponses(const Stroka& key = "") const;
+
+    bool IsOK() const;
+    operator TError() const;
+
+private:
+    std::vector<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> BatchResponses_;
+
+    // Index of batch + number of request inside batch.
+    std::vector<std::pair<int, int>> ResponseIndex_;
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TMultiCellBatchRequest
+{
+public:
+    TMultiCellBatchRequest(NCellDirectory::TCellDirectoryPtr cellDirectory, bool throwIfCellIsAbsent);
+
+    bool AddRequest(NYTree::TYPathRequestPtr req, const Stroka& key, NObjectClient::TCellId cellId);
+    bool AddRequestForTransaction(NYTree::TYPathRequestPtr req, const Stroka& key, const NObjectClient::TTransactionId& id);
+
+    TMultiCellBatchResponse Execute(IInvokerPtr invoker = GetCurrentInvoker());
+
+private:
+    bool Init(NObjectClient::TCellId cellId);
+
+    std::map<NObjectClient::TCellId, NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr> BatchRequests_;
+    std::vector<std::pair<NObjectClient::TCellId, int>> RequestIndex_;
+    NCellDirectory::TCellDirectoryPtr CellDirectory_;
+    bool ThrowIfCellIsAbsent_;
+};
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

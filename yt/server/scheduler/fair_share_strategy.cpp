@@ -1042,7 +1042,7 @@ private:
             return ConvertTo<TFairShareOperationSpecPtr>(specNode);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
-                ~ToString(operation->GetOperationId()));
+                ~ToString(operation->GetId()));
             return New<TFairShareOperationSpec>();
         }
     }
@@ -1087,7 +1087,7 @@ private:
             BIND(&TFairShareStrategy::HandleOperationRuntimeParams, this, operation));
 
         LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
-            ~ToString(operation->GetOperationId()),
+            ~ToString(operation->GetId()),
             ~pool->GetId());
     }
 
@@ -1101,7 +1101,7 @@ private:
         IncreasePoolUsage(pool, -operationElement->ResourceUsage());
 
         LOG_INFO("Operation removed from pool (OperationId: %s, Pool: %s)",
-            ~ToString(operation->GetOperationId()),
+            ~ToString(operation->GetId()),
             ~pool->GetId());
 
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
@@ -1115,7 +1115,7 @@ private:
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         static auto runtimeParamsTemplate = New<TFairShareOperationRuntimeParams>();
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetOperationId()));
+        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()));
         TAttributeFilter attributeFilter(
             EAttributeFilterMode::MatchingOnly,
             runtimeParamsTemplate->GetRegisteredKeys());
@@ -1132,7 +1132,7 @@ private:
             return;
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
-        Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
+        Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetId())));
 
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
         if (!rsp->IsOK()) {
@@ -1421,7 +1421,7 @@ private:
         if (!element->GetStarving()) {
             element->SetStarving(true);
             LOG_INFO("Operation starvation timeout (OperationId: %s, Status: %s)",
-                ~ToString(element->GetOperation()->GetOperationId()),
+                ~ToString(element->GetOperation()->GetId()),
                 ~status.ToString());
         }
     }
@@ -1431,7 +1431,7 @@ private:
         if (element->GetStarving()) {
             element->SetStarving(false);
             LOG_INFO("Operation is no longer starving (OperationId: %s)",
-                ~ToString(element->GetOperation()->GetOperationId()));
+                ~ToString(element->GetOperation()->GetId()));
         }
     }
 

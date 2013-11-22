@@ -3,13 +3,17 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "async_writer.h"
+#include "chunk_replica.h"
 #include "chunk_meta_extensions.h"
+#include "replication_writer.h"
 
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/parallel_collector.h>
 
 #include <core/erasure/codec.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -405,6 +409,27 @@ IAsyncWriterPtr CreateErasureWriter(
     const std::vector<IAsyncWriterPtr>& writers)
 {
     return New<TErasureWriter>(config, codec, writers);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+std::vector<IAsyncWriterPtr> CreateErasurePartWriters(
+    TReplicationWriterConfigPtr config,
+    const TChunkId& chunkId,
+    NErasure::ICodec* codec,
+    std::vector<NNodeTrackerClient::TNodeDescriptor> targets,
+    EWriteSessionType sessionType)
+{
+    YCHECK(targets.size() == codec->GetTotalPartCount());
+
+    std::vector<IAsyncWriterPtr> writers;
+    for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        auto partId = ErasurePartIdFromChunkId(chunkId, index);
+        std::vector<NNodeTrackerClient::TNodeDescriptor> partTargets(1, targets[index]);
+        writers.push_back(CreateReplicationWriter(config, partId, partTargets, sessionType));
+    }
+
+    return writers;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1700,7 +1700,7 @@ private:
         auto samplesFetcher = New<TSamplesFetcher>(
             Config,
             Spec,
-            Operation->GetOperationId());
+            Operation->GetId());
 
         auto samplesCollector = New<TSamplesCollector>(
             NodeDirectory,
@@ -2095,7 +2095,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() override
+    virtual Stroka GetLoggingProgress() const override
     {
         return Sprintf(
             "Jobs = {T: %" PRId64 ", R: % " PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64 "}, "
@@ -2130,7 +2130,7 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) const override
     {
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
@@ -2178,7 +2178,7 @@ public:
         , ReduceStartRowIndex(0)
     { }
 
-    void BuildBriefSpec(IYsonConsumer* consumer) override
+    void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TSortControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
@@ -2640,7 +2640,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() override
+    virtual Stroka GetLoggingProgress() const override
     {
         return Sprintf(
             "Jobs = {T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64", A: %" PRId64 ", L: %" PRId64 "}, "
@@ -2672,7 +2672,7 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) const override
     {
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)

@@ -116,14 +116,14 @@ TLrc::TLrc(int dataPartCount)
     }
 }
 
-std::vector<TSharedRef> TLrc::Encode(const std::vector<TSharedRef>& blocks)
+std::vector<TSharedRef> TLrc::Encode(const std::vector<TSharedRef>& blocks) const
 {
     return ScheduleEncode(DataPartCount_, ParityPartCount_, WordSize_, Schedule_, blocks);
 }
 
 std::vector<TSharedRef> TLrc::Decode(
     const std::vector<TSharedRef>& blocks,
-    const TPartIndexList& erasedIndices)
+    const TPartIndexList& erasedIndices) const
 {
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
@@ -194,7 +194,7 @@ std::vector<TSharedRef> TLrc::Decode(
     return BitMatrixDecode(DataPartCount_, parityCount, WordSize_, bitMatrix, blocks, indices);
 }
 
-bool TLrc::CanRepair(const TPartIndexList& erasedIndices)
+bool TLrc::CanRepair(const TPartIndexList& erasedIndices) const
 {
     auto totalPartCount = DataPartCount_ + ParityPartCount_;
     if (totalPartCount <= BitmaskOptimizationThreshold) {
@@ -208,7 +208,7 @@ bool TLrc::CanRepair(const TPartIndexList& erasedIndices)
     }
 }
 
-bool TLrc::CanRepair(const TPartIndexSet& erasedIndicesMask)
+bool TLrc::CanRepair(const TPartIndexSet& erasedIndicesMask) const
 {
     auto totalPartCount = DataPartCount_ + ParityPartCount_;
     if (totalPartCount <= BitmaskOptimizationThreshold) {
@@ -225,7 +225,7 @@ bool TLrc::CanRepair(const TPartIndexSet& erasedIndicesMask)
     }
 }
 
-bool TLrc::CalculateCanRepair(const TPartIndexList& erasedIndices)
+bool TLrc::CalculateCanRepair(const TPartIndexList& erasedIndices) const
 {
     TPartIndexList indices = UniqueSortedIndices(erasedIndices);
     if (indices.size() > ParityPartCount_) {
@@ -252,7 +252,7 @@ bool TLrc::CalculateCanRepair(const TPartIndexList& erasedIndices)
     return true;
 }
 
-TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedIndices)
+TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedIndices) const
 {
     if (erasedIndices.empty()) {
         return TPartIndexList();
@@ -318,17 +318,17 @@ TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedInd
     return result;
 }
 
-int TLrc::GetDataPartCount()
+int TLrc::GetDataPartCount() const
 {
     return DataPartCount_;
 }
 
-int TLrc::GetParityPartCount()
+int TLrc::GetParityPartCount() const
 {
     return ParityPartCount_;
 }
 
-int TLrc::GetWordSize()
+int TLrc::GetWordSize() const
 {
     return WordSize_ * 8;
 }

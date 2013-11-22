@@ -14,7 +14,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(
-    const TOperationId& operationId,
+    const TOperationId& id,
     EOperationType type,
     const NMetaState::TMutationId& mutationId,
     ITransactionPtr userTransaction,
@@ -23,7 +23,7 @@ TOperation::TOperation(
     TInstant startTime,
     EOperationState state,
     bool suspended)
-    : OperationId_(operationId)
+    : Id_(id)
     , Type_(type)
     , MutationId_(mutationId)
     , State_(state)

@@ -47,7 +47,8 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TChunkList* chunkList,
         TCtxFetchPtr context,
-        const TChannel& channel);
+        const TChannel& channel,
+        bool fetchParityReplicas);
 
     void StartSession(
         const TReadLimit& lowerBound,
@@ -60,6 +61,7 @@ private:
     TChunkList* ChunkList;
     TCtxFetchPtr Context;
     TChannel Channel;
+    bool FetchParityReplicas;
 
     yhash_set<int> ExtensionTags;
     TNodeDirectoryBuilder NodeDirectoryBuilder;
@@ -91,11 +93,13 @@ TFetchChunkVisitor::TFetchChunkVisitor(
     NCellMaster::TBootstrap* bootstrap,
     TChunkList* chunkList,
     TCtxFetchPtr context,
-    const TChannel& channel)
+    const TChannel& channel,
+    bool fetchParityReplicas)
     : Bootstrap(bootstrap)
     , ChunkList(chunkList)
     , Context(context)
     , Channel(channel)
+    , FetchParityReplicas(fetchParityReplicas)
     , NodeDirectoryBuilder(context->Response().mutable_node_directory())
     , SessionCount(0)
     , Completed(false)
@@ -166,11 +170,16 @@ bool TFetchChunkVisitor::OnChunk(
         *chunkSpec->mutable_channel() = Channel.ToProto();
     }
 
+    // Default value for non-erasure chunks.
+    int firstParityPartIndex = 1;
+    
     auto erasureCodecId = chunk->GetErasureCodec();
-    int firstParityPartIndex =
-        erasureCodecId == NErasure::ECodec::None
-        ? 1 // makes no sense anyway
-        : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
+    if (erasureCodecId != NErasure::ECodec::None) {
+        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
+        firstParityPartIndex = FetchParityReplicas 
+            ? erasureCodec->GetTotalPartCount()
+            : erasureCodec->GetDataPartCount();
+    }
 
     auto replicas = chunk->GetReplicas();
     FOREACH (auto replica, replicas) {
@@ -547,7 +556,7 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
-    
+
     if (key == "erasure_statistics") {
         struct TExtractErasureCodec
         {
@@ -759,6 +768,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     auto lowerLimit = attributes->Get("lower_limit", TReadLimit());
     auto upperLimit = attributes->Get("upper_limit", TReadLimit());
     bool complement = attributes->Get("complement", false);
+    bool fetchParityReplicas = attributes->Get("fetch_parity_replicas", false);
 
     ValidatePathAttributes(channelAttribute, lowerLimit, upperLimit);
 
@@ -770,7 +780,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         Bootstrap,
         chunkList,
         context,
-        channel);
+        channel,
+        fetchParityReplicas);
 
     if (complement) {
         if (lowerLimit.has_row_index() || lowerLimit.has_key()) {

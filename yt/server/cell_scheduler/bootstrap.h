@@ -5,6 +5,7 @@
 #include <core/concurrency/action_queue.h>
 #include <core/bus/public.h>
 #include <core/rpc/public.h>
+#include <ytlib/cell_directory/public.h>
 #include <ytlib/transaction_client/public.h>
 
 #include <server/scheduler/public.h>
@@ -33,6 +34,7 @@ public:
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
+    NCellDirectory::TCellDirectoryPtr GetCellDirectory() const;
 
     void Run();
 
@@ -46,7 +48,7 @@ private:
     Stroka LocalAddress;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;
-
+    NCellDirectory::TCellDirectoryPtr CellDirectory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

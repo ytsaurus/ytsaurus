@@ -16,6 +16,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/cell_directory/public.h>
+
 #include <server/data_node/public.h>
 
 #include <server/chunk_server/public.h>
@@ -25,6 +27,7 @@
 #include <server/exec_agent/public.h>
 
 #include <server/job_proxy/public.h>
+
 
 namespace NYT {
 namespace NCellNode {

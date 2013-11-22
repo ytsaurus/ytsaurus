@@ -319,7 +319,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
         ~ToString(chunkId),
         startBlockIndex,
         blockCount,
-        ~target.Address);
+        ~target.GetDefaultAddress());
 
     auto session = GetSession(chunkId);
     session
@@ -331,7 +331,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
                 context->Reply(TError(
                     NChunkClient::EErrorCode::PipelineFailed,
                     "Error putting blocks to %s",
-                    ~target.Address)
+                    ~target.GetDefaultAddress())
                     << error);
             }
         }));

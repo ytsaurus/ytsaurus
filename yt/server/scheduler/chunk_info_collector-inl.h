@@ -88,7 +88,6 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
     FOREACH (const auto& it, nodeIts) {
         auto nodeId = it->first;
         const auto& descriptor = NodeDirectory->GetDescriptor(nodeId);
-        const auto& address = descriptor.Address;
 
         Fetcher->CreateNewRequest(descriptor);
 
@@ -112,7 +111,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
         if (!requestChunkIndexes.empty()) {
             LOG_DEBUG("Requesting chunk info for %d chunks from %s",
                 static_cast<int>(requestChunkIndexes.size()),
-                ~address);
+                ~descriptor.GetDefaultAddress());
 
             awaiter->Await(
                 Fetcher->InvokeRequest(),
@@ -138,7 +137,7 @@ void TChunkInfoCollector<TFetcher>::OnResponse(
 {
     auto& Logger = Fetcher->GetLogger();
     const auto& descriptor = NodeDirectory->GetDescriptor(nodeId);
-    const auto& address = descriptor.Address;
+    const auto& address = descriptor.GetDefaultAddress();
 
     if (rsp->IsOK()) {
         for (int index = 0; index < static_cast<int>(chunkIndexes.size()); ++index) {
@@ -158,8 +157,7 @@ void TChunkInfoCollector<TFetcher>::OnResponse(
         }
         LOG_DEBUG("Received chunk info from %s", ~address);
     } else {
-        LOG_WARNING(*rsp, "Error requesting chunk info from %s",
-            ~address);
+        LOG_WARNING(*rsp, "Error requesting chunk info from %s", ~address);
         YCHECK(DeadNodeIds.insert(nodeId).second);
     }
 }

@@ -34,6 +34,8 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/cell_directory/cell_directory.h>
+
 #include <server/misc/build_attributes.h>
 
 #include <server/job_proxy/config.h>
@@ -42,6 +44,7 @@
 #include <server/scheduler/scheduler_service.h>
 #include <server/scheduler/job_tracker_service.h>
 #include <server/scheduler/config.h>
+
 
 namespace NYT {
 namespace NCellScheduler {
@@ -95,6 +98,8 @@ void TBootstrap::Run()
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,
         MasterChannel);
+
+    CellDirectory = New<NCellDirectory::TCellDirectory>(MasterChannel);
 
     Scheduler = New<TScheduler>(Config->Scheduler, this);
 
@@ -180,6 +185,12 @@ TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 TSchedulerPtr TBootstrap::GetScheduler() const
 {
     return Scheduler;
+}
+
+
+NCellDirectory::TCellDirectoryPtr TBootstrap::GetCellDirectory() const
+{
+    return CellDirectory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

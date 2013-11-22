@@ -112,8 +112,14 @@ void TBootstrap::Run()
     srand(time(nullptr));
 
     {
-        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
-        LocalDescriptor.Address = BuildServiceAddress(localHostName, Config->RpcPort);
+        auto addresses = Config->Addresses;
+        if (addresses.find(NNodeTrackerClient::DefaultNetworkName) == addresses.end()) {
+            addresses[NNodeTrackerClient::DefaultNetworkName] = TAddressResolver::Get()->GetLocalHostName();
+        }
+        for (auto& pair : addresses) {
+            pair.second = BuildServiceAddress(pair.second, Config->RpcPort);
+        }
+        LocalDescriptor.Addresses() = addresses;
     }
 
     LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",
@@ -221,7 +227,7 @@ void TBootstrap::Run()
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.Address;
+    JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.GetDefaultAddress();
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
@@ -253,7 +259,8 @@ void TBootstrap::Run()
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionSort,   createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,    createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner, createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner,  createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::RemoteCopy,      createExecJob);
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
@@ -300,7 +307,7 @@ void TBootstrap::Run()
         OrchidRoot,
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(ChunkCache)));
-    
+
     SetBuildAttributes(OrchidRoot, "node");
 
     NHttp::TServer httpServer(Config->MonitoringPort);

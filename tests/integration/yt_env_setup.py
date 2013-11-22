@@ -18,10 +18,11 @@ def _working_dir(test_name):
 
 class YTEnvSetup(YTEnv):
     @classmethod
-    def setup_class(cls):
+    def setup_class(cls, test_name=None):
         logging.basicConfig(level=logging.INFO)
 
-        test_name = cls.__name__
+        if test_name is None:
+            test_name = cls.__name__
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running parallel
@@ -43,10 +44,10 @@ class YTEnvSetup(YTEnv):
 
         cls.path_to_test = path_to_test
         ports = {
-            "master": 29000,
-            "node": 29100,
-            "scheduler": 29200,
-            "proxy": 29300}
+            "master": 34000,
+            "node": 34100,
+            "scheduler": 34200,
+            "proxy": 34300}
         cls.Env = cls()
         cls.Env.set_environment(path_to_run, pids_filename, ports)
 

@@ -60,7 +60,7 @@ void AddStripeToList(
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = nodeDirectory->GetDescriptor(replica);
                 i64 locality = chunkSlice->GetLocality(replica.GetIndex());
-                if (descriptor.Address == *address && locality > 0) {
+                if (descriptor.GetDefaultAddress() == *address && locality > 0) {
                     list->LocalDataSize += locality;
                     isLocal = true;
                 }
@@ -568,7 +568,7 @@ private:
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
-                AddressToLocality[descriptor.Address] += localityDelta;
+                AddressToLocality[descriptor.GetDefaultAddress()] += localityDelta;
             }
         }
     }
@@ -1004,7 +1004,7 @@ private:
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
                     const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    auto& entry = PendingLocalChunks[descriptor.GetDefaultAddress()];
                     // NB: do not check that stripe is unique, it may have already been inserted,
                     // since different replicas may reside on the same node during rebalancing.
                     entry.StripeIndexes.insert(stripeIndex);
@@ -1028,7 +1028,7 @@ private:
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
                     const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    auto& entry = PendingLocalChunks[descriptor.GetDefaultAddress()];
                     auto it = entry.StripeIndexes.find(stripeIndex);
                     if (it != entry.StripeIndexes.end()) {
                         entry.StripeIndexes.erase(it);

@@ -14,31 +14,83 @@ using namespace NChunkClient;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+TNodeDescriptor::TNodeDescriptor()
+{ }
+
+TNodeDescriptor::TNodeDescriptor(const yhash_map<Stroka, Stroka>& addresses)
+    : Addresses_(addresses)
+{ }
 
 bool TNodeDescriptor::IsLocal() const
 {
-    return GetServiceHostName(Address) == TAddressResolver::Get()->GetLocalHostName();
+    return GetServiceHostName(GetDefaultAddress()) == TAddressResolver::Get()->GetLocalHostName();
+}
+
+const Stroka& TNodeDescriptor::GetDefaultAddress() const
+{
+    auto it = Addresses_.find(DefaultNetworkName);
+    YCHECK(it != Addresses_.end());
+    return it->second;
+}
+
+const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
+{
+    auto it = Addresses_.find(name);
+    if (it == Addresses_.end()) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::InvalidNetwork,
+            "Cannot find network ", ~name.Quote());
+    }
+    return it->second;
+}
+
+TNullable<Stroka> TNodeDescriptor::FindAddress(const Stroka& name) const
+{
+    auto it = Addresses_.find(name);
+    if (it == Addresses_.end()) {
+        return Null;
+    }
+    return it->second;
+}
+
+const Stroka& TNodeDescriptor::GetAddress(const Stroka& name) const
+{
+    auto it = Addresses_.find(name);
+    YCHECK(it != Addresses_.end());
+    return it->second;
 }
 
 void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Address);
+    Persist(context, Addresses_);
 }
 
 Stroka ToString(const TNodeDescriptor& descriptor)
 {
-    return descriptor.Address;
+    return descriptor.GetDefaultAddress();
 }
 
 void ToProto(NProto::TNodeDescriptor* protoDescriptor, const TNodeDescriptor& descriptor)
 {
-    protoDescriptor->set_address(descriptor.Address);
+    protoDescriptor->set_address(descriptor.GetDefaultAddress());
+    for (const auto& pair : descriptor.Addresses()) {
+        if (pair.first == DefaultNetworkName) {
+            continue;
+        }
+        NProto::TAddressDescriptor addressDescriptor;
+        addressDescriptor.set_network(pair.first);
+        addressDescriptor.set_address(pair.second);
+        *protoDescriptor->add_addresses() = addressDescriptor;
+    }
 }
 
 void FromProto(TNodeDescriptor* descriptor, const NProto::TNodeDescriptor& protoDescriptor)
 {
-    descriptor->Address = protoDescriptor.address();
+    for (const auto& addressDescriptor : protoDescriptor.addresses()) {
+        descriptor->Addresses()[addressDescriptor.network()] = addressDescriptor.address();
+    }
+    descriptor->Addresses()[DefaultNetworkName] = protoDescriptor.address();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -70,7 +122,7 @@ void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
     IdToDescriptor[id] = descriptor;
-    AddressToDescriptor[descriptor.Address] = descriptor;
+    AddressToDescriptor[descriptor.GetDefaultAddress()] = descriptor;
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const

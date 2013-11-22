@@ -65,6 +65,8 @@ class TestSchedulerOther(YTEnvSetup):
     def test_revive(self):
         self._prepare_tables()
 
+        set("//sys/clusters", {})
+
         op_id = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat; sleep 3')
 
         time.sleep(2)
