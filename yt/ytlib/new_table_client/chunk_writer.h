@@ -50,14 +50,14 @@ private:
         TColumnDescriptor()
             : IndexInBlock(-1)
             , OutputIndex(-1)
-            , Type(ERowValueType::Null)
+            , Type(EValueType::Null)
             , IsKeyPart(false)
             , PreviousValue()
         { }
 
         int IndexInBlock;
         int OutputIndex;
-        ERowValueType Type;
+        EValueType Type;
         // Used for versioned rowsets.
         bool IsKeyPart;
 

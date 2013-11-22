@@ -47,7 +47,7 @@ void TBlockWriter::WriteInteger(const TVersionedValue& value, int index)
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 8);
-    if (value.Type == ERowValueType::Null) {
+    if (value.Type == EValueType::Null) {
         column.NullBitMap.Push(false);
         column.Stream.DoWrite(&ZeroInteger, sizeof(i64));
     } else {
@@ -61,7 +61,7 @@ void TBlockWriter::WriteDouble(const TVersionedValue& value, int index)
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 8);
-    if (value.Type == ERowValueType::Null) {
+    if (value.Type == EValueType::Null) {
         column.NullBitMap.Push(false);
         column.Stream.DoWrite(&ZeroDouble, sizeof(double));
     } else {
@@ -75,7 +75,7 @@ void TBlockWriter::WriteString(const TVersionedValue& value, int index)
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 4);
-    if (value.Type == ERowValueType::Null) {
+    if (value.Type == EValueType::Null) {
         column.Stream.DoWrite(&ZeroOffset, sizeof(ui32));
         column.NullBitMap.Push(false);
     } else {
@@ -98,7 +98,7 @@ TStringBuf TBlockWriter::WriteKeyString(const TVersionedValue& value, int index)
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 4);
-    if (value.Type == ERowValueType::Null) {
+    if (value.Type == EValueType::Null) {
         column.NullBitMap.Push(false);
         column.Stream.DoWrite(&ZeroOffset, sizeof(ui32));
         return TStringBuf(static_cast<char*>(nullptr), static_cast<size_t>(0));
@@ -122,9 +122,9 @@ void TBlockWriter::WriteVariable(const TVersionedValue& value, int nameTableInde
     // Index in name table.
     VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), nameTableIndex));
 
-    if (value.Type == ERowValueType::Null) {
+    if (value.Type == EValueType::Null) {
        VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), 0));
-    } else if (value.Type == ERowValueType::Any) {
+    } else if (value.Type == EValueType::Any) {
         // Length
         VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), value.Length));
         // Yson
@@ -134,13 +134,13 @@ void TBlockWriter::WriteVariable(const TVersionedValue& value, int nameTableInde
         TYsonWriter writer(&IntermediateBuffer);
 
         switch (value.Type) {
-            case ERowValueType::Integer:
+            case EValueType::Integer:
                 writer.OnIntegerScalar(value.Data.Integer);
                 break;
-            case ERowValueType::Double:
+            case EValueType::Double:
                 writer.OnDoubleScalar(value.Data.Double);
                 break;
-            case ERowValueType::String:
+            case EValueType::String:
                 writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
                 break;
             default:

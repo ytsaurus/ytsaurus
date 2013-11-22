@@ -65,21 +65,21 @@ protected:
 
     void WriteNull(int id)
     {
-        ChunkWriter->WriteValue(TUnversionedValue::MakeSentinel(ERowValueType::Null, id));
+        ChunkWriter->WriteValue(TUnversionedValue::MakeSentinel(EValueType::Null, id));
     }
 
     Stroka ToStroka(const TUnversionedValue& value)
     {
-        YCHECK(value.Type == ERowValueType::String);
+        YCHECK(value.Type == EValueType::String);
         return Stroka(value.Data.String, value.Length);
     }
 
     void PrepareSimple()
     {
         TTableSchema schema;
-        schema.Columns().push_back({ "banner", ERowValueType::Integer });
-        schema.Columns().push_back({ "bid",    ERowValueType::Double  });
-        schema.Columns().push_back({ "body",   ERowValueType::String  });
+        schema.Columns().push_back({ "banner", EValueType::Integer });
+        schema.Columns().push_back({ "bid",    EValueType::Double  });
+        schema.Columns().push_back({ "body",   EValueType::String  });
 
         auto nameTable = New<TNameTable>();
         EXPECT_EQ(0, nameTable->RegisterName("banner"));
@@ -129,7 +129,7 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
     PrepareSimple();
 
     TTableSchema schema;
-    schema.Columns().push_back({ "body", ERowValueType::String });
+    schema.Columns().push_back({ "body", EValueType::String });
 
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema).Get().IsOK());
@@ -144,16 +144,16 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
 
     EXPECT_EQ(1, rows[0].GetValueCount());
     EXPECT_EQ(0, rows[0][0].Id);
-    EXPECT_EQ(ERowValueType::String, rows[0][0].Type);
+    EXPECT_EQ(EValueType::String, rows[0][0].Type);
     EXPECT_STREQ(~TheAnswer, ~ToStroka(rows[0][0]));
 
     EXPECT_EQ(1, rows[1].GetValueCount());
     EXPECT_EQ(0, rows[1][0].Id);
-    EXPECT_EQ(ERowValueType::Null, rows[1][0].Type);
+    EXPECT_EQ(EValueType::Null, rows[1][0].Type);
 
     EXPECT_EQ(1, rows[2].GetValueCount());
     EXPECT_EQ(0, rows[2][0].Id);
-    EXPECT_EQ(ERowValueType::String, rows[2][0].Type);
+    EXPECT_EQ(EValueType::String, rows[2][0].Type);
     EXPECT_STREQ(~Advertisment, ~ToStroka(rows[2][0]));
 
     rows.clear();
@@ -167,8 +167,8 @@ TEST_F(TVersionedTableClientTest, SimpleReadAll)
     PrepareSimple();
 
     TTableSchema schema;
-    schema.Columns().push_back({ "body", ERowValueType::String });
-    schema.Columns().push_back({ "bid",  ERowValueType::Double });
+    schema.Columns().push_back({ "body", EValueType::String });
+    schema.Columns().push_back({ "bid",  EValueType::Double });
 
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema, true).Get().IsOK());
@@ -197,7 +197,7 @@ TEST_F(TVersionedTableClientTest, SimpleReadBadSchema)
     PrepareSimple();
 
     TTableSchema schema;
-    schema.Columns().push_back({ "body", ERowValueType::Double });
+    schema.Columns().push_back({ "body", EValueType::Double });
 
     auto nameTable = New<TNameTable>();
     EXPECT_FALSE(ChunkReader->Open(nameTable, schema).Get().IsOK());

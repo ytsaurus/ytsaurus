@@ -88,10 +88,10 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
     SetKeyColumns(&dataSplit, keyColumns);
 
     TTableSchema tableSchema;
-    tableSchema.Columns().push_back({ "k", ERowValueType::Integer });
-    tableSchema.Columns().push_back({ "n", ERowValueType::Integer });
-    tableSchema.Columns().push_back({ "a", ERowValueType::Integer });
-    tableSchema.Columns().push_back({ "b", ERowValueType::Integer });
+    tableSchema.Columns().push_back({ "k", EValueType::Integer });
+    tableSchema.Columns().push_back({ "n", EValueType::Integer });
+    tableSchema.Columns().push_back({ "a", EValueType::Integer });
+    tableSchema.Columns().push_back({ "b", EValueType::Integer });
     SetTableSchema(&dataSplit, tableSchema);
 
     return dataSplit;

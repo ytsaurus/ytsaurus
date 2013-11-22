@@ -33,7 +33,7 @@ public:
     TBlockReader(
         const NProto::TBlockMeta& meta,
         const TSharedRef& block,
-        const std::vector<ERowValueType>& columnTypes);
+        const std::vector<EValueType>& columnTypes);
 
     void JumpTo(int rowIndex);
     void NextRow();
@@ -53,7 +53,7 @@ private:
     {
         const char* Begin;
         TDynBitMap NullBitMap;
-        ERowValueType Type;
+        EValueType Type;
     };
 
     const NProto::TBlockMeta& Meta;

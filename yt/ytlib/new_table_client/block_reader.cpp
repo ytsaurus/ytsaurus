@@ -35,12 +35,12 @@ bool TVariableIterator::ParseNext(TVersionedValue* value)
     YASSERT(length <= std::numeric_limits<ui32>::max());
 
     if (length != 0) {
-        value->Type = ERowValueType::Any;
+        value->Type = EValueType::Any;
         value->Length = static_cast<ui32>(length);
         value->Data.String = Opaque;
         Opaque += length;
     } else {
-        value->Type = ERowValueType::Null;
+        value->Type = EValueType::Null;
     }
 
     --Count;
@@ -58,7 +58,7 @@ int TVariableIterator::GetRemainingCount() const
 TBlockReader::TBlockReader(
     const NProto::TBlockMeta& meta,
     const TSharedRef& block,
-    const std::vector<ERowValueType>& columnTypes)
+    const std::vector<EValueType>& columnTypes)
     : Meta(meta)
     , Block(block)
     , FixedBuffer(nullptr)
@@ -81,7 +81,7 @@ TBlockReader::TBlockReader(
             Columns.push_back(column);
 
             int columnWidth =
-                column.Type == ERowValueType::Integer || column.Type == ERowValueType::Double
+                column.Type == EValueType::Integer || column.Type == EValueType::Double
                 ? 8
                 : 4;
             input.Skip(columnWidth * GetRowCount());
@@ -141,14 +141,14 @@ TVersionedValue TBlockReader::Read(int index) const
         value.Type = column.Type;
 
         switch (column.Type) {
-            case ERowValueType::Integer:
+            case EValueType::Integer:
                 value.Data.Integer = *reinterpret_cast<const i64*>(column.Begin + sizeof(i64) * RowIndex);
                 break;
-            case ERowValueType::Double:
+            case EValueType::Double:
                 value.Data.Double = *reinterpret_cast<const double*>(column.Begin + sizeof(double) * RowIndex);
                 break;
-            case ERowValueType::String:
-            case ERowValueType::Any: {
+            case EValueType::String:
+            case EValueType::Any: {
                 ui32 offset = *reinterpret_cast<const ui32*>(column.Begin + sizeof(ui32) * RowIndex);
                 ui64 length;
                 value.Data.String = FixedBuffer + offset + ReadVarUInt64(FixedBuffer + offset, &length);
@@ -159,7 +159,7 @@ TVersionedValue TBlockReader::Read(int index) const
                 YUNREACHABLE();
         }
     } else {
-        value.Type = ERowValueType::Null;
+        value.Type = EValueType::Null;
     }
 
     return value;

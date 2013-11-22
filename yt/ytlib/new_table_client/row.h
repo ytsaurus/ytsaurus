@@ -15,7 +15,7 @@ struct TUnversionedValue
 {
     //! Column id obtained from a name table.
     ui16 Id;
-    //! Column type (compact ERowValueType).
+    //! Column type (compact EValueType).
     ui16 Type;
     //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
     ui32 Length;
@@ -30,11 +30,11 @@ struct TUnversionedValue
         const char* String;
     } Data;
 
-    static FORCED_INLINE TUnversionedValue MakeSentinel(ERowValueType type, int id = 0)
+    static FORCED_INLINE TUnversionedValue MakeSentinel(EValueType type, int id = 0)
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = ERowValueType::Null;
+        result.Type = EValueType::Null;
         return result;
     }
 
@@ -42,7 +42,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = ERowValueType::Integer;
+        result.Type = EValueType::Integer;
         result.Data.Integer = value;
         return result;
     }
@@ -51,7 +51,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = ERowValueType::Double;
+        result.Type = EValueType::Double;
         result.Data.Double = value;
         return result;
     }
@@ -60,7 +60,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = ERowValueType::String;
+        result.Type = EValueType::String;
         result.Length = value.length();
         result.Data.String = value.begin();
         return result;
@@ -70,7 +70,7 @@ struct TUnversionedValue
     {
         TUnversionedValue result;
         result.Id = id;
-        result.Type = ERowValueType::Any;
+        result.Type = EValueType::Any;
         result.Length = value.length();
         result.Data.String = value.begin();
         return result;
@@ -237,14 +237,14 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 
 //void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
 
-TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, ERowValueType sentinelType);
+TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
 
 //! Returns the successor of |key|, i.e. the key
-//! obtained from |key| by appending a |ERowValueType::Min| sentinel.
+//! obtained from |key| by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(const TOwningKey& key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
-//! obtained by triming |key| to |prefixLength| and appending a |ERowValueType::Max| sentinel.
+//! obtained by triming |key| to |prefixLength| and appending a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,7 +276,7 @@ public:
         size_t variableSize = 0;
         for (int index = 0; index < other.GetValueCount(); ++index) {
             const auto& otherValue = other[index];
-            if (otherValue.Type == ERowValueType::String || otherValue.Type == ERowValueType::Any) {
+            if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
                 variableSize += otherValue.Length;
             }
         }
@@ -289,20 +289,20 @@ public:
             current += WriteVarUInt32(current, value.Id);
             current += WriteVarUInt32(current, value.Type);
             switch (value.Type) {
-            case ERowValueType::Null:
+            case EValueType::Null:
                 break;
 
-            case ERowValueType::Integer:
+            case EValueType::Integer:
                 current += WriteVarInt64(current, value.Data.Integer);
                 break;
 
-            case ERowValueType::Double:
+            case EValueType::Double:
                 ::memcpy(current, &value.Data.Double, sizeof (double));
                 current += sizeof (double);
                 break;
 
-            case ERowValueType::String:
-            case ERowValueType::Any:
+            case EValueType::String:
+            case EValueType::Any:
                 ::memcpy(current, value.Data.String, value.Length);
                 current += value.Length;
                 break;
@@ -340,7 +340,7 @@ private:
     friend void ToProto(TProtoStringType* protoRow, const TOwningRow<TValue>& row);
     friend void FromProto(TOwningRow<TValue>* row, const TProtoStringType& protoRow);
     //friend void FromProto(TOwningRow<TValue>* row, const NChunkClient::NProto::TKey& protoKey);
-    friend TOwningRow<TValue> GetKeySuccessorImpl(const TOwningRow<TValue>& key, int prefixLength, ERowValueType sentinelType);
+    friend TOwningRow<TValue> GetKeySuccessorImpl(const TOwningRow<TValue>& key, int prefixLength, EValueType sentinelType);
 
 
     TSharedRef RowData; // TRowHeader plus TUnversionedValue-s

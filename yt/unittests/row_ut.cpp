@@ -54,7 +54,7 @@ TEST(TUnversionedRowTest, Serialize1)
 TEST(TUnversionedRowTest, Serialize2)
 {
     TUnversionedRowBuilder builder;
-    builder.AddValue(TUnversionedValue::MakeSentinel(ERowValueType::Null, 0));
+    builder.AddValue(TUnversionedValue::MakeSentinel(EValueType::Null, 0));
     builder.AddValue(TUnversionedValue::MakeInteger(42, 1));
     builder.AddValue(TUnversionedValue::MakeDouble(0.25, 2));
     CheckSerialize(builder.GetRow());

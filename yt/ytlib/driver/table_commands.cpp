@@ -365,20 +365,20 @@ void TSelectCommand::DoExecute()
             consumer->OnBeginMap();
             for (int i = 0; i < row.GetValueCount(); ++i) {
                 const auto& value = row[i];
-                if (value.Type == ERowValueType::Null)
+                if (value.Type == EValueType::Null)
                     continue;
                 consumer->OnKeyedItem(nameTable->GetName(value.Id));
                 switch (value.Type) {
-                    case ERowValueType::Integer:
+                    case EValueType::Integer:
                         consumer->OnIntegerScalar(value.Data.Integer);
                         break;
-                    case ERowValueType::Double:
+                    case EValueType::Double:
                         consumer->OnDoubleScalar(value.Data.Double);
                         break;
-                    case ERowValueType::String:
+                    case EValueType::String:
                         consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                         break;
-                    case ERowValueType::Any:
+                    case EValueType::Any:
                         consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                         break;
                     default:
@@ -490,20 +490,20 @@ void TLookupCommand::DoExecute()
             consumer->OnBeginMap();
             for (int i = 0; i < row.GetValueCount(); ++i) {
                 const auto& value = row[i];
-                if (value.Type == ERowValueType::Null)
+                if (value.Type == EValueType::Null)
                     continue;
                 consumer->OnKeyedItem(nameTable->GetName(value.Id));
                 switch (value.Type) {
-                    case ERowValueType::Integer:
+                    case EValueType::Integer:
                         consumer->OnIntegerScalar(value.Data.Integer);
                         break;
-                    case ERowValueType::Double:
+                    case EValueType::Double:
                         consumer->OnDoubleScalar(value.Data.Double);
                         break;
-                    case ERowValueType::String:
+                    case EValueType::String:
                         consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                         break;
-                    case ERowValueType::Any:
+                    case EValueType::Any:
                         consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                         break;
                     default:

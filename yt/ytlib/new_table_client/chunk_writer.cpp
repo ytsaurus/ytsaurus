@@ -52,7 +52,7 @@ void TChunkWriter::Open(
 
     if (RowsetType == ERowsetType::Versioned) {
         // Block writer treats timestamps as integers.
-        ColumnSizes.push_back(ERowValueType::Integer);
+        ColumnSizes.push_back(EValueType::Integer);
     }
 
     // Integers and Doubles align at 8 bytes (stores the whole value),
@@ -64,7 +64,7 @@ void TChunkWriter::Open(
         Schema.Columns().end(),
         [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
             auto isFront = [] (const TColumnSchema& schema) {
-                return schema.Type == ERowValueType::Integer || schema.Type == ERowValueType::Double;
+                return schema.Type == EValueType::Integer || schema.Type == EValueType::Double;
             };
             if (isFront(lhs) && !isFront(rhs)) {
                 return true;
@@ -84,7 +84,7 @@ void TChunkWriter::Open(
         descriptor.OutputIndex = OutputNameTable->RegisterName(column.Name);
         descriptor.Type = column.Type;
 
-        if (column.Type == ERowValueType::String || column.Type == ERowValueType::Any) {
+        if (column.Type == EValueType::String || column.Type == EValueType::Any) {
             ColumnSizes.push_back(4);
         } else {
             ColumnSizes.push_back(8);
@@ -100,7 +100,7 @@ void TChunkWriter::Open(
 
         auto& descriptor = ColumnDescriptors[id];
         YCHECK(descriptor.IndexInBlock >= 0);
-        YCHECK(descriptor.Type != ERowValueType::Any);
+        YCHECK(descriptor.Type != EValueType::Any);
         descriptor.IsKeyPart = true;
     }
 
@@ -115,16 +115,16 @@ void TChunkWriter::WriteValue(const TVersionedValue& value)
 
     auto& columnDescriptor = ColumnDescriptors[value.Id];
 
-    if (columnDescriptor.Type == ERowValueType::Null) {
+    if (columnDescriptor.Type == EValueType::Null) {
         // Uninitialized column becomes variable.
-        columnDescriptor.Type = ERowValueType::TheBottom;
+        columnDescriptor.Type = EValueType::TheBottom;
         columnDescriptor.OutputIndex =
             OutputNameTable->RegisterName(InputNameTable->GetName(value.Id));
     }
 
     switch (columnDescriptor.Type) {
-        case ERowValueType::Integer:
-            YASSERT(value.Type == ERowValueType::Integer || value.Type == ERowValueType::Null);
+        case EValueType::Integer:
+            YASSERT(value.Type == EValueType::Integer || value.Type == EValueType::Null);
             CurrentBlock->WriteInteger(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
                 if (value.Data.Integer != columnDescriptor.PreviousValue.Integer) {
@@ -134,8 +134,8 @@ void TChunkWriter::WriteValue(const TVersionedValue& value)
             }
             break;
 
-        case ERowValueType::Double:
-            YASSERT(value.Type == ERowValueType::Double || value.Type == ERowValueType::Null);
+        case EValueType::Double:
+            YASSERT(value.Type == EValueType::Double || value.Type == EValueType::Null);
             CurrentBlock->WriteDouble(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
                 if (value.Data.Double != columnDescriptor.PreviousValue.Double) {
@@ -145,8 +145,8 @@ void TChunkWriter::WriteValue(const TVersionedValue& value)
             }
             break;
 
-        case ERowValueType::String:
-            YASSERT(value.Type == ERowValueType::String || value.Type == ERowValueType::Null);
+        case EValueType::String:
+            YASSERT(value.Type == EValueType::String || value.Type == EValueType::Null);
             if (columnDescriptor.IsKeyPart) {
                 auto newKey = CurrentBlock->WriteKeyString(value, columnDescriptor.IndexInBlock);
                 auto oldKey = TStringBuf(
@@ -162,12 +162,12 @@ void TChunkWriter::WriteValue(const TVersionedValue& value)
             }
             break;
 
-        case ERowValueType::Any:
+        case EValueType::Any:
             CurrentBlock->WriteAny(value, columnDescriptor.IndexInBlock);
             break;
 
         // Variable column.
-        case ERowValueType::TheBottom:
+        case EValueType::TheBottom:
             CurrentBlock->WriteVariable(value, columnDescriptor.OutputIndex);
             break;
 
@@ -213,13 +213,13 @@ bool TChunkWriter::EndRow()
                 const auto& column = ColumnDescriptors[id];
                 part->set_type(column.Type);
                 switch (column.Type) {
-                    case ERowValueType::Integer:
+                    case EValueType::Integer:
                         part->set_int_value(column.PreviousValue.Integer);
                         break;
-                    case ERowValueType::Double:
+                    case EValueType::Double:
                         part->set_double_value(column.PreviousValue.Double);
                         break;
-                    case ERowValueType::String:
+                    case EValueType::String:
                         part->set_str_value(
                             column.PreviousValue.String,
                             column.PreviousValue.Length);

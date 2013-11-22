@@ -19,7 +19,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     }
 
     switch (lhs.Type) {
-        case ERowValueType::Integer: {
+        case EValueType::Integer: {
             auto lhsValue = lhs.Data.Integer;
             auto rhsValue = rhs.Data.Integer;
             if (lhsValue < rhsValue) {
@@ -31,7 +31,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
                                    }
 
-        case ERowValueType::Double: {
+        case EValueType::Double: {
             auto lhsValue = lhs.Data.Double;
             auto rhsValue = lhs.Data.Double;
             if (lhsValue < rhsValue) {
@@ -43,7 +43,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
                                   }
 
-        case ERowValueType::String: {
+        case EValueType::String: {
             size_t lhsLength = lhs.Length;
             size_t rhsLength = rhs.Length;
             size_t minLength = std::min(lhsLength, rhsLength);
@@ -61,10 +61,10 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
                                   }
 
-        case ERowValueType::Any:
+        case EValueType::Any:
             return 0; // NB: Cannot actually compare composite values.
 
-        case ERowValueType::Null:
+        case EValueType::Null:
             return 0;
 
         default:
@@ -89,11 +89,11 @@ int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 size_t GetHash(const TUnversionedValue& value)
 {
     switch (value.Type) {
-        case ERowValueType::String:
+        case EValueType::String:
             return TStringBuf(value.Data.String, value.Length).hash();
 
-        case ERowValueType::Integer:
-        case ERowValueType::Double:
+        case EValueType::Integer:
+        case EValueType::Double:
             // Integer and Double are aliased.
             return (value.Data.Integer & 0xffff) + 17 * (value.Data.Integer >> 32);
 
@@ -105,7 +105,7 @@ size_t GetHash(const TUnversionedValue& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, ERowValueType sentinelType)
+TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType)
 {
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(GetRowDataSize<TUnversionedValue>(prefixLength + 1), false);
     ::memcpy(rowData.Begin(), key.RowData.Begin(), GetRowDataSize<TUnversionedValue>(prefixLength));
@@ -119,7 +119,7 @@ TOwningKey GetKeySuccessor(const TOwningKey& key)
     return GetKeySuccessorImpl(
         key,
         key.GetValueCount(),
-        ERowValueType::Min);
+        EValueType::Min);
 }
 
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
@@ -128,7 +128,7 @@ TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
     return GetKeySuccessorImpl(
         key,
         prefixLength,
-        ERowValueType::Max);
+        EValueType::Max);
 }
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
@@ -136,7 +136,7 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
     size_t variableSize = 0;
     for (int index = 0; index < row.GetValueCount(); ++index) {
         const auto& otherValue = row[index];
-        if (otherValue.Type == ERowValueType::String || otherValue.Type == ERowValueType::Any) {
+        if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
             variableSize += otherValue.Length;
         }
     }
@@ -156,20 +156,20 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
         current += WriteVarUInt32(current, value.Id);
         current += WriteVarUInt32(current, value.Type);
         switch (value.Type) {
-            case ERowValueType::Null:
+            case EValueType::Null:
                 break;
 
-            case ERowValueType::Integer:
+            case EValueType::Integer:
                 current += WriteVarInt64(current, value.Data.Integer);
                 break;
             
-            case ERowValueType::Double:
+            case EValueType::Double:
                 ::memcpy(current, &value.Data.Double, sizeof (double));
                 current += sizeof (double);
                 break;
             
-            case ERowValueType::String:           
-            case ERowValueType::Any:
+            case EValueType::String:
+            case EValueType::Any:
                 current += WriteVarUInt32(current, value.Length);
                 ::memcpy(current, value.Data.String, value.Length);
                 current += value.Length;
@@ -216,20 +216,20 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
         value.Type = static_cast<ui16>(type);
 
         switch (value.Type) {
-            case ERowValueType::Null:
+            case EValueType::Null:
                 break;
 
-            case ERowValueType::Integer:
+            case EValueType::Integer:
                 current += ReadVarInt64(current, &value.Data.Integer);
                 break;
             
-            case ERowValueType::Double:
+            case EValueType::Double:
                 ::memcpy(&value.Data.Double, current, sizeof (double));
                 current += sizeof (double);
                 break;
             
-            case ERowValueType::String:
-            case ERowValueType::Any:
+            case EValueType::String:
+            case EValueType::Any:
                 current += ReadVarUInt32(current, &value.Length);
                 value.Data.String = current;
                 current += value.Length;
@@ -266,21 +266,21 @@ void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
         auto& keyPart = protoKey.parts(index);
         switch (keyPart.type()) {
             case EKeyPartType::Null:
-                value.Type = ERowValueType::Null;
+                value.Type = EValueType::Null;
                 break;
 
             case EKeyPartType::Integer:
-                value.Type = ERowValueType::Integer;
+                value.Type = EValueType::Integer;
                 value.Data.Integer = keyPart.int_value();
                 break;
 
             case EKeyPartType::Double:
-                value.Type = ERowValueType::Double;
+                value.Type = EValueType::Double;
                 value.Data.Double = keyPart.double_value();
                 break;
 
             case EKeyPartType::String:
-                value.Type = ERowValueType::String;
+                value.Type = EValueType::String;
                 // Remember offset, we cannot store pointer right now,
                 // because stringData may be reallocated.
                 value.Data.Integer = stringData.length();
@@ -289,11 +289,11 @@ void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
                 break;
 
             case EKeyPartType::MinSentinel:
-                value.Type = ERowValueType::Min;
+                value.Type = EValueType::Min;
                 break;
 
             case EKeyPartType::MaxSentinel:
-                value.Type = ERowValueType::Max;
+                value.Type = EValueType::Max;
                 break;
 
             default:
@@ -303,7 +303,7 @@ void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
 
     for (int index = 0; index < protoKey.parts_size(); ++index) {
         auto& value = values[index];
-        if (value.Type == ERowValueType::String) {
+        if (value.Type == EValueType::String) {
             // Convert offset to pointer.
             value.Data.String = ~stringData + value.Data.Integer;
         }

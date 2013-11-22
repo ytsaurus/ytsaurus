@@ -93,7 +93,7 @@ private:
 
     int CurrentBlockIndex;
     std::unique_ptr<TBlockReader> BlockReader;
-    std::vector<ERowValueType> BlockColumnTypes;
+    std::vector<EValueType> BlockColumnTypes;
 
     NProto::TBlockMetaExt BlockMeta;
 
@@ -171,7 +171,7 @@ void TChunkReader::DoOpen()
     // In versioned chunks first column in block is used for timestamp.
     int schemaIndexBase = IsVersionedChunk ? 1 : 0;
     if (IsVersionedChunk) {
-        BlockColumnTypes.push_back(ERowValueType::Integer);
+        BlockColumnTypes.push_back(EValueType::Integer);
     }
 
     for (const auto& chunkColumn: chunkSchema.Columns()) {
@@ -429,7 +429,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
 
         for (int i = 0; i < schemaIndexes.size(); ++i) {
             if (schemaIndexes[i] < 0) {
-                outputRow[i].Type = ERowValueType::Null;
+                outputRow[i].Type = EValueType::Null;
             } else {
                 const auto& schemaColumn = Schema.Columns()[i];
                 auto& value = outputRow[i];
@@ -438,7 +438,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
 
                 const auto& pair = chunkRow[schemaIndexes[i]];
 
-                if (value.Type == ERowValueType::Any) {
+                if (value.Type == EValueType::Any) {
                     value.Data.String = pair.second.begin();
                     value.Length = pair.second.size();
                     continue;
@@ -450,21 +450,21 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
                 YCHECK(!token.IsEmpty());
 
                 switch (value.Type) {
-                    case ERowValueType::Integer:
+                    case EValueType::Integer:
                         if (token.GetType() != ETokenType::Integer) {
                             ThrowIncompatibleType(schemaColumn);
                         }
                         value.Data.Integer = token.GetIntegerValue();
                         break;
 
-                    case ERowValueType::Double:
+                    case EValueType::Double:
                         if (token.GetType() != ETokenType::Double) {
                             ThrowIncompatibleType(schemaColumn);
                         }
                         value.Data.Double = token.GetDoubleValue();
                         break;
 
-                    case ERowValueType::String:
+                    case EValueType::String:
                         if (token.GetType() != ETokenType::String) {
                             ThrowIncompatibleType(schemaColumn);
                         }
@@ -483,7 +483,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
             const auto& pair = chunkRow[variableIndexes[i]];
 
             value.Id = NameTable->GetOrRegisterName(ToString(pair.first));
-            value.Type = ERowValueType::Any;
+            value.Type = EValueType::Any;
             value.Length = pair.second.size();
             value.Data.String = pair.second.begin();
         }
