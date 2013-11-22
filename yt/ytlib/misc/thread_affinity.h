@@ -4,8 +4,6 @@
 #include "thread.h"
 #include "preprocessor.h"
 
-#include <util/system/thread.h>
-
 namespace NYT {
 namespace NThreadAffinity {
 
@@ -32,9 +30,9 @@ namespace NThreadAffinity {
  * (unittests/thread_affinity_ut.cpp).
  */
 
-// Check that the cast TThread::TId -> TAtomic is safe.
+// Check that the cast NThread::TThreadId -> TAtomic is safe.
 // NB: TAtomic is volatile intptr_t.
-static_assert(sizeof(TThread::TId) == sizeof(intptr_t),
+static_assert(sizeof(NThread::TThreadId) == sizeof(intptr_t),
     "Current implementation assumes that TThread::TId can be atomically swapped.");
 
 class TSlot

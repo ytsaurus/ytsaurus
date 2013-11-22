@@ -885,7 +885,7 @@ public:
     }
 
 
-    virtual void BuildOperationProgressYson(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
     {
         auto element = GetOperationElement(operation);
         auto pool = element->GetPool();
@@ -896,6 +896,16 @@ public:
             .Item("starving").Value(element->GetStarving())
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
+    }
+
+    virtual void BuildBriefOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
+    {
+        auto element = GetOperationElement(operation);
+        auto pool = element->GetPool();
+        const auto& attributes = pool->Attributes();
+        BuildYsonMapFluently(consumer)
+            .Item("pool").Value(pool->GetId())
+            .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
     virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) override
@@ -920,7 +930,7 @@ public:
             element->PreemptableJobs().size());
     }
 
-    virtual void BuildOrchidYson(IYsonConsumer* consumer) override
+    virtual void BuildOrchid(IYsonConsumer* consumer) override
     {
         BuildYsonMapFluently(consumer)
             .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {

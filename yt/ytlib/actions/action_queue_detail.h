@@ -11,6 +11,8 @@
 
 #include <ytlib/ypath/public.h>
 
+#include <ytlib/misc/thread.h>
+
 #include <util/system/thread.h>
 #include <util/system/event.h>
 

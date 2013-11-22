@@ -97,8 +97,12 @@ namespace std {
 // to silent static analyzer.
 #if defined(__GNUC__) || defined(__clang__)
     #define SILENT_UNUSED __attribute__((unused))
+    #define LIKELY(expr) __builtin_expect(!!(expr), 1)
+    #define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 #else
     #define SILENT_UNUSED
+    #define LIKELY(expr) (expr)
+    #define UNLIKELY(expr) (expr)
 #endif
 
 #ifdef _unix_

@@ -10,8 +10,9 @@
 
 #include <ytlib/profiling/profiler.h>
 
-#include <util/server/http.h>
 #include <util/string/http.h>
+
+#include <library/httpserver/http.h>
 
 namespace NYT {
 namespace NHttp {

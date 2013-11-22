@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/assert.h>
+#include <ytlib/misc/common.h>
 
 #include <util/generic/yexception.h>
 

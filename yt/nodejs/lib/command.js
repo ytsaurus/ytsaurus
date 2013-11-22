@@ -137,6 +137,8 @@ function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause
     this.req = null;
     this.rsp = null;
 
+    this.omit_trailers = undefined;
+
     this.name = undefined;
     this.user = undefined;
 
@@ -170,6 +172,13 @@ YtCommand.prototype.dispatch = function(req, rsp) {
 
     self.req = req;
     self.rsp = rsp;
+
+    var ua = self.req.headers["user-agent"] + ""; // Do not care about 'null' or 'undefined'
+    var is_ie = ua.indexOf("Trident") !== -1;
+
+    // XXX(sandello): IE is bugged; it fails to parse request with trailing
+    // headers that include colons. Remarkable.
+    self.omit_trailers = is_ie;
 
     self.req.parsedUrl = url.parse(self.req.url);
     self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
@@ -206,14 +215,14 @@ YtCommand.prototype._epilogue = function(result) {
     "use strict";
     this.__DBG("_epilogue");
 
-    var  sent_headers = !!this.rsp._header;
+    var sent_headers = !!this.rsp._header;
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
         this.rsp.setHeader("X-YT-Error", result.toJson());
         this.rsp.setHeader("X-YT-Response-Code", utils.escapeHeader(result.getCode()));
         this.rsp.setHeader("X-YT-Response-Message", utils.escapeHeader(result.getMessage()));
         this.rsp.setHeader("X-YT-Response-Parameters", JSON.stringify(this.response_parameters));
-    } else {
+    } else if (!this.omit_trailers) {
         this.rsp.addTrailers({
             "X-YT-Error": result.toJson(),
             "X-YT-Response-Code": utils.escapeHeader(result.getCode()),
@@ -691,7 +700,10 @@ YtCommand.prototype._addHeaders = function() {
     }
 
     this.rsp.setHeader("Transfer-Encoding", "chunked");
-    this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
+
+    if (!this.omit_trailers) {
+        this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
+    }
 };
 
 YtCommand.prototype._execute = function(cb) {

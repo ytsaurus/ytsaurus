@@ -919,11 +919,8 @@ void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Spec->Title) {
-        LOG_INFO("Initializing operation (Title: %s)", ~(*Spec->Title));
-    } else {
-        LOG_INFO("Initializing operation");
-    }
+    LOG_INFO("Initializing operation (Title: %s)",
+        Spec->Title ? ~(*Spec->Title) : "<Null>");
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
@@ -3026,7 +3023,7 @@ void TOperationControllerBase::RemoveJoblet(TJobPtr job)
     YCHECK(JobletMap.erase(job->GetId()) == 1);
 }
 
-void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
+void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -3055,7 +3052,15 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
+void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    BuildYsonMapFluently(consumer)
+        .Item("jobs").Value(JobCounter);
+}
+
+void TOperationControllerBase::BuildResult(IYsonConsumer* consumer)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -3069,6 +3074,10 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
+        .DoIf(Spec->Title, [&] (TFluentMap fluent) {
+            fluent
+                .Item("title").Value(*Spec->Title);
+        })
         .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }

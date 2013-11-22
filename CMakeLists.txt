@@ -88,6 +88,9 @@ exec_program(
 )
 
 add_subdirectory(cmake/deps-arcadia-util)
+add_subdirectory(cmake/deps-arcadia-library-blockcodecs)
+add_subdirectory(cmake/deps-arcadia-library-lwtrace)
+add_subdirectory(cmake/deps-arcadia-library-messagebus)
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-ev)
 add_subdirectory(cmake/deps-z-lz-lzo)
@@ -96,6 +99,8 @@ add_subdirectory(cmake/deps-coro)
 
 add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
+add_subdirectory(library/httpserver)
+add_subdirectory(library/lfalloc)
 
 add_subdirectory(yt)
 

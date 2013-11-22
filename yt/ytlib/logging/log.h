@@ -1,11 +1,9 @@
 #pragma once
 
-
 #include "common.h"
 
 #include <ytlib/misc/error.h>
-
-#include <util/system/thread.h>
+#include <ytlib/misc/thread.h>
 
 namespace NYT {
 namespace NLog {

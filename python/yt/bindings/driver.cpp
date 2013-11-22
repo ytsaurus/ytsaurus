@@ -7,8 +7,8 @@
 #include "descriptor.h"
 #include "shutdown.h"
 
-#include <ytlib/misc/intrusive_ptr.h>
 #include <ytlib/misc/async_stream.h>
+
 #include <ytlib/formats/format.h>
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
@@ -47,6 +47,8 @@ using NYTree::ConvertToYsonString;
 using NYson::EYsonFormat;
 
 namespace NPython {
+
+///////////////////////////////////////////////////////////////////////////////
 
 using namespace NFormats;
 using namespace NDriver;
@@ -237,6 +239,8 @@ public:
     driver_module()
         : Py::ExtensionModule<driver_module>("driver")
     {
+        PyEval_InitThreads();
+
         RegisterShutdown();
 
         TDriver::InitType();
@@ -277,5 +281,7 @@ extern "C" EXPORT_SYMBOL void initdriver_lib()
 
 // symbol required for the debug version
 extern "C" EXPORT_SYMBOL void initdriver_lib_d()
-{ initdriver_lib(); }
+{
+    initdriver_lib();
+}
 

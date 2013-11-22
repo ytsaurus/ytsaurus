@@ -4,8 +4,8 @@
 #include "thread.h"
 
 #include <ytlib/actions/action_queue.h>
+#include <ytlib/misc/thread.h>
 
-#include <util/system/thread.h>
 #include <util/datetime/base.h>
 
 namespace NYT {
