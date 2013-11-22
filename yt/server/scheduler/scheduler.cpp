@@ -857,12 +857,10 @@ private:
 
             operation->SetState(EOperationState::Preparing);
 
-            {
-                auto controller = operation->GetController();
-                auto asyncResult = controller->Prepare();
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            auto controller = operation->GetController();
+            auto asyncResult = controller->Prepare();
+            auto result = WaitFor(asyncResult);
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;

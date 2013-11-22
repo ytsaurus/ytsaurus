@@ -302,7 +302,7 @@ protected:
             , MemoryReserveEnabled(true)
         { }
 
-        explicit TJoblet(TTaskPtr task, int jobIndex)
+        TJoblet(TTaskPtr task, int jobIndex)
             : Task(task)
             , JobIndex(jobIndex)
             , StartRowIndex(-1)
