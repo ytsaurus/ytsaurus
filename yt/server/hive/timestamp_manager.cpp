@@ -122,7 +122,7 @@ private:
                 TGuard<TSpinLock> guard(SpinLock);
                 if (CurrentTimestamp.load() >= PersistentTimestamp.load()) {
                     StartCommit();
-                    PendingContexts.push_back(std::move(context));
+                    PendingContexts.push_back(context);
                 }
             }
         }
