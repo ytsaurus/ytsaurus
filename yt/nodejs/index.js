@@ -24,6 +24,6 @@ exports.utils = require("./lib/utils");
 exports.configureSingletons = function(config)
 {
     var binding = require("./lib/ytnode");
-    binding.ConfigureSingletons(config);
     process.on("exit", binding.ShutdownSingletons);
+    binding.ConfigureSingletons(config);
 };
