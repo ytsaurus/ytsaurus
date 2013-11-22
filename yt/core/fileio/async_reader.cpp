@@ -99,6 +99,20 @@ bool TNonBlockReader::IsReady()
     return false;
 }
 
+void TNonBlockReader::Close()
+{
+    int errCode = close(FD);
+    if (errCode == -1) {
+        // please, read
+        // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
+        // http://rb.yandex-team.ru/arc/r/44030/
+        // before editing
+        if (errno != EAGAIN) {
+            LastSystemError = errno;
+        }
+    }
+}
+
 } // NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +128,8 @@ TAsyncReader::TAsyncReader(int fd)
 void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
+
+    TGuard<TSpinLock> guard(ReadLock);
 
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncReader, &TAsyncReader::OnRead>(this);
@@ -131,18 +147,20 @@ void TAsyncReader::OnRead(ev::io&, int)
     if (!Reader.IsBufferFull()) {
         Reader.TryReadInBuffer();
 
+        if (Reader.ReachedEOF()) {
+            FDWatcher.stop();
+            Reader.Close();
+        }
+
         if (ReadyPromise.HasValue()) {
             if (Reader.IsReady()) {
                 ReadyPromise->Set(GetState());
                 ReadyPromise.Reset();
             }
         }
-
-        if (Reader.ReachedEOF()) {
-            FDWatcher.stop();
-        }
     } else {
-        // I should stop watching for a while
+        // pause for a while
+        FDWatcher.stop();
     }
 }
 
@@ -151,6 +169,8 @@ std::pair<TBlob, bool> TAsyncReader::Read()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(ReadLock);
+
+    FDWatcher.start();
 
     return Reader.GetRead();
 }

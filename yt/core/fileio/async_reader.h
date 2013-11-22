@@ -29,6 +29,8 @@ namespace NDetail {
         int GetLastSystemError();
 
         bool IsReady();
+
+        void Close();
     private:
         int FD;
 
