@@ -10,6 +10,7 @@ TAsyncWriter::TAsyncWriter(int fd)
     , BytesWrittenTotal(0)
     , NeedToClose(false)
     , LastSystemError(0)
+    , Logger("AsyncWriter")
 {
     FDWatcher.set(fd, ev::WRITE);
 }
@@ -32,18 +33,40 @@ void TAsyncWriter::OnWrite(ev::io&, int)
     ssize_t bytesWritten = 0;
 
     do {
+        YCHECK(WriteBuffer.Size() >= BytesWrittenTotal);
+
         const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
+        LOG_TRACE("Writing %" PRISZT " bytes...", size);
+
         bytesWritten = write(FD, WriteBuffer.Begin() + BytesWrittenTotal, size);
     } while (bytesWritten == -1 && errno == EINTR);
     if (bytesWritten == -1) {
         if (errno != EWOULDBLOCK && errno != EAGAIN) {
+            LOG_TRACE("Encounter an error: %" PRId32, errno);
+
             LastSystemError = errno;
         }
     } else {
+        LOG_TRACE("Wrote %" PRISZT " bytes", bytesWritten);
+
         BytesWrittenTotal += bytesWritten;
         TryCleanBuffer();
         if (NeedToClose && WriteBuffer.Size() == 0) {
-            close(FD);
+            LOG_TRACE("Closing...");
+
+            int errCode = close(FD);
+            if (errCode == -1) {
+                // please, read
+                // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
+                // http://rb.yandex-team.ru/arc/r/44030/
+                // before editing
+                if (errno != EAGAIN) {
+                    LOG_TRACE("Encounter an error: %" PRId32, errno);
+
+                    LastSystemError = errno;
+                }
+            }
+
             NeedToClose = false;
         }
     }
@@ -56,6 +79,10 @@ void TAsyncWriter::OnWrite(ev::io&, int)
         }
         ReadyPromise.Reset();
     }
+
+    if (LastSystemError != 0) {
+        FDWatcher.stop();
+    }
 }
 
 bool TAsyncWriter::Write(const void* data, size_t size)
@@ -67,29 +94,36 @@ bool TAsyncWriter::Write(const void* data, size_t size)
     ssize_t bytesWritten = 0;
 
     if (WriteBuffer.Size() == 0) {
+        LOG_TRACE("Internal buffer is empty. Trying to write %" PRISZT " bytes", size);
+
         int errCode = -1;
         do {
+            LOG_TRACE("Writing %" PRISZT " bytes...", size);
+
             errCode = write(FD, data, size);
         } while (errCode == -1 && errno == EINTR);
 
         if (errCode == -1) {
             if (errno != EWOULDBLOCK && errno != EAGAIN) {
+                LOG_TRACE("Encounter an error: %" PRId32, errno);
+
                 LastSystemError = errno;
             }
             bytesWritten = 0;
         } else {
             bytesWritten = errCode;
-            BytesWrittenTotal += bytesWritten;
             TryCleanBuffer();
         }
     }
 
+    LOG_TRACE("Wrote %" PRISZT " bytes", bytesWritten);
+
     YCHECK(!ReadyPromise.HasValue());
 
     YCHECK(bytesWritten <= size);
-    WriteBuffer.Append(data + bytesWritten, size);
+    WriteBuffer.Append(data + bytesWritten, size - bytesWritten);
 
-    return ((LastSystemError != 0) && (WriteBuffer.Size() <= WriteBufferSize));
+    return ((LastSystemError != 0) || (WriteBuffer.Size() >= WriteBufferSize));
 }
 
 TAsyncError TAsyncWriter::Close()

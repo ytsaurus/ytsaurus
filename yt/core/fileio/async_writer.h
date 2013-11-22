@@ -3,6 +3,7 @@
 #include "file_io_dispatcher_impl.h"
 
 #include <yt/core/misc/blob.h>
+#include <yt/core/logging/log.h>
 
 #include <util/system/spinlock.h>
 
@@ -37,6 +38,8 @@ private:
     int LastSystemError;
 
     TSpinLock WriteLock;
+
+    NLog::TLogger Logger;
 
     void OnWrite(ev::io&, int);
 

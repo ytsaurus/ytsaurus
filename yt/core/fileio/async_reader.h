@@ -16,7 +16,9 @@ namespace NDetail {
     class TNonBlockReader
     {
     public:
+        // It own this fd
         TNonBlockReader(int fd);
+        ~TNonBlockReader();
 
         void TryReadInBuffer();
         std::pair<TBlob, bool> GetRead();
@@ -38,6 +40,7 @@ namespace NDetail {
         size_t BytesInBuffer;
 
         bool ReachedEOF_;
+        bool Closed;
         int LastSystemError;
     };
 }
@@ -56,6 +59,7 @@ public:
 private:
     NDetail::TNonBlockReader Reader;
     ev::io FDWatcher;
+    ev::async StartWatcher;
 
     TNullable<TAsyncErrorPromise> ReadyPromise;
 
@@ -63,6 +67,8 @@ private:
 
     TError GetState();
     void OnRead(ev::io&, int);
+
+    void OnStart(ev::async&, int);
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 };

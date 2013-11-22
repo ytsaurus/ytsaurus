@@ -20,8 +20,14 @@ TNonBlockReader::TNonBlockReader(int fd)
     , ReadBuffer(ReadBufferSize)
     , BytesInBuffer(0)
     , ReachedEOF_(false)
+    , Closed(false)
     , LastSystemError(0)
 { }
+
+TNonBlockReader::~TNonBlockReader()
+{
+    Close();
+}
 
 void TNonBlockReader::TryReadInBuffer()
 {
@@ -101,15 +107,18 @@ bool TNonBlockReader::IsReady()
 
 void TNonBlockReader::Close()
 {
-    int errCode = close(FD);
-    if (errCode == -1) {
-        // please, read
-        // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
-        // http://rb.yandex-team.ru/arc/r/44030/
-        // before editing
-        if (errno != EAGAIN) {
-            LastSystemError = errno;
+    if (!Closed) {
+        int errCode = close(FD);
+        if (errCode == -1) {
+            // please, read
+            // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
+            // http://rb.yandex-team.ru/arc/r/44030/
+            // before editing
+            if (errno != EAGAIN) {
+                LastSystemError = errno;
+            }
         }
+        Closed = true;
     }
 }
 
@@ -131,8 +140,19 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
 
     TGuard<TSpinLock> guard(ReadLock);
 
+    StartWatcher.set(eventLoop);
+    StartWatcher.set<TAsyncReader, &TAsyncReader::OnStart>(this);
+    StartWatcher.start();
+
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncReader, &TAsyncReader::OnRead>(this);
+    FDWatcher.start();
+}
+
+void TAsyncReader::OnStart(ev::async&, int)
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
     FDWatcher.start();
 }
 
@@ -170,7 +190,8 @@ std::pair<TBlob, bool> TAsyncReader::Read()
 
     TGuard<TSpinLock> guard(ReadLock);
 
-    FDWatcher.start();
+    // ev_io_start is not thread-safe
+    StartWatcher.send();
 
     return Reader.GetRead();
 }
