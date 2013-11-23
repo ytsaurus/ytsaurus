@@ -216,12 +216,8 @@ private:
 
 };
 
-static_assert(
-    sizeof(TVersionedRow) == sizeof(intptr_t),
-    "TVersionedRow size must match that of a pointer.");
-static_assert(
-    sizeof(TUnversionedRow) == sizeof(intptr_t),
-    "TVersionedRow size must match that of a pointer.");
+static_assert(sizeof(TVersionedRow)   == sizeof (intptr_t), "TVersionedRow size must match that of a pointer.");
+static_assert(sizeof(TUnversionedRow) == sizeof (intptr_t), "TUnversionedRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -380,8 +376,10 @@ private:
     friend void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
 
-    TSharedRef RowData; // TRowHeader plus TUnversionedValue-s
-    Stroka StringData; // Holds string data
+
+    TSharedRef RowData; // TRowHeader plus TValue-s
+    Stroka StringData;  // Holds string data
+
 
     FORCED_INLINE TOwningRow(TSharedRef rowData, Stroka stringData)
         : RowData(std::move(rowData))
