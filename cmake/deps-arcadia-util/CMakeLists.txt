@@ -171,8 +171,8 @@ set( FOLDER_SRCS
 
 if(WIN32)
   set( FOLDER_SRCS ${FOLDER_SRCS}
-    ${FOLDER_BASE}/dirent_win.c
-    ${FOLDER_BASE}/lstat_win.c
+    ${FOLDER_BASE}/dirent_win.cpp
+    ${FOLDER_BASE}/lstat_win.cpp
   )
 endif()
 
