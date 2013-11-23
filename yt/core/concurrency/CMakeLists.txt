@@ -29,6 +29,7 @@ set( HDRS
   ${BASE}/thread_affinity.h
   ${BASE}/event_count.h
   ${BASE}/rw_spinlock.h
+  ${BASE}/coroutine.h
   ${BASE}/fiber-inl.h
   ${BASE}/fiber.h
   ${BASE}/public.h
@@ -49,5 +50,3 @@ if (NOT WIN32)
     PROPERTIES LANGUAGE C
   )
 endif()
-
-PUMP( ${BASE}/coroutine.h.pump YT_SOURCE_FILES )
