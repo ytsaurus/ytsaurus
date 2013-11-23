@@ -39,8 +39,8 @@ DECLARE_ENUM(EBeginExecuteResult,
 
 struct TEnqueuedAction
 {
-    NProfiling::TCpuInstant EnqueueInstant;
-    NProfiling::TCpuInstant StartInstant;
+    NProfiling::TCpuInstant EnqueuedAt;
+    NProfiling::TCpuInstant StartedAt;
     TClosure Callback;
 };
 

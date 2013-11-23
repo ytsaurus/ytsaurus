@@ -53,7 +53,10 @@ TInvokerQueue::TInvokerQueue(
 bool TInvokerQueue::Invoke(const TClosure& callback)
 {
     if (!Running) {
-        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored: %p", callback.GetHandle());
+        LOG_TRACE_IF(
+            EnableLogging,
+            "Queue had been shut down, incoming action ignored: %p",
+            callback.GetHandle());
         return false;
     }
 
@@ -61,7 +64,7 @@ bool TInvokerQueue::Invoke(const TClosure& callback)
     Profiler.Increment(EnqueueCounter);
 
     TEnqueuedAction action;
-    action.EnqueueInstant = GetCpuInstant();
+    action.EnqueuedAt = GetCpuInstant();
     action.Callback = callback;
     Queue.Enqueue(action);
 
@@ -89,8 +92,10 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     Profiler.Increment(DequeueCounter);
 
-    action->StartInstant = GetCpuInstant();
-    Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(action->StartInstant - action->EnqueueInstant));
+    action->StartedAt = GetCpuInstant();
+    Profiler.Aggregate(
+        WaitTimeCounter,
+        CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
     TCurrentInvokerGuard guard(CurrentInvoker);
 
@@ -112,9 +117,13 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
     auto size = AtomicDecrement(QueueSize);
     Profiler.Aggregate(QueueSizeCounter, size);
 
-    auto endExecInstant = GetCpuInstant();
-    Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - action->StartInstant));
-    Profiler.Aggregate(TotalTimeCounter, CpuDurationToValue(endExecInstant - action->EnqueueInstant));
+    auto endedAt = GetCpuInstant();
+    Profiler.Aggregate(
+        ExecTimeCounter,
+        CpuDurationToValue(endedAt - action->StartedAt));
+    Profiler.Aggregate(
+        TotalTimeCounter,
+        CpuDurationToValue(endedAt - action->EnqueuedAt));
 
     action->Callback.Reset();
 }
@@ -126,7 +135,7 @@ int TInvokerQueue::GetSize() const
 
 bool TInvokerQueue::IsEmpty() const
 {
-    return const_cast< TLockFreeQueue<TEnqueuedAction>& >(Queue).IsEmpty();
+    return const_cast<TLockFreeQueue<TEnqueuedAction>&>(Queue).IsEmpty();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -179,6 +188,7 @@ void TExecutorThread::ThreadMain()
 {
     try {
         LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)", ~ThreadName);
+
         OnThreadStart();
         CurrentExecutorThread = this;
 
@@ -187,14 +197,18 @@ void TExecutorThread::ThreadMain()
 
         while (Running) {
             // Spawn a new fiber to run the loop.
-            auto fiber = NYT::New<TFiber>(BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
+            auto fiber = NYT::New<TFiber>(
+                BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
             auto state = fiber->Run();
 
-            YCHECK(state == EFiberState::Suspended || state == EFiberState::Terminated);
+            YCHECK(
+                state == EFiberState::Terminated ||
+                state == EFiberState::Suspended);
 
             // Check for fiber termination.
-            if (state == EFiberState::Terminated)
+            if (state == EFiberState::Terminated) {
                 break;
+            }
 
             // The callback has taken the ownership of the current fiber.
             // Finish sync part of the execution and respawn the fiber.
@@ -206,6 +220,7 @@ void TExecutorThread::ThreadMain()
 
         CurrentExecutorThread = nullptr;
         OnThreadShutdown();
+
         LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)", ~ThreadName);
     } catch (const std::exception& ex) {
         LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)", ~ThreadName);
@@ -225,18 +240,18 @@ void TExecutorThread::FiberMain()
         FibersCreated,
         FibersAlive);
 
-    bool stop = false;
-    while (!stop) {
+    bool running = true;
+    while (running) {
         auto cookie = EventCount->PrepareWait();
         auto result = Execute();
         switch (result) {
             case EBeginExecuteResult::Success:
-                // CancelWait was called inside Execute.
+                // EventCount->CancelWait was called inside Execute.
                 break;
 
             case EBeginExecuteResult::Terminated:
-                // CancelWait was called inside Execute.
-                stop = true;
+                // EventCount->CancelWait was called inside Execute.
+                running = false;
                 break;
 
             case EBeginExecuteResult::QueueEmpty:
@@ -264,6 +279,7 @@ EBeginExecuteResult TExecutorThread::Execute()
         return EBeginExecuteResult::Terminated;
     }
 
+    // EventCount->CancelWait must be called within BeginExecute.
     auto result = BeginExecute();
 
     auto* fiber = TFiber::GetCurrent();
@@ -275,7 +291,9 @@ EBeginExecuteResult TExecutorThread::Execute()
         EndExecute();
     }
 
-    if (result == EBeginExecuteResult::Terminated || result == EBeginExecuteResult::QueueEmpty) {
+    if (
+        result == EBeginExecuteResult::QueueEmpty ||
+        result == EBeginExecuteResult::Terminated) {
         return result;
     }
 
@@ -299,8 +317,9 @@ EBeginExecuteResult TExecutorThread::Execute()
 
 void TExecutorThread::Shutdown()
 {
-    if (!Running)
+    if (!Running) {
         return;
+    }
 
     LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)", ~ThreadName);
 
