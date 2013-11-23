@@ -96,7 +96,7 @@ set( SYSTEM_SRCS
 
 if (WIN32)
   set( SYSTEM_SRCS ${SYSTEM_SRCS}
-    ${SYSTEM_SRCS}/fs_win.cpp
+    ${SYSTEM_BASE}/fs_win.cpp
   )
 endif()
 
@@ -187,7 +187,7 @@ set( DATETIME_SRCS
 
 if (WIN32)
   set( DATETIME_SRCS ${DATETIME_SRCS}
-    ${DATETIME_SRCS}/strptime.cpp
+    ${DATETIME_BASE}/strptime.cpp
   )
 endif()
 
