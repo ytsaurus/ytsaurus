@@ -40,14 +40,14 @@ add_library( yson_python SHARED
 )
 
 target_link_libraries( driver_python
-  ytlib-no-lfalloc
+  ytlib
   ytext-pycxx
   ytext-lfalloc-fake
   ${PYTHON_LIBRARY}
 )
 
 target_link_libraries( yson_python
-  ytlib-no-lfalloc
+  ytlib
   ytext-pycxx
   ytext-lfalloc-fake
   ${PYTHON_LIBRARY}
