@@ -1669,7 +1669,8 @@ private:
         bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetOperationId())).BeginMap()
-                .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
+                // Include the complete list of attributes.
+                .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, ~Strategy, operation))

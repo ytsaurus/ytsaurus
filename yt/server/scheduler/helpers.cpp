@@ -17,7 +17,18 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////
 
-void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
+void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("operation_type").Value(operation->GetType())
+        .Item("start_time").Value(operation->GetStartTime())
+        .Item("spec").Value(operation->GetSpec())
+        .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+        .Item("mutation_id").Value(operation->GetMutationId())
+        .Do(BIND(&BuildRunningOperationAttributes, operation));
+}
+
+void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
     auto userTransaction = operation->GetUserTransaction();
     auto syncTransaction = operation->GetSyncSchedulerTransaction();
@@ -25,18 +36,13 @@ void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* con
     auto inputTransaction = operation->GetInputTransaction();
     auto outputTransaction = operation->GetOutputTransaction();
     BuildYsonMapFluently(consumer)
-        .Item("operation_type").Value(operation->GetType())
         .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
         .Item("sync_scheduler_transaction_id").Value(syncTransaction ? syncTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(asyncTransaction ? asyncTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(inputTransaction ? inputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId)
         .Item("state").Value(operation->GetState())
-        .Item("suspended").Value(operation->GetSuspended())
-        .Item("start_time").Value(operation->GetStartTime())
-        .Item("spec").Value(operation->GetSpec())
-        .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
-        .Item("mutation_id").Value(operation->GetMutationId());
+        .Item("suspended").Value(operation->GetSuspended());
 }
 
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
