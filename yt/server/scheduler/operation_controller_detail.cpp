@@ -649,14 +649,17 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TNodeResources& neededResources)
 {
     auto nodes = Controller->Host->GetExecNodes();
-    FOREACH (auto node, nodes) {
+    if (nodes.size() < Controller->Config->SafeOnlineNodeCount)
+        return;
+
+    for (auto node : nodes) {
         if (Dominates(node->ResourceLimits(), neededResources))
             return;
     }
 
     // It seems nobody can satisfy the demand.
     Controller->OnOperationFailed(
-        TError("No online exec node can satisfy the resource demand")
+        TError("No online node can satisfy the resource demand")
             << TErrorAttribute("task", TRawString(GetId()))
             << TErrorAttribute("needed_resources", neededResources));
 }
