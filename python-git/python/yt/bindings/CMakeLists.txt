@@ -47,7 +47,7 @@ target_link_libraries( driver_python
 )
 
 target_link_libraries( yson_python
-  ytlib-no-lfalloc
+  ytlib
   ytext-pycxx
   ytext-lfalloc-fake
   ${PYTHON_LIBRARY}
