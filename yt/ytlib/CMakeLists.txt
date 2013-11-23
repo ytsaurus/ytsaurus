@@ -29,14 +29,14 @@ foreach( _d_ ${DIRS} )
 endforeach()
 
 add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
+  stdafx.h
+  stdafx.cpp
   YT_SOURCE_FILES
 )
 
 add_library( ytlib STATIC
   ${YT_SOURCE_FILES}
-  "shutdown.cpp"
+  shutdown.cpp
 )
 
 target_link_libraries ( ytlib
@@ -61,7 +61,7 @@ endif()
 if (YT_BUILD_ENABLE_PYTHON)
   add_library( ytlib-without-lfalloc STATIC
       ${YT_SOURCE_FILES}
-      "shutdown.cpp"
+      shutdown.cpp
   )
   target_link_libraries ( ytlib-without-lfalloc
     ytcore-without-lfalloc
