@@ -36,6 +36,7 @@ add_msvc_precompiled_header(
 
 add_library( ytlib STATIC
   ${YT_SOURCE_FILES}
+  "shutdown.cpp"
 )
 
 target_link_libraries ( ytlib
@@ -60,6 +61,7 @@ endif()
 if (YT_BUILD_ENABLE_PYTHON)
   add_library( ytlib-without-lfalloc STATIC
       ${YT_SOURCE_FILES}
+      "shutdown.cpp"
   )
   target_link_libraries ( ytlib-without-lfalloc
     ytcore-without-lfalloc
