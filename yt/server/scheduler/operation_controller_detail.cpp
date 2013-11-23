@@ -966,10 +966,6 @@ void TOperationControllerBase::Initialize()
             OutputTables.size());
     }
 
-    if (Host->GetExecNodes().empty()) {
-        THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
-    }
-
     Essentiate();
 
     DoInitialize();
