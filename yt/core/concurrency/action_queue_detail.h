@@ -69,7 +69,7 @@ private:
     IInvoker* CurrentInvoker;
     bool EnableLogging;
 
-    bool Running;
+    volatile bool Running;
 
     NProfiling::TProfiler Profiler;
 
@@ -92,7 +92,7 @@ class TExecutorThread
 {
 public:
     virtual ~TExecutorThread();
-    
+
     void Start();
     void Shutdown();
 
@@ -108,13 +108,11 @@ protected:
 
     virtual EBeginExecuteResult BeginExecute() = 0;
     virtual void EndExecute() = 0;
-    
+
     virtual void OnThreadStart();
     virtual void OnThreadShutdown();
 
 private:
-    friend class TInvokerQueue;
-
     static void* ThreadMain(void* opaque);
     void ThreadMain();
     void FiberMain();
@@ -133,7 +131,7 @@ private:
 
     NThread::TThreadId ThreadId;
     TThread Thread;
-    
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

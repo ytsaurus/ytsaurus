@@ -21,20 +21,19 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Thrown when a fiber is being terminated by external request.
-class TFiberTerminatedException
+class TFiberCanceledException
 { };
-
-//! Returns a pointer to a new TFiberTerminatedException instance.
-std::exception_ptr CreateFiberTerminatedException();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EFiberState,
     (Initialized) // Initialized, but not run.
     (Terminated)  // Terminated.
+    (Canceled)    // Terminated because of a cancellation.
     (Exception)   // Terminated because of an exception.
-    (Suspended)   // Currently suspended.
     (Running)     // Currently executing.
+    (Blocked)     // Blocked because control was transferred to another fiber.
+    (Suspended)   // Suspended because control was transferred to an ancestor.
 );
 
 DECLARE_ENUM(EFiberStack,
@@ -46,13 +45,15 @@ class TFiber
     : public TRefCounted
 {
 private:
-    TFiber();
     TFiber(const TFiber&);
     TFiber(TFiber&&);
     TFiber& operator=(const TFiber&);
     TFiber& operator=(TFiber&&);
 
-    friend TIntrusivePtr<TFiber> NYT::New<TFiber>();
+    // A special constructor to create root fiber.
+    TFiber();
+    friend TFiberPtr New<TFiber>();
+    friend void DestroyRootFiber();
 
 public:
     explicit TFiber(TClosure callee, EFiberStack stack = EFiberStack::Small);
@@ -60,13 +61,16 @@ public:
 
     static TFiber* GetCurrent();
 
+    static TFiber* GetExecutor();
+    static void SetExecutor(TFiber* executor);
+
     EFiberState GetState() const;
-    bool Yielded() const;
-    bool IsTerminating() const;
+    bool HasForked() const;
     bool IsCanceled() const;
 
     EFiberState Run();
     void Yield();
+    void Yield(TFiber* caller);
 
     void Reset();
     void Reset(TClosure closure);
@@ -74,23 +78,38 @@ public:
     void Inject(std::exception_ptr&& exception);
     void Cancel();
 
-    void SwitchTo(IInvokerPtr invoker);
-    void WaitFor(TFuture<void> future, IInvokerPtr invoker);
-
-    IInvokerPtr GetCurrentInvoker();
+    IInvokerPtr GetCurrentInvoker() const;
     void SetCurrentInvoker(IInvokerPtr invoker);
 
 private:
     class TImpl;
-
     std::unique_ptr<TImpl> Impl;
+
+    friend void SwitchTo(IInvokerPtr invoker);
+    friend void WaitFor(TFuture<void> future, IInvokerPtr invoker);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Yields control until it is manually transferred back to the current fiber.
-void Yield();
+//! Yields control to the caller (if |target| is not specified)
+//! until it is manually transferred back to the executing fiber.
+//!
+//! Semantics are more complicated when |target| is specified.
+//! It required that the target is an ancestor of currently executing fiber.
+//! Yielding to the target fiber transfers control to target's caller
+//! and when control is transferred back to the target it continues to execute
+//! currently executing fiber.
+//!
+//! Effectively this suspends entire fiber chain descending from the target.
+void Yield(TFiber* target = nullptr);
+
+//! Transfers control to another invoker.
+/*!
+  *  The behavior is achieved by yielding control and enqueuing
+  *  a special continuation callback into |invoker|.
+  */
+void SwitchTo(IInvokerPtr invoker);
 
 //! Yields control until a given future is set and ensures that
 //! execution continues within a given invoker.
@@ -105,13 +124,6 @@ template <class T>
 T WaitFor(
     TFuture<T> future,
     IInvokerPtr invoker = GetCurrentInvoker());
-
-//! Transfers control to another invoker.
-/*!
-  *  The behavior is achieved by yielding control and enqueuing
-  *  a special continuation callback into |invoker|.
-  */
-void SwitchTo(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,6 +23,9 @@ using namespace NProfiling;
 
 static NLog::TLogger Logger("ActionQueue");
 
+// This is a secret shared knowledge between action_queue_detail.cpp and fiber.cpp.
+void DestroyRootFiber();
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TInvokerQueue::TInvokerQueue(
@@ -93,7 +96,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     try {
         action->Callback.Run();
-    } catch (const TFiberTerminatedException&) {
+    } catch (const TFiberCanceledException&) {
         // Still consider this a success.
         // This caller is responsible for terminating the current fiber.
     }
@@ -264,7 +267,8 @@ EBeginExecuteResult TExecutorThread::Execute()
     auto result = BeginExecute();
 
     auto* fiber = TFiber::GetCurrent();
-    if (!fiber->Yielded()) {
+
+    if (!fiber->HasForked()) {
         // Make the matching call to EndExecute unless it is already done in ThreadMain.
         // NB: It is safe to call EndExecute even if no actual action was dequeued and
         // invoked in BeginExecute.
@@ -275,16 +279,17 @@ EBeginExecuteResult TExecutorThread::Execute()
         return result;
     }
 
-    if (fiber->Yielded()) {
-        // If the current fiber has seen Yield calls then its ownership has been transfered to the
-        // callback. In the latter case we must abandon the current fiber immediately
-        // since the queue's thread had spawned (or will soon spawn)
-        // a brand new fiber to continue serving the queue.
+    if (fiber->HasForked()) {
+        // If the current fiber has seen WaitFor/SwitchTo calls then
+        // its ownership has been transfered to the callback. In the latter case
+        // we must abandon the current fiber immediately since the queue's thread
+        // had spawned (or will soon spawn) a brand new fiber to continue
+        // serving the queue.
         return EBeginExecuteResult::Terminated;
     }
 
     if (fiber->IsCanceled()) {
-        // All TFiberTerminatedException-s are being caught in BeginExecute.
+        // All TFiberCanceledException-s are being caught in BeginExecute.
         // A fiber that is currently being terminated cannot be reused and must be abandoned.
         return EBeginExecuteResult::Terminated;
     }
@@ -325,7 +330,7 @@ void TExecutorThread::OnThreadStart()
 
 void TExecutorThread::OnThreadShutdown()
 {
-    // TODO(babenko): consider killing the root fiber here
+    DestroyRootFiber();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

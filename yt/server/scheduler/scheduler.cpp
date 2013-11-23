@@ -760,8 +760,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->GetState() != EOperationState::Initializing)
-            throw TFiberTerminatedException();
+        if (operation->GetState() != EOperationState::Initializing) {
+            throw TFiberCanceledException();
+        }
 
         try {
             StartAsyncSchedulerTransaction(operation);
@@ -772,8 +773,9 @@ private:
                 auto asyncResult = MasterConnector->CreateOperationNode(operation);
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Initializing)
-                    throw TFiberTerminatedException();
+                if (operation->GetState() != EOperationState::Initializing) {
+                    throw TFiberCanceledException();
+                }
             }
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
@@ -798,8 +800,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->GetState() != EOperationState::Initializing)
-            throw TFiberTerminatedException();
+        if (operation->GetState() != EOperationState::Initializing) {
+            throw TFiberCanceledException();
+        }
 
         auto operationId = operation->GetOperationId();
 
@@ -823,8 +826,9 @@ private:
             return;
         }
 
-        if (operation->GetState() != EOperationState::Preparing)
-            throw TFiberTerminatedException();
+        if (operation->GetState() != EOperationState::Preparing) {
+            throw TFiberCanceledException();
+        }
 
         operation->SetState(EOperationState::Running);
 
@@ -872,8 +876,9 @@ private:
         auto batchRsp = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting sync scheduler transaction");
         if (operation->GetState() != EOperationState::Initializing &&
-            operation->GetState() != EOperationState::Reviving)
-            throw TFiberTerminatedException();
+            operation->GetState() != EOperationState::Reviving) {
+            throw TFiberCanceledException();
+        }
 
         auto transactionManager = GetTransactionManager();
 
@@ -923,8 +928,9 @@ private:
         auto batchRsp = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting async scheduler transaction");
         if (operation->GetState() != EOperationState::Initializing &&
-            operation->GetState() != EOperationState::Reviving)
-            throw TFiberTerminatedException();
+            operation->GetState() != EOperationState::Reviving) {
+            throw TFiberCanceledException();
+        }
 
         auto transactionManager = GetTransactionManager();
 
@@ -992,8 +998,9 @@ private:
         auto batchRsp = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting IO transactions");
         if (operation->GetState() != EOperationState::Initializing &&
-            operation->GetState() != EOperationState::Reviving)
-            throw TFiberTerminatedException();
+            operation->GetState() != EOperationState::Reviving) {
+            throw TFiberCanceledException();
+        }
 
         auto transactionManager = GetTransactionManager();
 
@@ -1072,8 +1079,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->GetState() != EOperationState::Reviving)
-            throw TFiberTerminatedException();
+        if (operation->GetState() != EOperationState::Reviving) {
+            throw TFiberCanceledException();
+        }
 
         auto operationId = operation->GetOperationId();
 
@@ -1090,8 +1098,9 @@ private:
                 auto asyncResult = MasterConnector->ResetRevivingOperationNode(operation);
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Reviving)
-                    throw TFiberTerminatedException();
+                if (operation->GetState() != EOperationState::Reviving) {
+                    throw TFiberCanceledException();
+                }
             }
 
             {
@@ -1099,8 +1108,9 @@ private:
                 auto asyncResult = controller->Revive();
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Reviving)
-                    throw TFiberTerminatedException();
+                if (operation->GetState() != EOperationState::Reviving) {
+                    throw TFiberCanceledException();
+                }
             }
 
             operation->SetState(EOperationState::Running);
@@ -1250,8 +1260,9 @@ private:
             auto asyncResult = transaction->AsyncCommit();
             auto result = WaitFor(asyncResult);
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
-            if (operation->GetState() != EOperationState::Completing)
-                throw TFiberTerminatedException();
+            if (operation->GetState() != EOperationState::Completing) {
+                throw TFiberCanceledException();
+            }
         };
 
         commitTransaction(operation->GetInputTransaction());
@@ -1541,8 +1552,9 @@ private:
 
         auto operationId = operation->GetOperationId();
 
-        if (operation->GetState() != EOperationState::Completing)
-            throw TFiberTerminatedException();
+        if (operation->GetState() != EOperationState::Completing) {
+            throw TFiberCanceledException();
+        }
 
         try {
             // First flush: ensure that all stderrs are attached and the
@@ -1550,8 +1562,9 @@ private:
             {
                 auto asyncResult = MasterConnector->FlushOperationNode(operation);
                 WaitFor(asyncResult);
-                if (operation->GetState() != EOperationState::Completing)
-                    throw TFiberTerminatedException();
+                if (operation->GetState() != EOperationState::Completing) {
+                    throw TFiberCanceledException();
+                }
             }
 
             {
@@ -1559,8 +1572,9 @@ private:
                 auto asyncResult = controller->Commit();
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Completing)
-                    throw TFiberTerminatedException();
+                if (operation->GetState() != EOperationState::Completing) {
+                    throw TFiberCanceledException();
+                }
             }
 
             CommitSchedulerTransactions(operation);

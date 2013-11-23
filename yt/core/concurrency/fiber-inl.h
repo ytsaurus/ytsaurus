@@ -12,6 +12,7 @@ template <class T>
 T WaitFor(TFuture<T> future, IInvokerPtr invoker)
 {
     WaitFor(future.IgnoreResult(), std::move(invoker));
+    YCHECK(future.IsSet());
     return future.Get();
 }
 

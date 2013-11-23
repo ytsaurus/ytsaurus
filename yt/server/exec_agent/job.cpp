@@ -768,7 +768,7 @@ private:
     void ThrowIfFinished()
     {
         if (JobPhase == EJobPhase::Finished) {
-            throw TFiberTerminatedException();
+            throw TFiberCanceledException();
         }
     }
 

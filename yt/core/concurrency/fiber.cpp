@@ -42,6 +42,7 @@ namespace __cxxabiv1 {
         unsigned int uncaughtExceptions;
     };
     extern "C" __cxa_eh_globals* __cxa_get_globals() throw();
+    extern "C" __cxa_eh_globals* __cxa_get_globals_fast() throw();
 } // namespace __cxxabiv1
 
 #endif
@@ -66,6 +67,17 @@ namespace NConcurrency {
  */
 TLS_STATIC TFiber* CurrentFiber = nullptr;
 
+//! Pointer to the current executor fiber being run by the current thread.
+/*!
+ *  This is non-owning reference so no manual Ref/Unref calls are required.
+ *
+ *  Examining |CurrentExecutor| could be useful for debugging purposes so we don't
+ *  put it into an anonymous namespace to avoid name mangling.
+ */
+TLS_STATIC TFiber* CurrentExecutor = nullptr;
+
+void DestroyRootFiber();
+
 namespace {
 
 const size_t SmallFiberStackSize = 1 << 18; // 256 Kb
@@ -74,9 +86,14 @@ const size_t LargeFiberStackSize = 1 << 23; //   8 Mb
 static void InitTls()
 {
     if (UNLIKELY(!CurrentFiber)) {
-        auto rootFiber = NYT::New<TFiber>();
+        auto rootFiber = New<TFiber>();
         CurrentFiber = rootFiber.Get();
-        CurrentFiber->Ref();
+        CurrentFiber->Ref(); // This is to-be-transferred reference from |rootFiber|.
+        CurrentFiber->Ref(); // This is an extra "magic" reference.
+        CurrentExecutor = CurrentFiber;
+#ifdef CXXABIv1
+        __cxxabiv1::__cxa_get_globals();
+#endif
     }
 }
 
@@ -278,7 +295,7 @@ public:
     void Swap(TFiberExceptionHandler& other)
     {
 #ifdef CXXABIv1
-        auto* currentEH = __cxxabiv1::__cxa_get_globals();
+        auto* currentEH = __cxxabiv1::__cxa_get_globals_fast();
         YASSERT(currentEH);
         EH = *currentEH;
         *currentEH = other.EH;
@@ -299,65 +316,72 @@ class TFiber::TImpl
     DEFINE_BYVAL_RO_PROPERTY(EFiberState, State);
 
 public:
-    TImpl(TFiber* owner)
+    TImpl(TFiber* this_)
         : State_(EFiberState::Running)
-        , Owner_(owner)
+        , This_(this_)
+        , Root_(true)
     {
         Init();
     }
 
-    TImpl(TFiber* owner, TClosure callee, EFiberStack stack)
+    TImpl(TFiber* this_, TClosure callee, EFiberStack stack)
         : State_(EFiberState::Initialized)
         , Stack_(GetStack(stack))
-        , Owner_(owner)
+        , This_(this_)
+        , Root_(false)
         , Callee_(std::move(callee))
     {
+        YCHECK(Stack_);
         Init();
         Reset();
     }
 
     ~TImpl()
     {
+        // Root fiber can never be destroyed in a trivial way.
+        YCHECK(!Root_);
+
+        // Running fiber can never be destroyed.
         YCHECK(!Caller_);
+
         YCHECK(Exception_ == std::exception_ptr());
+        YCHECK(!WaitFor_);
+        YCHECK(!SwitchTo_);
 
         YCHECK(!Terminating_);
         Terminating_ = true;
 
-        // Root fiber can never be destroyed.
-        YCHECK(!(
-            State_ == EFiberState::Running &&
-            !Stack_ &&
-            Callee_));
-
-        if (State_ == EFiberState::Suspended) {
-            // Most likely that the fiber has been abandoned
-            // after being submitted to an invoker.
-            // Give the callee the last chance to finish.
+        // Give the fiber a chance to cleanup.
+        if (State_ == EFiberState::Blocked || State_ == EFiberState::Suspended) {
             Cancel();
         }
 
         YCHECK(
             State_ == EFiberState::Initialized ||
             State_ == EFiberState::Terminated ||
+            State_ == EFiberState::Canceled ||
             State_ == EFiberState::Exception);
     }
 
     static TFiber* GetCurrent()
     {
         InitTls();
-
         return CurrentFiber;
     }
 
-    bool Yielded() const
+    static TFiber* GetExecutor()
     {
-        return Yielded_;
+        return CurrentExecutor;
     }
 
-    bool IsTerminating() const
+    static void SetExecutor(TFiber* executor)
     {
-        return Terminating_;
+        CurrentExecutor = executor;
+    }
+
+    bool HasForked() const
+    {
+        return Forked_;
     }
 
     bool IsCanceled() const
@@ -365,109 +389,191 @@ public:
         return Canceled_;
     }
 
-
     EFiberState Run()
     {
-        YCHECK(
-            State_ == EFiberState::Initialized ||
-            State_ == EFiberState::Suspended);
+        auto* caller = GetCurrent();
+        YCHECK(caller->Impl->State_ == EFiberState::Running);
+        caller->Impl->State_ = EFiberState::Blocked;
 
-        YCHECK(!Caller_);
-        Caller_ = TFiber::GetCurrent();
-        if (Caller_ && !Caller_->IsTerminating()) {
-            Caller_->Ref();
+        if (Canceled_) {
+            // When fiber is being cancelled control is always transfered
+            // to the local closure for cleanup. All descendant fibers
+            // will be cancelled automatically.
+            YCHECK(
+                State_ == EFiberState::Initialized ||
+                State_ == EFiberState::Suspended ||
+                State_ == EFiberState::Blocked);
+
+            State_ = EFiberState::Running;
+            ResumeTo_ = This_;
+        } else {
+            YCHECK(
+                State_ == EFiberState::Initialized ||
+                State_ == EFiberState::Suspended);
+
+            YCHECK(!Caller_);
+            YCHECK(
+                ResumeTo_->Impl->State_ == EFiberState::Initialized ||
+                ResumeTo_->Impl->State_ == EFiberState::Suspended);
+            ResumeTo_->Impl->State_ = EFiberState::Running;
+
+            if (ResumeTo_ != This_) {
+                // We are yielding to a suspended descendant
+                // hence mark |This_| as blocked again.
+                State_ = EFiberState::Blocked;
+            }
         }
-        SetCurrent(Owner_);
 
-        YCHECK(Caller_->Impl->State_ == EFiberState::Running);
-        State_ = EFiberState::Running;
+        SetCurrent(ResumeTo_);
+        Caller_ = caller;
+        Caller_->Impl->TransferTo(ResumeTo_->Impl.get());
 
-        Caller_->Impl->TransferTo(this);
+        // Acquire a reference to a just yielded fiber.
+        auto* yieldedFrom = GetCurrent();
+        YASSERT(yieldedFrom);
 
-        YCHECK(Caller_->Impl->State_ == EFiberState::Running);
+        YCHECK(Caller_ == caller);
 
         SetCurrent(Caller_);
-        if (Caller_ && !Caller_->IsTerminating()) {
-            Caller_->Unref();
-        }
         Caller_ = nullptr;
 
-        IInvokerPtr switchTo;
-        SwitchTo_.Swap(switchTo);
+        if (yieldedFrom == caller) {
+            // Fiber was interrupted while waiting for a child.
+            // This usually means that fiber is canceled.
+            YCHECK(caller->Impl->Canceled_);
+            throw TFiberCanceledException();
+        } else {
+            // In normal case fiber must receive control back from one of
+            // its descendants and continue regular execution.
+            YCHECK(caller->Impl->State_ == EFiberState::Blocked);
+            caller->Impl->State_ = EFiberState::Running;
+        }
 
-        TFuture<void> waitFor;
-        WaitFor_.Swap(waitFor);
+        // Rescheduling the yielded fiber may pass its ownership to another thread
+        // and eventually change its state in case of any races.
+        auto state = yieldedFrom->Impl->State_;
+        switch (state) {
+            case EFiberState::Terminated:
+            case EFiberState::Canceled:
+                // Fiber stack must be collapsed in FIFO manner, without jumps.
+                YCHECK(yieldedFrom == This_);
 
-        // Rescheduling the fiber may pass its ownership to another thread and
-        // eventually change its state. Hence we make a copy.
-        auto state = State_;
-        YCHECK(
-            state == EFiberState::Terminated ||
-            state == EFiberState::Exception ||
-            state == EFiberState::Suspended);
+                ResumeTo_ = nullptr;
 
-        if (state == EFiberState::Exception) {
-            // Rethrow the propagated exception.
+                // Nothing else special to do here.
+                break;
 
-            YCHECK(!Canceled_);
-            YASSERT(Exception_);
+            case EFiberState::Exception: {
+                // Fiber stack must be collapsed in FIFO manner, without jumps.
+                YCHECK(yieldedFrom == This_);
 
-            std::exception_ptr ex;
-            std::swap(Exception_, ex);
+                YCHECK(Exception_);
 
-            std::rethrow_exception(std::move(ex));
-        } else if (waitFor) {
-            // Schedule wakeup when the given future is set.
-            YCHECK(!Canceled_);
-            waitFor.Subscribe(BIND(&TImpl::Wakeup, MakeStrong(Owner_)).Via(switchTo));
-        } else if (switchTo) {          
-            // Schedule switch to another thread.
-            YCHECK(!Canceled_);
-            switchTo->Invoke(BIND(&TImpl::Wakeup, MakeStrong(Owner_)));
+                // Prepare to rethrow the propagated exception.
+                std::exception_ptr exception;
+                std::swap(Exception_, exception);
+
+                ResumeTo_ = nullptr;
+
+                // Rethrow.
+                std::rethrow_exception(std::move(exception));
+                YUNREACHABLE();
+            }
+
+            case EFiberState::Suspended: {
+                // Fiber stack could be suspended in multiple layers.
+                // So the yielder may not be equal to |This_|.
+                YCHECK(!Terminating_);
+                YCHECK(!Canceled_);
+
+                State_ = state;
+                ResumeTo_ = yieldedFrom;
+
+                // Before returning control back to the caller fulfill any demands
+                // from the yielded fiber concerning its rescheduling.
+                IInvokerPtr switchTo;
+                yieldedFrom->Impl->SwitchTo_.Swap(switchTo);
+
+                TFuture<void> waitFor;
+                yieldedFrom->Impl->WaitFor_.Swap(waitFor);
+
+                if (waitFor) {
+                    Forked_ = true;
+                    // Schedule wakeup when the given future is set.
+                    waitFor.Subscribe(
+                        BIND(&TImpl::Wakeup, MakeStrong(This_))
+                        .Via(switchTo));
+                } else if (switchTo) {
+                    Forked_ = true;
+                    // Schedule wakeup when switched to an another thread.
+                    switchTo->Invoke(
+                        BIND(&TImpl::Wakeup, MakeStrong(This_)));
+                }
+
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
         }
 
         return state;
     }
 
-    void Yield()
+    void Yield(TFiber* target)
     {
+        // Failure here indicates that an attempt is made to |Yield| control
+        // from a root fiber.
+        YCHECK(!Root_);
+
         // Failure here indicates that the callee has declined our kind offer
         // to exit gracefully and has called |Yield| once again.
         YCHECK(!Canceled_);
 
-        // Failure here indicates that an attempt is made to |Yield| control
-        // from a root fiber.
         YCHECK(Caller_);
+        YCHECK(target);
+        YASSERT(DescendsFrom(target)); // This is expensive check.
 
         YCHECK(State_ == EFiberState::Running);
         State_ = EFiberState::Suspended;
-        Yielded_ = true;
 
-        TransferTo(Caller_->Impl.get());
+        TransferTo(target->Impl.get());
+
         YCHECK(State_ == EFiberState::Running);
 
-        // Throw TFiberTerminatedException if cancellation is requested.
+        // Throw TFiberCanceledException if a cancellation is requested.
         if (Canceled_) {
-            throw TFiberTerminatedException();
+            throw TFiberCanceledException();
         }
 
         // Rethrow any user injected exception, if any.
         if (Exception_) {
-            std::exception_ptr ex;
-            std::swap(Exception_, ex);
+            std::exception_ptr exception;
+            std::swap(Exception_, exception);
 
-            std::rethrow_exception(std::move(ex));
+            std::rethrow_exception(std::move(exception));
         }
+    }
+
+    void Yield()
+    {
+        YCHECK(Caller_);
+        Yield(Caller_);
     }
 
     void Reset()
     {
         YASSERT(Stack_);
+        YASSERT(!Terminating_);
         YASSERT(!Caller_);
         YASSERT(Exception_ == std::exception_ptr());
+        YASSERT(!WaitFor_);
+        YASSERT(!SwitchTo_);
+
         YCHECK(
             State_ == EFiberState::Initialized ||
             State_ == EFiberState::Terminated ||
+            State_ == EFiberState::Canceled ||
             State_ == EFiberState::Exception);
 
         Context_.Reset(
@@ -477,6 +583,10 @@ public:
             this);
 
         State_ = EFiberState::Initialized;
+        Canceled_ = false;
+        Forked_ = false;
+        ResumeTo_ = This_;
+        CurrentInvoker_ = GetSyncInvoker();
     }
 
     void Reset(TClosure closure)
@@ -488,42 +598,49 @@ public:
 
     void Inject(std::exception_ptr&& exception)
     {
-        YCHECK(exception);
         YCHECK(
             State_ == EFiberState::Initialized ||
+            State_ == EFiberState::Blocked ||
             State_ == EFiberState::Suspended);
+        YCHECK(
+            State_ != EFiberState::Blocked || (
+                ResumeTo_ != This_ &&
+                ResumeTo_->Impl->State_ == EFiberState::Suspended));
+        YCHECK(!Caller_);
+        YCHECK(exception);
 
-        Exception_ = std::move(exception);
+        ResumeTo_->Impl->Exception_ = std::move(exception);
     }
 
     void Cancel()
     {
         switch (State_) {
             case EFiberState::Initialized:
+                Canceled_ = true;
+                break;
+
             case EFiberState::Terminated:
+            case EFiberState::Canceled:
             case EFiberState::Exception:
                 break;
 
+            case EFiberState::Running:
+                // Failure here indicates that fiber is being canceled
+                // from other thread.
+                YCHECK(GetCurrent() == This_);
+                Canceled_ = true;
+                throw TFiberCanceledException();
+
+            case EFiberState::Blocked:
             case EFiberState::Suspended:
                 Canceled_ = true;
-                WaitFor_.Reset();
-                SwitchTo_.Reset();
-                Exception_ = std::exception_ptr();
                 Run();
                 break;
-
-            case EFiberState::Running:
-                // Failure here indicates that Cancel is called for a fiber
-                // that is currently being run in another thread.
-                YCHECK(Owner_ == GetCurrent());
-                Canceled_ = true;
-                throw TFiberTerminatedException();
 
             default:
                 YUNREACHABLE();
         }
     }
-
 
     void SwitchTo(IInvokerPtr invoker)
     {
@@ -532,9 +649,11 @@ public:
         YCHECK(!SwitchTo_);
 
         CurrentInvoker_ = invoker;
-        SwitchTo_ = std::move(invoker);
+        SwitchTo_.Swap(invoker);
 
-        Yield();
+        auto* executor = GetExecutor();
+        YCHECK(executor);
+        Yield(executor);
     }
 
     void WaitFor(TFuture<void> future, IInvokerPtr invoker)
@@ -547,13 +666,15 @@ public:
         YCHECK(!WaitFor_);
         YCHECK(!SwitchTo_);
 
-        future.Swap(WaitFor_);
-        invoker.Swap(SwitchTo_);
+        WaitFor_.Swap(future);
+        SwitchTo_.Swap(invoker);
 
-        Yield();
+        auto* executor = GetExecutor();
+        YCHECK(executor);
+        Yield(executor);
     }
 
-    IInvokerPtr GetCurrentInvoker()
+    IInvokerPtr GetCurrentInvoker() const
     {
         return CurrentInvoker_;
     }
@@ -564,18 +685,24 @@ public:
     }
 
 private:
-    std::shared_ptr<TFiberStackBase> Stack_;
+    friend void DestroyRootFiber();
+
     TFiberContext Context_;
     TFiberExceptionHandler EH_;
+    std::shared_ptr<TFiberStackBase> Stack_;
 
-    TFiber* Owner_;
+    TFiber* const This_;
+    bool const Root_;
+
     volatile bool Terminating_;
     bool Canceled_;
-    bool Yielded_;
+    bool Forked_;
 
     TClosure Callee_;
-    //! Same as for |CurrentFiber|, this reference is owning unless the fiber is terminating.
+    //! Those reference is owning unless the fiber is terminating
+    //! (same as for |CurrentFiber|).
     TFiber* Caller_;
+    TFiber* ResumeTo_;
 
     std::exception_ptr Exception_;
     TFuture<void> WaitFor_;
@@ -583,20 +710,11 @@ private:
 
     IInvokerPtr CurrentInvoker_;
 
-    
-    void Init()
-    {
-        Terminating_ = false;
-        Canceled_ = false;
-        Yielded_ = false;
-        Caller_ = nullptr;
-        CurrentInvoker_ = GetSyncInvoker();
-    }
-
     static void Wakeup(TFiberPtr fiber)
     {
-        if (fiber->IsCanceled())
+        if (fiber->IsCanceled()) {
             return;
+        }
 
         fiber->Run();
     }
@@ -615,25 +733,47 @@ private:
 
     static void SetCurrent(TFiber* fiber)
     {
-        InitTls();
+        YASSERT(fiber);
 
         if (CurrentFiber != fiber) {
-            if (CurrentFiber && !CurrentFiber->IsTerminating()) {
+            if (!CurrentFiber->Impl->Terminating_) {
                 CurrentFiber->Unref();
             }
 
             CurrentFiber = fiber;
 
-            if (CurrentFiber && !CurrentFiber->IsTerminating()) {
+            if (!CurrentFiber->Impl->Terminating_) {
                 CurrentFiber->Ref();
             }
         }
+    }
+
+    void Init()
+    {
+        Terminating_ = false;
+        Canceled_ = false;
+        Forked_ = false;
+        Caller_ = nullptr;
+        ResumeTo_ = This_;
+        CurrentInvoker_ = GetSyncInvoker();
     }
 
     void TransferTo(TImpl* target)
     {
         EH_.Swap(target->EH_);
         Context_.Swap(target->Context_);
+    }
+
+    bool DescendsFrom(TFiber* caller)
+    {
+        auto* current = Caller_;
+        while (current) {
+            if (current == caller) {
+                return true;
+            }
+            current = current->Impl->Caller_;
+        }
+        return false;
     }
 
 #ifdef _linux_
@@ -654,28 +794,27 @@ private:
         if (Exception_) {
             State_ = EFiberState::Exception;
         } else if (Canceled_) {
-            State_ = EFiberState::Terminated;
+            State_ = EFiberState::Canceled;
         } else {
             try {
                 YCHECK(State_ == EFiberState::Running);
-
                 Callee_.Run();
-
                 YCHECK(State_ == EFiberState::Running);
                 State_ = EFiberState::Terminated;
-            } catch (const TFiberTerminatedException&) {
+            } catch (const TFiberCanceledException&) {
                 // Thrown intentionally, ignore.
-                State_ = EFiberState::Terminated;
+                State_ = EFiberState::Canceled;
             } catch (...) {
                 // Failure here indicates that an unhandled exception
                 // was thrown during fiber cancellation.
                 YCHECK(!Canceled_);
+
                 Exception_ = std::current_exception();
                 State_ = EFiberState::Exception;
             }
         }
 
-        // Fall back to the caller.
+        // Jump back to the caller.
         TransferTo(Caller_->Impl.get());
         YUNREACHABLE();
     }
@@ -700,19 +839,24 @@ TFiber* TFiber::GetCurrent()
     return TImpl::GetCurrent();
 }
 
+TFiber* TFiber::GetExecutor()
+{
+    return TImpl::GetExecutor();
+}
+
+void TFiber::SetExecutor(TFiber* executor)
+{
+    return TImpl::SetExecutor(executor);
+}
+
 EFiberState TFiber::GetState() const
 {
     return Impl->GetState();
 }
 
-bool TFiber::Yielded() const
+bool TFiber::HasForked() const
 {
-    return Impl->Yielded();
-}
-
-bool TFiber::IsTerminating() const
-{
-    return Impl->IsTerminating();
+    return Impl->HasForked();
 }
 
 bool TFiber::IsCanceled() const
@@ -728,6 +872,11 @@ EFiberState TFiber::Run()
 void TFiber::Yield()
 {
     Impl->Yield();
+}
+
+void TFiber::Yield(TFiber* caller)
+{
+    Impl->Yield(caller);
 }
 
 void TFiber::Reset()
@@ -750,17 +899,7 @@ void TFiber::Cancel()
     Impl->Cancel();
 }
 
-void TFiber::SwitchTo(IInvokerPtr invoker)
-{
-    Impl->SwitchTo(std::move(invoker));
-}
-
-void TFiber::WaitFor(TFuture<void> future, IInvokerPtr invoker)
-{
-    Impl->WaitFor(std::move(future), std::move(invoker));
-}
-
-IInvokerPtr TFiber::GetCurrentInvoker()
+IInvokerPtr TFiber::GetCurrentInvoker() const
 {
     return Impl->GetCurrentInvoker();
 }
@@ -772,41 +911,50 @@ void TFiber::SetCurrentInvoker(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::exception_ptr CreateFiberTerminatedException()
+void DestroyRootFiber()
 {
-    try {
-        throw TFiberTerminatedException();
-    } catch (...) {
-        return std::current_exception();
+    auto* current = CurrentFiber;
+    YCHECK(current->Impl->Root_);
+    YCHECK(current->GetRefCount() == 2);
+    YCHECK(current->GetState() == EFiberState::Running);
+    *const_cast<bool*>(&current->Impl->Root_) = false;
+    current->Impl->State_ = EFiberState::Terminated;
+    current->Unref();
+    current->Unref();
+    CurrentFiber = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Yield(TFiber* target)
+{
+    if (target == nullptr) {
+        TFiber::GetCurrent()->Yield();
+    } else {
+        TFiber::GetCurrent()->Yield(target);
     }
-    YUNREACHABLE();
-}
-
-void Yield()
-{
-    TFiber::GetCurrent()->Yield();
-}
-
-void WaitFor(TFuture<void> future, IInvokerPtr invoker)
-{
-    TFiber::GetCurrent()->WaitFor(std::move(future), std::move(invoker));
 }
 
 void SwitchTo(IInvokerPtr invoker)
 {
-    TFiber::GetCurrent()->SwitchTo(std::move(invoker));
+    TFiber::GetCurrent()->Impl->SwitchTo(std::move(invoker));
+}
+
+void WaitFor(TFuture<void> future, IInvokerPtr invoker)
+{
+    TFiber::GetCurrent()->Impl->WaitFor(std::move(future), std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
-
 TClosure GetCurrentFiberCanceler()
 {
     return BIND(&TFiber::Cancel, MakeStrong(TFiber::GetCurrent()));
 }
-
 } // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
