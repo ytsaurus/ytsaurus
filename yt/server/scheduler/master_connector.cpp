@@ -417,7 +417,6 @@ private:
                 DownloadSnapshots();
                 CleanupOperations();
                 InvokeWatchers();
-                GraceWait();
                 return Result;
             } catch (const std::exception& ex) {
                 return TErrorOr<TMasterHandshakeResult>(ex);
@@ -795,14 +794,6 @@ private:
             auto batchRsp = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
             Result.WatcherResponses = batchRsp;
-        }
-
-        // - Wait for the duration of ConnectGraceDelay.
-        void GraceWait()
-        {
-            LOG_INFO("Waiting for grace delay");
-
-            WaitFor(MakeDelayed(Owner->Config->ConnectGraceDelay));
         }
 
     };
