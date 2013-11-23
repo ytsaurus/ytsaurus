@@ -1,8 +1,8 @@
 #include "stdafx.h"
-
 #include "home.h"
 
 #ifdef _win_
+#define S_OK 0
 #include <shlobj.h>
 #endif
 

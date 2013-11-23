@@ -107,7 +107,24 @@ public:
         auto batchReq = StartBatchRequest(list);
         {
             auto req = TYPathProxy::Set(GetOperationPath(id));
-            req->set_value(BuildOperationYson(operation).Data());
+            req->set_value(BuildYsonStringFluently()
+                .BeginAttributes()
+                    .Do(BIND(&BuildInitializingOperationAttributes, operation))
+                    .Item("brief_spec").BeginMap()
+                        .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
+                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Bootstrap->GetScheduler()->GetStrategy(), operation))
+                    .EndMap()
+                    .Item("progress").BeginMap().EndMap()
+                    .Item("brief_progress").BeginMap().EndMap()
+                    .Item("opaque").Value("true")
+                .EndAttributes()
+                .BeginMap()
+                    .Item("jobs").BeginAttributes()
+                        .Item("opaque").Value("true")
+                    .EndAttributes()
+                    .BeginMap().EndMap()
+                .EndMap()
+                .Data());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -132,10 +149,17 @@ public:
 
         auto* list = GetUpdateList(operation);
         auto batchReq = StartBatchRequest(list);
-        {
-            auto req = TYPathProxy::Set(GetOperationPath(id) + "/@");
-            TYsonProducer producer(BIND(&TImpl::BuildRevivingOperationAttributes, operation));
-            req->set_value(ConvertToYsonString(producer).Data());
+
+        auto attributes = ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Do(BIND(&BuildRunningOperationAttributes, operation))
+                .Item("progress").BeginMap().EndMap()
+                .Item("brief_progress").BeginMap().EndMap()
+            .EndMap());
+
+        for (const auto& key : attributes->List()) {
+            auto req = TYPathProxy::Set(GetOperationPath(id) + "/@" + ToYPathLiteral(key));
+            req->set_value(attributes->GetYson(key).Data());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -417,7 +441,6 @@ private:
                 DownloadSnapshots();
                 CleanupOperations();
                 InvokeWatchers();
-                GraceWait();
                 return Result;
             } catch (const std::exception& ex) {
                 return TErrorOr<TMasterHandshakeResult>(ex);
@@ -797,14 +820,6 @@ private:
             Result.WatcherResponses = batchRsp;
         }
 
-        // - Wait for the duration of ConnectGraceDelay.
-        void GraceWait()
-        {
-            LOG_INFO("Waiting for grace delay");
-
-            WaitFor(MakeDelayed(Owner->Config->ConnectGraceDelay));
-        }
-
     };
 
 
@@ -852,48 +867,6 @@ private:
         MasterDisconnected_.Fire();
 
         StartConnecting();
-    }
-
-    TYsonString BuildOperationYson(TOperationPtr operation)
-    {
-        return BuildYsonStringFluently()
-            .BeginAttributes()
-                .Do(BIND(&BuildOperationAttributes, operation))
-                .Item("brief_spec").BeginMap()
-                    .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Bootstrap->GetScheduler()->GetStrategy(), operation))
-                .EndMap()
-                .Item("progress").BeginMap().EndMap()
-                .Item("brief_progress").BeginMap().EndMap()
-                .Item("opaque").Value("true")
-            .EndAttributes()
-            .BeginMap()
-                .Item("jobs").BeginAttributes()
-                    .Item("opaque").Value("true")
-                .EndAttributes()
-                .BeginMap()
-                .EndMap()
-            .EndMap();
-    }
-
-    static void BuildRevivingOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
-    {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Do(BIND(&BuildOperationAttributes, operation))
-                .Item("progress").BeginMap().EndMap()
-                .Item("breif_progress").BeginMap().EndMap()
-            .EndMap();
-    }
-
-    static void BuildJobNode(TJobPtr job, IYsonConsumer* consumer)
-    {
-        BuildYsonFluently(consumer)
-            .BeginAttributes()
-                .Do(BIND(&BuildJobAttributes, job))
-            .EndAttributes()
-            .BeginMap()
-            .EndMap();
     }
 
 
@@ -971,23 +944,6 @@ private:
         return operation;
     }
 
-    static TYsonString BuildJobYson(TJobPtr job)
-    {
-        return BuildYsonStringFluently()
-            .BeginAttributes()
-                .Do(BIND(&BuildJobAttributes, job))
-            .EndAttributes()
-            .BeginMap()
-            .EndMap();
-    }
-
-    static TYsonString BuildJobAttributesYson(TJobPtr job)
-    {
-        return BuildYsonStringFluently()
-            .BeginMap()
-                .Do(BIND(&BuildJobAttributes, job))
-            .EndMap();
-    }
 
     void StartRefresh()
     {
@@ -1369,9 +1325,18 @@ private:
                 auto job = request.Job;
                 auto operation = job->GetOperation();
                 auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
-                auto req = TYPathProxy::Set(jobPath);
-                req->set_value(BuildJobYson(job).Data());
-                batchReq->AddRequest(req, "update_op_node");
+
+                {
+                    auto req = TYPathProxy::Set(jobPath);
+                    req->set_value(BuildYsonStringFluently()
+                        .BeginAttributes()
+                        .Do(BIND(&BuildJobAttributes, job))
+                        .EndAttributes()
+                        .BeginMap()
+                        .EndMap()
+                        .Data());
+                    batchReq->AddRequest(req, "update_op_node");
+                }
 
                 if (request.StdErrChunkId != NullChunkId) {
                     auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
