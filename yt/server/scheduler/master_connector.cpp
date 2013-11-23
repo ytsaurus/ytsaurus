@@ -944,9 +944,6 @@ private:
         return operation;
     }
 
-    static TYsonString BuildJobYson(TJobPtr job)
-    {
-    }
 
     void StartRefresh()
     {
