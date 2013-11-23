@@ -344,14 +344,14 @@ void TJobProxy::CheckMemoryUsage()
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ")",
         memoryUsage,
         JobProxyMemoryLimit);
-    if (memoryUsage > JobProxyMemoryLimit) {
-        LOG_ERROR("lf_alloc counters (LargeBlocks: %" PRId64 ", SmallBlocks: %" PRId64 ", System: %" PRId64 ", Used: %" PRId64 ", MMaped: %" PRId64 ")",
+    LOG_ERROR("lf_alloc counters (LargeBlocks: %" PRId64 ", SmallBlocks: %" PRId64 ", System: %" PRId64 ", Used: %" PRId64 ", MMaped: %" PRId64 ")",
             NLFAlloc::GetCurrentLargeBlocks(),
             NLFAlloc::GetCurrentSmallBlocks(),
             NLFAlloc::GetCurrentSystem(),
             NLFAlloc::GetCurrentUsed(),
             NLFAlloc::GetCurrentMmaped());
 
+    if (memoryUsage > JobProxyMemoryLimit) {
         LOG_FATAL(
             "Job proxy memory limit exceeded (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ", RefCountedTracker: %s)",
             memoryUsage,
