@@ -44,7 +44,8 @@ template<unsigned N, unsigned... Indexes>
 struct TGenerateSequence : TGenerateSequence<N - 1, N - 1, Indexes...> { };
 
 template<unsigned... Indexes>
-struct TGenerateSequence<0, Indexes...> {
+struct TGenerateSequence<0, Indexes...>
+{
 	typedef TSequence<Indexes...> TType;
 };
 
@@ -152,8 +153,8 @@ public:
     template <class... TParams>
     bool Run(TParams&&... params)
     {
-  static_assert(sizeof...(TParams) == sizeof...(TArgs),
-      "Params and args counts does not match.");
+        static_assert(sizeof...(TParams) == sizeof...(TArgs),
+            "Params and args counts does not match.");
         Arguments = std::make_tuple(std::forward<TParams>(params)...);
         Fiber->Run();
         return Result;
