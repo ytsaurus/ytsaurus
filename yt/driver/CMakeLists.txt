@@ -55,6 +55,12 @@ target_link_libraries( yt
   ytlib
 )
 
+if (!WIN32)
+  target_link_libraries( yt
+    ytext-lfalloc
+  )
+endif()
+
 install(
   TARGETS yt
   RUNTIME DESTINATION bin

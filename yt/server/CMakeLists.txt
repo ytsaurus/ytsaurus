@@ -50,6 +50,16 @@ target_link_libraries( ytserver
   ytlib
 )
 
+if (WIN32)
+  target_link_libraries( ytserver
+    ytext-lfalloc-fake
+  )
+else()
+  target_link_libraries( ytserver
+    ytext-lfalloc
+  )
+endif()
+
 target_link_libraries( ytserver_lib
   ytlib
 )

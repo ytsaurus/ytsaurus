@@ -40,11 +40,11 @@ add_msvc_precompiled_header(
   YT_SOURCE_FILES
 )
 
-add_library( ytlib-no-lfalloc STATIC
+add_library( ytlib STATIC
   ${YT_SOURCE_FILES}
 )
 
-target_link_libraries ( ytlib-no-lfalloc
+target_link_libraries ( ytlib
   ytext-arcadia-util
   ytext-coro
   ytext-ev
@@ -52,14 +52,6 @@ target_link_libraries ( ytlib-no-lfalloc
   ytext-json
   ytext-httpserver
   protobuf
-)
-
-add_library( ytlib STATIC
-)
-
-target_link_libraries( ytlib
-  ytlib-no-lfalloc
-  ytext-lfalloc
 )
 
 include_directories(

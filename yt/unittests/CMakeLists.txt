@@ -92,3 +92,8 @@ target_link_libraries( unittester
   ytserver_lib
 )
 
+if (!WIN32)
+  target_link_libraries( unittester
+    ytext-lfalloc
+  )
+endif()

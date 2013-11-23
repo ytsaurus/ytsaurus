@@ -1,6 +1,6 @@
 function( NODE target type )
   add_library( ${target} ${type} ${ARGN} )
-  target_link_libraries( ${target} ytlib )
+  target_link_libraries( ${target} ytlib ytext-lfalloc )
 
   set( _node_compile_definitions
     "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64")
