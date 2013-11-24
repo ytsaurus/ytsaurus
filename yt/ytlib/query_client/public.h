@@ -32,8 +32,13 @@ using NVersionedTableClient::IReaderPtr;
 using NVersionedTableClient::IWriterPtr;
 
 using NVersionedTableClient::EValueType;
+
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TKeyColumns;
+
+// TODO(sandello): Change me after migrating to TUnversionedValue in query_client.
+typedef NVersionedTableClient::TVersionedRow TRow;
+typedef NVersionedTableClient::TVersionedValue TValue;
 
 ////////////////////////////////////////////////////////////////////////////////
 

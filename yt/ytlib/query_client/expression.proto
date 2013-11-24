@@ -34,7 +34,8 @@ message TReferenceExpression
     }
     required int32 table_index = 1;
     required string column_name = 2;
-    required int32 cached_key_index = 3;
+    required int32 index_in_row = 3;
+    required int32 index_in_key = 4;
 }
 
 message TFunctionExpression

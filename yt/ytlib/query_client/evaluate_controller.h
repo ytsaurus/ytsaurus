@@ -4,6 +4,8 @@
 #include "callbacks.h"
 #include "plan_fragment.h"
 
+#include <core/concurrency/coroutine.h>
+
 #include <core/logging/tagged_logger.h>
 
 namespace NYT {
@@ -11,6 +13,19 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Forward-declare node types.
+class TScanOperator;
+class TUnionOperator;
+class TFilterOperator;
+class TProjectOperator;
+
+class TIntegerLiteralExpression;
+class TDoubleLiteralExpression;
+class TReferenceExpression;
+class TFunctionExpression;
+class TBinaryOpExpression;
+
+// TODO(sandello): Why refcounted?
 class TEvaluateController
     : public TRefCounted
 {
@@ -40,9 +55,36 @@ public:
     }
 
 private:
-    // XXX(sandello): Temporary functions; to be codegen'd.
-    TError RunUnion();
-    TError RunProject();
+    typedef NConcurrency::TCoroutine<void(std::vector<TRow>*)> TProducer;
+
+    TProducer CreateProducer(const TOperator* op);
+
+    void ScanRoutine(
+        const TScanOperator* op,
+        TProducer& self,
+        std::vector<TRow>* rows);
+    void UnionRoutine(
+        const TUnionOperator* op,
+        TProducer& self,
+        std::vector<TRow>* rows);
+    void FilterRoutine(
+        const TFilterOperator* op,
+        TProducer& self,
+        std::vector<TRow>* rows);
+    void ProjectRoutine(
+        const TProjectOperator* op,
+        TProducer& self,
+        std::vector<TRow>* rows);
+
+    TValue EvaluateExpression(
+        const TExpression* expr,
+        const TRow row) const;
+    TValue EvaluateFunctionExpression(
+        const TFunctionExpression* expr,
+        const TRow row) const;
+    TValue EvaluateBinaryOpExpression(
+        const TBinaryOpExpression* expr,
+        const TRow row) const;
 
     void SetHead(const TOperator* head)
     {
@@ -59,6 +101,8 @@ private:
     IEvaluateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
     IWriterPtr Writer_;
+
+    NVersionedTableClient::TNameTablePtr NameTable_;
 
     NLog::TTaggedLogger Logger;
 

@@ -427,26 +427,30 @@ void TLookupCommand::DoExecute()
     auto req = proxy.Lookup();
     ToProto(req->mutable_tablet_id(), mountInfo->TabletId);
     req->set_timestamp(Request->Timestamp);
-    
+
     TUnversionedRowBuilder keyBuilder;
     std::vector<TYsonString> anyValues;
     for (auto keyPart : Request->Key) {
         switch (keyPart->GetType()) {
             case ENodeType::Integer:
-                keyBuilder.AddValue(TUnversionedValue::MakeInteger(keyPart->GetValue<i64>()));
+                keyBuilder.AddValue(MakeIntegerValue<TUnversionedValue>(
+                    keyPart->GetValue<i64>()));
                 break;
             case ENodeType::Double:
-                keyBuilder.AddValue(TUnversionedValue::MakeDouble(keyPart->GetValue<double>()));
+                keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
+                    keyPart->GetValue<double>()));
                 break;
             case ENodeType::String:
                 // NB: keyPart will hold the value.
-                keyBuilder.AddValue(TUnversionedValue::MakeString(keyPart->GetValue<Stroka>()));
+                keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
+                    keyPart->GetValue<Stroka>()));
                 break;
             default: {
                 // NB: Hold the serialized value explicitly.
                 auto anyValue = ConvertToYsonString(keyPart);
                 anyValues.push_back(anyValue);
-                keyBuilder.AddValue(TUnversionedValue::MakeAny(anyValue.Data()));
+                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
+                    anyValue.Data()));
                 break;
             }
         }

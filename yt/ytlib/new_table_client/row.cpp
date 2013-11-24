@@ -29,7 +29,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             } else {
                 return 0;
             }
-                                   }
+        }
 
         case EValueType::Double: {
             auto lhsValue = lhs.Data.Double;
@@ -41,7 +41,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             } else {
                 return 0;
             }
-                                  }
+        }
 
         case EValueType::String: {
             size_t lhsLength = lhs.Length;
@@ -59,7 +59,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             } else {
                 return result;
             }
-                                  }
+        }
 
         case EValueType::Any:
             return 0; // NB: Cannot actually compare composite values.
@@ -110,7 +110,7 @@ TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueTy
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(GetRowDataSize<TUnversionedValue>(prefixLength + 1), false);
     ::memcpy(rowData.Begin(), key.RowData.Begin(), GetRowDataSize<TUnversionedValue>(prefixLength));
     TKey result(reinterpret_cast<TRowHeader*>(rowData.Begin()));
-    result[prefixLength] = TUnversionedValue::MakeSentinel(sentinelType);
+    result[prefixLength] = MakeSentinelValue<TUnversionedValue>(sentinelType);
     return TOwningKey(std::move(rowData), key.StringData);
 }
 

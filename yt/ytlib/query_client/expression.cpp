@@ -107,7 +107,8 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
             auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
             proto->set_table_index(expr->GetTableIndex());
             proto->set_column_name(expr->GetColumnName());
-            proto->set_cached_key_index(expr->GetCachedKeyIndex());
+            proto->set_index_in_row(expr->GetIndexInRow());
+            proto->set_index_in_key(expr->GetIndexInKey());
             break;
         }
 
@@ -167,7 +168,8 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
                 NullSourceLocation,
                 data.table_index(),
                 data.column_name());
-            typedResult->SetCachedKeyIndex(data.cached_key_index());
+            typedResult->SetIndexInRow(data.index_in_row());
+            typedResult->SetIndexInKey(data.index_in_key());
             YASSERT(!result);
             result = typedResult;
             break;

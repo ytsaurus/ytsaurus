@@ -15,7 +15,7 @@ struct TUnversionedValue
 {
     //! Column id obtained from a name table.
     ui16 Id;
-    //! Column type (compact EValueType).
+    //! Column type from EValueType.
     ui16 Type;
     //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
     ui32 Length;
@@ -29,65 +29,102 @@ struct TUnversionedValue
         //! String value for |String| type or YSON-encoded value for |Any| type.
         const char* String;
     } Data;
-
-    static FORCED_INLINE TUnversionedValue MakeSentinel(EValueType type, int id = 0)
-    {
-        TUnversionedValue result;
-        result.Id = id;
-        result.Type = EValueType::Null;
-        return result;
-    }
-
-    static FORCED_INLINE TUnversionedValue MakeInteger(i64 value, int id = 0)
-    {
-        TUnversionedValue result;
-        result.Id = id;
-        result.Type = EValueType::Integer;
-        result.Data.Integer = value;
-        return result;
-    }
-
-    static FORCED_INLINE TUnversionedValue MakeDouble(double value, int id = 0)
-    {
-        TUnversionedValue result;
-        result.Id = id;
-        result.Type = EValueType::Double;
-        result.Data.Double = value;
-        return result;
-    }
-
-    static FORCED_INLINE TUnversionedValue MakeString(const TStringBuf& value, int id = 0)
-    {
-        TUnversionedValue result;
-        result.Id = id;
-        result.Type = EValueType::String;
-        result.Length = value.length();
-        result.Data.String = value.begin();
-        return result;
-    }
-
-    static FORCED_INLINE TUnversionedValue MakeAny(const TStringBuf& value, int id = 0)
-    {
-        TUnversionedValue result;
-        result.Id = id;
-        result.Type = EValueType::Any;
-        result.Length = value.length();
-        result.Data.String = value.begin();
-        return result;
-    }
 };
 
-static_assert(sizeof(TUnversionedValue) == 16, "TUnversionedValue has to be exactly 16 bytes.");
+static_assert(
+    sizeof(TUnversionedValue) == 16,
+    "TUnversionedValue has to be exactly 16 bytes.");
+static_assert(
+    std::is_pod<TUnversionedValue>::value,
+    "TUnversionedValue must be a POD type.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVersionedValue
-    : public TUnversionedValue
+    : TUnversionedValue
 {
     TTimestamp Timestamp;
+
+    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
+    static FORCED_INLINE TVersionedValue MakeInteger(i64 value, int id = 0)
+    {
+        TVersionedValue result;
+        result.Id = id;
+        result.Type = EValueType::Integer;
+        result.Data.Integer = value;
+        result.Timestamp = 0;
+        return result;
+    }
+
+    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
+    static FORCED_INLINE TVersionedValue MakeDouble(double value, int id = 0)
+    {
+        TVersionedValue result;
+        result.Id = id;
+        result.Type = EValueType::Integer;
+        result.Data.Double = value;
+        result.Timestamp = 0;
+        return result;
+    }
+
 };
 
-static_assert(sizeof(TVersionedValue) == 24, "TVersionedValue has to be exactly 24 bytes.");
+static_assert(
+    sizeof(TVersionedValue) == 24,
+    "TVersionedValue has to be exactly 24 bytes.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TValue>
+TValue MakeSentinelValue(EValueType type, int id = 0)
+{
+    TValue result;
+    result.Id = id;
+    result.Type = EValueType::Null;
+    return result;
+}
+
+template <class TValue>
+TValue MakeIntegerValue(i64 value, int id = 0)
+{
+    TValue result;
+    result.Id = id;
+    result.Type = EValueType::Integer;
+    result.Data.Integer = value;
+    return result;
+}
+
+template <class TValue>
+TValue MakeDoubleValue(double value, int id = 0)
+{
+    TValue result;
+    result.Id = id;
+    result.Type = EValueType::Double;
+    result.Data.Double = value;
+    return result;
+}
+
+template <class TValue>
+TValue MakeStringValue(const TStringBuf& value, int id = 0)
+{
+    TValue result;
+    result.Id = id;
+    result.Type = EValueType::String;
+    result.Length = value.length();
+    result.Data.String = value.begin();
+    return result;
+}
+
+template <class TValue>
+TValue MakeAnyValue(const TStringBuf& value, int id = 0)
+{
+    TValue result;
+    result.Id = id;
+    result.Type = EValueType::Any;
+    result.Length = value.length();
+    result.Data.String = value.begin();
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +135,9 @@ struct TRowHeader
     ui32 Padding;
 };
 
-static_assert(sizeof(TRowHeader) == 8, "TRowHeader has to be exactly 8 bytes.");
+static_assert(
+    sizeof(TRowHeader) == 8,
+    "TRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +156,7 @@ size_t GetHash(const TUnversionedValue& value);
 template <class TValue>
 FORCED_INLINE size_t GetRowDataSize(int valueCount)
 {
-    return sizeof (TRowHeader) + sizeof (TValue) * valueCount;
+    return sizeof(TRowHeader) + sizeof(TValue) * valueCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +174,7 @@ public:
         TChunkedMemoryPool* pool, 
         int valueCount)
         : Header(reinterpret_cast<TRowHeader*>(
-            pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TUnversionedValue))))
+            pool->Allocate(GetRowDataSize<TUnversionedValue>(valueCount))))
     {
         Header->ValueCount = valueCount;
     }
@@ -177,8 +216,12 @@ private:
 
 };
 
-static_assert(sizeof(TVersionedRow)   == sizeof (intptr_t), "TVersionedRow size must match that of a pointer.");
-static_assert(sizeof(TUnversionedRow) == sizeof (intptr_t), "TVersionedRow size must match that of a pointer.");
+static_assert(
+    sizeof(TVersionedRow) == sizeof(intptr_t),
+    "TVersionedRow size must match that of a pointer.");
+static_assert(
+    sizeof(TUnversionedRow) == sizeof(intptr_t),
+    "TVersionedRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,6 +239,7 @@ public:
     {
         auto* header = GetHeader();
         header->ValueCount = 0;
+        header->Padding = 0;
     }
 
     void AddValue(const TValue& value)
@@ -205,9 +249,9 @@ public:
             std::unique_ptr<char[]> newData(new char[GetRowDataSize<TValue>(newCapacity)]);
             ::memcpy(newData.get(), Data_.get(), GetRowDataSize<TValue>(Capacity_));
             std::swap(Data_, newData);
-            Capacity_ = newCapacity;
+            std::swap(Capacity_, newCapacity);
         }
-    
+
         auto* header = GetHeader();
         auto row = GetRow();
         row[header->ValueCount++] = value;
@@ -222,7 +266,6 @@ private:
     int Capacity_;
     std::unique_ptr<char[]> Data_;
 
-
     TRowHeader* GetHeader() const
     {
         return reinterpret_cast<TRowHeader*>(Data_.get());
@@ -235,14 +278,13 @@ private:
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 
-TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
-
-//! Returns the successor of |key|, i.e. the key
-//! obtained from |key| by appending a |EValueType::Min| sentinel.
+//! Returns the successor of |key|, i.e. the key obtained from |key|
+// by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(const TOwningKey& key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
-//! obtained by triming |key| to |prefixLength| and appending a |EValueType::Max| sentinel.
+//! obtained by triming |key| to |prefixLength| and appending
+//! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -295,8 +337,8 @@ public:
                 break;
 
             case EValueType::Double:
-                ::memcpy(current, &value.Data.Double, sizeof (double));
-                current += sizeof (double);
+                ::memcpy(current, &value.Data.Double, sizeof(double));
+                current += sizeof(double);
                 break;
 
             case EValueType::String:
@@ -310,7 +352,6 @@ public:
             }
         }
     }
-
 
     FORCED_INLINE explicit operator bool()
     {
@@ -339,10 +380,8 @@ private:
     friend void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
 
-
     TSharedRef RowData; // TRowHeader plus TUnversionedValue-s
-    Stroka StringData;  // Holds string data
-
+    Stroka StringData; // Holds string data
 
     FORCED_INLINE TOwningRow(TSharedRef rowData, Stroka stringData)
         : RowData(std::move(rowData))

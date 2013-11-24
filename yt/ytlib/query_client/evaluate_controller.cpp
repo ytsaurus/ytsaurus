@@ -16,6 +16,7 @@
 #include <core/concurrency/fiber.h>
 
 #include <core/misc/protobuf_helpers.h>
+#include <core/misc/chunked_memory_pool.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -32,6 +33,7 @@ TEvaluateController::TEvaluateController(
     : Callbacks_(callbacks)
     , Fragment_(fragment)
     , Writer_(std::move(writer))
+    , NameTable_(New<TNameTable>())
     , Logger(QueryClientLogger)
 {
     Logger.AddTag(Sprintf(
@@ -47,67 +49,22 @@ TError TEvaluateController::Run()
     try {
         LOG_DEBUG("Evaluating plan fragment");
 
-        switch (GetHead()->GetKind()) {
-            case EOperatorKind::Union:
-                return RunUnion();
-            case EOperatorKind::Project:
-                return RunProject();
-            default:
-                YUNIMPLEMENTED();
-        }
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to evaluate plan fragment") << ex;
-        LOG_ERROR(error);
-        return error;
-    }
-}
+        auto producer = CreateProducer(GetHead());
+        bool didOpenWriter = false;
 
-TError TEvaluateController::RunUnion()
-{
-    LOG_DEBUG("Evaluating union fragment");
-
-    auto* unionOp = GetHead()->As<TUnionOperator>();
-    YCHECK(unionOp);
-
-    LOG_DEBUG("Got %" PRISZT " sources", unionOp->Sources().size());
-
-    // Prepare to write stuff.
-    auto nameTable = New<TNameTable>();
-    TTableSchema tableSchema;
-    TKeyColumns keyColumns;
-    bool didOpenWriter = false;
-
-    // TODO(babenko): switch to TUnversionedRow
-    std::vector<TVersionedRow> rows;
-    rows.reserve(1000);
-
-    for (const auto& source : unionOp->Sources()) {
-        auto* scanOp = source->As<TScanOperator>();
-        YCHECK(scanOp);
-        
-        tableSchema = GetTableSchemaFromDataSplit(scanOp->DataSplit());
-        keyColumns = GetKeyColumnsFromDataSplit(scanOp->DataSplit());
-
-        LOG_DEBUG("Opening reader");
-        auto reader = GetCallbacks()->GetReader(scanOp->DataSplit());
-        auto error = WaitFor(reader->Open(nameTable, tableSchema));
-        RETURN_IF_ERROR(error);
-
-        if (!didOpenWriter) {
-            LOG_DEBUG("Opening writer");
-            Writer_->Open(nameTable, tableSchema, keyColumns);
-            didOpenWriter = true;
-        } else {
-            /*YCHECK(tableSchema == GetTableSchemaFromDataSplit(scanOp->DataSplit()));
-            YCHECK(keyColumns == GetKeyColumnsFromDataSplit(scanOp->DataSplit()));*/
-        }
-
-        
-
-        while (true) {
-            bool hasData = reader->Read(&rows);
+        std::vector<TRow> rows;
+        rows.reserve(1000);
+        while (producer.Run(&rows)) {
+            if (UNLIKELY(!didOpenWriter)) {
+                LOG_DEBUG("Opening writer");
+                Writer_->Open(
+                    NameTable_,
+                    GetHead()->GetTableSchema(),
+                    GetHead()->GetKeyColumns());
+                didOpenWriter = true;
+            }
             for (auto row : rows) {
-                for (int i = 0; i < row.GetValueCount(); ++i) {
+               for (int i = 0; i < row.GetValueCount(); ++i) {
                     Writer_->WriteValue(row[i]);
                 }
                 if (!Writer_->EndRow()) {
@@ -115,165 +72,280 @@ TError TEvaluateController::RunUnion()
                     RETURN_IF_ERROR(result);
                 }
             }
-            if (!hasData) {
-                break;
-            }
-            if (rows.size() < rows.capacity()) {
-                auto result = WaitFor(reader->GetReadyEvent());
-                RETURN_IF_ERROR(result);
-            }
             rows.clear();
         }
-    }
 
-    if (didOpenWriter) {
-        return WaitFor(Writer_->AsyncClose());
-    } else {
+        if (didOpenWriter) {
+            LOG_DEBUG("Closing writer");
+            auto error = WaitFor(Writer_->AsyncClose());
+            if (!error.IsOK()) {
+                LOG_ERROR(error);
+                return error;
+            }
+        }
+
+        LOG_DEBUG("Finished evaluating plan fragment");
         return TError();
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to evaluate plan fragment") << ex;
+        LOG_ERROR(error);
+        return error;
     }
 }
 
-TError TEvaluateController::RunProject()
+TEvaluateController::TProducer TEvaluateController::CreateProducer(const TOperator* op)
 {
-    LOG_DEBUG("Evaluating project fragment");
-
-    auto* projectOp = GetHead()->As<TProjectOperator>();
-    YCHECK(projectOp);
-
-    for (const auto& projection : projectOp->Projections()) {
-        YCHECK(projection->GetKind() == EExpressionKind::Reference);
+    switch (op->GetKind()) {
+        case EOperatorKind::Scan:
+            return TProducer(BIND(&TEvaluateController::ScanRoutine,
+                Unretained(this),
+                op->As<TScanOperator>()));
+        case EOperatorKind::Union:
+            return TProducer(BIND(&TEvaluateController::UnionRoutine,
+                Unretained(this),
+                op->As<TUnionOperator>()));
+        case EOperatorKind::Filter:
+            return TProducer(BIND(&TEvaluateController::FilterRoutine,
+                Unretained(this),
+                op->As<TFilterOperator>()));
+        case EOperatorKind::Project:
+            return TProducer(BIND(&TEvaluateController::ProjectRoutine,
+                Unretained(this),
+                op->As<TProjectOperator>()));
     }
+    YUNREACHABLE();
+}
 
-    const TFilterOperator* filterOp = nullptr;
-    const TScanOperator* scanOp = nullptr;
+void TEvaluateController::ScanRoutine(
+    const TScanOperator* op,
+    TProducer& self,
+    std::vector<TRow>* rows)
+{
+    YCHECK(op);
 
-    {
-        auto* currentOp = projectOp->GetSource();
-        while (currentOp) {
-            switch (currentOp->GetKind()) {
-                case EOperatorKind::Filter:
-                    filterOp = currentOp->As<TFilterOperator>();
-                    currentOp = filterOp->GetSource();
-                    break;
-                case EOperatorKind::Scan:
-                    scanOp = currentOp->As<TScanOperator>();
-                    currentOp = nullptr;
-                    break;
-                default:
-                    YUNIMPLEMENTED();
-            }
-        }
-    }
+    LOG_DEBUG("Creating producer for scan operator (Op: %p)", op);
 
-    YCHECK(scanOp);
-
-    auto nameTable = New<TNameTable>();
-    auto keyColumns = projectOp->GetKeyColumns();
-    auto writerSchema = projectOp->GetTableSchema();
-    auto readerSchema = GetTableSchemaFromDataSplit(scanOp->DataSplit());
+    auto reader = GetCallbacks()->GetReader(op->DataSplit());
+    auto schema = GetTableSchemaFromDataSplit(op->DataSplit());
 
     LOG_DEBUG("Opening reader");
-    auto reader = GetCallbacks()->GetReader(scanOp->DataSplit());
-    auto error = WaitFor(reader->Open(nameTable, readerSchema));
-    RETURN_IF_ERROR(error);
 
-    LOG_DEBUG("Opening writer");
-    Writer_->Open(nameTable, writerSchema, keyColumns);
-
-    // TODO(babenko): switch to TUnversionedRow
-    std::vector<TVersionedRow> rows;
-    rows.reserve(1000);
-
-    TSmallVector<int, TypicalProjectionCount> writerIndexToReaderIndex;
-    TSmallVector<int, TypicalProjectionCount> writerIndexToNameIndex;
-    writerIndexToReaderIndex.resize(projectOp->GetProjectionCount());
-    writerIndexToNameIndex.resize(projectOp->GetProjectionCount());
-
-    for (int i = 0; i < projectOp->GetProjectionCount(); ++i) {
-        const auto& projection = projectOp->GetProjection(i);
-        auto name = projection->As<TReferenceExpression>()->GetColumnName();
-        auto index = readerSchema.GetColumnIndex(readerSchema.GetColumnOrThrow(name));
-        writerIndexToReaderIndex[i] = index;
-        writerIndexToNameIndex[i] = nameTable->GetId(projection->GetName());
-    }
-
-    // Dumb way to do filter. :)
-    int lhsReaderIndex = -1;
-    i64 lhsValue = -1;
-    i64 rhsValue = -1;
-    EBinaryOp binaryOpOpcode = EBinaryOp::Equal;
-
-    if (filterOp) {
-        auto binaryOpExpr = filterOp->GetPredicate()->As<TBinaryOpExpression>();
-        YCHECK(binaryOpExpr);
-        auto lhsReferenceExpr = binaryOpExpr->GetLhs()->As<TReferenceExpression>();
-        auto rhsIntegerValueExpr = binaryOpExpr->GetRhs()->As<TIntegerLiteralExpression>();
-        YCHECK(lhsReferenceExpr);
-        YCHECK(lhsReferenceExpr->GetCachedType() == EValueType::Integer);
-        YCHECK(rhsIntegerValueExpr);
-
-        binaryOpOpcode = binaryOpExpr->GetOpcode();
-        lhsReaderIndex =
-            readerSchema.GetColumnIndex(
-                readerSchema.GetColumnOrThrow(
-                    lhsReferenceExpr->GetColumnName()));
-        lhsValue = 0;
-        rhsValue = rhsIntegerValueExpr->GetValue();
+    {
+        auto error = WaitFor(reader->Open(NameTable_, schema));
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     while (true) {
-        bool hasData = reader->Read(&rows);
-        for (auto row : rows) {
-            bool predicate = true;
-            if (filterOp) {
-                lhsValue = row[lhsReaderIndex].Data.Integer;
-                switch (binaryOpOpcode) {
-                    case EBinaryOp::Less:
-                        predicate = (lhsValue < rhsValue);
-                        break;
-                    case EBinaryOp::LessOrEqual:
-                        predicate = (lhsValue <= rhsValue);
-                        break;
-                    case EBinaryOp::Equal:
-                        predicate = (lhsValue == rhsValue);
-                        break;
-                    case EBinaryOp::NotEqual:
-                        predicate = (lhsValue != rhsValue);
-                        break;
-                    case EBinaryOp::Greater:
-                        predicate = (lhsValue > rhsValue);
-                        break;
-                    case EBinaryOp::GreaterOrEqual:
-                        predicate = (lhsValue >= rhsValue);
-                        break;
-                    default:
-                        YUNREACHABLE();
-                }
-            }
-            if (!predicate) {
-                continue;
-            }
-            for (int i = 0; i < projectOp->GetProjectionCount(); ++i) {
-                auto value = row[writerIndexToReaderIndex[i]];
-                value.Id = writerIndexToNameIndex[i];
-                Writer_->WriteValue(value);
-            }
-            if (!Writer_->EndRow()) {
-                auto result = WaitFor(Writer_->GetReadyEvent());
-                RETURN_IF_ERROR(result);
-            }
-        }
-        if (!hasData) {
+        bool hasMoreData = reader->Read(rows);
+        bool shouldWait = (rows->size() < rows->capacity());
+        std::tie(rows) = self.Yield();
+        if (!hasMoreData) {
             break;
         }
-        if (rows.size() < rows.capacity()) {
-            auto result = WaitFor(reader->GetReadyEvent());
-            RETURN_IF_ERROR(result);
+        if (shouldWait) {
+            auto error = WaitFor(reader->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
-        rows.clear();
     }
 
-    return WaitFor(Writer_->AsyncClose());
+    LOG_DEBUG("Done producing for scan operator (Op: %p)", op);
+}
+
+void TEvaluateController::UnionRoutine(
+    const TUnionOperator* op,
+    TProducer& self,
+    std::vector<TRow>* rows)
+{
+    YASSERT(op);
+    LOG_DEBUG("Creating producer for union operator (Op: %p)", op);
+
+    // TODO(sandello): Plug a merging reader here.
+    for (const auto& sourceOp : op->Sources()) {
+        auto source = CreateProducer(sourceOp);
+        while (source.Run(rows)) {
+            std::tie(rows) = self.Yield();
+        }
+    }
+
+    LOG_DEBUG("Done producing for union operator (Op: %p)", op);
+}
+
+void TEvaluateController::FilterRoutine(
+    const TFilterOperator* op,
+    TProducer& self,
+    std::vector<TRow>* rows)
+{
+    YASSERT(op);
+    LOG_DEBUG("Creating producer for filter operator (Op: %p)", op);
+
+    auto source = CreateProducer(op->GetSource());
+
+    while (source.Run(rows)) {
+        rows->erase(
+            std::remove_if(
+                rows->begin(),
+                rows->end(),
+                [=] (const TRow row) -> bool {
+                    auto value = EvaluateExpression(op->GetPredicate(), row);
+                    YCHECK(value.Type == EValueType::Integer);
+                    return value.Data.Integer == 0;
+                }),
+            rows->end());
+        std::tie(rows) = self.Yield();
+    }
+
+    LOG_DEBUG("Done producing for filter operator (Op: %p)", op);
+}
+
+void TEvaluateController::ProjectRoutine(
+    const TProjectOperator* op,
+    TProducer& self,
+    std::vector<TRow>* rows)
+{
+    YASSERT(op);
+    LOG_DEBUG("Creating producer for project operator (Op: %p)", op);
+
+    auto source = CreateProducer(op->GetSource());
+    TChunkedMemoryPool memoryPool;
+
+    while (source.Run(rows)) {
+        std::transform(
+            rows->begin(),
+            rows->end(),
+            rows->begin(),
+            [this, &op, &memoryPool] (const TRow row) -> TRow {
+                TRow result(&memoryPool, op->GetProjectionCount());
+                for (int i = 0; i < op->GetProjectionCount(); ++i) {
+                    result[i] = EvaluateExpression(
+                        op->GetProjection(i),
+                        row);
+                }
+                return result;
+            });
+        std::tie(rows) = self.Yield();
+        memoryPool.Clear();
+    }
+
+    LOG_DEBUG("Done producing for project operator (Op: %p)", op);
+}
+
+TValue TEvaluateController::EvaluateExpression(
+    const TExpression* expr,
+    const TRow row) const
+{
+    YASSERT(expr);
+    switch (expr->GetKind()) {
+        case EExpressionKind::IntegerLiteral:
+            return MakeIntegerValue<TValue>(
+                NameTable_->GetIdOrRegisterName(expr->GetName()),
+                expr->As<TIntegerLiteralExpression>()->GetValue());
+        case EExpressionKind::DoubleLiteral:
+            return MakeDoubleValue<TValue>(
+                NameTable_->GetIdOrRegisterName(expr->GetName()),
+                expr->As<TDoubleLiteralExpression>()->GetValue());
+        case EExpressionKind::Reference:
+            return row[expr->As<TReferenceExpression>()->GetIndexInRow()];
+        case EExpressionKind::Function:
+            return EvaluateFunctionExpression(
+                expr->As<TFunctionExpression>(),
+                row);
+        case EExpressionKind::BinaryOp:
+            return EvaluateBinaryOpExpression(
+                expr->As<TBinaryOpExpression>(),
+                row);
+    }
+    YUNREACHABLE();
+}
+
+TValue TEvaluateController::EvaluateFunctionExpression(
+    const TFunctionExpression* expr,
+    const TRow row) const
+{
+    YASSERT(expr);
+    YUNIMPLEMENTED();
+}
+
+TValue TEvaluateController::EvaluateBinaryOpExpression(
+    const TBinaryOpExpression* expr,
+    const TRow row) const
+{
+    YASSERT(expr);
+
+    auto lhsValue = EvaluateExpression(expr->GetLhs(), row);
+    auto rhsValue = EvaluateExpression(expr->GetRhs(), row);
+    auto name = expr->GetName();
+
+    switch (expr->GetOpcode()) {
+#define XX_RETURN_INTEGER(value) \
+        return MakeIntegerValue<TValue>(NameTable_->GetIdOrRegisterName(expr->GetName()), (value))
+#define XX_RETURN_DOUBLE(value) \
+        return MakeDoubleValue<TValue>(NameTable_->GetIdOrRegisterName(expr->GetName()), (value))
+
+        // Arithmetical operations.
+#define XX(opcode, optype) \
+        case EBinaryOp::opcode: \
+            switch (expr->GetType()) { \
+                case EValueType::Integer: \
+                    XX_RETURN_INTEGER( \
+                        lhsValue.Data.Integer optype rhsValue.Data.Integer); \
+                case EValueType::Double: \
+                    XX_RETURN_DOUBLE( \
+                        lhsValue.Data.Double optype rhsValue.Data.Double); \
+                default: \
+                    YUNREACHABLE(); \
+            } \
+            break
+        XX(Plus, +);
+        XX(Minus, -);
+        XX(Multiply, *);
+        XX(Divide, /);
+#undef XX
+
+        // Integral and logical operations.
+#define XX(opcode, optype) \
+        case EBinaryOp::opcode: \
+            switch (expr->GetType()) { \
+                case EValueType::Integer: \
+                    XX_RETURN_INTEGER( \
+                        lhsValue.Data.Integer optype rhsValue.Data.Integer); \
+                default: \
+                    YUNREACHABLE(); /* Typechecked. */ \
+            } \
+            break
+        XX(Modulo, %);
+        XX(And, &);
+        XX(Or, |);
+#undef XX
+
+        // Comparsion operations.
+#define XX(opcode, optype) \
+        case EBinaryOp::opcode: \
+            switch (expr->GetType()) { \
+                case EValueType::Integer: \
+                    XX_RETURN_INTEGER( \
+                        lhsValue.Data.Integer optype rhsValue.Data.Integer \
+                        ? 1 : 0); \
+                case EValueType::Double: \
+                    XX_RETURN_INTEGER( \
+                        lhsValue.Data.Double optype rhsValue.Data.Double \
+                        ? 1 : 0); \
+                default: \
+                    YUNREACHABLE(); /* Typechecked. */ \
+            } \
+            break
+        XX(Equal, ==);
+        XX(NotEqual, !=);
+        XX(Less, <);
+        XX(LessOrEqual, <=);
+        XX(Greater, >);
+        XX(GreaterOrEqual, >=);
+#undef XX
+
+#undef XX_RETURN_INTEGER
+#undef XX_RETURN_DOUBLE
+    }
+
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -31,13 +31,10 @@ class TVersionedTableClientTest
 private:
     virtual void SetUp() override
     {
-        auto options = New<TEncodingWriterOptions>();
-        options->CompressionCodec = NCompression::ECodec::Snappy;
-
         MemoryWriter = New<TMemoryWriter>();
         ChunkWriter = New<TChunkWriter>(
             New<TChunkWriterConfig>(),
-            options,
+            New<TEncodingWriterOptions>(),
             MemoryWriter);
     }
 
@@ -50,22 +47,22 @@ protected:
 
     void WriteInteger(i64 value, int id)
     {
-        ChunkWriter->WriteValue(TUnversionedValue::MakeInteger(value, id));
+        ChunkWriter->WriteValue(MakeIntegerValue<TUnversionedValue>(value, id));
     }
 
     void WriteDouble(double value, int id)
     {
-        ChunkWriter->WriteValue(TUnversionedValue::MakeDouble(value, id));
+        ChunkWriter->WriteValue(MakeDoubleValue<TUnversionedValue>(value, id));
     }
 
     void WriteString(const Stroka& value, int id)
     {
-        ChunkWriter->WriteValue(TUnversionedValue::MakeString(value, id));
+        ChunkWriter->WriteValue(MakeStringValue<TUnversionedValue>(value, id));
     }
 
     void WriteNull(int id)
     {
-        ChunkWriter->WriteValue(TUnversionedValue::MakeSentinel(EValueType::Null, id));
+        ChunkWriter->WriteValue(MakeSentinelValue<TUnversionedValue>(EValueType::Null, id));
     }
 
     Stroka ToStroka(const TUnversionedValue& value)
@@ -126,10 +123,7 @@ protected:
 
 TEST_F(TVersionedTableClientTest, Empty)
 {
-    TTableSchema schema;
-    auto nameTable = New<TNameTable>();
-
-    ChunkWriter->Open(nameTable, schema);
+    ChunkWriter->Open(New<TNameTable>(), TTableSchema());
     EXPECT_TRUE(ChunkWriter->AsyncClose().Get().IsOK());
 
     MemoryReader = New<TMemoryReader>(
@@ -140,7 +134,7 @@ TEST_F(TVersionedTableClientTest, Empty)
         New<TChunkReaderConfig>(),
         MemoryReader);
 
-    EXPECT_TRUE(ChunkReader->Open(nameTable, schema).Get().IsOK());
+    EXPECT_TRUE(ChunkReader->Open(New<TNameTable>(), TTableSchema()).Get().IsOK());
 
     std::vector<TVersionedRow> rows;
     rows.reserve(10);

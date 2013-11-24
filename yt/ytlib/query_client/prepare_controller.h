@@ -17,11 +17,6 @@ public:
 
     TPlanFragment Run();
 
-    void ParseSource();
-    void GetInitialSplits();
-    void CheckAndPruneReferences();
-    void TypecheckExpressions();
-
     IPrepareCallbacks* GetCallbacks()
     {
         return Callbacks_;
@@ -33,6 +28,11 @@ public:
     }
 
 private:
+    void ParseSource();
+    void GetInitialSplits();
+    void CheckAndBindReferences();
+    void TypecheckExpressions();
+
     IPrepareCallbacks* Callbacks_;
     const Stroka& Source_;
     TPlanContextPtr Context_;

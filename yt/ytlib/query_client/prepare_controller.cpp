@@ -21,8 +21,9 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NYT::NYPath;
-using namespace NYT::NConcurrency;
+using namespace NYPath;
+using namespace NConcurrency;
+using namespace NVersionedTableClient;
 
 static auto& Logger = QueryClientLogger;
 
@@ -41,37 +42,52 @@ TPrepareController::~TPrepareController()
 { }
 
 namespace {
-class TCheckAndPruneReferences
+class TCheckAndBindReferences
     : public TPlanVisitor
 {
 public:
-    explicit TCheckAndPruneReferences(TPrepareController* controller)
+    explicit TCheckAndBindReferences(TPrepareController* controller)
         : Controller_(controller)
     {
+        Mode_ = Check;
         LiveColumns_.resize(Controller_->GetContext()->GetTableCount());
     }
 
+    enum { Check, Bind } Mode_;
+
     virtual bool Visit(const TScanOperator* op) override
     {
+        if (Mode_ != Check) {
+            return true;
+        }
+
         // Scan operators are always visited in the end,
         // because they are leaf nodes.
-        auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(op->DataSplit().chunk_meta().extensions());
+        auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplit());
+        auto& columnSchemas = tableSchema.Columns();
         auto& liveColumns = LiveColumns_[op->GetTableIndex()];
 
-        {
-            NVersionedTableClient::NProto::TTableSchemaExt filteredTableSchema;
-            for (const auto& columnSchema : tableSchema.columns()) {
-                if (liveColumns.find(columnSchema.name()) != liveColumns.end()) {
-                    LOG_DEBUG("Keeping column %s in the schema", ~columnSchema.name().Quote());
-                    filteredTableSchema.add_columns()->CopyFrom(columnSchema);
-                } else {
-                    LOG_DEBUG("Prunning column %s from the schema", ~columnSchema.name().Quote());
-                }
-            }
-            SetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(
-                op->AsMutable<TScanOperator>()->DataSplit().mutable_chunk_meta()->mutable_extensions(),
-                filteredTableSchema);
-        }
+        columnSchemas.erase(
+            std::remove_if(
+                columnSchemas.begin(),
+                columnSchemas.end(),
+                [&liveColumns] (const TColumnSchema& columnSchema) -> bool {
+                    if (liveColumns.find(columnSchema.Name) != liveColumns.end()) {
+                        LOG_DEBUG(
+                            "Keeping column %s in the table schema",
+                            ~columnSchema.Name.Quote());
+                        return false;
+                    } else {
+                        LOG_DEBUG(
+                            "Prunning column %s from the table schema",
+                            ~columnSchema.Name.Quote());
+                        return true;
+                    }
+                }),
+            columnSchemas.end());
+
+        auto* mutableOp = op->AsMutable<TScanOperator>();
+        SetTableSchema(&mutableOp->DataSplit(), tableSchema);
 
         return true;
     }
@@ -92,46 +108,48 @@ public:
 
     virtual bool Visit(const TReferenceExpression* expr) override
     {
-        auto& descriptor = Controller_->GetContext()
+        const auto& descriptor = Controller_->GetContext()
             ->GetTableDescriptorByIndex(expr->GetTableIndex());
-
         TScanOperator* op = reinterpret_cast<TScanOperator*>(descriptor.Opaque);
         YCHECK(op);
 
-        auto* mutableExpr = expr->AsMutable<TReferenceExpression>();
+        const auto name = expr->GetColumnName();
 
         const auto keyColumns = GetKeyColumnsFromDataSplit(op->DataSplit());
         const auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplit());
 
-        {
-            auto column = tableSchema.FindColumn(expr->GetColumnName());
-
-            if (!column) {
-                THROW_ERROR_EXCEPTION(
-                    "Table %s does not have column %s in its schema",
-                    ~descriptor.Path,
-                    ~expr->GetColumnName().Quote());
+        switch (Mode_) {
+            case Check: {
+                auto column = tableSchema.FindColumn(name);
+                if (!column) {
+                    THROW_ERROR_EXCEPTION(
+                        "Table %s does not have column %s in its schema",
+                        ~descriptor.Path,
+                        ~name.Quote());
+                }
+                LiveColumns_[expr->GetTableIndex()].insert(name);
+                break;
             }
+            case Bind: {
+                auto* mutableExpr = expr->AsMutable<TReferenceExpression>();
+                const auto& column = tableSchema.GetColumnOrThrow(name);
 
-            mutableExpr->SetCachedType(column->Type);
-        }
+                mutableExpr->SetCachedType(column.Type);
+                mutableExpr->SetIndexInRow(tableSchema.GetColumnIndex(column));
 
-        {
-            auto it = std::find_if(
-                keyColumns.begin(),
-                keyColumns.end(),
-                [&expr] (const Stroka& name) {
-                    return expr->GetColumnName() == name;
-                });
+                auto it = std::find_if(
+                    keyColumns.begin(),
+                    keyColumns.end(),
+                    [&name] (const Stroka& keyColumnName) {
+                        return name == keyColumnName;
+                    });
 
-            if (it != keyColumns.end()) {
-                mutableExpr->SetCachedKeyIndex(std::distance(keyColumns.begin(), it));
-            } else {
-                mutableExpr->SetCachedKeyIndex(-1);
+                if (it != keyColumns.end()) {
+                    mutableExpr->SetIndexInKey(
+                        std::distance(keyColumns.begin(), it));
+                }
             }
         }
-
-        LiveColumns_[expr->GetTableIndex()].insert(expr->GetColumnName());
 
         return true;
     }
@@ -147,7 +165,7 @@ TPlanFragment TPrepareController::Run()
 {
     ParseSource();
     GetInitialSplits();
-    CheckAndPruneReferences();
+    CheckAndBindReferences();
     TypecheckExpressions();
     return TPlanFragment(std::move(Context_), Head_);
 }
@@ -187,9 +205,12 @@ void TPrepareController::GetInitialSplits()
     });
 }
 
-void TPrepareController::CheckAndPruneReferences()
+void TPrepareController::CheckAndBindReferences()
 {
-    TCheckAndPruneReferences visitor(this);
+    TCheckAndBindReferences visitor(this);
+    visitor.Mode_ = TCheckAndBindReferences::Check;
+    Traverse(&visitor, Head_);
+    visitor.Mode_ = TCheckAndBindReferences::Bind;
     Traverse(&visitor, Head_);
 }
 

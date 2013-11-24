@@ -379,7 +379,7 @@ void TVersionedTableConsumer::OnStringScalar(const TStringBuf& value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(TUnversionedValue::MakeString(value, ColumnIndex));
+        WriteValue(MakeStringValue<TUnversionedValue>(value, ColumnIndex));
     }
 }
 
@@ -413,7 +413,7 @@ void TVersionedTableConsumer::OnIntegerScalar(i64 value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(TUnversionedValue::MakeInteger(value, ColumnIndex));
+        WriteValue(MakeIntegerValue<TUnversionedValue>(value, ColumnIndex));
     }
 }
 
@@ -429,7 +429,7 @@ void TVersionedTableConsumer::OnDoubleScalar(double value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(TUnversionedValue::MakeDouble(value, ColumnIndex));
+        WriteValue(MakeDoubleValue<TUnversionedValue>(value, ColumnIndex));
     }
 }
 
@@ -599,7 +599,9 @@ void TVersionedTableConsumer::OnEndMap()
             if (SchemaColumnDescriptors[id].Written) {
                 SchemaColumnDescriptors[id].Written = false;
             } else {
-                CurrentWriter->WriteValue(TUnversionedValue::MakeSentinel(EValueType::Null, id));
+                CurrentWriter->WriteValue(MakeSentinelValue<TUnversionedValue>(
+                    EValueType::Null,
+                    id));
             }
         }
         CurrentWriter->EndRow();

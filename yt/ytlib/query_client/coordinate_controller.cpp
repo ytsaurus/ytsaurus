@@ -8,6 +8,8 @@
 #include "plan_visitor.h"
 #include "plan_helpers.h"
 
+#include "graphviz.h"
+
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>

@@ -382,7 +382,8 @@ public:
                 .WithRow(
                     "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>" +
                     "ColumnName: " + expr->GetColumnName() + "<BR/>" +
-                    "CachedKeyIndex: " + ToString(expr->GetCachedKeyIndex()) + "<BR/>")
+                    "IndexInRow: " + ToString(expr->GetIndexInRow()) + "<BR/>" +
+                    "IndexInKey: " + ToString(expr->GetIndexInKey()) + "<BR/>")
                 .Build());
         return true;
     }

@@ -165,7 +165,8 @@ public:
         : TExpression(context, EExpressionKind::Reference, sourceLocation)
         , TableIndex_(tableIndex)
         , ColumnName_(columnName)
-        , CachedKeyIndex_(-1)
+        , IndexInRow_(-1)
+        , IndexInKey_(-1)
     { }
 
     static inline bool IsClassOf(const TExpression* expr)
@@ -176,8 +177,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, ColumnName);
 
-    DEFINE_BYVAL_RW_PROPERTY(EValueType, CachedType);
-    DEFINE_BYVAL_RW_PROPERTY(int, CachedKeyIndex);
+    DEFINE_BYVAL_RW_PROPERTY(int, IndexInRow);
+    DEFINE_BYVAL_RW_PROPERTY(int, IndexInKey);
 
 };
 

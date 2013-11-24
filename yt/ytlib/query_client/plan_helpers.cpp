@@ -123,7 +123,7 @@ EValueType InferType(const TExpression* expr, bool ignoreCached)
             }
             if (lhsType != EValueType::Integer && lhsType != EValueType::Double) {
                 THROW_ERROR_EXCEPTION(
-                    "Expression %s require numeric operands",
+                    "Expression %s require either integral or floating-point operands",
                     ~typedExpr->GetSource().Quote())
                     << TErrorAttribute("lhs_type", lhsType.ToString())
                     << TErrorAttribute("rhs_type", rhsType.ToString());

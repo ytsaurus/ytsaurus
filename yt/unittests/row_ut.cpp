@@ -34,14 +34,14 @@ bool AreRowsEqual(TUnversionedRow lhs, TUnversionedRow rhs)
 
 void CheckSerialize(TUnversionedRow row)
 {
-    TUnversionedOwningRow owningRow(row);
+    TUnversionedOwningRow original(row);
 
-    ASSERT_TRUE(AreRowsEqual(row, owningRow));
+    ASSERT_TRUE(AreRowsEqual(row, original));
 
-    auto protoRow = NYT::ToProto<Stroka>(owningRow);
-    auto owningRow2 =  NYT::FromProto<TUnversionedOwningRow>(protoRow);
+    auto serialized = NYT::ToProto<Stroka>(original);
+    auto deserialized =  NYT::FromProto<TUnversionedOwningRow>(serialized);
 
-    ASSERT_TRUE(AreRowsEqual(owningRow, owningRow2));
+    ASSERT_TRUE(AreRowsEqual(original, deserialized));
 }
 
 TEST(TUnversionedRowTest, Serialize1)
@@ -54,9 +54,9 @@ TEST(TUnversionedRowTest, Serialize1)
 TEST(TUnversionedRowTest, Serialize2)
 {
     TUnversionedRowBuilder builder;
-    builder.AddValue(TUnversionedValue::MakeSentinel(EValueType::Null, 0));
-    builder.AddValue(TUnversionedValue::MakeInteger(42, 1));
-    builder.AddValue(TUnversionedValue::MakeDouble(0.25, 2));
+    builder.AddValue(MakeSentinelValue<TUnversionedValue>(EValueType::Null, 0));
+    builder.AddValue(MakeIntegerValue<TUnversionedValue>(42, 1));
+    builder.AddValue(MakeDoubleValue<TUnversionedValue>(0.25, 2));
     CheckSerialize(builder.GetRow());
 }
 
@@ -65,11 +65,11 @@ TEST(TUnversionedRowTest, Serialize3)
     // TODO(babenko): cannot test Any type at the moment since CompareRowValues does not work
     // for it.
     TUnversionedRowBuilder builder;
-    builder.AddValue(TUnversionedValue::MakeString("string1", 10));
-    builder.AddValue(TUnversionedValue::MakeInteger(1234, 20));
-    builder.AddValue(TUnversionedValue::MakeString("string2", 30));
-    builder.AddValue(TUnversionedValue::MakeDouble(4321.0, 1000));
-    builder.AddValue(TUnversionedValue::MakeString("", 10000));
+    builder.AddValue(MakeStringValue<TUnversionedValue>("string1", 10));
+    builder.AddValue(MakeIntegerValue<TUnversionedValue>(1234, 20));
+    builder.AddValue(MakeStringValue<TUnversionedValue>("string2", 30));
+    builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
+    builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
     CheckSerialize(builder.GetRow());
 }
 
