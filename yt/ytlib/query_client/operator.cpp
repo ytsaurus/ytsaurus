@@ -14,7 +14,7 @@
 #pragma GCC diagnostic error "-Wswitch-enum"
 #define ENSURE_ALL_CASES
 #else
-#define ENSURE_ALL_CASES default: YUNREACHABLE()
+#define ENSURE_ALL_CASES default: YUNREACHABLE();
 #endif
 
 namespace NYT {
