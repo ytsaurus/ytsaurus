@@ -237,12 +237,12 @@ TValue TEvaluateController::EvaluateExpression(
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral:
             return MakeIntegerValue<TValue>(
-                NameTable_->GetIdOrRegisterName(expr->GetName()),
-                expr->As<TIntegerLiteralExpression>()->GetValue());
+                expr->As<TIntegerLiteralExpression>()->GetValue(),
+                NameTable_->GetIdOrRegisterName(expr->GetName()));
         case EExpressionKind::DoubleLiteral:
             return MakeDoubleValue<TValue>(
-                NameTable_->GetIdOrRegisterName(expr->GetName()),
-                expr->As<TDoubleLiteralExpression>()->GetValue());
+                expr->As<TDoubleLiteralExpression>()->GetValue(),
+                NameTable_->GetIdOrRegisterName(expr->GetName()));
         case EExpressionKind::Reference:
             return row[expr->As<TReferenceExpression>()->GetIndexInRow()];
         case EExpressionKind::Function:
@@ -277,9 +277,9 @@ TValue TEvaluateController::EvaluateBinaryOpExpression(
 
     switch (expr->GetOpcode()) {
 #define XX_RETURN_INTEGER(value) \
-        return MakeIntegerValue<TValue>(NameTable_->GetIdOrRegisterName(expr->GetName()), (value))
+        return MakeIntegerValue<TValue>((value), NameTable_->GetIdOrRegisterName(expr->GetName()))
 #define XX_RETURN_DOUBLE(value) \
-        return MakeDoubleValue<TValue>(NameTable_->GetIdOrRegisterName(expr->GetName()), (value))
+        return MakeDoubleValue<TValue>((value), NameTable_->GetIdOrRegisterName(expr->GetName()))
 
         // Arithmetical operations.
 #define XX(opcode, optype) \

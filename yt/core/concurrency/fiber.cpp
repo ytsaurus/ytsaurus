@@ -914,6 +914,7 @@ void TFiber::SetCurrentInvoker(IInvokerPtr invoker)
 void DestroyRootFiber()
 {
     auto* current = CurrentFiber;
+    if (!current) return; 
     YCHECK(current->Impl->Root_);
     YCHECK(current->GetRefCount() == 2);
     YCHECK(current->GetState() == EFiberState::Running);
