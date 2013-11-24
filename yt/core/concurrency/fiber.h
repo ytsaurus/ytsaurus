@@ -52,7 +52,7 @@ private:
 
     // A special constructor to create root fiber.
     TFiber();
-    friend TFiberPtr New<TFiber>();
+    friend TFiberPtr NYT::New<TFiber>();
     friend void DestroyRootFiber();
 
 public:
