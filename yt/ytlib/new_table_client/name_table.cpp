@@ -45,16 +45,7 @@ int TNameTable::RegisterName(const TStringBuf& name)
     return DoRegisterName(name);
 }
 
-int TNameTable::DoRegisterName(const TStringBuf& name)
-{
-    int id = IdToName.size();
-    IdToName.emplace_back(name);
-    const auto& savedName = IdToName.back();
-    YCHECK(NameToId.insert(std::make_pair(savedName, id)).second);
-    return id;
-}
-
-int TNameTable::GetOrRegisterName(const TStringBuf& name)
+int TNameTable::GetIdOrRegisterName(const TStringBuf& name)
 {
     TGuard<TSpinLock> guard(SpinLock);
     auto it = NameToId.find(name);
@@ -64,6 +55,17 @@ int TNameTable::GetOrRegisterName(const TStringBuf& name)
         return it->second;
     }
 }
+
+int TNameTable::DoRegisterName(const TStringBuf& name)
+{
+    int id = IdToName.size();
+    IdToName.emplace_back(name);
+    const auto& savedName = IdToName.back();
+    YCHECK(NameToId.insert(std::make_pair(savedName, id)).second);
+    return id;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable)
 {

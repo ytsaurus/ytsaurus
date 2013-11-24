@@ -13,15 +13,15 @@ class TNameTable
     : public virtual TRefCounted
 {
 public:
-    int RegisterName(const TStringBuf& name);
-    int GetOrRegisterName(const TStringBuf& name);
+    int GetSize() const;
 
     TNullable<int> FindId(const TStringBuf& name) const;
+
     int GetId(const TStringBuf& name) const;
+    int RegisterName(const TStringBuf& name);
+    int GetIdOrRegisterName(const TStringBuf& name);
 
     const Stroka& GetName(int id) const;
-
-    int GetSize() const;
 
 private:
     TSpinLock SpinLock;

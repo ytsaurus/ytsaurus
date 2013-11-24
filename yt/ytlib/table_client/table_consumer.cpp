@@ -357,12 +357,12 @@ void TVersionedTableConsumer::Initialize(
 
     // NB: Key columns must go first.
     for (const auto& name : keyColumns) {
-        NameTable->GetOrRegisterName(name);
+        NameTable->GetIdOrRegisterName(name);
     }
 
     SchemaColumnDescriptors.resize(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
-        int id = NameTable->GetOrRegisterName(column.Name);
+        int id = NameTable->GetIdOrRegisterName(column.Name);
         SchemaColumnDescriptors[id].Type = column.Type;
     }
 }
@@ -579,7 +579,7 @@ void TVersionedTableConsumer::OnKeyedItem(const TStringBuf& name)
 
     YASSERT(Depth > 0);
     if (Depth == 1) {
-        ColumnIndex = NameTable->GetOrRegisterName(name);
+        ColumnIndex = NameTable->GetIdOrRegisterName(name);
     } else {
         THROW_ERROR_EXCEPTION("Composite types are not supported");
     }

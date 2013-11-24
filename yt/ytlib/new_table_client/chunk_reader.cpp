@@ -201,7 +201,7 @@ void TChunkReader::DoOpen()
         TColumn fixedColumn;
         fixedColumn.IndexInBlock = schemaIndexBase + chunkSchema.GetColumnIndex(*chunkColumn);
         fixedColumn.IndexInRow = FixedColumns.size();
-        fixedColumn.IndexInNameTable = NameTable->GetOrRegisterName(column.Name);
+        fixedColumn.IndexInNameTable = NameTable->GetIdOrRegisterName(column.Name);
         FixedColumns.push_back(fixedColumn);
     }
 
@@ -212,14 +212,14 @@ void TChunkReader::DoOpen()
                 TColumn variableColumn;
                 variableColumn.IndexInBlock = schemaIndexBase + i;
                 variableColumn.IndexInRow = FixedColumns.size() + VariableColumns.size();
-                variableColumn.IndexInNameTable = NameTable->GetOrRegisterName(chunkColumn.Name);
+                variableColumn.IndexInNameTable = NameTable->GetIdOrRegisterName(chunkColumn.Name);
                 VariableColumns.push_back(variableColumn);
             }
         }
 
         ChunkIndexToOutputIndex.reserve(chunkNameTable->GetSize());
         for (int i = 0; i < chunkNameTable->GetSize(); ++i) {
-            ChunkIndexToOutputIndex[i] = NameTable->GetOrRegisterName(chunkNameTable->GetName(i));
+            ChunkIndexToOutputIndex[i] = NameTable->GetIdOrRegisterName(chunkNameTable->GetName(i));
         }
     }
 
@@ -393,7 +393,7 @@ TAsyncError TTableChunkReaderAdapter::Open(
 
     SchemaNameIndexes.reserve(Schema.Columns().size());
     for (const auto& column: Schema.Columns()) {
-        SchemaNameIndexes.push_back(NameTable->GetOrRegisterName(column.Name));
+        SchemaNameIndexes.push_back(NameTable->GetIdOrRegisterName(column.Name));
     }
 
     return UnderlyingReader->AsyncOpen();
@@ -482,7 +482,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
             auto& value = outputRow[schemaIndexes.size() + i];
             const auto& pair = chunkRow[variableIndexes[i]];
 
-            value.Id = NameTable->GetOrRegisterName(ToString(pair.first));
+            value.Id = NameTable->GetIdOrRegisterName(pair.first);
             value.Type = EValueType::Any;
             value.Length = pair.second.size();
             value.Data.String = pair.second.begin();
