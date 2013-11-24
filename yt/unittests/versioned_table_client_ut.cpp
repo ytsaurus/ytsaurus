@@ -124,6 +124,30 @@ protected:
 
 };
 
+TEST_F(TVersionedTableClientTest, Empty)
+{
+    TTableSchema schema;
+    auto nameTable = New<TNameTable>();
+
+    ChunkWriter->Open(nameTable, schema);
+    EXPECT_TRUE(ChunkWriter->AsyncClose().Get().IsOK());
+
+    MemoryReader = New<TMemoryReader>(
+        std::move(MemoryWriter->GetChunkMeta()),
+        std::move(MemoryWriter->GetBlocks()));
+
+    ChunkReader = CreateChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader);
+
+    EXPECT_TRUE(ChunkReader->Open(nameTable, schema).Get().IsOK());
+
+    std::vector<TVersionedRow> rows;
+    rows.reserve(10);
+
+    EXPECT_FALSE(ChunkReader->Read(&rows));
+}
+
 TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
 {
     PrepareSimple();
