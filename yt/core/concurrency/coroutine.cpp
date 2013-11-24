@@ -10,6 +10,10 @@ TCoroutineBase::TCoroutineBase()
     : Fiber(New<TFiber>(BIND(&TCoroutineBase::Trampoline, this)))
 { }
 
+TCoroutineBase::TCoroutineBase(TCoroutineBase&& other)
+    : Fiber(std::move(other.Fiber))
+{ }
+
 TCoroutineBase::~TCoroutineBase()
 { }
 
