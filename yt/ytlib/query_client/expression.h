@@ -22,24 +22,26 @@ DECLARE_ENUM(EExpressionKind,
 );
 
 DECLARE_ENUM(EBinaryOp,
+    // Arithmetical operations.
+    (Plus)
+    (Minus)
+    (Multiply)
+    (Divide)
+    // Integral operations.
+    (Modulo)
+    // Logical operations.
+    (And)
+    (Or)
+    // Comparsion operations.
     (Equal)
     (NotEqual)
-
     (Less)
     (LessOrEqual)
     (Greater)
     (GreaterOrEqual)
-
-    (Plus)
-    (Minus)
-
-    (Multiply)
-    (Divide)
-    (Modulo)
-
-    (And)
-    (Or)
 );
+
+const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +55,8 @@ public:
         const TSourceLocation& sourceLocation)
         : TPlanNodeBase(context, kind)
         , SourceLocation_(sourceLocation)
+        , CachedType_(EValueType::Null)
+        , CachedName_()
     { }
 
     virtual TArrayRef<const TExpression*> Children() const override
@@ -60,14 +64,45 @@ public:
         return Null;
     }
 
-    virtual EValueType Typecheck() const = 0;
-
-    virtual Stroka InferName() const = 0;
-
+    //! Returns expression source (as it was written by the user) if possible.
     Stroka GetSource() const;
+
+    //! Piggy-backed method |InferType|.
+    EValueType GetType() const;
+
+    //! Piggy-backed method |InferName|.
+    Stroka GetName() const;
+
+    //! Returns cached expression type.
+    //! Null type must be interpreted as a cache miss.
+    EValueType GetCachedType() const
+    {
+        return CachedType_;
+    }
+
+    //! Caches an expression type.
+    void SetCachedType(EValueType type) const
+    {
+        CachedType_ = std::move(type);
+    }
+
+    //! Returns cached expression name.
+    //! Empty string must be interpreted as a cache miss.
+    Stroka GetCachedName() const
+    {
+        return CachedName_;
+    }
+
+    //! Caches an expression name.
+    void SetCachedName(Stroka name) const
+    {
+        CachedName_ = std::move(name);
+    }
 
 private:
     TSourceLocation SourceLocation_;
+    mutable EValueType CachedType_;
+    mutable Stroka CachedName_;
 
 };
 
@@ -89,16 +124,6 @@ public:
     static inline bool IsClassOf(const TExpression* expr)
     {
         return expr->GetKind() == EExpressionKind::IntegerLiteral;
-    }
-
-    virtual EValueType Typecheck() const override
-    {
-        return EValueType::Integer;
-    }
-
-    virtual Stroka InferName() const override
-    {
-        return ToString(Value_);
     }
 
     DEFINE_BYVAL_RO_PROPERTY(i64, Value);
@@ -123,16 +148,6 @@ public:
         return expr->GetKind() == EExpressionKind::DoubleLiteral;
     }
 
-    virtual EValueType Typecheck() const override
-    {
-        return EValueType::Double;
-    }
-
-    virtual Stroka InferName() const override
-    {
-        return ToString(Value_);
-    }
-
     DEFINE_BYVAL_RO_PROPERTY(double, Value);
 
 };
@@ -146,11 +161,10 @@ public:
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
         int tableIndex,
-        const TStringBuf& name)
+        const TStringBuf& columnName)
         : TExpression(context, EExpressionKind::Reference, sourceLocation)
         , TableIndex_(tableIndex)
-        , Name_(name)
-        , CachedType_(EValueType::TheBottom)
+        , ColumnName_(columnName)
         , CachedKeyIndex_(-1)
     { }
 
@@ -159,18 +173,8 @@ public:
         return expr->GetKind() == EExpressionKind::Reference;
     }
 
-    virtual EValueType Typecheck() const override
-    {
-        return CachedType_;
-    }
-
-    virtual Stroka InferName() const override
-    {
-        return Name_;
-    }
-
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Name);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, ColumnName);
 
     DEFINE_BYVAL_RW_PROPERTY(EValueType, CachedType);
     DEFINE_BYVAL_RW_PROPERTY(int, CachedKeyIndex);
@@ -187,9 +191,9 @@ public:
     TFunctionExpression(
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
-        const TStringBuf& name)
+        const TStringBuf& functionName)
         : TExpression(context, EExpressionKind::Function, sourceLocation)
-        , Name_(name)
+        , FunctionName_(functionName)
     { }
 
     static inline bool IsClassOf(const TExpression* expr)
@@ -200,27 +204,6 @@ public:
     virtual TArrayRef<const TExpression*> Children() const override
     {
         return Arguments_;
-    }
-
-    virtual EValueType Typecheck() const override
-    {
-        // TODO(sandello): We should register functions with their signatures.
-        YUNIMPLEMENTED();
-    }
-
-    virtual Stroka InferName() const override
-    {
-        Stroka result;
-        result += Name_;
-        result += "(";
-        for (const auto& argument : Arguments_) {
-            if (!result.empty()) {
-                result += ", ";
-            }
-            result += argument->InferName();
-        }
-        result += ")";
-        return result;
     }
 
     TArguments& Arguments()
@@ -243,7 +226,7 @@ public:
         return Arguments_[i];
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Name);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, FunctionName);
 
 private:
     TArguments Arguments_;
@@ -277,41 +260,6 @@ public:
     {
         // XXX(sandello): Construct explicitly to enable C-array overload.
         return MakeArrayRef(Subexpressions_);
-    }
-
-    virtual EValueType Typecheck() const override
-    {
-        auto lhsType = GetLhs()->Typecheck();
-        auto rhsType = GetRhs()->Typecheck();
-
-        if (lhsType != rhsType) {
-            THROW_ERROR_EXCEPTION(
-                "Type mismatch between left-hand side and right-hand side in expression %s",
-                ~GetSource().Quote())
-                << TErrorAttribute("lhs_type", lhsType.ToString())
-                << TErrorAttribute("rhs_type", rhsType.ToString());
-        }
-
-        // XXX(sandello): As we do not have boolean type, we cast cmps to int.
-        // TODO(sandello): For arithmetic exprs we have to return different value.
-        return EValueType::Integer;
-    }
-
-    virtual Stroka InferName() const override
-    {
-        Stroka result;
-        result += GetLhs()->InferName();
-        switch (Opcode_) {
-        case EBinaryOp::Less:           result = " < "; break;
-        case EBinaryOp::LessOrEqual:    result = " <= "; break;
-        case EBinaryOp::Equal:          result = " = "; break;
-        case EBinaryOp::NotEqual:       result = " != "; break;
-        case EBinaryOp::Greater:        result = " > "; break;
-        case EBinaryOp::GreaterOrEqual: result = " >= "; break;
-        default: YUNREACHABLE();
-        }
-        result += GetRhs()->InferName();
-        return result;
     }
 
     const TExpression* GetLhs() const

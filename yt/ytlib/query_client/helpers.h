@@ -4,8 +4,6 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/new_table_client/schema.h>
-
 namespace NYT {
 namespace NQueryClient {
 

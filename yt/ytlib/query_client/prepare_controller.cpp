@@ -7,12 +7,14 @@
 
 #include "plan_node.h"
 #include "plan_visitor.h"
+#include "plan_helpers.h"
 
 #include "lexer.h"
 #include "parser.hpp"
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/schema.h>
 
 #include <core/concurrency/fiber.h>
 
@@ -102,13 +104,13 @@ public:
         const auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplit());
 
         {
-            auto column = tableSchema.FindColumn(expr->GetName());
+            auto column = tableSchema.FindColumn(expr->GetColumnName());
 
             if (!column) {
                 THROW_ERROR_EXCEPTION(
                     "Table %s does not have column %s in its schema",
                     ~descriptor.Path,
-                    ~expr->GetName().Quote());
+                    ~expr->GetColumnName().Quote());
             }
 
             mutableExpr->SetCachedType(column->Type);
@@ -119,7 +121,7 @@ public:
                 keyColumns.begin(),
                 keyColumns.end(),
                 [&expr] (const Stroka& name) {
-                    return expr->GetName() == name;
+                    return expr->GetColumnName() == name;
                 });
 
             if (it != keyColumns.end()) {
@@ -129,7 +131,7 @@ public:
             }
         }
 
-        LiveColumns_[expr->GetTableIndex()].insert(expr->GetName());
+        LiveColumns_[expr->GetTableIndex()].insert(expr->GetColumnName());
 
         return true;
     }
@@ -196,7 +198,7 @@ void TPrepareController::TypecheckExpressions()
     Visit(Head_, [this] (const TOperator* op)
     {
         if (auto* typedOp = op->As<TFilterOperator>()) {
-            auto actualType = typedOp->GetPredicate()->Typecheck();
+            auto actualType = typedOp->GetPredicate()->GetType();
             auto expectedType = EValueType(EValueType::Integer);
             if (actualType != expectedType) {
                 THROW_ERROR_EXCEPTION("WHERE-clause is not of valid type")
@@ -206,7 +208,7 @@ void TPrepareController::TypecheckExpressions()
         }
         if (auto* typedOp = op->As<TProjectOperator>()) {
             for (auto& projection : typedOp->Projections()) {
-                projection->Typecheck();
+                projection->GetType(); // Force typechecking.
             }
         }
     });

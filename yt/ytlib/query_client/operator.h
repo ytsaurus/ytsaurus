@@ -28,6 +28,12 @@ public:
         : TPlanNodeBase(context, kind)
     { }
 
+    //! Piggy-backed method |InferTableSchema|.
+    TTableSchema GetTableSchema() const;
+
+    //! Piggy-backed method |InferKeyColumns|.
+    TKeyColumns GetKeyColumns() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

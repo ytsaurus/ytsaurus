@@ -8,16 +8,15 @@
 #include "plan_visitor.h"
 #include "plan_helpers.h"
 
-#include "graphviz.h"
-
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/schema.h>
 
 #include <ytlib/object_client/helpers.h>
 
-#include <core/misc/protobuf_helpers.h>
-
 #include <core/concurrency/fiber.h>
+
+#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -247,10 +246,10 @@ void TCoordinateController::DistributeToPeers()
             MakeId(EObjectType::QueryPlan, 0xBABE, Peers_.size() - 1, 0));
         SetTableSchema(
             &facadeScanOp->DataSplit(),
-            InferTableSchema(source));
+            source->GetTableSchema());
         SetKeyColumns(
             &facadeScanOp->DataSplit(),
-            InferKeyColumns(source));
+            source->GetKeyColumns());
 
         facadeUnionOp->Sources().push_back(facadeScanOp);
     }

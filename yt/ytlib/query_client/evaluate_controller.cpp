@@ -11,9 +11,7 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
-
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/schema.h>
 
 #include <core/concurrency/fiber.h>
 
@@ -170,8 +168,8 @@ TError TEvaluateController::RunProject()
     YCHECK(scanOp);
 
     auto nameTable = New<TNameTable>();
-    auto keyColumns = InferKeyColumns(projectOp);
-    auto writerSchema = InferTableSchema(projectOp);
+    auto keyColumns = projectOp->GetKeyColumns();
+    auto writerSchema = projectOp->GetTableSchema();
     auto readerSchema = GetTableSchemaFromDataSplit(scanOp->DataSplit());
 
     LOG_DEBUG("Opening reader");
@@ -193,10 +191,10 @@ TError TEvaluateController::RunProject()
 
     for (int i = 0; i < projectOp->GetProjectionCount(); ++i) {
         const auto& projection = projectOp->GetProjection(i);
-        auto name = projection->As<TReferenceExpression>()->GetName();
+        auto name = projection->As<TReferenceExpression>()->GetColumnName();
         auto index = readerSchema.GetColumnIndex(readerSchema.GetColumnOrThrow(name));
         writerIndexToReaderIndex[i] = index;
-        writerIndexToNameIndex[i] = nameTable->GetId(projection->InferName());
+        writerIndexToNameIndex[i] = nameTable->GetId(projection->GetName());
     }
 
     // Dumb way to do filter. :)
@@ -211,14 +209,14 @@ TError TEvaluateController::RunProject()
         auto lhsReferenceExpr = binaryOpExpr->GetLhs()->As<TReferenceExpression>();
         auto rhsIntegerValueExpr = binaryOpExpr->GetRhs()->As<TIntegerLiteralExpression>();
         YCHECK(lhsReferenceExpr);
-        YCHECK(lhsReferenceExpr->Typecheck() == EValueType::Integer);
+        YCHECK(lhsReferenceExpr->GetCachedType() == EValueType::Integer);
         YCHECK(rhsIntegerValueExpr);
 
         binaryOpOpcode = binaryOpExpr->GetOpcode();
         lhsReaderIndex =
             readerSchema.GetColumnIndex(
                 readerSchema.GetColumnOrThrow(
-                    lhsReferenceExpr->GetName()));
+                    lhsReferenceExpr->GetColumnName()));
         lhsValue = 0;
         rhsValue = rhsIntegerValueExpr->GetValue();
     }
@@ -248,6 +246,8 @@ TError TEvaluateController::RunProject()
                     case EBinaryOp::GreaterOrEqual:
                         predicate = (lhsValue >= rhsValue);
                         break;
+                    default:
+                        YUNREACHABLE();
                 }
             }
             if (!predicate) {

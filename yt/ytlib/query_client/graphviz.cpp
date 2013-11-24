@@ -248,14 +248,32 @@ public:
     {
         Stroka Value_;
 
+        TLabel(const TOperator* op)
+        {
+            AddHeader(op);
+        }
+
+        TLabel(const TExpression* expr)
+        {
+            AddHeader(expr);
+            WithRow(
+                "Type: " + expr->GetType().ToString() + "<BR/>" +
+                "Name: " + expr->GetName());
+        }
+
         template <class TNode>
-        TLabel(const TNode* node)
+        void AddHeader(const TNode* node)
         {
             Value_ += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
             Value_ += Sprintf(
                 "<TR><TD BGCOLOR=\"//%d\">%s</TD></TR>",
                 TGraphVizTraits<TNode>::UniqueId,
                 ~node->GetKind().ToString());
+        }
+
+        void AddFooter()
+        {
+            Value_ += "</TABLE>";
         }
 
         TLabel& WithRow(const Stroka& row)
@@ -277,7 +295,7 @@ public:
 
         Stroka Build()
         {
-            Value_ += "</TABLE>";
+            AddFooter();
             return Value_;
         }
     };
@@ -363,9 +381,8 @@ public:
             TLabel(expr)
                 .WithRow(
                     "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>" +
-                    "Name: " + expr->GetName() + "<BR/>" +
-                    "Type: " + expr->GetCachedType().ToString() + "<BR/>" +
-                    "KeyIndex: " + ToString(expr->GetCachedKeyIndex()) + "<BR/>")
+                    "ColumnName: " + expr->GetColumnName() + "<BR/>" +
+                    "CachedKeyIndex: " + ToString(expr->GetCachedKeyIndex()) + "<BR/>")
                 .Build());
         return true;
     }
@@ -373,7 +390,7 @@ public:
     virtual bool Visit(const TFunctionExpression* expr) override
     {
         TLabel label(expr);
-        label.WithRow("Name: " + expr->GetName());
+        label.WithRow("FunctionName: " + expr->GetFunctionName());
         for (int i = 0; i < expr->GetArgumentCount(); ++i) {
             label.WithPortAndRow(
                 ToString(i),
@@ -392,7 +409,7 @@ public:
         WriteNode(
             expr,
             TLabel(expr)
-                .WithRow("OpCode: " + expr->GetOpcode().ToString())
+                .WithRow("Opcode: " + expr->GetOpcode().ToString())
                 .Build());
         WriteEdge(expr, expr->GetLhs());
         WriteEdge(expr, expr->GetRhs());

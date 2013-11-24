@@ -1,14 +1,20 @@
 #include "plan_node.h"
 #include "plan_visitor.h"
+#include "plan_helpers.h"
 #include "plan_context.h"
 
 #include <yt/ytlib/query_client/operator.pb.h>
 
+#include <ytlib/new_table_client/schema.h>
+
 #include <core/misc/protobuf_helpers.h>
 
-#ifdef __GNUC__ 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic error "-Wswitch-enum"
+#define ENSURE_ALL_CASES
+#else
+#define ENSURE_ALL_CASES default: YUNREACHABLE()
 #endif
 
 namespace NYT {
@@ -18,6 +24,16 @@ namespace NQueryClient {
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+TTableSchema TOperator::GetTableSchema() const
+{
+    return InferTableSchema(this);
+}
+
+TKeyColumns TOperator::GetKeyColumns() const
+{
+    return InferKeyColumns(this);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,10 +74,8 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
         break;
     }
 
-    default:
-        YUNREACHABLE();
+    ENSURE_ALL_CASES
     }
-
 }
 
 const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* context)
@@ -120,8 +134,7 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
         break;
     }
 
-    default:
-        YUNREACHABLE();
+    ENSURE_ALL_CASES
     }
 
     YCHECK(result);
@@ -134,7 +147,7 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
 } // namespace NQueryClient
 } // namespace NYT
 
-#ifdef __GNUC__ 
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 
