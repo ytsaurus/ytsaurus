@@ -192,7 +192,7 @@ T PolymorphicIdentity(T t)
 }
 
 template <class T>
-T PolymorphicPassThrough(T t)
+T PolymorphicPassThrough(T&& t)
 {
     return std::move(t); // Move
 }
@@ -807,97 +807,122 @@ TEST_F(TBindTest, OwnedWrapper)
 }
 
 // Passed() wrapper support.
-//   - Passed() can be constructed from a pointer to scoper.
-//   - Passed() can be constructed from a scoper rvalue.
 //   - Using Passed() gives TCallback ownership.
 //   - Ownership is transferred from TCallback to callee on the first Run().
-TEST_F(TBindTest, DISABLED_PassedWrapper)
+TEST_F(TBindTest, PassedWrapper1)
 {
     TProbeState state;
+    TProbe probe(&state);
 
-    // Tests the Passed() function's support for pointers.
-#if 0
+    TCallback<TProbe()> cb =
+        BIND(
+            &PolymorphicPassThrough<TProbe>,
+            Passed(std::move(probe)));
+
+    // The argument has been passed.
+    EXPECT_FALSE(probe.IsValid());
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+
     {
-        TProbeScoper scoper(&state);
-        TProbe probe(&state);
-
-        TCallback<TProbe()> cb =
-            BIND(
-                &PolymorphicPassThrough<TProbe>,
-                Passed(&probe));
-
-        // The argument has been passed.
-        EXPECT_FALSE(probe.IsValid());
+        // Check that ownership can be transferred back out.
+        int n = state.MoveConstructors;
+        TProbe result = cb.Run();
         EXPECT_EQ(0, state.Destructors);
+        EXPECT_LT(n, state.MoveConstructors);
         EXPECT_THAT(state, NoCopies());
 
-        // If we never invoke the TCallback, it retains ownership and deletes.
+        // Resetting does not delete since ownership was transferred.
         cb.Reset();
-
-        EXPECT_EQ(1, state.Destructors);
-    }
-#endif
-
-    // Tests the Passed() function's support for rvalues.
-#if 0
-    {
-        TProbeScoper scoper(&state);
-        TProbe probe(&state);
-
-        TCallback<TProbe()> cb =
-            BIND(
-                &PolymorphicPassThrough<TProbe>,
-                Passed(std::move(probe)));
-
-        // The argument has been passed.
-        EXPECT_FALSE(probe.IsValid());
-        EXPECT_EQ(0, state.Destructors);
-        EXPECT_THAT(state, NoCopies());
-
-        {
-            // Check that ownership can be transferred back out.
-            int n = state.MoveConstructors;
-            TProbe result = cb.Run();
-            EXPECT_EQ(0, state.Destructors);
-            EXPECT_EQ(n + 2, state.MoveConstructors);
-            EXPECT_THAT(state, NoCopies());
-
-            // Resetting does not delete since ownership was transferred.
-            cb.Reset();
-            EXPECT_EQ(0, state.Destructors);
-            EXPECT_THAT(state, NoCopies());
-        }
-
-        // Ensure that we actually did get ownership (from the last scope).
-        EXPECT_EQ(1, state.Destructors);
-    }
-#endif
-
-    // Yet another test for movable semantics.
-    {
-        TProbeScoper scoper(&state);
-
-        TProbe sender(&state);
-        TProbe receiver(TProbe::ExplicitlyCreateInvalidProbe());
-
-        TCallback<TProbe(TProbe)> cb =
-            BIND(&PolymorphicPassThrough<TProbe>);
-
-        EXPECT_TRUE(sender.IsValid());
-        EXPECT_FALSE(receiver.IsValid());
-
-        EXPECT_EQ(0, state.Destructors);
-        EXPECT_THAT(state, NoCopies());
-
-        receiver = cb.Run(std::move(sender));
-
-        EXPECT_FALSE(sender.IsValid());
-        EXPECT_TRUE(receiver.IsValid());
-
         EXPECT_EQ(0, state.Destructors);
         EXPECT_THAT(state, NoCopies());
     }
+
+    // Ensure that we actually did get ownership (from the last scope).
+    EXPECT_EQ(1, state.Destructors);
 }
+
+TEST_F(TBindTest, PassedWrapper2)
+{
+    TProbeState state;
+    TProbe probe(&state);
+
+    TCallback<TProbe()> cb =
+        BIND(
+            &PolymorphicIdentity<TProbe>,
+            Passed(std::move(probe)));
+
+    // The argument has been passed.
+    EXPECT_FALSE(probe.IsValid());
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+
+    {
+        // Check that ownership can be transferred back out.
+        int n = state.MoveConstructors;
+        TProbe result = cb.Run();
+        EXPECT_EQ(0, state.Destructors);
+        EXPECT_LT(n, state.MoveConstructors);
+        EXPECT_THAT(state, NoCopies());
+
+        // Resetting does not delete since ownership was transferred.
+        cb.Reset();
+        EXPECT_EQ(0, state.Destructors);
+        EXPECT_THAT(state, NoCopies());
+    }
+
+    // Ensure that we actually did get ownership (from the last scope).
+    EXPECT_EQ(1, state.Destructors);
+}
+
+TEST_F(TBindTest, PassedWrapper3)
+{
+    TProbeState state;
+    TProbe sender(&state);
+    TProbe receiver(TProbe::ExplicitlyCreateInvalidProbe());
+
+    TCallback<TProbe(TProbe&&)> cb =
+        BIND(&PolymorphicPassThrough<TProbe>);
+
+    EXPECT_TRUE(sender.IsValid());
+    EXPECT_FALSE(receiver.IsValid());
+
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+
+    receiver = cb.Run(std::move(sender));
+
+    EXPECT_FALSE(sender.IsValid());
+    EXPECT_TRUE(receiver.IsValid());
+
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+}
+
+TEST_F(TBindTest, PassedWrapper4)
+{
+    TProbeState state;
+    TProbe sender(&state);
+    TProbe receiver(TProbe::ExplicitlyCreateInvalidProbe());
+
+    TCallback<TProbe(TProbe)> cb =
+        BIND(&PolymorphicIdentity<TProbe>);
+
+    EXPECT_TRUE(sender.IsValid());
+    EXPECT_FALSE(receiver.IsValid());
+
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+
+    receiver = cb.Run(std::move(sender));
+
+    EXPECT_FALSE(sender.IsValid());
+    EXPECT_TRUE(receiver.IsValid());
+
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+}
+
 
 // Argument constructor usage for non-reference and const reference parameters.
 TEST_F(TBindTest, ArgumentProbing)

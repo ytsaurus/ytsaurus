@@ -122,11 +122,11 @@ struct TMaybeLockHelper
 template <bool IsMethod, class T>
 struct TMaybeLockHelper< IsMethod, T&& >
 {
-    T T_;
+    T&& T_;
     inline TMaybeLockHelper(T&& x)
         : T_(std::move(x))
     { }
-    inline TMaybeLockHelper& Lock() const
+    inline const TMaybeLockHelper& Lock() const
     {
         return *this;
     }
@@ -142,7 +142,9 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U> >
     typedef TIntrusivePtr<U> T;
     inline TMaybeLockHelper(const T& x)
     {
-        static_assert(U::False, "Current implementation should pass smart pointers by reference.");
+        static_assert(
+            U::False,
+            "Current implementation should pass smart pointers by reference.");
     }
 };
 
@@ -180,7 +182,9 @@ struct TMaybeLockHelper< true, TWeakPtr<U> >
     typedef TWeakPtr<U> T;
     inline TMaybeLockHelper(const T& x)
     {
-        static_assert(U::False, "Current implementation should pass smart pointers by reference.");
+        static_assert(
+            U::False,
+            "Current implementation should pass smart pointers by reference.");
     }
 };
 
@@ -220,10 +224,9 @@ struct TMaybeLockHelper< true, const TWeakPtr<U>& >
 // semantics require so.
 //
 
-template <class TExpected>
+template <class T>
 struct TMaybeCopyHelper
 {
-    typedef TExpected T;
     static inline T&& Do(T&& x)
     {
         return static_cast<T&&>(x);
@@ -234,10 +237,9 @@ struct TMaybeCopyHelper
     }
 };
 
-template <class TExpected>
-struct TMaybeCopyHelper<const TExpected&>
+template <class T>
+struct TMaybeCopyHelper<const T&>
 {
-    typedef TExpected T;
     static inline const T& Do(const T& x)
     {
         return x;
@@ -249,16 +251,18 @@ struct TMaybeCopyHelper<T&>
 {
     static inline void Do()
     {
-        static_assert(T::False, "Current implementation should not make copies of non-const lvalue-references.");
+        static_assert(
+            T::False,
+            "Current implementation should not make copies of non-const lvalue-references.");
     }
 };
 
 template <class T>
 struct TMaybeCopyHelper<T&&>
 {
-    static inline void Do()
+    static inline T&& Do(T&& x)
     {
-        static_assert(T::False, "Current implementation should not make copies of rvalue-references.");
+        return static_cast<T&&>(x);
     }
 };
 

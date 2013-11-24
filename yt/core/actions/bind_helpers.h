@@ -170,7 +170,7 @@ public:
     TOwnedWrapper(const TOwnedWrapper& other)
         : T_(other.T_)
     {
-        other.T_ = NULL;
+        other.T_ = nullptr;
     }
     ~TOwnedWrapper()
     {
@@ -188,30 +188,30 @@ template <class T>
 class TPassedWrapper
 {
 public:
-    explicit TPassedWrapper(T x)
-        : IsValid(true)
+    explicit TPassedWrapper(T&& x)
+        : IsValid_(true)
         , T_(std::move(x))
     { }
     TPassedWrapper(const TPassedWrapper& other)
-        : IsValid(other.IsValid)
+        : IsValid_(other.IsValid_)
         , T_(std::move(other.T_))
     {
-        other.IsValid = false;
+        other.IsValid_ = false;
     }
     TPassedWrapper(TPassedWrapper&& other)
-        : IsValid(other.IsValid)
+        : IsValid_(other.IsValid_)
         , T_(std::move(other.T_))
     {
-        other.IsValid = false;
+        other.IsValid_ = false;
     }
     T&& Get() const
     {
-        YASSERT(IsValid);
-        IsValid = false;
-        return std::move(T_);
+        YASSERT(IsValid_);
+        IsValid_ = false;
+        return static_cast<T&&>(T_);
     }
 private:
-    mutable bool IsValid;
+    mutable bool IsValid_;
     mutable T T_;
 };
 
@@ -304,18 +304,6 @@ template <class T>
 static inline NYT::NDetail::TPassedWrapper<T> Passed(T&& x)
 {
     return NYT::NDetail::TPassedWrapper<T>(std::forward<T>(x));
-}
-
-template <class T>
-static inline NYT::NDetail::TPassedWrapper<T> Passed(T* x)
-{
-    return NYT::NDetail::TPassedWrapper<T>(std::move(*x));
-}
-
-template <class T>
-static inline NYT::NDetail::TPassedWrapper<T*> Passed(std::unique_ptr<T>&& x)
-{
-    return NYT::NDetail::TPassedWrapper<T*>(x.release());
 }
 
 template <class T>
