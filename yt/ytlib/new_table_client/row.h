@@ -174,7 +174,7 @@ public:
         TChunkedMemoryPool* pool, 
         int valueCount)
         : Header(reinterpret_cast<TRowHeader*>(
-            pool->Allocate(GetRowDataSize<TUnversionedValue>(valueCount))))
+            pool->Allocate(GetRowDataSize<TValue>(valueCount))))
     {
         Header->ValueCount = valueCount;
     }
