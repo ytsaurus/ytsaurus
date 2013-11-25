@@ -6,6 +6,7 @@
 #include <core/fileio/async_writer.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/fiber.h>
 
 #include <contrib/testing/framework.h>
 
@@ -13,6 +14,8 @@ namespace NYT {
 namespace NFileIO {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using NConcurrency::WaitFor;
 
 struct TNopFDWatcher : public IFDWatcher
 {
@@ -140,7 +143,7 @@ TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader)
         whole.Append(data.Begin(), data.Size());
 
         if ((!isClosed) && (data.Size() == 0)) {
-            auto error = reader->GetReadyEvent().Get();
+            auto error = WaitFor(reader->GetReadyEvent());
         }
     }
     return whole;
@@ -217,7 +220,7 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
         }
         if (enough) {
             std::cerr << "Enough!\n";
-            TError error = writer->GetReadyEvent().Get();
+            TError error = WaitFor(writer->GetReadyEvent());
             if (!error.IsOK()) {
                 std::cerr << error.GetMessage() << std::endl;
                 return error;
@@ -225,7 +228,7 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
         }
     }
     {
-        TError error = writer->Close().Get();
+        TError error = WaitFor(writer->Close());
         return error;
     }
 }
@@ -255,7 +258,7 @@ TEST(TFileIODispatcher, RealReadWrite)
 
     std::vector<char> data(10 * 4096, 'a');
 
-    WriteAll(writer, &data[0], data.size(), 4096);
+    TFuture<TError> writeError = BIND(&WriteAll, writer, &data[0], data.size(), 4096).AsyncVia(queue->GetInvoker()).Run();
     TFuture<TBlob> readFromPipe = BIND(&ReadAll, reader).AsyncVia(queue->GetInvoker()).Run();
 
     auto textFromPipe = readFromPipe.Get();
