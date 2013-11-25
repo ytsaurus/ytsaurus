@@ -14,6 +14,11 @@ struct TDecompressedBlockTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int ZeroFunction(const std::vector<int>&)
+{
+    return 0;
+}
+
 //TODO(ignat): rename these methods
 template <class TBlockTag>
 TSharedRef Apply(TConverter converter, const TSharedRef& ref)
@@ -25,13 +30,24 @@ TSharedRef Apply(TConverter converter, const TSharedRef& ref)
 }
 
 template <class TBlockTag>
-TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
+TSharedRef Apply(
+    TConverter converter,
+    const std::vector<TSharedRef>& refs,
+    std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroFunction)
 {
     if (refs.size() == 1) {
         return Apply<TBlockTag>(converter, refs.front());
     }
     TVectorRefsSource source(refs);
+
+    std::vector<int> lengths;
+    for (const auto& ref: refs) {
+        lengths.push_back(ref.Size());
+    }
+    
     TBlob output;
+    output.Reserve(outputSizeEstimator(lengths));
+
     converter.Run(&source, &output);
     return TSharedRef::FromBlob<TBlockTag>(std::move(output));
 }
@@ -152,7 +168,7 @@ public:
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Apply<TCompressedBlockTag>(Compressor_, blocks);
+        return Apply<TCompressedBlockTag>(Compressor_, blocks, Lz4CompressionBound);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override

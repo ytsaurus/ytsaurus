@@ -39,13 +39,13 @@ void TSharedRef::TSharedData::InitializeTracking(void* cookie)
 {
     YASSERT(!Cookie);
     Cookie = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie, Blob.Size());
+    TRefCountedTracker::Get()->Allocate(Cookie, Blob.Capacity());
 }
 
 void TSharedRef::TSharedData::FinalizeTracking()
 {
     YASSERT(Cookie);
-    TRefCountedTracker::Get()->Free(Cookie, Blob.Size());
+    TRefCountedTracker::Get()->Free(Cookie, Blob.Capacity());
 }
 
 #endif
