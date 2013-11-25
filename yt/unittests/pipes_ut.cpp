@@ -100,39 +100,55 @@ TEST(TNonBlockReader, Failed)
     EXPECT_TRUE(reader.InFailedState());
 }
 
-TEST(TFileIODispatcher, ReadSomethingSpin)
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+class TReadWriteTest : public ::testing::Test
 {
-    TFileIODispatcher dispatcher;
+protected:
+    void SetUp()
+    {
+        int pipefds[2];
+        int err = pipe2(pipefds, O_NONBLOCK);
 
-    int pipefds[2];
-    int err = pipe2(pipefds, O_NONBLOCK);
+        ASSERT_TRUE(err == 0);
+        Reader = New<TAsyncReader>(pipefds[0]);
+        Writer = New<TAsyncWriter>(pipefds[1]);
 
-    ASSERT_TRUE(err == 0);
+        {
+            auto error = Dispatcher.AsyncRegister(Reader).Get();
+            ASSERT_TRUE(error.IsOK());
+        }
+        {
+            auto error = Dispatcher.AsyncRegister(Writer).Get();
+            ASSERT_TRUE(error.IsOK());
+        }
+    }
 
-    auto reader = New<TAsyncReader>(pipefds[0]);
-    auto error = dispatcher.AsyncRegister(reader);
+    TFileIODispatcher Dispatcher;
+    TIntrusivePtr<TAsyncReader> Reader;
+    TIntrusivePtr<TAsyncWriter> Writer;
+};
 
-    ASSERT_TRUE(error.Get().IsOK());
 
+TEST_F(TReadWriteTest, ReadSomethingSpin)
+{
     std::string message("Hello pipe!\n");
-    ASSERT_TRUE(write(pipefds[1], message.c_str(), message.size()) == message.size());
-    ASSERT_TRUE(close(pipefds[1]) == 0);
+    Writer->Write(message.c_str(), message.size());
+    Writer->Close();
 
     bool isClosed = false;
     TBlob data, whole;
 
     while (!isClosed)
     {
-        std::tie(data, isClosed) = reader->Read();
+        std::tie(data, isClosed) = Reader->Read();
         whole.Append(data.Begin(), data.Size());
     }
 
     EXPECT_EQ(std::string(whole.Begin(), whole.End()), message);
-
-    ASSERT_TRUE(close(pipefds[0]) == -1);
 }
 
-TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader)
+TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader, bool useWaitFor)
 {
     bool isClosed = false;
     TBlob data, whole;
@@ -143,61 +159,34 @@ TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader)
         whole.Append(data.Begin(), data.Size());
 
         if ((!isClosed) && (data.Size() == 0)) {
-            auto error = WaitFor(reader->GetReadyEvent());
+            if (useWaitFor) {
+                auto error = WaitFor(reader->GetReadyEvent());
+            } else {
+                auto error = reader->GetReadyEvent().Get();
+            }
         }
     }
     return whole;
 }
 
-TEST(TFileIODispatcher, ReadSomethingWait)
+TEST_F(TReadWriteTest, ReadSomethingWait)
 {
-    TFileIODispatcher dispatcher;
-
-    int pipefds[2];
-    int err = pipe2(pipefds, O_NONBLOCK);
-
-    ASSERT_TRUE(err == 0);
-
-    auto reader = New<TAsyncReader>(pipefds[0]);
-    auto error = dispatcher.AsyncRegister(reader);
-
-    ASSERT_TRUE(error.Get().IsOK());
-
     std::string message("Hello pipe!\n");
-    ASSERT_EQ(write(pipefds[1], message.c_str(), message.size()), message.size());
-    ASSERT_EQ(close(pipefds[1]), 0);
+    Writer->Write(message.c_str(), message.size());
+    Writer->Close();
 
-    TBlob whole = ReadAll(reader);
+    TBlob whole = ReadAll(Reader, false);
 
     EXPECT_EQ(std::string(whole.Begin(), whole.End()), message);
 }
 
-TEST(TFileIODispatcher, ReadWrite)
+TEST_F(TReadWriteTest, ReadWrite)
 {
-    TFileIODispatcher dispatcher;
-
-    int pipefds[2];
-    int err = pipe2(pipefds, O_NONBLOCK);
-
-    ASSERT_TRUE(err == 0);
-
-    auto reader = New<TAsyncReader>(pipefds[0]);
-    auto writer = New<TAsyncWriter>(pipefds[1]);
-
-    {
-        auto error = dispatcher.AsyncRegister(reader);
-        ASSERT_TRUE(error.Get().IsOK());
-    }
-    {
-        auto error = dispatcher.AsyncRegister(writer);
-        ASSERT_TRUE(error.Get().IsOK());
-    }
-
     const std::string text("Hello cruel world!\n");
-    writer->Write(text.c_str(), text.size());
-    TAsyncError errorsOnClose = writer->Close();
+    Writer->Write(text.c_str(), text.size());
+    TAsyncError errorsOnClose = Writer->Close();
 
-    TBlob textFromPipe = ReadAll(reader);
+    TBlob textFromPipe = ReadAll(Reader, false);
 
     EXPECT_TRUE(errorsOnClose.Get().IsOK());
     EXPECT_EQ(std::string(textFromPipe.Begin(), textFromPipe.End()), text);
@@ -233,36 +222,17 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
     }
 }
 
-TEST(TFileIODispatcher, RealReadWrite)
+TEST_F(TReadWriteTest, RealReadWrite)
 {
     auto queue = New<NConcurrency::TActionQueue>();
 
-    TFileIODispatcher dispatcher;
-
-    int pipefds[2];
-    int err = pipe2(pipefds, O_NONBLOCK);
-
-    ASSERT_TRUE(err == 0);
-
-    auto reader = New<TAsyncReader>(pipefds[0]);
-    auto writer = New<TAsyncWriter>(pipefds[1]);
-
-    {
-        auto error = dispatcher.AsyncRegister(reader);
-        ASSERT_TRUE(error.Get().IsOK());
-    }
-    {
-        auto error = dispatcher.AsyncRegister(writer);
-        ASSERT_TRUE(error.Get().IsOK());
-    }
-
     std::vector<char> data(10 * 4096, 'a');
 
-    TFuture<TError> writeError = BIND(&WriteAll, writer, &data[0], data.size(), 4096).AsyncVia(queue->GetInvoker()).Run();
-    TFuture<TBlob> readFromPipe = BIND(&ReadAll, reader).AsyncVia(queue->GetInvoker()).Run();
+    auto writeError = BIND(&WriteAll, Writer, data.data(), data.size(), 4096).AsyncVia(queue->GetInvoker()).Run();
+    auto readFromPipe = BIND(&ReadAll, Reader, true).AsyncVia(queue->GetInvoker()).Run();
 
     auto textFromPipe = readFromPipe.Get();
-    EXPECT_EQ(textFromPipe.Size(), 10 * 4096);
+    EXPECT_TRUE(equal(textFromPipe.Begin(), textFromPipe.End(), data.begin()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
