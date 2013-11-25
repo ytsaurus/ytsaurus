@@ -33,7 +33,7 @@ template <class TBlockTag>
 TSharedRef Apply(
     TConverter converter,
     const std::vector<TSharedRef>& refs,
-    std::function<int(const std::vector<int>)> outputSizeEstimator = ZeroFunction)
+    std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroFunction)
 {
     if (refs.size() == 1) {
         return Apply<TBlockTag>(converter, refs.front());
