@@ -125,6 +125,7 @@ set( STREAM_SRCS
   ${STREAM_BASE}/input.cpp
   ${STREAM_BASE}/lz.cpp
  #${STREAM_BASE}/lzma.cpp (uses contrib/lzmasdk)
+  ${STREAM_BASE}/lzop.cpp
   ${STREAM_BASE}/mem.cpp
   ${STREAM_BASE}/multi.cpp
   ${STREAM_BASE}/null.cpp
