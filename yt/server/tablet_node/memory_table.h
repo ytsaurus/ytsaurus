@@ -20,29 +20,34 @@ class TMemoryTable
     : public TRefCounted
 {
 public:
-    explicit TMemoryTable(
+    TMemoryTable(
         TTabletManagerConfigPtr config,
         TTablet* tablet);
 
     ~TMemoryTable();
 
-    void WriteRows(
+    TBucket WriteRow(
+        const NVersionedTableClient::TNameTablePtr& nameTable,
         TTransaction* transaction,
-        NVersionedTableClient::IReaderPtr reader,
-        bool prewrite,
-        std::vector<TBucket>* lockedBuckets);
+        NVersionedTableClient::TVersionedRow row,
+        bool prewrite);
 
-    void ConfirmPrewrittenBucket(TBucket bucket);
+    TBucket DeleteRow(
+        TTransaction* transaction,
+        NVersionedTableClient::TKey key,
+        bool predelete);
+
+    void LookupRow(
+        const NVersionedTableClient::IWriterPtr& writer,
+        NVersionedTableClient::TKey key,
+        NTransactionClient::TTimestamp timestamp,
+        const TColumnFilter& columnFilter);
+
+
+    void ConfirmBucket(TBucket bucket);
     void PrepareBucket(TBucket bucket);
     void CommitBucket(TBucket bucket);
     void AbortBucket(TBucket bucket);
-
-    void LookupRow(
-        NVersionedTableClient::TKey key,
-        NTransactionClient::TTimestamp timestamp,
-        const TColumnFilter& columnFilter,
-        NChunkClient::NProto::TChunkMeta* chunkMeta,
-        std::vector<TSharedRef>* blocks);
 
 private:
     class TComparer;
@@ -53,9 +58,8 @@ private:
     int KeyCount;
     int SchemaColumnCount;
 
-    TChunkedMemoryPool TreePool_;
-    TChunkedMemoryPool RowPool_;
-    TChunkedMemoryPool StringPool_;
+    TChunkedMemoryPool AlignedPool_;
+    TChunkedMemoryPool UnalignedPool_;
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 
@@ -63,19 +67,25 @@ private:
     std::unique_ptr<TRcuTree<TBucket, TComparer>> Tree_;
 
 
-    TBucket WriteRow(
-        NVersionedTableClient::TNameTablePtr nameTable,
+    TBucket AllocateBucket();
+    
+    void LockBucket(
+        TBucket bucket,
         TTransaction* transaction,
-        NVersionedTableClient::TVersionedRow row,
-        bool prewrite);
+        bool preliminary);
 
     void InternValue(
         NVersionedTableClient::TUnversionedValue* dst,
         const NVersionedTableClient::TUnversionedValue& src);
 
+    NVersionedTableClient::TTimestamp FetchTimestamp(
+        TTimestampList list,
+        NTransactionClient::TTimestamp timestamp);
+
     const NVersionedTableClient::TVersionedValue* FetchVersionedValue(
         TValueList list,
-        NTransactionClient::TTimestamp timestamp);
+        NTransactionClient::TTimestamp minTimestamp,
+        NTransactionClient::TTimestamp maxTimestamp);
 
 };
 

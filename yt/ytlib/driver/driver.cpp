@@ -138,6 +138,7 @@ public:
         REGISTER(TInsertCommand,            "insert",            Tabular,    Null,       true,  true );
         REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
         REGISTER(TLookupCommand,            "lookup",            Null,       Tabular,    false, true );
+        REGISTER(TDeleteCommand,            "delete",            Null,       Null,       true,  true);
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
         REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);
@@ -163,7 +164,9 @@ public:
 
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
-            return MakePromise(TDriverResponse(TError("Unknown command: %s", ~request.CommandName)));
+            return MakePromise(TDriverResponse(TError(
+                "Unknown command %s",
+                ~request.CommandName.Quote())));
         }
 
         LOG_INFO("Command started (Command: %s, User: %s)",

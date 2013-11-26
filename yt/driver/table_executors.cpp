@@ -206,5 +206,30 @@ Stroka TLookupExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDeleteExecutor::TDeleteExecutor()
+    : PathArg("path", "table path to delete rows from", true, "", "YPATH")
+    , KeyArg("key", "key to delete", true, "", "YSON_LIST_FRAGMENT")
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(KeyArg);
+}
+
+void TDeleteExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+    auto key = ConvertTo<std::vector<INodePtr>>(TYsonString(KeyArg.getValue(), EYsonType::ListFragment));
+
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path)
+        .Item("key").Value(key);
+}
+
+Stroka TDeleteExecutor::GetCommandName() const
+{
+    return "delete";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

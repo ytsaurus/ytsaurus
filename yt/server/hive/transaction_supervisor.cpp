@@ -200,7 +200,7 @@ private:
 
             ScheduleCommitReply(context, commit);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %s, PrepareTimestamp: %" PRId64 ")",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %s, PrepareTimestamp: %" PRIu64 ")",
                 ~ToString(transactionId),
                 prepareTimestamp);
 
@@ -255,7 +255,7 @@ private:
         auto startTimestamp = TTimestamp(request.start_timestamp());
 
         if (context) {
-            context->SetRequestInfo("StartTimestamp: %" PRId64,
+            context->SetRequestInfo("StartTimestamp: %" PRIu64,
                 startTimestamp);
         }
 
@@ -292,7 +292,7 @@ private:
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Simple transaction committed (TransactionId: %s, CommitTimestamp: %" PRId64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Simple transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             commitTimestamp);
 
@@ -572,14 +572,14 @@ private:
                 true,
                 prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Distributed commit has failed to prepare (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRId64 ")",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Distributed commit has failed to prepare (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
                 ~ToString(transactionId),
                 ~ToString(coordinatorCellGuid),
                 prepareTimestamp);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit prepared (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRId64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit prepared (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             ~ToString(coordinatorCellGuid),
             prepareTimestamp);
@@ -596,7 +596,7 @@ private:
             LOG_FATAL(ex, "Error committing prepared transaction");
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction committed (TransactionId: %s, CommitTimestamp: %" PRId64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             commitTimestamp);
     }

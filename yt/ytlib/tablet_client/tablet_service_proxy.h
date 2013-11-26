@@ -26,6 +26,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, Write);
     DEFINE_RPC_PROXY_METHOD(NProto, Lookup);
+    DEFINE_RPC_PROXY_METHOD(NProto, Delete);
 
 };
 

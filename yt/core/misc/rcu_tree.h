@@ -156,6 +156,41 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKey, class TComparer>
+class TRcuTreeScannerGuard
+{
+public:
+    explicit TRcuTreeScannerGuard(TRcuTree<TKey, TComparer>* tree);
+    ~TRcuTreeScannerGuard();
+
+    TRcuTreeScanner<TKey, TComparer>* operator -> ();
+
+private:
+    TRcuTree<TKey, TComparer>* Tree_;
+    TRcuTreeScanner<TKey, TComparer>* Scanner_;
+
+};
+
+template <class TKey, class TComparer>
+TRcuTreeScannerGuard<TKey, TComparer>::TRcuTreeScannerGuard(TRcuTree<TKey, TComparer>* tree)
+    : Tree_(tree)
+    , Scanner_(Tree_->AllocateScanner())
+{ }
+
+template <class TKey, class TComparer>
+TRcuTreeScannerGuard<TKey, TComparer>::~TRcuTreeScannerGuard()
+{
+    Tree_->FreeScanner(Scanner_);
+}
+
+template <class TKey, class TComparer>
+TRcuTreeScanner<TKey, TComparer>* TRcuTreeScannerGuard<TKey, TComparer>::operator->()
+{
+    return Scanner_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define RCU_TREE_INL_H_

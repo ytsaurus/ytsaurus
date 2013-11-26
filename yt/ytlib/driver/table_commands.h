@@ -177,5 +177,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDeleteRequest
+    : public TRequest
+{
+    NYPath::TRichYPath Path;
+    std::vector<NYTree::INodePtr> Key;
+
+    TDeleteRequest()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("key", Key);
+    }
+};
+
+class TDeleteCommand
+    : public TTypedCommand<TDeleteRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

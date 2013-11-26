@@ -68,6 +68,7 @@ public:
         RegisterExecutor(New<TInsertExecutor>());
         RegisterExecutor(New<TSelectExecutor>());
         RegisterExecutor(New<TLookupExecutor>());
+        RegisterExecutor(New<TDeleteExecutor>());
 
         RegisterExecutor(New<TMapExecutor>());
         RegisterExecutor(New<TMergeExecutor>());

@@ -11,11 +11,17 @@
 
 #include <core/misc/ring_queue.h>
 
+#include <core/concurrency/fiber.h>
+
 #include <ytlib/chunk_client/memory_reader.h>
+#include <ytlib/chunk_client/memory_writer.h>
 
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/chunk_reader.h>
+#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/chunk_writer.h>
+#include <ytlib/new_table_client/name_table.h>
 
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
@@ -32,6 +38,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellNode;
 using namespace NTabletNode::NProto;
@@ -82,6 +89,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraCreateTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFollowerDeleteRows, Unretained(this)));
     }
 
 
@@ -111,6 +119,7 @@ public:
         TChunkMeta chunkMeta,
         std::vector<TSharedRef> blocks)
     {
+        JustLockedBuckets_.clear();
         try {
             DoWriteRows(
                 tablet,
@@ -121,21 +130,21 @@ public:
         } catch (const std::exception& ex) {
             // Abort just taken locks.
             const auto& memoryTable = tablet->GetActiveMemoryTable();
-            for (auto bucket : LastPrewrittenBuckets_) {
+            for (auto bucket : JustLockedBuckets_) {
                 memoryTable->AbortBucket(bucket);
             }
             throw;
         }
 
-        int rowCount = static_cast<int>(LastPrewrittenBuckets_.size());
+        int rowCount = static_cast<int>(JustLockedBuckets_.size());
 
         LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d)",
             ~ToString(transaction->GetId()),
             ~ToString(tablet->GetId()),
             rowCount);
 
-        for (auto bucket : LastPrewrittenBuckets_) {
-            PrewrittenBuckets_.push(TBucketRef(tablet, bucket));
+        for (auto bucket : JustLockedBuckets_) {
+            LockedBuckets_.push(TBucketRef(tablet, bucket));
         }
 
         TReqWriteRows request;
@@ -147,7 +156,48 @@ public:
             request.add_blocks(ToString(block));
         }
         CreateMutation(Slot->GetHydraManager(), Slot->GetAutomatonInvoker(), request)
-            ->SetAction(BIND(&TImpl::HydraLeaderWriteRows, MakeStrong(this), rowCount))
+            ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
+            ->Commit();
+    }
+
+    void Delete(
+        TTablet* tablet,
+        TTransaction* transaction,
+        const std::vector<NVersionedTableClient::TOwningKey>& keys)
+    {
+        JustLockedBuckets_.clear();
+        try {
+            DoDeleteRows(
+                tablet,
+                transaction,
+                keys,
+                true);
+        } catch (const std::exception& ex) {
+            // Abort just taken locks.
+            const auto& memoryTable = tablet->GetActiveMemoryTable();
+            for (auto bucket : JustLockedBuckets_) {
+                memoryTable->AbortBucket(bucket);
+            }
+            throw;
+        }
+
+        int rowCount = static_cast<int>(JustLockedBuckets_.size());
+
+        LOG_DEBUG("Rows predeleted (TransactionId: %s, TabletId: %s, RowCount: %d)",
+            ~ToString(transaction->GetId()),
+            ~ToString(tablet->GetId()),
+            rowCount);
+
+        for (auto bucket : JustLockedBuckets_) {
+            LockedBuckets_.push(TBucketRef(tablet, bucket));
+        }
+
+        TReqDeleteRows request;
+        ToProto(request.mutable_transaction_id(), transaction->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_keys(), keys);
+        CreateMutation(Slot->GetHydraManager(), Slot->GetAutomatonInvoker(), request)
+            ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
     }
 
@@ -159,9 +209,24 @@ public:
         TChunkMeta* chunkMeta,
         std::vector<TSharedRef>* blocks)
     {
-        auto memoryTable = tablet->GetActiveMemoryTable();
-        memoryTable->LookupRow(key, timestamp, columnFilter, chunkMeta, blocks);
+        auto memoryWriter = New<TMemoryWriter>();
+
+        auto chunkWriter = New<TChunkWriter>(
+            New<TChunkWriterConfig>(), // TODO(babenko): make static
+            New<TEncodingWriterOptions>(), // TODO(babenko): make static
+            memoryWriter);
+
+        const auto& memoryTable = tablet->GetActiveMemoryTable();
+        memoryTable->LookupRow(
+            chunkWriter,
+            key,
+            timestamp,
+            columnFilter);
+
+        *chunkMeta = std::move(memoryWriter->GetChunkMeta());
+        *blocks = std::move(memoryWriter->GetBlocks());
     }
+
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
@@ -171,8 +236,8 @@ private:
 
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
 
-    std::vector<TBucket> LastPrewrittenBuckets_; // pooled instance
-    TRingQueue<TBucketRef> PrewrittenBuckets_;
+    std::vector<TBucket> JustLockedBuckets_; // pooled instance
+    TRingQueue<TBucketRef> LockedBuckets_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -223,15 +288,15 @@ private:
 
     virtual void OnStartLeading()
     {
-        PrewrittenBuckets_.clear();
+        LockedBuckets_.clear();
     }
 
     virtual void OnStopLeading()
     {
         LOG_DEBUG("Started aborting prewritten locks");
-        while (!PrewrittenBuckets_.empty()) {
-            auto bucketRef = PrewrittenBuckets_.front();
-            PrewrittenBuckets_.pop();
+        while (!LockedBuckets_.empty()) {
+            auto bucketRef = LockedBuckets_.front();
+            LockedBuckets_.pop();
             const auto& memoryTable = bucketRef.Tablet->GetActiveMemoryTable();
             memoryTable->AbortBucket(bucketRef.Bucket);
         }
@@ -292,17 +357,18 @@ private:
             ~ToString(id));
     }
 
-    void HydraLeaderWriteRows(int rowCount)
+
+    void HydraLeaderConfirmRows(int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!PrewrittenBuckets_.empty());
-            auto bucketRef = PrewrittenBuckets_.front();
-            PrewrittenBuckets_.pop();
+            YASSERT(!LockedBuckets_.empty());
+            auto bucketRef = LockedBuckets_.front();
+            LockedBuckets_.pop();
             const auto& memoryTable = bucketRef.Tablet->GetActiveMemoryTable();
-            memoryTable->ConfirmPrewrittenBucket(bucketRef.Bucket);
+            memoryTable->ConfirmBucket(bucketRef.Bucket);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Prewritten rows confirmed (RowCount: %d)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %d)",
             rowCount);
     }
 
@@ -331,8 +397,36 @@ private:
             LOG_FATAL(ex, "Error writing rows");
         }
 
-        int rowCount = static_cast<int>(LastPrewrittenBuckets_.size());
+        int rowCount = static_cast<int>(JustLockedBuckets_.size());
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s, RowCount: %d)",
+            ~ToString(transaction->GetId()),
+            ~ToString(tablet->GetId()),
+            rowCount);
+    }
+
+    void HydraFollowerDeleteRows(const TReqDeleteRows& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionManager = Slot->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransaction(transactionId);
+
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = GetTablet(tabletId);
+
+        auto keys = FromProto<NVersionedTableClient::TOwningKey>(request.keys());
+
+        try {
+            DoDeleteRows(
+                tablet,
+                transaction,
+                keys,
+                false);
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Error deleting rows");
+        }
+
+        int rowCount = static_cast<int>(JustLockedBuckets_.size());
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows deleted (TransactionId: %s, TabletId: %s, RowCount: %d)",
             ~ToString(transaction->GetId()),
             ~ToString(tablet->GetId()),
             rowCount);
@@ -354,14 +448,64 @@ private:
             New<TChunkReaderConfig>(), // TODO(babenko): make configurable or cache this at least
             memoryReader);
 
-        auto memoryTable = tablet->GetActiveMemoryTable();
+        const auto& memoryTable = tablet->GetActiveMemoryTable();
 
-        LastPrewrittenBuckets_.clear();
-        memoryTable->WriteRows(
-            transaction,
-            std::move(chunkReader),
-            prewrite,
-            &LastPrewrittenBuckets_);
+        auto nameTable = New<TNameTable>();
+
+        {
+            // The reader is typically synchronous.
+            auto error = WaitFor(chunkReader->Open(
+                nameTable,
+                tablet->Schema(),
+                true));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
+        const int RowsBufferSize = 1000;
+        // TODO(babenko): use unversioned rows
+        std::vector<TVersionedRow> rows;
+        rows.reserve(RowsBufferSize);
+
+        while (true) {
+            bool hasData = chunkReader->Read(&rows);
+            
+            for (auto row : rows) {
+                auto bucket = memoryTable->WriteRow(
+                    nameTable,
+                    transaction,
+                    row,
+                    prewrite);
+                JustLockedBuckets_.push_back(bucket);
+            }
+
+            if (!hasData) {
+                break;
+            }
+            
+            if (rows.size() < rows.capacity()) {
+                // The reader is typically synchronous.
+                auto result = WaitFor(chunkReader->GetReadyEvent());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+            
+            rows.clear();
+        }
+    }
+
+    void DoDeleteRows(
+        TTablet* tablet,
+        TTransaction* transaction,
+        const std::vector<NVersionedTableClient::TOwningKey>& keys,
+        bool predelete)
+    {
+        const auto& memoryTable = tablet->GetActiveMemoryTable();
+        for (auto key : keys) {
+            auto bucket = memoryTable->DeleteRow(
+                transaction,
+                key,
+                predelete);
+            JustLockedBuckets_.push_back(bucket);
+        }
     }
 
 
@@ -447,6 +591,17 @@ void TTabletManager::Write(
         transaction,
         std::move(chunkMeta),
         std::move(blocks));
+}
+
+void TTabletManager::Delete(
+    TTablet* tablet,
+    TTransaction* transaction,
+    const std::vector<NVersionedTableClient::TOwningKey>& keys)
+{
+    Impl->Delete(
+        tablet,
+        transaction,
+        keys);
 }
 
 void TTabletManager::Lookup(

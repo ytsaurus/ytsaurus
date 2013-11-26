@@ -409,7 +409,7 @@ private:
 
         Register();
 
-        LOG_INFO("Starting transaction (StartTimestamp: %" PRId64 ", Type: %s)",
+        LOG_INFO("Starting transaction (StartTimestamp: %" PRIu64 ", Type: %s)",
             StartTimestamp_,
             ~Type_.ToString());
 
@@ -461,7 +461,7 @@ private:
         Id_ = FromProto<TTransactionId>(rsp->transaction_id());
         YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
 
-        LOG_INFO("Master transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", AutoAbort: %s, Ping: %s, PingAncestors: %s)",
+        LOG_INFO("Master transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~ToString(Id_),
             StartTimestamp_,
             ~FormatBool(AutoAbort_),
@@ -483,7 +483,7 @@ private:
             static_cast<ui64>(StartTimestamp_),
             TabletTransactionCounter++);
 
-        LOG_INFO("Tablet transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", AutoAbort: %s)",
+        LOG_INFO("Tablet transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s)",
             ~ToString(Id_),
             StartTimestamp_,
             ~FormatBool(AutoAbort_));

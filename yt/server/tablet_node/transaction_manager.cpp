@@ -110,7 +110,7 @@ public:
         transaction->SetStartTimestamp(startTimestamp);
         transaction->SetState(ETransactionState::Active);
 
-        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", Timeout: %" PRIu64 ")",
+        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64 ")",
             ~ToString(transactionId),
             startTimestamp,
             actualTimeout.MilliSeconds());
@@ -143,7 +143,7 @@ public:
 
         TransactionPrepared_.Fire(transaction);
 
-        LOG_DEBUG("Transaction prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRId64 ")",
+        LOG_DEBUG("Transaction prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             ~FormatBool(persistent),
             prepareTimestamp);
@@ -178,7 +178,7 @@ public:
 
         TransactionMap.Remove(transactionId);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s, CommitTimestamp: %" PRId64 ")",
+        LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             commitTimestamp);
     }

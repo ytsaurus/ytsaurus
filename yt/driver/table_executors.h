@@ -127,5 +127,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDeleteExecutor
+    : public TRequestExecutor
+{
+public:
+    TDeleteExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<Stroka> KeyArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

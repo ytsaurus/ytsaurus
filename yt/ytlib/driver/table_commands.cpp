@@ -64,6 +64,40 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+Stroka SerializeKey(const std::vector<INodePtr> key)
+{
+    TUnversionedRowBuilder keyBuilder;
+    std::vector<TYsonString> anyValues;
+    for (auto keyPart : key) {
+        switch (keyPart->GetType()) {
+            case ENodeType::Integer:
+                keyBuilder.AddValue(TUnversionedValue::MakeInteger(keyPart->GetValue<i64>()));
+                break;
+            case ENodeType::Double:
+                keyBuilder.AddValue(TUnversionedValue::MakeDouble(keyPart->GetValue<double>()));
+                break;
+            case ENodeType::String:
+                // NB: keyPart will hold the value.
+                keyBuilder.AddValue(TUnversionedValue::MakeString(keyPart->GetValue<Stroka>()));
+                break;
+            default: {
+                // NB: Hold the serialized value explicitly.
+                auto anyValue = ConvertToYsonString(keyPart);
+                anyValues.push_back(anyValue);
+                keyBuilder.AddValue(TUnversionedValue::MakeAny(anyValue.Data()));
+                break;
+            }
+        }
+    }
+    return ToProto<Stroka>(keyBuilder.GetRow());
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TReadCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request->TableReader
@@ -433,37 +467,7 @@ void TLookupCommand::DoExecute()
             req->add_columns(column);
         }
     }
-    
-    TUnversionedRowBuilder keyBuilder;
-    std::vector<TYsonString> anyValues;
-    for (auto keyPart : Request->Key) {
-        switch (keyPart->GetType()) {
-            case ENodeType::Integer:
-                keyBuilder.AddValue(MakeIntegerValue<TUnversionedValue>(
-                    keyPart->GetValue<i64>()));
-                break;
-            case ENodeType::Double:
-                keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
-                    keyPart->GetValue<double>()));
-                break;
-            case ENodeType::String:
-                // NB: keyPart will hold the value.
-                keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
-                    keyPart->GetValue<Stroka>()));
-                break;
-            default: {
-                // NB: Hold the serialized value explicitly.
-                auto anyValue = ConvertToYsonString(keyPart);
-                anyValues.push_back(anyValue);
-                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
-                    anyValue.Data()));
-                break;
-            }
-        }
-    }
-
-    auto key = keyBuilder.GetRow();
-    ToProto(req->mutable_key(), key);
+    *req->mutable_key() = SerializeKey(Request->Key);
 
     auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -540,6 +544,44 @@ void TLookupCommand::DoExecute()
     buffer.Clear();
 
     ReplySuccess();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDeleteCommand::DoExecute()
+{
+    auto tableMountCache = Context->GetTableMountCache();
+    auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
+
+    const auto& mountInfo = mountInfoOrError.GetValue();
+    if (mountInfo->TabletId == NullTabletId) {
+        THROW_ERROR_EXCEPTION("Table is not mounted");
+    }
+
+    auto transactionManager = Context->GetTransactionManager();
+    TTransactionStartOptions startOptions;
+    startOptions.Type = ETransactionType::Tablet;
+    auto transactionOrError = WaitFor(transactionManager->AsyncStart(startOptions));
+    THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+    auto transaction = transactionOrError.GetValue();
+
+    transaction->AddParticipant(mountInfo->CellId);
+
+    auto cellDirectory = Context->GetCellDirectory();
+    auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
+
+    TTabletServiceProxy proxy(channel);
+    auto deleteReq = proxy.Delete();
+    ToProto(deleteReq->mutable_transaction_id(), transaction->GetId());
+    ToProto(deleteReq->mutable_tablet_id(), mountInfo->TabletId);
+    *deleteReq->add_keys() = SerializeKey(Request->Key);
+
+    auto deleteRsp = WaitFor(deleteReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(*deleteRsp);
+
+    auto commitResult = WaitFor(transaction->AsyncCommit());
+    THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

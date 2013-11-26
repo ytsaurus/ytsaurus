@@ -37,23 +37,19 @@ class TTabletManagerConfig
     : public TYsonSerializable
 {
 public:
-    size_t TreePoolChunkSize;
-    size_t RowPoolChunkSize;
-    size_t StringPoolChunkSize;
-    double PoolMaxSmallBlockRatio;
+    size_t AlignedPoolChunkSize;
+    size_t UnalignedPoolChunkSize;
+    double MaxPoolSmallBlockRatio;
 
     TTabletManagerConfig()
     {
-        RegisterParameter("tree_pool_chunk_size", TreePoolChunkSize)
+        RegisterParameter("aligned_pool_chunk_size", AlignedPoolChunkSize)
             .GreaterThan(0)
             .Default(64 * 1024);
-        RegisterParameter("row_pool_chunk_size", RowPoolChunkSize)
+        RegisterParameter("unaligned_pool_chunk_size", UnalignedPoolChunkSize)
             .GreaterThan(0)
             .Default(64 * 1024);
-        RegisterParameter("string_pool_chunk_size", StringPoolChunkSize)
-            .GreaterThan(0)
-            .Default(64 * 1024);
-        RegisterParameter("pool_max_small_block_ratio", PoolMaxSmallBlockRatio)
+        RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
             .InRange(0.0, 1.0)
             .Default(0.25);
     }

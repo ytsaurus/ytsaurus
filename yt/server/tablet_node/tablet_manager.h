@@ -49,6 +49,11 @@ public:
         NChunkClient::NProto::TChunkMeta chunkMeta,
         std::vector<TSharedRef> blocks);
 
+    void Delete(
+        TTablet* tablet,
+        TTransaction* transaction,
+        const std::vector<NVersionedTableClient::TOwningKey>& keys);
+
     void Lookup(
         TTablet* tablet,
         NVersionedTableClient::TKey key,

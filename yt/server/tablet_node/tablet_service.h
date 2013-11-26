@@ -32,6 +32,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write);
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Lookup);
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Delete);
 
 };
 

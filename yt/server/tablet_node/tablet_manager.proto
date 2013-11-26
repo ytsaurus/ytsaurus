@@ -26,5 +26,12 @@ message TReqWriteRows
     repeated bytes blocks = 4;
 }
 
+message TReqDeleteRows
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid tablet_id = 2;
+    repeated bytes keys = 3;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

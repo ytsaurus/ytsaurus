@@ -6,6 +6,8 @@
 
 #include <ytlib/tablet_client/public.h>
 
+#include <ytlib/new_table_client/public.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <server/hydra/public.h>
@@ -69,10 +71,14 @@ class TMemoryTable;
 typedef TIntrusivePtr<TMemoryTable> TMemoryTablePtr;
 
 struct TBucketHeader;
-struct TValueListHeader;
+struct TEditListHeader;
 
 class TBucket;
-class TValueList;
+
+template <class T>
+class TEditList;
+typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
+typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,11 +23,22 @@ typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
-typedef i64 TTimestamp;
+typedef ui64 TTimestamp;
+
+// Uninitialized/invalid timestamp.
 const TTimestamp NullTimestamp = 0;
-const TTimestamp MinTimestamp = 0;
-const TTimestamp MaxTimestamp = 0x7fffffffffffffff;
-const TTimestamp LastCommittedTimestamp = -1;
+
+// Valid timestamps.
+const TTimestamp MinTimestamp = 1;
+const TTimestamp MaxTimestamp = 0x3fffffffffffffffULL;
+
+// Sentinels.
+const TTimestamp LastCommittedTimestamp = 0x4000000000000000ULL;
+const TTimestamp UncommittedTimestamp   = 0x4000000000000001ULL;
+
+// Masks.
+const TTimestamp TimestampValueMask     = 0x7fffffffffffffffULL;
+const TTimestamp TombstoneTimestampMask = 0x8000000000000000ULL;
 
 ////////////////////////////////////////////////////////////////////////////////
 
