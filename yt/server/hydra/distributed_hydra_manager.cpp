@@ -363,7 +363,6 @@ public:
     NElection::TElectionManagerPtr ElectionManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
-    TVersion ReachableVersion_;
     TEpochContextPtr EpochContext_;
 
     NLog::TTaggedLogger Logger;
@@ -775,10 +774,33 @@ public:
     }
 
 
-
-    void ComputeReachableVersion()
+    i64 GetElectionPriority()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto version =
+            ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
+            ? DecoratedAutomaton_->GetAutomatonVersion()
+            : DecoratedAutomaton_->GetLoggedVersion();
+
+        return version.ToRevision();
+    }
+
+
+    void Restart()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ElectionManager_->Restart();
+    }
+
+
+    void DoStart()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(ControlState_ == EPeerState::Stopped);
+        ControlState_ = EPeerState::Elections;
 
         LOG_INFO("Computing reachable version");
 
@@ -805,53 +827,15 @@ public:
             version = TVersion(maxChangelogId, changelog->GetRecordCount());
         }
 
+        LOG_INFO("Reachable version is %s", ~ToString(version));
+
         SwitchTo(ControlInvoker_);
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        SetReachableVersion(version);
-    }
-
-    void SetReachableVersion(TVersion version)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        ReachableVersion_ = version;
-        LOG_INFO("Reachable version is %s", ~ToString(version));
-    }
-
-    i64 GetElectionPriority()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto version =
-            ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
-            ? DecoratedAutomaton_->GetAutomatonVersion()
-            : ReachableVersion_;
-
-        return version.ToRevision();
-    }
-
-
-    void Restart()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        ElectionManager_->Restart();
-    }
-
-
-    void DoStart()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(ControlState_ == EPeerState::Stopped);
-        ControlState_ = EPeerState::Elections;
-
+	
+        DecoratedAutomaton_->SetLoggedVersion(version);
         DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
             &TDecoratedAutomaton::Clear,
             DecoratedAutomaton_));
-
-        ComputeReachableVersion();
 
         ElectionManager_->Start();
 
@@ -979,7 +963,8 @@ public:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(ReachableVersion_);
+            auto version = DecoratedAutomaton_->GetLoggedVersion();
+            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(version);
             auto recoveryResult = WaitFor(asyncRecoveryResult);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             THROW_ERROR_EXCEPTION_IF_FAILED(recoveryResult);
@@ -1157,8 +1142,6 @@ public:
         EpochContext_->IsActiveLeader = false;
         EpochContext_->CancelableContext->Cancel();
         EpochContext_.Reset();
-
-        SetReachableVersion(DecoratedAutomaton_->GetLoggedVersion());
     }
 
     void ValidateEpoch(const TEpochId& epochId)

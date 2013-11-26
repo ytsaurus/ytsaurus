@@ -221,6 +221,11 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog)
                 changelogId);
         } else {
             WaitFor(changelog->Seal(remoteRecordCount));
+
+            TVersion sealedVersion(changelogId, remoteRecordCount);
+            if (DecoratedAutomaton->GetLoggedVersion().SegmentId == sealedVersion.SegmentId) {
+                DecoratedAutomaton->SetLoggedVersion(sealedVersion);
+            }
         }
     } else if (localRecordCount < remoteRecordCount) {
         auto asyncResult = DownloadChangelog(
@@ -230,6 +235,10 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog)
             changelogId,
             remoteRecordCount);
         auto result = WaitFor(asyncResult);
+
+        TVersion downloadedVersion(changelogId, changelog->GetRecordCount());
+        DecoratedAutomaton->SetLoggedVersion(std::max(DecoratedAutomaton->GetLoggedVersion(), downloadedVersion));
+
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error downloading changelog records");
     }
 }

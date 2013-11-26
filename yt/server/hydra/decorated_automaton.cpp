@@ -182,6 +182,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , CellManager(cellManager)
     , Automaton(automaton)
     , AutomatonInvoker(automatonInvoker)
+    , ControlInvoker(controlInvoker)
     , UserEnqueueLock(0)
     , SystemLock(0)
     , SystemInvoker(New<TSystemInvoker>(this))
@@ -194,12 +195,12 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     YCHECK(Config);
     YCHECK(CellManager);
     YCHECK(Automaton);
-    YCHECK(controlInvoker);
+    YCHECK(ControlInvoker);
     YCHECK(SnapshotStore);
     YCHECK(ChangelogStore);
 
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker, AutomatonThread);
-    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(HydraIOQueue->GetInvoker(), IOThread);
 
     Logger.AddTag(Sprintf("CellGuid: %s",
@@ -280,7 +281,7 @@ void TDecoratedAutomaton::Clear()
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock);
-        LoggedVersion = AutomatonVersion = TVersion();
+        AutomatonVersion = TVersion();
     }
 }
 
@@ -310,7 +311,7 @@ void TDecoratedAutomaton::Load(int snapshotId, TInputStream* input)
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock);
-        LoggedVersion = AutomatonVersion = TVersion(snapshotId, 0);
+        AutomatonVersion = TVersion(snapshotId, 0);
     }
 }
 
@@ -323,7 +324,6 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     {
         TGuard<TSpinLock> guard(VersionSpinLock);
         ++AutomatonVersion.RecordId;
-        LoggedVersion = std::max(LoggedVersion, AutomatonVersion);
     }
 }
 
@@ -334,7 +334,6 @@ void TDecoratedAutomaton::RotateChangelogDuringRecovery()
     {
         TGuard<TSpinLock> guard(VersionSpinLock);
         AutomatonVersion = TVersion(AutomatonVersion.SegmentId + 1, 0);
-        LoggedVersion = std::max(LoggedVersion, AutomatonVersion);
     }
 }
 
@@ -610,6 +609,14 @@ TVersion TDecoratedAutomaton::GetLoggedVersion() const
 
     TGuard<TSpinLock> guard(VersionSpinLock);
     return LoggedVersion;
+}
+
+void TDecoratedAutomaton::SetLoggedVersion(TVersion version)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(VersionSpinLock);
+    LoggedVersion = version;
 }
 
 TVersion TDecoratedAutomaton::GetAutomatonVersion() const

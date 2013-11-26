@@ -48,6 +48,8 @@ public:
     IInvokerPtr GetSystemInvoker();
 
     TVersion GetLoggedVersion() const;
+    void SetLoggedVersion(TVersion version);
+
     TVersion GetAutomatonVersion() const;
 
     IAutomatonPtr GetAutomaton();
@@ -89,6 +91,8 @@ private:
     IAutomatonPtr Automaton;
 
     IInvokerPtr AutomatonInvoker;
+    IInvokerPtr ControlInvoker;
+
     TAtomic UserEnqueueLock;
     TAtomic SystemLock;
     IInvokerPtr SystemInvoker;
