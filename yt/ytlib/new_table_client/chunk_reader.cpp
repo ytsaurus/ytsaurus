@@ -217,7 +217,7 @@ void TChunkReader::DoOpen()
             }
         }
 
-        ChunkIndexToOutputIndex.reserve(chunkNameTable->GetSize());
+        ChunkIndexToOutputIndex.resize(chunkNameTable->GetSize());
         for (int i = 0; i < chunkNameTable->GetSize(); ++i) {
             ChunkIndexToOutputIndex[i] = NameTable->GetIdOrRegisterName(chunkNameTable->GetName(i));
         }
