@@ -54,7 +54,6 @@ public:
 
     virtual void OnMyIntegerScalar(i64 value) override
     {
-
         auto node = Factory->CreateInteger();
         node->SetValue(value);
         AddNode(node, false);
