@@ -196,8 +196,12 @@ private:
 
 };
 
-static_assert(sizeof(TVersionedRow)   == sizeof (intptr_t), "TVersionedRow size must match that of a pointer.");
-static_assert(sizeof(TUnversionedRow) == sizeof (intptr_t), "TUnversionedRow size must match that of a pointer.");
+static_assert(
+    sizeof(TVersionedRow) == sizeof(intptr_t),
+    "TVersionedRow size must match that of a pointer.");
+static_assert(
+    sizeof(TUnversionedRow) == sizeof(intptr_t),
+    "TUnversionedRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
