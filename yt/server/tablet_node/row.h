@@ -15,23 +15,23 @@ struct TBucketHeader
 {
     TTransaction* Transaction;
     NVersionedTableClient::TTimestamp PrepareTimestamp;
+    NVersionedTableClient::TTimestamp LastCommitTimestamp;
     
     // Variable-size part:
     // * TUnversionedValue per each key column
-    // * TEditListHeader* for tombstones
     // * TEditListHeader* for variable columns
+    // * TEditListHeader* for timestamps
     // * TEditListHeader* per each fixed column
 };
 
 struct TEditListHeader
 {
     TEditListHeader* Next;
-    // TODO(babenko): smaller footprint
     ui32 Size;
     ui32 Capacity;
 
     // Variable-size part:
-    // * |Capacity| values
+    // * |Capacity| TVersionedValue-s
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,17 +198,18 @@ public:
     FORCED_INLINE static TBucket Allocate(
         TChunkedMemoryPool* pool,
         int keyCount,
-        int valueCount)
+        int listCount)
     {
         auto* header = reinterpret_cast<TBucketHeader*>(pool->Allocate(
             sizeof (TBucketHeader) +
             keyCount * sizeof (NVersionedTableClient::TUnversionedValue) +
-            valueCount * sizeof(TEditListHeader*)));
+            listCount * sizeof(TEditListHeader*)));
         header->Transaction = nullptr;
         header->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
+        header->LastCommitTimestamp = NVersionedTableClient::NullTimestamp;
         auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(header + 1);
         auto** lists = reinterpret_cast<TEditListHeader**>(keys + keyCount);
-        ::memset(lists, 0, sizeof (TEditListHeader*) * valueCount);
+        ::memset(lists, 0, sizeof (TEditListHeader*) * listCount);
         return TBucket(header);
     }
 
@@ -238,6 +239,17 @@ public:
     FORCED_INLINE void SetPrepareTimestamp(NVersionedTableClient::TTimestamp timestamp) const
     {
         Header_->PrepareTimestamp = timestamp;
+    }
+
+
+    FORCED_INLINE NVersionedTableClient::TTimestamp GetLastCommitTimestamp() const
+    {
+        return Header_->LastCommitTimestamp;
+    }
+
+    FORCED_INLINE void SetLastCommitTimestamp(NVersionedTableClient::TTimestamp timestamp) const
+    {
+        Header_->LastCommitTimestamp = timestamp;
     }
 
 

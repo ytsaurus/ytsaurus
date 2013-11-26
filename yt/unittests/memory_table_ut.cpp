@@ -316,6 +316,8 @@ public:
 
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TSingleMemoryTableTest, Empty)
 {
     auto key = BuildKey("1");
@@ -423,18 +425,6 @@ TEST_F(TSingleMemoryTableTest, Write4)
     });
 }
 
-TEST_F(TSingleMemoryTableTest, Write5)
-{
-    auto key = BuildKey("1");
-
-    auto transaction1 = StartTransaction();
-    auto transaction2 = StartTransaction();
-    WriteRow(transaction1.get(), BuildRow("key=1;c=test1"), true);
-    ASSERT_ANY_THROW({
-        WriteRow(transaction2.get(), BuildRow("key=1;c=test2"), true);
-    });
-}
-
 TEST_F(TSingleMemoryTableTest, Delete1)
 {
     auto key = BuildKey("1");
@@ -450,10 +440,82 @@ TEST_F(TSingleMemoryTableTest, Delete2)
 {
     auto key = BuildKey("1");
 
+    TTimestamp ts1;
+    TTimestamp ts2;
+
+    {
+        auto transaction = StartTransaction();
+
+        auto bucket = WriteRow(transaction.get(), BuildRow("key=1;c=value"), false);
+
+        PrepareTransaction(transaction.get());
+        Table->PrepareBucket(bucket);
+
+        CommitTransaction(transaction.get());
+        Table->CommitBucket(bucket);
+
+        ts1 = transaction->GetCommitTimestamp();
+    }
+
+    {
+        auto transaction = StartTransaction();
+
+        auto bucket = DeleteRow(transaction.get(), key, true);
+
+        PrepareTransaction(transaction.get());
+        Table->PrepareBucket(bucket);
+
+        CommitTransaction(transaction.get());
+        Table->CommitBucket(bucket);
+
+        ts2 = transaction->GetCommitTimestamp();
+    }
+
+    CheckRow(LookupRow(key, MinTimestamp), Null);
+    CheckRow(LookupRow(key, ts1), Stroka("key=1;c=value"));
+    CheckRow(LookupRow(key, ts2), Null);
+}
+
+TEST_F(TSingleMemoryTableTest, Conflict1)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+    WriteRow(transaction1.get(), BuildRow("key=1;c=test1"), true);
+    ASSERT_ANY_THROW({
+        WriteRow(transaction2.get(), BuildRow("key=1;c=test2"), true);
+    });
+}
+
+TEST_F(TSingleMemoryTableTest, Conflict2)
+{
+    auto key = BuildKey("1");
+
     auto transaction = StartTransaction();
     DeleteRow(transaction.get(), key, true);
     ASSERT_ANY_THROW({
         WriteRow(transaction.get(), BuildRow("key=1"), true);
+    });
+}
+
+TEST_F(TSingleMemoryTableTest, Conflict3)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto bucket = WriteRow(transaction1.get(), BuildRow("key=1;a=1"), true);
+
+    PrepareTransaction(transaction1.get());
+    Table->PrepareBucket(bucket);
+
+    CommitTransaction(transaction1.get());
+    Table->CommitBucket(bucket);
+
+    ASSERT_ANY_THROW({
+        WriteRow(transaction2.get(), BuildRow("key=1;a=2"), true);
     });
 }
 

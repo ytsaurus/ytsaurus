@@ -470,6 +470,7 @@ void TMemoryTable::CommitBucket(TBucket bucket)
 
     bucket.SetTransaction(nullptr);
     bucket.SetPrepareTimestamp(MaxTimestamp);
+    bucket.SetLastCommitTimestamp(transaction->GetCommitTimestamp());
 }
 
 void TMemoryTable::AbortBucket(TBucket bucket)
@@ -523,8 +524,14 @@ void TMemoryTable::LockBucket(
     auto* existingTransaction = bucket.GetTransaction();
     if (existingTransaction && existingTransaction != transaction) {
         YCHECK(preliminary);
-        THROW_ERROR_EXCEPTION("Row lock conflict with transaction %s",
+        THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %s",
             ~ToString(existingTransaction->GetId()));
+    }
+
+    if (bucket.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
+        YCHECK(preliminary);
+        THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
+            bucket.GetLastCommitTimestamp());
     }
 
     if (!preliminary && !existingTransaction) {
