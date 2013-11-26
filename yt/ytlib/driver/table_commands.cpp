@@ -427,7 +427,13 @@ void TLookupCommand::DoExecute()
     auto req = proxy.Lookup();
     ToProto(req->mutable_tablet_id(), mountInfo->TabletId);
     req->set_timestamp(Request->Timestamp);
-
+    if (Request->Columns) {
+        req->set_all_columns(false);
+        for (const auto& column : *Request->Columns) {
+            req->add_columns(column);
+        }
+    }
+    
     TUnversionedRowBuilder keyBuilder;
     std::vector<TYsonString> anyValues;
     for (auto keyPart : Request->Key) {

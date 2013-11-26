@@ -37,6 +37,10 @@ DECLARE_ENUM(EValueType,
     ((Max)        (64))
 );
 
+static const int TypicalColumnCount = 64;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUnversionedValue;
 struct TVersionedValue;
 struct TRowHeader;

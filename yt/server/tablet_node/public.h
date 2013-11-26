@@ -63,6 +63,8 @@ typedef TIntrusivePtr<TTabletService> TTabletServicePtr;
 class TTablet;
 class TTransaction;
 
+struct TColumnFilter;
+
 class TMemoryTable;
 typedef TIntrusivePtr<TMemoryTable> TMemoryTablePtr;
 

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/small_vector.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/new_table_client/public.h>
@@ -16,6 +18,14 @@
 
 namespace NYT {
 namespace NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TColumnFilter
+{
+    bool All;
+    TSmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +53,7 @@ public:
         TTablet* tablet,
         NVersionedTableClient::TKey key,
         NTransactionClient::TTimestamp timestamp,
+        const TColumnFilter& columnFilter,
         NChunkClient::NProto::TChunkMeta* chunkMeta,
         std::vector<TSharedRef>* blocks);
 

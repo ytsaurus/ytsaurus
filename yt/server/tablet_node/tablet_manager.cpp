@@ -155,11 +155,12 @@ public:
         TTablet* tablet,
         NVersionedTableClient::TKey key,
         TTimestamp timestamp,
+        const TColumnFilter& columnFilter,
         TChunkMeta* chunkMeta,
         std::vector<TSharedRef>* blocks)
     {
         auto memoryTable = tablet->GetActiveMemoryTable();
-        memoryTable->LookupRows(key, timestamp, chunkMeta, blocks);
+        memoryTable->LookupRow(key, timestamp, columnFilter, chunkMeta, blocks);
     }
 
 
@@ -452,6 +453,7 @@ void TTabletManager::Lookup(
     TTablet* tablet,
     NVersionedTableClient::TKey key,
     TTimestamp timestamp,
+    const TColumnFilter& columnFilter,
     TChunkMeta* chunkMeta,
     std::vector<TSharedRef>* blocks)
 {
@@ -459,6 +461,7 @@ void TTabletManager::Lookup(
         tablet,
         key,
         timestamp,
+        columnFilter,
         chunkMeta,
         blocks);
 }

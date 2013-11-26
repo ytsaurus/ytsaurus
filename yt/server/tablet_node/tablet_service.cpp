@@ -86,6 +86,12 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Lookup)
     auto tabletId = FromProto<TTabletId>(request->tablet_id());
     auto timestamp = TTimestamp(request->timestamp());
     auto key = FromProto<NVersionedTableClient::TOwningKey>(request->key());
+
+    TColumnFilter columnFilter;
+    columnFilter.All = request->all_columns();
+    for (const auto& column : request->columns()) {
+        columnFilter.Columns.push_back(column);
+    }
     
     context->SetRequestInfo("TabletId: %s, Timestamp: %" PRId64,
         ~ToString(tabletId),
@@ -97,6 +103,7 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Lookup)
         tablet,
         key,
         timestamp,
+        columnFilter,
         response->mutable_chunk_meta(),
         &response->Attachments());
 

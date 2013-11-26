@@ -3,6 +3,9 @@
 #include "tablet.h"
 #include "transaction.h"
 #include "config.h"
+#include "tablet_manager.h"
+
+#include <core/misc/small_vector.h>
 
 #include <core/concurrency/fiber.h>
 
@@ -320,12 +323,43 @@ void TMemoryTable::AbortBucket(TBucket bucket)
     bucket.SetTransaction(nullptr);
 }
 
-void TMemoryTable::LookupRows(
+void TMemoryTable::LookupRow(
     NVersionedTableClient::TKey key,
     TTimestamp timestamp,
+    const TColumnFilter& columnFilter,
     TChunkMeta* chunkMeta,
     std::vector<TSharedRef>* blocks)
 {
+    TSmallVector<int, TypicalColumnCount> fixedColumnIds(SchemaColumnCount);
+    yhash_map<int, int> variableColumnIds;
+
+    TNameTablePtr localNameTable;
+    if (columnFilter.All) {
+        localNameTable = NameTable_;
+
+        for (int globalId = 0; globalId < SchemaColumnCount; ++globalId) {
+            fixedColumnIds[globalId] = globalId;
+        }
+    } else {
+        localNameTable = New<TNameTable>();
+
+        for (int globalId = 0; globalId < SchemaColumnCount; ++globalId) {
+            fixedColumnIds[globalId] = -1;
+        }
+
+        for (const auto& name : columnFilter.Columns) {
+            auto globalId = NameTable_->FindId(name);
+            if (globalId) {
+                int localId = localNameTable->GetOrRegisterName(name);
+                if (*globalId < SchemaColumnCount) {
+                    fixedColumnIds[*globalId] = localId;
+                } else {
+                    variableColumnIds.insert(std::make_pair(*globalId, localId));
+                }
+            }
+        }
+    }
+
     auto memoryWriter = New<TMemoryWriter>();
 
     auto chunkWriter = New<TChunkWriter>(
@@ -334,39 +368,46 @@ void TMemoryTable::LookupRows(
         memoryWriter);
 
     chunkWriter->Open(
-        NameTable_,
-        Tablet_->Schema(),
-        Tablet_->KeyColumns());
+        std::move(localNameTable),
+        TTableSchema(),
+        TKeyColumns());
 
     auto* scanner = Tree_->AllocateScanner();
 
     TBucket bucket;
     if (scanner->Find(key, &bucket)) {
-        bool hasValues = false;
+        // Key
+        for (int globalId = 0; globalId < KeyCount; ++globalId) {
+            int localId = fixedColumnIds[globalId];
+            if (localId < 0)
+                continue;
+
+            auto value = bucket.GetKey(globalId);
+            value.Id = localId;
+            chunkWriter->WriteValue(value);
+        }
 
         // Fixed values
-        for (int id = KeyCount; id < SchemaColumnCount; ++id) {
-            auto list = bucket.GetValueList(id - KeyCount, KeyCount);
+        for (int globalId = KeyCount; globalId < SchemaColumnCount; ++globalId) {
+            int localId = fixedColumnIds[globalId];
+            if (localId < 0)
+                continue;
+
+            auto list = bucket.GetValueList(globalId - KeyCount, KeyCount);
             const auto* value = FetchVersionedValue(list, timestamp);
             if (value) {
-                chunkWriter->WriteValue(*value);
-                hasValues = true;
+                auto valueCopy = *value;
+                valueCopy.Id = localId;
+                chunkWriter->WriteValue(valueCopy);
             } else {
-                chunkWriter->WriteValue(TUnversionedValue::MakeSentinel(EValueType::Null, id));
+                chunkWriter->WriteValue(TUnversionedValue::MakeSentinel(EValueType::Null, localId));
             }
         }
 
         // Variable values
         // TODO(babenko)
         
-        // Key
-        if (hasValues) {
-            for (int id = 0; id < KeyCount; ++id) {
-                const auto& value = bucket.GetKey(id);
-                chunkWriter->WriteValue(value);
-            }
-            chunkWriter->EndRow();
-        }
+        chunkWriter->EndRow();
     }
 
     Tree_->FreeScanner(scanner);

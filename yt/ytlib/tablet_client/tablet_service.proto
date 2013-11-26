@@ -42,6 +42,8 @@ message TReqLookup
     required NYT.NProto.TGuid tablet_id = 1;
     required bytes key = 2;
     required int64 timestamp = 3;
+    optional bool all_columns = 4 [default = true];
+    repeated string columns = 5;
 }
 
 message TRspLookup

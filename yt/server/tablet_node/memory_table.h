@@ -37,9 +37,10 @@ public:
     void CommitBucket(TBucket bucket);
     void AbortBucket(TBucket bucket);
 
-    void LookupRows(
+    void LookupRow(
         NVersionedTableClient::TKey key,
         NTransactionClient::TTimestamp timestamp,
+        const TColumnFilter& columnFilter,
         NChunkClient::NProto::TChunkMeta* chunkMeta,
         std::vector<TSharedRef>* blocks);
 
