@@ -226,7 +226,13 @@ TEST_F(TReadWriteTest, RealReadWrite)
 {
     auto queue = New<NConcurrency::TActionQueue>();
 
-    std::vector<char> data(10 * 4096, 'a');
+    std::vector<char> data(1000 * 4096, 'a');
+    auto dice = std::bind(std::uniform_int_distribution<char>(0, 128),
+                          std::default_random_engine());
+
+    for (auto& x: data) {
+        x = dice();
+    }
 
     auto writeError = BIND(&WriteAll, Writer, data.data(), data.size(), 4096).AsyncVia(queue->GetInvoker()).Run();
     auto readFromPipe = BIND(&ReadAll, Reader, true).AsyncVia(queue->GetInvoker()).Run();
