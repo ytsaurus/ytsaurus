@@ -218,7 +218,7 @@ public:
 
         const auto& memoryTable = tablet->GetActiveMemoryTable();
         memoryTable->LookupRow(
-            chunkWriter,
+            std::move(chunkWriter),
             key,
             timestamp,
             columnFilter);

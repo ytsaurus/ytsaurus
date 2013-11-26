@@ -234,9 +234,9 @@ void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
     auto mapNode = node->AsMap();
     for (const auto& pair : mapNode->GetChildren()) {
         auto& key = pair.first;
-        T value;
-        Deserialize(value, pair.second);
-        value.insert(std::make_pair(key, std::move(value)));
+        T item;
+        Deserialize(item, pair.second);
+        value.insert(std::make_pair(key, std::move(item)));
     }
 }
 

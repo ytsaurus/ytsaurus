@@ -286,6 +286,17 @@ public:
         GetLists(keyCount)[1] = list.Header_;
     }
 
+
+    FORCED_INLINE bool operator == (TBucket other) const
+    {
+        return Header_ == other.Header_;
+    }
+
+    FORCED_INLINE bool operator != (TBucket other) const
+    {
+        return Header_ != other.Header_;
+    }
+
 private:
     TBucketHeader* Header_;
 

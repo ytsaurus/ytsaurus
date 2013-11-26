@@ -42,54 +42,9 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVersionedValue
-    : TUnversionedValue
+    : public TUnversionedValue
 {
     TTimestamp Timestamp;
-
-    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
-    static FORCED_INLINE TVersionedValue MakeInteger(i64 value, int id = 0)
-    {
-        TVersionedValue result;
-        result.Id = id;
-        result.Type = EValueType::Integer;
-        result.Data.Integer = value;
-        result.Timestamp = 0;
-        return result;
-    }
-
-    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
-    static FORCED_INLINE TVersionedValue MakeDouble(double value, int id = 0)
-    {
-        TVersionedValue result;
-        result.Id = id;
-        result.Type = EValueType::Integer;
-        result.Data.Double = value;
-        result.Timestamp = 0;
-        return result;
-    }
-
-    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
-    static FORCED_INLINE TUnversionedValue MakeString(const TStringBuf& value, int id = 0)
-    {
-        TUnversionedValue result;
-        result.Id = id;
-        result.Type = EValueType::String;
-        result.Length = value.length();
-        result.Data.String = value.begin();
-        return result;
-    }
-
-    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
-    static FORCED_INLINE TUnversionedValue MakeAny(const TStringBuf& value, int id = 0)
-    {
-        TUnversionedValue result;
-        result.Id = id;
-        result.Type = EValueType::Any;
-        result.Length = value.length();
-        result.Data.String = value.begin();
-        return result;
-    }
-
 };
 
 static_assert(
@@ -99,7 +54,7 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-TValue MakeSentinelValue(EValueType type, int id = 0)
+FORCED_INLINE TValue MakeSentinelValue(EValueType type, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -108,7 +63,7 @@ TValue MakeSentinelValue(EValueType type, int id = 0)
 }
 
 template <class TValue>
-TValue MakeIntegerValue(i64 value, int id = 0)
+FORCED_INLINE TValue MakeIntegerValue(i64 value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -118,7 +73,7 @@ TValue MakeIntegerValue(i64 value, int id = 0)
 }
 
 template <class TValue>
-TValue MakeDoubleValue(double value, int id = 0)
+FORCED_INLINE TValue MakeDoubleValue(double value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -128,7 +83,7 @@ TValue MakeDoubleValue(double value, int id = 0)
 }
 
 template <class TValue>
-TValue MakeStringValue(const TStringBuf& value, int id = 0)
+FORCED_INLINE TValue MakeStringValue(const TStringBuf& value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -139,7 +94,7 @@ TValue MakeStringValue(const TStringBuf& value, int id = 0)
 }
 
 template <class TValue>
-TValue MakeAnyValue(const TStringBuf& value, int id = 0)
+FORCED_INLINE TValue MakeAnyValue(const TStringBuf& value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -158,9 +113,7 @@ struct TRowHeader
     ui32 Padding;
 };
 
-static_assert(
-    sizeof(TRowHeader) == 8,
-    "TRowHeader has to be exactly 8 bytes.");
+static_assert(sizeof(TRowHeader) == 8, "TRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,6 +142,10 @@ template <class TValue>
 class TRow
 {
 public:
+    FORCED_INLINE TRow()
+        : Header(nullptr)
+    { }
+
     FORCED_INLINE explicit TRow(TRowHeader* header)
         : Header(header)
     { }
@@ -340,37 +297,32 @@ public:
             }
         }
 
-        StringData.resize(variableSize);
-        char* current = const_cast<char*>(StringData.data());
+        if (variableSize != 0) {
+            StringData.resize(variableSize);
+            char* current = const_cast<char*>(StringData.data());
 
-        for (int index = 0; index < other.GetValueCount(); ++index) {
-            const auto& value = other[index];
-            current += WriteVarUInt32(current, value.Id);
-            current += WriteVarUInt32(current, value.Type);
-            switch (value.Type) {
-            case EValueType::Null:
-                break;
-
-            case EValueType::Integer:
-                current += WriteVarInt64(current, value.Data.Integer);
-                break;
-
-            case EValueType::Double:
-                ::memcpy(current, &value.Data.Double, sizeof(double));
-                current += sizeof(double);
-                break;
-
-            case EValueType::String:
-            case EValueType::Any:
-                ::memcpy(current, value.Data.String, value.Length);
-                current += value.Length;
-                break;
-
-            default:
-                YUNREACHABLE();
+            for (int index = 0; index < other.GetValueCount(); ++index) {
+                const auto& otherValue = other[index];
+                auto& value = reinterpret_cast<TValue*>(GetHeader() + 1)[index];;
+                if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
+                    ::memcpy(current, otherValue.Data.String, otherValue.Length);
+                    value.Data.String = current;
+                    current += otherValue.Length;
+                }
             }
         }
     }
+
+    TOwningRow(const TOwningRow& other)
+        : RowData(other.RowData)
+        , StringData(other.StringData)
+    { }
+
+    TOwningRow(TOwningRow&& other)
+        : RowData(std::move(other.RowData))
+        , StringData(std::move(other.StringData))
+    { }
+
 
     FORCED_INLINE explicit operator bool()
     {

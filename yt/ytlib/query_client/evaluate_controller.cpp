@@ -214,7 +214,7 @@ void TEvaluateController::ProjectRoutine(
             rows->end(),
             rows->begin(),
             [this, &op, &memoryPool] (const TRow row) -> TRow {
-                TRow result(&memoryPool, op->GetProjectionCount());
+                auto result = TRow::Allocate(&memoryPool, op->GetProjectionCount());
                 for (int i = 0; i < op->GetProjectionCount(); ++i) {
                     result[i] = EvaluateExpression(
                         op->GetProjection(i),

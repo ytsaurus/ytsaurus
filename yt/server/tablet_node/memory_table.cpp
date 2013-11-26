@@ -7,8 +7,6 @@
 
 #include <core/misc/small_vector.h>
 
-#include <core/concurrency/fiber.h>
-
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/writer.h>
 
@@ -17,7 +15,6 @@ namespace NTabletNode {
 
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
-using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
@@ -44,7 +41,7 @@ T* Fetch(
     // TODO(babenko): locking
     if (maxTimestamp == LastCommittedTimestamp) {
         auto& value = list.Back();
-        if (!(timestampExtractor(value) & UncommittedTimestamp)) {
+        if (timestampExtractor(value) != UncommittedTimestamp) {
             return &value;
         }
         if (list.GetSize() > 1) {
@@ -207,10 +204,39 @@ TBucket TMemoryTable::WriteRow(
         // TODO(babenko)
     };
 
+    auto writeTimestamp = [&] (TBucket bucket) {
+        bool pushTimestamp = false;
+        auto timestampList = bucket.GetTimestampList(KeyCount);
+        if (timestampList) {
+            auto lastTimestamp = timestampList.Back();
+            if (lastTimestamp == (TombstoneTimestampMask | UncommittedTimestamp)) {
+                YCHECK(prewrite);
+                THROW_ERROR_EXCEPTION("Cannot change a deleted row");
+            }
+            if (!(lastTimestamp & UncommittedTimestamp)) {
+                pushTimestamp = true;
+            }
+        } else {
+            timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
+            bucket.SetTimestampList(KeyCount, timestampList);
+            pushTimestamp = true;
+        }
+
+        if (pushTimestamp) {
+            if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
+                bucket.SetTimestampList(KeyCount, timestampList);
+            }
+            timestampList.Push(UncommittedTimestamp);
+        }
+    };
+
     auto newKeyProvider = [&] () -> TBucket {
         // Acquire the lock.
         auto bucket = result = AllocateBucket();
         LockBucket(bucket, transaction, prewrite);
+
+        // Add timestamp.
+        writeTimestamp(bucket);
 
         // Copy keys.
         for (int id = 0; id < KeyCount; ++id) {
@@ -230,23 +256,8 @@ TBucket TMemoryTable::WriteRow(
         result = bucket;
         LockBucket(bucket, transaction, prewrite);
 
-        // Add write timestamp, if needed.
-        auto timestampList = bucket.GetTimestampList(KeyCount);
-        if (timestampList) {
-            auto& lastTimestamp = timestampList.Back();
-            if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
-                // Ensure that there's no tombstone here.
-                lastTimestamp = UncommittedTimestamp;
-            } else {
-                // Check if write timestamp is needed.
-                if (lastTimestamp & TombstoneTimestampMask) {
-                    if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-                        bucket.SetTimestampList(KeyCount, timestampList);
-                    }
-                    timestampList.Push(UncommittedTimestamp);
-                }
-            }
-        }
+        // Add timestamp, if needed.
+        writeTimestamp(bucket);
 
         // Copy values.
         writeValues(bucket);
@@ -277,6 +288,11 @@ TBucket TMemoryTable::DeleteRow(
         }
 
         auto lastTimestamp = timestampList.Back();
+        if (lastTimestamp == UncommittedTimestamp) {
+            YCHECK(predelete);
+            THROW_ERROR_EXCEPTION("Cannot delete a changed row");
+        }
+
         if (lastTimestamp & TombstoneTimestampMask)
             return;
 
@@ -294,6 +310,13 @@ TBucket TMemoryTable::DeleteRow(
 
         // Add tombstone.
         writeTombstone(bucket);
+
+        // Copy keys.
+        for (int id = 0; id < KeyCount; ++id) {
+            auto& internedValue = bucket.GetKey(id);
+            InternValue(&internedValue, key[id]);
+            internedValue.Id = id;
+        }
 
         result = bucket;
         return bucket;
@@ -342,7 +365,7 @@ void TMemoryTable::LookupRow(
         for (const auto& name : columnFilter.Columns) {
             auto globalId = NameTable_->FindId(name);
             if (globalId) {
-                int localId = localNameTable->GetOrRegisterName(name);
+                int localId = localNameTable->GetIdOrRegisterName(name);
                 if (*globalId < SchemaColumnCount) {
                     fixedColumnIds[*globalId] = localId;
                 } else {
@@ -354,8 +377,8 @@ void TMemoryTable::LookupRow(
 
     writer->Open(
         std::move(localNameTable),
-        TTableSchema(),
-        TKeyColumns());
+        Tablet_->Schema(),
+        Tablet_->KeyColumns());
 
     TRcuTreeScannerGuard<TBucket, TComparer> scanner(Tree_.get());
 
@@ -387,7 +410,7 @@ void TMemoryTable::LookupRow(
                     valueCopy.Id = localId;
                     writer->WriteValue(valueCopy);
                 } else {
-                    writer->WriteValue(TUnversionedValue::MakeSentinel(EValueType::Null, localId));
+                    writer->WriteValue(MakeSentinelValue<TVersionedValue>(EValueType::Null, localId));
                 }
             }
 
@@ -398,11 +421,8 @@ void TMemoryTable::LookupRow(
         }
     }
 
-    {
-        // The writer is typically synchronous.
-        auto error = WaitFor(writer->AsyncClose());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    // NB: The writer must be synchronous.
+    YCHECK(writer->AsyncClose().Get().IsOK());
 }
 
 void TMemoryTable::ConfirmBucket(TBucket bucket)
@@ -517,22 +537,22 @@ void TMemoryTable::LockBucket(
 void TMemoryTable::InternValue(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     switch (src.Type) {
-    case EValueType::Integer:
-    case EValueType::Double:
-    case EValueType::Null:
-        *dst = src;
-        break;
+        case EValueType::Integer:
+        case EValueType::Double:
+        case EValueType::Null:
+            *dst = src;
+            break;
 
-    case EValueType::String:
-    case EValueType::Any:
-        dst->Type = src.Type;
-        dst->Length = src.Length;
-        dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
-        memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
-        break;
+        case EValueType::String:
+        case EValueType::Any:
+            dst->Type = src.Type;
+            dst->Length = src.Length;
+            dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
+            memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
+            break;
 
-    default:
-        YUNREACHABLE();
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -546,7 +566,7 @@ TTimestamp TMemoryTable::FetchTimestamp(
         [] (TTimestamp timestamp) {
             return timestamp & TimestampValueMask;
         });
-    return result ? *result : NullTimestamp;
+    return result ? *result : (NullTimestamp | TombstoneTimestampMask);
 }
 
 const TVersionedValue* TMemoryTable::FetchVersionedValue(

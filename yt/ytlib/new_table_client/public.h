@@ -47,19 +47,19 @@ struct TRowHeader;
 
 template <class TValue>
 class TRow;
-typedef TRow<TVersionedValue> TVersionedRow;
+typedef TRow<TVersionedValue>   TVersionedRow;
 typedef TRow<TUnversionedValue> TUnversionedRow;
 typedef TUnversionedRow TKey;
 
 template <class TValue>
 class TOwningRow;
-typedef TOwningRow<TVersionedRow> TVersionedOwningRow;
+typedef TOwningRow<TVersionedValue>   TVersionedOwningRow;
 typedef TOwningRow<TUnversionedValue> TUnversionedOwningRow;
 typedef TUnversionedOwningRow TOwningKey;
 
 template <class TValue>
 class TRowBuilder;
-typedef TRowBuilder<TVersionedValue> TVersionedRowBuilder;
+typedef TRowBuilder<TVersionedValue>   TVersionedRowBuilder;
 typedef TRowBuilder<TUnversionedValue> TUnversionedRowBuilder;
 
 struct TColumnSchema;
