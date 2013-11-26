@@ -28,7 +28,11 @@
 #include <core/misc/protobuf_helpers.h>
 
 // Required for std::unordered_set.
+#ifdef _LIBCPP_BEGIN_NAMESPACE_STD
+_LIBCPP_BEGIN_NAMESPACE_STD
+#else
 namespace std {
+#endif
 template <>
 struct hash<std::pair<const void*, const void*>>
 {
@@ -37,7 +41,11 @@ struct hash<std::pair<const void*, const void*>>
         return (size_t)pair.first + (size_t)pair.second * 17;
     }
 };
+#ifdef _LIBCPP_END_NAMESPACE_STD
+_LIBCPP_END_NAMESPACE_STD
+#else
 } // namespace std
+#endif
 
 namespace NYT {
 namespace NDot {
