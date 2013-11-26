@@ -208,7 +208,7 @@ public:
     {
         YASSERT(IsValid_);
         IsValid_ = false;
-        return static_cast<T&&>(T_);
+        return std::move(T_);
     }
 private:
     mutable bool IsValid_;
