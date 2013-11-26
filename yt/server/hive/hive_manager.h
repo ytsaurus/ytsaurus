@@ -31,6 +31,8 @@ public:
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
 
+    ~THiveManager();
+
     void Start();
     void Stop();
 

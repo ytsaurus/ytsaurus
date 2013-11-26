@@ -681,6 +681,9 @@ TTransactionSupervisor::TTransactionSupervisor(
         timestampProvider))
 { }
 
+TTransactionSupervisor::~TTransactionSupervisor()
+{ }
+
 void TTransactionSupervisor::Start()
 {
     Impl->Start();

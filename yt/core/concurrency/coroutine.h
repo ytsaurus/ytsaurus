@@ -82,6 +82,13 @@ public:
         : TCoroutineBase()
     { }
 
+    TCoroutine(TCoroutine&& other)
+        : TCoroutineBase(std::move(other))
+        , Callee(std::move(other.Callee))
+        , Arguments(std::move(other.Arguments))
+        , Result(std::move(other.Result))
+    { }
+
     TCoroutine(TCallee&& callee)
         : TCoroutineBase()
         , Callee(std::move(callee))
@@ -132,6 +139,7 @@ private:
     TCallee Callee;
     TArguments Arguments;
     TNullable<R> Result;
+
 };
 
 template <class... TArgs>
@@ -148,6 +156,14 @@ public:
     TCoroutine()
         : TCoroutineBase()
     { }
+
+    TCoroutine(TCoroutine&& other)
+        : TCoroutineBase(std::move(other))
+        , Arguments(std::move(other.Arguments))
+        , Result(other.Result)
+    {
+        other.Result = false;
+    }
 
     TCoroutine(TCallee&& callee)
         : TCoroutineBase()
@@ -198,6 +214,7 @@ private:
     TCallee Callee;
     TArguments Arguments;
     bool Result;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -242,6 +242,9 @@ TTimestampManager::TTimestampManager(
         automaton))
 { }
 
+TTimestampManager::~TTimestampManager()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHive

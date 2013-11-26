@@ -23,6 +23,8 @@ class TQueryService
 public:
     explicit TQueryService(NCellNode::TBootstrap* bootstrap);
 
+    ~TQueryService();
+
 private:
     typedef TQueryService TThis;
     typedef NQueryClient::TQueryServiceProxy TProxy;

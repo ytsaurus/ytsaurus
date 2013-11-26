@@ -29,6 +29,8 @@ public:
         ITransactionManagerPtr transactionManager,
         NHive::ITimestampProviderPtr timestampProvider);
 
+    ~TTransactionSupervisor();
+
     void Start();
     void Stop();
 

@@ -80,6 +80,9 @@ TMemoryTable::TMemoryTable(
     }
 }
 
+TMemoryTable::~TMemoryTable()
+{ }
+
 void TMemoryTable::WriteRows(
     TTransaction* transaction,
     IReaderPtr reader,

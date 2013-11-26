@@ -24,6 +24,8 @@ public:
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
 
+    ~TTimestampManager();
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;

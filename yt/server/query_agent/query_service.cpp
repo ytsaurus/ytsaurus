@@ -51,6 +51,9 @@ TQueryService::TQueryService(TBootstrap* bootstrap)
         .SetEnableReorder(true));
 }
 
+TQueryService::~TQueryService()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)

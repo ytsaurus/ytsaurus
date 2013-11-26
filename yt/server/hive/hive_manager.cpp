@@ -608,6 +608,9 @@ THiveManager::THiveManager(
         automaton))
 { }
 
+THiveManager::~THiveManager()
+{ }
+
 void THiveManager::Start()
 {
     Impl->Start();

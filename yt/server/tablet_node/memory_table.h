@@ -24,6 +24,8 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet);
 
+    ~TMemoryTable();
+
     void WriteRows(
         TTransaction* transaction,
         NVersionedTableClient::IReaderPtr reader,
