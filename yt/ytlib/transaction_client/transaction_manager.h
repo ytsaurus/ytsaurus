@@ -73,6 +73,8 @@ public:
         NHive::ITimestampProviderPtr timestampProvider,
         NHive::TCellDirectoryPtr cellDirectory);
 
+    ~TTransactionManager();
+
     //! Starts a new transaction.
     /*!
      *

@@ -143,6 +143,9 @@ TCellDirectory::TCellDirectory()
     : Impl(new TImpl())
 { }
 
+TCellDirectory::~TCellDirectory()
+{ }
+
 IChannelPtr TCellDirectory::FindChannel(const TCellGuid& cellGuid)
 {
     return Impl->FindChannel(cellGuid);

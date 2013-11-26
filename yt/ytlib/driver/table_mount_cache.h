@@ -44,6 +44,8 @@ public:
         NRpc::IChannelPtr masterChannel,
         NHive::TCellDirectoryPtr cellDirectory);
 
+    ~TTableMountCache();
+
     TFuture<TErrorOr<TTableMountInfoPtr>> LookupInfo(const NYPath::TYPath& path);
 
 private:

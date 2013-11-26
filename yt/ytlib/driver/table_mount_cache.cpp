@@ -159,6 +159,9 @@ TTableMountCache::TTableMountCache(
         cellDirectory))
 { }
 
+TTableMountCache::~TTableMountCache()
+{ }
+
 TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::LookupInfo(const TYPath& path)
 {
     return Impl->LookupInfo(path);

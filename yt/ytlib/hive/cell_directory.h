@@ -26,6 +26,8 @@ class TCellDirectory
 public:
     TCellDirectory();
 
+    ~TCellDirectory();
+
     typedef NHydra::NProto::TCellConfig TCellConfig;
 
     //! Returns a leader channel for a given cell GUID (|nullptr| if none is known).

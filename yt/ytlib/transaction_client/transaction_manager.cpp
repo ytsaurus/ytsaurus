@@ -908,6 +908,9 @@ TTransactionManager::TTransactionManager(
         cellDirectory))
 { }
 
+TTransactionManager::~TTransactionManager()
+{ }
+
 TFuture<TErrorOr<ITransactionPtr>> TTransactionManager::AsyncStart(const TTransactionStartOptions& options)
 {
     return Impl->AsyncStart(options);
