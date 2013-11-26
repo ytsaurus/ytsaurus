@@ -36,7 +36,7 @@ def module_relpath(module_name, module_file):
     #        return relpath
 
 def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
-    assert operation_type in ["mapper", "reducer"]
+    assert operation_type in ["mapper", "reducer", "reduce_combiner"]
     function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
