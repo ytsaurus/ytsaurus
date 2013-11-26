@@ -7,10 +7,8 @@
     #include <syscall.h>
     #include <linux/futex.h>
     #include <sys/time.h>
-#endif
-
-#ifdef _win_
-    #include <winnt.h>
+#else
+    #include <util/system/event.h>
 #endif
 
 #include <limits>
@@ -99,22 +97,15 @@ public:
     TEventCount()
         : Epoch(0)
         , Waiters(0)
-#ifdef _win_
-        , Event(CreateEvent(nullptr, true, false, nullptr))
+#ifndef _linux_
+        , Event()
 #endif
     { }
-
-    ~TEventCount()
-    {
-#ifdef _win_
-        CloseHandle(Event);
-#endif
-    }
 
     class TCookie
     {
         friend class TEventCount;
-        
+
         explicit TCookie(TAtomicBase epoch)
             : Epoch(epoch)
         { }
@@ -148,8 +139,8 @@ private:
     TAtomic Epoch;
     TAtomic Waiters;
 
-#ifdef _win_
-    HANDLE Event;
+#ifndef _linux_
+    Event Event;
 #endif
 
 };
@@ -171,12 +162,10 @@ inline void TEventCount::DoNotify(int n)
     // impossible to miss a wakeup.
     AtomicIncrement(Epoch);
     if (AtomicGet(Waiters) != 0) {
-#if defined(_linux_)
+#ifdef _linux_
         NDetail::futex((int*) &Epoch, FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
-#elif defined(_win_)
-        SetEvent(Event);
 #else
-#       error Unsupported platform
+        Event.Signal();
 #endif
     }
 }
@@ -194,19 +183,17 @@ inline void TEventCount::CancelWait()
 
 inline void TEventCount::Wait(TCookie key)
 {
-#if defined(_linux_)
+#ifdef _linux_
     while (AtomicGet(Epoch) == key.Epoch) {
         NDetail::futex((int*) &Epoch, FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
     }
-#elif defined(_win_)
+#else
     if (AtomicGet(Epoch) == key.Epoch) {
-        ResetEvent(Event);
+        Event.Reset();
         if (AtomicGet(Epoch) == key.Epoch) {
-            YCHECK(WaitForSingleObject(Event, INFINITE) == WAIT_OBJECT_0);
+            YCHECK(Event.Wait());
         }
     }
-#else
-#       error Unsupported platform
 #endif
     AtomicDecrement(Waiters);
 }
