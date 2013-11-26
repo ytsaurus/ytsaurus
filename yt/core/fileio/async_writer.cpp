@@ -38,7 +38,7 @@ void TAsyncWriter::OnWrite(ev::io&, int)
         const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
         LOG_TRACE("Writing %" PRISZT " bytes...", size);
 
-        bytesWritten = write(FD, WriteBuffer.Begin() + BytesWrittenTotal, size);
+        bytesWritten = ::write(FD, WriteBuffer.Begin() + BytesWrittenTotal, size);
     } while (bytesWritten == -1 && errno == EINTR);
     if (bytesWritten == -1) {
         if (errno != EWOULDBLOCK && errno != EAGAIN) {
@@ -100,7 +100,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
         do {
             LOG_TRACE("Writing %" PRISZT " bytes...", size);
 
-            errCode = write(FD, data, size);
+            errCode = ::write(FD, data, size);
         } while (errCode == -1 && errno == EINTR);
 
         if (errCode == -1) {

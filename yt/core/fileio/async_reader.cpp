@@ -36,7 +36,7 @@ void TNonBlockReader::TryReadInBuffer()
     if (count > 0) {
         ssize_t size = -1;
         do {
-            size = read(FD, ReadBuffer.Begin() + BytesInBuffer, count);
+            size = ::read(FD, ReadBuffer.Begin() + BytesInBuffer, count);
         } while (size == -1 && errno == EINTR);
 
         if (size == -1) {
