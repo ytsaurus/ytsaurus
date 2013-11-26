@@ -9,7 +9,7 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TBufferedStream::TBufferedStream(i64 bufferSize)
+TBufferedStream::TBufferedStream(size_t bufferSize)
     : Size_(0)
     , AllowedSize_(bufferSize / 2)
     , Data_(TSharedRef::Allocate(bufferSize))
@@ -20,7 +20,7 @@ TBufferedStream::TBufferedStream(i64 bufferSize)
     , AllowRead_(NewPromise())
 { }
 
-TSharedRef TBufferedStream::Read(i64 size)
+TSharedRef TBufferedStream::Read(size_t size)
 {
     YCHECK(State_ != EState::WaitingData);
 
@@ -131,11 +131,11 @@ void TBufferedStream::Move(char* dest)
     Begin_ = dest;
 }
 
-TSharedRef TBufferedStream::ExtractChunk(i64 size)
+TSharedRef TBufferedStream::ExtractChunk(size_t size)
 {
     TGuard<TMutex> guard(Mutex_);
 
-    size = std::min(size, End_ - Begin_);
+    size = std::min(size, static_cast<size_t>(End_ - Begin_));
 
     TSharedRef result = Data_.Slice(TRef(Begin_, size));
     Begin_ += size;

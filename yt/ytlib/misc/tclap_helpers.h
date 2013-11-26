@@ -59,6 +59,12 @@ struct ArgTraits< NYT::TNullable<T> >
     typedef ValueLike ValueCategory;
 };
 
+template <>
+struct ArgTraits< long long >
+{
+    typedef ValueLike ValueCategory;
+};
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
