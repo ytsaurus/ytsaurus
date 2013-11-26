@@ -54,7 +54,8 @@ def main():
             if new_table_index != table_index:
                 yield yson.to_yson_type(None, attributes={"table_index": new_table_index})
             table_index = new_table_index
-            rec.attributes = {}
+            if hasattr(rec, "attributes"):
+                rec.attributes = {}
             yield rec
 
     is_raw = __attributes.get("is_raw", False)
