@@ -205,13 +205,10 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
             enough = writer->Write(data, currentBlockSize);
             size -= currentBlockSize;
             data += currentBlockSize;
-            std::cerr << currentBlockSize << " bytes has been written\n";
         }
         if (enough) {
-            std::cerr << "Enough!\n";
             TError error = WaitFor(writer->GetReadyEvent());
             if (!error.IsOK()) {
-                std::cerr << error.GetMessage() << std::endl;
                 return error;
             }
         }
@@ -222,11 +219,20 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
     }
 }
 
-TEST_F(TReadWriteTest, RealReadWrite)
+class TBigReadWriteTest : public TReadWriteTest
+                        , public ::testing::WithParamInterface<std::pair<size_t, size_t>>
 {
+};
+
+
+TEST_P(TBigReadWriteTest, RealReadWrite)
+{
+    size_t dataSize, blockSize;
+    std::tie(dataSize, blockSize) = GetParam();
+
     auto queue = New<NConcurrency::TActionQueue>();
 
-    std::vector<char> data(1000 * 4096, 'a');
+    std::vector<char> data(dataSize, 'a');
     auto dice = std::bind(std::uniform_int_distribution<char>(0, 128),
                           std::default_random_engine());
 
@@ -234,12 +240,19 @@ TEST_F(TReadWriteTest, RealReadWrite)
         x = dice();
     }
 
-    auto writeError = BIND(&WriteAll, Writer, data.data(), data.size(), 4096).AsyncVia(queue->GetInvoker()).Run();
+    auto writeError = BIND(&WriteAll, Writer, data.data(), data.size(), blockSize).AsyncVia(queue->GetInvoker()).Run();
     auto readFromPipe = BIND(&ReadAll, Reader, true).AsyncVia(queue->GetInvoker()).Run();
 
     auto textFromPipe = readFromPipe.Get();
     EXPECT_TRUE(equal(textFromPipe.Begin(), textFromPipe.End(), data.begin()));
 }
+
+INSTANTIATE_TEST_CASE_P(ValueParametrized, TBigReadWriteTest,
+                        ::testing::Values(
+                            std::make_pair(2000*4096, 4096),
+                            std::make_pair(100*4096, 10000),
+                            std::make_pair(100*4096, 100),
+                            std::make_pair(100, 4096)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
