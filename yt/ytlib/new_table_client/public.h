@@ -14,6 +14,8 @@ namespace NVersionedTableClient {
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
+using NTransactionClient::MinTimestamp;
+using NTransactionClient::MaxTimestamp;
 
 using NTableClient::TKeyColumns;
 

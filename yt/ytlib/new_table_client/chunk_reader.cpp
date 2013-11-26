@@ -174,11 +174,11 @@ void TChunkReader::DoOpen()
         BlockColumnTypes.push_back(EValueType::Integer);
     }
 
-    for (const auto& chunkColumn: chunkSchema.Columns()) {
+    for (const auto& chunkColumn : chunkSchema.Columns()) {
         BlockColumnTypes.push_back(chunkColumn.Type);
     }
 
-    for (const auto& column: Schema.Columns()) {
+    for (const auto& column : Schema.Columns()) {
         // Validate schema.
         auto* chunkColumn = chunkSchema.FindColumn(column.Name);
         if (!chunkColumn) {
@@ -279,12 +279,12 @@ bool TChunkReader::Read(std::vector<TVersionedRow> *rows)
         if (IncludeAllColumns) {
             auto variableIt = BlockReader->GetVariableIterator();
 
-            rows->emplace_back(
+            rows->push_back(TVersionedRow::Allocate(
                 &MemoryPool,
-                FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount());
+                FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount()));
 
             auto& row = rows->back();
-            for (const auto& column: VariableColumns) {
+            for (const auto& column : VariableColumns) {
                 row[column.IndexInRow] = BlockReader->Read(column.IndexInBlock);
                 row[column.IndexInRow].Id = column.IndexInNameTable;
             }
@@ -294,11 +294,11 @@ bool TChunkReader::Read(std::vector<TVersionedRow> *rows)
                 row[index].Id = ChunkIndexToOutputIndex[row[index].Id];
             }
         } else {
-            rows->push_back(TVersionedRow(&MemoryPool, FixedColumns.size()));
+            rows->push_back(TVersionedRow::Allocate(&MemoryPool, FixedColumns.size()));
         }
 
         auto& row = rows->back();
-        for (const auto& column: FixedColumns) {
+        for (const auto& column : FixedColumns) {
             row[column.IndexInRow] = BlockReader->Read(column.IndexInBlock);
             row[column.IndexInRow].Id = column.IndexInNameTable;
         }
@@ -392,7 +392,7 @@ TAsyncError TTableChunkReaderAdapter::Open(
     NameTable = nameTable;
 
     SchemaNameIndexes.reserve(Schema.Columns().size());
-    for (const auto& column: Schema.Columns()) {
+    for (const auto& column : Schema.Columns()) {
         SchemaNameIndexes.push_back(NameTable->GetIdOrRegisterName(column.Name));
     }
 
@@ -424,7 +424,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
             }
         }
 
-        rows->push_back(TVersionedRow(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
+        rows->push_back(TVersionedRow::Allocate(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
         auto& outputRow = rows->back();
 
         for (int i = 0; i < schemaIndexes.size(); ++i) {

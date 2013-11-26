@@ -29,24 +29,28 @@ public:
     void WriteRows(
         TTransaction* transaction,
         NVersionedTableClient::IReaderPtr reader,
-        bool transient,
-        std::vector<TRowGroup>* lockedGroups);
+        bool prewrite,
+        std::vector<TBucket>* lockedBuckets);
 
-    //static void ConfirmPrewrittenGroup(TRowGroup group);
-    //static void CommitGroup(TRowGroup group);
-    //static void AbortGroup(TRowGroup group);
+    void ConfirmPrewrittenBucket(TBucket bucket);
+    void PrepareBucket(TBucket bucket);
+    void CommitBucket(TBucket bucket);
+    void AbortBucket(TBucket bucket);
 
-    //void LookupRows(
-    //    NVersionedTableClient::TRow key,
-    //    NTransactionClient::TTimestamp timestamp,
-    //    NChunkClient::NProto::TChunkMeta* chunkMeta,
-    //    std::vector<TSharedRef>* blocks);
+    void LookupRows(
+        NVersionedTableClient::TKey key,
+        NTransactionClient::TTimestamp timestamp,
+        NChunkClient::NProto::TChunkMeta* chunkMeta,
+        std::vector<TSharedRef>* blocks);
 
 private:
-    //class TComparer;
+    class TComparer;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
+
+    int KeyCount;
+    int SchemaColumnCount;
 
     TChunkedMemoryPool TreePool_;
     TChunkedMemoryPool RowPool_;
@@ -54,22 +58,22 @@ private:
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 
-    //std::unique_ptr<TComparer> Comparer_;
-    //std::unique_ptr<TRcuTree<TRowGroup, TComparer>> Tree_;
+    std::unique_ptr<TComparer> Comparer_;
+    std::unique_ptr<TRcuTree<TBucket, TComparer>> Tree_;
 
 
-    //TRowGroup WriteRow(
-    //    NVersionedTableClient::TNameTablePtr nameTable,
-    //    TTransaction* transaction,
-    //    NVersionedTableClient::TRow row,
-    //    bool prewrite);
+    TBucket WriteRow(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        TTransaction* transaction,
+        NVersionedTableClient::TVersionedRow row,
+        bool prewrite);
 
-    //void InternValue(
-    //    NVersionedTableClient::TRowValue* dst,
-    //    const NVersionedTableClient::TRowValue& src);
+    void InternValue(
+        NVersionedTableClient::TUnversionedValue* dst,
+        const NVersionedTableClient::TUnversionedValue& src);
 
-    TRowGroupItem FetchGroupItem(
-        TRowGroup group,
+    const NVersionedTableClient::TVersionedValue* FetchVersionedValue(
+        TValueList list,
         NTransactionClient::TTimestamp timestamp);
 
 };

@@ -66,11 +66,11 @@ class TTransaction;
 class TMemoryTable;
 typedef TIntrusivePtr<TMemoryTable> TMemoryTablePtr;
 
-struct TRowGroupHeader;
-class TRowGroup;
+struct TBucketHeader;
+struct TValueListHeader;
 
-struct TRowGroupItemHeader;
-class TRowGroupItem;
+class TBucket;
+class TValueList;
 
 ////////////////////////////////////////////////////////////////////////////////
 

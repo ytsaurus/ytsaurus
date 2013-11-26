@@ -70,11 +70,11 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
 
     auto tabletManager = Slot->GetTabletManager();
     auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
-    //tabletManager->Write(
-    //    tablet,
-    //    transaction,
-    //    std::move(*request->mutable_chunk_meta()),
-    //    std::move(context->RequestAttachments()));
+    tabletManager->Write(
+        tablet,
+        transaction,
+        std::move(*request->mutable_chunk_meta()),
+        std::move(context->RequestAttachments()));
 
     context->Reply();
 }
@@ -93,12 +93,12 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Lookup)
 
     auto tabletManager = Slot->GetTabletManager();
     auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
-    //tabletManager->Lookup(
-    //    tablet,
-    //    key,
-    //    timestamp,
-    //    response->mutable_chunk_meta(),
-    //    &response->Attachments());
+    tabletManager->Lookup(
+        tablet,
+        key,
+        timestamp,
+        response->mutable_chunk_meta(),
+        &response->Attachments());
 
     context->Reply();
 }

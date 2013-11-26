@@ -33,18 +33,18 @@ public:
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
 
-    //void Write(
-    //    TTablet* tablet,
-    //    TTransaction* transaction,
-    //    NChunkClient::NProto::TChunkMeta chunkMeta,
-    //    std::vector<TSharedRef> blocks);
+    void Write(
+        TTablet* tablet,
+        TTransaction* transaction,
+        NChunkClient::NProto::TChunkMeta chunkMeta,
+        std::vector<TSharedRef> blocks);
 
-    //void Lookup(
-    //    TTablet* tablet,
-    //    NVersionedTableClient::TRow key,
-    //    NTransactionClient::TTimestamp timestamp,
-    //    NChunkClient::NProto::TChunkMeta* chunkMeta,
-    //    std::vector<TSharedRef>* blocks);
+    void Lookup(
+        TTablet* tablet,
+        NVersionedTableClient::TKey key,
+        NTransactionClient::TTimestamp timestamp,
+        NChunkClient::NProto::TChunkMeta* chunkMeta,
+        std::vector<TSharedRef>* blocks);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 

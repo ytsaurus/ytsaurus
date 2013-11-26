@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/schema.pb.h>
+
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/varint.h>
 
@@ -64,6 +65,28 @@ struct TVersionedValue
         result.Type = EValueType::Integer;
         result.Data.Double = value;
         result.Timestamp = 0;
+        return result;
+    }
+
+    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
+    static FORCED_INLINE TUnversionedValue MakeString(const TStringBuf& value, int id = 0)
+    {
+        TUnversionedValue result;
+        result.Id = id;
+        result.Type = EValueType::String;
+        result.Length = value.length();
+        result.Data.String = value.begin();
+        return result;
+    }
+
+    // TODO(sandello): Remove me after migrating to TUnversionedValue in query_client.
+    static FORCED_INLINE TUnversionedValue MakeAny(const TStringBuf& value, int id = 0)
+    {
+        TUnversionedValue result;
+        result.Id = id;
+        result.Type = EValueType::Any;
+        result.Length = value.length();
+        result.Data.String = value.begin();
         return result;
     }
 
@@ -170,13 +193,13 @@ public:
         : Header(header)
     { }
 
-    FORCED_INLINE TRow(
+    FORCED_INLINE static TRow Allocate(
         TChunkedMemoryPool* pool, 
         int valueCount)
-        : Header(reinterpret_cast<TRowHeader*>(
-            pool->Allocate(GetRowDataSize<TValue>(valueCount))))
     {
-        Header->ValueCount = valueCount;
+        auto* header = reinterpret_cast<TRowHeader*>(pool->Allocate(GetRowDataSize<TValue>(valueCount)));
+        header->ValueCount = valueCount;
+        return TRow(header);
     }
 
     FORCED_INLINE explicit operator bool()
