@@ -1,5 +1,7 @@
 #include "async_writer.h"
 
+#include "private.h"
+
 namespace NYT {
 namespace NFileIO {
 
@@ -10,8 +12,10 @@ TAsyncWriter::TAsyncWriter(int fd)
     , BytesWrittenTotal(0)
     , NeedToClose(false)
     , LastSystemError(0)
-    , Logger("AsyncWriter")
+    , Logger(WriterLogger)
 {
+    Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
+
     FDWatcher.set(fd, ev::WRITE);
 }
 
@@ -36,23 +40,23 @@ void TAsyncWriter::OnWrite(ev::io&, int)
         YCHECK(WriteBuffer.Size() >= BytesWrittenTotal);
 
         const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
-        LOG_TRACE("Writing %" PRISZT " bytes...", size);
+        LOG_DEBUG("Writing %" PRISZT " bytes...", size);
 
         bytesWritten = ::write(FD, WriteBuffer.Begin() + BytesWrittenTotal, size);
     } while (bytesWritten == -1 && errno == EINTR);
     if (bytesWritten == -1) {
         if (errno != EWOULDBLOCK && errno != EAGAIN) {
-            LOG_TRACE("Encounter an error: %" PRId32, errno);
+            LOG_DEBUG("Encounter an error: %" PRId32, errno);
 
             LastSystemError = errno;
         }
     } else {
-        LOG_TRACE("Wrote %" PRISZT " bytes", bytesWritten);
+        LOG_DEBUG("Wrote %" PRISZT " bytes", bytesWritten);
 
         BytesWrittenTotal += bytesWritten;
         TryCleanBuffer();
         if (NeedToClose && WriteBuffer.Size() == 0) {
-            LOG_TRACE("Closing...");
+            LOG_DEBUG("Closing...");
 
             int errCode = close(FD);
             if (errCode == -1) {
@@ -61,7 +65,7 @@ void TAsyncWriter::OnWrite(ev::io&, int)
                 // http://rb.yandex-team.ru/arc/r/44030/
                 // before editing
                 if (errno != EAGAIN) {
-                    LOG_TRACE("Encounter an error: %" PRId32, errno);
+                    LOG_DEBUG("Encounter an error: %" PRId32, errno);
 
                     LastSystemError = errno;
                 }
@@ -94,18 +98,18 @@ bool TAsyncWriter::Write(const void* data, size_t size)
     ssize_t bytesWritten = 0;
 
     if (WriteBuffer.Size() == 0) {
-        LOG_TRACE("Internal buffer is empty. Trying to write %" PRISZT " bytes", size);
+        LOG_DEBUG("Internal buffer is empty. Trying to write %" PRISZT " bytes", size);
 
         int errCode = -1;
         do {
-            LOG_TRACE("Writing %" PRISZT " bytes...", size);
+            LOG_DEBUG("Writing %" PRISZT " bytes...", size);
 
             errCode = ::write(FD, data, size);
         } while (errCode == -1 && errno == EINTR);
 
         if (errCode == -1) {
             if (errno != EWOULDBLOCK && errno != EAGAIN) {
-                LOG_TRACE("Encounter an error: %" PRId32, errno);
+                LOG_DEBUG("Encounter an error: %" PRId32, errno);
 
                 LastSystemError = errno;
             }
@@ -116,7 +120,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
         }
     }
 
-    LOG_TRACE("Wrote %" PRISZT " bytes", bytesWritten);
+    LOG_DEBUG("Wrote %" PRISZT " bytes", bytesWritten);
 
     YCHECK(!ReadyPromise.HasValue());
 

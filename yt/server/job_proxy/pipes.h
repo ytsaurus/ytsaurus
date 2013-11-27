@@ -3,6 +3,9 @@
 #include "private.h"
 #include <ytlib/table_client/public.h>
 #include <core/misc/blob_output.h>
+#include <core/fileio/async_reader.h>
+#include <core/fileio/async_writer.h>
+#include <core/fileio/file_io_dispatcher.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -53,15 +56,11 @@ struct IDataPipe
      */
     virtual void PrepareProxyDescriptors() = 0;
 
-    virtual int GetEpollDescriptor() const = 0;
-    virtual int GetEpollFlags() const = 0;
-
-    /*!
-     *  \returns false if pipe is closed, otherwise true.
-     */
-    virtual bool ProcessData(ui32 epollEvent) = 0;
+    virtual TError Register(NFileIO::TFileIODispatcher& dispatcher) = 0;
+    virtual TError DoAll() = 0;
 
     //! Should be called once.
+    //TODO! Call it!
     virtual void CloseHandles() = 0;
     virtual void Finish() = 0;
 };
@@ -82,10 +81,14 @@ public:
     virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
-    virtual int GetEpollDescriptor() const override;
-    virtual int GetEpollFlags() const override;
+    virtual TError Register(NFileIO::TFileIODispatcher& dispatcher) override;
+    virtual TError DoAll()
+    {
+        return ReadAll();
+    }
 
-    virtual bool ProcessData(ui32 epollEvent) override;
+    TError ReadAll();
+
     virtual void CloseHandles() override;
     virtual void Finish() override;
 
@@ -98,6 +101,7 @@ private:
     bool IsClosed;
     TBlob Buffer;
 
+    TIntrusivePtr<NFileIO::TAsyncReader> Reader;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -120,10 +124,12 @@ public:
     void PrepareJobDescriptors() override;
     void PrepareProxyDescriptors() override;
 
-    int GetEpollDescriptor() const override;
-    int GetEpollFlags() const override;
-
-    bool ProcessData(ui32 epollEvents) override;
+    virtual TError Register(NFileIO::TFileIODispatcher& dispatcher) override;
+    virtual TError DoAll() override
+    {
+        return WriteAll();
+    }
+    TError WriteAll();
 
     void CloseHandles() override;
     void Finish() override;
@@ -139,6 +145,8 @@ private:
 
     bool HasData;
     bool IsFinished;
+
+    TIntrusivePtr<NFileIO::TAsyncWriter> Writer;
 };
 
 ////////////////////////////////////////////////////////////////////

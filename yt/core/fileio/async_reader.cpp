@@ -1,6 +1,6 @@
 #include "async_reader.h"
 
-#include <yt/core/logging/log.h>
+#include "private.h"
 
 namespace NYT {
 namespace NFileIO {
@@ -8,8 +8,6 @@ namespace NFileIO {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t ReadBufferSize = 64 * 1024;
-
-NLog::TLogger Logger("AsyncReader");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +20,10 @@ TNonBlockReader::TNonBlockReader(int fd)
     , ReachedEOF_(false)
     , Closed(false)
     , LastSystemError(0)
-{ }
+    , Logger(ReaderLogger)
+{
+    Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
+}
 
 TNonBlockReader::~TNonBlockReader()
 {
@@ -40,13 +41,13 @@ void TNonBlockReader::TryReadInBuffer()
         } while (size == -1 && errno == EINTR);
 
         if (size == -1) {
-            LOG_TRACE("Encounter an error: %" PRId32, errno);
+            LOG_DEBUG("Encounter an error: %" PRId32, errno);
 
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 LastSystemError = errno;
             }
         } else {
-            LOG_TRACE("Read %" PRISZT " bytes", size);
+            LOG_DEBUG("Read %" PRISZT " bytes", size);
 
             BytesInBuffer += size;
             if (size == 0) {
@@ -129,8 +130,12 @@ void TNonBlockReader::Close()
 TAsyncReader::TAsyncReader(int fd)
     : Reader(fd)
     , ReadyPromise()
+    , Logger(ReaderLogger)
 {
     LOG_TRACE("Constructing...");
+
+    Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
+
     FDWatcher.set(fd, ev::READ);
 }
 
@@ -162,7 +167,9 @@ void TAsyncReader::OnRead(ev::io&, int)
 
     TGuard<TSpinLock> guard(ReadLock);
 
-    LOG_TRACE("Reading to buffer...");
+    LOG_DEBUG("Reading to buffer...");
+
+    YCHECK(!Reader.ReachedEOF());
 
     if (!Reader.IsBufferFull()) {
         Reader.TryReadInBuffer();
@@ -190,8 +197,10 @@ std::pair<TBlob, bool> TAsyncReader::Read()
 
     TGuard<TSpinLock> guard(ReadLock);
 
-    // ev_io_start is not thread-safe
-    StartWatcher.send();
+    if (!Reader.ReachedEOF()) {
+        // ev_io_start is not thread-safe
+        StartWatcher.send();
+    }
 
     return Reader.GetRead();
 }
@@ -206,7 +215,7 @@ TAsyncError TAsyncReader::GetReadyEvent()
         return MakePromise(GetState());
     }
 
-    LOG_TRACE("Returning a new future");
+    LOG_DEBUG("Returning a new future");
 
     ReadyPromise.Assign(NewPromise<TError>());
     return ReadyPromise->ToFuture();

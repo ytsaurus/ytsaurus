@@ -40,6 +40,46 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]['v2'].endswith("/mytmp")
         assert res[2]['v2'].startswith("/")
 
+    def test_big_input(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        count = 1000*1000;
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t1', original_data);
+
+        command = 'cat'
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command)
+        track_op(op_id)
+
+        new_data = read('//tmp/t2')
+        assert new_data == original_data
+
+    def test_two_inputs_at_the_same_time(self):
+        create('table', '//tmp/t_input')
+        create('table', '//tmp/t_output1')
+        create('table', '//tmp/t_output2')
+
+        count = 1000;
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t_input', original_data);
+
+        file1 = '//tmp/some_file.txt'
+        create('file', file1)
+        upload(file1, '{value=42};\n')
+
+        command = 'cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;'
+        op_id = map(dont_track=True,
+                    in_='//tmp/t_input',
+                    out=['//tmp/t_output1', '//tmp/t_output2'],
+                    command=command,
+                    file=[file1],
+                    verbose=True)
+        track_op(op_id)
+
+        assert read('//tmp/t_output2') == [{'value': 42}]
+        assert read('//tmp/t_output1') == [{'index': i} for i in xrange(count)]
+
     @only_linux
     def test_in_equal_to_out(self):
         create('table', '//tmp/t1')
@@ -73,6 +113,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
     # check that stderr is captured for failed jobs
     @only_linux
+
     def test_stderr_failed(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')

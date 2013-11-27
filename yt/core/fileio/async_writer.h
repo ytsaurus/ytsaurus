@@ -3,7 +3,7 @@
 #include "file_io_dispatcher_impl.h"
 
 #include <yt/core/misc/blob.h>
-#include <yt/core/logging/log.h>
+#include <core/logging/tagged_logger.h>
 
 #include <util/system/spinlock.h>
 
@@ -16,6 +16,7 @@ class TAsyncWriter : public IFDWatcher
 {
 public:
     TAsyncWriter(int fd);
+    virtual ~TAsyncWriter() {}
 
     bool Write(const void* data, size_t size);
     TAsyncError Close();
@@ -39,7 +40,7 @@ private:
 
     TSpinLock WriteLock;
 
-    NLog::TLogger Logger;
+    NLog::TTaggedLogger Logger;
 
     void OnWrite(ev::io&, int);
 

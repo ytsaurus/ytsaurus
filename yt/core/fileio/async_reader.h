@@ -3,6 +3,7 @@
 #include "file_io_dispatcher_impl.h"
 
 #include <yt/core/misc/blob.h>
+#include <core/logging/tagged_logger.h>
 
 #include <util/system/spinlock.h>
 
@@ -42,6 +43,8 @@ namespace NDetail {
         bool ReachedEOF_;
         bool Closed;
         int LastSystemError;
+
+        NLog::TTaggedLogger Logger;
     };
 }
 
@@ -50,12 +53,12 @@ class TAsyncReader : public IFDWatcher
 {
 public:
     TAsyncReader(int fd);
+    virtual ~TAsyncReader() {}
 
     std::pair<TBlob, bool> Read();
     TAsyncError GetReadyEvent();
 
     virtual void Start(ev::dynamic_loop& eventLoop);
-
 private:
     NDetail::TNonBlockReader Reader;
     ev::io FDWatcher;
@@ -69,6 +72,8 @@ private:
     void OnRead(ev::io&, int);
 
     void OnStart(ev::async&, int);
+
+    NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 };
