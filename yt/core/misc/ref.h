@@ -255,6 +255,20 @@ public:
         return Ref ? &TSharedRef::Ref : nullptr;
     }
 
+
+    friend void swap(TSharedRef& lhs, TSharedRef& rhs)
+    {
+        using std::swap;
+        swap(lhs.Holder, rhs.Holder);
+        swap(lhs.Ref, rhs.Ref);
+    }
+
+    TSharedRef& operator = (TSharedRef other)
+    {
+        swap(*this, other);
+        return *this;
+    }
+
 private:
     class TBlobHolder
         : public THolder
@@ -296,9 +310,6 @@ public:
     explicit TSharedRefArray(const std::vector<TSharedRef>& parts);
     explicit TSharedRefArray(std::vector<TSharedRef>&& parts);
 
-    TSharedRefArray& operator = (const TSharedRefArray& other);
-    TSharedRefArray& operator = (TSharedRefArray&& other);
-
     void Reset();
 
     explicit operator bool() const;
@@ -314,6 +325,9 @@ public:
 
     TSharedRef Pack() const;
     static TSharedRefArray Unpack(const TSharedRef& packedRef);
+
+    friend void swap(TSharedRefArray& lhs, TSharedRefArray& rhs);
+    TSharedRefArray& operator = (TSharedRefArray other);
 
 private:
     class TImpl;
