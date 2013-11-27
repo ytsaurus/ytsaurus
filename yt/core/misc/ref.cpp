@@ -234,18 +234,6 @@ TSharedRefArray::TSharedRefArray(std::vector<TSharedRef>&& parts)
     : Impl(New<TImpl>(std::move(parts)))
 { }
 
-TSharedRefArray& TSharedRefArray::operator=(const TSharedRefArray& other)
-{
-    Impl = other.Impl;
-    return *this;
-}
-
-TSharedRefArray& TSharedRefArray::operator=(TSharedRefArray&& other)
-{
-    Impl = std::move(other.Impl);
-    return *this;
-}
-
 void TSharedRefArray::Reset()
 {
     Impl.Reset();
@@ -305,6 +293,18 @@ const TSharedRef* begin(const TSharedRefArray& array)
 const TSharedRef* end(const TSharedRefArray& array)
 {
     return array.End();
+}
+
+void swap(TSharedRefArray& lhs, TSharedRefArray& rhs)
+{
+    using std::swap;
+    swap(lhs.Impl, rhs.Impl);
+}
+
+TSharedRefArray& TSharedRefArray::operator=(TSharedRefArray other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
