@@ -6,6 +6,7 @@ from common import get_value
 from errors import YtError
 
 from yt.zip import ZipFile
+import yt.logger as logger
 
 import os
 import sys
@@ -35,6 +36,12 @@ def module_relpath(module_name, module_file):
     #            relpath = relpath[1:]
     #        return relpath
 
+def find_file(path):
+    while path != "/":
+        if os.path.isfile(path):
+            return path
+        path = os.path.dirname(path)
+
 def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
     function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
@@ -42,6 +49,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
+    compressed_files = set()
     zip_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".modules.zip")[1]
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
@@ -49,12 +57,22 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                     not config.PYTHON_FUNCTION_MODULE_FILTER(module):
                 continue
             if hasattr(module, "__file__"):
-                file = module.__file__
+                file = find_file(module.__file__)
+                if file is None:
+                    logger.warning("Cannot find file of module %s", module.__file__)
+                    continue
+
                 if config.PYTHON_DO_NOT_USE_PYC and file.endswith(".pyc"):
                     file = file[:-1]
+
                 relpath = module_relpath(module.__name__, file)
                 if relpath is None and config.PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES:
                     raise YtError("Cannot determine relative path of module " + str(module))
+
+                if relpath in compressed_files:
+                    continue
+                compressed_files.add(relpath)
+
                 zip.write(file, relpath)
 
     main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module")[1] + ".py"
