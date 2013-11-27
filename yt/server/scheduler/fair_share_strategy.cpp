@@ -474,25 +474,30 @@ protected:
     void ComputeFairShare()
     {
         // Compute min shares.
-        {
-            double sum = 0.0;
+        // Compute min weight.
+        double minShareSum = 0.0;
+        double minWeight = 1.0;
+        for (const auto& child : Children) {
+            auto& childAttributes = child->Attributes();
+            double result = child->GetMinShareRatio();
+            // Never give more than demanded.
+            result = std::min(result, childAttributes.DemandRatio);
+            // Never give more than max share allows.
+            result = std::min(result, childAttributes.MaxShareRatio);
+            childAttributes.AdjustedMinShareRatio = result;
+            minShareSum += result;
+
+            if (child->GetWeight() > RatioComparisonPrecision) {
+                minWeight = std::min(minWeight, child->GetWeight());
+            }
+        }
+
+        // Normalize min shares, if needed.
+        if (minShareSum > Attributes_.AdjustedMinShareRatio) {
+            double fitFactor = Attributes_.AdjustedMinShareRatio / minShareSum;
             for (const auto& child : Children) {
                 auto& childAttributes = child->Attributes();
-                double result = child->GetMinShareRatio();
-                // Never give more than demanded.
-                result = std::min(result, childAttributes.DemandRatio);
-                // Never give more than max share allows.
-                result = std::min(result, childAttributes.MaxShareRatio);
-                childAttributes.AdjustedMinShareRatio = result;
-                sum += result;
-            }
-            // Normalize if needed.
-            if (sum > Attributes_.AdjustedMinShareRatio) {
-                double fitFactor = Attributes_.AdjustedMinShareRatio / sum;
-                for (const auto& child : Children) {
-                    auto& childAttributes = child->Attributes();
-                    childAttributes.AdjustedMinShareRatio *= fitFactor;
-                }
+                childAttributes.AdjustedMinShareRatio *= fitFactor;
             }
         }
 
@@ -500,7 +505,7 @@ protected:
         ComputeByFitting(
             [&] (double fitFactor, const ISchedulableElementPtr& child) -> double {
                 const auto& childAttributes = child->Attributes();
-                double result = fitFactor * child->GetWeight();
+                double result = fitFactor * child->GetWeight() / minWeight;
                 // Never give less than promised by min share.
                 result = std::max(result, childAttributes.AdjustedMinShareRatio);               
                 // Never give more than demanded.
@@ -509,7 +514,7 @@ protected:
                 result = std::min(result, childAttributes.MaxShareRatio);
                 return result;
             },
-            [&] (ISchedulableElementPtr child, double value) {
+            [&] (const ISchedulableElementPtr& child, double value) {
                 auto& attributes = child->Attributes();
                 attributes.FairShareRatio = value;
             },
