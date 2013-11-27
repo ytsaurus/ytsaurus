@@ -148,7 +148,7 @@ TExecutorThread::TExecutorThread(
     , Running(false)
     , FibersCreated(0)
     , FibersAlive(0)
-    , ThreadId(NThread::InvalidThreadId)
+    , ThreadId(InvalidThreadId)
     , Thread(ThreadMain, (void*) this)
 {
     Profiler.SetEnabled(enableProfiling);
@@ -179,8 +179,8 @@ void TExecutorThread::ThreadMain()
         OnThreadStart();
         CurrentExecutorThread = this;
 
-        NThread::SetCurrentThreadName(~ThreadName);
-        ThreadId = NThread::GetCurrentThreadId();
+        SetCurrentThreadName(~ThreadName);
+        ThreadId = GetCurrentThreadId();
 
         while (Running) {
             // Spawn a new fiber to run the loop.
@@ -304,7 +304,7 @@ void TExecutorThread::Shutdown()
     EventCount->NotifyAll();
 
     // Prevent deadlock.
-    if (NThread::GetCurrentThreadId() != ThreadId) {
+    if (GetCurrentThreadId() != ThreadId) {
         Thread.Join();
     }
 }

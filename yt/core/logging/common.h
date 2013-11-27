@@ -27,7 +27,7 @@ struct TLogEvent
         : DateTime(TInstant::Now())
         , FileName(NULL)
         , Line(InvalidLine)
-        , ThreadId(NThread::InvalidThreadId)
+        , ThreadId(NConcurrency::InvalidThreadId)
         , Function(NULL)
     { }
 
@@ -38,7 +38,7 @@ struct TLogEvent
         , DateTime(TInstant::Now())
         , FileName(NULL)
         , Line(InvalidLine)
-        , ThreadId(NThread::InvalidThreadId)
+        , ThreadId(NConcurrency::InvalidThreadId)
         , Function(NULL)
     { }
 
@@ -48,7 +48,7 @@ struct TLogEvent
     TInstant DateTime;
     const char* FileName;
     i32 Line;
-    ::NYT::NThread::TThreadId ThreadId;
+    NConcurrency::TThreadId ThreadId;
     const char* Function;
 
 };

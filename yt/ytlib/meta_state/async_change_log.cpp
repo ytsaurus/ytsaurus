@@ -445,7 +445,7 @@ private:
 
     void ThreadMain()
     {
-        NThread::SetCurrentThreadName("AsyncChangeLog");
+        NConcurrency::SetCurrentThreadName("AsyncChangeLog");
 
         while (!Finished) {
             if (FlushAndClean())

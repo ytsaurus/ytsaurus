@@ -41,13 +41,13 @@ class TSlot
 {
 public:
     TSlot()
-        : InvalidId(NThread::InvalidThreadId)
+        : InvalidId(InvalidThreadId)
         , BoundId(InvalidId)
     { }
 
     void Check()
     {
-        intptr_t currentThreadId = static_cast<intptr_t>(NThread::GetCurrentThreadId());
+        intptr_t currentThreadId = static_cast<intptr_t>(GetCurrentThreadId());
         do {
             intptr_t boundThreadId = BoundId;
             if (boundThreadId != InvalidId) {

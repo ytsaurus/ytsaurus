@@ -131,7 +131,7 @@ private:
     int FibersCreated;
     int FibersAlive;
 
-    NThread::TThreadId ThreadId;
+    TThreadId ThreadId;
     TThread Thread;
     
 };

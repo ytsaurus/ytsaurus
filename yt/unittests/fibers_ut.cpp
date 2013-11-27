@@ -388,10 +388,10 @@ TFuture<T> DelayedIdentity(T x)
         BIND([=] () { return x; }));
 }
 
-NThread::TThreadId GetInvokerThreadId(IInvokerPtr invoker)
+TThreadId GetInvokerThreadId(IInvokerPtr invoker)
 {
     return BIND([] () {
-        return NThread::GetCurrentThreadId();
+        return GetCurrentThreadId();
     }).AsyncVia(invoker).Run().Get();
 }
 
@@ -433,13 +433,13 @@ WRAPPED_FIBER_TEST(TFiberTest, SwitchToInvoker1)
 {
     auto invoker = Queue1->GetInvoker();
 
-    auto id0 = NThread::GetCurrentThreadId();
+    auto id0 = GetCurrentThreadId();
     auto id1 = GetInvokerThreadId(invoker);
     EXPECT_NE(id0, id1);
 
     for (int i = 0; i < 10; ++i) {
         SwitchTo(invoker);
-        EXPECT_EQ(NThread::GetCurrentThreadId(), id1);
+        EXPECT_EQ(GetCurrentThreadId(), id1);
     }
 }
 
@@ -448,7 +448,7 @@ WRAPPED_FIBER_TEST(TFiberTest, SwitchToInvoker2)
     auto invoker1 = Queue1->GetInvoker();
     auto invoker2 = Queue2->GetInvoker();
 
-    auto id0 = NThread::GetCurrentThreadId();
+    auto id0 = GetCurrentThreadId();
     auto id1 = GetInvokerThreadId(invoker1);
     auto id2 = GetInvokerThreadId(invoker2);
     EXPECT_NE(id0, id1);
@@ -457,10 +457,10 @@ WRAPPED_FIBER_TEST(TFiberTest, SwitchToInvoker2)
 
     for (int i = 0; i < 10; ++i) {
         SwitchTo(invoker1);
-        EXPECT_EQ(NThread::GetCurrentThreadId(), id1);
+        EXPECT_EQ(GetCurrentThreadId(), id1);
 
         SwitchTo(invoker2);
-        EXPECT_EQ(NThread::GetCurrentThreadId(), id2);
+        EXPECT_EQ(GetCurrentThreadId(), id2);
     }
 }
 
@@ -519,38 +519,38 @@ TEST(TFiberTest, ActionQueue1)
     auto invoker = actionQueue->GetInvoker();
 
     TFiber* fiber1;
-    NThread::TThreadId thread1;
+    TThreadId thread1;
 
     TFiber* fiber2;
-    NThread::TThreadId thread2;
+    TThreadId thread2;
 
     BIND([&] () {
         fiber1 = TFiber::GetCurrent();
-        thread1 = NThread::GetCurrentThreadId();
+        thread1 = GetCurrentThreadId();
 
         WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
 
         fiber2 = TFiber::GetCurrent();
-        thread2 = NThread::GetCurrentThreadId();
+        thread2 = GetCurrentThreadId();
     }).AsyncVia(invoker).Run().Get();
 
     EXPECT_EQ(fiber1, fiber2);
     EXPECT_EQ(thread1, thread2);
 
     TFiber* fiber3;
-    NThread::TThreadId thread3;
+    TThreadId thread3;
 
     TFiber* fiber4;
-    NThread::TThreadId thread4;
+    TThreadId thread4;
 
     BIND([&] () {
         fiber3 = TFiber::GetCurrent();
-        thread3 = NThread::GetCurrentThreadId();
+        thread3 = GetCurrentThreadId();
 
         WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
 
         fiber4 = TFiber::GetCurrent();
-        thread4 = NThread::GetCurrentThreadId();
+        thread4 = GetCurrentThreadId();
     }).AsyncVia(invoker).Run().Get();
 
     EXPECT_NE(fiber2, fiber3);
@@ -594,11 +594,11 @@ TEST(TFiberTest, ActionQueue3)
 
     for (int i = 0; i < 10; ++i) {
         auto callback = BIND([&sum, i, invoker] () {
-            auto thread1 = NThread::GetCurrentThreadId();
+            auto thread1 = GetCurrentThreadId();
             
             WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
             
-            auto thread2 = NThread::GetCurrentThreadId();
+            auto thread2 = GetCurrentThreadId();
             EXPECT_EQ(thread1, thread2);
 
             sum += i;

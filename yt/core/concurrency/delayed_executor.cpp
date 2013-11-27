@@ -130,7 +130,7 @@ private:
 
     void ThreadMain()
     {
-        NThread::SetCurrentThreadName("DelayedInvoker");
+        SetCurrentThreadName("DelayedInvoker");
         while (!Finished) {
             auto now = TInstant::Now();
             while (true) {
