@@ -907,7 +907,7 @@ public:
     {
         auto element = GetOperationElement(operation);
         auto pool = element->GetPool();
-        const auto& attributes = pool->Attributes();
+        const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
