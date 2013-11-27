@@ -8,6 +8,7 @@
 #include <core/concurrency/parallel_awaiter.h>
 
 #include <core/actions/cancelable_context.h>
+#include <core/actions/invoker_util.h>
 
 #include <contrib/testing/framework.h>
 
@@ -388,13 +389,6 @@ TFuture<T> DelayedIdentity(T x)
         BIND([=] () { return x; }));
 }
 
-TThreadId GetInvokerThreadId(IInvokerPtr invoker)
-{
-    return BIND([] () {
-        return GetCurrentThreadId();
-    }).AsyncVia(invoker).Run().Get();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #define WRAPPED_FIBER_TEST(testCaseName, testName) \
@@ -434,7 +428,7 @@ WRAPPED_FIBER_TEST(TFiberTest, SwitchToInvoker1)
     auto invoker = Queue1->GetInvoker();
 
     auto id0 = GetCurrentThreadId();
-    auto id1 = GetInvokerThreadId(invoker);
+    auto id1 = invoker->GetThreadId();
     EXPECT_NE(id0, id1);
 
     for (int i = 0; i < 10; ++i) {
@@ -449,8 +443,8 @@ WRAPPED_FIBER_TEST(TFiberTest, SwitchToInvoker2)
     auto invoker2 = Queue2->GetInvoker();
 
     auto id0 = GetCurrentThreadId();
-    auto id1 = GetInvokerThreadId(invoker1);
-    auto id2 = GetInvokerThreadId(invoker2);
+    auto id1 = invoker1->GetThreadId();
+    auto id2 = invoker2->GetThreadId();
     EXPECT_NE(id0, id1);
     EXPECT_NE(id0, id2);
     EXPECT_NE(id1, id2);

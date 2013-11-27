@@ -27,12 +27,11 @@ static NLog::TLogger Logger("ActionQueue");
 
 TInvokerQueue::TInvokerQueue(
     TEventCount* eventCount,
-    IInvoker* currentInvoker,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
     : EventCount(eventCount)
-    , CurrentInvoker(currentInvoker ? currentInvoker : this)
+    , ThreadId(InvalidThreadId)
     , EnableLogging(enableLogging)
     , Running(true)
     , Profiler("/action_queue")
@@ -47,10 +46,16 @@ TInvokerQueue::TInvokerQueue(
     Profiler.SetEnabled(enableProfiling);
 }
 
+void TInvokerQueue::SetThreadId(TThreadId threadId)
+{
+    ThreadId = threadId;
+}
+
 bool TInvokerQueue::Invoke(const TClosure& callback)
 {
     if (!Running) {
-        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored: %p", callback.GetHandle());
+        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored: %p",
+            callback.GetHandle());
         return false;
     }
 
@@ -62,11 +67,17 @@ bool TInvokerQueue::Invoke(const TClosure& callback)
     action.Callback = callback;
     Queue.Enqueue(action);
 
-    LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p", callback.GetHandle());
+    LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
+        callback.GetHandle());
 
     EventCount->Notify();
 
     return true;
+}
+
+TThreadId TInvokerQueue::GetThreadId() const
+{
+    return ThreadId;
 }
 
 void TInvokerQueue::Shutdown()
@@ -89,7 +100,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
     action->StartInstant = GetCpuInstant();
     Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(action->StartInstant - action->EnqueueInstant));
 
-    TCurrentInvokerGuard guard(CurrentInvoker);
+    TCurrentInvokerGuard guard(this);
 
     try {
         action->Callback.Run();
@@ -157,7 +168,8 @@ TExecutorThread::TExecutorThread(
 void TExecutorThread::Start()
 {
     Running = true;    
-    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)", ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
+        ~ThreadName);
     Thread.Start();
 }
 
@@ -175,7 +187,8 @@ void* TExecutorThread::ThreadMain(void* opaque)
 void TExecutorThread::ThreadMain()
 {
     try {
-        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)", ~ThreadName);
+        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)",
+            ~ThreadName);
         OnThreadStart();
         CurrentExecutorThread = this;
 
@@ -204,9 +217,11 @@ void TExecutorThread::ThreadMain()
 
         CurrentExecutorThread = nullptr;
         OnThreadShutdown();
-        LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)", ~ThreadName);
+        LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)",
+            ~ThreadName);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)", ~ThreadName);
+        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)",
+            ~ThreadName);
     }
 }
 
@@ -298,7 +313,8 @@ void TExecutorThread::Shutdown()
     if (!Running)
         return;
 
-    LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)", ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)",
+        ~ThreadName);
 
     Running = false;
     EventCount->NotifyAll();
@@ -307,6 +323,11 @@ void TExecutorThread::Shutdown()
     if (GetCurrentThreadId() != ThreadId) {
         Thread.Join();
     }
+}
+
+TThreadId TExecutorThread::GetId() const
+{
+    return TThreadId(Thread.Id());
 }
 
 bool TExecutorThread::IsRunning() const

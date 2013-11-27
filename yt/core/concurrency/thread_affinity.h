@@ -4,7 +4,11 @@
 
 #include <core/misc/preprocessor.h>
 
+#include <core/actions/invoker_util.h>
+
 #include <util/system/thread.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NConcurrency {
@@ -32,60 +36,48 @@ namespace NConcurrency {
  * (unittests/thread_affinity_ut.cpp).
  */
 
-// Check that the cast TThread::TId -> TAtomic is safe.
-// NB: TAtomic is volatile intptr_t.
-static_assert(sizeof(TThread::TId) == sizeof(intptr_t),
-    "Current implementation assumes that TThread::TId can be atomically swapped.");
-
-class TSlot
+class TThreadAffinitySlot
 {
 public:
-    TSlot()
-        : InvalidId(InvalidThreadId)
-        , BoundId(InvalidId)
+    TThreadAffinitySlot()
+        : BoundId(InvalidThreadId)
     { }
 
-    void Check()
+    void Check(TThreadId threadId = GetCurrentThreadId())
     {
-        intptr_t currentThreadId = static_cast<intptr_t>(GetCurrentThreadId());
-        do {
-            intptr_t boundThreadId = BoundId;
-            if (boundThreadId != InvalidId) {
-                YCHECK(boundThreadId == currentThreadId);
-                break;
-            }
-        } while (!AtomicCas(&BoundId, currentThreadId, InvalidId));
+        YCHECK(threadId != InvalidThreadId);
+        auto expectedId = InvalidThreadId;
+        if (!BoundId.compare_exchange_strong(expectedId, threadId)) {
+            YCHECK(expectedId == threadId);
+        }
     }
 
 private:
-    intptr_t InvalidId;
-    TAtomic BoundId;
+    std::atomic<TThreadId> BoundId;
 
 };
 
 #ifdef ENABLE_THREAD_AFFINITY_CHECK
 
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
-    mutable ::NYT::NConcurrency::TSlot slot ## __Slot
+    mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, __Slot)
 
 #define VERIFY_THREAD_AFFINITY(slot) \
-    slot ## __Slot.Check()
+    PP_CONCAT(slot, __Slot).Check()
 
 // TODO: remove this dirty hack.
 static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
     "Current implementation assumes that TSpinLock fits within implementation.");
 
 #define VERIFY_SPINLOCK_AFFINITY(spinLock) \
-    YASSERT(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
+    YCHECK(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
 
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) \
-    invoker->Invoke(BIND([&] () { \
-        slot ## __Slot.Check(); \
-    }))
+    PP_CONCAT(slot, __Slot).Check((invoker)->GetThreadId());
 
 #else
 
-// Expand macros to null but take care of trailing semicolon.
+// Expand macros to null but take care of the trailing semicolon.
 #define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct PP_CONCAT(TNullThreadAffinitySlot__,  __LINE__) { }
 #define VERIFY_THREAD_AFFINITY(slot)           do { } while (0)
 #define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while (0)

@@ -37,7 +37,11 @@ class TProfilingManager::TImpl
 {
 public:
     TImpl()
-        : Queue(New<TInvokerQueue>(&EventCount, nullptr, EmptyTagIds, true, false))
+        : Queue(New<TInvokerQueue>(
+            &EventCount,
+            EmptyTagIds,
+            true,
+            false))
         , Thread(New<TThread>(this))
         , Root(GetEphemeralNodeFactory()->CreateMap())
         , EnqueueCounter("/enqueue_rate")
@@ -51,6 +55,7 @@ public:
     void Start()
     {
         Thread->Start();
+        Queue->SetThreadId(Thread->GetId());
 #ifdef _linux_
         ResourceTracker->Start();
 #endif

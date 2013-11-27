@@ -569,7 +569,6 @@ public:
     TImpl()
         : Queue(New<TInvokerQueue>(
             &EventCount,
-            nullptr,
             NProfiling::EmptyTagIds,
             false,
             false))
@@ -585,7 +584,9 @@ public:
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
         DoUpdateConfig(TLogConfig::CreateDefault());
+
         Thread->Start();
+        Queue->SetThreadId(Thread->GetId());
     }
 
     void Configure(INodePtr node, const TYPath& path = "")

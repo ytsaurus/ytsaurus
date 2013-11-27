@@ -44,6 +44,11 @@ public:
         return result;
     }
 
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return UnderlyingInvoker->GetThreadId();
+    }
+
 private:
     TDecoratedMetaStatePtr MetaState;
     IInvokerPtr UnderlyingInvoker;
@@ -75,6 +80,11 @@ public:
         }
 
         return result;
+    }
+
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return MetaState->StateInvoker->GetThreadId();
     }
 
 private:
