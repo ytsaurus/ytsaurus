@@ -41,15 +41,15 @@ template <class T>
 class TEditList
 {
 public:
-    FORCED_INLINE TEditList()
+    TEditList()
         : Header_(nullptr)
     { }
 
-    FORCED_INLINE explicit TEditList(TEditListHeader* header)
+    explicit TEditList(TEditListHeader* header)
         : Header_(header)
     { }
 
-    FORCED_INLINE static TEditList Allocate(
+    static TEditList Allocate(
         TChunkedMemoryPool* pool,
         int capacity)
     {
@@ -63,94 +63,94 @@ public:
     }
 
 
-    FORCED_INLINE explicit operator bool()
+    explicit operator bool()
     {
         return Header_ != nullptr;
     }
 
 
-    FORCED_INLINE TEditList GetNext() const
+    TEditList GetNext() const
     {
         return TEditList(Header_->Next);
     }
 
-    FORCED_INLINE void SetNext(TEditList next)
+    void SetNext(TEditList next)
     {
         Header_->Next = next.Header_;
     }
 
 
-    FORCED_INLINE int GetSize() const
+    int GetSize() const
     {
         return Header_->Size;
     }
 
-    FORCED_INLINE int GetCapacity() const
+    int GetCapacity() const
     {
         return Header_->Capacity;
     }
 
 
-    FORCED_INLINE const T* Begin() const
+    const T* Begin() const
     {
         return reinterpret_cast<T*>(Header_ + 1);
     }
 
-    FORCED_INLINE T* Begin()
+    T* Begin()
     {
         return reinterpret_cast<T*>(Header_ + 1);
     }
 
 
-    FORCED_INLINE const T* End() const
+    const T* End() const
     {
         return reinterpret_cast<T*>(Header_ + 1) + Header_->Size;
     }
 
-    FORCED_INLINE T* End()
+    T* End()
     {
         return reinterpret_cast<T*>(Header_ + 1) + Header_->Size;
     }
 
 
-    FORCED_INLINE const T& operator[] (int index) const
+    const T& operator[] (int index) const
     {
         return Begin()[index];
     }
 
-    FORCED_INLINE T& operator[] (int index)
+    T& operator[] (int index)
     {
         return Begin()[index];
     }
 
 
-    FORCED_INLINE const T& Front() const
+    const T& Front() const
     {
         YASSERT(GetSize() > 0);
         return *Begin();
     }
 
-    FORCED_INLINE T& Front()
+    T& Front()
     {
         YASSERT(GetSize() > 0);
         return *Begin();
     }
     
 
-    FORCED_INLINE const T& Back() const
+    const T& Back() const
     {
         YASSERT(GetSize() > 0);
         return *(End() - 1);
     }
 
-    FORCED_INLINE T& Back()
+    T& Back()
     {
         YASSERT(GetSize() > 0);
         return *(End() - 1);
     }
 
 
-    FORCED_INLINE void Push(T value)
+    void Push(T value)
     {
         YASSERT(Header_->Size < Header_->Capacity);
         *End() = value;
@@ -158,14 +158,14 @@ public:
     }
 
     template <class TCtor>
-    FORCED_INLINE void Push(TCtor valueCtor)
+    void Push(TCtor valueCtor)
     {
         YASSERT(Header_->Size < Header_->Capacity);
         valueCtor(End());
         ++Header_->Size;
     }
 
-    FORCED_INLINE int Pop()
+    int Pop()
     {
         YASSERT(GetSize() > 0);
         return --Header_->Size;
@@ -187,15 +187,15 @@ static_assert(sizeof (TTimestampList) == sizeof (intptr_t), "TTimestampList size
 class TBucket
 {
 public:
-    FORCED_INLINE TBucket()
+    TBucket()
         : Header_(nullptr)
     { }
 
-    FORCED_INLINE explicit TBucket(TBucketHeader* header)
+    explicit TBucket(TBucketHeader* header)
         : Header_(header)
     { }
 
-    FORCED_INLINE static TBucket Allocate(
+    static TBucket Allocate(
         TChunkedMemoryPool* pool,
         int keyCount,
         int listCount)
@@ -214,97 +214,97 @@ public:
     }
 
 
-    FORCED_INLINE explicit operator bool()
+    explicit operator bool()
     {
         return Header_ != nullptr;
     }
 
     
-    FORCED_INLINE TTransaction* GetTransaction() const
+    TTransaction* GetTransaction() const
     {
         return Header_->Transaction;
     }
 
-    FORCED_INLINE void SetTransaction(TTransaction* transaction)
+    void SetTransaction(TTransaction* transaction)
     {
         Header_->Transaction = transaction;
     }
 
 
-    FORCED_INLINE NVersionedTableClient::TTimestamp GetPrepareTimestamp() const
+    NVersionedTableClient::TTimestamp GetPrepareTimestamp() const
     {
         return Header_->PrepareTimestamp;
     }
 
-    FORCED_INLINE void SetPrepareTimestamp(NVersionedTableClient::TTimestamp timestamp) const
+    void SetPrepareTimestamp(NVersionedTableClient::TTimestamp timestamp) const
     {
         Header_->PrepareTimestamp = timestamp;
     }
 
 
-    FORCED_INLINE NVersionedTableClient::TTimestamp GetLastCommitTimestamp() const
+    NVersionedTableClient::TTimestamp GetLastCommitTimestamp() const
     {
         return Header_->LastCommitTimestamp;
     }
 
-    FORCED_INLINE void SetLastCommitTimestamp(NVersionedTableClient::TTimestamp timestamp) const
+    void SetLastCommitTimestamp(NVersionedTableClient::TTimestamp timestamp) const
     {
         Header_->LastCommitTimestamp = timestamp;
     }
 
 
-    FORCED_INLINE const NVersionedTableClient::TUnversionedValue& GetKey(int id) const
+    const NVersionedTableClient::TUnversionedValue& GetKey(int id) const
     {
         auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
         return keys[id];
     }
 
-    FORCED_INLINE NVersionedTableClient::TUnversionedValue& GetKey(int id)
+    NVersionedTableClient::TUnversionedValue& GetKey(int id)
     {
         auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
         return keys[id];
     }
 
 
-    FORCED_INLINE TValueList GetFixedValueList(int index, int keyCount) const
+    TValueList GetFixedValueList(int index, int keyCount) const
     {
         return TValueList(GetLists(keyCount)[index + 2]);
     }
 
-    FORCED_INLINE void SetFixedValueList(int index, int keyCount, TValueList list)
+    void SetFixedValueList(int index, int keyCount, TValueList list)
     {
         GetLists(keyCount)[index + 2] = list.Header_;
     }
 
 
-    FORCED_INLINE TValueList GetVariableValueList(int keyCount) const
+    TValueList GetVariableValueList(int keyCount) const
     {
         return TValueList(GetLists(keyCount)[0]);
     }
 
-    FORCED_INLINE void SetVariableValueList(int keyCount, TValueList list)
+    void SetVariableValueList(int keyCount, TValueList list)
     {
         GetLists(keyCount)[0] = list.Header_;
     }
 
 
-    FORCED_INLINE TTimestampList GetTimestampList(int keyCount) const
+    TTimestampList GetTimestampList(int keyCount) const
     {
         return TTimestampList(GetLists(keyCount)[1]);
     }
 
-    FORCED_INLINE void SetTimestampList(int keyCount, TTimestampList list)
+    void SetTimestampList(int keyCount, TTimestampList list)
     {
         GetLists(keyCount)[1] = list.Header_;
     }
 
 
-    FORCED_INLINE bool operator == (TBucket other) const
+    bool operator == (TBucket other) const
     {
         return Header_ == other.Header_;
     }
 
-    FORCED_INLINE bool operator != (TBucket other) const
+    bool operator != (TBucket other) const
     {
         return Header_ != other.Header_;
     }
@@ -312,7 +312,7 @@ public:
 private:
     TBucketHeader* Header_;
 
-    FORCED_INLINE TEditListHeader** GetLists(int keyCount) const
+    TEditListHeader** GetLists(int keyCount) const
     {
         auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
         return reinterpret_cast<TEditListHeader**>(keys + keyCount);
@@ -326,12 +326,12 @@ static_assert(sizeof (TBucket) == sizeof (intptr_t), "TBucket size must match th
 
 struct TBucketRef
 {
-    FORCED_INLINE TBucketRef()
+    TBucketRef()
         : Tablet(nullptr)
         , Bucket()
     { }
 
-    FORCED_INLINE TBucketRef(TTablet* tablet, TBucket bucket)
+    TBucketRef(TTablet* tablet, TBucket bucket)
         : Tablet(tablet)
         , Bucket(bucket)
     { }

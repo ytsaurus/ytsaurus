@@ -54,7 +54,7 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-FORCED_INLINE TValue MakeSentinelValue(EValueType type, int id = 0)
+TValue MakeSentinelValue(EValueType type, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -63,7 +63,7 @@ FORCED_INLINE TValue MakeSentinelValue(EValueType type, int id = 0)
 }
 
 template <class TValue>
-FORCED_INLINE TValue MakeIntegerValue(i64 value, int id = 0)
+TValue MakeIntegerValue(i64 value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -73,7 +73,7 @@ FORCED_INLINE TValue MakeIntegerValue(i64 value, int id = 0)
 }
 
 template <class TValue>
-FORCED_INLINE TValue MakeDoubleValue(double value, int id = 0)
+TValue MakeDoubleValue(double value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -83,7 +83,7 @@ FORCED_INLINE TValue MakeDoubleValue(double value, int id = 0)
 }
 
 template <class TValue>
-FORCED_INLINE TValue MakeStringValue(const TStringBuf& value, int id = 0)
+TValue MakeStringValue(const TStringBuf& value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -94,7 +94,7 @@ FORCED_INLINE TValue MakeStringValue(const TStringBuf& value, int id = 0)
 }
 
 template <class TValue>
-FORCED_INLINE TValue MakeAnyValue(const TStringBuf& value, int id = 0)
+TValue MakeAnyValue(const TStringBuf& value, int id = 0)
 {
     TValue result;
     result.Id = id;
@@ -130,7 +130,7 @@ size_t GetHash(const TUnversionedValue& value);
 
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
 template <class TValue>
-FORCED_INLINE size_t GetRowDataSize(int valueCount)
+size_t GetRowDataSize(int valueCount)
 {
     return sizeof(TRowHeader) + sizeof(TValue) * valueCount;
 }
@@ -142,15 +142,15 @@ template <class TValue>
 class TRow
 {
 public:
-    FORCED_INLINE TRow()
+    TRow()
         : Header(nullptr)
     { }
 
-    FORCED_INLINE explicit TRow(TRowHeader* header)
+    explicit TRow(TRowHeader* header)
         : Header(header)
     { }
 
-    FORCED_INLINE static TRow Allocate(
+    static TRow Allocate(
         TChunkedMemoryPool* pool, 
         int valueCount)
     {
@@ -159,34 +159,34 @@ public:
         return TRow(header);
     }
 
-    FORCED_INLINE explicit operator bool()
+    explicit operator bool()
     {
         return Header != nullptr;
     }
 
-    FORCED_INLINE TRowHeader* GetHeader()
+    TRowHeader* GetHeader()
     {
         return Header;
     }
 
-    FORCED_INLINE const TRowHeader* GetHeader() const
+    const TRowHeader* GetHeader() const
     {
         return Header;
     }
 
-    FORCED_INLINE TValue& operator[](int index)
+    TValue& operator[](int index)
     {
         YASSERT(index >= 0 && index < GetValueCount());
         return reinterpret_cast<TValue*>(Header + 1)[index];
     }
 
-    FORCED_INLINE const TValue& operator[](int index) const
+    const TValue& operator[](int index) const
     {
         YASSERT(index >= 0 && index < GetValueCount());
         return reinterpret_cast<TValue*>(Header + 1)[index];
     }
 
-    FORCED_INLINE int GetValueCount() const
+    int GetValueCount() const
     {
         return Header->ValueCount;
     }
@@ -281,7 +281,7 @@ template <class TValue>
 class TOwningRow
 {
 public:
-    FORCED_INLINE TOwningRow()
+    TOwningRow()
     { }
 
     TOwningRow(TRow<TValue> other)
@@ -328,24 +328,24 @@ public:
     { }
 
 
-    FORCED_INLINE explicit operator bool()
+    explicit operator bool()
     {
         return static_cast<bool>(RowData);
     }
 
-    FORCED_INLINE int GetValueCount() const
+    int GetValueCount() const
     {
         const auto* header = GetHeader();
         return header ? static_cast<int>(header->ValueCount) : 0;
     }
 
-    FORCED_INLINE const TUnversionedValue& operator[](int index) const
+    const TUnversionedValue& operator[](int index) const
     {
         YASSERT(index >= 0 && index < GetValueCount());
         return reinterpret_cast<const TUnversionedValue*>(GetHeader() + 1)[index];
     }
 
-    FORCED_INLINE operator TRow<TValue> () const
+    operator TRow<TValue> () const
     {
         return TRow<TValue>(const_cast<TRowHeader*>(GetHeader()));
     }
@@ -360,17 +360,17 @@ private:
     Stroka StringData;  // Holds string data
 
 
-    FORCED_INLINE TOwningRow(TSharedRef rowData, Stroka stringData)
+    TOwningRow(TSharedRef rowData, Stroka stringData)
         : RowData(std::move(rowData))
         , StringData(std::move(stringData))
     { }
 
-    FORCED_INLINE TRowHeader* GetHeader()
+    TRowHeader* GetHeader()
     {
         return reinterpret_cast<TRowHeader*>(RowData.Begin());
     }
 
-    FORCED_INLINE const TRowHeader* GetHeader() const
+    const TRowHeader* GetHeader() const
     {
         return reinterpret_cast<const TRowHeader*>(RowData.Begin());
     }
