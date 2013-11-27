@@ -350,6 +350,20 @@ public:
         return TRow<TValue>(const_cast<TRowHeader*>(GetHeader()));
     }
 
+
+    friend void swap(TOwningRow& lhs, TOwningRow& rhs)
+    {
+        using std::swap;
+        swap(lhs.RowData, rhs.RowData);
+        swap(lhs.StringData, rhs.StringData);
+    }
+
+    TOwningRow& operator = (TOwningRow other)
+    {
+        swap(*this, other);
+        return *this;
+    }
+
 private:
     friend void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
     friend void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
