@@ -132,7 +132,7 @@ struct TMaybeLockHelper< IsMethod, T&& >
     }
     inline T&& Get() const
     {
-        return static_cast<T&&>(T_);
+        return std::move(T_);
     }
 };
 
@@ -229,7 +229,7 @@ struct TMaybeCopyHelper
 {
     static inline T&& Do(T&& x)
     {
-        return static_cast<T&&>(x);
+        return std::move(x);
     }
     static inline T Do(const T& x)
     {
@@ -262,7 +262,7 @@ struct TMaybeCopyHelper<T&&>
 {
     static inline T&& Do(T&& x)
     {
-        return static_cast<T&&>(x);
+        return std::move(x);
     }
 };
 
