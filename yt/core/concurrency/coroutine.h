@@ -1,9 +1,4 @@
-$$ Please, use Pump to convert this source file to valid C++ header.
-$$ Note that lines in this file could be longer than 80 symbols.
 #pragma once
-
-$var MAX_ARITY = 7
-$range ARITY 0..MAX_ARITY
 
 #include "public.h"
 #include "fiber.h"
@@ -38,28 +33,43 @@ private:
 
 };
 
-$for ARITY [[
-$range ARG 1..ARITY
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
-// === Arity $(ARITY), non-void result type.
 
-template <class R[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-class TCoroutine<R($for ARG , [[A$(ARG)]])>
+template<unsigned...>
+struct TSequence { };
+
+template<unsigned N, unsigned... Indexes>
+struct TGenerateSequence : TGenerateSequence<N - 1, N - 1, Indexes...> { };
+
+template<unsigned... Indexes>
+struct TGenerateSequence<0, Indexes...> {
+	typedef TSequence<Indexes...> TType;
+};
+
+
+template<class TCallee, class TCaller, class TArguments, unsigned... Indexes>
+void CallRun(TCallee& Callee, TCaller& Caller, TArguments&& Arguments,
+    TSequence<Indexes...>)
+{
+	Callee.Run(Caller, std::get<Indexes>(std::forward<TArguments>(Arguments))...);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+template <class R, class... TArgs>
+class TCoroutine<R(TArgs...)>
     : public TCoroutineBase
 {
 public:
-    typedef R (FunctionalSignature)($for ARG , [[A$(ARG)]]);
-    typedef void (CoroutineSignature)(TCoroutine&[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[A$(ARG)]]);
+    typedef R (FunctionalSignature)(TArgs...);
+    typedef void (CoroutineSignature)(TCoroutine&, TArgs...);
 
     typedef TCallback<CoroutineSignature> TCallee;
-$if ARITY > 0 [[
-
-    typedef std::tuple<$for ARG , [[A$(ARG)]]> TArguments;
-]]
-
+    typedef std::tuple<TArgs...> TArguments;
 
     TCoroutine()
         : TCoroutineBase()
@@ -76,38 +86,30 @@ $if ARITY > 0 [[
         Callee = std::move(callee);
     }
 
-
-$if ARITY > 0 [[
-    template <$for ARG , [[class P$(ARG)]]>
-
-]]
-[[    ]]const TNullable<R>& Run($for ARG , [[P$(ARG)&& p$(ARG)]])
+    template <class... TParams>
+    const TNullable<R>& Run(TParams&&... params)
     {
-$if ARITY > 0 [[
-
-        Arguments = std::make_tuple([[]]
-$for ARG , [[std::forward<P$(ARG)>(p$(ARG))]]);
-]]
-
+        static_assert(sizeof...(TParams) == sizeof...(TArgs),
+            "Params and args counts does not match.");
+        Arguments = std::make_tuple(std::forward<TParams>(params)...);
         Fiber->Run();
         return Result;
     }
 
     template <class Q>
-    $if ARITY > 0 [[TArguments&&]] $else [[void]] Yield(Q&& result)
+    TArguments&& Yield(Q&& result)
     {
         Result = std::forward<Q>(result);
         Fiber->Yield();
-        return[[]]$if ARITY > 0 [[ std::move(Arguments)]];
+        return std::move(Arguments);
     }
 
 private:
     virtual void Trampoline() override
     {
         try {
-            Callee.Run(*this[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[std::get<$(ARG - 1)>(std::move(Arguments))]]);
+            NDetail::CallRun(Callee, *this, std::move(Arguments),
+                typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result.Reset();
         } catch(...) {
             Result.Reset();
@@ -117,32 +119,20 @@ $for ARG , [[std::get<$(ARG - 1)>(std::move(Arguments))]]);
 
 private:
     TCallee Callee;
-$if ARITY > 0 [[
-
     TArguments Arguments;
-]]
-
     TNullable<R> Result;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// === Arity $(ARITY), void result type.
-
-template <$for ARG , [[class A$(ARG)]]>
-class TCoroutine<void($for ARG , [[A$(ARG)]])>
+template <class... TArgs>
+class TCoroutine<void(TArgs...)>
     : public TCoroutineBase
 {
 public:
-    typedef void (FunctionalSignature)($for ARG , [[A$(ARG)]]);
-    typedef void (CoroutineSignature)(TCoroutine&[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[A$(ARG)]]);
+    typedef void (FunctionalSignature)(TArgs...);
+    typedef void (CoroutineSignature)(TCoroutine&, TArgs...);
 
     typedef TCallback<CoroutineSignature> TCallee;
-$if ARITY > 0 [[
-
-    typedef std::tuple<$for ARG , [[A$(ARG)]]> TArguments;
-]]
-
+    typedef std::tuple<TArgs...> TArguments;
 
     TCoroutine()
         : TCoroutineBase()
@@ -159,37 +149,29 @@ $if ARITY > 0 [[
         Callee = std::move(callee);
     }
 
-
-$if ARITY > 0 [[
-    template <$for ARG , [[class P$(ARG)]]>
-
-]]
-[[    ]]bool Run($for ARG , [[P$(ARG)&& p$(ARG)]])
+    template <class... TParams>
+    bool Run(TParams&&... params)
     {
-$if ARITY > 0 [[
-
-        Arguments = std::make_tuple([[]]
-$for ARG , [[std::forward<P$(ARG)>(p$(ARG))]]);
-]]
-
+  static_assert(sizeof...(TParams) == sizeof...(TArgs),
+      "Params and args counts does not match.");
+        Arguments = std::make_tuple(std::forward<TParams>(params)...);
         Fiber->Run();
         return Result;
     }
 
-    $if ARITY > 0 [[TArguments&&]] $else [[void]] Yield()
+    TArguments&& Yield()
     {
         Result = true;
         Fiber->Yield();
-        return[[]]$if ARITY > 0 [[ std::move(Arguments)]];
+        return std::move(Arguments);
     }
 
 private:
     virtual void Trampoline() override
     {
         try {
-            Callee.Run(*this[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[std::get<$(ARG - 1)>(std::move(Arguments))]]);
+            NDetail::CallRun(Callee, *this, std::move(Arguments),
+                typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result = false;
         } catch(const std::exception& ex) {
             Result = false;
@@ -199,16 +181,9 @@ $for ARG , [[std::get<$(ARG - 1)>(std::move(Arguments))]]);
 
 private:
     TCallee Callee;
-$if ARITY > 0 [[
-
     TArguments Arguments;
-]]
-
     bool Result;
 };
-
-
-]]
 
 ////////////////////////////////////////////////////////////////////////////////
 
