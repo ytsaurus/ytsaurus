@@ -82,10 +82,10 @@ TDataNodeService::TDataNodeService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
         .SetOneWay(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
-        .SetResponseCodec(NCompression::ECodec::Snappy)
+        .SetResponseCodec(NCompression::ECodec::Lz4)
         .SetResponseHeavy(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
-        .SetResponseCodec(NCompression::ECodec::Snappy)
+        .SetResponseCodec(NCompression::ECodec::Lz4)
         .SetResponseHeavy(true));
 
     ProfilingInvoker = New<TPeriodicInvoker>(
