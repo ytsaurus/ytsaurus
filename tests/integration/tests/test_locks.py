@@ -287,6 +287,22 @@ class TestLocks(YTEnvSetup):
         assert get('//sys/locks/' + lock_id + '/@state') == 'acquired'
         assert len(get('//tmp/t/@locks')) == 1
     
+    def test_waitable_lock9(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx3 = start_transaction()
+
+        create('table', '//tmp/t')
+
+        lock_id1 = lock('//tmp/t', tx = tx1, mode = 'exclusive')
+        assert get('//sys/locks/' + lock_id1 + '/@state') == 'acquired'
+
+        lock_id2 = lock('//tmp/t', tx = tx2, mode = 'exclusive', waitable = True)
+        assert get('//sys/locks/' + lock_id2 + '/@state') == 'pending'
+
+        lock_id3 = lock('//tmp/t', tx = tx3, mode = 'snapshot')
+        assert get('//sys/locks/' + lock_id3 + '/@state') == 'acquired'
+
     def test_yt144(self):
         create('table', '//tmp/t')
         
