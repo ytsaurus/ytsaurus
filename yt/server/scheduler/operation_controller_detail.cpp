@@ -3190,7 +3190,7 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable.Options->ErasureCodec);
-            double replicationFactor = (double) 2 * codec->GetTotalPartCount() / codec->GetDataPartCount();
+            double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
             result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
         }
     }

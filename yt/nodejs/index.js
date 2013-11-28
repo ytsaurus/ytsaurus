@@ -9,6 +9,7 @@ exports.YtAuthentication = require("./lib/middleware/authentication").that;
 exports.YtIsolateRequest = require("./lib/middleware/isolate_request").that;
 exports.YtLogRequest = require("./lib/middleware/log_request").that;
 exports.YtLogSocket = require("./lib/middleware/log_socket").that;
+exports.YtMinPythonWrapperVersion = require("./lib/middleware/min_python_wrapper_version").that;
 
 // Objects.
 exports.YtAuthority = require("./lib/authority").that;

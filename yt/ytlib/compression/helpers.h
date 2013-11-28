@@ -21,7 +21,7 @@ typedef snappy::ByteArraySource ByteArraySource;
 size_t GetTotalSize(const std::vector<TSharedRef>& refs);
 TSharedRef MergeRefs(const std::vector<TSharedRef>& refs);
 
-typedef TCallback<void (StreamSource*, TBlob*)> TConverter;
+typedef std::function<void (StreamSource*, TBlob*)> TConverter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
