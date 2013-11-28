@@ -50,12 +50,15 @@ class TInvokerQueue
 public:
     TInvokerQueue(
         TEventCount* eventCount,
-        IInvoker* currentInvoker,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
 
-    bool Invoke(const TClosure& callback);
+    void SetThreadId(TThreadId threadId);
+
+    virtual bool Invoke(const TClosure& callback) override;
+    virtual TThreadId GetThreadId() const override;
+
     void Shutdown();
 
     EBeginExecuteResult BeginExecute(TEnqueuedAction* action);
@@ -66,7 +69,7 @@ public:
 
 private:
     TEventCount* EventCount;
-    IInvoker* CurrentInvoker;
+    TThreadId ThreadId;
     bool EnableLogging;
 
     volatile bool Running;
@@ -96,6 +99,7 @@ public:
     void Start();
     void Shutdown();
 
+    TThreadId GetId() const;
     bool IsRunning() const;
 
 protected:
@@ -129,7 +133,7 @@ private:
     int FibersCreated;
     int FibersAlive;
 
-    NThread::TThreadId ThreadId;
+    TThreadId ThreadId;
     TThread Thread;
 
 };

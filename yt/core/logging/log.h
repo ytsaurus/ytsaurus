@@ -127,7 +127,7 @@ void LogEventImpl(
     event.Message = message;
     event.FileName = fileName;
     event.Line = line;
-    event.ThreadId = NThread::GetCurrentThreadId();
+    event.ThreadId = NConcurrency::GetCurrentThreadId();
     event.Function = function;
     logger.Write(event);
 }

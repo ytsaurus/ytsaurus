@@ -30,12 +30,11 @@ void DestroyRootFiber();
 
 TInvokerQueue::TInvokerQueue(
     TEventCount* eventCount,
-    IInvoker* currentInvoker,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
     : EventCount(eventCount)
-    , CurrentInvoker(currentInvoker ? currentInvoker : this)
+    , ThreadId(InvalidThreadId)
     , EnableLogging(enableLogging)
     , Running(true)
     , Profiler("/action_queue")
@@ -48,6 +47,11 @@ TInvokerQueue::TInvokerQueue(
     , TotalTimeCounter("/time/total", tagIds)
 {
     Profiler.SetEnabled(enableProfiling);
+}
+
+void TInvokerQueue::SetThreadId(TThreadId threadId)
+{
+    ThreadId = threadId;
 }
 
 bool TInvokerQueue::Invoke(const TClosure& callback)
@@ -68,11 +72,17 @@ bool TInvokerQueue::Invoke(const TClosure& callback)
     action.Callback = callback;
     Queue.Enqueue(action);
 
-    LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p", callback.GetHandle());
+    LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
+        callback.GetHandle());
 
     EventCount->Notify();
 
     return true;
+}
+
+TThreadId TInvokerQueue::GetThreadId() const
+{
+    return ThreadId;
 }
 
 void TInvokerQueue::Shutdown()
@@ -97,7 +107,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
-    TCurrentInvokerGuard guard(CurrentInvoker);
+    TCurrentInvokerGuard guard(this);
 
     try {
         action->Callback.Run();
@@ -160,7 +170,7 @@ TExecutorThread::TExecutorThread(
     , Running(false)
     , FibersCreated(0)
     , FibersAlive(0)
-    , ThreadId(NThread::InvalidThreadId)
+    , ThreadId(InvalidThreadId)
     , Thread(ThreadMain, (void*) this)
 {
     Profiler.SetEnabled(enableProfiling);
@@ -169,7 +179,8 @@ TExecutorThread::TExecutorThread(
 void TExecutorThread::Start()
 {
     Running = true;    
-    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)", ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
+        ~ThreadName);
     Thread.Start();
 }
 
@@ -187,13 +198,13 @@ void* TExecutorThread::ThreadMain(void* opaque)
 void TExecutorThread::ThreadMain()
 {
     try {
-        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)", ~ThreadName);
-
+        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)",
+            ~ThreadName);
         OnThreadStart();
         CurrentExecutorThread = this;
 
-        NThread::SetCurrentThreadName(~ThreadName);
-        ThreadId = NThread::GetCurrentThreadId();
+        SetCurrentThreadName(~ThreadName);
+        ThreadId = GetCurrentThreadId();
 
         while (Running) {
             // Spawn a new fiber to run the loop.
@@ -220,10 +231,11 @@ void TExecutorThread::ThreadMain()
 
         CurrentExecutorThread = nullptr;
         OnThreadShutdown();
-
-        LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)", ~ThreadName);
+        LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)",
+            ~ThreadName);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)", ~ThreadName);
+        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)",
+            ~ThreadName);
     }
 }
 
@@ -321,15 +333,21 @@ void TExecutorThread::Shutdown()
         return;
     }
 
-    LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)", ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)",
+        ~ThreadName);
 
     Running = false;
     EventCount->NotifyAll();
 
     // Prevent deadlock.
-    if (NThread::GetCurrentThreadId() != ThreadId) {
+    if (GetCurrentThreadId() != ThreadId) {
         Thread.Join();
     }
+}
+
+TThreadId TExecutorThread::GetId() const
+{
+    return TThreadId(Thread.Id());
 }
 
 bool TExecutorThread::IsRunning() const

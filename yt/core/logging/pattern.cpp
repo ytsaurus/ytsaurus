@@ -73,7 +73,7 @@ void SetupFormatter(TPatternFormatter* formatter, const TLogEvent& event)
         formatter->AddProperty("line", ToString(event.Line));
     }
 
-    if (event.ThreadId != NThread::InvalidThreadId) {
+    if (event.ThreadId != NConcurrency::InvalidThreadId) {
         formatter->AddProperty("thread", ToString(event.ThreadId));
     }
 

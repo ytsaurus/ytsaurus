@@ -6,12 +6,6 @@
 
 #include <core/logging/log_manager.h>
 
-#include <core/bus/tcp_dispatcher.h>
-
-#include <ytlib/chunk_client/dispatcher.h>
-
-#include <ytlib/driver/dispatcher.h>
-
 #include <ytlib/shutdown.h>
 
 extern "C" {

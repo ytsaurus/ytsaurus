@@ -109,7 +109,7 @@ public:
 
 EExitCode GuardedMain(int argc, const char* argv[])
 {
-    NYT::NThread::SetCurrentThreadName("Bootstrap");
+    NYT::NConcurrency::SetCurrentThreadName("Bootstrap");
 
     TArgsParser parser;
 
@@ -184,7 +184,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Start an appropriate server.
     if (isCellNode) {
-        NYT::NThread::SetCurrentThreadName("NodeMain");
+        NConcurrency::SetCurrentThreadName("NodeMain");
 
         auto config = New<NCellNode::TCellNodeConfig>();
         if (printConfigTemplate) {
@@ -208,7 +208,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isCellMaster) {
-        NYT::NThread::SetCurrentThreadName("MasterMain");
+        NConcurrency::SetCurrentThreadName("MasterMain");
 
         auto config = New<NCellMaster::TCellMasterConfig>();
         if (printConfigTemplate) {
@@ -232,7 +232,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isScheduler) {
-        NYT::NThread::SetCurrentThreadName("SchedulerMain");
+        NConcurrency::SetCurrentThreadName("SchedulerMain");
 
         auto config = New<NCellScheduler::TCellSchedulerConfig>();
         if (printConfigTemplate) {
@@ -257,7 +257,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isJobProxy) {
-        NYT::NThread::SetCurrentThreadName("JobProxyMain");
+        NConcurrency::SetCurrentThreadName("JobProxyMain");
 
         auto config = New<NJobProxy::TJobProxyConfig>();
         if (printConfigTemplate) {
@@ -290,7 +290,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 int Main(int argc, const char* argv[])
 {
-    NYT::InstallCrashSignalHandler();
+    InstallCrashSignalHandler();
 
     // If you ever try to remove this I will kill you. I promise. /@babenko
     GetExecPath();

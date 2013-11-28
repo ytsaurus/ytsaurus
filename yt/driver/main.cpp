@@ -91,7 +91,7 @@ public:
     int Main(int argc, const char* argv[])
     {
         NYT::InstallCrashSignalHandler();
-        NYT::NThread::SetCurrentThreadName("Driver");
+        NYT::NConcurrency::SetCurrentThreadName("Driver");
 
         // Set handler for SIGPIPE.
         SetupSignalHandler();

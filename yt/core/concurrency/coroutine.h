@@ -17,8 +17,6 @@ class TCoroutineBase
 {
 protected:
     TCoroutineBase();
-    TCoroutineBase(TCoroutineBase&&);
-
     virtual ~TCoroutineBase();
 
     virtual void Trampoline() = 0;
@@ -46,21 +44,16 @@ template<unsigned N, unsigned... Indexes>
 struct TGenerateSequence : TGenerateSequence<N - 1, N - 1, Indexes...> { };
 
 template<unsigned... Indexes>
-struct TGenerateSequence<0, Indexes...>
-{
-    typedef TSequence<Indexes...> TType;
+struct TGenerateSequence<0, Indexes...> {
+	typedef TSequence<Indexes...> TType;
 };
 
+
 template<class TCallee, class TCaller, class TArguments, unsigned... Indexes>
-void Invoke(
-    TCallee&& Callee,
-    TCaller&& Caller,
-    TArguments&& Arguments,
+void CallRun(TCallee& Callee, TCaller& Caller, TArguments&& Arguments,
     TSequence<Indexes...>)
 {
-    Callee.Run(
-        std::forward<TCaller>(Caller),
-        std::get<Indexes>(std::forward<TArguments>(Arguments))...);
+	Callee.Run(Caller, std::get<Indexes>(std::forward<TArguments>(Arguments))...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,13 +75,6 @@ public:
         : TCoroutineBase()
     { }
 
-    TCoroutine(TCoroutine&& other)
-        : TCoroutineBase(std::move(other))
-        , Callee(std::move(other.Callee))
-        , Arguments(std::move(other.Arguments))
-        , Result(std::move(other.Result))
-    { }
-
     TCoroutine(TCallee&& callee)
         : TCoroutineBase()
         , Callee(std::move(callee))
@@ -103,10 +89,9 @@ public:
     template <class... TParams>
     const TNullable<R>& Run(TParams&&... params)
     {
-        static_assert(
-            sizeof...(TParams) == sizeof...(TArgs),
-            "Parameters and arguments counts do not match.");
-        Arguments = std::forward_as_tuple(std::forward<TParams>(params)...);
+        static_assert(sizeof...(TParams) == sizeof...(TArgs),
+            "Params and args counts does not match.");
+        Arguments = std::make_tuple(std::forward<TParams>(params)...);
         Fiber->Run();
         return Result;
     }
@@ -123,13 +108,10 @@ private:
     virtual void Trampoline() override
     {
         try {
-            NDetail::Invoke(
-                Callee,
-                *this,
-                std::move(Arguments),
+            NDetail::CallRun(Callee, *this, std::move(Arguments),
                 typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result.Reset();
-        } catch (...) {
+        } catch(...) {
             Result.Reset();
             throw;
         }
@@ -139,7 +121,6 @@ private:
     TCallee Callee;
     TArguments Arguments;
     TNullable<R> Result;
-
 };
 
 template <class... TArgs>
@@ -157,14 +138,6 @@ public:
         : TCoroutineBase()
     { }
 
-    TCoroutine(TCoroutine&& other)
-        : TCoroutineBase(std::move(other))
-        , Arguments(std::move(other.Arguments))
-        , Result(other.Result)
-    {
-        other.Result = false;
-    }
-
     TCoroutine(TCallee&& callee)
         : TCoroutineBase()
         , Callee(std::move(callee))
@@ -179,10 +152,9 @@ public:
     template <class... TParams>
     bool Run(TParams&&... params)
     {
-        static_assert(
-            sizeof...(TParams) == sizeof...(TArgs),
-            "Parameters and arguments counts do not match.");
-        Arguments = std::forward_as_tuple(std::forward<TParams>(params)...);
+  static_assert(sizeof...(TParams) == sizeof...(TArgs),
+      "Params and args counts does not match.");
+        Arguments = std::make_tuple(std::forward<TParams>(params)...);
         Fiber->Run();
         return Result;
     }
@@ -198,13 +170,10 @@ private:
     virtual void Trampoline() override
     {
         try {
-            NDetail::Invoke(
-                Callee,
-                *this,
-                std::move(Arguments),
+            NDetail::CallRun(Callee, *this, std::move(Arguments),
                 typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result = false;
-        } catch (const std::exception& ex) {
+        } catch(const std::exception& ex) {
             Result = false;
             throw;
         }
@@ -214,7 +183,6 @@ private:
     TCallee Callee;
     TArguments Arguments;
     bool Result;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

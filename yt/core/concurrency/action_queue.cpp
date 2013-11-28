@@ -47,7 +47,6 @@ public:
     explicit TImpl(const Stroka& threadName)
         : Queue(New<TInvokerQueue>(
             &EventCount,
-            nullptr,
             GetThreadTagIds(threadName),
             true,
             true))
@@ -60,6 +59,7 @@ public:
             true))
     {
         Thread->Start();
+        Queue->SetThreadId(Thread->GetId());
     }
 
     ~TImpl()
@@ -127,16 +127,16 @@ public:
         , Buckets(bucketNames.size())
         , CurrentBucket(nullptr)
     {
-
+        Start();
         for (int index = 0; index < static_cast<int>(bucketNames.size()); ++index) {
-            Buckets[index].Queue = New<TInvokerQueue>(
+            auto& queue = Buckets[index].Queue;
+            queue = New<TInvokerQueue>(
                 &EventCount,
-                nullptr,
                 GetBucketTagIds(threadName, bucketNames[index]),
                 true,
                 true);
+            queue->SetThreadId(GetId());
         }
-        Start();
     }
 
     ~TImpl()
@@ -254,7 +254,6 @@ public:
     TImpl(int threadCount, const Stroka& threadNamePrefix)
         : Queue(New<TInvokerQueue>(
             &EventCount,
-            nullptr,
             GetThreadTagIds(threadNamePrefix),
             true,
             true))
@@ -328,7 +327,7 @@ class TSerializedInvoker
 {
 public:
     explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker(underlyingInvoker)
+        : UnderlyingInvoker(std::move(underlyingInvoker))
         , Lock(0)
     { }
 
@@ -337,6 +336,11 @@ public:
         Queue.Enqueue(action);
         TrySchedule();
         return true;
+    }
+
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return UnderlyingInvoker->GetThreadId();
     }
 
 private:
@@ -383,7 +387,7 @@ class TPrioritizedInvoker
 {
 public:
     explicit TPrioritizedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker(underlyingInvoker)
+        : UnderlyingInvoker(std::move(underlyingInvoker))
     { }
 
     virtual bool Invoke(const TClosure& callback, i64 priority) override
@@ -405,6 +409,11 @@ public:
     virtual bool Invoke(const TClosure& callback) override
     {
         return UnderlyingInvoker->Invoke(callback);
+    }
+
+    virtual TThreadId GetThreadId() const override
+    {
+        return UnderlyingInvoker->GetThreadId();
     }
 
 private:
@@ -438,7 +447,7 @@ private:
 
 IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker)
 {
-    return New<TPrioritizedInvoker>(underlyingInvoker);
+    return New<TPrioritizedInvoker>(std::move(underlyingInvoker));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -448,7 +457,7 @@ class TFakePrioritizedInvoker
 {
 public:
     explicit TFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker(underlyingInvoker)
+        : UnderlyingInvoker(std::move(underlyingInvoker))
     { }
 
     virtual bool Invoke(const TClosure& callback, i64 /*priority*/) override
@@ -461,6 +470,11 @@ public:
         return UnderlyingInvoker->Invoke(callback);
     }
 
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return UnderlyingInvoker->GetThreadId();
+    }
+
 private:
     IInvokerPtr UnderlyingInvoker;
 
@@ -468,7 +482,7 @@ private:
 
 IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
 {
-    return New<TFakePrioritizedInvoker>(underlyingInvoker);
+    return New<TFakePrioritizedInvoker>(std::move(underlyingInvoker));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

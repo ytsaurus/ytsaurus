@@ -278,7 +278,7 @@ private:
 
     static void* InputThreadFunc(void* param)
     {
-        NThread::SetCurrentThreadName("JobProxyInput");
+        NConcurrency::SetCurrentThreadName("JobProxyInput");
         TIntrusivePtr<TUserJob> job = (TUserJob*)param;
         job->ProcessPipes(job->InputPipes);
         return NULL;
@@ -286,7 +286,7 @@ private:
 
     static void* OutputThreadFunc(void* param)
     {
-        NThread::SetCurrentThreadName("JobProxyOutput");
+        NConcurrency::SetCurrentThreadName("JobProxyOutput");
         TIntrusivePtr<TUserJob> job = (TUserJob*)param;
         job->ProcessPipes(job->OutputPipes);
         return NULL;

@@ -22,6 +22,11 @@ public:
         action.Run();
         return true;
     }
+
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return NConcurrency::InvalidThreadId;
+    }
 };
 
 IInvokerPtr GetSyncInvoker()

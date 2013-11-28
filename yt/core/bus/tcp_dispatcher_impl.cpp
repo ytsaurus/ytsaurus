@@ -137,7 +137,7 @@ void TTcpDispatcherThread::ThreadMain()
     // NB: never ever use logging or any other YT subsystems here.
     // Bus is always started first to get advantange of the root privileges.
 
-    NThread::SetCurrentThreadName(~ThreadName);
+    NConcurrency::SetCurrentThreadName(~ThreadName);
     EventLoop.run(0);
 }
 

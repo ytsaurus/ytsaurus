@@ -175,7 +175,7 @@ void TError::CaptureOriginAttributes()
     Attributes().SetYson("host", ConvertToYsonString(TAddressResolver::Get()->GetLocalHostName()));
     Attributes().SetYson("datetime", ConvertToYsonString(ToString(TInstant::Now())));
     Attributes().SetYson("pid", ConvertToYsonString(getpid()));
-    Attributes().SetYson("tid", ConvertToYsonString(NThread::GetCurrentThreadId()));
+    Attributes().SetYson("tid", ConvertToYsonString(NConcurrency::GetCurrentThreadId()));
 }
 
 TNullable<TError> TError::FindMatching(int code) const
