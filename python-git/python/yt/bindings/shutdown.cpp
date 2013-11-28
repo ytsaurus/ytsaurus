@@ -2,6 +2,8 @@
 
 #include <ytlib/shutdown.h>
 
+#include <ytlib/driver/dispatcher.h>
+
 #include <contrib/libs/pycxx/Objects.hxx>
 
 namespace NYT {
