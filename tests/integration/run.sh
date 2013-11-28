@@ -1,3 +1,3 @@
 #!/bin/sh 
 
-py.test -sv --ignore test.sandbox $*
+py.test -sv --ignore tests.sandbox $*
