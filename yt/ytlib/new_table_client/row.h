@@ -205,56 +205,6 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper used for constructing TRow instances.
-/*!
- *  Owns TUnversionedValue array. Does not own the data.
- */
-template <class TValue>
-class TRowBuilder
-{
-public:
-    explicit TRowBuilder(int capacity = 16)
-        : Capacity_(std::max(capacity, 4))
-        , Data_(new char[GetRowDataSize<TValue>(Capacity_)])
-    {
-        auto* header = GetHeader();
-        header->ValueCount = 0;
-        header->Padding = 0;
-    }
-
-    void AddValue(const TValue& value)
-    {
-        if (GetRow().GetValueCount() == Capacity_) {
-            int newCapacity = Capacity_ * 2;
-            std::unique_ptr<char[]> newData(new char[GetRowDataSize<TValue>(newCapacity)]);
-            ::memcpy(newData.get(), Data_.get(), GetRowDataSize<TValue>(Capacity_));
-            std::swap(Data_, newData);
-            std::swap(Capacity_, newCapacity);
-        }
-
-        auto* header = GetHeader();
-        auto row = GetRow();
-        row[header->ValueCount++] = value;
-    }
-
-    TRow<TValue> GetRow() const
-    {
-        return TRow<TValue>(GetHeader());
-    }
-
-private:
-    int Capacity_;
-    std::unique_ptr<char[]> Data_;
-
-    TRowHeader* GetHeader() const
-    {
-        return reinterpret_cast<TRowHeader*>(Data_.get());
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 
@@ -368,6 +318,7 @@ private:
     friend void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
     friend void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
+    friend class TRowBuilder<TValue>;
 
 
     TSharedRef RowData; // TRowHeader plus TValue-s
@@ -387,6 +338,89 @@ private:
     const TRowHeader* GetHeader() const
     {
         return reinterpret_cast<const TRowHeader*>(RowData.Begin());
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A helper used for constructing TOwningRow instances.
+template <class TValue>
+class TRowBuilder
+{
+public:
+    explicit TRowBuilder(int initialValueCapacity = 16)
+        : InitialValueCapacity_(initialValueCapacity)
+    {
+        Init();
+    }
+
+    void AddValue(const TValue& value)
+    {
+        if (GetHeader()->ValueCount == ValueCapacity_) {
+            ValueCapacity_ *= 2;
+            RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+        }
+
+        auto* header = GetHeader();
+        auto* newValue = GetValue(header->ValueCount);
+        *newValue = value;
+
+        if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+            if (StringData_.length() + value.Length > StringData_.capacity()) {
+                char* oldStringData = const_cast<char*>(StringData_.begin());
+                StringData_.reserve(std::max(
+                    StringData_.capacity() * 2,
+                    StringData_.length() + value.Length));
+                char* newStringData = const_cast<char*>(StringData_.begin());
+                for (int index = 0; index < header->ValueCount; ++index) {
+                    auto* existingValue = GetValue(index);
+                    if (existingValue->Type == EValueType::String || existingValue->Type == EValueType::Any) {
+                        existingValue->Data.String = newStringData + (existingValue->Data.String - oldStringData);
+                    }
+                }
+            }
+            newValue->Data.String = const_cast<char*>(StringData_.end());
+            StringData_.append(value.Data.String, value.Data.String + value.Length);
+        }
+
+        ++header->ValueCount;
+    }
+
+    TOwningRow<TValue> GetRow()
+    {
+        auto row = TOwningRow<TValue>(
+            TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
+            std::move(StringData_));
+        Init();
+        return row;
+    }
+
+private:
+    int InitialValueCapacity_;
+    int ValueCapacity_;
+
+    TBlob RowData_;
+    Stroka StringData_;
+
+    void Init()
+    {
+        ValueCapacity_ = InitialValueCapacity_;
+        RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+
+        auto* header = GetHeader();
+        header->ValueCount = 0;
+        header->Padding = 0;
+    }
+
+    TRowHeader* GetHeader()
+    {
+        return reinterpret_cast<TRowHeader*>(RowData_.Begin());
+    }
+
+    TValue* GetValue(int index)
+    {
+        return reinterpret_cast<TValue*>(GetHeader() + 1) + index;        
     }
 
 };

@@ -69,7 +69,6 @@ namespace {
 Stroka SerializeKey(const std::vector<INodePtr> key)
 {
     TUnversionedRowBuilder keyBuilder;
-    std::vector<TYsonString> anyValues;
     for (auto keyPart : key) {
         switch (keyPart->GetType()) {
             case ENodeType::Integer:
@@ -82,13 +81,9 @@ Stroka SerializeKey(const std::vector<INodePtr> key)
                 // NB: keyPart will hold the value.
                 keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(keyPart->GetValue<Stroka>()));
                 break;
-            default: {
-                // NB: Hold the serialized value explicitly.
-                auto anyValue = ConvertToYsonString(keyPart);
-                anyValues.push_back(anyValue);
-                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(anyValue.Data()));
+            default:
+                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(ConvertToYsonString(keyPart).Data()));
                 break;
-            }
         }
     }
     return ToProto<Stroka>(keyBuilder.GetRow());

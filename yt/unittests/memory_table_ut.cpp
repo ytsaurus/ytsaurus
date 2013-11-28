@@ -81,7 +81,6 @@ public:
     TUnversionedOwningRow BuildKey(const Stroka& yson)
     {
         TUnversionedRowBuilder keyBuilder;
-        std::vector<TYsonString> anyValues;
         auto keyParts = ConvertTo<std::vector<INodePtr>>(TYsonString(yson, EYsonType::ListFragment));
         for (auto keyPart : keyParts) {
             switch (keyPart->GetType()) {
@@ -92,19 +91,14 @@ public:
                     keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(keyPart->GetValue<double>()));
                     break;
                 case ENodeType::String:
-                    // NB: keyPart will hold the value.
                     keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(keyPart->GetValue<Stroka>()));
                     break;
-                default: {
-                    // NB: Hold the serialized value explicitly.
-                    auto anyValue = ConvertToYsonString(keyPart);
-                    anyValues.push_back(anyValue);
-                    keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(anyValue.Data()));
+                default:
+                    keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(ConvertToYsonString(keyPart).Data()));
                     break;
-                }
             }
         }
-        return TUnversionedOwningRow(keyBuilder.GetRow());
+        return keyBuilder.GetRow();
     }
 
     TVersionedOwningRow BuildRow(const Stroka& yson)
@@ -112,7 +106,6 @@ public:
         auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(TYsonString(yson, EYsonType::MapFragment));
 
         TVersionedRowBuilder rowBuilder;
-        std::vector<TYsonString> anyValues;
         auto addValue = [&] (int id, INodePtr value) {
             switch (value->GetType()) {
                 case ENodeType::Integer:
@@ -122,16 +115,11 @@ public:
                     rowBuilder.AddValue(MakeDoubleValue<TVersionedValue>(value->GetValue<double>(), id));
                     break;
                 case ENodeType::String:
-                    // NB: keyPart will hold the value.
                     rowBuilder.AddValue(MakeStringValue<TVersionedValue>(value->GetValue<Stroka>(), id));
                     break;
-                default: {
-                    // NB: Hold the serialized value explicitly.
-                    auto anyValue = ConvertToYsonString(value);
-                    anyValues.push_back(anyValue);
-                    rowBuilder.AddValue(MakeAnyValue<TVersionedValue>(anyValue.Data(), id));
+                default:
+                    rowBuilder.AddValue(MakeAnyValue<TVersionedValue>(ConvertToYsonString(value).Data(), id));
                     break;
-                }
             }
         };
 
@@ -160,7 +148,7 @@ public:
             }
         }
 
-        return TVersionedOwningRow(rowBuilder.GetRow());
+        return rowBuilder.GetRow();
     }
 
     void CheckRow(TVersionedRow row, const TNullable<Stroka>& yson)
