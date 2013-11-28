@@ -118,7 +118,7 @@ def line_to_record(line, format=None):
     
     if format is None: format = config.format.TABULAR_DATA_FORMAT
     
-    if format.name() == "yamr":
+    if format.name() in ["yamr", "yamred_dsv"]:
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.attributes().get("has_subkey", False) else 0)))
     elif format.name() == "dsv":
         return dict(map(unescape_record, filter(None, line.strip("\n").split("\t"))))
