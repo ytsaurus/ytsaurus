@@ -517,7 +517,7 @@ private:
 
     void ThreadMain()
     {
-        NThread::SetCurrentThreadName("ChangelogFlush");
+        NConcurrency::SetCurrentThreadName("ChangelogFlush");
 
         while (!Finished) {
             ProcessQueues();

@@ -59,6 +59,11 @@ public:
         return result;
     }
 
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return UnderlyingInvoker->GetThreadId();
+    }
+
 private:
     TDecoratedAutomatonPtr DecoratedAutomaton;
     IInvokerPtr UnderlyingInvoker;
@@ -91,6 +96,11 @@ public:
         }
 
         return result;
+    }
+
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return DecoratedAutomaton->AutomatonInvoker->GetThreadId();
     }
 
 private:

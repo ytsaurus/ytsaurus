@@ -17,6 +17,8 @@ class TCoroutineBase
 {
 protected:
     TCoroutineBase();
+    TCoroutineBase::TCoroutineBase(TCoroutineBase&& other);
+
     virtual ~TCoroutineBase();
 
     virtual void Trampoline() = 0;
