@@ -17,7 +17,7 @@ class TCoroutineBase
 {
 protected:
     TCoroutineBase();
-    TCoroutineBase::TCoroutineBase(TCoroutineBase&& other);
+    TCoroutineBase(TCoroutineBase&& other);
 
     virtual ~TCoroutineBase();
 
