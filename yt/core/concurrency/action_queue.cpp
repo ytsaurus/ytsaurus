@@ -184,7 +184,9 @@ private:
         i64 minExcess = std::numeric_limits<i64>::max();
         TBucket* minBucket = nullptr;
         for (auto& bucket : Buckets) {
-            if (!bucket.Queue->IsEmpty()) {
+            auto queue = bucket.Queue;
+            // NB: queue can be null during startup due to race with ctor
+            if (queue && !queue->IsEmpty()) {
                 if (bucket.ExcessTime < minExcess) {
                     minExcess = bucket.ExcessTime;
                     minBucket = &bucket;
