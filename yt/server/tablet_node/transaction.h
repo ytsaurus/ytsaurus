@@ -6,6 +6,8 @@
 #include <core/misc/property.h>
 #include <core/misc/ref_tracked.h>
 
+#include <core/actions/future.h>
+
 #include <ytlib/transaction_client/public.h>
 
 namespace NYT {
@@ -39,6 +41,12 @@ public:
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    TFuture<void> GetFinished() const;
+    void SetFinished();
+
+private:
+    TPromise<void> Finished_;
 
 };
 

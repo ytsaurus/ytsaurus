@@ -19,6 +19,7 @@ TTransaction::TTransaction(const TTransactionId& id)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
     , CommitTimestamp_(NullTimestamp)
+    , Finished_(NewPromise())
 { }
 
 void TTransaction::Save(TSaveContext& context) const
@@ -47,6 +48,16 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, CommitTimestamp_);
 
     // TODO(babenko)
+}
+
+TFuture<void> TTransaction::GetFinished() const
+{
+    return Finished_;
+}
+
+void TTransaction::SetFinished()
+{
+    Finished_.Set();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

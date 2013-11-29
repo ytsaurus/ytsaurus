@@ -7,12 +7,15 @@
 
 #include <core/misc/small_vector.h>
 
+#include <core/concurrency/fiber.h>
+
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/writer.h>
 
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
@@ -38,7 +41,6 @@ T* Fetch(
         return nullptr;
     }
 
-    // TODO(babenko): locking
     if (maxTimestamp == LastCommittedTimestamp) {
         auto& value = list.Back();
         if (timestampExtractor(value) != UncommittedTimestamp) {
@@ -53,7 +55,6 @@ T* Fetch(
         }
         return &nextList.Back();
     } else {
-        // TODO(babenko): fix this
         while (true) {
             if (!list) {
                 return nullptr;
@@ -384,6 +385,12 @@ void TMemoryTable::LookupRow(
 
     TBucket bucket;
     if (scanner->Find(key, &bucket)) {
+        if (timestamp != LastCommittedTimestamp &&
+            bucket.GetPrepareTimestamp() >= timestamp)
+        {
+            WaitFor(bucket.GetTransaction()->GetFinished());
+        }
+
         auto minTimestamp = FetchTimestamp(bucket.GetTimestampList(KeyCount), timestamp);
         if (!(minTimestamp & TombstoneTimestampMask)) {
             // Key

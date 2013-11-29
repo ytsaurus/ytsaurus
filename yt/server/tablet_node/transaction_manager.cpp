@@ -176,7 +176,7 @@ public:
 
         TransactionCommitted_.Fire(transaction);
 
-        TransactionMap.Remove(transactionId);
+        FinishTransaction(transaction);
 
         LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
@@ -202,7 +202,7 @@ public:
 
         TransactionAborted_.Fire(transaction);
 
-        TransactionMap.Remove(transactionId);
+        FinishTransaction(transaction);
 
         LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
             ~ToString(transactionId));
@@ -294,6 +294,12 @@ private:
             ->Commit();
     }
 
+    void FinishTransaction(TTransaction* transaction)
+    {
+        transaction->SetFinished();
+        TransactionMap.Remove(transaction->GetId());
+    }
+
 
     virtual void OnLeaderActive() override
     {
@@ -318,11 +324,13 @@ private:
         LeaseMap.clear();
 
         // Reset all transiently prepared transactions back into active state.
+        // Mark all transactions are finished to release pending readers.
         for (const auto& pair : TransactionMap) {
             auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::TransientlyPrepared) {
                 transaction->SetState(ETransactionState::Active);
             }
+            transaction->SetFinished();
         }
     }
 
