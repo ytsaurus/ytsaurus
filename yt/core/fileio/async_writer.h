@@ -26,6 +26,7 @@ public:
 
 private:
     void TryCleanBuffer();
+    size_t TryWrite(const char* data, size_t size);
 
     ev::io FDWatcher;
 

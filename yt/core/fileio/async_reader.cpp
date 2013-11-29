@@ -154,16 +154,18 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.start();
 }
 
-void TAsyncReader::OnStart(ev::async&, int)
+void TAsyncReader::OnStart(ev::async&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
+    YCHECK(eventType == ev::ASYNC);
 
     FDWatcher.start();
 }
 
-void TAsyncReader::OnRead(ev::io&, int)
+void TAsyncReader::OnRead(ev::io&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
+    YCHECK(eventType == ev::READ);
 
     TGuard<TSpinLock> guard(ReadLock);
 
