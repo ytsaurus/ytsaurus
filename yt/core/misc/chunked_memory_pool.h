@@ -10,7 +10,7 @@ namespace NYT {
 class TChunkedMemoryPool
 {
 public:
-    TChunkedMemoryPool(
+    explicit TChunkedMemoryPool(
         size_t chunkSize = 64 * 1024, 
         double maxSmallBlockSizeRatio = 0.25);
 
@@ -18,7 +18,6 @@ public:
     char* AllocateUnaligned(size_t size);
 
     //! Allocates #sizes bytes aligned with 8-byte granularity.
-    // TODO(babenko): 16-aligned allocations?
     char* Allocate(size_t size);
 
     //! Allocates and default-constructs an instance of |T|.
