@@ -36,44 +36,48 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
     TGuard<TSpinLock> guard(WriteLock);
 
 
-    YCHECK(WriteBuffer.Size() >= BytesWrittenTotal);
-    const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
-    const char* data = WriteBuffer.Begin();
+    if (WriteBuffer.Size() != 0 || NeedToClose) {
+        YCHECK(WriteBuffer.Size() >= BytesWrittenTotal);
+        const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
+        const char* data = WriteBuffer.Begin();
 
-    const size_t bytesWritten = TryWrite(data, size);
+        const size_t bytesWritten = TryWrite(data, size);
 
-    if (LastSystemError == 0) {
-        BytesWrittenTotal += bytesWritten;
-        TryCleanBuffer();
-        if (NeedToClose && WriteBuffer.Size() == 0) {
-            int errCode = close(FD);
-            if (errCode == -1) {
-                // please, read
-                // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
-                // http://rb.yandex-team.ru/arc/r/44030/
-                // before editing
-                if (errno != EAGAIN) {
-                    LOG_DEBUG(TError::FromSystem(), "Error closing");
-
-                    LastSystemError = errno;
-                }
-            }
-
-            NeedToClose = false;
-        }
-    }
-
-    if (ReadyPromise.HasValue()) {
         if (LastSystemError == 0) {
-            ReadyPromise->Set(TError());
-        } else {
-            ReadyPromise->Set(TError::FromSystem(LastSystemError));
-        }
-        ReadyPromise.Reset();
-    }
+            BytesWrittenTotal += bytesWritten;
+            TryCleanBuffer();
+            if (NeedToClose && WriteBuffer.Size() == 0) {
+                int errCode = close(FD);
+                if (errCode == -1) {
+                    // please, read
+                    // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
+                    // http://rb.yandex-team.ru/arc/r/44030/
+                    // before editing
+                    if (errno != EAGAIN) {
+                        LOG_DEBUG(TError::FromSystem(), "Error closing");
 
-    if (LastSystemError != 0) {
-        FDWatcher.stop();
+                        LastSystemError = errno;
+                    }
+                }
+
+                NeedToClose = false;
+                FDWatcher.stop();
+            }
+        } else {
+            // Error.  We've done all we could
+            FDWatcher.stop();
+        }
+
+        if (ReadyPromise.HasValue()) {
+            if (LastSystemError == 0) {
+                ReadyPromise->Set(TError());
+            } else {
+                ReadyPromise->Set(TError::FromSystem(LastSystemError));
+            }
+            ReadyPromise.Reset();
+        }
+    } else {
+        // I should stop because these is nothing to write
     }
 }
 
