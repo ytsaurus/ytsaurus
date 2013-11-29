@@ -327,7 +327,7 @@ void TExecutorThread::Shutdown()
 
 TThreadId TExecutorThread::GetId() const
 {
-    return TThreadId(Thread.Id());
+    return TThreadId(Thread.SystemId());
 }
 
 bool TExecutorThread::IsRunning() const
