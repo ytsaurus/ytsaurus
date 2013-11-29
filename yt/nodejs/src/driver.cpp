@@ -110,6 +110,12 @@ public:
         return true;
     }
 
+    virtual NConcurrency::TThreadId GetThreadId() const override
+    {
+        return NConcurrency::InvalidThreadId;
+    }
+
+
 private:
     uv_async_t AsyncHandle;
 
