@@ -9,6 +9,18 @@ namespace NTabletClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TTableMountConfig
+    : public TYsonSerializable
+{
+public:
+    int MaxVersions;
+
+    TTableMountConfig()
+    {
+        RegisterParameter("max_versions", MaxVersions)
+            .GreaterThan(0);
+    }
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -41,6 +41,7 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellNode;
+using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NVersionedTableClient;
@@ -313,7 +314,8 @@ private:
         auto* tablet = new TTablet(
             id,
             schema,
-            keyColumns);
+            keyColumns,
+            New<TTableMountConfig>());
         TabletMap_.Insert(id, tablet);
 
         auto memoryTable = New<TMemoryTable>(

@@ -27,8 +27,10 @@ struct TBucketHeader
 struct TEditListHeader
 {
     TEditListHeader* Next;
-    ui32 Size;
-    ui32 Capacity;
+    ui16 Size;
+    ui16 SuccessorsSize;
+    ui16 Capacity;
+    ui16 Padding;
 
     // Variable-size part:
     // * |Capacity| TVersionedValue-s
@@ -58,6 +60,7 @@ public:
             capacity * sizeof(T)));
         header->Capacity = capacity;
         header->Size = 0;
+        header->SuccessorsSize = 0;
         header->Next = nullptr;
         return TEditList(header);
     }
@@ -77,12 +80,20 @@ public:
     void SetNext(TEditList next)
     {
         Header_->Next = next.Header_;
+        if (next.Header_) {
+            Header_->SuccessorsSize = next.Header_->Size + next.Header_->SuccessorsSize;
+        }
     }
 
 
     int GetSize() const
     {
         return Header_->Size;
+    }
+
+    int GetSuccessorsSize() const
+    {
+        return Header_->SuccessorsSize;
     }
 
     int GetCapacity() const

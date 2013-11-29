@@ -24,10 +24,12 @@ TTablet::TTablet(const TTabletId& id)
 TTablet::TTablet(
     const TTabletId& id,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    NTabletClient::TTableMountConfigPtr config)
     : Id_(id)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
+    , Config_(config)
 { }
 
 void TTablet::Save(TSaveContext& context) const

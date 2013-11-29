@@ -71,7 +71,8 @@ public:
         Tablet.reset(new TTablet(
             NullTabletId,
             schema,
-            keyColumns));
+            keyColumns,
+            New<TTableMountConfig>()));
 
         auto config = New<TTabletManagerConfig>();
         Table = New<TMemoryTable>(config, Tablet.get());

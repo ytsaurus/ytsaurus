@@ -143,12 +143,16 @@ TMemoryTable::TMemoryTable(
     TTablet* tablet)
     : Config_(config)
     , Tablet_(tablet)
-    , KeyCount(static_cast<int>(Tablet_->KeyColumns().size()))
-    , SchemaColumnCount(static_cast<int>(Tablet_->Schema().Columns().size()))
+    , KeyCount_(static_cast<int>(Tablet_->KeyColumns().size()))
+    , SchemaColumnCount_(static_cast<int>(Tablet_->Schema().Columns().size()))
+    , AllocatedStringSpace_(0)
+    , WastedStringSpace_(0)
+    , AllocatedValueCount_(0)
+    , WastedValueCount_(0)
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , NameTable_(New<TNameTable>())
-    , Comparer_(new TComparer(KeyCount))
+    , Comparer_(new TComparer(KeyCount_))
     , Tree_(new TRcuTree<TBucket, TComparer>(&AlignedPool_, Comparer_.get()))
 {
     for (const auto& column : Tablet_->Schema().Columns()) {
@@ -167,37 +171,69 @@ TBucket TMemoryTable::WriteRow(
 {
     TBucket result;
 
+    auto maybeExpireFixedValue = [&] (TValueList list, int id) {
+        int maxVersions = Tablet_->GetConfig()->MaxVersions;
+        if (list.GetSize() + list.GetSuccessorsSize() <= maxVersions)
+            return;
+
+        ++WastedValueCount_;
+
+        const auto& columnSchema = Tablet_->Schema().Columns()[id];
+        if (columnSchema.Type != EValueType::String && columnSchema.Type != EValueType::Any)
+            return;
+
+        int expiredIndex = list.GetSize() - maxVersions - 1;
+        auto currentList = list;
+        while (expiredIndex < 0) {
+            currentList = currentList.GetNext();
+            YASSERT(currentList);
+            YASSERT(currentList.GetSize() == currentList.GetCapacity());
+            expiredIndex += currentList.GetSize();
+        }
+
+        const auto& expiredValue = currentList[expiredIndex];
+        if (expiredValue.Type == EValueType::Null)
+            return;
+
+        YASSERT(expiredValue.Type == columnSchema.Type);
+        WastedStringSpace_ += expiredValue.Length;
+    };
+
     auto writeFixedValue = [&] (TBucket bucket, int id) {
         const auto& srcValue = row[id];
 
-        int listIndex = id - KeyCount;
-        auto list = bucket.GetFixedValueList(listIndex, KeyCount);
+        int listIndex = id - KeyCount_;
+        auto list = bucket.GetFixedValueList(listIndex, KeyCount_);
 
         if (!list) {
             list = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            bucket.SetFixedValueList(listIndex, KeyCount, list);
+            bucket.SetFixedValueList(listIndex, KeyCount_, list);
         } else {
             auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
-                InternValue(&lastValue, srcValue);
+                CopyValue(&lastValue, srcValue);
                 return;
             }
 
             if (AllocateListIfNeeded(&list, &AlignedPool_)) {
-                bucket.SetFixedValueList(listIndex, KeyCount, list);
+                bucket.SetFixedValueList(listIndex, KeyCount_, list);
             }
         }
 
         list.Push([&] (TVersionedValue* dstValue) {
-            InternValue(dstValue, srcValue);
+            CopyValue(dstValue, srcValue);
             dstValue->Timestamp = UncommittedTimestamp;
             dstValue->Id = id;
         });
+
+        ++AllocatedValueCount_;
+
+        maybeExpireFixedValue(list, id);
     };
 
     auto writeValues = [&] (TBucket bucket) {
         // Fixed values.
-        for (int id = KeyCount; id < SchemaColumnCount; ++id) {
+        for (int id = KeyCount_; id < SchemaColumnCount_; ++id) {
             writeFixedValue(bucket, id);
         }
 
@@ -207,7 +243,7 @@ TBucket TMemoryTable::WriteRow(
 
     auto writeTimestamp = [&] (TBucket bucket) {
         bool pushTimestamp = false;
-        auto timestampList = bucket.GetTimestampList(KeyCount);
+        auto timestampList = bucket.GetTimestampList(KeyCount_);
         if (timestampList) {
             auto lastTimestamp = timestampList.Back();
             if (lastTimestamp == (TombstoneTimestampMask | UncommittedTimestamp)) {
@@ -219,13 +255,13 @@ TBucket TMemoryTable::WriteRow(
             }
         } else {
             timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            bucket.SetTimestampList(KeyCount, timestampList);
+            bucket.SetTimestampList(KeyCount_, timestampList);
             pushTimestamp = true;
         }
 
         if (pushTimestamp) {
             if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-                bucket.SetTimestampList(KeyCount, timestampList);
+                bucket.SetTimestampList(KeyCount_, timestampList);
             }
             timestampList.Push(UncommittedTimestamp);
         }
@@ -240,9 +276,9 @@ TBucket TMemoryTable::WriteRow(
         writeTimestamp(bucket);
 
         // Copy keys.
-        for (int id = 0; id < KeyCount; ++id) {
+        for (int id = 0; id < KeyCount_; ++id) {
             auto& internedValue = bucket.GetKey(id);
-            InternValue(&internedValue, row[id]);
+            CopyValue(&internedValue, row[id]);
             internedValue.Id = id;
         }
 
@@ -280,10 +316,10 @@ TBucket TMemoryTable::DeleteRow(
     TBucket result;
 
     auto writeTombstone = [&] (TBucket bucket) {
-        auto timestampList = bucket.GetTimestampList(KeyCount);
+        auto timestampList = bucket.GetTimestampList(KeyCount_);
         if (!timestampList) {
             auto timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            bucket.SetTimestampList(KeyCount, timestampList);
+            bucket.SetTimestampList(KeyCount_, timestampList);
             timestampList.Push(UncommittedTimestamp | TombstoneTimestampMask);
             return;
         }
@@ -298,7 +334,7 @@ TBucket TMemoryTable::DeleteRow(
             return;
 
         if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-            bucket.SetTimestampList(KeyCount, timestampList);
+            bucket.SetTimestampList(KeyCount_, timestampList);
         }
 
         timestampList.Push(UncommittedTimestamp | TombstoneTimestampMask);
@@ -313,9 +349,9 @@ TBucket TMemoryTable::DeleteRow(
         writeTombstone(bucket);
 
         // Copy keys.
-        for (int id = 0; id < KeyCount; ++id) {
+        for (int id = 0; id < KeyCount_; ++id) {
             auto& internedValue = bucket.GetKey(id);
-            InternValue(&internedValue, key[id]);
+            CopyValue(&internedValue, key[id]);
             internedValue.Id = id;
         }
 
@@ -346,20 +382,20 @@ void TMemoryTable::LookupRow(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    TSmallVector<int, TypicalColumnCount> fixedColumnIds(SchemaColumnCount);
+    TSmallVector<int, TypicalColumnCount> fixedColumnIds(SchemaColumnCount_);
     yhash_map<int, int> variableColumnIds;
 
     TNameTablePtr localNameTable;
     if (columnFilter.All) {
         localNameTable = NameTable_;
 
-        for (int globalId = 0; globalId < SchemaColumnCount; ++globalId) {
+        for (int globalId = 0; globalId < SchemaColumnCount_; ++globalId) {
             fixedColumnIds[globalId] = globalId;
         }
     } else {
         localNameTable = New<TNameTable>();
 
-        for (int globalId = 0; globalId < SchemaColumnCount; ++globalId) {
+        for (int globalId = 0; globalId < SchemaColumnCount_; ++globalId) {
             fixedColumnIds[globalId] = -1;
         }
 
@@ -367,7 +403,7 @@ void TMemoryTable::LookupRow(
             auto globalId = NameTable_->FindId(name);
             if (globalId) {
                 int localId = localNameTable->GetIdOrRegisterName(name);
-                if (*globalId < SchemaColumnCount) {
+                if (*globalId < SchemaColumnCount_) {
                     fixedColumnIds[*globalId] = localId;
                 } else {
                     variableColumnIds.insert(std::make_pair(*globalId, localId));
@@ -381,7 +417,7 @@ void TMemoryTable::LookupRow(
         Tablet_->Schema(),
         Tablet_->KeyColumns());
 
-    TRcuTreeScannerGuard<TBucket, TComparer> scanner(Tree_.get());
+    TRcuTreeScannerPtr<TBucket, TComparer> scanner(Tree_.get());
 
     TBucket bucket;
     if (scanner->Find(key, &bucket)) {
@@ -391,10 +427,10 @@ void TMemoryTable::LookupRow(
             WaitFor(bucket.GetTransaction()->GetFinished());
         }
 
-        auto minTimestamp = FetchTimestamp(bucket.GetTimestampList(KeyCount), timestamp);
+        auto minTimestamp = FetchTimestamp(bucket.GetTimestampList(KeyCount_), timestamp);
         if (!(minTimestamp & TombstoneTimestampMask)) {
             // Key
-            for (int globalId = 0; globalId < KeyCount; ++globalId) {
+            for (int globalId = 0; globalId < KeyCount_; ++globalId) {
                 int localId = fixedColumnIds[globalId];
                 if (localId < 0)
                     continue;
@@ -405,12 +441,12 @@ void TMemoryTable::LookupRow(
             }
 
             // Fixed values
-            for (int globalId = KeyCount; globalId < SchemaColumnCount; ++globalId) {
+            for (int globalId = KeyCount_; globalId < SchemaColumnCount_; ++globalId) {
                 int localId = fixedColumnIds[globalId];
                 if (localId < 0)
                     continue;
 
-                auto list = bucket.GetFixedValueList(globalId - KeyCount, KeyCount);
+                auto list = bucket.GetFixedValueList(globalId - KeyCount_, KeyCount_);
                 const auto* value = FetchVersionedValue(list, minTimestamp, timestamp);
                 if (value) {
                     auto valueCopy = *value;
@@ -453,7 +489,7 @@ void TMemoryTable::CommitBucket(TBucket bucket)
     auto commitTimestamp = transaction->GetCommitTimestamp();
 
     // Edit timestamps.
-    auto timestampList = bucket.GetTimestampList(KeyCount);
+    auto timestampList = bucket.GetTimestampList(KeyCount_);
     if (timestampList) {
         auto& lastTimestamp = timestampList.Back();
         if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
@@ -462,8 +498,8 @@ void TMemoryTable::CommitBucket(TBucket bucket)
     }
 
     // Fixed values.
-    for (int index = 0; index < SchemaColumnCount - KeyCount; ++index) {
-        auto list = bucket.GetFixedValueList(index, KeyCount);
+    for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
+        auto list = bucket.GetFixedValueList(index, KeyCount_);
         if (list) {
             auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
@@ -483,24 +519,24 @@ void TMemoryTable::CommitBucket(TBucket bucket)
 void TMemoryTable::AbortBucket(TBucket bucket)
 {
     // Edit timestamps.
-    auto timestampList = bucket.GetTimestampList(KeyCount);
+    auto timestampList = bucket.GetTimestampList(KeyCount_);
     if (timestampList) {
         auto lastTimestamp = timestampList.Back();
         if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
             if (timestampList.Pop() == 0) {
-                bucket.SetTimestampList(KeyCount, timestampList.GetNext());
+                bucket.SetTimestampList(KeyCount_, timestampList.GetNext());
             }
         }
     }
 
     // Fixed values.
-    for (int index = 0; index < SchemaColumnCount - KeyCount; ++index) {
-        auto list = bucket.GetFixedValueList(index, KeyCount);
+    for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
+        auto list = bucket.GetFixedValueList(index, KeyCount_);
         if (list) {
             const auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
                 if (list.Pop() == 0) {
-                    bucket.SetFixedValueList(index, KeyCount, list.GetNext());
+                    bucket.SetFixedValueList(index, KeyCount_, list.GetNext());
                 }
             }
         }
@@ -516,11 +552,11 @@ TBucket TMemoryTable::AllocateBucket()
 {
     return TBucket::Allocate(
         &AlignedPool_,
-        KeyCount,
+        KeyCount_,
         // one slot per each non-key schema column +
         // variable values slot +
         // timestamp slot
-        SchemaColumnCount - KeyCount + 2);
+        SchemaColumnCount_ - KeyCount_ + 2);
 }
 
 void TMemoryTable::LockBucket(
@@ -548,7 +584,7 @@ void TMemoryTable::LockBucket(
     bucket.SetTransaction(transaction);
 }
 
-void TMemoryTable::InternValue(TUnversionedValue* dst, const TUnversionedValue& src)
+void TMemoryTable::CopyValue(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     switch (src.Type) {
         case EValueType::Integer:
@@ -563,6 +599,7 @@ void TMemoryTable::InternValue(TUnversionedValue* dst, const TUnversionedValue& 
             dst->Length = src.Length;
             dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
             memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
+            AllocatedStringSpace_ += src.Length;
             break;
 
         default:

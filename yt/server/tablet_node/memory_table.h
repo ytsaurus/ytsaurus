@@ -55,8 +55,14 @@ private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
 
-    int KeyCount;
-    int SchemaColumnCount;
+    int KeyCount_;
+    int SchemaColumnCount_;
+
+    i64 AllocatedStringSpace_;
+    i64 WastedStringSpace_;
+
+    int AllocatedValueCount_;
+    int WastedValueCount_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
@@ -74,7 +80,7 @@ private:
         TTransaction* transaction,
         bool preliminary);
 
-    void InternValue(
+    void CopyValue(
         NVersionedTableClient::TUnversionedValue* dst,
         const NVersionedTableClient::TUnversionedValue& src);
 
