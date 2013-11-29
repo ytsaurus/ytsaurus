@@ -1,7 +1,7 @@
 # Set the build version
 set(YT_VERSION_MAJOR 0)
 set(YT_VERSION_MINOR 15)
-set(YT_VERSION_PATCH 11)
+set(YT_VERSION_PATCH 12)
 
 if (NOT YT_BUILD_BRANCH)
   set(YT_BUILD_BRANCH "unknown")
