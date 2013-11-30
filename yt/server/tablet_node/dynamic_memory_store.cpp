@@ -131,7 +131,7 @@ public:
     {
         YASSERT(index >= 0 && index < KeyCount_);
 
-        return Row_.GetKey(index);
+        return Row_.GetKeys()[index];
     }
 
     virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) override
@@ -323,7 +323,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
         // Copy keys.
         for (int id = 0; id < KeyCount_; ++id) {
-            auto& internedValue = dynamicRow.GetKey(id);
+            auto& internedValue = dynamicRow.GetKeys()[id];
             CopyValue(&internedValue, row[id]);
             internedValue.Id = id;
         }
@@ -396,7 +396,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 
         // Copy keys.
         for (int id = 0; id < KeyCount_; ++id) {
-            auto& internedValue = dynamicRow.GetKey(id);
+            auto& internedValue = dynamicRow.GetKeys()[id];
             CopyValue(&internedValue, key[id]);
             internedValue.Id = id;
         }
@@ -481,7 +481,7 @@ void TDynamicMemoryStore::LookupRow(
                 if (localId < 0)
                     continue;
 
-                auto value = dynamicRow.GetKey(globalId);
+                auto value = dynamicRow.GetKeys()[globalId];
                 value.Id = localId;
                 writer->WriteValue(value);
             }

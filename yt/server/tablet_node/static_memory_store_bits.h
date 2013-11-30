@@ -55,12 +55,12 @@ public:
     }
 
     
-    TTimestamp GetLastCommittedTimestamp() const
+    TTimestamp GetLastCommitTimestamp() const
     {
         return Header_->LastCommitTimestamp;
     }
 
-    void SetLastCommittedTimestamp(TTimestamp timestamp)
+    void SetLastCommitTimestamp(TTimestamp timestamp)
     {
         Header_->LastCommitTimestamp = timestamp;
     }
@@ -101,25 +101,25 @@ public:
     }
 
 
-    NVersionedTableClient::TVersionedValue* GetFixedValues(int keyCount, int index)
+    NVersionedTableClient::TVersionedValue* GetFixedValues(int index, int keyCount)
     {
-        return *GetFixedValuesPtr(keyCount, index);
+        return *GetFixedValuesPtr(index, keyCount);
     }
 
     void SetFixedValues(int keyCount, int index, NVersionedTableClient::TVersionedValue* values)
     {
-        *GetFixedValuesPtr(keyCount, index) = values;
+        *GetFixedValuesPtr(index, keyCount) = values;
     }
 
 
-    int GetFixedValueCount(int keyCount, int schemaColumnCount, int index) const
+    int GetFixedValueCount(int index, int keyCount, int schemaColumnCount) const
     {
-        return *GetFixedValueCountPtr(keyCount, schemaColumnCount, index);
+        return *GetFixedValueCountPtr(index, keyCount, schemaColumnCount);
     }
 
-    void SetFixedValueCount(int keyCount, int schemaColumnCount, int index, int count)
+    void SetFixedValueCount(int index, int count, int keyCount, int schemaColumnCount)
     {
-        *GetFixedValueCountPtr(keyCount, schemaColumnCount, index) = count;
+        *GetFixedValueCountPtr(index, keyCount, schemaColumnCount) = count;
     }
 
 private:
@@ -143,7 +143,7 @@ private:
             sizeof(NVersionedTableClient::TVersionedValue*) * (schemaColumnCount - keyCount));
     }
 
-    NVersionedTableClient::TVersionedValue** GetFixedValuesPtr(int keyCount, int index) const
+    NVersionedTableClient::TVersionedValue** GetFixedValuesPtr(int index, int keyCount) const
     {
         return reinterpret_cast<NVersionedTableClient::TVersionedValue**>(
             reinterpret_cast<char*>(Header_) +
@@ -153,7 +153,7 @@ private:
             sizeof(NVersionedTableClient::TVersionedValue*) * index);
     }
 
-    ui16* GetFixedValueCountPtr(int keyCount, int schemaColumnCount, int index) const
+    ui16* GetFixedValueCountPtr(int index, int keyCount, int schemaColumnCount) const
     {
         return reinterpret_cast<ui16*>(
             reinterpret_cast<char*>(Header_) +

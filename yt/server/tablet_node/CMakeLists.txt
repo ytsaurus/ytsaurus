@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/tablet_service.cpp
   ${BASE}/dynamic_memory_store.cpp
   ${BASE}/static_memory_store.cpp
+  ${BASE}/compaction.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -32,6 +33,7 @@ set( HDRS
   ${BASE}/dynamic_memory_store_bits.h
   ${BASE}/static_memory_store.h
   ${BASE}/static_memory_store_bits.h
+  ${BASE}/compaction.h
 )
 
 list(APPEND YT_SOURCE_FILES

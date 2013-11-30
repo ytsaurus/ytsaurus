@@ -297,6 +297,9 @@ TOwningKey GetKeySuccessor(const TOwningKey& key);
 //! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
 
+//! Returns a key with no components.
+TKey EmptyKey();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOwningRowTag { };

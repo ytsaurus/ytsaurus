@@ -118,7 +118,7 @@ public:
 
     bool IsValid() const;
 
-    TKey GetCurrentKey() const;
+    TKey GetCurrent() const;
 
     void Advance();
 

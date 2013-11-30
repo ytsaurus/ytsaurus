@@ -96,14 +96,14 @@ TEST_F(TRcuTreeTest, Singleton)
 
     scanner->BeginScan(-1);
     ASSERT_TRUE(scanner->IsValid());
-    ASSERT_EQ(scanner->GetCurrentKey(), 0);
+    ASSERT_EQ(scanner->GetCurrent(), 0);
     scanner->Advance();
     ASSERT_FALSE(scanner->IsValid());
     scanner->EndScan();
 
     scanner->BeginScan(0);
     ASSERT_TRUE(scanner->IsValid());
-    ASSERT_EQ(scanner->GetCurrentKey(), 0);
+    ASSERT_EQ(scanner->GetCurrent(), 0);
     scanner->Advance();
     ASSERT_FALSE(scanner->IsValid());
     scanner->EndScan();
@@ -122,7 +122,7 @@ TEST_F(TRcuTreeTest, 1to10)
         scanner->BeginScan(i);
         for (int j = i; j < 10; ++j) {
             ASSERT_TRUE(scanner->IsValid());
-            ASSERT_EQ(scanner->GetCurrentKey(), j);
+            ASSERT_EQ(scanner->GetCurrent(), j);
             scanner->Advance();
         }
         ASSERT_FALSE(scanner->IsValid());
@@ -154,7 +154,7 @@ TEST_F(TRcuTreeTest, Random1000000)
     scanner->BeginScan(*set.begin());
     for (int value : set) {
         ASSERT_TRUE(scanner->IsValid());
-        ASSERT_EQ(scanner->GetCurrentKey(), value);
+        ASSERT_EQ(scanner->GetCurrent(), value);
         scanner->Advance();
     }
     scanner->EndScan();

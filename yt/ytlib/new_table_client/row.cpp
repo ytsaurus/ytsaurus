@@ -243,75 +243,11 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
     *row = TUnversionedOwningRow(std::move(rowData), protoRow);
 }
 
-/*
-void FromProto(TOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
+TKey EmptyKey()
 {
-    size_t fixedSize = sizeof (TRowHeader) + sizeof (TRowValue) * protoKey.parts_size();
-    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
-    auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
-
-    header->ValueCount = static_cast<i32>(protoKey.parts_size());
-    header->Deleted = false;
-    header->Timestamp = NullTimestamp;
-
-    Stroka stringData;
-
-    auto* values = reinterpret_cast<TRowValue*>(header + 1);
-    for (int index = 0; index < protoKey.parts_size(); ++index) {
-        auto& value = values[index];
-
-        // No idea, what name table to use, and what column names really are.
-        value.Id = -1;
-
-        auto& keyPart = protoKey.parts(index);
-        switch (keyPart.type()) {
-            case EKeyPartType::Null:
-                value.Type = EValueType::Null;
-                break;
-
-            case EKeyPartType::Integer:
-                value.Type = EValueType::Integer;
-                value.Data.Integer = keyPart.int_value();
-                break;
-
-            case EKeyPartType::Double:
-                value.Type = EValueType::Double;
-                value.Data.Double = keyPart.double_value();
-                break;
-
-            case EKeyPartType::String:
-                value.Type = EValueType::String;
-                // Remember offset, we cannot store pointer right now,
-                // because stringData may be reallocated.
-                value.Data.Integer = stringData.length();
-                value.Length = keyPart.str_value().length();
-                stringData.append(keyPart.str_value());
-                break;
-
-            case EKeyPartType::MinSentinel:
-                value.Type = EValueType::Min;
-                break;
-
-            case EKeyPartType::MaxSentinel:
-                value.Type = EValueType::Max;
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    for (int index = 0; index < protoKey.parts_size(); ++index) {
-        auto& value = values[index];
-        if (value.Type == EValueType::String) {
-            // Convert offset to pointer.
-            value.Data.String = ~stringData + value.Data.Integer;
-        }
-    }
-
-    *row = TOwningRow(std::move(rowData), stringData);
+    static TRowHeader header = {};
+    return TKey(&header);
 }
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

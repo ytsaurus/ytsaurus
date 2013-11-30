@@ -22,7 +22,7 @@ public:
     TTimestamp* AllocateTimestamps(int count);
     NVersionedTableClient::TUnversionedValue* AllocateKeys();
     NVersionedTableClient::TVersionedValue* AllocateFixedValues(int index, int count);
-    void EndRow(TTimestamp lastCommittedTimestamp);
+    void EndRow(TTimestamp lastCommitTimestamp);
 
     TStaticMemoryStorePtr Finish();
 
@@ -37,6 +37,7 @@ private:
 
     struct TData
     {
+        size_t RowSize;
         std::unique_ptr<TChunkedMemoryPool> AlignedPool;
         std::unique_ptr<TChunkedMemoryPool> UnalignedPool;
         std::vector<TSegment> Segments;
@@ -48,7 +49,6 @@ private:
     int KeyCount_;
     int SchemaColumnCount_;
 
-    size_t RowSize_;
     std::unique_ptr<TData> Data_;
     TStaticRow CurrentRow_;
 
@@ -69,17 +69,16 @@ public:
     TStaticMemoryStore(
         TTabletManagerConfigPtr config,
         TTablet* tablet,
-        size_t rowSize,
         std::unique_ptr<TData> data);
 
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
 
 private:
     class TScanner;
+    friend class TMemoryCompactor;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
-    size_t RowSize_;
     std::unique_ptr<TData> Data_;
 
 };

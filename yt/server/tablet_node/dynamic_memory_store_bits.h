@@ -270,19 +270,17 @@ public:
 
     const NVersionedTableClient::TUnversionedValue& operator [](int id) const
     {
-        return GetKey(id);
+        return GetKeys()[id];
     }
 
-    const NVersionedTableClient::TUnversionedValue& GetKey(int id) const
+    const NVersionedTableClient::TUnversionedValue* GetKeys() const
     {
-        auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
-        return keys[id];
+        return reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
     }
 
-    NVersionedTableClient::TUnversionedValue& GetKey(int id)
+    NVersionedTableClient::TUnversionedValue* GetKeys()
     {
-        auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
-        return keys[id];
+        return reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
     }
 
 

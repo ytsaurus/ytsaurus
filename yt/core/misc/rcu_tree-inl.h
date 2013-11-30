@@ -539,7 +539,7 @@ bool TRcuTreeScanner<TKey, TComparer>::IsValid() const
 }
 
 template <class TKey, class TComparer>
-TKey TRcuTreeScanner<TKey, TComparer>::GetCurrentKey() const
+TKey TRcuTreeScanner<TKey, TComparer>::GetCurrent() const
 {
     YASSERT(IsValid());
     return TokenToChild(Peek())->Key;

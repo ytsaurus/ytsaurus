@@ -90,13 +90,12 @@ TStaticMemoryStoreBuilder::TStaticMemoryStoreBuilder(
     KeyCount_ = static_cast<int>(Tablet_->KeyColumns().size());
     SchemaColumnCount_ = static_cast<int>(Tablet_->Schema().Columns().size());
 
-    RowSize_ = TStaticRow::GetSize(
-        Tablet_->KeyColumns().size(),
-        Tablet_->Schema().Columns().size());
-
     CurrentRow_ = TStaticRow();
 
     Data_.reset(new TData());
+    Data_->RowSize = TStaticRow::GetSize(
+        Tablet_->KeyColumns().size(),
+        Tablet_->Schema().Columns().size());
     Data_->AlignedPool.reset(new TChunkedMemoryPool(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio));
     Data_->UnalignedPool.reset(new TChunkedMemoryPool(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio));
 }
@@ -108,13 +107,15 @@ void TStaticMemoryStoreBuilder::BeginRow()
     if (Data_->Segments.empty() || Data_->Segments.back().RowCount == RowsPerSegment) {
         struct TRowsTag { };
         TSegment segment;
-        segment.Rows = TSharedRef::Allocate<TRowsTag>(RowSize_ * RowsPerSegment);
+        segment.Rows = TSharedRef::Allocate<TRowsTag>(Data_->RowSize * RowsPerSegment);
         segment.RowCount = 0;
         Data_->Segments.push_back(std::move(segment));
     }
 
     auto& segment = Data_->Segments.back();
-    CurrentRow_ = TStaticRow(reinterpret_cast<TStaticRowHeader*>(segment.Rows.Begin() + segment.RowCount * RowSize_));
+    CurrentRow_ = TStaticRow(reinterpret_cast<TStaticRowHeader*>(
+        segment.Rows.Begin() +
+        segment.RowCount * Data_->RowSize));
     ++segment.RowCount;
 }
 
@@ -152,15 +153,15 @@ TVersionedValue* TStaticMemoryStoreBuilder::AllocateFixedValues(int index, int c
 
     auto* result = reinterpret_cast<TVersionedValue*>(Data_->AlignedPool->Allocate(sizeof(TVersionedValue) * count));
     CurrentRow_.SetFixedValues(KeyCount_, index, result);
-    CurrentRow_.SetFixedValueCount(KeyCount_, SchemaColumnCount_, index, count);
+    CurrentRow_.SetFixedValueCount(index, count, KeyCount_, SchemaColumnCount_);
     return result;
 }
 
-void TStaticMemoryStoreBuilder::EndRow(TTimestamp lastCommittedTimestamp)
+void TStaticMemoryStoreBuilder::EndRow(TTimestamp lastCommitTimestamp)
 {
     YASSERT(CurrentRow_);
 
-    CurrentRow_.SetLastCommittedTimestamp(lastCommittedTimestamp);
+    CurrentRow_.SetLastCommitTimestamp(lastCommitTimestamp);
 
     // Copy keys.
     auto* keys = CurrentRow_.GetKeys();
@@ -170,8 +171,8 @@ void TStaticMemoryStoreBuilder::EndRow(TTimestamp lastCommittedTimestamp)
 
     // Copy fixed values.
     for (int columnIndex = 0; columnIndex < SchemaColumnCount_ - KeyCount_; ++columnIndex) {
-        auto* values = CurrentRow_.GetFixedValues(KeyCount_, columnIndex);
-        int count = CurrentRow_.GetFixedValueCount(KeyCount_, SchemaColumnCount_, columnIndex);
+        auto* values = CurrentRow_.GetFixedValues(columnIndex, KeyCount_);
+        int count = CurrentRow_.GetFixedValueCount(columnIndex, KeyCount_, SchemaColumnCount_);
         for (int valueIndex = 0; valueIndex < count; ++valueIndex) {
             CopyValueIfNeeded(values + valueIndex);
         }
@@ -187,7 +188,6 @@ TStaticMemoryStorePtr TStaticMemoryStoreBuilder::Finish()
     return New<TStaticMemoryStore>(
         Config_,
         Tablet_,
-        RowSize_,
         std::move(Data_));
 }
 
@@ -210,6 +210,7 @@ public:
         : Store_(std::move(store))
         , KeyCount_(Store_->Tablet_->KeyColumns().size())
         , SchemaValueCount_(Store_->Tablet_->Schema().Columns().size())
+        , RowSize_(Store_->Data_->RowSize)
         , Comparer_(KeyCount_)
     { }
 
@@ -219,7 +220,7 @@ public:
         auto getRow = [&] (const TSegment& segment, int index) -> TStaticRow {
             return TStaticRow(reinterpret_cast<TStaticRowHeader*>(
                 const_cast<char*>(segment.Rows.Begin()) +
-                Store_->RowSize_ * index));
+                RowSize_ * index));
         };
 
         const auto& segments = Store_->Data_->Segments;
@@ -273,8 +274,8 @@ public:
     {
         YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
 
-        auto* begin = Row_.GetFixedValues(KeyCount_, index);
-        auto* end = begin + Row_.GetFixedValueCount(KeyCount_, SchemaValueCount_, index);
+        auto* begin = Row_.GetFixedValues(index, KeyCount_);
+        auto* end = begin + Row_.GetFixedValueCount(index, KeyCount_, SchemaValueCount_);
         return FetchVersionedValue(
             begin,
             end,
@@ -287,6 +288,7 @@ private:
 
     int KeyCount_;
     int SchemaValueCount_;
+    size_t RowSize_;
     TKeyComparer Comparer_;
 
     TStaticRow Row_;
@@ -331,11 +333,9 @@ private:
 TStaticMemoryStore::TStaticMemoryStore(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
-    size_t rowSize,
     std::unique_ptr<TData> data)
     : Config_(config)
     , Tablet_(tablet)
-    , RowSize_(rowSize)
     , Data_(std::move(data))
 { }
 
