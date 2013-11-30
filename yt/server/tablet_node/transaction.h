@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "row.h"
+#include "dynamic_memory_store_bits.h"
 
 #include <core/misc/property.h>
 #include <core/misc/ref_tracked.h>
@@ -34,7 +34,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TBucketRef>, LockedBuckets);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TDynamicRowRef>, LockedRows);
 
 public:
     explicit TTransaction(const NTransactionClient::TTransactionId& id);

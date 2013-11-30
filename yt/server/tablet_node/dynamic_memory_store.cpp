@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "memory_table.h"
+#include "dynamic_memory_store.h"
 #include "tablet.h"
 #include "transaction.h"
 #include "config.h"
@@ -99,46 +99,92 @@ bool AllocateListIfNeeded(TEditList<T>* list, TChunkedMemoryPool* pool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryTable::TComparer
+class TDynamicMemoryStore::TScanner
+    : public IStoreScanner
 {
 public:
-    explicit TComparer(int keyColumnCount)
-        : KeyColumnCount_(keyColumnCount)
+    explicit TScanner(TDynamicMemoryStorePtr store)
+        : Store_(std::move(store))
+        , KeyCount_(Store_->Tablet_->KeyColumns().size())
+        , SchemaValueCount_(Store_->Tablet_->Schema().Columns().size())
+        , TreeScanner_(Store_->Tree_.get())
     { }
 
-    int operator () (NVersionedTableClient::TKey lhs, TBucket rhs) const
+
+    virtual TTimestamp FindRow(NVersionedTableClient::TKey key, TTimestamp timestamp) override
     {
-        YASSERT(lhs.GetValueCount() >= KeyColumnCount_);
-        for (int index = 0; index < KeyColumnCount_; ++index) {
-            int result = CompareRowValues(lhs[index], rhs.GetKey(index));
-            if (result != 0) {
-                return result;
-            }
+        if (!TreeScanner_->Find(key, &Row_)) {
+            return NullTimestamp;
         }
-        return 0;
+
+        if (timestamp != LastCommittedTimestamp && Row_.GetPrepareTimestamp() < timestamp) {
+            WaitFor(Row_.GetTransaction()->GetFinished());
+        }
+
+        MinTimestamp_ = FetchMinTimestamp(Row_.GetTimestampList(KeyCount_), timestamp);
+        MaxTimestamp_ = timestamp;
+
+        return MinTimestamp_;
     }
 
-    // TODO(babenko): eliminate this
-    int operator () (NVersionedTableClient::TVersionedRow lhs, TBucket rhs) const
+    virtual const TUnversionedValue& GetKey(int index) override
     {
-        YASSERT(lhs.GetValueCount() >= KeyColumnCount_);
-        for (int index = 0; index < KeyColumnCount_; ++index) {
-            int result = CompareRowValues(lhs[index], rhs.GetKey(index));
-            if (result != 0) {
-                return result;
-            }
-        }
-        return 0;
+        YASSERT(index >= 0 && index < KeyCount_);
+
+        return Row_.GetKey(index);
+    }
+
+    virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) override
+    {
+        YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
+
+        auto list = Row_.GetFixedValueList(index, KeyCount_);
+        return FetchVersionedValue(list, MinTimestamp_, MaxTimestamp_);
     }
 
 private:
-    int KeyColumnCount_;
+    TDynamicMemoryStorePtr Store_;
+
+    int KeyCount_;
+    int SchemaValueCount_;
+    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> TreeScanner_;
+    TDynamicRow Row_;
+    TTimestamp MaxTimestamp_;
+    TTimestamp MinTimestamp_;
+
+
+    static TTimestamp FetchMinTimestamp(
+        TTimestampList list,
+        TTimestamp maxTimestamp)
+    {
+        auto* result = Fetch(
+            list,
+            maxTimestamp,
+            [] (TTimestamp timestamp) {
+                return timestamp & TimestampValueMask;
+            });
+        return result ? *result : NullTimestamp;
+    }
+
+    static const TVersionedValue* FetchVersionedValue(
+        TValueList list,
+        TTimestamp minTimestamp,
+        TTimestamp maxTimestamp)
+    {
+        auto* result = Fetch(
+            list,
+            maxTimestamp,
+            [] (const TVersionedValue& value) {
+                return value.Timestamp;
+            });
+        return result && result->Timestamp >= minTimestamp ? result : nullptr;
+    }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryTable::TMemoryTable(
+TDynamicMemoryStore::TDynamicMemoryStore(
     TTabletManagerConfigPtr config,
     TTablet* tablet)
     : Config_(config)
@@ -152,24 +198,24 @@ TMemoryTable::TMemoryTable(
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , NameTable_(New<TNameTable>())
-    , Comparer_(new TComparer(KeyCount_))
-    , Tree_(new TRcuTree<TBucket, TComparer>(&AlignedPool_, Comparer_.get()))
+    , Comparer_(new TKeyComparer(KeyCount_))
+    , Tree_(new TRcuTree<TDynamicRow, TKeyComparer>(&AlignedPool_, Comparer_.get()))
 {
     for (const auto& column : Tablet_->Schema().Columns()) {
         NameTable_->RegisterName(column.Name);
     }
 }
 
-TMemoryTable::~TMemoryTable()
+TDynamicMemoryStore::~TDynamicMemoryStore()
 { }
 
-TBucket TMemoryTable::WriteRow(
+TDynamicRow TDynamicMemoryStore::WriteRow(
     const TNameTablePtr& nameTable,
     TTransaction* transaction,
     TVersionedRow row,
     bool prewrite)
 {
-    TBucket result;
+    TDynamicRow result;
 
     auto maybeExpireFixedValue = [&] (TValueList list, int id) {
         int maxVersions = Tablet_->GetConfig()->MaxVersions;
@@ -199,15 +245,15 @@ TBucket TMemoryTable::WriteRow(
         WastedStringSpace_ += expiredValue.Length;
     };
 
-    auto writeFixedValue = [&] (TBucket bucket, int id) {
+    auto writeFixedValue = [&] (TDynamicRow dynamicRow, int id) {
         const auto& srcValue = row[id];
 
         int listIndex = id - KeyCount_;
-        auto list = bucket.GetFixedValueList(listIndex, KeyCount_);
+        auto list = dynamicRow.GetFixedValueList(listIndex, KeyCount_);
 
         if (!list) {
             list = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            bucket.SetFixedValueList(listIndex, KeyCount_, list);
+            dynamicRow.SetFixedValueList(listIndex, KeyCount_, list);
         } else {
             auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
@@ -216,7 +262,7 @@ TBucket TMemoryTable::WriteRow(
             }
 
             if (AllocateListIfNeeded(&list, &AlignedPool_)) {
-                bucket.SetFixedValueList(listIndex, KeyCount_, list);
+                dynamicRow.SetFixedValueList(listIndex, KeyCount_, list);
             }
         }
 
@@ -231,19 +277,19 @@ TBucket TMemoryTable::WriteRow(
         maybeExpireFixedValue(list, id);
     };
 
-    auto writeValues = [&] (TBucket bucket) {
+    auto writeValues = [&] (TDynamicRow dynamicRow) {
         // Fixed values.
         for (int id = KeyCount_; id < SchemaColumnCount_; ++id) {
-            writeFixedValue(bucket, id);
+            writeFixedValue(dynamicRow, id);
         }
 
         // Variable values.
         // TODO(babenko)
     };
 
-    auto writeTimestamp = [&] (TBucket bucket) {
+    auto writeTimestamp = [&] (TDynamicRow dynamicRow) {
         bool pushTimestamp = false;
-        auto timestampList = bucket.GetTimestampList(KeyCount_);
+        auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
         if (timestampList) {
             auto lastTimestamp = timestampList.Back();
             if (lastTimestamp == (TombstoneTimestampMask | UncommittedTimestamp)) {
@@ -255,49 +301,49 @@ TBucket TMemoryTable::WriteRow(
             }
         } else {
             timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            bucket.SetTimestampList(KeyCount_, timestampList);
+            dynamicRow.SetTimestampList(KeyCount_, timestampList);
             pushTimestamp = true;
         }
 
         if (pushTimestamp) {
             if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-                bucket.SetTimestampList(KeyCount_, timestampList);
+                dynamicRow.SetTimestampList(KeyCount_, timestampList);
             }
             timestampList.Push(UncommittedTimestamp);
         }
     };
 
-    auto newKeyProvider = [&] () -> TBucket {
+    auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
-        auto bucket = result = AllocateBucket();
-        LockBucket(bucket, transaction, prewrite);
+        auto dynamicRow = result = AllocateRow();
+        LockRow(dynamicRow, transaction, prewrite);
 
         // Add timestamp.
-        writeTimestamp(bucket);
+        writeTimestamp(dynamicRow);
 
         // Copy keys.
         for (int id = 0; id < KeyCount_; ++id) {
-            auto& internedValue = bucket.GetKey(id);
+            auto& internedValue = dynamicRow.GetKey(id);
             CopyValue(&internedValue, row[id]);
             internedValue.Id = id;
         }
 
         // Copy values.
-        writeValues(bucket);
+        writeValues(dynamicRow);
 
-        return bucket;
+        return dynamicRow;
     };
 
-    auto existingKeyConsumer = [&] (TBucket bucket) {
+    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
         // Check for lock conflicts and acquire the lock.
-        result = bucket;
-        LockBucket(bucket, transaction, prewrite);
+        result = dynamicRow;
+        LockRow(dynamicRow, transaction, prewrite);
 
         // Add timestamp, if needed.
-        writeTimestamp(bucket);
+        writeTimestamp(dynamicRow);
 
         // Copy values.
-        writeValues(bucket);
+        writeValues(dynamicRow);
     };
 
     Tree_->Insert(
@@ -308,18 +354,18 @@ TBucket TMemoryTable::WriteRow(
     return result;
 }
 
-TBucket TMemoryTable::DeleteRow(
+TDynamicRow TDynamicMemoryStore::DeleteRow(
     TTransaction* transaction,
     NVersionedTableClient::TKey key,
     bool predelete)
 {
-    TBucket result;
+    TDynamicRow result;
 
-    auto writeTombstone = [&] (TBucket bucket) {
-        auto timestampList = bucket.GetTimestampList(KeyCount_);
+    auto writeTombstone = [&] (TDynamicRow dynamicRow) {
+        auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
         if (!timestampList) {
             auto timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            bucket.SetTimestampList(KeyCount_, timestampList);
+            dynamicRow.SetTimestampList(KeyCount_, timestampList);
             timestampList.Push(UncommittedTimestamp | TombstoneTimestampMask);
             return;
         }
@@ -334,38 +380,38 @@ TBucket TMemoryTable::DeleteRow(
             return;
 
         if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-            bucket.SetTimestampList(KeyCount_, timestampList);
+            dynamicRow.SetTimestampList(KeyCount_, timestampList);
         }
 
         timestampList.Push(UncommittedTimestamp | TombstoneTimestampMask);
     };
 
-    auto newKeyProvider = [&] () -> TBucket {
+    auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
-        auto bucket = result = AllocateBucket();
-        LockBucket(bucket, transaction, predelete);
+        auto dynamicRow = result = AllocateRow();
+        LockRow(dynamicRow, transaction, predelete);
 
         // Add tombstone.
-        writeTombstone(bucket);
+        writeTombstone(dynamicRow);
 
         // Copy keys.
         for (int id = 0; id < KeyCount_; ++id) {
-            auto& internedValue = bucket.GetKey(id);
+            auto& internedValue = dynamicRow.GetKey(id);
             CopyValue(&internedValue, key[id]);
             internedValue.Id = id;
         }
 
-        result = bucket;
-        return bucket;
+        result = dynamicRow;
+        return dynamicRow;
     };
 
-    auto existingKeyConsumer = [&] (TBucket bucket) {
+    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
         // Check for lock conflicts and acquire the lock.
-        result = bucket;
-        LockBucket(bucket, transaction, predelete);
+        result = dynamicRow;
+        LockRow(dynamicRow, transaction, predelete);
 
         // Add tombstone.
-        writeTombstone(bucket);
+        writeTombstone(dynamicRow);
     };
 
     Tree_->Insert(
@@ -376,7 +422,7 @@ TBucket TMemoryTable::DeleteRow(
     return result;
 }
 
-void TMemoryTable::LookupRow(
+void TDynamicMemoryStore::LookupRow(
     const IWriterPtr& writer,
     NVersionedTableClient::TKey key,
     TTimestamp timestamp,
@@ -417,17 +463,17 @@ void TMemoryTable::LookupRow(
         Tablet_->Schema(),
         Tablet_->KeyColumns());
 
-    TRcuTreeScannerPtr<TBucket, TComparer> scanner(Tree_.get());
+    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> scanner(Tree_.get());
 
-    TBucket bucket;
-    if (scanner->Find(key, &bucket)) {
+    TDynamicRow dynamicRow;
+    if (scanner->Find(key, &dynamicRow)) {
         if (timestamp != LastCommittedTimestamp &&
-            bucket.GetPrepareTimestamp() >= timestamp)
+            dynamicRow.GetPrepareTimestamp() < timestamp)
         {
-            WaitFor(bucket.GetTransaction()->GetFinished());
+            WaitFor(dynamicRow.GetTransaction()->GetFinished());
         }
 
-        auto minTimestamp = FetchTimestamp(bucket.GetTimestampList(KeyCount_), timestamp);
+        auto minTimestamp = FetchTimestamp(dynamicRow.GetTimestampList(KeyCount_), timestamp);
         if (!(minTimestamp & TombstoneTimestampMask)) {
             // Key
             for (int globalId = 0; globalId < KeyCount_; ++globalId) {
@@ -435,7 +481,7 @@ void TMemoryTable::LookupRow(
                 if (localId < 0)
                     continue;
 
-                auto value = bucket.GetKey(globalId);
+                auto value = dynamicRow.GetKey(globalId);
                 value.Id = localId;
                 writer->WriteValue(value);
             }
@@ -446,7 +492,7 @@ void TMemoryTable::LookupRow(
                 if (localId < 0)
                     continue;
 
-                auto list = bucket.GetFixedValueList(globalId - KeyCount_, KeyCount_);
+                auto list = dynamicRow.GetFixedValueList(globalId - KeyCount_, KeyCount_);
                 const auto* value = FetchVersionedValue(list, minTimestamp, timestamp);
                 if (value) {
                     auto valueCopy = *value;
@@ -468,28 +514,33 @@ void TMemoryTable::LookupRow(
     YCHECK(writer->AsyncClose().Get().IsOK());
 }
 
-void TMemoryTable::ConfirmBucket(TBucket bucket)
+std::unique_ptr<IStoreScanner> TDynamicMemoryStore::CreateScanner()
 {
-    auto* transaction = bucket.GetTransaction();
-    YASSERT(transaction);
-    transaction->LockedBuckets().push_back(TBucketRef(Tablet_, bucket));
+    return std::unique_ptr<IStoreScanner>(new TScanner(this));
 }
 
-void TMemoryTable::PrepareBucket(TBucket bucket)
+void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
 {
-    auto* transaction = bucket.GetTransaction();
+    auto* transaction = row.GetTransaction();
     YASSERT(transaction);
-    bucket.SetPrepareTimestamp(transaction->GetPrepareTimestamp());
+    transaction->LockedRows().push_back(TDynamicRowRef(Tablet_, row));
 }
 
-void TMemoryTable::CommitBucket(TBucket bucket)
+void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
 {
-    auto* transaction = bucket.GetTransaction();
+    auto* transaction = row.GetTransaction();
+    YASSERT(transaction);
+    row.SetPrepareTimestamp(transaction->GetPrepareTimestamp());
+}
+
+void TDynamicMemoryStore::CommitRow(TDynamicRow row)
+{
+    auto* transaction = row.GetTransaction();
     YASSERT(transaction);
     auto commitTimestamp = transaction->GetCommitTimestamp();
 
     // Edit timestamps.
-    auto timestampList = bucket.GetTimestampList(KeyCount_);
+    auto timestampList = row.GetTimestampList(KeyCount_);
     if (timestampList) {
         auto& lastTimestamp = timestampList.Back();
         if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
@@ -499,7 +550,7 @@ void TMemoryTable::CommitBucket(TBucket bucket)
 
     // Fixed values.
     for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
-        auto list = bucket.GetFixedValueList(index, KeyCount_);
+        auto list = row.GetFixedValueList(index, KeyCount_);
         if (list) {
             auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
@@ -511,32 +562,32 @@ void TMemoryTable::CommitBucket(TBucket bucket)
     // Variable values.
     // TODO(babenko)
 
-    bucket.SetTransaction(nullptr);
-    bucket.SetPrepareTimestamp(MaxTimestamp);
-    bucket.SetLastCommitTimestamp(transaction->GetCommitTimestamp());
+    row.SetTransaction(nullptr);
+    row.SetPrepareTimestamp(MaxTimestamp);
+    row.SetLastCommitTimestamp(transaction->GetCommitTimestamp());
 }
 
-void TMemoryTable::AbortBucket(TBucket bucket)
+void TDynamicMemoryStore::AbortRow(TDynamicRow row)
 {
     // Edit timestamps.
-    auto timestampList = bucket.GetTimestampList(KeyCount_);
+    auto timestampList = row.GetTimestampList(KeyCount_);
     if (timestampList) {
         auto lastTimestamp = timestampList.Back();
         if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
             if (timestampList.Pop() == 0) {
-                bucket.SetTimestampList(KeyCount_, timestampList.GetNext());
+                row.SetTimestampList(KeyCount_, timestampList.GetNext());
             }
         }
     }
 
     // Fixed values.
     for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
-        auto list = bucket.GetFixedValueList(index, KeyCount_);
+        auto list = row.GetFixedValueList(index, KeyCount_);
         if (list) {
             const auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
                 if (list.Pop() == 0) {
-                    bucket.SetFixedValueList(index, KeyCount_, list.GetNext());
+                    row.SetFixedValueList(index, KeyCount_, list.GetNext());
                 }
             }
         }
@@ -545,46 +596,43 @@ void TMemoryTable::AbortBucket(TBucket bucket)
     // Variable values.
     // TODO(babenko)
 
-    bucket.SetTransaction(nullptr);
+    row.SetTransaction(nullptr);
 }
 
-TBucket TMemoryTable::AllocateBucket()
+TDynamicRow TDynamicMemoryStore::AllocateRow()
 {
-    return TBucket::Allocate(
+    return TDynamicRow::Allocate(
         &AlignedPool_,
         KeyCount_,
-        // one slot per each non-key schema column +
-        // variable values slot +
-        // timestamp slot
-        SchemaColumnCount_ - KeyCount_ + 2);
+        SchemaColumnCount_);
 }
 
-void TMemoryTable::LockBucket(
-    TBucket bucket,
+void TDynamicMemoryStore::LockRow(
+    TDynamicRow row,
     TTransaction* transaction,
     bool preliminary)
 {
-    auto* existingTransaction = bucket.GetTransaction();
+    auto* existingTransaction = row.GetTransaction();
     if (existingTransaction && existingTransaction != transaction) {
         YCHECK(preliminary);
         THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %s",
             ~ToString(existingTransaction->GetId()));
     }
 
-    if (bucket.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
+    if (row.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
         YCHECK(preliminary);
         THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
-            bucket.GetLastCommitTimestamp());
+            row.GetLastCommitTimestamp());
     }
 
     if (!preliminary && !existingTransaction) {
-        transaction->LockedBuckets().push_back(TBucketRef(Tablet_, bucket));
+        transaction->LockedRows().push_back(TDynamicRowRef(Tablet_, row));
     }
 
-    bucket.SetTransaction(transaction);
+    row.SetTransaction(transaction);
 }
 
-void TMemoryTable::CopyValue(TUnversionedValue* dst, const TUnversionedValue& src)
+void TDynamicMemoryStore::CopyValue(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     switch (src.Type) {
         case EValueType::Integer:
@@ -607,7 +655,7 @@ void TMemoryTable::CopyValue(TUnversionedValue* dst, const TUnversionedValue& sr
     }
 }
 
-TTimestamp TMemoryTable::FetchTimestamp(
+TTimestamp TDynamicMemoryStore::FetchTimestamp(
     TTimestampList list,
     TTimestamp timestamp)
 {
@@ -620,7 +668,7 @@ TTimestamp TMemoryTable::FetchTimestamp(
     return result ? *result : (NullTimestamp | TombstoneTimestampMask);
 }
 
-const TVersionedValue* TMemoryTable::FetchVersionedValue(
+const TVersionedValue* TDynamicMemoryStore::FetchVersionedValue(
     TValueList list,
     TTimestamp minTimestamp,
     TTimestamp maxTimestamp)

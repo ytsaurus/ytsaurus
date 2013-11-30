@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "transaction.h"
 #include "automaton.h"
-#include "memory_table.h" // TODO(babenko): replace with row.h
 
 #include <server/hydra/composite_automaton.h>
 

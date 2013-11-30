@@ -106,6 +106,86 @@ TValue MakeAnyValue(const TStringBuf& value, int id = 0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0)
+{
+    return MakeSentinelValue<TUnversionedValue>(type, id);
+}
+
+inline TUnversionedValue MakeUnversionedIntegerValue(i64 value, int id = 0)
+{
+    return MakeIntegerValue<TUnversionedValue>(value, id);
+}
+
+inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0)
+{
+    return MakeDoubleValue<TUnversionedValue>(value, id);
+}
+
+inline TUnversionedValue MakeUnversionedStringValue(const TStringBuf& value, int id = 0)
+{
+    return MakeStringValue<TUnversionedValue>(value, id);
+}
+
+inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id = 0)
+{
+    return MakeAnyValue<TUnversionedValue>(value, id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TVersionedValue MakeVersionedSentinelValue(EValueType type, TTimestamp timestamp, int id = 0)
+{
+    TVersionedValue result;
+    result.Id = id;
+    result.Type = EValueType::Null;
+    result.Timestamp = timestamp;
+    return result;
+}
+
+inline TVersionedValue MakeVersionedIntegerValue(i64 value, TTimestamp timestamp, int id = 0)
+{
+    TVersionedValue result;
+    result.Id = id;
+    result.Type = EValueType::Integer;
+    result.Data.Integer = value;
+    result.Timestamp = timestamp;
+    return result;
+}
+
+inline TVersionedValue MakeVersionedDoubleValue(double value, TTimestamp timestamp, int id = 0)
+{
+    TVersionedValue result;
+    result.Id = id;
+    result.Type = EValueType::Double;
+    result.Data.Double = value;
+    result.Timestamp = timestamp;
+    return result;
+}
+
+inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
+{
+    TVersionedValue result;
+    result.Id = id;
+    result.Type = EValueType::String;
+    result.Length = value.length();
+    result.Data.String = value.begin();
+    result.Timestamp = timestamp;
+    return result;
+}
+
+inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
+{
+    TVersionedValue result;
+    result.Id = id;
+    result.Type = EValueType::Any;
+    result.Length = value.length();
+    result.Data.String = value.begin();
+    result.Timestamp = timestamp;
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Header which precedes row values in memory layout.
 struct TRowHeader
 {
@@ -422,6 +502,32 @@ private:
     {
         return reinterpret_cast<TValue*>(GetHeader() + 1) + index;        
     }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TKeyComparer
+{
+public:
+    explicit TKeyComparer(int keyCount)
+        : KeyCount_(keyCount)
+    { }
+
+    template <class TLhs, class TRhs>
+    int operator () (TLhs lhs, TRhs rhs) const
+    {
+        for (int index = 0; index < KeyCount_; ++index) {
+            int result = CompareRowValues(lhs[index], rhs[index]);
+            if (result != 0) {
+                return result;
+            }
+        }
+        return 0;
+    }
+
+private:
+    int KeyCount_;
 
 };
 

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "row.h"
+#include "store.h"
+#include "dynamic_memory_store_bits.h"
 
 #include <core/misc/rcu_tree.h>
 
@@ -16,23 +17,23 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryTable
-    : public TRefCounted
+class TDynamicMemoryStore
+    : public IStore
 {
 public:
-    TMemoryTable(
+    TDynamicMemoryStore(
         TTabletManagerConfigPtr config,
         TTablet* tablet);
 
-    ~TMemoryTable();
+    ~TDynamicMemoryStore();
 
-    TBucket WriteRow(
+    TDynamicRow WriteRow(
         const NVersionedTableClient::TNameTablePtr& nameTable,
         TTransaction* transaction,
         NVersionedTableClient::TVersionedRow row,
         bool prewrite);
 
-    TBucket DeleteRow(
+    TDynamicRow DeleteRow(
         TTransaction* transaction,
         NVersionedTableClient::TKey key,
         bool predelete);
@@ -43,14 +44,15 @@ public:
         NTransactionClient::TTimestamp timestamp,
         const TColumnFilter& columnFilter);
 
+    virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
 
-    void ConfirmBucket(TBucket bucket);
-    void PrepareBucket(TBucket bucket);
-    void CommitBucket(TBucket bucket);
-    void AbortBucket(TBucket bucket);
+    void ConfirmRow(TDynamicRow row);
+    void PrepareRow(TDynamicRow row);
+    void CommitRow(TDynamicRow row);
+    void AbortRow(TDynamicRow row);
 
 private:
-    class TComparer;
+    class TScanner;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
@@ -69,14 +71,14 @@ private:
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 
-    std::unique_ptr<TComparer> Comparer_;
-    std::unique_ptr<TRcuTree<TBucket, TComparer>> Tree_;
+    std::unique_ptr<NVersionedTableClient::TKeyComparer> Comparer_;
+    std::unique_ptr<TRcuTree<TDynamicRow, NVersionedTableClient::TKeyComparer>> Tree_;
 
 
-    TBucket AllocateBucket();
+    TDynamicRow AllocateRow();
     
-    void LockBucket(
-        TBucket bucket,
+    void LockRow(
+        TDynamicRow row,
         TTransaction* transaction,
         bool preliminary);
 

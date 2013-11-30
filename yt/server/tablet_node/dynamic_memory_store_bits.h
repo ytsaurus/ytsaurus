@@ -11,7 +11,7 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBucketHeader
+struct TDynamicRowHeader
 {
     TTransaction* Transaction;
     NVersionedTableClient::TTimestamp PrepareTimestamp;
@@ -19,9 +19,8 @@ struct TBucketHeader
     
     // Variable-size part:
     // * TUnversionedValue per each key column
-    // * TEditListHeader* for variable columns
     // * TEditListHeader* for timestamps
-    // * TEditListHeader* per each fixed column
+    // * TEditListHeader* per each fixed non-key column
 };
 
 struct TEditListHeader
@@ -183,7 +182,7 @@ public:
     }
 
 private:
-    friend class  TBucket;
+    friend class  TDynamicRow;
 
     TEditListHeader* Header_;
 
@@ -194,25 +193,30 @@ static_assert(sizeof (TTimestampList) == sizeof (intptr_t), "TTimestampList size
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A lightweight wrapper around TBucketHeader*.
-class TBucket
+//! A lightweight wrapper around TDynamicRowHeader*.
+class TDynamicRow
 {
 public:
-    TBucket()
+    TDynamicRow()
         : Header_(nullptr)
     { }
 
-    explicit TBucket(TBucketHeader* header)
+    explicit TDynamicRow(TDynamicRowHeader* header)
         : Header_(header)
     { }
 
-    static TBucket Allocate(
+    static TDynamicRow Allocate(
         TChunkedMemoryPool* pool,
         int keyCount,
-        int listCount)
+        int schemaColumnCount)
     {
-        auto* header = reinterpret_cast<TBucketHeader*>(pool->Allocate(
-            sizeof (TBucketHeader) +
+        int listCount =
+            // one list per each non-key schema column +
+            // timestamps list
+            schemaColumnCount -
+            keyCount + 1;
+        auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->Allocate(
+            sizeof (TDynamicRowHeader) +
             keyCount * sizeof (NVersionedTableClient::TUnversionedValue) +
             listCount * sizeof(TEditListHeader*)));
         header->Transaction = nullptr;
@@ -221,7 +225,7 @@ public:
         auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(header + 1);
         auto** lists = reinterpret_cast<TEditListHeader**>(keys + keyCount);
         ::memset(lists, 0, sizeof (TEditListHeader*) * listCount);
-        return TBucket(header);
+        return TDynamicRow(header);
     }
 
 
@@ -264,6 +268,11 @@ public:
     }
 
 
+    const NVersionedTableClient::TUnversionedValue& operator [](int id) const
+    {
+        return GetKey(id);
+    }
+
     const NVersionedTableClient::TUnversionedValue& GetKey(int id) const
     {
         auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
@@ -279,49 +288,38 @@ public:
 
     TValueList GetFixedValueList(int index, int keyCount) const
     {
-        return TValueList(GetLists(keyCount)[index + 2]);
+        return TValueList(GetLists(keyCount)[index + 1]);
     }
 
     void SetFixedValueList(int index, int keyCount, TValueList list)
     {
-        GetLists(keyCount)[index + 2] = list.Header_;
-    }
-
-
-    TValueList GetVariableValueList(int keyCount) const
-    {
-        return TValueList(GetLists(keyCount)[0]);
-    }
-
-    void SetVariableValueList(int keyCount, TValueList list)
-    {
-        GetLists(keyCount)[0] = list.Header_;
+        GetLists(keyCount)[index + 1] = list.Header_;
     }
 
 
     TTimestampList GetTimestampList(int keyCount) const
     {
-        return TTimestampList(GetLists(keyCount)[1]);
+        return TTimestampList(GetLists(keyCount)[0]);
     }
 
     void SetTimestampList(int keyCount, TTimestampList list)
     {
-        GetLists(keyCount)[1] = list.Header_;
+        GetLists(keyCount)[0] = list.Header_;
     }
 
 
-    bool operator == (TBucket other) const
+    bool operator == (TDynamicRow other) const
     {
         return Header_ == other.Header_;
     }
 
-    bool operator != (TBucket other) const
+    bool operator != (TDynamicRow other) const
     {
         return Header_ != other.Header_;
     }
 
 private:
-    TBucketHeader* Header_;
+    TDynamicRowHeader* Header_;
 
     TEditListHeader** GetLists(int keyCount) const
     {
@@ -331,24 +329,24 @@ private:
 
 };
 
-static_assert(sizeof (TBucket) == sizeof (intptr_t), "TBucket size must match that of a pointer.");
+static_assert(sizeof (TDynamicRow) == sizeof (intptr_t), "TRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBucketRef
+struct TDynamicRowRef
 {
-    TBucketRef()
+    TDynamicRowRef()
         : Tablet(nullptr)
-        , Bucket()
+        , Row()
     { }
 
-    TBucketRef(TTablet* tablet, TBucket bucket)
+    TDynamicRowRef(TTablet* tablet, TDynamicRow bucket)
         : Tablet(tablet)
-        , Bucket(bucket)
+        , Row(bucket)
     { }
 
     TTablet* Tablet;
-    TBucket Bucket;
+    TDynamicRow Row;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

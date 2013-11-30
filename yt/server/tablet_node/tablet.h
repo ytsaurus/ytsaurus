@@ -23,8 +23,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);
     
-    // Memory tables.
-    DEFINE_BYVAL_RW_PROPERTY(TMemoryTablePtr, ActiveMemoryTable);
+    // In-memory stores.
+    DEFINE_BYVAL_RW_PROPERTY(TDynamicMemoryStorePtr, ActiveDynamicMemoryStore);
+    DEFINE_BYVAL_RW_PROPERTY(TDynamicMemoryStorePtr, PassiveDynamicMemoryStore);
 
 public:
     explicit TTablet(const TTabletId& id);

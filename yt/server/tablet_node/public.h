@@ -67,13 +67,23 @@ class TTransaction;
 
 struct TColumnFilter;
 
-class TMemoryTable;
-typedef TIntrusivePtr<TMemoryTable> TMemoryTablePtr;
+struct IStore;
+typedef TIntrusivePtr<IStore> IStorePtr;
 
-struct TBucketHeader;
+struct IStoreScanner;
+
+class TDynamicMemoryStore;
+typedef TIntrusivePtr<TDynamicMemoryStore> TDynamicMemoryStorePtr;
+
+class TStaticMemoryStoreBuilder;
+
+class TStaticMemoryStore;
+typedef TIntrusivePtr<TStaticMemoryStore> TStaticMemoryStorePtr;
+
+struct TDynamicBucketHeader;
 struct TEditListHeader;
 
-class TBucket;
+class TDynamicBucket;
 
 template <class T>
 class TEditList;

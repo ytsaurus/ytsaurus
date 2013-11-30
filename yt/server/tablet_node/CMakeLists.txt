@@ -11,7 +11,8 @@ set( SRCS
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
   ${BASE}/tablet_service.cpp
-  ${BASE}/memory_table.cpp
+  ${BASE}/dynamic_memory_store.cpp
+  ${BASE}/static_memory_store.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -26,8 +27,11 @@ set( HDRS
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
   ${BASE}/tablet_service.h
-  ${BASE}/memory_table.h
-  ${BASE}/row.h
+  ${BASE}/store.h
+  ${BASE}/dynamic_memory_store.h
+  ${BASE}/dynamic_memory_store_bits.h
+  ${BASE}/static_memory_store.h
+  ${BASE}/static_memory_store_bits.h
 )
 
 list(APPEND YT_SOURCE_FILES

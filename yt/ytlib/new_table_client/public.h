@@ -49,13 +49,14 @@ template <class TValue>
 class TRow;
 typedef TRow<TVersionedValue>   TVersionedRow;
 typedef TRow<TUnversionedValue> TUnversionedRow;
-typedef TUnversionedRow TKey;
 
 template <class TValue>
 class TOwningRow;
 typedef TOwningRow<TVersionedValue>   TVersionedOwningRow;
 typedef TOwningRow<TUnversionedValue> TUnversionedOwningRow;
+
 typedef TUnversionedOwningRow TOwningKey;
+typedef TUnversionedRow       TKey;
 
 template <class TValue>
 class TRowBuilder;

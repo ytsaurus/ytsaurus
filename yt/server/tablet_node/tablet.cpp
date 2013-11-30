@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "tablet.h"
 #include "automaton.h"
-#include "memory_table.h"
+#include "dynamic_memory_store.h"
 
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>

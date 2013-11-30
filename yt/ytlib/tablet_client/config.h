@@ -18,7 +18,9 @@ public:
     TTableMountConfig()
     {
         RegisterParameter("max_versions", MaxVersions)
-            .GreaterThan(0);
+            .Default(16)
+            .GreaterThan(0)
+            .LessThanOrEqual(65535);
     }
 };
 

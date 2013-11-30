@@ -69,7 +69,9 @@ set( SRCS
   ${BASE}/rcu_tree_ut.cpp
   ${BASE}/query_client_ut.cpp
   ${BASE}/row_ut.cpp
-  ${BASE}/memory_table_ut.cpp
+  ${BASE}/memory_store_ut.h
+  ${BASE}/static_memory_store_ut.cpp
+  ${BASE}/dynamic_memory_store_ut.cpp
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )
