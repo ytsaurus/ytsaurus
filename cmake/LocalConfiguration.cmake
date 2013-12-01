@@ -169,18 +169,29 @@ if (MSVC)
 
   # These are configuration-specific compliation flags.
   # http://msdn.microsoft.com/en-us/library/fwkeyyhe.aspx
-  set( CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /Oy- /GS" )
+  set( CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /Oy- /GS /MDd" )
   set( CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )
   set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL" )
   set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL" )
 
-  set( CMAKE_C_FLAGS_DEBUG "/Zi /Od /Oy- /GS" )
+  set( CMAKE_C_FLAGS_DEBUG "/Zi /Od /Oy- /GS /MDd" )
   set( CMAKE_C_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )
   set( CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL" )
   set( CMAKE_C_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL" )
 
   set( CMAKE_EXE_LINKER_FLAGS_DEBUG "/DEBUG" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "/DEBUG" )
+
+  add_definitions(
+    # For some reason MS wants to deprecate a bunch of standard functions...
+    -D_CRT_SECURE_NO_DEPRECATE
+    -D_CRT_SECURE_NO_WARNINGS
+    -D_CRT_NONSTDC_NO_DEPRECATE
+    -D_CRT_NONSTDC_NO_WARNINGS
+    -D_SCL_SECURE_NO_DEPRECATE
+    -D_SCL_SECURE_NO_WARNINGS
+  )
+
 endif()
 
 # Now configure platform-independent options.
