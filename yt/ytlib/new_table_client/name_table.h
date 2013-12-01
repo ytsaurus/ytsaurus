@@ -13,6 +13,8 @@ class TNameTable
     : public virtual TRefCounted
 {
 public:
+    static TNameTablePtr FromSchema(const TTableSchema& schema);
+
     int GetSize() const;
 
     TNullable<int> FindId(const TStringBuf& name) const;

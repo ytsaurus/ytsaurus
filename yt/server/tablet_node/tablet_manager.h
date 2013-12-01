@@ -21,28 +21,6 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TColumnFilter
-{
-    TColumnFilter()
-        : All(true)
-    { }
-
-    TColumnFilter(const std::vector<Stroka>& columns)
-        : All(false)
-        , Columns(columns.begin(), columns.end())
-    { }
-
-    TColumnFilter(const TColumnFilter& other)
-        : All(other.All)
-        , Columns(other.Columns)
-    { }
-
-    bool All;
-    TSmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletManager
     : public TRefCounted
 {

@@ -4,6 +4,7 @@
 #include "tablet_manager.h"
 #include "transaction_manager.h"
 #include "transaction.h"
+#include "store_manager.h"
 #include "private.h"
 
 #include <core/rpc/server.h>

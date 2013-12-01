@@ -29,16 +29,17 @@ typedef ui64 TTimestamp;
 const TTimestamp NullTimestamp = 0;
 
 // Valid timestamps.
-const TTimestamp MinTimestamp = 1;
-const TTimestamp MaxTimestamp = 0x3fffffffffffffffULL;
+const TTimestamp MinTimestamp = 0x0000000000000001ULL;
+const TTimestamp MaxTimestamp = 0x0fffffffffffffffULL;
 
 // Sentinels.
-const TTimestamp LastCommittedTimestamp = 0x4000000000000000ULL;
-const TTimestamp UncommittedTimestamp   = 0x4000000000000001ULL;
+const TTimestamp LastCommittedTimestamp = 0x1000000000000000ULL;
+const TTimestamp UncommittedTimestamp   = 0x1000000000000001ULL;
 
 // Masks.
-const TTimestamp TimestampValueMask     = 0x7fffffffffffffffULL;
-const TTimestamp TombstoneTimestampMask = 0x8000000000000000ULL;
+const TTimestamp TimestampValueMask       = 0x3fffffffffffffffULL;
+const TTimestamp TombstoneTimestampMask   = 0x8000000000000000ULL;
+const TTimestamp IncrementalTimestampMask = 0x4000000000000000ULL;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,19 +38,13 @@ public:
         NVersionedTableClient::TKey key,
         bool predelete);
 
-    void LookupRow(
-        const NVersionedTableClient::IWriterPtr& writer,
-        NVersionedTableClient::TKey key,
-        NTransactionClient::TTimestamp timestamp,
-        const TColumnFilter& columnFilter);
-
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
 
     void ConfirmRow(TDynamicRow row);
     void PrepareRow(TDynamicRow row);
     void CommitRow(TDynamicRow row);
     void AbortRow(TDynamicRow row);
-
+    
 private:
     class TScanner;
     friend class TMemoryCompactor;
@@ -62,15 +56,10 @@ private:
     int SchemaColumnCount_;
 
     i64 AllocatedStringSpace_;
-    i64 WastedStringSpace_;
-
     int AllocatedValueCount_;
-    int WastedValueCount_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
-
-    NVersionedTableClient::TNameTablePtr NameTable_;
 
     std::unique_ptr<NVersionedTableClient::TKeyPrefixComparer> Comparer_;
     std::unique_ptr<TRcuTree<TDynamicRow, NVersionedTableClient::TKeyPrefixComparer>> Tree_;
@@ -86,15 +75,6 @@ private:
     void CopyValue(
         NVersionedTableClient::TUnversionedValue* dst,
         const NVersionedTableClient::TUnversionedValue& src);
-
-    NVersionedTableClient::TTimestamp FetchTimestamp(
-        TTimestampList list,
-        NTransactionClient::TTimestamp timestamp);
-
-    const NVersionedTableClient::TVersionedValue* FetchVersionedValue(
-        TValueList list,
-        NTransactionClient::TTimestamp minTimestamp,
-        NTransactionClient::TTimestamp maxTimestamp);
 
 };
 

@@ -60,7 +60,7 @@ TEST_F(TStaticMemoryStoreTest, Small1)
 
     ASSERT_EQ(scanner->FindRow(BuildKey("0"), LastCommittedTimestamp), NullTimestamp);
     
-    ASSERT_EQ(scanner->FindRow(BuildKey("1"), LastCommittedTimestamp), 10);
+    ASSERT_EQ(scanner->FindRow(BuildKey("1"), LastCommittedTimestamp), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(0), MakeUnversionedIntegerValue(123)), 0);
     ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
@@ -93,7 +93,7 @@ TEST_F(TStaticMemoryStoreTest, Small2)
 
     ASSERT_EQ(scanner->FindRow(key, 1), NullTimestamp);
 
-    ASSERT_EQ(scanner->FindRow(key, 19), 10);
+    ASSERT_EQ(scanner->FindRow(key, 19), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(0), MakeUnversionedIntegerValue(123)), 0);
     ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
@@ -133,13 +133,13 @@ TEST_F(TStaticMemoryStoreTest, Small3)
 
     ASSERT_EQ(scanner->FindRow(key, 9), NullTimestamp);
 
-    ASSERT_EQ(scanner->FindRow(key, 10), 10);
+    ASSERT_EQ(scanner->FindRow(key, 10), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(1), MakeVersionedDoubleValue(1.0, 10)), 0);
     ASSERT_EQ(scanner->GetFixedValue(2), nullptr);
 
-    ASSERT_EQ(scanner->FindRow(key, 11), 10);
+    ASSERT_EQ(scanner->FindRow(key, 11), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(1), MakeVersionedDoubleValue(2.0, 11)), 0);
@@ -189,8 +189,8 @@ TEST_F(TStaticMemoryStoreTest, Large1)
 
         ASSERT_EQ(scanner->FindRow(key, i * 10 + 99), NullTimestamp);
 
-        ASSERT_EQ(scanner->FindRow(key, i * 10 + 100), i * 10 + 100);
-        ASSERT_EQ(scanner->FindRow(key, i * 10 + 101), i * 10 + 100);
+        ASSERT_EQ(scanner->FindRow(key, i * 10 + 100), (i * 10 + 100) | IncrementalTimestampMask);
+        ASSERT_EQ(scanner->FindRow(key, i * 10 + 101), (i * 10 + 100) | IncrementalTimestampMask);
         ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
         ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
         ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(2), MakeVersionedStringValue("value" + ToString(i), i * 10 + 100)), 0);

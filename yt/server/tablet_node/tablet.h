@@ -6,7 +6,7 @@
 
 #include <ytlib/new_table_client/schema.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <ytlib/tablet_client/public.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -17,17 +17,6 @@ class TTablet
     : public TNonCopyable
 {
 public:
-    // Read-only parameters.
-    DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
-    DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
-    DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
-    DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);
-    
-    // In-memory stores.
-    DEFINE_BYVAL_RW_PROPERTY(TDynamicMemoryStorePtr, ActiveDynamicMemoryStore);
-    DEFINE_BYVAL_RW_PROPERTY(TDynamicMemoryStorePtr, PassiveDynamicMemoryStore);
-
-public:
     explicit TTablet(const TTabletId& id);
     TTablet(
         const TTabletId& id,
@@ -35,9 +24,30 @@ public:
         const NVersionedTableClient::TKeyColumns& keyColumns,
         NTabletClient::TTableMountConfigPtr config);
 
+    ~TTablet();
+
+    const TTabletId& GetId() const;
+    const NVersionedTableClient::TTableSchema& Schema() const;
+    const NVersionedTableClient::TKeyColumns& KeyColumns() const;
+    const NTabletClient::TTableMountConfigPtr& GetConfig() const;
+    
+    const NVersionedTableClient::TNameTablePtr& GetNameTable() const;
+
+    const TStoreManagerPtr& GetStoreManager() const;
+    void SetStoreManager(TStoreManagerPtr manager);
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
+private:
+    TTabletId Id_;
+    NVersionedTableClient::TTableSchema Schema_;
+    NVersionedTableClient::TKeyColumns KeyColumns_;
+    NTabletClient::TTableMountConfigPtr Config_;
+    
+    NVersionedTableClient::TNameTablePtr NameTable_;
+    TStoreManagerPtr StoreManager_;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////

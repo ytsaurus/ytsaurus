@@ -8,6 +8,7 @@
 #include <yt/core/ytree/node.h>
 
 #include <yt/ytlib/tablet_client/public.h>
+#include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/ytlib/new_table_client/public.h>
 #include <yt/ytlib/new_table_client/schema.h>
@@ -132,43 +133,6 @@ public:
         }
 
         return rowBuilder.GetRow();
-    }
-
-    void CheckRow(TVersionedRow row, const TNullable<Stroka>& yson)
-    {
-        if (!row && !yson)
-            return;
-
-        ASSERT_TRUE(static_cast<bool>(row));
-        ASSERT_TRUE(yson.HasValue());
-
-        auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(TYsonString(*yson, EYsonType::MapFragment));
-
-        for (int index = 0; index < row.GetValueCount(); ++index) {
-            const auto& value = row[index];
-            const auto& name = NameTable->GetName(value.Id);
-            auto it = expectedRowParts.find(name);
-            switch (value.Type) {
-                case EValueType::Integer:
-                    ASSERT_EQ(it->second->GetValue<i64>(), value.Data.Integer);
-                    break;
-                
-                case EValueType::Double:
-                    ASSERT_EQ(it->second->GetValue<double>(), value.Data.Double);
-                    break;
-                
-                case EValueType::String:
-                    ASSERT_EQ(it->second->GetValue<Stroka>(), Stroka(value.Data.String, value.Length));
-                    break;
-
-                case EValueType::Null:
-                    ASSERT_TRUE(it == expectedRowParts.end());
-                    break;
-
-                default:
-                    YUNREACHABLE();
-            }
-        }
     }
 
 

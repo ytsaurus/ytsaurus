@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "static_memory_store.h"
-#include "dynamic_memory_store.h"
 #include "config.h"
 #include "tablet.h"
 
@@ -250,17 +249,32 @@ public:
             return NullTimestamp;
         }
 
-        Row_ = getRow(segment, rowIndex);
-        if (Comparer_(Row_, key) != 0) {
+        auto row = getRow(segment, rowIndex);
+        if (Comparer_(row, key) != 0) {
             return NullTimestamp;
         }
 
-        const auto* timestampBegin = Row_.GetTimestamps(KeyCount_);
-        const auto* timestampEnd = timestampBegin + Row_.GetTimestampCount(KeyCount_, SchemaValueCount_);
-        MinTimestamp_ = FetchMinTimestamp(timestampBegin, timestampEnd, timestamp);
+        const auto* timestampBegin = row.GetTimestamps(KeyCount_);
+        const auto* timestampEnd = timestampBegin + row.GetTimestampCount(KeyCount_, SchemaValueCount_);
+        const auto* timestampMin = FetchMinTimestamp(timestampBegin, timestampEnd, timestamp);
+        
+        if (!timestampMin) {
+            return NullTimestamp;
+        }
+
+        if (*timestampMin & TombstoneTimestampMask) {
+            return *timestampMin;
+        }
+
+        Row_ = row;
+        MinTimestamp_ = *timestampMin;
         MaxTimestamp_ = timestamp;
 
-        return MinTimestamp_;
+        auto result = *timestampMin;
+        if (timestampMin == timestampBegin) {
+            result |= IncrementalTimestampMask;
+        }
+        return result;
     }
 
     virtual const TUnversionedValue& GetKey(int index) override
@@ -296,19 +310,18 @@ private:
     TTimestamp MinTimestamp_;
 
 
-    TTimestamp FetchMinTimestamp(
+    const TTimestamp* FetchMinTimestamp(
         const TTimestamp* begin,
         const TTimestamp* end,
         TTimestamp maxTimestamp)
     {
-        auto* result = Fetch(
+        return Fetch(
             begin,
             end,
             maxTimestamp,
             [] (TTimestamp timestamp) {
                 return timestamp & TimestampValueMask;
             });
-        return result ? *result : NullTimestamp;
     }
 
     static const TVersionedValue* FetchVersionedValue(

@@ -3,7 +3,6 @@
 #include "tablet.h"
 #include "transaction.h"
 #include "config.h"
-#include "tablet_manager.h"
 
 #include <core/misc/small_vector.h>
 
@@ -11,6 +10,8 @@
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/writer.h>
+
+#include <ytlib/tablet_client/config.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -113,18 +114,35 @@ public:
 
     virtual TTimestamp FindRow(NVersionedTableClient::TKey key, TTimestamp timestamp) override
     {
-        if (!TreeScanner_->Find(key, &Row_)) {
+        TDynamicRow row;
+        if (!TreeScanner_->Find(key, &row)) {
             return NullTimestamp;
         }
 
-        if (timestamp != LastCommittedTimestamp && Row_.GetPrepareTimestamp() < timestamp) {
-            WaitFor(Row_.GetTransaction()->GetFinished());
+        if (timestamp != LastCommittedTimestamp && row.GetPrepareTimestamp() < timestamp) {
+            WaitFor(row.GetTransaction()->GetFinished());
         }
 
-        MinTimestamp_ = FetchMinTimestamp(Row_.GetTimestampList(KeyCount_), timestamp);
+        auto timestampList = row.GetTimestampList(KeyCount_);
+        const auto* timestampMin = FetchMinTimestamp(timestampList, timestamp);
+
+        if (!timestampMin) {
+            return NullTimestamp;
+        }
+
+        if (*timestampMin & TombstoneTimestampMask) {
+            return *timestampMin;
+        }
+
+        Row_ = row;
+        MinTimestamp_ = *timestampMin;
         MaxTimestamp_ = timestamp;
 
-        return MinTimestamp_;
+        auto result = *timestampMin;
+        if (timestampMin == timestampList.Begin()) {
+            result |= IncrementalTimestampMask;
+        }
+        return result;
     }
 
     virtual const TUnversionedValue& GetKey(int index) override
@@ -153,17 +171,16 @@ private:
     TTimestamp MinTimestamp_;
 
 
-    static TTimestamp FetchMinTimestamp(
+    static const TTimestamp* FetchMinTimestamp(
         TTimestampList list,
         TTimestamp maxTimestamp)
     {
-        auto* result = Fetch(
+        return Fetch(
             list,
             maxTimestamp,
             [] (TTimestamp timestamp) {
                 return timestamp & TimestampValueMask;
             });
-        return result ? *result : NullTimestamp;
     }
 
     static const TVersionedValue* FetchVersionedValue(
@@ -192,19 +209,12 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , KeyCount_(static_cast<int>(Tablet_->KeyColumns().size()))
     , SchemaColumnCount_(static_cast<int>(Tablet_->Schema().Columns().size()))
     , AllocatedStringSpace_(0)
-    , WastedStringSpace_(0)
     , AllocatedValueCount_(0)
-    , WastedValueCount_(0)
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
-    , NameTable_(New<TNameTable>())
     , Comparer_(new TKeyPrefixComparer(KeyCount_))
     , Tree_(new TRcuTree<TDynamicRow, TKeyPrefixComparer>(&AlignedPool_, Comparer_.get()))
-{
-    for (const auto& column : Tablet_->Schema().Columns()) {
-        NameTable_->RegisterName(column.Name);
-    }
-}
+{ }
 
 TDynamicMemoryStore::~TDynamicMemoryStore()
 { }
@@ -216,34 +226,6 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     bool prewrite)
 {
     TDynamicRow result;
-
-    auto maybeExpireFixedValue = [&] (TValueList list, int id) {
-        int maxVersions = Tablet_->GetConfig()->MaxVersions;
-        if (list.GetSize() + list.GetSuccessorsSize() <= maxVersions)
-            return;
-
-        ++WastedValueCount_;
-
-        const auto& columnSchema = Tablet_->Schema().Columns()[id];
-        if (columnSchema.Type != EValueType::String && columnSchema.Type != EValueType::Any)
-            return;
-
-        int expiredIndex = list.GetSize() - maxVersions - 1;
-        auto currentList = list;
-        while (expiredIndex < 0) {
-            currentList = currentList.GetNext();
-            YASSERT(currentList);
-            YASSERT(currentList.GetSize() == currentList.GetCapacity());
-            expiredIndex += currentList.GetSize();
-        }
-
-        const auto& expiredValue = currentList[expiredIndex];
-        if (expiredValue.Type == EValueType::Null)
-            return;
-
-        YASSERT(expiredValue.Type == columnSchema.Type);
-        WastedStringSpace_ += expiredValue.Length;
-    };
 
     auto writeFixedValue = [&] (TDynamicRow dynamicRow, int id) {
         const auto& srcValue = row[id];
@@ -273,8 +255,6 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         });
 
         ++AllocatedValueCount_;
-
-        maybeExpireFixedValue(list, id);
     };
 
     auto writeValues = [&] (TDynamicRow dynamicRow) {
@@ -422,98 +402,6 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     return result;
 }
 
-void TDynamicMemoryStore::LookupRow(
-    const IWriterPtr& writer,
-    NVersionedTableClient::TKey key,
-    TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
-{
-    TSmallVector<int, TypicalColumnCount> fixedColumnIds(SchemaColumnCount_);
-    yhash_map<int, int> variableColumnIds;
-
-    TNameTablePtr localNameTable;
-    if (columnFilter.All) {
-        localNameTable = NameTable_;
-
-        for (int globalId = 0; globalId < SchemaColumnCount_; ++globalId) {
-            fixedColumnIds[globalId] = globalId;
-        }
-    } else {
-        localNameTable = New<TNameTable>();
-
-        for (int globalId = 0; globalId < SchemaColumnCount_; ++globalId) {
-            fixedColumnIds[globalId] = -1;
-        }
-
-        for (const auto& name : columnFilter.Columns) {
-            auto globalId = NameTable_->FindId(name);
-            if (globalId) {
-                int localId = localNameTable->GetIdOrRegisterName(name);
-                if (*globalId < SchemaColumnCount_) {
-                    fixedColumnIds[*globalId] = localId;
-                } else {
-                    variableColumnIds.insert(std::make_pair(*globalId, localId));
-                }
-            }
-        }
-    }
-
-    writer->Open(
-        std::move(localNameTable),
-        Tablet_->Schema(),
-        Tablet_->KeyColumns());
-
-    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> scanner(Tree_.get());
-
-    TDynamicRow dynamicRow;
-    if (scanner->Find(key, &dynamicRow)) {
-        if (timestamp != LastCommittedTimestamp &&
-            dynamicRow.GetPrepareTimestamp() < timestamp)
-        {
-            WaitFor(dynamicRow.GetTransaction()->GetFinished());
-        }
-
-        auto minTimestamp = FetchTimestamp(dynamicRow.GetTimestampList(KeyCount_), timestamp);
-        if (!(minTimestamp & TombstoneTimestampMask)) {
-            // Key
-            for (int globalId = 0; globalId < KeyCount_; ++globalId) {
-                int localId = fixedColumnIds[globalId];
-                if (localId < 0)
-                    continue;
-
-                auto value = dynamicRow.GetKeys()[globalId];
-                value.Id = localId;
-                writer->WriteValue(value);
-            }
-
-            // Fixed values
-            for (int globalId = KeyCount_; globalId < SchemaColumnCount_; ++globalId) {
-                int localId = fixedColumnIds[globalId];
-                if (localId < 0)
-                    continue;
-
-                auto list = dynamicRow.GetFixedValueList(globalId - KeyCount_, KeyCount_);
-                const auto* value = FetchVersionedValue(list, minTimestamp, timestamp);
-                if (value) {
-                    auto valueCopy = *value;
-                    valueCopy.Id = localId;
-                    writer->WriteValue(valueCopy);
-                } else {
-                    writer->WriteValue(MakeSentinelValue<TVersionedValue>(EValueType::Null, localId));
-                }
-            }
-
-            // Variable values
-            // TODO(babenko)
-
-            writer->EndRow();
-        }
-    }
-
-    // NB: The writer must be synchronous.
-    YCHECK(writer->AsyncClose().Get().IsOK());
-}
-
 std::unique_ptr<IStoreScanner> TDynamicMemoryStore::CreateScanner()
 {
     return std::unique_ptr<IStoreScanner>(new TScanner(this));
@@ -653,33 +541,6 @@ void TDynamicMemoryStore::CopyValue(TUnversionedValue* dst, const TUnversionedVa
         default:
             YUNREACHABLE();
     }
-}
-
-TTimestamp TDynamicMemoryStore::FetchTimestamp(
-    TTimestampList list,
-    TTimestamp timestamp)
-{
-    auto* result = Fetch(
-        list,
-        timestamp,
-        [] (TTimestamp timestamp) {
-            return timestamp & TimestampValueMask;
-        });
-    return result ? *result : (NullTimestamp | TombstoneTimestampMask);
-}
-
-const TVersionedValue* TDynamicMemoryStore::FetchVersionedValue(
-    TValueList list,
-    TTimestamp minTimestamp,
-    TTimestamp maxTimestamp)
-{
-    auto* result = Fetch(
-        list,
-        maxTimestamp,
-        [] (const TVersionedValue& value) {
-            return value.Timestamp;
-        });
-    return result && result->Timestamp >= minTimestamp ? result : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,15 +80,20 @@ class TStaticMemoryStoreBuilder;
 class TStaticMemoryStore;
 typedef TIntrusivePtr<TStaticMemoryStore> TStaticMemoryStorePtr;
 
-struct TDynamicRowHeader;
-struct TEditListHeader;
+class TStoreManager;
+typedef TIntrusivePtr<TStoreManager> TStoreManagerPtr;
 
+struct TDynamicRowHeader;
 class TDynamicRow;
 
+struct TEditListHeader;
 template <class T>
 class TEditList;
 typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
 typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
+
+struct TStaticRowHeader;
+class TStaticRow;
 
 class TMemoryCompactor;
 

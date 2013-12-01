@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "name_table.h"
+#include "schema.h"
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
@@ -7,6 +8,15 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
+{
+    auto nameTable = New<TNameTable>();
+    for (const auto& column : schema.Columns()) {
+        nameTable->RegisterName(column.Name);
+    }
+    return nameTable;
+}
 
 int TNameTable::GetSize() const
 {

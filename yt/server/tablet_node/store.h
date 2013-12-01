@@ -30,11 +30,12 @@ struct IStoreScanner
      *  timestamp combined with |TombstoneTimestampMask| is returned.
      * 
      *  If the row is found and is known to exist then the earliest modification
-     *  timestamp is returned.
+     *  timestamp is returned. If the store has no row deletion marker for |key|
+     *  (up to |timestamp|) then the latter is combined with |IncrementalTimestampMask|.
      */
     virtual TTimestamp FindRow(NVersionedTableClient::TKey key, TTimestamp timestamp) = 0;
 
-    //! Returns the key with a given index.
+    //! Returns the key component with a given index.
     virtual const NVersionedTableClient::TUnversionedValue& GetKey(int index) = 0;
 
     //! Returns the value for a fixed column with a given index.

@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/tablet_service.cpp
   ${BASE}/dynamic_memory_store.cpp
   ${BASE}/static_memory_store.cpp
+  ${BASE}/store_manager.cpp
   ${BASE}/compaction.cpp
 )
 set( HDRS
@@ -33,6 +34,7 @@ set( HDRS
   ${BASE}/dynamic_memory_store_bits.h
   ${BASE}/static_memory_store.h
   ${BASE}/static_memory_store_bits.h
+  ${BASE}/store_manager.h
   ${BASE}/compaction.h
 )
 

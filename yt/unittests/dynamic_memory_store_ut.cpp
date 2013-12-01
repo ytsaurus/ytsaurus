@@ -20,6 +20,7 @@ namespace NTabletNode {
 namespace {
 
 using namespace NChunkClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,54 +93,78 @@ public:
             predelete);
     }
 
-    TVersionedOwningRow LookupRow(
+    TUnversionedOwningRow LookupRow(
         NVersionedTableClient::TKey key,
-        TTimestamp timestamp,
-        const TColumnFilter& columnFilter = TColumnFilter())
+        TTimestamp timestamp)
     {
-        auto memoryWriter = New<TMemoryWriter>();
+        auto scanner = Store->CreateScanner();
+        auto scannerTimestamp = scanner->FindRow(key, timestamp);
 
-        auto chunkWriter = New<TChunkWriter>(
-            New<TChunkWriterConfig>(),
-            New<TEncodingWriterOptions>(),
-            memoryWriter);
-
-        Store->LookupRow(
-            chunkWriter,
-            key,
-            timestamp,
-            columnFilter);
-
-        auto memoryReader = New<TMemoryReader>(
-            std::move(memoryWriter->GetChunkMeta()),
-            std::move(memoryWriter->GetBlocks()));
-
-        auto chunkReader = CreateChunkReader(
-            New<TChunkReaderConfig>(),
-            memoryReader);
-
-        auto nameTable = New<TNameTable>();
-
-        {
-            auto error = chunkReader->Open(
-                nameTable,
-                Tablet->Schema(),
-                true).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        if (scannerTimestamp == NullTimestamp) {
+            return TUnversionedOwningRow();
         }
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(1);
-        if (chunkReader->Read(&rows)) {
-            std::vector<TVersionedRow> moreRows;
-            rows.reserve(1);
-            EXPECT_FALSE(chunkReader->Read(&moreRows));
+        if (scannerTimestamp & TombstoneTimestampMask) {
+            return TUnversionedOwningRow();
         }
-        EXPECT_TRUE(rows.size() <= 1);
 
-        return rows.empty()
-            ? TVersionedOwningRow()
-            : TVersionedOwningRow(rows[0]);
+        TUnversionedRowBuilder builder;
+        
+        int keyCount = static_cast<int>(Tablet->KeyColumns().size());
+        int schemaColumnCount = static_cast<int>(Tablet->Schema().Columns().size());
+
+        // Keys
+        for (int index = 0; index < keyCount; ++index) {
+            builder.AddValue(scanner->GetKey(index));
+        }
+
+        // Fixed values
+        for (int index = 0; index < schemaColumnCount - keyCount; ++index) {
+            const auto* value = scanner->GetFixedValue(index);
+            builder.AddValue(
+                value
+                ? *value
+                : MakeUnversionedSentinelValue(EValueType::Null, index + keyCount));
+        }
+
+        return builder.GetRow();
+    }
+
+    void CompareRows(TUnversionedRow row, const TNullable<Stroka>& yson)
+    {
+        if (!row && !yson)
+            return;
+
+        ASSERT_TRUE(static_cast<bool>(row));
+        ASSERT_TRUE(yson.HasValue());
+
+        auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(TYsonString(*yson, EYsonType::MapFragment));
+
+        for (int index = 0; index < row.GetValueCount(); ++index) {
+            const auto& value = row[index];
+            const auto& name = NameTable->GetName(value.Id);
+            auto it = expectedRowParts.find(name);
+            switch (value.Type) {
+                case EValueType::Integer:
+                    ASSERT_EQ(it->second->GetValue<i64>(), value.Data.Integer);
+                    break;
+                
+                case EValueType::Double:
+                    ASSERT_EQ(it->second->GetValue<double>(), value.Data.Double);
+                    break;
+                
+                case EValueType::String:
+                    ASSERT_EQ(it->second->GetValue<Stroka>(), Stroka(value.Data.String, value.Length));
+                    break;
+
+                case EValueType::Null:
+                    ASSERT_TRUE(it == expectedRowParts.end());
+                    break;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
     }
 
 
@@ -153,8 +178,8 @@ public:
 TEST_F(TDynamicMemoryStoreTest, Empty)
 {
     auto key = BuildKey("1");
-    CheckRow(LookupRow(key, 0), Null);
-    CheckRow(LookupRow(key, LastCommittedTimestamp), Null);
+    CompareRows(LookupRow(key, 0), Null);
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 }
 
 TEST_F(TDynamicMemoryStoreTest, Write1)
@@ -165,7 +190,7 @@ TEST_F(TDynamicMemoryStoreTest, Write1)
 
     Stroka rowString("key=1;a=1");
     
-    CheckRow(LookupRow(key, LastCommittedTimestamp), Null);
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 
     auto row = WriteRow(transaction.get(), BuildRow(rowString), true);
     ASSERT_EQ(row.GetTransaction(), transaction.get());
@@ -175,7 +200,7 @@ TEST_F(TDynamicMemoryStoreTest, Write1)
     ASSERT_EQ(transaction->LockedRows().size(), 1);
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
-    CheckRow(LookupRow(key, LastCommittedTimestamp), Null);
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 
     PrepareTransaction(transaction.get());
     Store->PrepareRow(row);
@@ -183,11 +208,11 @@ TEST_F(TDynamicMemoryStoreTest, Write1)
     CommitTransaction(transaction.get());
     Store->CommitRow(row);
 
-    CheckRow(LookupRow(key, MinTimestamp), Null);
-    CheckRow(LookupRow(key, LastCommittedTimestamp), rowString);
-    CheckRow(LookupRow(key, MaxTimestamp), rowString);
-    CheckRow(LookupRow(key, transaction->GetCommitTimestamp()), rowString);
-    CheckRow(LookupRow(key, transaction->GetCommitTimestamp() - 1), Null);
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, LastCommittedTimestamp), rowString);
+    CompareRows(LookupRow(key, MaxTimestamp), rowString);
+    CompareRows(LookupRow(key, transaction->GetCommitTimestamp()), rowString);
+    CompareRows(LookupRow(key, transaction->GetCommitTimestamp() - 1), Null);
 }
 
 TEST_F(TDynamicMemoryStoreTest, Write2)
@@ -200,9 +225,9 @@ TEST_F(TDynamicMemoryStoreTest, Write2)
         auto transaction = StartTransaction();
 
         if (i == 0) {
-            CheckRow(LookupRow(key, transaction->GetStartTimestamp()), Null);
+            CompareRows(LookupRow(key, transaction->GetStartTimestamp()), Null);
         } else {
-            CheckRow(LookupRow(key, transaction->GetStartTimestamp()), "key=1;a=" + ToString(i - 1));
+            CompareRows(LookupRow(key, transaction->GetStartTimestamp()), "key=1;a=" + ToString(i - 1));
         }
 
         auto row = WriteRow(transaction.get(), BuildRow("key=1;a=" + ToString(i)), false);
@@ -217,12 +242,12 @@ TEST_F(TDynamicMemoryStoreTest, Write2)
     }
 
 
-    CheckRow(LookupRow(key, MinTimestamp), Null);
-    CheckRow(LookupRow(key, MaxTimestamp), Stroka("key=1;a=99"));
-    CheckRow(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;a=99"));
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, MaxTimestamp), Stroka("key=1;a=99"));
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;a=99"));
 
     for (int i = 0; i < 100; ++i) {
-        CheckRow(LookupRow(key, timestamps[i]), Stroka("key=1;a=" + ToString(i)));
+        CompareRows(LookupRow(key, timestamps[i]), Stroka("key=1;a=" + ToString(i)));
     }
 }
 
@@ -242,7 +267,7 @@ TEST_F(TDynamicMemoryStoreTest, Write3)
     CommitTransaction(transaction.get());
     Store->CommitRow(row1);
 
-    CheckRow(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;b=2.71"));
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;b=2.71"));
 }
 
 TEST_F(TDynamicMemoryStoreTest, Write4)
@@ -263,8 +288,8 @@ TEST_F(TDynamicMemoryStoreTest, Delete1)
     auto transaction = StartTransaction();
     DeleteRow(transaction.get(), key, false);
 
-    CheckRow(LookupRow(key, MinTimestamp), Null);
-    CheckRow(LookupRow(key, LastCommittedTimestamp), Null);
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 }
 
 TEST_F(TDynamicMemoryStoreTest, Delete2)
@@ -302,9 +327,9 @@ TEST_F(TDynamicMemoryStoreTest, Delete2)
         ts2 = transaction->GetCommitTimestamp();
     }
 
-    CheckRow(LookupRow(key, MinTimestamp), Null);
-    CheckRow(LookupRow(key, ts1), Stroka("key=1;c=value"));
-    CheckRow(LookupRow(key, ts2), Null);
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, ts1), Stroka("key=1;c=value"));
+    CompareRows(LookupRow(key, ts2), Null);
 }
 
 TEST_F(TDynamicMemoryStoreTest, Conflict1)
