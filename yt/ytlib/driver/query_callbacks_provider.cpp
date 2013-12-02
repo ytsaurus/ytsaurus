@@ -18,15 +18,20 @@
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_ypath_proxy.h>
 
+#include <ytlib/new_table_client/chunk_reader.h>
+#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 #include <ytlib/new_table_client/reader.h>
 
+#include <ytlib/chunk_client/async_reader.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/query_client/callbacks.h>
-#include <ytlib/query_client/executor.h> // For DelegateToPeer
 #include <ytlib/query_client/helpers.h>
+#include <ytlib/query_client/query_service_proxy.h>
+#include <ytlib/query_client/plan_fragment.h>
 
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/attribute_helpers.h>
@@ -51,6 +56,88 @@ using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NQueryClient;
 using namespace NNodeTrackerClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteReader
+    : public NChunkClient::IAsyncReader
+{
+public:
+    explicit TRemoteReader(TFuture<TQueryServiceProxy::TRspExecutePtr> response)
+        : Response_(std::move(response))
+    { }
+
+    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override
+    {
+        return Response_.Apply(BIND(
+            &TRemoteReader::ReadBlocks,
+            blockIndexes));
+    }
+
+    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
+        const TNullable<int>& partitionTag = Null,
+        const std::vector<int>* tags = nullptr) override
+    {
+        return Response_.Apply(BIND(
+            &TRemoteReader::GetChunkMeta,
+            partitionTag,
+            MakeNullable(tags)));
+    }
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return NullChunkId;
+    }
+
+private:
+    TFuture<TQueryServiceProxy::TRspExecutePtr> Response_;
+
+    static TReadResult ReadBlocks(
+        const std::vector<int>& blockIndexes,
+        TQueryServiceProxy::TRspExecutePtr rsp)
+    {
+        if (!rsp->IsOK()) {
+            return rsp->GetError();
+        }
+        std::vector<TSharedRef> blocks;
+        for (auto index : blockIndexes) {
+            YCHECK(index < rsp->Attachments().size());
+            blocks.push_back(rsp->Attachments()[index]);
+        }
+        return std::move(blocks);
+    }
+
+    static TGetMetaResult GetChunkMeta(
+        const TNullable<int>& partitionTag,
+        const TNullable<std::vector<int>> extensionTags,
+        TQueryServiceProxy::TRspExecutePtr rsp)
+    {
+        if (!rsp->IsOK()) {
+            return rsp->GetError();
+        }
+        return rsp->chunk_meta();
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReaderPtr DelegateToPeer(
+    const TPlanFragment& planFragment,
+    TNodeDirectoryPtr nodeDirectory,
+    IChannelPtr channel)
+{
+    TQueryServiceProxy proxy(channel);
+
+    auto req = proxy.Execute();
+
+    nodeDirectory->DumpTo(req->mutable_node_directory());
+    ToProto(req->mutable_plan_fragment(), planFragment);
+
+    return CreateChunkReader(
+        New<TChunkReaderConfig>(),
+        New<TRemoteReader>(req->Invoke()));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
