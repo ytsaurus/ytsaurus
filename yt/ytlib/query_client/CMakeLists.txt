@@ -17,6 +17,10 @@ set( SRCS
 )
 
 set( HDRS
+  ${BASE}/private.h
+  ${BASE}/public.h
+  ${BASE}/helpers.h
+  ${BASE}/callbacks.h
   ${BASE}/plan_node.h
   ${BASE}/plan_visitor.h
   ${BASE}/plan_helpers.h
