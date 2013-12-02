@@ -58,7 +58,7 @@ TValue MakeSentinelValue(EValueType type, int id = 0)
 {
     TValue result;
     result.Id = id;
-    result.Type = EValueType::Null;
+    result.Type = type;
     return result;
 }
 
@@ -271,6 +271,12 @@ public:
         return Header->ValueCount;
     }
 
+    //! Compatibility with standard containers.
+    int size() const
+    {
+        return GetValueCount();
+    }
+
 private:
     TRowHeader* Header;
 
@@ -370,6 +376,12 @@ public:
     {
         const auto* header = GetHeader();
         return header ? static_cast<int>(header->ValueCount) : 0;
+    }
+
+    //! Compatibility with standard containers.
+    int size() const
+    {
+        return GetValueCount();
     }
 
     const TUnversionedValue& operator[](int index) const
@@ -503,24 +515,24 @@ private:
 
     TValue* GetValue(int index)
     {
-        return reinterpret_cast<TValue*>(GetHeader() + 1) + index;        
+        return reinterpret_cast<TValue*>(GetHeader() + 1) + index;
     }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKeyComparer
+class TKeyPrefixComparer
 {
 public:
-    explicit TKeyComparer(int keyCount)
-        : KeyCount_(keyCount)
+    explicit TKeyPrefixComparer(int prefixLength)
+        : PrefixLength_(prefixLength)
     { }
 
     template <class TLhs, class TRhs>
     int operator () (TLhs lhs, TRhs rhs) const
     {
-        for (int index = 0; index < KeyCount_; ++index) {
+        for (int index = 0; index < PrefixLength_; ++index) {
             int result = CompareRowValues(lhs[index], rhs[index]);
             if (result != 0) {
                 return result;
@@ -530,7 +542,37 @@ public:
     }
 
 private:
-    int KeyCount_;
+    int PrefixLength_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TKeyComparer
+{
+public:
+    TKeyComparer(int prefixLength = std::numeric_limits<int>::max())
+        : PrefixLength_(prefixLength)
+    { }
+
+    template <class TLhs, class TRhs>
+    int operator () (TLhs lhs, TRhs rhs) const
+    {
+        int lhsLength = std::min(lhs.size(), PrefixLength_);
+        int rhsLength = std::min(rhs.size(), PrefixLength_);
+        int minLength = std::min(lhsLength, rhsLength);
+        for (int index = 0; index < minLength; ++index) {
+            int result = CompareRowValues(lhs[index], rhs[index]);
+            if (result != 0) {
+                return result;
+            }
+        }
+
+        return lhsLength - rhsLength;
+    }
+
+private:
+    int PrefixLength_;
 
 };
 

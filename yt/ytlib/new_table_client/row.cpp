@@ -74,16 +74,8 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 {
-    int lhsLength = std::min(lhs.GetValueCount(), prefixLength);
-    int rhsLength = std::min(rhs.GetValueCount(), prefixLength);
-    int minLength = std::min(lhsLength, rhsLength);
-    for (int index = 0; index < minLength; ++index) {
-        int result = CompareRowValues(lhs[index], rhs[index]);
-        if (result != 0) {
-            return result;
-        }
-    }
-    return lhsLength - rhsLength;
+    TKeyComparer comparer(prefixLength);
+    return comparer(lhs, rhs);
 }
 
 size_t GetHash(const TUnversionedValue& value)
