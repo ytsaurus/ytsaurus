@@ -233,18 +233,23 @@ TEST_P(TBigReadWriteTest, RealReadWrite)
     auto queue = New<NConcurrency::TActionQueue>();
 
     std::vector<char> data(dataSize, 'a');
-    auto dice = std::bind(std::uniform_int_distribution<char>(0, 128),
-                          std::default_random_engine());
 
-    for (auto& x: data) {
-        x = dice();
-    }
+    BIND([&] () {
+            auto dice = std::bind(std::uniform_int_distribution<char>(0, 128),
+                                  std::default_random_engine());
+            for (size_t i = 0; i < data.size(); ++i) {
+                data[i] = dice();
+            }
+        }).AsyncVia(queue->GetInvoker()).Run();
 
     auto writeError = BIND(&WriteAll, Writer, data.data(), data.size(), blockSize).AsyncVia(queue->GetInvoker()).Run();
     auto readFromPipe = BIND(&ReadAll, Reader, true).AsyncVia(queue->GetInvoker()).Run();
 
     auto textFromPipe = readFromPipe.Get();
-    EXPECT_TRUE(equal(textFromPipe.Begin(), textFromPipe.End(), data.begin()));
+    EXPECT_EQ(textFromPipe.Size(), data.size());
+    auto result = mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
+    EXPECT_TRUE(equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<
+        (result.first - textFromPipe.Begin()) << " " << (int)(*result.first);
 }
 
 INSTANTIATE_TEST_CASE_P(ValueParametrized, TBigReadWriteTest,

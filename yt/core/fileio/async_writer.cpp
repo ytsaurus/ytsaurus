@@ -35,11 +35,10 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(WriteLock);
 
-
     if (WriteBuffer.Size() != 0 || NeedToClose) {
         YCHECK(WriteBuffer.Size() >= BytesWrittenTotal);
         const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
-        const char* data = WriteBuffer.Begin();
+        const char* data = WriteBuffer.Begin() + BytesWrittenTotal;
 
         const size_t bytesWritten = TryWrite(data, size);
 
@@ -97,6 +96,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
 
     YCHECK(!ReadyPromise.HasValue());
 
+    LOG_DEBUG("%" PRISZT " bytes has been added to internal write buffer", size - bytesWritten);
     WriteBuffer.Append(data + bytesWritten, size - bytesWritten);
 
     return ((LastSystemError != 0) || (WriteBuffer.Size() >= WriteBufferSize));
@@ -108,6 +108,7 @@ size_t TAsyncWriter::TryWrite(const char* data, size_t size)
     do {
         errCode = ::write(FD, data, size);
     } while (errCode == -1 && errno == EINTR);
+
     if (errCode == -1) {
         if (errno != EWOULDBLOCK && errno != EAGAIN) {
             LOG_DEBUG(TError::FromSystem(), "Error writing");
@@ -117,7 +118,9 @@ size_t TAsyncWriter::TryWrite(const char* data, size_t size)
         return 0;
     } else {
         size_t bytesWritten = errCode;
-        LOG_DEBUG("Wrote %" PRISZT " bytes", bytesWritten);
+        if (bytesWritten > 0) {
+            LOG_DEBUG("Wrote %" PRISZT " bytes", bytesWritten);
+        }
 
         YCHECK(bytesWritten <= size);
         return bytesWritten;
