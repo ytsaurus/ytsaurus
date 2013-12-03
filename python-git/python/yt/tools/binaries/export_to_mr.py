@@ -32,7 +32,8 @@ def export_table(object, args):
             proxies=params.mr_proxy,
             proxy_port=params.mr_proxy_port,
             fetch_info_from_http=params.fetch_info_from_http,
-            cache=False)
+            cache=False,
+            mr_user=params.mr_user)
 
     logger.info("Exporting '%s' to '%s'", src, dst)
 
