@@ -25,9 +25,8 @@ class TReferenceExpression;
 class TFunctionExpression;
 class TBinaryOpExpression;
 
-// TODO(sandello): Why refcounted?
 class TEvaluateController
-    : public TRefCounted
+    : public NNonCopyable::TNonCopyable
 {
 public:
     TEvaluateController(

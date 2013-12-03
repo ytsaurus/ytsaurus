@@ -12,23 +12,25 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoordinateController
-    : public TRefCounted
+    : public NNonCopyable::TNonCopyable
     , public IEvaluateCallbacks
 {
 public:
     TCoordinateController(
         ICoordinateCallbacks* callbacks,
-        const TPlanFragment& fragment,
-        IWriterPtr writer);
+        const TPlanFragment& fragment);
 
     ~TCoordinateController();
 
     virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override;
 
-    void Prepare(); // Throws.
-    TError Run(); // Does not throw.
+    TError Run();
 
-    TPlanFragment GetCoordinatorSplit() const;
+    const TPlanFragment& GetCoordinatorSplit() const
+    {
+        return Fragment_;
+    }
+
     std::vector<TPlanFragment> GetPeerSplits() const;
 
     ICoordinateCallbacks* GetCallbacks()
@@ -41,7 +43,7 @@ public:
         return Fragment_.GetContext().Get();
     }
 
-    const TOperator* GetHead()
+    const TOperator* GetHead() 
     {
         return Fragment_.GetHead();
     }
@@ -66,13 +68,10 @@ private:
 private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
-    IWriterPtr Writer_;
 
-    bool Prepared_;
     std::vector<std::tuple<TPlanFragment, IReaderPtr>> Peers_;
 
     NLog::TTaggedLogger Logger;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

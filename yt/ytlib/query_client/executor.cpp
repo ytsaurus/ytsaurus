@@ -5,6 +5,7 @@
 #include "coordinate_controller.h"
 #include "evaluate_controller.h"
 
+#include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
 
 namespace NYT {
@@ -12,12 +13,11 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TController, class TCallbacks>
-class TControlledExecutor
+class TEvaluatorProxy
     : public IExecutor
 {
 public:
-    TControlledExecutor(IInvokerPtr invoker, TCallbacks* callbacks)
+    TEvaluatorProxy(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
     { }
@@ -26,33 +26,67 @@ public:
         const TPlanFragment& fragment,
         IWriterPtr writer) override
     {
-        auto controller = New<TController>(
-            Callbacks_,
-            fragment,
-            std::move(writer));
-        return BIND(&TController::Run, controller)
+        return BIND([=] () -> TError {
+                return TEvaluateController(Callbacks_, fragment, std::move(writer))
+                    .Run();            
+            })
             .AsyncVia(Invoker_)
             .Run();
     }
 
 private:
     IInvokerPtr Invoker_;
-    TCallbacks* Callbacks_;
+    IEvaluateCallbacks* Callbacks_;
+};
 
+class TCoordinatedEvaluatorProxy
+    : public IExecutor
+{
+public:
+    TCoordinatedEvaluatorProxy(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
+        : Invoker_(std::move(invoker))
+        , Callbacks_(callbacks)
+    { }
+
+    virtual TAsyncError Execute(
+        const TPlanFragment& fragment,
+        IWriterPtr writer) override
+    {
+        return BIND([=] () -> TError {
+                TCoordinateController coordinator(Callbacks_, fragment);
+
+                auto result = coordinator.Run();
+
+                if (result.IsOK()) {
+                    TEvaluateController evaluator(
+                        &coordinator, 
+                        coordinator.GetCoordinatorSplit(), 
+                        std::move(writer));
+
+                    return evaluator.Run();
+                } else {
+                    return result;
+                }
+            })
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+private:
+    IInvokerPtr Invoker_;
+    ICoordinateCallbacks* Callbacks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
 {
-    typedef TControlledExecutor<TEvaluateController, IEvaluateCallbacks> TExecutor;
-    return New<TExecutor>(std::move(invoker), callbacks);
+    return New<TEvaluatorProxy>(std::move(invoker), callbacks);
 }
 
-IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
+IExecutorPtr CreateCoordinatedEvaluator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
 {
-    typedef TControlledExecutor<TCoordinateController, ICoordinateCallbacks> TExecutor;
-    return New<TExecutor>(std::move(invoker), callbacks);
+    return New<TCoordinatedEvaluatorProxy>(std::move(invoker), callbacks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

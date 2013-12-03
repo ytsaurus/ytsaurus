@@ -30,12 +30,9 @@ using namespace NObjectClient;
 
 TCoordinateController::TCoordinateController(
     ICoordinateCallbacks* callbacks,
-    const TPlanFragment& fragment,
-    IWriterPtr writer)
+    const TPlanFragment& fragment)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
-    , Writer_(std::move(writer))
-    , Prepared_(false)
     , Logger(QueryClientLogger)
 {
     Logger.AddTag(Sprintf(
@@ -63,43 +60,27 @@ IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
     }
 }
 
-void TCoordinateController::Prepare()
-{
-    if (Prepared_) {
-        THROW_ERROR_EXCEPTION("Plan fragment is already prepared");
-    }
-
-    SplitFurther();
-    PushdownFilters();
-    PushdownProjects();
-
-    DistributeToPeers();
-}
-
 TError TCoordinateController::Run()
 {
     try {
         LOG_DEBUG("Coordinating plan fragment");
 
-        Prepare();
+        SplitFurther();
+        PushdownFilters();
+        PushdownProjects();
+        DistributeToPeers();
 
         for (auto& peer : Peers_) {
             std::get<1>(peer) = GetCallbacks()->Delegate(
                 std::get<0>(peer),
                 GetHeaviestSplit(std::get<0>(peer).GetHead()));
-        }
-
-        return New<TEvaluateController>(this, Fragment_, Writer_)->Run();
+        } 
     } catch (const std::exception& ex) {
         auto error = TError("Failed to coordinate plan fragment") << ex;
         LOG_ERROR(error);
         return error;
     }
-}
-
-TPlanFragment TCoordinateController::GetCoordinatorSplit() const
-{
-    return Fragment_;
+    return TError();
 }
 
 std::vector<TPlanFragment> TCoordinateController::GetPeerSplits() const
