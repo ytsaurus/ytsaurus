@@ -25,12 +25,12 @@ public:
 
 private:
     class TStaticScanner;
-    typedef TRcuTreeScannerPtr<TDynamicRow, NVersionedTableClient::TKeyComparer> TDynamicScanner;
+    typedef TRcuTreeScannerPtr<TDynamicRow, NVersionedTableClient::TKeyPrefixComparer> TDynamicScanner;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
 
-    NVersionedTableClient::TKeyComparer Comparer_;
+    NVersionedTableClient::TKeyPrefixComparer Comparer_;
 
 };
 

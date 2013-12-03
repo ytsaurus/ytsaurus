@@ -147,7 +147,7 @@ private:
 
     int KeyCount_;
     int SchemaValueCount_;
-    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> TreeScanner_;
+    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> TreeScanner_;
     TDynamicRow Row_;
     TTimestamp MaxTimestamp_;
     TTimestamp MinTimestamp_;
@@ -198,8 +198,8 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , NameTable_(New<TNameTable>())
-    , Comparer_(new TKeyComparer(KeyCount_))
-    , Tree_(new TRcuTree<TDynamicRow, TKeyComparer>(&AlignedPool_, Comparer_.get()))
+    , Comparer_(new TKeyPrefixComparer(KeyCount_))
+    , Tree_(new TRcuTree<TDynamicRow, TKeyPrefixComparer>(&AlignedPool_, Comparer_.get()))
 {
     for (const auto& column : Tablet_->Schema().Columns()) {
         NameTable_->RegisterName(column.Name);
@@ -463,7 +463,7 @@ void TDynamicMemoryStore::LookupRow(
         Tablet_->Schema(),
         Tablet_->KeyColumns());
 
-    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> scanner(Tree_.get());
+    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> scanner(Tree_.get());
 
     TDynamicRow dynamicRow;
     if (scanner->Find(key, &dynamicRow)) {

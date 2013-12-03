@@ -289,7 +289,7 @@ private:
     int KeyCount_;
     int SchemaValueCount_;
     size_t RowSize_;
-    TKeyComparer Comparer_;
+    TKeyPrefixComparer Comparer_;
 
     TStaticRow Row_;
     TTimestamp MaxTimestamp_;
