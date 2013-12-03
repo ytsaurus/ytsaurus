@@ -551,7 +551,7 @@ private:
 class TKeyComparer
 {
 public:
-    TKeyComparer(int prefixLength = std::numeric_limits<int>::max())
+    explicit TKeyComparer(int prefixLength = std::numeric_limits<int>::max())
         : PrefixLength_(prefixLength)
     { }
 
