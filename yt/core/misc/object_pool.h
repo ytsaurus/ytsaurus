@@ -13,8 +13,6 @@ namespace NYT {
  * Instances are tracked via shared pointers with a special deleter
  * that returns spare instances back to the pool.
  *
- * Types capable of pooling must provide |CleanPooledObject| method.
- *
  * Both the pool and the references are thread-safe.
  *
  */
@@ -29,17 +27,38 @@ public:
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();
 
-    //! Calls #CleanPooledObject and returns the instance back into the pool.
+    //! Calls #TPooledObjectTraits::Clean and returns the instance back into the pool.
     void Reclaim(T* obj);
 
 private:
-    TLockFreeQueue<T*> PooledObjects;
-    TAtomic PooledObjectCount;
+    TLockFreeQueue<T*> PooledObjects_;
+    TAtomic PoolSize_;
 
 };
 
 template <class T>
 TObjectPool<T>& ObjectPool();
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPooledObjectTraitsBase
+{
+    template <class T>
+    static void Clean(T* /*obj*/)
+    { }
+
+    static int GetMaxPoolSize()
+    {
+        return 256;
+    }
+};
+
+//! Provides various traits for pooled objects of type |T|.
+//! Add your own specializations when needed.
+template <class T, class = void>
+struct TPooledObjectTraits
+    : public TPooledObjectTraitsBase
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

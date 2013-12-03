@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "protobuf_helpers.h"
+#include "mpl.h"
 
 #include <core/compression/codec.h>
 
@@ -160,20 +161,3 @@ void FilterProtoExtensions(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace google {
-namespace protobuf {
-
-void CleanPooledObject(google::protobuf::MessageLite* obj)
-{
-    obj->Clear();
-}
-
-} // namespace protobuf
-} // namespace google
-
-////////////////////////////////////////////////////////////////////////////////
-
-

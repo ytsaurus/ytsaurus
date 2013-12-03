@@ -105,6 +105,8 @@ static void InitTls()
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TFiberStackBase
 {
 public:
@@ -184,13 +186,7 @@ public:
 
 };
 
-template <size_t Size, int GuardedPages>
-void CleanPooledObject(TFiberStack<Size, GuardedPages>* stack)
-{
-#ifndef NDEBUG
-    ::memset(stack->GetStack(), 0, stack->GetSize());
-#endif
-}
+////////////////////////////////////////////////////////////////////////////////
 
 class TFiberContext
 {
@@ -287,6 +283,8 @@ void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next)
     SwitchToFiber(next->Fiber_);
 }
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFiberExceptionHandler
 {
@@ -887,3 +885,25 @@ TClosure GetCurrentFiberCanceler()
 } // namespace NConcurrency
 } // namespace NYT
 
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <size_t Size, int GuardedPages>
+struct TPooledObjectTraits<
+    NConcurrency::TFiberStack<Size, GuardedPages>,
+    void>
+    : public TPooledObjectTraitsBase
+{
+    static void Clean(NConcurrency::TFiberStack<Size, GuardedPages>* stack)
+    {
+#ifndef NDEBUG
+    ::memset(stack->GetStack(), 0, stack->GetSize());
+#endif
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

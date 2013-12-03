@@ -260,19 +260,21 @@ void FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TPooledObjectTraits<
+    T,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>, int>::TType>
+    : public TPooledObjectTraitsBase
+{
+    static void Clean(::google::protobuf::MessageLite* obj)
+    {
+        obj->Clear();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace google {
-namespace protobuf {
-
-void CleanPooledObject(MessageLite* obj);
-
-} // namespace protobuf
-} // namespace google
-
-////////////////////////////////////////////////////////////////////////////////
 
 #define PROTOBUF_HELPERS_INL_H_
 #include "protobuf_helpers-inl.h"
