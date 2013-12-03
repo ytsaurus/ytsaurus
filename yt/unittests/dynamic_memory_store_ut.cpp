@@ -123,7 +123,7 @@ public:
             const auto* value = scanner->GetFixedValue(index);
             builder.AddValue(
                 value
-                ? *value
+                ? *static_cast<const TUnversionedValue*>(value)
                 : MakeUnversionedSentinelValue(EValueType::Null, index + keyCount));
         }
 
