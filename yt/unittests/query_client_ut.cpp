@@ -204,16 +204,15 @@ protected:
 
     void Coordinate(const Stroka& source)
     {
-        auto controller = New<TCoordinateController>(
+        TCoordinateController controller(
             &CoordinateMock_,
-            TPlanFragment::Prepare(source, &PrepareMock_),
-            nullptr);
+            TPlanFragment::Prepare(source, &PrepareMock_));
 
-        controller->Prepare();
+        controller.Run();
 
         // Here we heavily rely on fact that coordinator does not change context.
-        CoordinatorPlan_ = controller->GetCoordinatorSplit();
-        PeerPlans_ = controller->GetPeerSplits();
+        CoordinatorPlan_ = controller.GetCoordinatorSplit();
+        PeerPlans_ = controller.GetPeerSplits();
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
