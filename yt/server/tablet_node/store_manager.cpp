@@ -41,7 +41,6 @@ TStoreManager::TStoreManager(
         Config_,
         Tablet_))
     , MemoryCompactor_(new TMemoryCompactor(Config_, Tablet_))
-    , MemoryCompactionScheduled_(false)
     , MemoryCompactionInProgress_(false)
 {
     YCHECK(Config_);
@@ -272,10 +271,6 @@ bool TStoreManager::IsMemoryCompactionNeeded() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     
-    if (MemoryCompactionScheduled_) {
-        return false;
-    }
-
     if (MemoryCompactionInProgress_) {
         return false;
     }
@@ -291,22 +286,11 @@ bool TStoreManager::IsMemoryCompactionNeeded() const
     return false;
 }
 
-void TStoreManager::SetMemoryCompactionScheduled()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!MemoryCompactionScheduled_);
-    YCHECK(!MemoryCompactionInProgress_);
-    
-    MemoryCompactionScheduled_ = true;
-}
-
 void TStoreManager::RunMemoryCompaction()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(MemoryCompactionScheduled_);
     YCHECK(!MemoryCompactionInProgress_);
     
-    MemoryCompactionScheduled_ = false;
     MemoryCompactionInProgress_ = true;
     
     YCHECK(PassiveDynamicMemoryStore_);

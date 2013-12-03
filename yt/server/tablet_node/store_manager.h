@@ -69,7 +69,6 @@ public:
     void AbortRow(TDynamicRow row);
 
     bool IsMemoryCompactionNeeded() const;
-    void SetMemoryCompactionScheduled();
     void RunMemoryCompaction();
 
 private:
@@ -85,7 +84,6 @@ private:
     NVersionedTableClient::TNameTablePtr NameTable_;
 
     std::unique_ptr<TMemoryCompactor> MemoryCompactor_;
-    bool MemoryCompactionScheduled_;
     bool MemoryCompactionInProgress_;
 
 

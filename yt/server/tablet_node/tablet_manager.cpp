@@ -85,7 +85,6 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRemoveTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerDeleteRows, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraCompactMemoryStores, Unretained(this)));
     }
 
 
@@ -480,19 +479,6 @@ private:
         if (!storeManager->IsMemoryCompactionNeeded())
             return;
 
-        storeManager->SetMemoryCompactionScheduled();
-
-        TReqCompactMemoryStores request;
-        ToProto(request.mutable_tablet_id(), storeManager->GetTablet()->GetId());
-        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
-            ->Commit();
-    }
-    
-    void HydraCompactMemoryStores(const TReqCompactMemoryStores& request)
-    {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = GetTablet(tabletId);
-        const auto& storeManager = tablet->GetStoreManager();
         storeManager->RunMemoryCompaction();
     }
 
