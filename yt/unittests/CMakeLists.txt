@@ -64,6 +64,7 @@ set( SRCS
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
+  ${BASE}/fls_ut.cpp
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )

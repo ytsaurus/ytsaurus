@@ -15,9 +15,8 @@
 #include <exception>
 
 namespace NYT {
+namespace NConcurrency {
 namespace {
-
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -645,5 +644,6 @@ TEST(TFiberTest, CurrentInvokerConcurrent)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+} // namespace NConcurrency
 } // namespace NYT
 

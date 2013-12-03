@@ -51,6 +51,29 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// FLS support.
+/*
+ * Each registered slot maintains a ctor (to be called when a fiber first accesses
+ * the slot) and a dtor (to be called when a fiber terminates).
+ *
+ * To avoid contention, slot registry has a fixed size (see |MaxFlsSlots|).
+ * |FlsGet| and |FlsGet| are lock-free.
+ * |FlsRegister|, however, acquires a global lock.
+ */
+
+struct TFlsSlot
+{
+    TFiber::TFlsSlotCtor Ctor;
+    TFiber::TFlsSlotDtor Dtor;
+};
+
+static const int MaxFlsSlots = 1024;
+static TFlsSlot FlsRegistry[MaxFlsSlots] = {};
+static TAtomic FlsRegistrySize = 0;
+static TSpinLock FlsRegistryLock;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Pointer to the current fiber being run by the current thread.
 /*!
  *  Current fiber is stored as a raw pointer, all Ref/Unref calls are done manually.
@@ -341,6 +364,10 @@ public:
             State_ == EFiberState::Initialized ||
             State_ == EFiberState::Terminated ||
             State_ == EFiberState::Exception);
+
+        for (int index = 0; index < static_cast<int>(Fls_.size()); ++index) {
+            FlsRegistry[index].Dtor(Fls_[index]);
+        }
     }
 
     static TFiber* GetCurrent()
@@ -379,12 +406,12 @@ public:
         }
         SetCurrent(Owner_);
 
-        YCHECK(Caller_->Impl->State_ == EFiberState::Running);
+        YCHECK(Caller_->Impl_->State_ == EFiberState::Running);
         State_ = EFiberState::Running;
 
-        Caller_->Impl->TransferTo(this);
+        Caller_->Impl_->TransferTo(this);
 
-        YCHECK(Caller_->Impl->State_ == EFiberState::Running);
+        YCHECK(Caller_->Impl_->State_ == EFiberState::Running);
 
         SetCurrent(Caller_);
         if (Caller_ && !Caller_->IsTerminating()) {
@@ -438,7 +465,7 @@ public:
         State_ = EFiberState::Suspended;
         Yielded_ = true;
 
-        TransferTo(Caller_->Impl.get());
+        TransferTo(Caller_->Impl_.get());
         YCHECK(State_ == EFiberState::Running);
 
         // Throw TFiberTerminatedException if cancellation is requested.
@@ -555,6 +582,29 @@ public:
         CurrentInvoker_ = std::move(invoker);
     }
 
+
+    static int FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
+    {
+        TGuard<TSpinLock> guard(FlsRegistryLock);
+        YCHECK(FlsRegistrySize < MaxFlsSlots);
+        auto& slot = FlsRegistry[FlsRegistrySize];
+        slot.Ctor = ctor;
+        slot.Dtor = dtor;
+        return AtomicIncrement(FlsRegistrySize) - 1;
+    }
+
+    TFlsSlotValue FlsGet(int index)
+    {
+        EnsureFlsSlot(index);
+        return Fls_[index];
+    }
+
+    void FlsSet(int index, TFlsSlotValue value)
+    {
+        EnsureFlsSlot(index);
+        Fls_[index] = value;
+    }
+
 private:
     std::shared_ptr<TFiberStackBase> Stack_;
     TFiberContext Context_;
@@ -575,6 +625,8 @@ private:
 
     IInvokerPtr CurrentInvoker_;
 
+    std::vector<TFlsSlotValue> Fls_;
+
     
     void Init()
     {
@@ -583,6 +635,20 @@ private:
         Yielded_ = false;
         Caller_ = nullptr;
         CurrentInvoker_ = GetSyncInvoker();
+    }
+
+    void EnsureFlsSlot(int index)
+    {
+        YASSERT(index >= 0);
+        if (index < Fls_.size())
+            return;
+        int oldSize = static_cast<int>(Fls_.size());
+        int newSize = AtomicGet(FlsRegistrySize);
+        YCHECK(newSize >= oldSize && index < newSize);
+        Fls_.resize(newSize);
+        for (int index = oldSize; index < newSize; ++index) {
+            Fls_[index] = FlsRegistry[index].Ctor();
+        }
     }
 
     static void Wakeup(TFiberPtr fiber)
@@ -669,7 +735,7 @@ private:
         }
 
         // Fall back to the caller.
-        TransferTo(Caller_->Impl.get());
+        TransferTo(Caller_->Impl_.get());
         YUNREACHABLE();
     }
 
@@ -678,11 +744,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber()
-    : Impl(new TImpl(this))
+    : Impl_(new TImpl(this))
 { }
 
 TFiber::TFiber(TClosure closure, EFiberStack stack)
-    : Impl(new TImpl(this, std::move(closure), stack))
+    : Impl_(new TImpl(this, std::move(closure), stack))
 { }
 
 TFiber::~TFiber()
@@ -695,72 +761,87 @@ TFiber* TFiber::GetCurrent()
 
 EFiberState TFiber::GetState() const
 {
-    return Impl->GetState();
+    return Impl_->GetState();
 }
 
 bool TFiber::Yielded() const
 {
-    return Impl->Yielded();
+    return Impl_->Yielded();
 }
 
 bool TFiber::IsTerminating() const
 {
-    return Impl->IsTerminating();
+    return Impl_->IsTerminating();
 }
 
 bool TFiber::IsCanceled() const
 {
-    return Impl->IsCanceled();
+    return Impl_->IsCanceled();
 }
 
 void TFiber::Run()
 {
-    Impl->Run();
+    Impl_->Run();
 }
 
 void TFiber::Yield()
 {
-    Impl->Yield();
+    Impl_->Yield();
 }
 
 void TFiber::Reset()
 {
-    Impl->Reset();
+    Impl_->Reset();
 }
 
 void TFiber::Reset(TClosure closure)
 {
-    Impl->Reset(std::move(closure));
+    Impl_->Reset(std::move(closure));
 }
 
 void TFiber::Inject(std::exception_ptr&& exception)
 {
-    Impl->Inject(std::move(exception));
+    Impl_->Inject(std::move(exception));
 }
 
 void TFiber::Cancel()
 {
-    Impl->Cancel();
+    Impl_->Cancel();
 }
 
 void TFiber::SwitchTo(IInvokerPtr invoker)
 {
-    Impl->SwitchTo(std::move(invoker));
+    Impl_->SwitchTo(std::move(invoker));
 }
 
 void TFiber::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
-    Impl->WaitFor(std::move(future), std::move(invoker));
+    Impl_->WaitFor(std::move(future), std::move(invoker));
 }
 
 IInvokerPtr TFiber::GetCurrentInvoker()
 {
-    return Impl->GetCurrentInvoker();
+    return Impl_->GetCurrentInvoker();
 }
 
 void TFiber::SetCurrentInvoker(IInvokerPtr invoker)
 {
-    Impl->SetCurrentInvoker(std::move(invoker));
+    Impl_->SetCurrentInvoker(std::move(invoker));
+}
+
+int TFiber::FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
+{
+    return TImpl::FlsRegister(ctor, dtor);
+}
+
+TFiber::TFlsSlotValue TFiber::FlsGet(int index)
+{
+    return Impl_->FlsGet(index);
+}
+
+void TFiber::FlsSet(int index, TFlsSlotValue value)
+{
+    return Impl_->FlsSet(index, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

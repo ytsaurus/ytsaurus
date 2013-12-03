@@ -80,10 +80,18 @@ public:
     IInvokerPtr GetCurrentInvoker();
     void SetCurrentInvoker(IInvokerPtr invoker);
 
+    typedef intptr_t TFlsSlotValue;
+    typedef TFlsSlotValue (*TFlsSlotCtor)();
+    typedef void (*TFlsSlotDtor)(TFlsSlotValue);
+
+    static int FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
+    TFlsSlotValue FlsGet(int index);
+    void FlsSet(int index, TFlsSlotValue value);
+
 private:
     class TImpl;
 
-    std::unique_ptr<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl_;
 
 };
 

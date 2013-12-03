@@ -31,6 +31,8 @@ set( HDRS
   ${BASE}/coroutine.h
   ${BASE}/fiber-inl.h
   ${BASE}/fiber.h
+  ${BASE}/fls.h
+  ${BASE}/fls-inl.h
   ${BASE}/public.h
 )
 
