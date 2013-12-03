@@ -5,7 +5,7 @@ import subprocess
 import simplejson as json
 
 class Mr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies, proxy_port, fetch_info_from_http, cache=True):
+    def __init__(self, binary, server, server_port, http_port, proxies, proxy_port, fetch_info_from_http, cache=True, mr_user="tmp"):
         self.binary = binary
         self.server = self._make_address(server, server_port)
         self.http_server = self._make_address(server, http_port)
@@ -17,6 +17,7 @@ class Mr(object):
 
         self.cache = {}
         self.use_cache = cache
+        self.mr_user = mr_user
 
         logger.info("Yamr options configured (binary: %s, server: %s, http_server: %s, proxies: [%s])",
                     self.binary, self.server, self.http_server, ", ".join(self.proxies))
@@ -80,8 +81,8 @@ class Mr(object):
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def drop(self, table):
-        subprocess.check_call("USER=yt MR_USER=tmp {} -server {} -drop {}".format(self.binary, self.server, table), shell=True)
+        subprocess.check_call("USER=yt MR_USER={} {} -server {} -drop {}".format(self.mr_user, self.binary, self.server, table), shell=True)
 
     def copy(self, src, dst):
-        subprocess.check_call("USER=yt MR_USER=tmp {} -server {} -copy -src {} -dst {}".format(self.binary, self.server, src, dst), shell=True)
+        subprocess.check_call("USER=yt MR_USER={} {} -server {} -copy -src {} -dst {}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
     

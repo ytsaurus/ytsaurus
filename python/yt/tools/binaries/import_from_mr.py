@@ -156,7 +156,8 @@ def import_table(object, args):
             http_port=params.mr_http_port,
             proxies=params.mr_proxy,
             proxy_port=params.mr_proxy_port,
-            fetch_info_from_http=params.fetch_info_from_http)
+            fetch_info_from_http=params.fetch_info_from_http,
+            mr_user=params.mr_user)
 
     if mr.is_empty(src):
         logger.info("Table '%s' is empty", src)
@@ -246,6 +247,7 @@ def main():
     parser.add_argument("--mr-server-port", default="8013")
     parser.add_argument("--mr-http-port", default="13013")
     parser.add_argument("--mr-proxy", action="append")
+    parser.add_argument("--mr-user", default="tmp")
     parser.add_argument("--mr-proxy-port", default="13013")
     parser.add_argument("--mapreduce-binary", default="./mapreduce")
     parser.add_argument("--fetch-info-from-http", action="store_true", default=False,
