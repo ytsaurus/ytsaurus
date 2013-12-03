@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <ytlib/chunk_client/chunk.pb.h>
 
 namespace NYT {
@@ -37,7 +39,9 @@ class TStoreManager
 public:
     TStoreManager(
         TTabletManagerConfigPtr config,
-        TTablet* tablet);
+        TTablet* tablet,
+        IInvokerPtr automatonInvoker,
+        IInvokerPtr compactionInvoker);
 
     void Lookup(
         NVersionedTableClient::TKey key,
@@ -62,15 +66,32 @@ public:
     void CommitRow(TDynamicRow row);
     void AbortRow(TDynamicRow row);
 
+    bool IsMemoryCompactionNeeded() const;
+    bool IsMemoryCompactionInProgress() const;
+    void RunMemoryCompaction();
+
 private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
+    IInvokerPtr AutomatonInvoker_;
+    IInvokerPtr CompactionInvoker_;
 
     TDynamicMemoryStorePtr ActiveDynamicMemoryStore_;
     TDynamicMemoryStorePtr PassiveDynamicMemoryStore_;
     TStaticMemoryStorePtr StaticMemoryStore_;
 
     NVersionedTableClient::TNameTablePtr NameTable_;
+
+    std::unique_ptr<TMemoryCompactor> MemoryCompactor_;
+    bool MemoryCompactionInProgress_;
+
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+    DECLARE_THREAD_AFFINITY_SLOT(CompactionThread);
+
+
+    void DoMemoryCompaction();
+    void FinishMemoryCompaction(TStaticMemoryStorePtr compactedStore);
 
 };
 

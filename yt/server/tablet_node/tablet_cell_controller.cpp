@@ -3,6 +3,8 @@
 #include "tablet_slot.h"
 #include "private.h"
 
+#include <core/concurrency/action_queue.h>
+
 #include <server/hydra/changelog.h>
 #include <server/hydra/changelog_catalog.h>
 #include <server/hydra/file_changelog_catalog.h>
@@ -20,6 +22,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NNodeTrackerClient::NProto;
 using namespace NDataNode;
 using namespace NHydra;
@@ -37,27 +40,28 @@ public:
     TImpl(
         NCellNode::TCellNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
-        : Config(config)
-        , Bootstrap(bootstrap)
-        , UsedSlotCount(0)
+        : Config_(config)
+        , Bootstrap_(bootstrap)
+        , UsedSlotCount_(0)
+        , CompactionQueue_(New<TActionQueue>("Compaction"))
     { }
 
     void Initialize()
     {
         LOG_INFO("Initializing tablet node");
 
-        ChangelogCatalog = CreateFileChangelogCatalog(Config->TabletNode->Changelogs);
-        SnapshotCatalog = CreateFileSnapshotCatalog(Config->TabletNode->Snapshots);
+        ChangelogCatalog_ = CreateFileChangelogCatalog(Config_->TabletNode->Changelogs);
+        SnapshotCatalog_ = CreateFileSnapshotCatalog(Config_->TabletNode->Snapshots);
 
         // Analyze catalogs, remove orphaned stores.
         {
-            auto changelogStores = ChangelogCatalog->GetStores();
+            auto changelogStores = ChangelogCatalog_->GetStores();
             yhash_set<TCellGuid> changelogStoreGuids;
             for (auto store : changelogStores) {
                 YCHECK(changelogStoreGuids.insert(store->GetCellGuid()).second);
             }
 
-            auto snapshotStores = SnapshotCatalog->GetStores();
+            auto snapshotStores = SnapshotCatalog_->GetStores();
             yhash_set<TCellGuid> snapshotStoreGuids;
             for (auto store : snapshotStores) {
                 YCHECK(snapshotStoreGuids.insert(store->GetCellGuid()).second);
@@ -66,14 +70,14 @@ public:
             for (const auto& cellGuid : changelogStoreGuids) {
                 if (snapshotStoreGuids.find(cellGuid) == snapshotStoreGuids.end()) {
                     LOG_INFO("Changelog store %s is orphaned, removing", ~ToString(cellGuid));
-                    ChangelogCatalog->RemoveStore(cellGuid);
+                    ChangelogCatalog_->RemoveStore(cellGuid);
                 }
             }
 
             for (const auto& cellGuid : snapshotStoreGuids) {
                 if (changelogStoreGuids.find(cellGuid) == changelogStoreGuids.end()) {
                     LOG_INFO("Snapshot store %s is orphaned, removing", ~ToString(cellGuid));
-                    SnapshotCatalog->RemoveStore(cellGuid);
+                    SnapshotCatalog_->RemoveStore(cellGuid);
                 }
             }
         }
@@ -81,36 +85,36 @@ public:
         // Examine remaining stores; readjust config.
         yhash_set<TCellGuid> cellGuids;
         {
-            for (auto store : SnapshotCatalog->GetStores()) {
+            for (auto store : SnapshotCatalog_->GetStores()) {
                 auto cellGuid = store->GetCellGuid();
                 YCHECK(cellGuids.insert(cellGuid).second);
                 LOG_INFO("Found slot %s", ~ToString(cellGuid));
             }
 
-            if (Config->TabletNode->Slots < cellGuids.size()) {
+            if (Config_->TabletNode->Slots < cellGuids.size()) {
                 LOG_WARNING("Found %d active slots while at most %d is suggested by configuration; allowing more slots",
                     static_cast<int>(cellGuids.size()),
-                    Config->TabletNode->Slots);
-                Config->TabletNode->Slots = static_cast<int>(cellGuids.size());
+                    Config_->TabletNode->Slots);
+                Config_->TabletNode->Slots = static_cast<int>(cellGuids.size());
             }
         }
 
         // Create slots.
-        for (int slotIndex = 0; slotIndex < Config->TabletNode->Slots; ++slotIndex) {
+        for (int slotIndex = 0; slotIndex < Config_->TabletNode->Slots; ++slotIndex) {
             auto slot = New<TTabletSlot>(
                 slotIndex,
-                Config,
-                Bootstrap);
-            Slots.push_back(slot);
+                Config_,
+                Bootstrap_);
+            Slots_.push_back(slot);
         }
 
         // Load active slots.
         {
             int slotIndex = 0;
             for (const auto& cellGuid : cellGuids) {
-                Slots[slotIndex]->Load(cellGuid);
+                Slots_[slotIndex]->Load(cellGuid);
                 ++slotIndex;
-                ++UsedSlotCount;
+                ++UsedSlotCount_;
             }
         }
 
@@ -120,22 +124,22 @@ public:
 
     int GetAvailableTabletSlotCount() const
     {
-        return Config->TabletNode->Slots;
+        return Config_->TabletNode->Slots;
     }
 
     int GetUsedTabletSlotCount() const
     {
-        return UsedSlotCount;
+        return UsedSlotCount_;
     }
 
     const std::vector<TTabletSlotPtr>& GetSlots() const
     {
-        return Slots;
+        return Slots_;
     }
 
     TTabletSlotPtr FindSlot(const TCellGuid& guid)
     {
-        for (auto slot : Slots) {
+        for (auto slot : Slots_) {
             if (slot->GetCellGuid() == guid) {
                 return slot;
             }
@@ -160,7 +164,7 @@ public:
     {
         auto slot = GetFreeSlot();
         slot->Create(createInfo);
-        ++UsedSlotCount;
+        ++UsedSlotCount_;
     }
 
     void ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
@@ -171,29 +175,37 @@ public:
     void RemoveSlot(TTabletSlotPtr slot)
     {
         slot->Remove();
-        --UsedSlotCount;
+        --UsedSlotCount_;
     }
 
 
     IChangelogCatalogPtr GetChangelogCatalog()
     {
-        return ChangelogCatalog;
+        return ChangelogCatalog_;
     }
 
     ISnapshotCatalogPtr GetSnapshotCatalog()
     {
-        return SnapshotCatalog;
+        return SnapshotCatalog_;
+    }
+
+
+    IInvokerPtr GetCompactionInvoker()
+    {
+        return CompactionQueue_->GetInvoker();
     }
 
 private:
-    NCellNode::TCellNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    NCellNode::TCellNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    IChangelogCatalogPtr ChangelogCatalog;
-    ISnapshotCatalogPtr SnapshotCatalog;
+    IChangelogCatalogPtr ChangelogCatalog_;
+    ISnapshotCatalogPtr SnapshotCatalog_;
 
-    int UsedSlotCount;
-    std::vector<TTabletSlotPtr> Slots;
+    int UsedSlotCount_;
+    std::vector<TTabletSlotPtr> Slots_;
+
+    TActionQueuePtr CompactionQueue_;
 
 };
 
@@ -258,6 +270,11 @@ IChangelogCatalogPtr TTabletCellController::GetChangelogCatalog()
 ISnapshotCatalogPtr TTabletCellController::GetSnapshotCatalog()
 {
     return Impl->GetSnapshotCatalog();
+}
+
+NYT::IInvokerPtr TTabletCellController::GetCompactionInvoker()
+{
+    return Impl->GetCompactionInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

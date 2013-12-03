@@ -19,10 +19,10 @@ using namespace NCellNode;
 TTabletAutomaton::TTabletAutomaton(
     NCellNode::TBootstrap* bootstrap,
     TTabletSlot* slot)
-    : Slot(slot)
+    : Slot_(slot)
 {
     Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(Slot->GetCellGuid())));
+        ~ToString(Slot_->GetCellGuid())));
 }
 
 TSaveContext& TTabletAutomaton::SaveContext()
@@ -43,8 +43,8 @@ TTabletAutomatonPart::TTabletAutomatonPart(
     : TCompositeAutomatonPart(
         slot->GetHydraManager(),
         slot->GetAutomaton())
-    , Slot(slot)
-    , Bootstrap(bootstrap)
+    , Slot_(slot)
+    , Bootstrap_(bootstrap)
 { }
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)
@@ -66,7 +66,7 @@ void TTabletAutomatonPart::RegisterSaver(
         priority,
         name,
         BIND([=] () {
-            auto& context = Slot->GetAutomaton()->SaveContext();
+            auto& context = Slot_->GetAutomaton()->SaveContext();
             saver.Run(context);
          }));
 }
@@ -78,7 +78,7 @@ void TTabletAutomatonPart::RegisterLoader(
     TCompositeAutomatonPart::RegisterLoader(
         name,
         BIND([=] () {
-            auto& context = Slot->GetAutomaton()->LoadContext();
+            auto& context = Slot_->GetAutomaton()->LoadContext();
             loader.Run(context);
         }));
 }

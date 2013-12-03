@@ -37,7 +37,7 @@ public:
     virtual TLoadContext& LoadContext() override;
 
 private:
-    TTabletSlot* Slot;
+    TTabletSlot* Slot_;
 
     TSaveContext SaveContext_;
     TLoadContext LoadContext_;
@@ -50,8 +50,8 @@ class TTabletAutomatonPart
     : public NHydra::TCompositeAutomatonPart
 {
 protected:
-    TTabletSlot* Slot;
-    NCellNode::TBootstrap* Bootstrap;
+    TTabletSlot* Slot_;
+    NCellNode::TBootstrap* Bootstrap_;
 
 
     explicit TTabletAutomatonPart(

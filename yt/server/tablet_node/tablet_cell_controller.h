@@ -39,6 +39,8 @@ public:
     NHydra::IChangelogCatalogPtr GetChangelogCatalog();
     NHydra::ISnapshotCatalogPtr GetSnapshotCatalog();
 
+    IInvokerPtr GetCompactionInvoker();
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;

@@ -7,6 +7,7 @@
 #include "transaction_manager.h"
 #include "config.h"
 #include "store_manager.h"
+#include "tablet_cell_controller.h"
 #include "private.h"
 
 #include <core/misc/ring_queue.h>
@@ -60,9 +61,9 @@ public:
             bootstrap)
         , Config_(config)
     {
-        VERIFY_INVOKER_AFFINITY(Slot->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
-        Slot->GetAutomaton()->RegisterPart(this);
+        Slot_->GetAutomaton()->RegisterPart(this);
 
         RegisterLoader(
             "TabletManager.Keys",
@@ -89,7 +90,7 @@ public:
 
     void Initialize()
     {
-        auto transactionManager = Slot->GetTransactionManager();
+        auto transactionManager = Slot_->GetTransactionManager();
         transactionManager->SubscribeTransactionPrepared(BIND(&TImpl::OnTransactionPrepared, MakeStrong(this)));
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionCommitted, MakeStrong(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeStrong(this)));
@@ -149,7 +150,7 @@ public:
         for (const auto& block : blocks) {
             request.add_blocks(ToString(block));
         }
-        CreateMutation(Slot->GetHydraManager(), Slot->GetAutomatonInvoker(), request)
+        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
             ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
     }
@@ -190,7 +191,7 @@ public:
         ToProto(request.mutable_transaction_id(), transaction->GetId());
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         ToProto(request.mutable_keys(), keys);
-        CreateMutation(Slot->GetHydraManager(), Slot->GetAutomatonInvoker(), request)
+        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
             ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
     }
@@ -222,6 +223,7 @@ private:
 
     std::vector<TDynamicRow> JustLockedRows_; // pooled instance
     TRingQueue<TDynamicRowRef> LockedRows_;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -303,15 +305,17 @@ private:
 
         auto storeManager = New<TStoreManager>(
             Config_,
-            tablet);
+            tablet,
+            Slot_->GetAutomatonInvoker(),
+            Bootstrap_->GetTabletCellController()->GetCompactionInvoker());
         tablet->SetStoreManager(std::move(storeManager));
 
-        auto hiveManager = Slot->GetHiveManager();
+        auto hiveManager = Slot_->GetHiveManager();
 
         {
             TReqOnTabletCreated req;
             ToProto(req.mutable_tablet_id(), id);
-            hiveManager->PostMessage(Slot->GetMasterMailbox(), req);
+            hiveManager->PostMessage(Slot_->GetMasterMailbox(), req);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TabletId: %s)",
@@ -330,12 +334,12 @@ private:
 
         TabletMap_.Remove(id);
 
-        auto hiveManager = Slot->GetHiveManager();
+        auto hiveManager = Slot_->GetHiveManager();
 
         {
             TReqOnTabletRemoved req;
             ToProto(req.mutable_tablet_id(), id);
-            hiveManager->PostMessage(Slot->GetMasterMailbox(), req);
+            hiveManager->PostMessage(Slot_->GetMasterMailbox(), req);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet removed (TabletId: %s)",
@@ -360,7 +364,7 @@ private:
     void HydraFollowerWriteRows(const TReqWriteRows& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto transactionManager = Slot->GetTransactionManager();
+        auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransaction(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
@@ -393,7 +397,7 @@ private:
     void HydraFollowerDeleteRows(const TReqDeleteRows& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto transactionManager = Slot->GetTransactionManager();
+        auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransaction(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());

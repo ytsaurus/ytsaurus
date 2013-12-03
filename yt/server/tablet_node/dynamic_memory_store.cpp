@@ -543,6 +543,16 @@ void TDynamicMemoryStore::CopyValue(TUnversionedValue* dst, const TUnversionedVa
     }
 }
 
+i64 TDynamicMemoryStore::GetAllocatedStringSpace() const
+{
+    return AllocatedStringSpace_;
+}
+
+int TDynamicMemoryStore::GetAllocatedValueCount() const
+{
+    return AllocatedValueCount_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

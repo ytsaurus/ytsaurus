@@ -3,6 +3,7 @@
 #include "tablet.h"
 #include "dynamic_memory_store.h"
 #include "static_memory_store.h"
+#include "compaction.h"
 #include "config.h"
 
 #include <ytlib/chunk_client/memory_reader.h>
@@ -14,6 +15,8 @@
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
+
+#include <ytlib/tablet_client/config.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -27,13 +30,26 @@ using namespace NTransactionClient;
 
 TStoreManager::TStoreManager(
     TTabletManagerConfigPtr config,
-    TTablet* Tablet_)
+    TTablet* Tablet_,
+    IInvokerPtr automatonInvoker,
+    IInvokerPtr compactionInvoker)
     : Config_(config)
     , Tablet_(Tablet_)
+    , AutomatonInvoker_(automatonInvoker)
+    , CompactionInvoker_(compactionInvoker)
     , ActiveDynamicMemoryStore_(New<TDynamicMemoryStore>(
         Config_,
         Tablet_))
-{ }
+    , MemoryCompactor_(new TMemoryCompactor(Config_, Tablet_))
+    , MemoryCompactionInProgress_(false)
+{
+    YCHECK(Config_);
+    YCHECK(Tablet_);
+    YCHECK(AutomatonInvoker_);
+    YCHECK(CompactionInvoker_);
+    VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(CompactionInvoker_, CompactionThread);
+}
 
 void TStoreManager::Lookup(
     NVersionedTableClient::TKey key,
@@ -244,6 +260,55 @@ void TStoreManager::CommitRow(TDynamicRow row)
 void TStoreManager::AbortRow(TDynamicRow row)
 {
     ActiveDynamicMemoryStore_->AbortRow(row);
+}
+
+bool TStoreManager::IsMemoryCompactionNeeded() const
+{
+    const auto& config = Tablet_->GetConfig();
+    return
+        ActiveDynamicMemoryStore_->GetAllocatedValueCount() >= config->ValueCountMemoryCompactionThreshold ||
+        ActiveDynamicMemoryStore_->GetAllocatedStringSpace() >= config->StringSpaceMemoryCompactionThreshold;
+}
+
+bool TStoreManager::IsMemoryCompactionInProgress() const
+{
+    return MemoryCompactionInProgress_;
+}
+
+void TStoreManager::RunMemoryCompaction()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(!MemoryCompactionInProgress_);
+    
+    MemoryCompactionInProgress_ = true;
+    
+    YCHECK(PassiveDynamicMemoryStore_);
+    PassiveDynamicMemoryStore_ = ActiveDynamicMemoryStore_;
+    ActiveDynamicMemoryStore_ = New<TDynamicMemoryStore>(Config_, Tablet_);
+
+    CompactionInvoker_->Invoke(
+        BIND(&TStoreManager::DoMemoryCompaction, MakeStrong(this)));
+}
+
+void TStoreManager::DoMemoryCompaction()
+{
+    VERIFY_THREAD_AFFINITY(CompactionThread);
+    YCHECK(MemoryCompactionInProgress_);
+
+    auto compactedStore = MemoryCompactor_->Run(PassiveDynamicMemoryStore_, StaticMemoryStore_);
+
+    AutomatonInvoker_->Invoke(
+        BIND(&TStoreManager::FinishMemoryCompaction, MakeStrong(this), compactedStore));
+}
+
+void TStoreManager::FinishMemoryCompaction(TStaticMemoryStorePtr compactedStore)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(MemoryCompactionInProgress_);
+
+    MemoryCompactionInProgress_ = false;
+    StaticMemoryStore_ = compactedStore;
+    PassiveDynamicMemoryStore_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

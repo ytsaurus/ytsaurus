@@ -46,11 +46,11 @@ public:
         : TTabletAutomatonPart(
             slot,
             bootstrap)
-        , Config(config)
+        , Config_(config)
     {
-        VERIFY_INVOKER_AFFINITY(Slot->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
-        Slot->GetAutomaton()->RegisterPart(this);
+        Slot_->GetAutomaton()->RegisterPart(this);
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -103,7 +103,7 @@ public:
             : Null;
 
         auto* transaction = new TTransaction(transactionId);
-        TransactionMap.Insert(transactionId, transaction);
+        TransactionMap_.Insert(transactionId, transaction);
 
         auto actualTimeout = GetActualTimeout(timeout);
         transaction->SetTimeout(actualTimeout);
@@ -220,8 +220,8 @@ public:
             THROW_ERROR_EXCEPTION("Transaction is not active");
         }
 
-        auto it = LeaseMap.find(transaction->GetId());
-        YCHECK(it != LeaseMap.end());
+        auto it = LeaseMap_.find(transaction->GetId());
+        YCHECK(it != LeaseMap_.end());
 
         auto timeout = transaction->GetTimeout();
 
@@ -233,10 +233,10 @@ public:
     }
 
 private:
-    TTransactionManagerConfigPtr Config;
+    TTransactionManagerConfigPtr Config_;
 
-    TEntityMap<TTransactionId, TTransaction> TransactionMap;
-    yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
+    TEntityMap<TTransactionId, TTransaction> TransactionMap_;
+    yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -244,8 +244,8 @@ private:
     TDuration GetActualTimeout(TNullable<TDuration> timeout)
     {
         return std::min(
-            timeout.Get(Config->DefaultTransactionTimeout),
-            Config->MaxTransactionTimeout);
+            timeout.Get(Config_->DefaultTransactionTimeout),
+            Config_->MaxTransactionTimeout);
     }
     
     void CreateLease(const TTransaction* transaction, TDuration timeout)
@@ -253,16 +253,16 @@ private:
         auto lease = TLeaseManager::CreateLease(
             timeout,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-                .Via(Slot->GetEpochAutomatonInvoker()));
-        YCHECK(LeaseMap.insert(std::make_pair(transaction->GetId(), lease)).second);
+                .Via(Slot_->GetEpochAutomatonInvoker()));
+        YCHECK(LeaseMap_.insert(std::make_pair(transaction->GetId(), lease)).second);
     }
 
     void CloseLease(const TTransaction* transaction)
     {
-        auto it = LeaseMap.find(transaction->GetId());
-        YCHECK(it != LeaseMap.end());
+        auto it = LeaseMap_.find(transaction->GetId());
+        YCHECK(it != LeaseMap_.end());
         TLeaseManager::CloseLease(it->second);
-        LeaseMap.erase(it);
+        LeaseMap_.erase(it);
     }
 
     void OnTransactionExpired(const TTransactionId& id)
@@ -276,7 +276,7 @@ private:
         LOG_INFO("Transaction lease expired (TransactionId: %s)",
             ~ToString(id));
 
-        auto transactionSupervisor = Slot->GetTransactionSupervisor();
+        auto transactionSupervisor = Slot_->GetTransactionSupervisor();
 
         NHive::NProto::TReqAbortTransaction req;
         ToProto(req.mutable_transaction_id(), transaction->GetId());
@@ -297,14 +297,14 @@ private:
     void FinishTransaction(TTransaction* transaction)
     {
         transaction->SetFinished();
-        TransactionMap.Remove(transaction->GetId());
+        TransactionMap_.Remove(transaction->GetId());
     }
 
 
     virtual void OnLeaderActive() override
     {
         // Recreate leases for all active transactions.
-        for (const auto& pair : TransactionMap) {
+        for (const auto& pair : TransactionMap_) {
             const auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::Active) {
                 auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
@@ -318,14 +318,14 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // Reset all leases.
-        for (const auto& pair : LeaseMap) {
+        for (const auto& pair : LeaseMap_) {
             TLeaseManager::CloseLease(pair.second);
         }
-        LeaseMap.clear();
+        LeaseMap_.clear();
 
         // Reset all transiently prepared transactions back into active state.
         // Mark all transactions are finished to release pending readers.
-        for (const auto& pair : TransactionMap) {
+        for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::TransientlyPrepared) {
                 transaction->SetState(ETransactionState::Active);
@@ -337,12 +337,12 @@ private:
 
     void SaveKeys(TSaveContext& context)
     {
-        TransactionMap.SaveKeys(context);
+        TransactionMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context)
     {
-        TransactionMap.SaveValues(context);
+        TransactionMap_.SaveValues(context);
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -356,19 +356,19 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TransactionMap.LoadKeys(context);
+        TransactionMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TransactionMap.LoadValues(context);
+        TransactionMap_.LoadValues(context);
     }
 
     void DoClear()
     {
-        TransactionMap.Clear();
+        TransactionMap_.Clear();
     }
 
     void Clear() override
@@ -380,7 +380,7 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TTransactionId, TransactionMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TTransactionId, TransactionMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -44,6 +44,9 @@ public:
     void PrepareRow(TDynamicRow row);
     void CommitRow(TDynamicRow row);
     void AbortRow(TDynamicRow row);
+
+    i64 GetAllocatedStringSpace() const;
+    int GetAllocatedValueCount() const;
     
 private:
     class TScanner;

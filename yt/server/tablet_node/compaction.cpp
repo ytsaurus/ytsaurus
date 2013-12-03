@@ -4,12 +4,17 @@
 #include "tablet.h"
 #include "static_memory_store.h"
 #include "dynamic_memory_store.h"
+#include "private.h"
 
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +76,9 @@ TStaticMemoryStorePtr TMemoryCompactor::Run(
     TDynamicMemoryStorePtr dynamicStore,
     TStaticMemoryStorePtr staticStore)
 {
+    LOG_INFO("Memory compaction started (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
+    
     TStaticMemoryStoreBuilder builder(Config_, Tablet_);
 
     TStaticScanner staticScanner(staticStore);
@@ -238,6 +246,9 @@ TStaticMemoryStorePtr TMemoryCompactor::Run(
 
         endRow(lastCommitTimestamp);
     }
+
+    LOG_INFO("Memory compaction completed (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
 
     return builder.Finish();
 }
