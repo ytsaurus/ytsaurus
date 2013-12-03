@@ -4,6 +4,8 @@ from errors import YtError
 
 import yt.yson as yson
 
+import copy
+
 """ Old style mapreduce records.
     Copy-pasted from mapreducelib.py with some additions"""
 class SimpleRecord:
@@ -77,6 +79,8 @@ def record_to_line(rec, format=None, eoln=True):
         body = "\t".join("%s=%s" % (escape_key(str(item[0])), escape_value(str(item[1]))) for item in rec.iteritems())
     elif format.name() == "yson":
         body = yson.dumps(rec) + ";"
+    elif format.name() == "schemed_dsv":
+        body = "\t".join(map(escape_value, (rec[key] for key in format.attributes()["columns"])))
     else:
         raise YtError("Unrecognized format " + repr(format))
     if eoln:
@@ -88,8 +92,8 @@ def line_to_record(line, format=None):
         for sym, unescaped in escape_dict.items():
             token = token.replace(sym, unescaped)
         return token.replace("\\", "")
-    def unescape_record(record):
-        tokens = record.split("\\\\")
+    def unescape_dsv_field(field):
+        tokens = field.split("\\\\")
         key_tokens = []
         value_tokens = []
         inside_key = True
@@ -110,20 +114,27 @@ def line_to_record(line, format=None):
                 value_tokens.append(token)
 
         value_dict = {'\\n': '\n', '\\r': '\r', '\\t': '\t', '\\0': '\0'}
-        key_dict = value_dict
+        key_dict = copy.deepcopy(value_dict)
         key_dict['\\='] = '='
 
         return ["\\".join(map(lambda t: unescape_token(t, key_dict), key_tokens)),
                 "\\".join(map(lambda t: unescape_token(t, value_dict), value_tokens))]
+
+    def unescape_field(field):
+        unescape_dict = {'\\n': '\n', '\\r': '\r', '\\t': '\t', '\\0': '\0'}
+        return "\\".join(map(lambda t: unescape_token(t, unescape_dict), field.split("\\\\")))
+
     
     if format is None: format = config.format.TABULAR_DATA_FORMAT
     
     if format.name() in ["yamr", "yamred_dsv"]:
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.attributes().get("has_subkey", False) else 0)))
     elif format.name() == "dsv":
-        return dict(map(unescape_record, filter(None, line.strip("\n").split("\t"))))
+        return dict(map(unescape_dsv_field, filter(None, line.strip("\n").split("\t"))))
     elif format.name() == "yson":
         return yson.loads(line.rstrip(";\n"))
+    elif format.name() == "schemed_dsv":
+        return dict(zip(format.attributes()["columns"], map(unescape_field, line.rstrip("\n").split("\t"))))
     else:
         raise YtError("Unrecognized format " + repr(format))
 
