@@ -37,7 +37,7 @@ using namespace NSecurityServer;
 
 int GetCurrentSnapshotVersion()
 {
-    return 27;
+    return 40;
 }
 
 NMetaState::TVersionValidator SnapshotVersionValidator()
@@ -51,7 +51,8 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
                version == 24 ||
                version == 25 ||
                version == 26 ||
-               version == 27);
+               version == 27 ||
+               version == 40);
     });
     return result;
 }

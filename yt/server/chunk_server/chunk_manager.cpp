@@ -80,6 +80,8 @@ using namespace NConcurrency;
 
 static auto& Logger = ChunkServerLogger;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
+// NB: Changing this value will invalidate all changelogs!
+static TDuration UnapprovedReplicaGracePeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -400,6 +402,9 @@ public:
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
 
+        auto* mutationContext = Bootstrap->GetMetaStateFacade()->GetManager()->GetMutationContext();
+        auto mutationTimestamp = mutationContext->GetTimestamp();
+
         FOREACH (auto clientReplica, replicas) {
             auto* node = nodeTracker->FindNode(clientReplica.GetNodeId());
             if (!node) {
@@ -426,7 +431,7 @@ public:
                     chunkWithIndex,
                     false,
                     EAddReplicaReason::Confirmation);
-                node->MarkReplicaUnapproved(chunkWithIndex);
+                node->MarkReplicaUnapproved(chunkWithIndex, mutationTimestamp);
             }
         }
 
@@ -750,11 +755,11 @@ private:
     void OnNodeUnregistered(TNode* node)
     {
         FOREACH (auto replica, node->StoredReplicas()) {
-            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Reset);
+            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeUnregistered);
         }
 
         FOREACH (auto replica, node->CachedReplicas()) {
-            RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::Reset);
+            RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeUnregistered);
         }
 
         if (ChunkPlacement) {
@@ -808,13 +813,25 @@ private:
             ProcessRemovedChunk(node, chunkInfo);
         }
 
+        auto* mutationContext = Bootstrap->GetMetaStateFacade()->GetManager()->GetMutationContext();
+        auto mutationTimestamp = mutationContext->GetTimestamp();
 
-        // TODO(babenko): restore this!
-        //std::vector<TChunkPtrWithIndex> unapprovedReplicas(node->UnapprovedReplicas().begin(), node->UnapprovedReplicas().end());
-        //FOREACH (auto replica, unapprovedReplicas) {
-        //    RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Unapproved);
-        //}
-        //node->UnapprovedReplicas().clear();
+        auto& unapprovedReplicas = node->UnapprovedReplicas();
+        for (auto it = unapprovedReplicas.begin(); it != unapprovedReplicas.end();) {
+            auto jt = it++;
+            auto replica = jt->first;
+            auto registerTimestamp = jt->second;
+            auto reason = ERemoveReplicaReason::None;
+            if (!IsObjectAlive(replica.GetPtr())) {
+                reason = ERemoveReplicaReason::ChunkIsDead;
+            } else if (mutationTimestamp > registerTimestamp + UnapprovedReplicaGracePeriod) {
+                reason = ERemoveReplicaReason::FailedToApprove;
+            }
+            if (reason != ERemoveReplicaReason::None) {
+                RemoveChunkReplica(node, replica, false, reason);
+                unapprovedReplicas.erase(jt);
+            }
+        }
 
         if (ChunkPlacement) {
             ChunkPlacement->OnNodeUpdated(node);
@@ -1106,9 +1123,11 @@ private:
 
 
     DECLARE_ENUM(ERemoveReplicaReason,
+        (None)
         (IncrementalHeartbeat)
-        (Unapproved)
-        (Reset)
+        (FailedToApprove)
+        (ChunkIsDead)
+        (NodeUnregistered)
     );
 
     void RemoveChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, ERemoveReplicaReason reason)
@@ -1129,10 +1148,11 @@ private:
 
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
-            case ERemoveReplicaReason::Unapproved:
+            case ERemoveReplicaReason::FailedToApprove:
+            case ERemoveReplicaReason::ChunkIsDead:
                 node->RemoveReplica(chunkWithIndex, cached);
                 break;
-            case ERemoveReplicaReason::Reset:
+            case ERemoveReplicaReason::NodeUnregistered:
                 // Do nothing.
                 break;
             default:
@@ -1143,7 +1163,9 @@ private:
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
-                reason == ERemoveReplicaReason::Reset ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
+                reason == ERemoveReplicaReason::NodeUnregistered ||
+                reason == ERemoveReplicaReason::ChunkIsDead
+                ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
                 ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
