@@ -7,6 +7,7 @@ import yt.logger as logger
 import yt.wrapper as yt
 
 import os
+import sys
 import tempfile
 import subprocess
 import simplejson as json
@@ -453,6 +454,16 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                    input_format=yt.Format("yamred_dsv", attributes={"key_column_names": ["y"]}),
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
+    
+    def test_schemed_dsv(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
+
+        yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
+        self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
 
 # Map method for test operations with python entities

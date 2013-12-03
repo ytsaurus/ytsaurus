@@ -11,6 +11,9 @@ class Format(object):
         self.format = loads(format_string)
         require(isinstance(self.format, str), YtError("Incorrect format"))
 
+        if attributes is None and hasattr(self.format, "attributes"):
+            attributes = self.format.attributes
+
         if attributes is not None:
             update(self.format.attributes, attributes)
 
@@ -105,3 +108,22 @@ class YamrFormat(Format):
 class JsonFormat(Format):
     def __init__(self):
         super(JsonFormat, self).__init__("json")
+
+class YamredDsvFormat(Format):
+    def __init__(self, key_column_names, subkey_column_names, has_subkey, lenval):
+        super(YamredDsvFormat, self).__init__(
+            "yamred_dsv",
+            attributes={
+                "key_column_names": key_column_names,
+                "subkey_column_names": subkey_column_names,
+                "has_subkey": has_subkey,
+                "lenval": lenval
+            })
+
+class SchemedDsvFormat(Format):
+    def __init__(self, columns):
+        super(SchemedDsvFormat, self).__init__(
+            "schemed_dsv",
+            attributes={
+                "columns": columns
+            })

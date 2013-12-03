@@ -1,6 +1,6 @@
 from errors import YtError, YtOperationFailedError, YtResponseError, YtNetworkError, YtProxyUnavailable, YtTokenError, YtFormatError
 from record import Record, record_to_line, line_to_record
-from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, Format
+from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemedDsvFormat, YamredDsvFormat, Format
 from table import TablePath, to_table, to_name
 from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, link, get_type, create, \
                           has_attribute, get_attribute, set_attribute, list_attributes, find_free_subpath
