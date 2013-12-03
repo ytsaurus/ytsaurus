@@ -85,6 +85,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRemoveTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerDeleteRows, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraCompactMemoryStores, Unretained(this)));
     }
 
 
@@ -153,6 +154,8 @@ public:
         CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
             ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
+
+        CheckForMemoryCompaction(storeManager);
     }
 
     void Delete(
@@ -194,6 +197,8 @@ public:
         CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
             ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
+
+        CheckForMemoryCompaction(storeManager);
     }
 
     void Lookup(
@@ -424,8 +429,6 @@ private:
     }
 
 
-
-
     void OnTransactionPrepared(TTransaction* transaction)
     {
         if (!transaction->LockedRows().empty()) {
@@ -466,6 +469,31 @@ private:
                 ~ToString(transaction->GetId()),
                 transaction->LockedRows().size());
         }
+    }
+
+
+    void CheckForMemoryCompaction(const TStoreManagerPtr& storeManager)
+    {
+        if (!IsLeader())
+            return;
+
+        if (!storeManager->IsMemoryCompactionNeeded())
+            return;
+
+        storeManager->SetMemoryCompactionScheduled();
+
+        TReqCompactMemoryStores request;
+        ToProto(request.mutable_tablet_id(), storeManager->GetTablet()->GetId());
+        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
+            ->Commit();
+    }
+    
+    void HydraCompactMemoryStores(const TReqCompactMemoryStores& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = GetTablet(tabletId);
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->RunMemoryCompaction();
     }
 
 };

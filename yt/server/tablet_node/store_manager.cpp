@@ -41,6 +41,7 @@ TStoreManager::TStoreManager(
         Config_,
         Tablet_))
     , MemoryCompactor_(new TMemoryCompactor(Config_, Tablet_))
+    , MemoryCompactionScheduled_(false)
     , MemoryCompactionInProgress_(false)
 {
     YCHECK(Config_);
@@ -49,6 +50,11 @@ TStoreManager::TStoreManager(
     YCHECK(CompactionInvoker_);
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_AFFINITY(CompactionInvoker_, CompactionThread);
+}
+
+TTablet* TStoreManager::GetTablet() const
+{
+    return Tablet_;
 }
 
 void TStoreManager::Lookup(
@@ -264,22 +270,43 @@ void TStoreManager::AbortRow(TDynamicRow row)
 
 bool TStoreManager::IsMemoryCompactionNeeded() const
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    
+    if (MemoryCompactionScheduled_) {
+        return false;
+    }
+
+    if (MemoryCompactionInProgress_) {
+        return false;
+    }
+
     const auto& config = Tablet_->GetConfig();
-    return
-        ActiveDynamicMemoryStore_->GetAllocatedValueCount() >= config->ValueCountMemoryCompactionThreshold ||
-        ActiveDynamicMemoryStore_->GetAllocatedStringSpace() >= config->StringSpaceMemoryCompactionThreshold;
+    if (ActiveDynamicMemoryStore_->GetAllocatedValueCount() >= config->ValueCountMemoryCompactionThreshold) {
+        return true;
+    }
+    if (ActiveDynamicMemoryStore_->GetAllocatedStringSpace() >= config->StringSpaceMemoryCompactionThreshold) {
+        return true;
+    }
+
+    return false;
 }
 
-bool TStoreManager::IsMemoryCompactionInProgress() const
+void TStoreManager::SetMemoryCompactionScheduled()
 {
-    return MemoryCompactionInProgress_;
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(!MemoryCompactionScheduled_);
+    YCHECK(!MemoryCompactionInProgress_);
+    
+    MemoryCompactionScheduled_ = true;
 }
 
 void TStoreManager::RunMemoryCompaction()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(MemoryCompactionScheduled_);
     YCHECK(!MemoryCompactionInProgress_);
     
+    MemoryCompactionScheduled_ = false;
     MemoryCompactionInProgress_ = true;
     
     YCHECK(PassiveDynamicMemoryStore_);

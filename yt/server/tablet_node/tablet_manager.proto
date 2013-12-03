@@ -33,5 +33,10 @@ message TReqDeleteRows
     repeated bytes keys = 3;
 }
 
+message TReqCompactMemoryStores
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

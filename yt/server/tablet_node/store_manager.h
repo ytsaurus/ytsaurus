@@ -43,6 +43,8 @@ public:
         IInvokerPtr automatonInvoker,
         IInvokerPtr compactionInvoker);
 
+    TTablet* GetTablet() const;
+
     void Lookup(
         NVersionedTableClient::TKey key,
         TTimestamp timestamp,
@@ -67,7 +69,7 @@ public:
     void AbortRow(TDynamicRow row);
 
     bool IsMemoryCompactionNeeded() const;
-    bool IsMemoryCompactionInProgress() const;
+    void SetMemoryCompactionScheduled();
     void RunMemoryCompaction();
 
 private:
@@ -83,6 +85,7 @@ private:
     NVersionedTableClient::TNameTablePtr NameTable_;
 
     std::unique_ptr<TMemoryCompactor> MemoryCompactor_;
+    bool MemoryCompactionScheduled_;
     bool MemoryCompactionInProgress_;
 
 
