@@ -106,7 +106,7 @@ void TStoreManager::Lookup(
         Tablet_->Schema(),
         Tablet_->KeyColumns());
 
-    // TODO(babenko): replace with small vector once we update our fork from Folly
+    // TODO(babenko): replace with small vector once we update our fork from LLVM
     std::vector<std::unique_ptr<IStoreScanner>> scanners;
 
     scanners.push_back(ActiveDynamicMemoryStore_->CreateScanner());
@@ -120,7 +120,7 @@ void TStoreManager::Lookup(
     bool keysWritten = false;
 
     for (const auto& scanner : scanners) {
-        auto scannerTimestamp = scanner->FindRow(key, timestamp);
+        auto scannerTimestamp = scanner->Find(key, timestamp);
             
         if (scannerTimestamp == NullTimestamp)
             continue;

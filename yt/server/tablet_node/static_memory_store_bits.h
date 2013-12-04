@@ -49,7 +49,7 @@ public:
     }
 
 
-    explicit operator bool()
+    explicit operator bool() const
     {
         return Header_ != nullptr;
     }
@@ -79,7 +79,7 @@ public:
     }
 
 
-    TTimestamp* GetTimestamps(int keyCount)
+    TTimestamp* GetTimestamps(int keyCount) const
     {
         return *GetTimestampsPtr(keyCount);
     }
@@ -101,7 +101,7 @@ public:
     }
 
 
-    NVersionedTableClient::TVersionedValue* GetFixedValues(int index, int keyCount)
+    NVersionedTableClient::TVersionedValue* GetFixedValues(int index, int keyCount) const
     {
         return *GetFixedValuesPtr(index, keyCount);
     }

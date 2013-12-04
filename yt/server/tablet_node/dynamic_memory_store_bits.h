@@ -229,7 +229,7 @@ public:
     }
 
 
-    explicit operator bool()
+    explicit operator bool() const
     {
         return Header_ != nullptr;
     }

@@ -33,32 +33,32 @@ static const int MaxEditListCapacity = 256;
 namespace {
 
 template <class T, class TTimestampExtractor>
-T* Fetch(
+std::tuple<T*, TEditList<T>> FindVersionedValue(
     TEditList<T> list,
     TTimestamp maxTimestamp,
     TTimestampExtractor timestampExtractor)
 {
     if (!list) {
-        return nullptr;
+        return std::make_tuple(nullptr, list);
     }
 
     if (maxTimestamp == LastCommittedTimestamp) {
         auto& value = list.Back();
         if (timestampExtractor(value) != UncommittedTimestamp) {
-            return &value;
+            return std::make_tuple(&value, list);
         }
         if (list.GetSize() > 1) {
-            return &value - 1;
+            return std::make_tuple(&value - 1, list);
         }
         auto nextList = list.GetNext();
         if (!nextList) {
-            return nullptr;
+            return std::make_tuple(nullptr, nextList);
         }
-        return &nextList.Back();
+        return std::make_tuple(&nextList.Back(), nextList);
     } else {
         while (true) {
             if (!list) {
-                return nullptr;
+                return std::make_tuple(nullptr, list);
             }
             if (timestampExtractor(list.Front()) <= maxTimestamp) {
                 break;
@@ -78,7 +78,10 @@ T* Fetch(
             }
         }
 
-        return left && timestampExtractor(*left) <= maxTimestamp ? left : nullptr;
+        return
+            left && timestampExtractor(*left) <= maxTimestamp
+            ? std::make_tuple(left, list)
+            : std::make_tuple(nullptr, list);
     }
 }
 
@@ -109,22 +112,156 @@ public:
         , KeyCount_(Store_->Tablet_->KeyColumns().size())
         , SchemaValueCount_(Store_->Tablet_->Schema().Columns().size())
         , TreeScanner_(Store_->Tree_.get())
-    { }
+    {
+        ResetCurrentRow();
+    }
 
 
-    virtual TTimestamp FindRow(NVersionedTableClient::TKey key, TTimestamp timestamp) override
+    virtual TTimestamp Find(NVersionedTableClient::TKey key, TTimestamp timestamp) override
     {
         TDynamicRow row;
         if (!TreeScanner_->Find(key, &row)) {
-            return NullTimestamp;
+            return ResetCurrentRow();
         }
+        return SetCurrentRow(row, timestamp);
+    }
 
+    virtual TTimestamp BeginScan(NVersionedTableClient::TKey key, TTimestamp timestamp) override
+    {
+        TreeScanner_->BeginScan(key);
+        if (!TreeScanner_->IsValid()) {
+            return ResetCurrentRow();
+        }
+        return SetCurrentRow(TreeScanner_->GetCurrent(), timestamp);
+    }
+
+    virtual TTimestamp Advance() override
+    {
+        YASSERT(CurrentRow_);
+
+        TreeScanner_->Advance();
+        if (!TreeScanner_->IsValid()) {
+            return ResetCurrentRow();
+        }
+        return SetCurrentRow(TreeScanner_->GetCurrent(), CurrentMaxTimestamp_);
+    }
+
+    virtual void EndScan() override
+    {
+        ResetCurrentRow();
+    }
+
+    virtual const TUnversionedValue& GetKey(int index) const override
+    {
+        YASSERT(CurrentRow_);
+        YASSERT(index >= 0 && index < KeyCount_);
+
+        return CurrentRow_.GetKeys()[index];
+    }
+
+    virtual const TVersionedValue* GetFixedValue(int index) const override
+    {
+        YASSERT(CurrentRow_);
+        YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
+
+        auto list = CurrentRow_.GetFixedValueList(index, KeyCount_);
+        auto* value = std::get<0>(FindVersionedValue(
+            list,
+            CurrentMaxTimestamp_,
+            [] (const TVersionedValue& value) {
+                return value.Timestamp;
+            }));
+        return value && value->Timestamp >= CurrentMinTimestamp_ ? value : nullptr;
+    }
+
+    virtual void GetFixedValues(
+        int index,
+        int maxVersions,
+        std::vector<TVersionedValue>* values) const override
+    {
+        YASSERT(CurrentRow_);
+        YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
+
+        values->clear();
+
+        TVersionedValue* value;
+        TValueList list;
+        std::tie(value, list) = FindVersionedValue(
+            CurrentRow_.GetFixedValueList(index, KeyCount_),
+            CurrentMaxTimestamp_,
+            [] (const TVersionedValue& value) {
+                return value.Timestamp;
+            });
+
+        if (!value || value->Timestamp < CurrentMinTimestamp_)
+            return;
+
+        while (values->size() < maxVersions) {
+            values->push_back(*value++);
+            if (value == list.End()) {
+                list = list.GetNext();
+                if (!list)
+                    break;
+                value = list.Begin();
+            }
+        }
+    }
+
+    virtual void GetTimestamps(std::vector<TTimestamp>* timestamps) const override
+    {
+        YASSERT(CurrentRow_);
+
+        timestamps->clear();
+
+        TTimestamp* timestamp;
+        TTimestampList list;
+        std::tie(timestamp, list) = FindVersionedValue(
+            CurrentRow_.GetTimestampList(KeyCount_),
+            CurrentMaxTimestamp_,
+            [] (TTimestamp value) {
+                return value & TimestampValueMask;
+            });
+
+        if (!timestamp || *timestamp < CurrentMinTimestamp_)
+            return;
+
+        while (true) {
+            timestamps->push_back(*timestamp++);
+            if (timestamp == list.End()) {
+                list = list.GetNext();
+                if (!list)
+                    break;
+                timestamp = list.Begin();
+            }
+        }
+    }
+
+private:
+    TDynamicMemoryStorePtr Store_;
+
+    int KeyCount_;
+    int SchemaValueCount_;
+    
+    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> TreeScanner_;
+
+    TDynamicRow CurrentRow_;
+    TTimestamp CurrentMaxTimestamp_;
+    TTimestamp CurrentMinTimestamp_;
+
+
+    TTimestamp SetCurrentRow(TDynamicRow row, TTimestamp timestamp)
+    {
         if (timestamp != LastCommittedTimestamp && row.GetPrepareTimestamp() < timestamp) {
             WaitFor(row.GetTransaction()->GetFinished());
         }
 
         auto timestampList = row.GetTimestampList(KeyCount_);
-        const auto* timestampMin = FetchMinTimestamp(timestampList, timestamp);
+        const auto* timestampMin = std::get<0>(FindVersionedValue(
+            timestampList,
+            timestamp,
+            [] (TTimestamp value) {
+                return value & TimestampValueMask;
+            }));
 
         if (!timestampMin) {
             return NullTimestamp;
@@ -134,9 +271,9 @@ public:
             return *timestampMin;
         }
 
-        Row_ = row;
-        MinTimestamp_ = *timestampMin;
-        MaxTimestamp_ = timestamp;
+        CurrentRow_ = row;
+        CurrentMinTimestamp_ = *timestampMin;
+        CurrentMaxTimestamp_ = timestamp;
 
         auto result = *timestampMin;
         if (timestampMin == timestampList.Begin()) {
@@ -145,56 +282,12 @@ public:
         return result;
     }
 
-    virtual const TUnversionedValue& GetKey(int index) override
+    TTimestamp ResetCurrentRow()
     {
-        YASSERT(index >= 0 && index < KeyCount_);
-
-        return Row_.GetKeys()[index];
-    }
-
-    virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) override
-    {
-        YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
-
-        auto list = Row_.GetFixedValueList(index, KeyCount_);
-        return FetchVersionedValue(list, MinTimestamp_, MaxTimestamp_);
-    }
-
-private:
-    TDynamicMemoryStorePtr Store_;
-
-    int KeyCount_;
-    int SchemaValueCount_;
-    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> TreeScanner_;
-    TDynamicRow Row_;
-    TTimestamp MaxTimestamp_;
-    TTimestamp MinTimestamp_;
-
-
-    static const TTimestamp* FetchMinTimestamp(
-        TTimestampList list,
-        TTimestamp maxTimestamp)
-    {
-        return Fetch(
-            list,
-            maxTimestamp,
-            [] (TTimestamp timestamp) {
-                return timestamp & TimestampValueMask;
-            });
-    }
-
-    static const TVersionedValue* FetchVersionedValue(
-        TValueList list,
-        TTimestamp minTimestamp,
-        TTimestamp maxTimestamp)
-    {
-        auto* result = Fetch(
-            list,
-            maxTimestamp,
-            [] (const TVersionedValue& value) {
-                return value.Timestamp;
-            });
-        return result && result->Timestamp >= minTimestamp ? result : nullptr;
+        CurrentRow_ = TDynamicRow();
+        CurrentMaxTimestamp_ = NullTimestamp;
+        CurrentMinTimestamp_ = NullTimestamp;
+        return NullTimestamp;
     }
 
 };

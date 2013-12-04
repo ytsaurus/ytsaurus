@@ -35,7 +35,7 @@ TEST_F(TStaticMemoryStoreTest, Empty)
 {
     auto store = Builder.Finish();
     auto scanner = store->CreateScanner();
-    ASSERT_EQ(scanner->FindRow(BuildKey("1"), LastCommittedTimestamp), NullTimestamp);
+    ASSERT_EQ(scanner->Find(BuildKey("1"), LastCommittedTimestamp), NullTimestamp);
 }
 
 TEST_F(TStaticMemoryStoreTest, Small1)
@@ -58,15 +58,15 @@ TEST_F(TStaticMemoryStoreTest, Small1)
     auto store = Builder.Finish();
     auto scanner = store->CreateScanner();
 
-    ASSERT_EQ(scanner->FindRow(BuildKey("0"), LastCommittedTimestamp), NullTimestamp);
+    ASSERT_EQ(scanner->Find(BuildKey("0"), LastCommittedTimestamp), NullTimestamp);
     
-    ASSERT_EQ(scanner->FindRow(BuildKey("1"), LastCommittedTimestamp), 10 | IncrementalTimestampMask);
+    ASSERT_EQ(scanner->Find(BuildKey("1"), LastCommittedTimestamp), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(0), MakeUnversionedIntegerValue(123)), 0);
     ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
     ASSERT_EQ(scanner->GetFixedValue(2), nullptr);
 
-    ASSERT_EQ(scanner->FindRow(BuildKey("2"), LastCommittedTimestamp), NullTimestamp);
+    ASSERT_EQ(scanner->Find(BuildKey("2"), LastCommittedTimestamp), NullTimestamp);
 }
 
 TEST_F(TStaticMemoryStoreTest, Small2)
@@ -91,15 +91,15 @@ TEST_F(TStaticMemoryStoreTest, Small2)
     auto scanner = store->CreateScanner();
     auto key = BuildKey("1");
 
-    ASSERT_EQ(scanner->FindRow(key, 1), NullTimestamp);
+    ASSERT_EQ(scanner->Find(key, 1), NullTimestamp);
 
-    ASSERT_EQ(scanner->FindRow(key, 19), 10 | IncrementalTimestampMask);
+    ASSERT_EQ(scanner->Find(key, 19), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(0), MakeUnversionedIntegerValue(123)), 0);
     ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
     ASSERT_EQ(scanner->GetFixedValue(2), nullptr);
 
-    ASSERT_EQ(scanner->FindRow(key, 21), 20 | TombstoneTimestampMask);
+    ASSERT_EQ(scanner->Find(key, 21), 20 | TombstoneTimestampMask);
 }
 
 TEST_F(TStaticMemoryStoreTest, Small3)
@@ -131,35 +131,35 @@ TEST_F(TStaticMemoryStoreTest, Small3)
     auto scanner = store->CreateScanner();
     auto key = BuildKey("1");
 
-    ASSERT_EQ(scanner->FindRow(key, 9), NullTimestamp);
+    ASSERT_EQ(scanner->Find(key, 9), NullTimestamp);
 
-    ASSERT_EQ(scanner->FindRow(key, 10), 10 | IncrementalTimestampMask);
+    ASSERT_EQ(scanner->Find(key, 10), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(1), MakeVersionedDoubleValue(1.0, 10)), 0);
     ASSERT_EQ(scanner->GetFixedValue(2), nullptr);
 
-    ASSERT_EQ(scanner->FindRow(key, 11), 10 | IncrementalTimestampMask);
+    ASSERT_EQ(scanner->Find(key, 11), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(1), MakeVersionedDoubleValue(2.0, 11)), 0);
     ASSERT_EQ(scanner->GetFixedValue(2), nullptr);
 
-    ASSERT_EQ(scanner->FindRow(key, 20), 20 | TombstoneTimestampMask);
+    ASSERT_EQ(scanner->Find(key, 20), 20 | TombstoneTimestampMask);
 
-    ASSERT_EQ(scanner->FindRow(key, 30), 30);
+    ASSERT_EQ(scanner->Find(key, 30), 30);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
     ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(2), MakeVersionedStringValue("value1", 30)), 0);
 
-    ASSERT_EQ(scanner->FindRow(key, 31), 30);
+    ASSERT_EQ(scanner->Find(key, 31), 30);
     ASSERT_EQ(CompareRowValues(scanner->GetKey(0), MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
     ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(2), MakeVersionedStringValue("value2", 31)), 0);
 
-    ASSERT_EQ(scanner->FindRow(key, 40), 40 | TombstoneTimestampMask);
+    ASSERT_EQ(scanner->Find(key, 40), 40 | TombstoneTimestampMask);
 }
 
 TEST_F(TStaticMemoryStoreTest, Large1)
@@ -187,15 +187,15 @@ TEST_F(TStaticMemoryStoreTest, Large1)
     for (int i = 0; i < 65536; ++i) {
         auto key = BuildKey(ToString(i * 100));
 
-        ASSERT_EQ(scanner->FindRow(key, i * 10 + 99), NullTimestamp);
+        ASSERT_EQ(scanner->Find(key, i * 10 + 99), NullTimestamp);
 
-        ASSERT_EQ(scanner->FindRow(key, i * 10 + 100), (i * 10 + 100) | IncrementalTimestampMask);
-        ASSERT_EQ(scanner->FindRow(key, i * 10 + 101), (i * 10 + 100) | IncrementalTimestampMask);
+        ASSERT_EQ(scanner->Find(key, i * 10 + 100), (i * 10 + 100) | IncrementalTimestampMask);
+        ASSERT_EQ(scanner->Find(key, i * 10 + 101), (i * 10 + 100) | IncrementalTimestampMask);
         ASSERT_EQ(scanner->GetFixedValue(0), nullptr);
         ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
         ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(2), MakeVersionedStringValue("value" + ToString(i), i * 10 + 100)), 0);
 
-        ASSERT_EQ(scanner->FindRow(key, i * 10 + 110), (i * 10 + 110) | TombstoneTimestampMask);
+        ASSERT_EQ(scanner->Find(key, i * 10 + 110), (i * 10 + 110) | TombstoneTimestampMask);
     }
 }
 

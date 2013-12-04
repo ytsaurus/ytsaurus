@@ -47,7 +47,7 @@ TIterator BinarySearch(
 }
 
 template <class T, class TTimestampExtractor>
-T* Fetch(
+T* FindVersionedValue(
     T* begin,
     T* end,
     TTimestamp maxTimestamp,
@@ -211,24 +211,171 @@ public:
         , SchemaValueCount_(Store_->Tablet_->Schema().Columns().size())
         , RowSize_(Store_->Data_->RowSize)
         , Comparer_(KeyCount_)
-    { }
-
-
-    virtual TTimestamp FindRow(TKey key, TTimestamp timestamp) override
     {
-        auto getRow = [&] (const TSegment& segment, int index) -> TStaticRow {
-            return TStaticRow(reinterpret_cast<TStaticRowHeader*>(
-                const_cast<char*>(segment.Rows.Begin()) +
-                RowSize_ * index));
-        };
+        ResetCurrentRow();
+    }
 
-        const auto& segments = Store_->Data_->Segments;
+
+    virtual TTimestamp Find(TKey key, TTimestamp timestamp) override
+    {
+        return DoBeginScan(key, timestamp, true);
+    }
+
+    virtual TTimestamp BeginScan(NVersionedTableClient::TKey key, TTimestamp timestamp) override
+    {
+        return DoBeginScan(key, timestamp, false);
+    }
+
+    virtual TTimestamp Advance() override
+    {
+        YASSERT(CurrentRow_);
+
+        auto segmentIt = CurrentSegmentIt_;
+        int rowIndex = CurrentRowIndex_;
+
+        if (++rowIndex == segmentIt->RowCount) {
+            if (++segmentIt == Store_->Data_->Segments.end()) {
+                return ResetCurrentRow();
+            }
+        }
+
+        return SetCurrentRow(segmentIt, rowIndex, CurrentMaxTimestamp_);
+    }
+
+    virtual void EndScan() override
+    {
+        ResetCurrentRow();
+    }
+
+    virtual const TUnversionedValue& GetKey(int index) const override
+    {
+        YASSERT(CurrentRow_);
+        YASSERT(index >= 0 && index < KeyCount_);
+
+        return CurrentRow_.GetKeys()[index];
+    }
+
+    virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) const override
+    {
+        YASSERT(CurrentRow_);
+        YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
+
+        auto* begin = CurrentRow_.GetFixedValues(index, KeyCount_);
+        auto* end = begin + CurrentRow_.GetFixedValueCount(index, KeyCount_, SchemaValueCount_);
+        return FindVersionedValueVersionedValue(
+            begin,
+            end,
+            CurrentMinTimestamp_,
+            CurrentMaxTimestamp_);
+    }
+
+    virtual void GetFixedValues(
+        int index,
+        int maxVersions,
+        std::vector<TVersionedValue>* values) const override
+    {
+        YASSERT(CurrentRow_);
+        YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
+
+        values->clear();
+
+        auto* begin = CurrentRow_.GetFixedValues(index, KeyCount_);
+        auto* end = begin + CurrentRow_.GetFixedValueCount(index, KeyCount_, SchemaValueCount_);
+        auto* value = FindVersionedValue(
+            begin,
+            end,
+            CurrentMinTimestamp_,
+            [] (const TVersionedValue& value) {
+                return value.Timestamp;
+            });
+
+        if (!value || value->Timestamp < CurrentMinTimestamp_)
+            return;
+
+        while (value != end && values->size() < maxVersions) {
+            values->push_back(*value++);
+        }
+    }
+
+    virtual void GetTimestamps(std::vector<TTimestamp>* timestamps) const override
+    {
+        YASSERT(CurrentRow_);
+
+        timestamps->clear();
+
+        auto* begin = CurrentRow_.GetTimestamps(KeyCount_);
+        auto* end = begin + CurrentRow_.GetTimestampCount(KeyCount_, SchemaValueCount_);
+        auto* timestamp = FindVersionedValue(
+            begin,
+            end,
+            CurrentMinTimestamp_,
+            [] (TTimestamp value) {
+                return value & TimestampValueMask;
+            });
+
+        if (!timestamp || *timestamp < CurrentMinTimestamp_)
+            return;
+
+        while (timestamp != end) {
+            timestamps->push_back(*timestamp++);
+        }
+    }
+
+private:
+    TStaticMemoryStorePtr Store_;
+
+    int KeyCount_;
+    int SchemaValueCount_;
+    size_t RowSize_;
+    TKeyPrefixComparer Comparer_;
+
+    TSegmentIt CurrentSegmentIt_;
+    int CurrentRowIndex_;
+    TStaticRow CurrentRow_;
+    TTimestamp CurrentMaxTimestamp_;
+    TTimestamp CurrentMinTimestamp_;
+
+
+    const TTimestamp* FindVersionedValueMinTimestamp(
+        const TTimestamp* begin,
+        const TTimestamp* end,
+        TTimestamp maxTimestamp)
+    {
+        return FindVersionedValue(
+            begin,
+            end,
+            maxTimestamp,
+            [] (TTimestamp timestamp) {
+                return timestamp & TimestampValueMask;
+            });
+    }
+
+    static const TVersionedValue* FindVersionedValueVersionedValue(
+        const TVersionedValue* begin,
+        const TVersionedValue* end,
+        TTimestamp minTimestamp,
+        TTimestamp maxTimestamp)
+    {
+        auto* result = FindVersionedValue(
+            begin,
+            end,
+            maxTimestamp,
+            [] (const TVersionedValue& value) {
+                return value.Timestamp;
+            });
+        return result && result->Timestamp >= minTimestamp ? result : nullptr;
+    }
+
+
+    TTimestamp DoBeginScan(TKey key, TTimestamp timestamp, bool exact)
+    {
+        auto& segments = Store_->Data_->Segments;
         auto segmentIt = BinarySearch(
             segments.begin(),
             segments.end(),
             key,
-            [&] (std::vector<TSegment>::const_iterator segmentIt, TKey key) -> int {
-                return Comparer_(getRow(*segmentIt, 0), key);
+            [&] (TSegmentIt segmentIt, TKey key) {
+                return Comparer_(GetRow(segmentIt, 0), key);
             });
 
         if (segmentIt == segments.end()) {
@@ -240,23 +387,34 @@ public:
             0,
             segment.RowCount,
             key,
-            [&] (int index, TKey key) -> int {
-                auto row = getRow(segment, index);
-                return Comparer_(row, key);
+            [&] (int index, TKey key) {
+                return Comparer_(GetRow(segmentIt, index), key);
             });
 
         if (rowIndex == segment.RowCount) {
             return NullTimestamp;
         }
 
-        auto row = getRow(segment, rowIndex);
-        if (Comparer_(row, key) != 0) {
+        if (exact && Comparer_(GetRow(segmentIt, rowIndex), key) != 0) {
             return NullTimestamp;
         }
 
+        return SetCurrentRow(segmentIt, rowIndex, timestamp);
+    }
+
+    TStaticRow GetRow(TSegmentIt segmentIt, int rowIndex)
+    {
+        return TStaticRow(reinterpret_cast<TStaticRowHeader*>(
+            const_cast<char*>(segmentIt->Rows.Begin()) +
+            RowSize_ * rowIndex));
+    }
+
+    TTimestamp SetCurrentRow(TSegmentIt segmentIt, int rowIndex, TTimestamp timestamp)
+    {
+        auto row = GetRow(segmentIt, rowIndex);
         const auto* timestampBegin = row.GetTimestamps(KeyCount_);
         const auto* timestampEnd = timestampBegin + row.GetTimestampCount(KeyCount_, SchemaValueCount_);
-        const auto* timestampMin = FetchMinTimestamp(timestampBegin, timestampEnd, timestamp);
+        const auto* timestampMin = FindVersionedValueMinTimestamp(timestampBegin, timestampEnd, timestamp);
         
         if (!timestampMin) {
             return NullTimestamp;
@@ -266,9 +424,11 @@ public:
             return *timestampMin;
         }
 
-        Row_ = row;
-        MinTimestamp_ = *timestampMin;
-        MaxTimestamp_ = timestamp;
+        CurrentSegmentIt_ = segmentIt;
+        CurrentRowIndex_ = rowIndex;
+        CurrentRow_ = row;
+        CurrentMinTimestamp_ = *timestampMin;
+        CurrentMaxTimestamp_ = timestamp;
 
         auto result = *timestampMin;
         if (timestampMin == timestampBegin) {
@@ -277,67 +437,14 @@ public:
         return result;
     }
 
-    virtual const TUnversionedValue& GetKey(int index) override
+    TTimestamp ResetCurrentRow()
     {
-        YASSERT(index >= 0 && index < KeyCount_);
-
-        return Row_.GetKeys()[index];
-    }
-
-    virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) override
-    {
-        YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
-
-        auto* begin = Row_.GetFixedValues(index, KeyCount_);
-        auto* end = begin + Row_.GetFixedValueCount(index, KeyCount_, SchemaValueCount_);
-        return FetchVersionedValue(
-            begin,
-            end,
-            MinTimestamp_,
-            MaxTimestamp_);
-    }
-
-private:
-    TStaticMemoryStorePtr Store_;
-
-    int KeyCount_;
-    int SchemaValueCount_;
-    size_t RowSize_;
-    TKeyPrefixComparer Comparer_;
-
-    TStaticRow Row_;
-    TTimestamp MaxTimestamp_;
-    TTimestamp MinTimestamp_;
-
-
-    const TTimestamp* FetchMinTimestamp(
-        const TTimestamp* begin,
-        const TTimestamp* end,
-        TTimestamp maxTimestamp)
-    {
-        return Fetch(
-            begin,
-            end,
-            maxTimestamp,
-            [] (TTimestamp timestamp) {
-                return timestamp & TimestampValueMask;
-            });
-    }
-
-    static const TVersionedValue* FetchVersionedValue(
-        const TVersionedValue* begin,
-        const TVersionedValue* end,
-        TTimestamp minTimestamp,
-        TTimestamp maxTimestamp)
-    {
-        auto* result = Fetch(
-            begin,
-            end,
-            maxTimestamp,
-            [] (const TVersionedValue& value) {
-                return value.Timestamp;
-            });
-        return result && result->Timestamp >= minTimestamp ? result : nullptr;
+        CurrentSegmentIt_ = TSegmentIt();
+        CurrentRowIndex_ = -1;
+        CurrentRow_ = TStaticRow();
+        CurrentMaxTimestamp_ = NullTimestamp;
+        CurrentMinTimestamp_ = NullTimestamp;
+        return NullTimestamp;
     }
 };
 

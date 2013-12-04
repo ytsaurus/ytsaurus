@@ -26,21 +26,45 @@ struct IStoreScanner
     /*!
      *  If no row is found then |NullTimestamp| is returned.
      *
-     *  If the row is found is is known to be deleted then the deletion
+     *  If the row found is known to be deleted then the deletion
      *  timestamp combined with |TombstoneTimestampMask| is returned.
      * 
      *  If the row is found and is known to exist then the earliest modification
      *  timestamp is returned. If the store has no row deletion marker for |key|
      *  (up to |timestamp|) then the latter is combined with |IncrementalTimestampMask|.
      */
-    virtual TTimestamp FindRow(NVersionedTableClient::TKey key, TTimestamp timestamp) = 0;
+    virtual TTimestamp Find(NVersionedTableClient::TKey key, TTimestamp timestamp) = 0;
 
-    //! Returns the key component with a given index.
-    virtual const NVersionedTableClient::TUnversionedValue& GetKey(int index) = 0;
+    //! Similar to #FindRow, but positions the scanner before the first row
+    //! with key not less than |key|.
+    virtual TTimestamp BeginScan(NVersionedTableClient::TKey key, TTimestamp timestamp) = 0;
 
-    //! Returns the value for a fixed column with a given index.
+    //! Advances to the next row.
+    //! The return value is similar to that of #FindRow and #BeginScan.
+    //! In particular, |NullTimestamp| is returned when no more matching rows are left.
+    virtual TTimestamp Advance() = 0;
+
+    //! Completes scanning, releases all resources held by the scanner.
+    virtual void EndScan() = 0;
+
+
+    //! Returns the key component with a given |index|.
+    virtual const NVersionedTableClient::TUnversionedValue& GetKey(int index) const = 0;
+
+    //! Returns the value for a fixed column with a given |index|.
     //! If no value is recorded then |nullptr| is returned.
-    virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) = 0;
+    virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) const = 0;
+
+    //! Fills |values| with up to |maxVersions| values recorded for a fixed column with a given |index|.
+    //! Only values with timestamp not exceeding that passed during initialization are returned.
+    virtual void GetFixedValues(
+        int index,
+        int maxVersions,
+        std::vector<NVersionedTableClient::TVersionedValue>* values) const = 0;
+
+    //! Fills |timestamps| with all known row timestamps.
+    //! Only timestamps not exceeding that passed during initialization are returned.
+    virtual void GetTimestamps(std::vector<TTimestamp>* timestamps) const = 0;
 
 };
 

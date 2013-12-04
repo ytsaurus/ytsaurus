@@ -98,7 +98,7 @@ public:
         TTimestamp timestamp)
     {
         auto scanner = Store->CreateScanner();
-        auto scannerTimestamp = scanner->FindRow(key, timestamp);
+        auto scannerTimestamp = scanner->Find(key, timestamp);
 
         if (scannerTimestamp == NullTimestamp) {
             return TUnversionedOwningRow();

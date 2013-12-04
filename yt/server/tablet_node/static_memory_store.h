@@ -35,12 +35,15 @@ private:
         int RowCount;
     };
 
+    typedef std::vector<TSegment> TSegmentList;
+    typedef TSegmentList::iterator TSegmentIt;
+
     struct TData
     {
         size_t RowSize;
         std::unique_ptr<TChunkedMemoryPool> AlignedPool;
         std::unique_ptr<TChunkedMemoryPool> UnalignedPool;
-        std::vector<TSegment> Segments;
+        TSegmentList Segments;
     };
 
     TTabletManagerConfigPtr Config_;
@@ -65,6 +68,8 @@ class TStaticMemoryStore
 public:
     typedef TStaticMemoryStoreBuilder::TData TData;
     typedef TStaticMemoryStoreBuilder::TSegment TSegment;
+    typedef TStaticMemoryStoreBuilder::TSegmentList TSegmentList;
+    typedef TStaticMemoryStoreBuilder::TSegmentIt TSegmentIt;
 
     TStaticMemoryStore(
         TTabletManagerConfigPtr config,
