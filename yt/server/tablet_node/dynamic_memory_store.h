@@ -50,7 +50,6 @@ public:
     
 private:
     class TScanner;
-    friend class TMemoryCompactor;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;

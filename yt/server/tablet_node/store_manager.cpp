@@ -129,10 +129,11 @@ void TStoreManager::Lookup(
             break;
 
         if (!keysWritten) {
+            const auto keys = scanner->GetKeys();
             for (int globalId = 0; globalId < keyCount; ++globalId) {
                 int localId = fixedColumnIds[globalId];
                 if (localId >= 0) {
-                    auto valueCopy = scanner->GetKey(globalId);
+                    auto valueCopy = keys[globalId];
                     valueCopy.Id = localId;
                     chunkWriter->WriteValue(valueCopy);
                 }

@@ -24,8 +24,7 @@ public:
         TStaticMemoryStorePtr staticStore);
 
 private:
-    class TStaticScanner;
-    typedef TRcuTreeScannerPtr<TDynamicRow, NVersionedTableClient::TKeyPrefixComparer> TDynamicScanner;
+    class TRowCombiner;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;

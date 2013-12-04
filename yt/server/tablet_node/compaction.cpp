@@ -18,47 +18,42 @@ static auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryCompactor::TStaticScanner
+class TMemoryCompactor::TRowCombiner
 {
 public:
-    explicit TStaticScanner(TStaticMemoryStorePtr store)
-        : Store_(std::move(store))
-        , RowSize_(Store_->Data_->RowSize)
-        , SegmentIt(Store_->Data_->Segments.begin())
-        , RowIndexWithinSegment(0)
+    TRowCombiner(
+        TTabletManagerConfigPtr config,
+        TTablet* tablet,
+        TStaticMemoryStoreBuilder* builder)
+        : Config_(config)
+        , Tablet_(tablet)
+        , Builder_(builder)
+        , KeyCount_(static_cast<int>(Tablet_->KeyColumns().size()))
+        , SchemaColumnCount_(static_cast<int>(Tablet_->Schema().Columns().size()))
+    { }
+
+    void BeginRow()
     {
-        if (SegmentIt->RowCount == 0) {
-            ++SegmentIt;
-        }
+
     }
 
-    bool IsValid() const
+    void Combine(const IStoreScanner* scanner)
     {
-        return SegmentIt != Store_->Data_->Segments.end();
+
     }
 
-    TStaticRow GetCurrent() const
+    void EndRow()
     {
-        return TStaticRow(reinterpret_cast<TStaticRowHeader*>(
-            SegmentIt->Rows.Begin() +
-            RowIndexWithinSegment * RowSize_));
-    }
 
-    void Advance()
-    {
-        ++RowIndexWithinSegment;
-        if (RowIndexWithinSegment == SegmentIt->RowCount) {
-            ++SegmentIt;
-           RowIndexWithinSegment = 0;
-        }
     }
 
 private:
-    TStaticMemoryStorePtr Store_;
+    TTabletManagerConfigPtr Config_;
+    TTablet* Tablet_;
+    TStaticMemoryStoreBuilder* Builder_;
 
-    size_t RowSize_;
-    std::vector<TStaticMemoryStore::TSegment>::iterator SegmentIt;
-    int RowIndexWithinSegment;
+    int KeyCount_;
+    int SchemaColumnCount_;
 
 };
 
@@ -81,170 +76,44 @@ TStaticMemoryStorePtr TMemoryCompactor::Run(
     
     TStaticMemoryStoreBuilder builder(Config_, Tablet_);
 
-    TStaticScanner staticScanner(staticStore);
+    TRowCombiner combiner(
+        Config_,
+        Tablet_,
+        &builder);
 
-    TDynamicScanner dynamicScanner(dynamicStore->Tree_.get());
-    dynamicScanner->BeginScan(EmptyKey());
+    auto dynamicScanner = dynamicStore->CreateScanner();
+    auto dynamicResult = dynamicScanner->BeginScan(EmptyKey(), LastCommittedTimestamp);
 
-    int keyCount = static_cast<int>(Tablet_->KeyColumns().size());
-    int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
+    auto staticScanner = staticStore->CreateScanner();
+    auto staticResult = staticScanner->BeginScan(EmptyKey(), LastCommittedTimestamp);
 
-
-    auto beginRow = [&] (const TUnversionedValue* keys) {
-        builder.BeginRow();
-        auto* allocatedKeys = builder.AllocateKeys();
-        ::memcpy(allocatedKeys, keys, sizeof(TUnversionedValue) * keyCount);
-    };
-
-    auto endRow = [&] (TTimestamp lastCommitTimestamp) {
-        builder.EndRow(lastCommitTimestamp);
-    };
-
-
-    auto getStaticFixedValueCount = [&] (int index) -> int {
-        if (!staticScanner.IsValid()) {
-            return 0;
-        }
-        auto row = staticScanner.GetCurrent();
-        return row.GetFixedValueCount(index, keyCount, schemaColumnCount);
-    };
-
-    auto getDynamicFixedValueCount = [&] (int index) -> int {
-        if (!dynamicScanner->IsValid()) {
-            return 0;
-        }
-        auto row = dynamicScanner->GetCurrent();
-        auto list = row.GetFixedValueList(index, keyCount);
-        return list ? list.GetSize() + list.GetSuccessorsSize() : 0;
-    };
-
-    auto copyStaticFixedValues = [&] (int index, TVersionedValue* values) {
-        auto row = staticScanner.GetCurrent();
-        int count = row.GetFixedValueCount(index, keyCount, schemaColumnCount);
-        ::memcpy(values, row.GetFixedValues(index, keyCount), sizeof(TVersionedValue) * count);
-    };
-
-    std::vector<TValueList> valueLists;
-    auto copyDynamicFixedValues = [&] (int index, TVersionedValue* values) {
-        auto row = dynamicScanner->GetCurrent();
-        
-        valueLists.clear();
-        auto currentList = row.GetFixedValueList(index, keyCount);
-        while (currentList) {
-            valueLists.push_back(currentList);
-            currentList = currentList.GetNext();
-        }
-
-        for (auto it = valueLists.rbegin(); it != valueLists.rend(); ++it) {
-            auto list = *it;
-            ::memcpy(values, list.Begin(), sizeof(TVersionedValue) * list.GetSize());
-            values += list.GetSize();
-        }
-    };
-
-
-    auto getStaticTimestampCount = [&] () {
-        if (!staticScanner.IsValid()) {
-            return 0;
-        }
-        auto row = staticScanner.GetCurrent();
-        return row.GetTimestampCount(keyCount, schemaColumnCount);
-    };
-
-    auto getDynamicTimestampCount = [&] () -> int {
-        if (!dynamicScanner->IsValid()) {
-            return 0;
-        }
-        auto row = dynamicScanner->GetCurrent();
-        auto list = row.GetTimestampList(keyCount);
-        return list ? list.GetSize() + list.GetSuccessorsSize() : 0;
-    };
-
-    auto copyStaticTimestamps = [&] (TTimestamp* timestamps) {
-        auto row = staticScanner.GetCurrent();
-        int count = row.GetTimestampCount(keyCount, schemaColumnCount);
-        ::memcpy(timestamps, row.GetTimestamps(keyCount), sizeof(TTimestamp) * count);
-    };
-
-    std::vector<TTimestampList> timestampLists;
-    auto copyDynamicTimestamps = [&] (TTimestamp* timestamps) {
-        auto row = dynamicScanner->GetCurrent();
-        
-        valueLists.clear();
-        auto currentList = row.GetTimestampList(keyCount);
-        while (currentList) {
-            timestampLists.push_back(currentList);
-            currentList = currentList.GetNext();
-        }
-
-        for (auto it = timestampLists.rbegin(); it != timestampLists.rend(); ++it) {
-            auto list = *it;
-            ::memcpy(timestamps, list.Begin(), sizeof(TTimestamp) * list.GetSize());
-            timestamps += list.GetSize();
-        }
-    };
-
-
-    while (staticScanner.IsValid() || dynamicScanner->IsValid()) {
+    while (dynamicResult != NullTimestamp || staticResult != NullTimestamp) {
         int compareResult;
-        if (staticScanner.IsValid() && dynamicScanner->IsValid()) {
-            auto staticRow = staticScanner.GetCurrent();
-            auto dynamicRow = dynamicScanner->GetCurrent();
-            compareResult = Comparer_(staticRow, dynamicRow);
-        } else if (staticScanner.IsValid()) {
+        if (dynamicResult != NullTimestamp && staticResult != NullTimestamp) {
+            compareResult = Comparer_(staticScanner->GetKeys(), dynamicScanner->GetKeys());
+        } else if (staticScanner != NullTimestamp) {
             compareResult = -1;
         } else {
             compareResult = +1;
         }
 
-        beginRow(
-            compareResult < 0
-            ? staticScanner.GetCurrent().GetKeys()
-            : dynamicScanner->GetCurrent().GetKeys());
+        combiner.BeginRow();
 
-        for (int index = 0; index < schemaColumnCount - keyCount; ++index) {
-            int staticCount = getStaticFixedValueCount(index);
-            int dynamicCount = getDynamicFixedValueCount(index);
-            auto* values = builder.AllocateFixedValues(index, staticCount + dynamicCount);
-            if (staticCount > 0) {
-                copyStaticFixedValues(index, values);
-                values += staticCount;
-            }
-            if (dynamicCount > 0) {
-                copyDynamicFixedValues(index, values);
-                values += dynamicCount; // just for fun
-            }
+        if (dynamicResult != NullTimestamp) {
+            combiner.Combine(dynamicScanner.get());
+        }
+        if (staticResult != NullTimestamp) {
+            combiner.Combine(staticScanner.get());
         }
 
-        {
-            int staticCount = getStaticTimestampCount();
-            int dynamicCount = getDynamicTimestampCount();
-            auto* timestamps = builder.AllocateTimestamps(staticCount + dynamicCount);
-            if (staticCount > 0) {
-                copyStaticTimestamps(timestamps);
-                timestamps += staticCount;
-            }
-            if (dynamicCount > 0) {
-                copyDynamicTimestamps(timestamps);
-                timestamps += dynamicCount; // just for fun
-            }
-        }
-
-        auto lastCommitTimestamp = NullTimestamp;
         if (compareResult <= 0) {
-            lastCommitTimestamp = std::max(
-                lastCommitTimestamp,
-                staticScanner.GetCurrent().GetLastCommitTimestamp());
-            staticScanner.Advance();
+            staticResult = staticScanner->Advance();
         }
         if (compareResult >= 0) {
-            lastCommitTimestamp = std::max(
-                lastCommitTimestamp,
-                dynamicScanner->GetCurrent().GetLastCommitTimestamp());
-            dynamicScanner->Advance();
+            dynamicResult = dynamicScanner->Advance();
         }
 
-        endRow(lastCommitTimestamp);
+        combiner.EndRow();
     }
 
     LOG_INFO("Memory compaction completed (TabletId: %s)",

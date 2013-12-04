@@ -114,8 +114,9 @@ public:
         int schemaColumnCount = static_cast<int>(Tablet->Schema().Columns().size());
 
         // Keys
+        const auto* keys = scanner->GetKeys();
         for (int index = 0; index < keyCount; ++index) {
-            builder.AddValue(scanner->GetKey(index));
+            builder.AddValue(keys[index]);
         }
 
         // Fixed values

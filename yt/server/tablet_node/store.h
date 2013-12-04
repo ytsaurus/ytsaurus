@@ -26,7 +26,7 @@ struct IStoreScanner
     /*!
      *  If no row is found then |NullTimestamp| is returned.
      *
-     *  If the row found is known to be deleted then the deletion
+     *  If the row is found and is known to be deleted then the deletion
      *  timestamp combined with |TombstoneTimestampMask| is returned.
      * 
      *  If the row is found and is known to exist then the earliest modification
@@ -35,7 +35,7 @@ struct IStoreScanner
      */
     virtual TTimestamp Find(NVersionedTableClient::TKey key, TTimestamp timestamp) = 0;
 
-    //! Similar to #FindRow, but positions the scanner before the first row
+    //! Similar to #FindRow, but positions the scanner at the first row
     //! with key not less than |key|.
     virtual TTimestamp BeginScan(NVersionedTableClient::TKey key, TTimestamp timestamp) = 0;
 
@@ -48,8 +48,8 @@ struct IStoreScanner
     virtual void EndScan() = 0;
 
 
-    //! Returns the key component with a given |index|.
-    virtual const NVersionedTableClient::TUnversionedValue& GetKey(int index) const = 0;
+    //! Returns the array of keys.
+    virtual const NVersionedTableClient::TUnversionedValue* GetKeys() const = 0;
 
     //! Returns the value for a fixed column with a given |index|.
     //! If no value is recorded then |nullptr| is returned.
@@ -57,6 +57,7 @@ struct IStoreScanner
 
     //! Fills |values| with up to |maxVersions| values recorded for a fixed column with a given |index|.
     //! Only values with timestamp not exceeding that passed during initialization are returned.
+    //! This version scan can pass across tombstone boundaries.
     virtual void GetFixedValues(
         int index,
         int maxVersions,
@@ -64,6 +65,7 @@ struct IStoreScanner
 
     //! Fills |timestamps| with all known row timestamps.
     //! Only timestamps not exceeding that passed during initialization are returned.
+    //! This version scan can pass across tombstone boundaries (and will return tombstone timestamps).
     virtual void GetTimestamps(std::vector<TTimestamp>* timestamps) const = 0;
 
 };

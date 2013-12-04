@@ -247,12 +247,11 @@ public:
         ResetCurrentRow();
     }
 
-    virtual const TUnversionedValue& GetKey(int index) const override
+    virtual const TUnversionedValue* GetKeys() const override
     {
         YASSERT(CurrentRow_);
-        YASSERT(index >= 0 && index < KeyCount_);
 
-        return CurrentRow_.GetKeys()[index];
+        return CurrentRow_.GetKeys();
     }
 
     virtual const NVersionedTableClient::TVersionedValue* GetFixedValue(int index) const override
