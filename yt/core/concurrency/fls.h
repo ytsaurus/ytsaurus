@@ -9,20 +9,19 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TFlsValue
+class TFls
 {
 public:
-    TFlsValue();
+    TFls();
 
-    const T& operator * () const;
-    T& operator * ();
+    const T& operator *() const;
+    T& operator*();
 
-    const T* operator -> () const;
-    T* operator -> ();
+    const T* operator->() const;
+    T* operator->();
 
 private:
     int Index_;
-
 
     T* Get() const;
 

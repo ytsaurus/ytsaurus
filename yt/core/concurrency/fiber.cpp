@@ -52,39 +52,16 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// FLS support.
-/*
- * Each registered slot maintains a ctor (to be called when a fiber first accesses
- * the slot) and a dtor (to be called when a fiber terminates).
- *
- * To avoid contention, slot registry has a fixed size (see |MaxFlsSlots|).
- * |FlsGet| and |FlsGet| are lock-free.
- * |FlsRegister|, however, acquires a global lock.
- */
-
-struct TFlsSlot
-{
-    TFiber::TFlsSlotCtor Ctor;
-    TFiber::TFlsSlotDtor Dtor;
-};
-
-static const int MaxFlsSlots = 1024;
-static TFlsSlot FlsRegistry[MaxFlsSlots] = {};
-static TAtomic FlsRegistrySize = 0;
-static TSpinLock FlsRegistryLock;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Pointer to the current fiber being run by the current thread.
 /*!
  *  Current fiber is stored as a raw pointer, all Ref/Unref calls are done manually.
- *  
+ *
  *  If |CurrentFiber| is alive (i.e. has positive number of strong references)
  *  then the pointer is owning.
- *  
+ *
  *  If |CurrentFiber|s is currently being terminated (i.e. its dtor is in progress)
  *  then the pointer is non-owning.
- * 
+ *
  *  Examining |CurrentFiber| could be useful for debugging purposes so we don't
  *  put it into an anonymous namespace to avoid name mangling.
  */
@@ -99,37 +76,39 @@ TLS_STATIC TFiber* CurrentFiber = nullptr;
  */
 TLS_STATIC TFiber* CurrentExecutor = nullptr;
 
-void DestroyRootFiber();
+// Fiber-local storage support.
+/*
+ * Each registered slot maintains a ctor (to be called when a fiber accesses
+ * the slot for the first time) and a dtor (to be called when a fiber terminates).
+ *
+ * To avoid contention, slot registry has a fixed size (see |MaxFlsSlots|).
+ * |FlsGet| and |FlsGet| are lock-free.
+ *
+ * |FlsAllocateSlot|, however, acquires a global lock.
+ */
+struct TFlsSlot
+{
+    TFiber::TFlsSlotCtor Ctor;
+    TFiber::TFlsSlotDtor Dtor;
+};
 
-namespace {
+static const int MaxFlsSlots = 1024;
+static TFlsSlot FlsSlots[MaxFlsSlots] = {};
+static std::atomic<int> FlsSlotsSize;
+static TSpinLock FlsSlotsLock;
 
+// Sizes of fiber stacks.
 const size_t SmallFiberStackSize = 1 << 18; // 256 Kb
 const size_t LargeFiberStackSize = 1 << 23; //   8 Mb
-
-static void InitTls()
-{
-    if (UNLIKELY(!CurrentFiber)) {
-        auto rootFiber = New<TFiber>();
-        CurrentFiber = rootFiber.Get();
-        CurrentFiber->Ref(); // This is to-be-transferred reference from |rootFiber|.
-        CurrentFiber->Ref(); // This is an extra "magic" reference.
-        CurrentExecutor = CurrentFiber;
-#ifdef CXXABIv1
-        __cxxabiv1::__cxa_get_globals();
-#endif
-    }
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFiberStackBase
 {
 public:
-    TFiberStackBase(char *base, size_t size)
-        : Base(base)
-        , Size(size)
+    TFiberStackBase(char* base, size_t size)
+        : Base_(base)
+        , Size_(size)
     { }
 
     virtual ~TFiberStackBase()
@@ -137,18 +116,19 @@ public:
 
     void* GetStack() const
     {
-        return Stack;
+        return Stack_;
     }
 
     size_t GetSize() const
     {
-        return Size;
+        return Size_;
     }
 
 protected:
-    char* Base;
-    void* Stack;
-    const size_t Size;
+    char* Base_;
+    void* Stack_;
+    const size_t Size_;
+
 };
 
 template <size_t StackSize, int StackGuardedPages = 4>
@@ -166,15 +146,15 @@ public:
         : TFiberStackBase(nullptr, RoundUpToPage(StackSize))
     {
 #ifdef _linux_
-        Base = reinterpret_cast<char*>(::mmap(
+        Base_ = reinterpret_cast<char*>(::mmap(
             0,
-            Size + GetExtraSize(),
+            GetSize() + GetExtraSize(),
             PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS,
             -1,
             0));
 
-        if (Base == MAP_FAILED) {
+        if (Base_ == MAP_FAILED) {
             THROW_ERROR_EXCEPTION("Failed to allocate fiber stack")
                 << TErrorAttribute("requested_size", StackSize)
                 << TErrorAttribute("allocated_size", Size + GetExtraSize())
@@ -182,22 +162,24 @@ public:
                 << TError::FromSystem();
         }
 
-        ::mprotect(Base, GetExtraSize(), PROT_NONE);
+        ::mprotect(Base_, GetExtraSize(), PROT_NONE);
 
-        Stack = Base + GetExtraSize();
+        Stack_ = Base_ + GetExtraSize();
 #else
-        Base = new char[Size + 15];
-        Stack = reinterpret_cast<void*>((reinterpret_cast<uintptr_t>(Base) + 0xF) & ~0xF);
+        Base_ = new char[Size_ + 15];
+        Stack_ = reinterpret_cast<void*>(
+            (reinterpret_cast<uintptr_t>(Base_) + 0xF) & ~0xF);
 #endif
-        YCHECK((reinterpret_cast<ui64>(Stack) & 0xF) == 0);
+        // x86_64 requires stack to be 16-byte aligned.
+        YCHECK((reinterpret_cast<ui64>(Stack_) & 0xF) == 0);
     }
 
     ~TFiberStack()
     {
 #ifdef _linux_
-        ::munmap(Base, Size + GetExtraSize());
+        ::munmap(Base_, GetSize() + GetExtraSize());
 #else
-        delete[] Base;
+        delete[] Base_;
 #endif
     }
 
@@ -210,18 +192,18 @@ class TFiberContext
 public:
     TFiberContext()
 #ifdef _win_
-        : Fiber_(nullptr)
+        : Handle_(nullptr)
 #endif
     { }
 
     void Reset(void* stack, size_t size, void (*callee)(void *), void* opaque)
     {
 #ifdef _win_
-        if (Fiber_) {
-            DeleteFiber(Fiber_);
+        if (Handle_) {
+            DeleteFiber(Handle_);
         }
 
-        Fiber_ = CreateFiber(size, &TFiberContext::Trampoline, this);
+        Handle_ = CreateFiber(size, &TFiberContext::Trampoline, this);
         Callee_ = callee;
         Opaque_ = opaque;
 #else
@@ -244,8 +226,8 @@ public:
     ~TFiberContext()
     {
 #ifdef _win_
-        if (Fiber_) {
-            DeleteFiber(Fiber_);
+        if (Handle_) {
+            DeleteFiber(Handle_);
         }
 #endif
     }
@@ -257,7 +239,7 @@ public:
 
 private:
 #ifdef _win_
-    void* Fiber_;
+    void* Handle_;
     void (*Callee_)(void *);
     void* Opaque_;
 #else
@@ -280,6 +262,7 @@ private:
     static void __attribute__((__noinline__, __regparm__(2)))
     TransferTo(TFiberContext* previous, TFiberContext* next);
 #endif
+
 };
 
 #ifdef _win_
@@ -317,9 +300,7 @@ public:
     {
 #ifdef CXXABIv1
         auto* currentEH = __cxxabiv1::__cxa_get_globals_fast();
-        YASSERT(currentEH);
-        EH = *currentEH;
-        *currentEH = other.EH;
+        EH = *currentEH; *currentEH = other.EH;
 #endif
     }
 
@@ -384,7 +365,7 @@ public:
             State_ == EFiberState::Exception);
 
         for (int index = 0; index < static_cast<int>(Fls_.size()); ++index) {
-            FlsRegistry[index].Dtor(Fls_[index]);
+            FlsSlots[index].Dtor(Fls_[index]);
         }
     }
 
@@ -709,15 +690,15 @@ public:
         CurrentInvoker_ = std::move(invoker);
     }
 
-
-    static int FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
+    static int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
     {
-        TGuard<TSpinLock> guard(FlsRegistryLock);
-        YCHECK(FlsRegistrySize < MaxFlsSlots);
-        auto& slot = FlsRegistry[FlsRegistrySize];
+        TGuard<TSpinLock> guard(FlsSlotsLock);
+        // TODO(sandello): Think about relaxing memory ordering here.
+        YCHECK(FlsSlotsSize.load() < MaxFlsSlots);
+        auto& slot = FlsSlots[FlsSlotsSize];
         slot.Ctor = ctor;
         slot.Dtor = dtor;
-        return AtomicIncrement(FlsRegistrySize) - 1;
+        return FlsSlotsSize++;
     }
 
     TFlsSlotValue FlsGet(int index)
@@ -733,7 +714,7 @@ public:
     }
 
 private:
-    friend void DestroyRootFiber();
+    friend class TFiber;
 
     TFiberContext Context_;
     TFiberExceptionHandler EH_;
@@ -760,21 +741,23 @@ private:
 
     std::vector<TFlsSlotValue> Fls_;
 
-    
     void EnsureFlsSlot(int index)
     {
         YASSERT(index >= 0);
-        if (index < Fls_.size())
+        if (index < Fls_.size()) {
             return;
+        }
+
         int oldSize = static_cast<int>(Fls_.size());
-        int newSize = AtomicGet(FlsRegistrySize);
+        int newSize = FlsSlotsSize.load();
+
         YCHECK(newSize >= oldSize && index < newSize);
         Fls_.resize(newSize);
+
         for (int index = oldSize; index < newSize; ++index) {
-            Fls_[index] = FlsRegistry[index].Ctor();
+            Fls_[index] = FlsSlots[index].Ctor();
         }
     }
-
 
     static void Wakeup(TFiberPtr fiber)
     {
@@ -900,6 +883,36 @@ TFiber::TFiber(TClosure closure, EFiberStack stack)
 TFiber::~TFiber()
 { }
 
+void TFiber::InitTls()
+{
+    if (UNLIKELY(!CurrentFiber)) {
+        auto fiber = New<TFiber>();
+        CurrentFiber = fiber.Get();
+        CurrentFiber->Ref(); // This is to-be-dropped reference from |fiber|.
+        CurrentFiber->Ref(); // This is an extra "magic" reference.
+        // TODO(sandello): Move me out of here.
+        CurrentExecutor = CurrentFiber;
+#ifdef CXXABIv1
+        __cxxabiv1::__cxa_get_globals();
+#endif
+    }
+}
+
+void TFiber::FiniTls()
+{
+    auto* current = CurrentFiber;
+    if (!current) return;
+    YCHECK(current->Impl_->Root_);
+    YCHECK(current->GetRefCount() == 2);
+    YCHECK(current->GetState() == EFiberState::Running);
+    // Transition to destroyable state.
+    *const_cast<bool*>(&current->Impl_->Root_) = false;
+    current->Impl_->State_ = EFiberState::Terminated;
+    current->Unref();
+    current->Unref();
+    CurrentFiber = nullptr;
+}
+
 TFiber* TFiber::GetCurrent()
 {
     return TImpl::GetCurrent();
@@ -913,6 +926,21 @@ TFiber* TFiber::GetExecutor()
 void TFiber::SetExecutor(TFiber* executor)
 {
     return TImpl::SetExecutor(executor);
+}
+
+int TFiber::FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
+{
+    return TImpl::FlsAllocateSlot(ctor, dtor);
+}
+
+TFiber::TFlsSlotValue TFiber::FlsGet(int index)
+{
+    return Impl_->FlsGet(index);
+}
+
+void TFiber::FlsSet(int index, TFlsSlotValue value)
+{
+    return Impl_->FlsSet(index, value);
 }
 
 EFiberState TFiber::GetState() const
@@ -975,37 +1003,6 @@ void TFiber::SetCurrentInvoker(IInvokerPtr invoker)
     Impl_->SetCurrentInvoker(std::move(invoker));
 }
 
-int TFiber::FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
-{
-    return TImpl::FlsRegister(ctor, dtor);
-}
-
-TFiber::TFlsSlotValue TFiber::FlsGet(int index)
-{
-    return Impl_->FlsGet(index);
-}
-
-void TFiber::FlsSet(int index, TFlsSlotValue value)
-{
-    return Impl_->FlsSet(index, value);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void DestroyRootFiber()
-{
-    auto* current = CurrentFiber;
-    if (!current) return; 
-    YCHECK(current->Impl_->Root_);
-    YCHECK(current->GetRefCount() == 2);
-    YCHECK(current->GetState() == EFiberState::Running);
-    *const_cast<bool*>(&current->Impl_->Root_) = false;
-    current->Impl_->State_ = EFiberState::Terminated;
-    current->Unref();
-    current->Unref();
-    CurrentFiber = nullptr;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void Yield(TFiber* target)
@@ -1043,17 +1040,16 @@ TClosure GetCurrentFiberCanceler()
 } // namespace NConcurrency
 } // namespace NYT
 
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Size, int GuardedPages>
+template <size_t StackSize, int StackGuardedPages>
 struct TPooledObjectTraits<
-    NConcurrency::TFiberStack<Size, GuardedPages>,
+    NConcurrency::TFiberStack<StackSize, StackGuardedPages>,
     void>
 {
-    static void Clean(NConcurrency::TFiberStack<Size, GuardedPages>* stack)
+    static void Clean(NConcurrency::TFiberStack<StackSize, StackGuardedPages>* stack)
     {
 #ifndef NDEBUG
     ::memset(stack->GetStack(), 0, stack->GetSize());

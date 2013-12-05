@@ -23,9 +23,6 @@ using namespace NProfiling;
 
 static NLog::TLogger Logger("ActionQueue");
 
-// This is a secret shared knowledge between action_queue_detail.cpp and fiber.cpp.
-void DestroyRootFiber();
-
 ///////////////////////////////////////////////////////////////////////////////
 
 TInvokerQueue::TInvokerQueue(
@@ -178,7 +175,7 @@ TExecutorThread::TExecutorThread(
 
 void TExecutorThread::Start()
 {
-    Running = true;    
+    Running = true;
     LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
         ~ThreadName);
     Thread.Start();
@@ -363,11 +360,12 @@ void TExecutorThread::OnThreadStart()
     SigEmptySet(&sigset);
     SigProcMask(SIG_SETMASK, &sigset, nullptr);
 #endif
+    TFiber::InitTls();
 }
 
 void TExecutorThread::OnThreadShutdown()
 {
-    DestroyRootFiber();
+    TFiber::FiniTls();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

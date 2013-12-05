@@ -45,25 +45,37 @@ class TFiber
     : public TRefCounted
 {
 private:
-    TFiber(const TFiber&);
-    TFiber(TFiber&&);
-    TFiber& operator=(const TFiber&);
-    TFiber& operator=(TFiber&&);
-
     // A special constructor to create root fiber.
     TFiber();
     friend TFiberPtr NYT::New<TFiber>();
-    friend void DestroyRootFiber();
 
 public:
     explicit TFiber(TClosure callee, EFiberStack stack = EFiberStack::Small);
+
+    TFiber(const TFiber&) = delete;
+    TFiber(TFiber&&) = delete;
+
     ~TFiber();
+
+    // Thread-local information.
+    static void InitTls();
+    static void FiniTls();
 
     static TFiber* GetCurrent();
 
     static TFiber* GetExecutor();
     static void SetExecutor(TFiber* executor);
 
+    // Fiber-local information.
+    typedef void* TFlsSlotValue;
+    typedef TFlsSlotValue (*TFlsSlotCtor)();
+    typedef void (*TFlsSlotDtor)(TFlsSlotValue);
+
+    static int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
+    TFlsSlotValue FlsGet(int index);
+    void FlsSet(int index, TFlsSlotValue value);
+
+    // Fiber interface.
     EFiberState GetState() const;
     bool HasForked() const;
     bool IsCanceled() const;
@@ -81,14 +93,6 @@ public:
     IInvokerPtr GetCurrentInvoker() const;
     void SetCurrentInvoker(IInvokerPtr invoker);
 
-    typedef intptr_t TFlsSlotValue;
-    typedef TFlsSlotValue (*TFlsSlotCtor)();
-    typedef void (*TFlsSlotDtor)(TFlsSlotValue);
-
-    static int FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
-    TFlsSlotValue FlsGet(int index);
-    void FlsSet(int index, TFlsSlotValue value);
-
 private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
@@ -100,19 +104,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Yields control to the caller (if |target| is not specified)
-//! until it is manually transferred back to the executing fiber.
-//!
-//! Semantics are more complicated when |target| is specified.
-//! It required that the target is an ancestor of currently executing fiber.
-//! Yielding to the target fiber transfers control to target's caller
-//! and when control is transferred back to the target it continues to execute
-//! currently executing fiber.
-//!
-//! Effectively this suspends entire fiber chain descending from the target.
+//! Yields control until it is manually transferred back to the executing fiber.
+/*!
+ *  If |target| is omitted is is taked to be the caller of the executing fiber.
+ *
+ *  In general case it is required that the target is an ancestor of
+ *  the executing fiber. Yielding to the target transfers control
+ *  to target's caller and when control is transferred back to the target
+ *  the currently executing fiber is resumed.
+ *
+ *  Effectively this suspends entire fiber stack descending from the target.
+ */
 void Yield(TFiber* target = nullptr);
 
-//! Transfers control to another invoker.
+//! Transfers current fiber to another invoker.
 /*!
   *  The behavior is achieved by yielding control and enqueuing
   *  a special continuation callback into |invoker|.
@@ -120,13 +125,13 @@ void Yield(TFiber* target = nullptr);
 void SwitchTo(IInvokerPtr invoker);
 
 //! Yields control until a given future is set and ensures that
-//! execution continues within a given invoker.
+//! execution resumes within a given invoker.
 void WaitFor(
     TFuture<void> future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
 //! Yields control until a given future is set, ensures that
-//! execution continues within a given invoker, and returns
+//! execution resumes within a given invoker, and returns
 //! the final value of the future.
 template <class T>
 T WaitFor(
