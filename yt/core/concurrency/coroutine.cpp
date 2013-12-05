@@ -6,21 +6,12 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCoroutineBase::TCoroutineBase()
+NDetail::TCoroutineBase::TCoroutineBase()
     : Fiber(New<TFiber>(BIND(&TCoroutineBase::Trampoline, this)))
 { }
 
-TCoroutineBase::TCoroutineBase(TCoroutineBase&& other)
-    : Fiber(std::move(other.Fiber))
+NDetail::TCoroutineBase::~TCoroutineBase()
 { }
-
-TCoroutineBase::~TCoroutineBase()
-{ }
-
-EFiberState TCoroutineBase::GetState() const
-{
-    return Fiber->GetState();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
