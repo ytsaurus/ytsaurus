@@ -23,6 +23,8 @@ public:
         IInvokerPtr automatonInvoker,
         IInvokerPtr compactionInvoker);
 
+    ~TStoreManager();
+
     TTablet* GetTablet() const;
 
     void LookupRow(

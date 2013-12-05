@@ -49,6 +49,9 @@ TStoreManager::TStoreManager(
     VERIFY_INVOKER_AFFINITY(CompactionInvoker_, CompactionThread);
 }
 
+TStoreManager::~TStoreManager()
+{ }
+
 TTablet* TStoreManager::GetTablet() const
 {
     return Tablet_;
