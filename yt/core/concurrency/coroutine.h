@@ -30,8 +30,8 @@ protected:
     TFiberPtr Fiber;
 
 private:
-    TCoroutineBase(const TCoroutineBase&);
-    TCoroutineBase& operator=(const TCoroutineBase&);
+    TCoroutineBase(const TCoroutineBase&) = delete;
+    TCoroutineBase& operator=(const TCoroutineBase&) = delete;
 
 };
 
@@ -47,15 +47,15 @@ struct TGenerateSequence : TGenerateSequence<N - 1, N - 1, Indexes...> { };
 
 template<unsigned... Indexes>
 struct TGenerateSequence<0, Indexes...> {
-	typedef TSequence<Indexes...> TType;
+    typedef TSequence<Indexes...> TType;
 };
 
 
 template<class TCallee, class TCaller, class TArguments, unsigned... Indexes>
-void CallRun(TCallee& Callee, TCaller& Caller, TArguments&& Arguments,
+void Invoke(TCallee& Callee, TCaller& Caller, TArguments&& Arguments,
     TSequence<Indexes...>)
 {
-	Callee.Run(Caller, std::get<Indexes>(std::forward<TArguments>(Arguments))...);
+    Callee.Run(Caller, std::get<Indexes>(std::forward<TArguments>(Arguments))...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,9 +73,8 @@ public:
     typedef TCallback<CoroutineSignature> TCallee;
     typedef std::tuple<TArgs...> TArguments;
 
-    TCoroutine()
-        : TCoroutineBase()
-    { }
+    TCoroutine() = default;
+    TCoroutine(TCoroutine&& other) = default;
 
     TCoroutine(TCallee&& callee)
         : TCoroutineBase()
@@ -110,7 +109,7 @@ private:
     virtual void Trampoline() override
     {
         try {
-            NDetail::CallRun(Callee, *this, std::move(Arguments),
+            NDetail::Invoke(Callee, *this, std::move(Arguments),
                 typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result.Reset();
         } catch(...) {
@@ -136,9 +135,8 @@ public:
     typedef TCallback<CoroutineSignature> TCallee;
     typedef std::tuple<TArgs...> TArguments;
 
-    TCoroutine()
-        : TCoroutineBase()
-    { }
+    TCoroutine() = default;
+    TCoroutine(TCoroutine&& other) = default;
 
     TCoroutine(TCallee&& callee)
         : TCoroutineBase()
@@ -154,8 +152,8 @@ public:
     template <class... TParams>
     bool Run(TParams&&... params)
     {
-  static_assert(sizeof...(TParams) == sizeof...(TArgs),
-      "Params and args counts does not match.");
+        static_assert(sizeof...(TParams) == sizeof...(TArgs),
+            "Params and args counts does not match.");
         Arguments = std::make_tuple(std::forward<TParams>(params)...);
         Fiber->Run();
         return Result;
@@ -172,7 +170,7 @@ private:
     virtual void Trampoline() override
     {
         try {
-            NDetail::CallRun(Callee, *this, std::move(Arguments),
+            NDetail::Invoke(Callee, *this, std::move(Arguments),
                 typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result = false;
         } catch(const std::exception& ex) {
