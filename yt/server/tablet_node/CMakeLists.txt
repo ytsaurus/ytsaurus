@@ -15,6 +15,7 @@ set( SRCS
   ${BASE}/static_memory_store.cpp
   ${BASE}/store_manager.cpp
   ${BASE}/compaction.cpp
+  ${BASE}/dynamic_memory_store_bits.cpp
 )
 set( HDRS
   ${BASE}/private.h

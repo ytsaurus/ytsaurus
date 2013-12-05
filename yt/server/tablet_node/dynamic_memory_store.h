@@ -27,6 +27,8 @@ public:
 
     ~TDynamicMemoryStore();
 
+    TTablet* GetTablet() const;
+
     TDynamicRow WriteRow(
         const NVersionedTableClient::TNameTablePtr& nameTable,
         TTransaction* transaction,

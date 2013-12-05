@@ -211,12 +211,14 @@ void TStoreManager::Write(
         bool hasData = chunkReader->Read(&rows);
         
         for (auto row : rows) {
-            auto bucket = ActiveDynamicMemoryStore_->WriteRow(
+            auto dynamicRow = ActiveDynamicMemoryStore_->WriteRow(
                 nameTable,
                 transaction,
                 row,
                 prewrite);
-            lockedRows->push_back(bucket);
+            if (lockedRows) {
+            	lockedRows->push_back(dynamicRow);
+            }
         }
 
         if (!hasData) {
@@ -240,32 +242,43 @@ void TStoreManager::Delete(
     std::vector<TDynamicRow>* lockedRows)
 {
     for (auto key : keys) {
-        auto bucket = ActiveDynamicMemoryStore_->DeleteRow(
+        auto dynamicRow = ActiveDynamicMemoryStore_->DeleteRow(
             transaction,
             key,
             predelete);
-        lockedRows->push_back(bucket);
+        if (lockedRows) {
+            lockedRows->push_back(dynamicRow);
+        }
     }
 }
 
-void TStoreManager::ConfirmRow(TDynamicRow row)
+void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
 {
-    ActiveDynamicMemoryStore_->ConfirmRow(row);
+    ActiveDynamicMemoryStore_->ConfirmRow(rowRef.Row);
 }
 
-void TStoreManager::PrepareRow(TDynamicRow row)
+void TStoreManager::PrepareRow(const TDynamicRowRef& rowRef)
 {
-    ActiveDynamicMemoryStore_->PrepareRow(row);
+    ActiveDynamicMemoryStore_->PrepareRow(rowRef.Row);
 }
 
-void TStoreManager::CommitRow(TDynamicRow row)
+void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
 {
-    ActiveDynamicMemoryStore_->CommitRow(row);
+    if (ActiveDynamicMemoryStore_ == rowRef.Store) {
+        ActiveDynamicMemoryStore_->CommitRow(rowRef.Row);
+    } else {
+        // TODO(babenko): copy values
+    }
 }
 
-void TStoreManager::AbortRow(TDynamicRow row)
+void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
 {
-    ActiveDynamicMemoryStore_->AbortRow(row);
+    ActiveDynamicMemoryStore_->AbortRow(rowRef.Row);
+}
+
+const TDynamicMemoryStorePtr& TStoreManager::GetActiveDynamicMemoryStore() const
+{
+    return ActiveDynamicMemoryStore_;
 }
 
 bool TStoreManager::IsMemoryCompactionNeeded() const

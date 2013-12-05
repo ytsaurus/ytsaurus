@@ -156,11 +156,9 @@ TVersionedValue* TStaticMemoryStoreBuilder::AllocateFixedValues(int index, int c
     return result;
 }
 
-void TStaticMemoryStoreBuilder::EndRow(TTimestamp lastCommitTimestamp)
+void TStaticMemoryStoreBuilder::EndRow()
 {
     YASSERT(CurrentRow_);
-
-    CurrentRow_.SetLastCommitTimestamp(lastCommitTimestamp);
 
     // Copy keys.
     auto* keys = CurrentRow_.GetKeys();
@@ -169,13 +167,19 @@ void TStaticMemoryStoreBuilder::EndRow(TTimestamp lastCommitTimestamp)
     }
 
     // Copy fixed values.
+    auto lastCommitTimestamp = NullTimestamp;
     for (int columnIndex = 0; columnIndex < SchemaColumnCount_ - KeyCount_; ++columnIndex) {
         auto* values = CurrentRow_.GetFixedValues(columnIndex, KeyCount_);
         int count = CurrentRow_.GetFixedValueCount(columnIndex, KeyCount_, SchemaColumnCount_);
-        for (int valueIndex = 0; valueIndex < count; ++valueIndex) {
-            CopyValueIfNeeded(values + valueIndex);
+        if (count > 0) {
+            lastCommitTimestamp = std::max(lastCommitTimestamp, values[0].Timestamp);
+            for (int valueIndex = 0; valueIndex < count; ++valueIndex) {
+                CopyValueIfNeeded(values + valueIndex);
+            }
         }
     }
+
+    CurrentRow_.SetLastCommitTimestamp(lastCommitTimestamp);
 
     CurrentRow_ = TStaticRow();
 }
@@ -276,8 +280,6 @@ public:
         YASSERT(CurrentRow_);
         YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
 
-        values->clear();
-
         auto* begin = CurrentRow_.GetFixedValues(index, KeyCount_);
         auto* end = begin + CurrentRow_.GetFixedValueCount(index, KeyCount_, SchemaValueCount_);
         auto* value = FindVersionedValue(
@@ -299,8 +301,6 @@ public:
     virtual void GetTimestamps(std::vector<TTimestamp>* timestamps) const override
     {
         YASSERT(CurrentRow_);
-
-        timestamps->clear();
 
         auto* begin = CurrentRow_.GetTimestamps(KeyCount_);
         auto* end = begin + CurrentRow_.GetTimestampCount(KeyCount_, SchemaValueCount_);

@@ -52,7 +52,7 @@ TEST_F(TStaticMemoryStoreTest, Small1)
         auto* as = Builder.AllocateFixedValues(0, 1);
         as[0] = MakeVersionedIntegerValue(123, 10);
         
-        Builder.EndRow(10);
+        Builder.EndRow();
     }
 
     auto store = Builder.Finish();
@@ -84,7 +84,7 @@ TEST_F(TStaticMemoryStoreTest, Small2)
         auto* as = Builder.AllocateFixedValues(0, 1);
         as[0] = MakeVersionedIntegerValue(123, 10);
         
-        Builder.EndRow(20);
+        Builder.EndRow();
     }
 
     auto store = Builder.Finish();
@@ -124,7 +124,7 @@ TEST_F(TStaticMemoryStoreTest, Small3)
         cs[0] = MakeVersionedStringValue("value1", 30);
         cs[1] = MakeVersionedStringValue("value2", 31);
         
-        Builder.EndRow(40);
+        Builder.EndRow();
     }
 
     auto store = Builder.Finish();
@@ -178,7 +178,7 @@ TEST_F(TStaticMemoryStoreTest, Large1)
         auto str = Stroka("value") + ToString(i);
         cs[0] = MakeVersionedStringValue(str, i * 10 + 100);
         
-        Builder.EndRow(i * 10 + 110);
+        Builder.EndRow();
     }
 
     auto store = Builder.Finish();

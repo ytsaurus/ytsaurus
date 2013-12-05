@@ -181,8 +181,6 @@ public:
         YASSERT(CurrentRow_);
         YASSERT(index >= 0 && index < SchemaValueCount_ - KeyCount_);
 
-        values->clear();
-
         TVersionedValue* value;
         TValueList list;
         std::tie(value, list) = FindVersionedValue(
@@ -209,8 +207,6 @@ public:
     virtual void GetTimestamps(std::vector<TTimestamp>* timestamps) const override
     {
         YASSERT(CurrentRow_);
-
-        timestamps->clear();
 
         TTimestamp* timestamp;
         TTimestampList list;
@@ -310,6 +306,11 @@ TDynamicMemoryStore::TDynamicMemoryStore(
 
 TDynamicMemoryStore::~TDynamicMemoryStore()
 { }
+
+TTablet* TDynamicMemoryStore::GetTablet() const
+{
+    return Tablet_;
+}
 
 TDynamicRow TDynamicMemoryStore::WriteRow(
     const TNameTablePtr& nameTable,
@@ -503,7 +504,7 @@ void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
 {
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
-    transaction->LockedRows().push_back(TDynamicRowRef(Tablet_, row));
+    transaction->LockedRows().push_back(TDynamicRowRef(this, row));
 }
 
 void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
@@ -606,7 +607,7 @@ void TDynamicMemoryStore::LockRow(
     }
 
     if (!preliminary && !existingTransaction) {
-        transaction->LockedRows().push_back(TDynamicRowRef(Tablet_, row));
+        transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }
 
     row.SetTransaction(transaction);

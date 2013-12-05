@@ -51,22 +51,26 @@ public:
         const TColumnFilter& columnFilter,
         NChunkClient::NProto::TChunkMeta* chunkMeta,
         std::vector<TSharedRef>* blocks);
+    
     void Write(
         TTransaction* transaction,
         NChunkClient::NProto::TChunkMeta chunkMeta,
         std::vector<TSharedRef> blocks,
         bool prewrite,
         std::vector<TDynamicRow>* lockedRows);
+
     void Delete(
         TTransaction* transaction,
         const std::vector<NVersionedTableClient::TOwningKey>& keys,
         bool predelete,
         std::vector<TDynamicRow>* lockedRows);
 
-    void ConfirmRow(TDynamicRow row);
-    void PrepareRow(TDynamicRow row);
-    void CommitRow(TDynamicRow row);
-    void AbortRow(TDynamicRow row);
+    void ConfirmRow(const TDynamicRowRef& rowRef);
+    void PrepareRow(const TDynamicRowRef& rowRef);
+    void CommitRow(const TDynamicRowRef& rowRef);
+    void AbortRow(const TDynamicRowRef& rowRef);
+
+    const TDynamicMemoryStorePtr& GetActiveDynamicMemoryStore() const;
 
     bool IsMemoryCompactionNeeded() const;
     void RunMemoryCompaction();

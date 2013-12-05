@@ -8,6 +8,7 @@
 #include "config.h"
 #include "store_manager.h"
 #include "tablet_cell_controller.h"
+#include "dynamic_memory_store.h"
 #include "private.h"
 
 #include <core/misc/ring_queue.h>
@@ -115,6 +116,8 @@ public:
         std::vector<TSharedRef> blocks)
     {
         const auto& storeManager = tablet->GetStoreManager();
+        const auto& store = storeManager->GetActiveDynamicMemoryStore();
+
         JustLockedRows_.clear();
         try {
             storeManager->Write(
@@ -126,7 +129,7 @@ public:
         } catch (const std::exception& ex) {
             // Abort just taken locks.
             for (auto row : JustLockedRows_) {
-                storeManager->AbortRow(row);
+                store->AbortRow(row);
             }
             throw;
         }
@@ -139,7 +142,7 @@ public:
             rowCount);
 
         for (auto row : JustLockedRows_) {
-            LockedRows_.push(TDynamicRowRef(tablet, row));
+            LockedRows_.push(TDynamicRowRef(store, row));
         }
 
         TReqWriteRows request;
@@ -163,6 +166,8 @@ public:
         const std::vector<NVersionedTableClient::TOwningKey>& keys)
     {
         const auto& storeManager = tablet->GetStoreManager();
+        const auto& store = storeManager->GetActiveDynamicMemoryStore();
+
         JustLockedRows_.clear();
         try {
             storeManager->Delete(
@@ -172,8 +177,8 @@ public:
                 &JustLockedRows_);
         } catch (const std::exception& ex) {
             // Abort just taken locks.
-            for (auto bucket : JustLockedRows_) {
-                storeManager->AbortRow(bucket);
+            for (auto row : JustLockedRows_) {
+                store->AbortRow(row);
             }
             throw;
         }
@@ -185,8 +190,8 @@ public:
             ~ToString(tablet->GetId()),
             rowCount);
 
-        for (auto bucket : JustLockedRows_) {
-            LockedRows_.push(TDynamicRowRef(tablet, bucket));
+        for (auto row : JustLockedRows_) {
+            LockedRows_.push(TDynamicRowRef(store, row));
         }
 
         TReqDeleteRows request;
@@ -285,10 +290,9 @@ private:
     {
         LOG_DEBUG("Started aborting prewritten locks");
         while (!LockedRows_.empty()) {
-            auto bucketRef = LockedRows_.front();
+            auto rowRef = LockedRows_.front();
             LockedRows_.pop();
-            const auto& storeManager = bucketRef.Tablet->GetStoreManager();
-            storeManager->AbortRow(bucketRef.Row);
+            rowRef.Store->AbortRow(rowRef.Row);
         }
         LOG_DEBUG("Finished aborting prewritten locks");
     }
@@ -355,10 +359,9 @@ private:
     {
         for (int index = 0; index < rowCount; ++index) {
             YASSERT(!LockedRows_.empty());
-            auto bucketRef = LockedRows_.front();
+            auto rowRef = LockedRows_.front();
             LockedRows_.pop();
-            const auto& storeManager = bucketRef.Tablet->GetStoreManager();
-            storeManager->ConfirmRow(bucketRef.Row);
+            rowRef.Store->ConfirmRow(rowRef.Row);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %d)",
@@ -386,16 +389,14 @@ private:
                 request.chunk_meta(),
                 std::move(blocks),
                 false,
-                &JustLockedRows_);
+                nullptr);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error writing rows");
         }
 
-        int rowCount = static_cast<int>(JustLockedRows_.size());
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s, RowCount: %d)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s)",
             ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()),
-            rowCount);
+            ~ToString(tablet->GetId()));
     }
 
     void HydraFollowerDeleteRows(const TReqDeleteRows& request)
@@ -415,25 +416,22 @@ private:
                 transaction,
                 keys,
                 false,
-                &JustLockedRows_);
+                nullptr);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error deleting rows");
         }
 
-        int rowCount = static_cast<int>(JustLockedRows_.size());
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows deleted (TransactionId: %s, TabletId: %s, RowCount: %d)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows deleted (TransactionId: %s, TabletId: %s)",
             ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()),
-            rowCount);
+            ~ToString(tablet->GetId()));
     }
 
 
     void OnTransactionPrepared(TTransaction* transaction)
     {
         if (!transaction->LockedRows().empty()) {
-            for (const auto& bucketRef : transaction->LockedRows()) {
-                const auto& storeManager = bucketRef.Tablet->GetStoreManager();
-                storeManager->PrepareRow(bucketRef.Row);
+            for (const auto& rowRef : transaction->LockedRows()) {
+                rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(rowRef);
             }
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %s, RowCount: %" PRISZT ")",
@@ -445,9 +443,8 @@ private:
     void OnTransactionCommitted(TTransaction* transaction)
     {
         if (!transaction->LockedRows().empty()) {
-            for (const auto& bucketRef : transaction->LockedRows()) {
-                const auto& storeManager = bucketRef.Tablet->GetStoreManager();
-                storeManager->CommitRow(bucketRef.Row);
+            for (const auto& rowRef : transaction->LockedRows()) {
+                rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
             }
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
@@ -459,9 +456,8 @@ private:
     void OnTransactionAborted(TTransaction* transaction)
     {
         if (!transaction->LockedRows().empty()) {
-            for (const auto& bucketRef : transaction->LockedRows()) {
-                const auto& storeManager = bucketRef.Tablet->GetStoreManager();
-                storeManager->AbortRow(bucketRef.Row);
+            for (const auto& rowRef : transaction->LockedRows()) {
+                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
             }
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",

@@ -58,6 +58,7 @@ struct IStoreScanner
     //! Fills |values| with up to |maxVersions| values recorded for a fixed column with a given |index|.
     //! Only values with timestamp not exceeding that passed during initialization are returned.
     //! This version scan can pass across tombstone boundaries.
+    //! Values are listed in the order of decreasing timestamps.
     virtual void GetFixedValues(
         int index,
         int maxVersions,
@@ -66,6 +67,7 @@ struct IStoreScanner
     //! Fills |timestamps| with all known row timestamps.
     //! Only timestamps not exceeding that passed during initialization are returned.
     //! This version scan can pass across tombstone boundaries (and will return tombstone timestamps).
+    //! Timestamps are listed in decreasing order.
     virtual void GetTimestamps(std::vector<TTimestamp>* timestamps) const = 0;
 
 };

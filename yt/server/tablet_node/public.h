@@ -85,6 +85,7 @@ typedef TIntrusivePtr<TStoreManager> TStoreManagerPtr;
 
 struct TDynamicRowHeader;
 class TDynamicRow;
+struct TDynamicRowRef;
 
 struct TEditListHeader;
 template <class T>

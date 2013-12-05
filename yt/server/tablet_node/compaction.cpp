@@ -6,11 +6,16 @@
 #include "dynamic_memory_store.h"
 #include "private.h"
 
+#include <ytlib/transaction_client/public.h>
+
+#include <ytlib/tablet_client/config.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,38 +27,93 @@ class TMemoryCompactor::TRowCombiner
 {
 public:
     TRowCombiner(
-        TTabletManagerConfigPtr config,
         TTablet* tablet,
         TStaticMemoryStoreBuilder* builder)
-        : Config_(config)
-        , Tablet_(tablet)
+        : Tablet_(tablet)
         , Builder_(builder)
         , KeyCount_(static_cast<int>(Tablet_->KeyColumns().size()))
         , SchemaColumnCount_(static_cast<int>(Tablet_->Schema().Columns().size()))
-    { }
+        , KeysListed_(false)
+    {
+        Values_.resize(SchemaColumnCount_);
+        for (int index = 0; index < SchemaColumnCount_; ++index) {
+            Values_[index].reserve(Tablet_->GetConfig()->MaxVersions);
+        }
+    }
 
     void BeginRow()
     {
-
+        Builder_->BeginRow();
     }
 
     void Combine(const IStoreScanner* scanner)
     {
+        if (!KeysListed_) {
+            const auto* srcKeys = scanner->GetKeys();
+            auto* dstKeys = Builder_->AllocateKeys();
+            memcpy(dstKeys, srcKeys, sizeof (TUnversionedValue) * KeyCount_);
+            KeysListed_ = true;
+        }
 
+        for (int index = 0; index < SchemaColumnCount_; ++index) {
+            auto& values = Values_[index];
+            int maxVersions = Tablet_->GetConfig()->MaxVersions;
+            int remainingVersions = maxVersions - static_cast<int>(values.size());
+            scanner->GetFixedValues(index, remainingVersions, &values);
+        }
+
+        scanner->GetTimestamps(&Timestamps_);
     }
 
     void EndRow()
     {
+        KeysListed_ = false;
 
+        auto firstCommitTimestamp = MaxTimestamp;
+
+        for (int index = 0; index < SchemaColumnCount_; ++index) {
+            auto& srcValues = Values_[index];
+            int count = static_cast<int>(srcValues.size());
+            if (count > 0) {
+                auto* dstValues = Builder_->AllocateFixedValues(index, count);
+                memcpy(dstValues, srcValues.data(), sizeof (TVersionedValue) * count);
+                firstCommitTimestamp = std::min(firstCommitTimestamp, srcValues.back().Timestamp);
+                srcValues.clear();
+            }
+        }
+
+        {
+            auto it = Timestamps_.begin();
+            auto jt = Timestamps_.begin();
+            while (it != Timestamps_.end()) {
+                if ((*it) & TimestampValueMask < firstCommitTimestamp)
+                    break;
+                if (it == Timestamps_.begin() || (*it & TombstoneTimestampMask) != (*(it - 1) & TombstoneTimestampMask)) {
+                    *jt++ = *it;
+                }
+                ++it;
+            }
+            int count = std::distance(Timestamps_.begin(), jt);
+            auto* dstTimestamps = Builder_->AllocateTimestamps(count);
+            memcpy(dstTimestamps, Timestamps_.data(), sizeof (TTimestamp) * count);
+            Timestamps_.clear();
+        }
+
+        Builder_->EndRow();
     }
 
 private:
-    TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
     TStaticMemoryStoreBuilder* Builder_;
 
     int KeyCount_;
     int SchemaColumnCount_;
+
+
+    bool KeysListed_;
+    
+    std::vector<std::vector<TVersionedValue>> Values_;
+    std::vector<TTimestamp> Timestamps_;
 
 };
 
@@ -77,7 +137,6 @@ TStaticMemoryStorePtr TMemoryCompactor::Run(
     TStaticMemoryStoreBuilder builder(Config_, Tablet_);
 
     TRowCombiner combiner(
-        Config_,
         Tablet_,
         &builder);
 

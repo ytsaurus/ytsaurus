@@ -333,17 +333,14 @@ static_assert(sizeof (TDynamicRow) == sizeof (intptr_t), "TRow size must match t
 
 struct TDynamicRowRef
 {
-    TDynamicRowRef()
-        : Tablet(nullptr)
-        , Row()
-    { }
+    TDynamicRowRef();
+    TDynamicRowRef(const TDynamicRowRef& other);
+    TDynamicRowRef(TDynamicRowRef&& other);
+    TDynamicRowRef(TDynamicMemoryStorePtr store, TDynamicRow row);
 
-    TDynamicRowRef(TTablet* tablet, TDynamicRow bucket)
-        : Tablet(tablet)
-        , Row(bucket)
-    { }
+    ~TDynamicRowRef();
 
-    TTablet* Tablet;
+    TDynamicMemoryStorePtr Store;
     TDynamicRow Row;
 };
 

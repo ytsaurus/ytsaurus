@@ -22,7 +22,7 @@ public:
     TTimestamp* AllocateTimestamps(int count);
     NVersionedTableClient::TUnversionedValue* AllocateKeys();
     NVersionedTableClient::TVersionedValue* AllocateFixedValues(int index, int count);
-    void EndRow(TTimestamp lastCommitTimestamp);
+    void EndRow();
 
     TStaticMemoryStorePtr Finish();
 
