@@ -387,13 +387,13 @@ void Deserialize(TError& error, NYTree::INodePtr node)
 TError operator << (TError error, const TErrorAttribute& attribute)
 {
     error.Attributes().SetYson(attribute.Key, attribute.Value);
-    return std::move(error);
+    return error;
 }
 
 TError operator << (TError error, const TError& innerError)
 {
     error.InnerErrors().push_back(innerError);
-    return std::move(error);
+    return error;
 }
 
 TError operator >>= (const TErrorAttribute& attribute, TError error)
