@@ -383,7 +383,7 @@ public:
     if (this->capacity() < NumElts)
       this->grow(NumElts);
     this->setEnd(this->begin()+NumElts);
-    std::copy(begin, end, this->begin());
+    std::uninitialized_copy(begin, end, this->begin());
   }
 
   iterator erase(iterator I) {
