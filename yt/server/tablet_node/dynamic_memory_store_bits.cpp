@@ -28,14 +28,14 @@ TDynamicRowRef::TDynamicRowRef(TDynamicMemoryStorePtr store, TDynamicRow row)
 TDynamicRowRef::~TDynamicRowRef()
 { }
 
-void swap(TDynamicRowRef& lhs, TDynamicRowRef& rhs);
+void swap(TDynamicRowRef& lhs, TDynamicRowRef& rhs)
 {
     using std::swap;
     swap(lhs.Store, rhs.Store);
     swap(lhs.Row, rhs.Row);
 }
 
-TDynamicRowRef& TDynamicRowRef::operator = (TDynamicRowRef other);
+TDynamicRowRef& TDynamicRowRef::operator = (TDynamicRowRef other)
 {
     swap(*this, other);
     return *this;
