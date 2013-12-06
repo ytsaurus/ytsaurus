@@ -23,9 +23,9 @@ THydraServiceBase::THydraServiceBase(
     , AutomatonInvoker(automatonInvoker)
     , ServiceHydraManager(hydraManager)
 {
-    ServiceHydraManager->SubscribeLeaderActive(BIND(&THydraServiceBase::OnLeaderActive, Unretained(this)));
-    ServiceHydraManager->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopLeading, Unretained(this)));
-    ServiceHydraManager->SubscribeStopFollowing(BIND(&THydraServiceBase::OnStopFollowing, Unretained(this)));
+    ServiceHydraManager->SubscribeLeaderActive(BIND(&THydraServiceBase::OnLeaderActive, MakeWeak(this)));
+    ServiceHydraManager->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopLeading, MakeWeak(this)));
+    ServiceHydraManager->SubscribeStopFollowing(BIND(&THydraServiceBase::OnStopFollowing, MakeWeak(this)));
 }
 
 void THydraServiceBase::OnLeaderActive()
