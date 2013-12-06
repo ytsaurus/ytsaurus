@@ -299,10 +299,13 @@ private:
 
     void SyncSeal()
     {
+        TPromise<void> sealPromise;
         {
             TGuard<TSpinLock> guard(SpinLock);
             if (!SealForced)
                 return;
+            sealPromise = SealPromise;
+            SealForced = false;
         }
 
         while (true) {
@@ -318,7 +321,7 @@ private:
             Changelog->Seal(SealRecordCount);
         }
 
-        SealPromise.Set();
+        sealPromise.Set();
     }
 
 };
