@@ -340,6 +340,10 @@ struct TDynamicRowRef
 
     ~TDynamicRowRef();
 
+    friend void swap(TDynamicRowRef& lhs, TDynamicRowRef& rhs);
+    TDynamicRowRef& operator = (TDynamicRowRef other);
+
+
     TDynamicMemoryStorePtr Store;
     TDynamicRow Row;
 };
