@@ -208,14 +208,28 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog)
         changelogId);
 
     int remoteRecordCount = rsp->record_count();
-    int localRecordCount = changelog->GetRecordCount();
+    if (changelogId == SyncVersion.SegmentId && remoteRecordCount > SyncVersion.RecordId) {
+        THROW_ERROR_EXCEPTION("Follower has more records in changelog %d than the leader: %d > %d",
+            changelogId,
+            remoteRecordCount,
+            SyncVersion.RecordId);
+    }
 
-    LOG_INFO("Syncing changelog %d: local %d, remote %d",
+    int localRecordCount = changelog->GetRecordCount();
+    // NB: Don't download records past the sync point since they are expected to be postponed.
+    int syncRecordCount =
+        changelogId == SyncVersion.SegmentId
+        ? SyncVersion.RecordId
+        : remoteRecordCount;
+
+    LOG_INFO("Syncing changelog %d: local %d, remote %d, sync %d",
         changelogId,
         localRecordCount,
-        remoteRecordCount);
+        remoteRecordCount,
+        syncRecordCount);
 
     if (localRecordCount > remoteRecordCount) {
+        YCHECK(syncRecordCount == remoteRecordCount);
         if (changelog->IsSealed()) {
             LOG_FATAL("Cannot truncate a sealed changelog %d",
                 changelogId);
@@ -227,13 +241,13 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog)
                 DecoratedAutomaton->SetLoggedVersion(sealedVersion);
             }
         }
-    } else if (localRecordCount < remoteRecordCount) {
+    } else if (localRecordCount < syncRecordCount) {
         auto asyncResult = DownloadChangelog(
             Config,
             CellManager,
             ChangelogStore,
             changelogId,
-            remoteRecordCount);
+            syncRecordCount);
         auto result = WaitFor(asyncResult);
 
         TVersion downloadedVersion(changelogId, changelog->GetRecordCount());
@@ -300,7 +314,8 @@ TLeaderRecovery::TLeaderRecovery(
 TAsyncError TLeaderRecovery::Run(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
+    
+    SyncVersion = targetVersion;
     int snapshotId = SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId);
     return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochAutomatonInvoker)
@@ -352,8 +367,10 @@ TAsyncError TFollowerRecovery::Run(TVersion syncVersion)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    SyncVersion = syncVersion;
+
     PostponedVersion = syncVersion;
-    YCHECK(PostponedMutations.empty());
+    PostponedMutations.clear();
 
     return BIND(&TFollowerRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochAutomatonInvoker)

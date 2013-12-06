@@ -68,6 +68,7 @@ protected:
     TEpochId EpochId;
     TPeerId LeaderId;
     IInvokerPtr EpochAutomatonInvoker;
+    TVersion SyncVersion;
 
     NLog::TTaggedLogger Logger;
 
