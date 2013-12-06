@@ -30,9 +30,8 @@ private:
     TTabletSlot* Slot;
     NCellNode::TBootstrap* Bootstrap;
 
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read);
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write);
-    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Lookup);
-    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Delete);
 
 };
 

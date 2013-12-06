@@ -59,6 +59,12 @@ void TTransaction::SetFinished()
     Finished_.Set();
 }
 
+void TTransaction::ResetFinished()
+{
+    Finished_.Set();
+    Finished_ = NewPromise();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

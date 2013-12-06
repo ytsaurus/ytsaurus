@@ -40,9 +40,8 @@ TTabletService::TTabletService(
     YCHECK(Slot);
     YCHECK(Bootstrap);
 
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Delete));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Lookup));
 }
 
 void TTabletService::Start()
@@ -55,6 +54,28 @@ void TTabletService::Stop()
 {
     auto rpcServer = Bootstrap->GetRpcServer();
     rpcServer->UnregisterService(this);
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTabletService, Read)
+{
+    ValidateActiveLeader();
+
+    auto tabletId = FromProto<TTabletId>(request->tablet_id());
+    auto timestamp = TTimestamp(request->timestamp());
+    context->SetRequestInfo("TabletId: %s, Timestamp: %" PRIu64,
+        ~ToString(tabletId),
+        timestamp);
+
+    auto tabletManager = Slot->GetTabletManager();
+    auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
+
+    tabletManager->Read(
+        tablet,
+        timestamp,
+        request->encoded_request(),
+        response->mutable_encoded_response());
+
+    context->Reply();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
@@ -75,63 +96,7 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
     tabletManager->Write(
         tablet,
         transaction,
-        std::move(*request->mutable_chunk_meta()),
-        std::move(context->RequestAttachments()));
-
-    context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TTabletService, Lookup)
-{
-    ValidateActiveLeader();
-
-    auto tabletId = FromProto<TTabletId>(request->tablet_id());
-    auto timestamp = TTimestamp(request->timestamp());
-    auto key = FromProto<NVersionedTableClient::TOwningKey>(request->key());
-
-    TColumnFilter columnFilter;
-    columnFilter.All = request->all_columns();
-    for (const auto& column : request->columns()) {
-        columnFilter.Columns.push_back(column);
-    }
-    
-    context->SetRequestInfo("TabletId: %s, Timestamp: %" PRIu64,
-        ~ToString(tabletId),
-        timestamp);
-
-    auto tabletManager = Slot->GetTabletManager();
-    auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
-    tabletManager->Lookup(
-        tablet,
-        key,
-        timestamp,
-        columnFilter,
-        response->mutable_chunk_meta(),
-        &response->Attachments());
-
-    context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TTabletService, Delete)
-{
-    ValidateActiveLeader();
-
-    auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-    auto tabletId = FromProto<TTabletId>(request->tablet_id());
-    auto keys = FromProto<NVersionedTableClient::TOwningKey>(request->keys());
-    context->SetRequestInfo("TransactionId: %s, TabletId: %s",
-        ~ToString(transactionId),
-        ~ToString(tabletId));
-
-    auto transactionManager = Slot->GetTransactionManager();
-    auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
-
-    auto tabletManager = Slot->GetTabletManager();
-    auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
-    tabletManager->Delete(
-        tablet,
-        transaction,
-        keys);
+        request->encoded_request());
 
     context->Reply();
 }

@@ -18,19 +18,12 @@ message TReqRemoveTablet
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TReqWriteRows
+message TReqExecuteWrite
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid tablet_id = 2;
-    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
-    repeated bytes blocks = 4;
-}
-
-message TReqDeleteRows
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid tablet_id = 2;
-    repeated bytes keys = 3;
+    required int32 commands_succeded = 3;
+    required bytes encoded_request = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -330,7 +330,7 @@ private:
             if (transaction->GetState() == ETransactionState::TransientlyPrepared) {
                 transaction->SetState(ETransactionState::Active);
             }
-            transaction->SetFinished();
+            transaction->ResetFinished();
         }
     }
 

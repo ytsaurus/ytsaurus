@@ -321,128 +321,104 @@ void TTableConsumer::ThrowError(const Stroka& message) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedTableConsumer::TVersionedTableConsumer(
+TTableConsumerBase::TTableConsumerBase(
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    TNameTablePtr nameTable,
-    IWriterPtr writer)
-    : CurrentTableIndex(0)
-    , Writers(std::vector<IWriterPtr>(1, std::move(writer)))
+    const TKeyColumns& keyColumns)
+    : TreatMissingAsNull_(true)
+    , KeyColumnCount_(static_cast<int>(keyColumns.size()))
+    , NameTable_(TNameTable::FromSchema(schema))
+    , ControlState_(EControlState::None)
+    , Depth_(0)
+    , ColumnIndex_(0)
 {
-    Initialize(schema, keyColumns, std::move(nameTable));
-}
-
-TVersionedTableConsumer::TVersionedTableConsumer(
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    TNameTablePtr nameTable,
-    std::vector<IWriterPtr> writers,
-    int tableIndex)
-    : CurrentTableIndex(tableIndex)
-    , Writers(std::move(writers))
-{
-    Initialize(schema, keyColumns, std::move(nameTable));
-}
-
-void TVersionedTableConsumer::Initialize(
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    TNameTablePtr nameTable)
-{
-    CurrentWriter = Writers[CurrentTableIndex];
-    ControlState = EControlState::None;
-    Depth = 0;
-    ColumnIndex = -1;
-    NameTable = std::move(nameTable);
-
-    // NB: Key columns must go first.
-    for (const auto& name : keyColumns) {
-        NameTable->GetIdOrRegisterName(name);
-    }
-
-    SchemaColumnDescriptors.resize(schema.Columns().size());
+    SchemaColumnDescriptors_.resize(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
-        int id = NameTable->GetIdOrRegisterName(column.Name);
-        SchemaColumnDescriptors[id].Type = column.Type;
+        int id = NameTable_->GetId(column.Name);
+        SchemaColumnDescriptors_[id].Type = column.Type;
     }
 }
 
-void TVersionedTableConsumer::OnStringScalar(const TStringBuf& value)
+TNameTablePtr TTableConsumerBase::GetNameTable() const
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
-        ThrowInvalidControlAttribute("be a string value");
-    }
-
-    YASSERT(ControlState == EControlState::None);
-
-    if (Depth == 0) {
-        ThrowMapExpected();
-    } else {
-        WriteValue(MakeStringValue<TUnversionedValue>(value, ColumnIndex));
-    }
+    return NameTable_;
 }
 
-void TVersionedTableConsumer::OnIntegerScalar(i64 value)
+TError TTableConsumerBase::AttachLocationAttributes(TError error)
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    return error;
+}
 
-        switch (ControlAttribute) {
-            case EControlAttribute::TableIndex: {
-                if (value < 0 || value >= Writers.size()) {
-                    THROW_ERROR_EXCEPTION(
-                        "Invalid table index: expected in range [0, %d], actual %" PRId64,
-                        static_cast<int>(Writers.size()) - 1,
-                        value)
-                        << TErrorAttribute("row_index", CurrentWriter->GetRowIndex());
-                }
-                CurrentTableIndex = value;
-                CurrentWriter = Writers[CurrentTableIndex];
-                ControlState = EControlState::ExpectEndAttributes;
-                break;                                               }
+void TTableConsumerBase::OnControlIntegerScalar(i64 /*value*/)
+{
+    ThrowControlAttributesNotSupported();
+}
 
-            default:
-                ThrowInvalidControlAttribute("be an integer value");
-        }
+void TTableConsumerBase::OnControlStringScalar(const TStringBuf& /*value*/)
+{
+    ThrowControlAttributesNotSupported();
+}
+
+void TTableConsumerBase::OnStringScalar(const TStringBuf& value)
+{
+    if (ControlState_ == EControlState::ExpectValue) {
+        YASSERT(Depth_ == 1);
+        OnControlStringScalar(value);
         return;
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
-    if (Depth == 0) {
+    if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(MakeIntegerValue<TUnversionedValue>(value, ColumnIndex));
+        WriteValue(MakeStringValue<TUnversionedValue>(value, ColumnIndex_));
     }
 }
 
-void TVersionedTableConsumer::OnDoubleScalar(double value)
+void TTableConsumerBase::OnIntegerScalar(i64 value)
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState_ == EControlState::ExpectValue) {
+        YASSERT(Depth_ == 1);
+        OnControlIntegerScalar(value);
+        return;
+    }
+
+    YASSERT(ControlState_ == EControlState::None);
+
+    if (Depth_ == 0) {
+        ThrowMapExpected();
+    } else {
+        WriteValue(MakeIntegerValue<TUnversionedValue>(value, ColumnIndex_));
+    }
+}
+
+void TTableConsumerBase::OnDoubleScalar(double value)
+{
+    if (ControlState_ == EControlState::ExpectValue) {
+        YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a double value");
+        return;
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
-    if (Depth == 0) {
+    if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(MakeDoubleValue<TUnversionedValue>(value, ColumnIndex));
+        WriteValue(MakeDoubleValue<TUnversionedValue>(value, ColumnIndex_));
     }
 }
 
-void TVersionedTableConsumer::OnEntity()
+void TTableConsumerBase::OnEntity()
 {
-    switch (ControlState) {
+    switch (ControlState_) {
         case EControlState::None:
             break;
 
         case EControlState::ExpectEntity:
-            YASSERT(Depth == 0);
+            YASSERT(Depth_ == 0);
             // Successfully processed control statement.
-            ControlState = EControlState::None;
+            ControlState_ = EControlState::None;
             return;
 
         case EControlState::ExpectValue:
@@ -454,187 +430,192 @@ void TVersionedTableConsumer::OnEntity()
     }
 
 
-    if (Depth == 0) {
+    if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        THROW_ERROR_EXCEPTION("Composite types are not supported");
+        ThrowCompositesNotSupported();
     }
 }
 
-void TVersionedTableConsumer::OnBeginList()
+void TTableConsumerBase::OnBeginList()
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState_ == EControlState::ExpectValue) {
+        YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a list");
+        return;
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
-    if (Depth == 0) {
+    if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        ++Depth;
-        THROW_ERROR_EXCEPTION("Composite types are not supported");
+        ++Depth_;
+        ThrowCompositesNotSupported();
     }
 }
 
-void TVersionedTableConsumer::OnBeginAttributes()
+void TTableConsumerBase::OnBeginAttributes()
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState_ == EControlState::ExpectValue) {
+        YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("have attributes");
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
-    if (Depth == 0) {
-        ControlState = EControlState::ExpectName;
+    if (Depth_ == 0) {
+        ControlState_ = EControlState::ExpectName;
     } else {
-        THROW_ERROR_EXCEPTION("Composite types are not supported");
+        ThrowCompositesNotSupported();
     }
 
-    ++Depth;
+    ++Depth_;
 }
 
-void TVersionedTableConsumer::ThrowMapExpected()
+void TTableConsumerBase::ThrowControlAttributesNotSupported()
 {
-    THROW_ERROR_EXCEPTION("Invalid row format, map expected")
-        << TErrorAttribute("table_index", CurrentTableIndex)
-        << TErrorAttribute("row_index", CurrentWriter->GetRowIndex());
+    THROW_ERROR AttachLocationAttributes(TError("Control attributes are not supported"));
 }
 
-void TVersionedTableConsumer::ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EValueType actualType)
+void TTableConsumerBase::ThrowMapExpected()
 {
-    THROW_ERROR_EXCEPTION("Invalid type of schema column %s: expected %s, actual %s",
-        ~NameTable->GetName(columnId).Quote(),
-        ~FormatEnum(SchemaColumnDescriptors[columnId].Type).Quote(),
-        ~FormatEnum(actualType).Quote())
-        << TErrorAttribute("table_index", CurrentTableIndex)
-        << TErrorAttribute("row_index", CurrentWriter->GetRowIndex());
+    THROW_ERROR AttachLocationAttributes(TError("Invalid row format, map expected"));
 }
 
-void TVersionedTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
+void TTableConsumerBase::ThrowCompositesNotSupported()
 {
-    THROW_ERROR_EXCEPTION("Control attribute %s cannot %s",
-        ~FormatEnum(ControlAttribute).Quote(),
-        ~whatsWrong)
-        << TErrorAttribute("table_index", CurrentTableIndex)
-        << TErrorAttribute("row_index", CurrentWriter->GetRowIndex());
+    THROW_ERROR AttachLocationAttributes(TError("Composite types are not supported"));
 }
 
-void TVersionedTableConsumer::OnListItem()
+void TTableConsumerBase::ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EValueType actualType)
 {
-    YASSERT(ControlState == EControlState::None);
+    THROW_ERROR AttachLocationAttributes(TError("Invalid type of schema column %s: expected %s, actual %s",
+        ~NameTable_->GetName(columnId).Quote(),
+        ~FormatEnum(SchemaColumnDescriptors_[columnId].Type).Quote(),
+        ~FormatEnum(actualType).Quote()));
+}
 
-    if (Depth == 0) {
+void TTableConsumerBase::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
+{
+    THROW_ERROR AttachLocationAttributes(TError("Control attribute %s cannot %s",
+        ~FormatEnum(ControlAttribute_).Quote(),
+        ~whatsWrong));
+}
+
+void TTableConsumerBase::OnListItem()
+{
+    YASSERT(ControlState_ == EControlState::None);
+
+    if (Depth_ == 0) {
         // Row separator, do nothing.
     } else {
-        THROW_ERROR_EXCEPTION("Composite types are not supported");
+        ThrowCompositesNotSupported();
     }
 }
 
-void TVersionedTableConsumer::OnBeginMap()
+void TTableConsumerBase::OnBeginMap()
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState_ == EControlState::ExpectValue) {
+        YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a map");
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
-    ++Depth;
-    if (Depth == 1) {
-        // Start or row, do nothing.
+    ++Depth_;
+    if (Depth_ == 1) {
+        OnBeginRow();
     } else {
-        THROW_ERROR_EXCEPTION("Composite types are not supported");
+        ThrowCompositesNotSupported();
     }
 }
 
-void TVersionedTableConsumer::OnKeyedItem(const TStringBuf& name)
+void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
 {
-    switch (ControlState) {
+    switch (ControlState_) {
         case EControlState::None:
             break;
 
         case EControlState::ExpectName:
-            YASSERT(Depth == 1);
+            YASSERT(Depth_ == 1);
             try {
-                ControlAttribute = ParseEnum<EControlAttribute>(ToString(name));
+                ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(name));
             } catch (const std::exception&) {
                 // Ignore ex, our custom message is more meaningful.
-                THROW_ERROR_EXCEPTION("Failed to parse control attribute name %s",
-                    ~Stroka(name).Quote());
+                THROW_ERROR AttachLocationAttributes(TError("Failed to parse control attribute name %s",
+                    ~Stroka(name).Quote()));
             }
-            ControlState = EControlState::ExpectValue;
+            ControlState_ = EControlState::ExpectValue;
             return;
 
         case EControlState::ExpectEndAttributes:
-            YASSERT(Depth == 1);
-            THROW_ERROR_EXCEPTION("Too many control attributes per record: at most one attribute is allowed");
+            YASSERT(Depth_ == 1);
+            THROW_ERROR AttachLocationAttributes(TError("Too many control attributes per record: at most one attribute is allowed"));
             break;
 
         default:
             YUNREACHABLE();
     }
 
-    YASSERT(Depth > 0);
-    if (Depth == 1) {
-        ColumnIndex = NameTable->GetIdOrRegisterName(name);
+    YASSERT(Depth_ > 0);
+    if (Depth_ == 1) {
+        ColumnIndex_ = NameTable_->GetIdOrRegisterName(name);
     } else {
-        THROW_ERROR_EXCEPTION("Composite types are not supported");
+        ThrowCompositesNotSupported();
     }
 }
 
-void TVersionedTableConsumer::OnEndMap()
+void TTableConsumerBase::OnEndMap()
 {
-    YASSERT(Depth > 0);
+    YASSERT(Depth_ > 0);
     // No control attribute allows map or composite values.
-    YASSERT(ControlState == EControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
-    --Depth;
-    if (Depth > 0) {
-        THROW_ERROR_EXCEPTION("Composite types are not supported");
+    --Depth_;
+    if (Depth_ > 0) {
+        ThrowCompositesNotSupported();
     } else {
-        for (int id = 0; id < static_cast<int>(SchemaColumnDescriptors.size()); ++id) {
-            if (SchemaColumnDescriptors[id].Written) {
-                SchemaColumnDescriptors[id].Written = false;
+        for (int id = 0; id < static_cast<int>(SchemaColumnDescriptors_.size()); ++id) {
+            if (SchemaColumnDescriptors_[id].Written) {
+                SchemaColumnDescriptors_[id].Written = false;
             } else {
-                CurrentWriter->WriteValue(MakeSentinelValue<TUnversionedValue>(
-                    EValueType::Null,
-                    id));
+                if (id >= KeyColumnCount_ && TreatMissingAsNull_) {
+                    OnValue(MakeSentinelValue<TUnversionedValue>(EValueType::Null, id));
+                }
             }
         }
-        CurrentWriter->EndRow();
+        OnEndRow();
     }
 }
 
-void TVersionedTableConsumer::OnEndList()
+void TTableConsumerBase::OnEndList()
 {
     // No control attribute allow list or composite values.
-    YASSERT(ControlState == EControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
-    --Depth;
-    YASSERT(Depth > 0);
-    THROW_ERROR_EXCEPTION("Composite types are not supported");
+    --Depth_;
+    YASSERT(Depth_ > 0);
+    ThrowCompositesNotSupported();
 }
 
-void TVersionedTableConsumer::OnEndAttributes()
+void TTableConsumerBase::OnEndAttributes()
 {
-    --Depth;
+    --Depth_;
 
-    switch (ControlState) {
+    switch (ControlState_) {
         case EControlState::ExpectName:
-            THROW_ERROR_EXCEPTION("Too few control attributes per record: at least one attribute is required");
+            THROW_ERROR AttachLocationAttributes(TError("Too few control attributes per record: at least one attribute is required"));
             break;
 
         case EControlState::ExpectEndAttributes:
-            YASSERT(Depth == 0);
-            ControlState = EControlState::ExpectEntity;
+            YASSERT(Depth_ == 0);
+            ControlState_ = EControlState::ExpectEntity;
             break;
 
         case EControlState::None:
-            YASSERT(Depth > 0);
-            THROW_ERROR_EXCEPTION("Composite types are not supported");
+            YASSERT(Depth_ > 0);
+            ThrowCompositesNotSupported();
             break;
 
         default:
@@ -642,24 +623,135 @@ void TVersionedTableConsumer::OnEndAttributes()
     }
 }
 
-void TVersionedTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
+void TTableConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
     YUNREACHABLE();
 }
 
-void TVersionedTableConsumer::WriteValue(const TUnversionedValue& value)
+void TTableConsumerBase::WriteValue(const TUnversionedValue& value)
 {
     int id = value.Id;
-    if (id < SchemaColumnDescriptors.size()) {
+    if (id < SchemaColumnDescriptors_.size()) {
         auto type = NVersionedTableClient::EValueType(value.Type);
-        auto& descriptor = SchemaColumnDescriptors[id];
+        auto& descriptor = SchemaColumnDescriptors_[id];
         if (type != descriptor.Type) {
             ThrowInvalidSchemaColumnType(id, type);
         }
         descriptor.Written = true;
     }
-    CurrentWriter->WriteValue(value);
-    ColumnIndex = -1;
+    OnValue(value);
+    ColumnIndex_ = -1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWritingTableConsumer::TWritingTableConsumer(
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    IWriterPtr writer)
+    : TTableConsumerBase(schema, keyColumns)
+    , CurrentTableIndex_(0)
+    , Writers_(1, writer)
+    , CurrentWriter_(writer)
+{ }
+
+TWritingTableConsumer::TWritingTableConsumer(
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    std::vector<IWriterPtr> writers,
+    int tableIndex)
+    : TTableConsumerBase(schema, keyColumns)
+    , CurrentTableIndex_(tableIndex)
+    , Writers_(std::move(writers))
+    , CurrentWriter_(Writers_[CurrentTableIndex_])
+{ }
+
+
+TError TWritingTableConsumer::AttachLocationAttributes(TError error)
+{
+    return error
+        << TErrorAttribute("table_index", CurrentTableIndex_)
+        << TErrorAttribute("row_index", CurrentWriter_->GetRowIndex());
+}
+
+void TWritingTableConsumer::OnControlIntegerScalar(i64 value)
+{
+    switch (ControlAttribute_) {
+        case EControlAttribute::TableIndex: {
+            if (value < 0 || value >= Writers_.size()) {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid table index: expected in range [0, %d], actual %" PRId64,
+                    static_cast<int>(Writers_.size()) - 1,
+                    value)
+                    << TErrorAttribute("row_index", CurrentWriter_->GetRowIndex());
+            }
+            CurrentTableIndex_ = value;
+            CurrentWriter_ = Writers_[CurrentTableIndex_];
+            ControlState_ = EControlState::ExpectEndAttributes;
+            break;                                               }
+
+        default:
+            ThrowInvalidControlAttribute("be an integer value");
+    }
+}
+
+void TWritingTableConsumer::OnControlStringScalar(const TStringBuf& /*value*/)
+{
+    ThrowInvalidControlAttribute("be a string");
+}
+
+void TWritingTableConsumer::OnBeginRow()
+{ }
+
+void TWritingTableConsumer::OnValue(const TUnversionedValue& value)
+{
+    CurrentWriter_->WriteValue(value);
+}
+
+void TWritingTableConsumer::OnEndRow()
+{
+    CurrentWriter_->EndRow();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBuildingTableConsumer::TBuildingTableConsumer(
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns)
+    : TTableConsumerBase(schema, keyColumns)
+    , RowIndex_(0)
+{ }
+
+const std::vector<TUnversionedOwningRow> TBuildingTableConsumer::GetRows() const
+{
+    return Rows;
+}
+
+TError TBuildingTableConsumer::AttachLocationAttributes(TError error)
+{
+    return error
+        << TErrorAttribute("row_index", RowIndex_);
+}
+
+void TBuildingTableConsumer::OnBeginRow()
+{ }
+
+void TBuildingTableConsumer::OnValue(const TUnversionedValue& value)
+{
+    Builder.AddValue(value);
+}
+
+void TBuildingTableConsumer::OnEndRow()
+{
+    auto row = Builder.Finish();
+    std::sort(
+        row.Begin(),
+        row.End(),
+        [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
+            return lhs.Id < rhs.Id;
+        });
+    Rows.push_back(row);
+    ++RowIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

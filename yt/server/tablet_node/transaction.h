@@ -44,6 +44,7 @@ public:
 
     TFuture<void> GetFinished() const;
     void SetFinished();
+    void ResetFinished();
 
 private:
     TPromise<void> Finished_;

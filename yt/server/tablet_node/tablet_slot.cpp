@@ -244,14 +244,11 @@ public:
                 ChangelogStore,
                 SnapshotStore);
 
-            HydraManager->SubscribeStartLeading(
-                BIND(&TImpl::OnStartEpoch, Unretained(this)));
-            HydraManager->SubscribeStartFollowing(
-                BIND(&TImpl::OnStartEpoch, Unretained(this)));
-            HydraManager->SubscribeStopLeading(
-                BIND(&TImpl::OnStopEpoch, Unretained(this)));
-            HydraManager->SubscribeStopFollowing(
-                BIND(&TImpl::OnStopEpoch, Unretained(this)));
+            HydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+            HydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+            
+            HydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+            HydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
             HiveManager = New<THiveManager>(
                 CellGuid,

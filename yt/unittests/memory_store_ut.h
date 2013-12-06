@@ -62,9 +62,9 @@ public:
     }
 
 
-    static TUnversionedOwningRow BuildKey(const Stroka& yson)
+    static TOwningKey BuildKey(const Stroka& yson)
     {
-        TUnversionedRowBuilder keyBuilder;
+        TUnversionedOwningRowBuilder keyBuilder;
         auto keyParts = ConvertTo<std::vector<INodePtr>>(TYsonString(yson, EYsonType::ListFragment));
         for (auto keyPart : keyParts) {
             switch (keyPart->GetType()) {
@@ -82,14 +82,14 @@ public:
                     break;
             }
         }
-        return keyBuilder.GetRow();
+        return keyBuilder.Finish();
     }
 
-    TVersionedOwningRow BuildRow(const Stroka& yson)
+    TUnversionedOwningRow BuildRow(const Stroka& yson)
     {
         auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(TYsonString(yson, EYsonType::MapFragment));
 
-        TVersionedRowBuilder rowBuilder;
+        TUnversionedOwningRowBuilder rowBuilder;
         auto addValue = [&] (int id, INodePtr value) {
             switch (value->GetType()) {
                 case ENodeType::Integer:
@@ -132,7 +132,7 @@ public:
             }
         }
 
-        return rowBuilder.GetRow();
+        return rowBuilder.Finish();
     }
 
 

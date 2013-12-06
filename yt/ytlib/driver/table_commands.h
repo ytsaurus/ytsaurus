@@ -107,11 +107,14 @@ struct TInsertRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
+    bool Update;
     NYTree::INodePtr TableWriter;
 
     TInsertRequest()
     {
         RegisterParameter("path", Path);
+        RegisterParameter("update", Update)
+            .Default(false);
         RegisterParameter("table_writer", TableWriter)
             .Default(nullptr);
     }

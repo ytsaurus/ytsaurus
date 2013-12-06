@@ -4,32 +4,12 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <ytlib/tablet_client/public.h>
+
 #include <ytlib/chunk_client/chunk.pb.h>
 
 namespace NYT {
 namespace NTabletNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TColumnFilter
-{
-    TColumnFilter()
-        : All(true)
-    { }
-
-    TColumnFilter(const std::vector<Stroka>& columns)
-        : All(false)
-        , Columns(columns.begin(), columns.end())
-    { }
-
-    TColumnFilter(const TColumnFilter& other)
-        : All(other.All)
-        , Columns(other.Columns)
-    { }
-
-    bool All;
-    TSmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,24 +25,21 @@ public:
 
     TTablet* GetTablet() const;
 
-    void Lookup(
-        NVersionedTableClient::TKey key,
+    void LookupRow(
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter,
-        NChunkClient::NProto::TChunkMeta* chunkMeta,
-        std::vector<TSharedRef>* blocks);
+        NTabletClient::TProtocolReader* reader,
+        NTabletClient::TProtocolWriter* writer);
     
-    void Write(
+    void WriteRow(
         TTransaction* transaction,
-        NChunkClient::NProto::TChunkMeta chunkMeta,
-        std::vector<TSharedRef> blocks,
+        NVersionedTableClient::TUnversionedRow row,
         bool prewrite,
         std::vector<TDynamicRow>* lockedRows);
 
-    void Delete(
+    void DeleteRow(
         TTransaction* transaction,
-        const std::vector<NVersionedTableClient::TOwningKey>& keys,
-        bool predelete,
+        NVersionedTableClient::TKey key,
+        bool prewrite,
         std::vector<TDynamicRow>* lockedRows);
 
     void ConfirmRow(const TDynamicRowRef& rowRef);
@@ -86,6 +63,8 @@ private:
     TStaticMemoryStorePtr StaticMemoryStore_;
 
     NVersionedTableClient::TNameTablePtr NameTable_;
+
+    std::vector<NVersionedTableClient::TVersionedRow> PooledRowset_;
 
     std::unique_ptr<TMemoryCompactor> MemoryCompactor_;
     bool MemoryCompactionInProgress_;

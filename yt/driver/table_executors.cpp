@@ -122,10 +122,12 @@ Stroka TUnmountExecutor::GetCommandName() const
 
 TInsertExecutor::TInsertExecutor()
     : PathArg("path", "table path to insert into", true, "", "YPATH")
+    , UpdateArg("", "update", "update row values, don't replace the whole row", false)
     , ValueArg("value", "row(s) to write", false, "", "YSON")
     , UseStdIn(true)
 {
     CmdLine.add(PathArg);
+    CmdLine.add(UpdateArg);
     CmdLine.add(ValueArg);
 }
 
@@ -140,7 +142,8 @@ void TInsertExecutor::BuildArgs(IYsonConsumer* consumer)
     }
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Value(path);
+        .Item("path").Value(path)
+        .Item("update").Value(UpdateArg.getValue());
 
     TRequestExecutor::BuildArgs(consumer);
 }

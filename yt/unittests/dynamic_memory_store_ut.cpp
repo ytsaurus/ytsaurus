@@ -72,7 +72,7 @@ public:
 
     TDynamicRow WriteRow(
         TTransaction* transaction,
-        TVersionedRow row,
+        TUnversionedRow row,
         bool prewrite)
     {
         return Store->WriteRow(
@@ -85,12 +85,12 @@ public:
     TDynamicRow DeleteRow(
         TTransaction* transaction,
         NVersionedTableClient::TKey key,
-        bool predelete)
+        bool prewrite)
     {
         return Store->DeleteRow(
             transaction,
             key,
-            predelete);
+            prewrite);
     }
 
     TUnversionedOwningRow LookupRow(
@@ -108,7 +108,7 @@ public:
             return TUnversionedOwningRow();
         }
 
-        TUnversionedRowBuilder builder;
+        TUnversionedOwningRowBuilder builder;
         
         int keyCount = static_cast<int>(Tablet->KeyColumns().size());
         int schemaColumnCount = static_cast<int>(Tablet->Schema().Columns().size());
@@ -128,7 +128,7 @@ public:
                 : MakeUnversionedSentinelValue(EValueType::Null, index + keyCount));
         }
 
-        return builder.GetRow();
+        return builder.Finish();
     }
 
     void CompareRows(TUnversionedRow row, const TNullable<Stroka>& yson)

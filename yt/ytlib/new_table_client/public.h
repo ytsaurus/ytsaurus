@@ -63,6 +63,11 @@ class TRowBuilder;
 typedef TRowBuilder<TVersionedValue>   TVersionedRowBuilder;
 typedef TRowBuilder<TUnversionedValue> TUnversionedRowBuilder;
 
+template <class TValue>
+class TOwningRowBuilder;
+typedef TOwningRowBuilder<TVersionedValue>   TVersionedOwningRowBuilder;
+typedef TOwningRowBuilder<TUnversionedValue> TUnversionedOwningRowBuilder;
+
 class TKeyComparer;
 
 struct TColumnSchema;

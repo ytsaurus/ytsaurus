@@ -5,17 +5,20 @@
 #include <core/misc/blob_output.h>
 #include <core/misc/blob_range.h>
 #include <core/misc/nullable.h>
+#include <core/misc/property.h>
 
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
 
 #include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/row.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): deprecate
 /*!
  *  For performance reasons we don't use TForwardingYsonConsumer.
  */
@@ -93,32 +96,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): should eventually merge with the above
-/*!
- *  For performance reasons we don't use TForwardingYsonConsumer.
- */
-class TVersionedTableConsumer
+class TTableConsumerBase
     : public NYson::IYsonConsumer
 {
 public:
-    TVersionedTableConsumer(
-        const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        NVersionedTableClient::IWriterPtr writer);
+    NVersionedTableClient::TNameTablePtr GetNameTable() const;
 
-    TVersionedTableConsumer(
-        const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::IWriterPtr> writers,
-        int tableIndex);
+    DEFINE_BYVAL_RW_PROPERTY(bool, TreatMissingAsNull);
 
-private:
-    void Initialize(
+protected:
+    TTableConsumerBase(
         const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        NVersionedTableClient::TNameTablePtr nameTable);
+        const NVersionedTableClient::TKeyColumns& keyColumns);
+
+    virtual TError AttachLocationAttributes(TError error);
+
+    virtual void OnControlIntegerScalar(i64 value);
+    virtual void OnControlStringScalar(const TStringBuf& value);
+
+    virtual void OnBeginRow() = 0;
+    virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) = 0;
+    virtual void OnEndRow() = 0;
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnIntegerScalar(i64 value) override;
@@ -132,7 +130,9 @@ private:
 
     virtual void OnBeginAttributes() override;
 
+    void ThrowControlAttributesNotSupported();
     void ThrowMapExpected();
+    void ThrowCompositesNotSupported();
     void ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EValueType actualType);
     void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
 
@@ -150,17 +150,14 @@ private:
         (ExpectEntity)
     );
 
-    NVersionedTableClient::TNameTablePtr NameTable;
+    int KeyColumnCount_;
+    NVersionedTableClient::TNameTablePtr NameTable_;
 
-    EControlState ControlState;
-    EControlAttribute ControlAttribute;
+    EControlState ControlState_;
+    EControlAttribute ControlAttribute_;
 
-    int CurrentTableIndex;
-    std::vector<NVersionedTableClient::IWriterPtr> Writers;
-    NVersionedTableClient::IWriterPtr CurrentWriter;
-
-    int Depth;
-    int ColumnIndex;
+    int Depth_;
+    int ColumnIndex_;
 
     struct TColumnDescriptor
     {
@@ -172,7 +169,67 @@ private:
         NVersionedTableClient::EValueType Type;
     };
 
-    std::vector<TColumnDescriptor> SchemaColumnDescriptors;
+    std::vector<TColumnDescriptor> SchemaColumnDescriptors_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWritingTableConsumer
+    : public TTableConsumerBase
+{
+public:
+    TWritingTableConsumer(
+        const NVersionedTableClient::TTableSchema& schema,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
+        NVersionedTableClient::IWriterPtr writer);
+
+    TWritingTableConsumer(
+        const NVersionedTableClient::TTableSchema& schema,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
+        std::vector<NVersionedTableClient::IWriterPtr> writers,
+        int tableIndex);
+
+private:
+    virtual TError AttachLocationAttributes(TError error) override;
+
+    virtual void OnControlIntegerScalar(i64 value) override;
+    virtual void OnControlStringScalar(const TStringBuf& value) override;
+
+    virtual void OnBeginRow() override;
+    virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
+    virtual void OnEndRow() override;
+
+
+    int CurrentTableIndex_;
+    std::vector<NVersionedTableClient::IWriterPtr> Writers_;
+    NVersionedTableClient::IWriterPtr CurrentWriter_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBuildingTableConsumer
+    : public TTableConsumerBase
+{
+public:
+    TBuildingTableConsumer(
+        const NVersionedTableClient::TTableSchema& schema,
+        const NVersionedTableClient::TKeyColumns& keyColumns);
+
+    const std::vector<NVersionedTableClient::TUnversionedOwningRow> GetRows() const;
+
+private:
+    virtual TError AttachLocationAttributes(TError error) override;
+
+    virtual void OnBeginRow() override;
+    virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
+    virtual void OnEndRow() override;
+
+    
+    int RowIndex_;
+    NVersionedTableClient::TUnversionedOwningRowBuilder Builder;
+    std::vector<NVersionedTableClient::TUnversionedOwningRow> Rows;
 
 };
 

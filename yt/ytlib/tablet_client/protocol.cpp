@@ -17,9 +17,25 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const ui32 ProtocolVersion = 1;
+static const ui32 CurrentProtocolVersion = 1;
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TColumnFilter::TColumnFilter()
+    : All(true)
+{ }
+
+TColumnFilter::TColumnFilter(const std::vector<Stroka>& columns)
+    : All(false)
+    , Columns(columns.begin(), columns.end())
+{ }
+
+TColumnFilter::TColumnFilter(const TColumnFilter& other)
+    : All(other.All)
+    , Columns(other.Columns)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +46,7 @@ public:
         : RawStream_(&Data_)
         , CodedStream_(&RawStream_)
     {
-        WriteUInt32(ProtocolVersion);
+        WriteUInt32(CurrentProtocolVersion);
     }
 
 
@@ -40,12 +56,34 @@ public:
     }
 
 
+    void WriteColumnFilter(const TColumnFilter& filter)
+    {
+        WriteUInt32(filter.All);
+        if (!filter.All) {
+            WriteUInt32(filter.Columns.size());
+            for (const auto& name : filter.Columns) {
+                WriteString(name);
+            }
+        }
+    }
+
+
     void WriteUnversionedRow(TUnversionedRow row)
     {
         WriteRow(row);
     }
 
+    void WriteUnversionedRow(const std::vector<TUnversionedValue>& row)
+    {
+        WriteRow(row);
+    }
+    
     void WriteVersionedRow(TVersionedRow row)
+    {
+        WriteRow(row);
+    }
+
+    void WriteVersionedRow(const std::vector<TVersionedValue>& row)
     {
         WriteRow(row);
     }
@@ -94,11 +132,16 @@ private:
         WriteRaw(&value, sizeof (double));
     }
 
+    void WriteString(const Stroka& value)
+    {
+        WriteUInt32(value.length());
+        WriteRaw(value.begin(), value.length());
+    }
+
     void WriteRaw(const void* buffer, size_t size)
     {
         CodedStream_.WriteRaw(buffer, size);
     }
-
 
     void WriteRowValue(const TUnversionedValue& value)
     {
@@ -120,7 +163,7 @@ private:
                 break;
 
             default:
-                YUNREACHABLE();
+                break;
         }
     }
 
@@ -135,6 +178,15 @@ private:
     {
         WriteUInt32(row.GetValueCount());
         for (int index = 0; index < row.GetValueCount(); ++index) {
+            WriteRowValue(row[index]);
+        }
+    }
+
+    template <class TValue>
+    void WriteRow(const std::vector<TValue>& row)
+    {
+        WriteUInt32(row.size());
+        for (int index = 0; index < static_cast<int>(row.size()); ++index) {
             WriteRowValue(row[index]);
         }
     }
@@ -156,6 +208,9 @@ TProtocolWriter::TProtocolWriter()
     : Impl_(new TImpl())
 { }
 
+TProtocolWriter::~TProtocolWriter()
+{ }
+
 Stroka TProtocolWriter::Finish()
 {
     return Impl_->Finish();
@@ -166,12 +221,27 @@ void TProtocolWriter::WriteCommand(EProtocolCommand command)
     Impl_->WriteCommand(command);
 }
 
+void TProtocolWriter::WriteColumnFilter(const TColumnFilter& filter)
+{
+    Impl_->WriteColumnFilter(filter);
+}
+
 void TProtocolWriter::WriteUnversionedRow(TUnversionedRow row)
 {
     Impl_->WriteUnversionedRow(row);
 }
 
+void TProtocolWriter::WriteUnversionedRow(const std::vector<TUnversionedValue>& row)
+{
+    Impl_->WriteUnversionedRow(row);
+}
+
 void TProtocolWriter::WriteVersionedRow(TVersionedRow row)
+{
+    Impl_->WriteVersionedRow(row);
+}
+
+void TProtocolWriter::WriteVersionedRow(const std::vector<TVersionedValue>& row)
 {
     Impl_->WriteVersionedRow(row);
 }
@@ -191,17 +261,16 @@ void TProtocolWriter::WriteVersionedRowset(const std::vector<TVersionedRow>& row
 class TProtocolReader::TImpl
 {
 public:
-    explicit TImpl(TRef data)
-        : RawStream_(data.Begin(), data.Size())
+    explicit TImpl(const Stroka& data)
+        : RawStream_(data.data(), data.length())
         , CodedStream_(&RawStream_)
         , AlignedPool_(ReaderAlignedChunkSize)
         , UnalignedPool_(ReaderUnalignedChunkSize)
     {
-        int version = ReadUInt32();
-        if (version != ProtocolVersion) {
-            THROW_ERROR_EXCEPTION("Protocol version mismatch: expected %u, got %u",
-                ProtocolVersion,
-                version);
+        ProtocolVersion_ = ReadUInt32();
+        if (ProtocolVersion_ != 1) {
+            THROW_ERROR_EXCEPTION("Unsupported protocol version %d",
+                ProtocolVersion_);
         }
     }
 
@@ -209,6 +278,20 @@ public:
     EProtocolCommand ReadCommand()
     {
         return EProtocolCommand(ReadUInt32());
+    }
+
+    
+    TColumnFilter ReadColumnFilter()
+    {
+        TColumnFilter filter;
+        filter.All = ReadUInt32();
+        if (!filter.All) {
+            ui32 count = ReadUInt32();
+            for (int index = 0; index < count; ++index) {
+                filter.Columns.push_back(ReadString());
+            }
+        }
+        return filter;
     }
 
 
@@ -236,6 +319,8 @@ public:
 private:
     google::protobuf::io::ArrayInputStream RawStream_;
     google::protobuf::io::CodedInputStream CodedStream_;
+
+    int ProtocolVersion_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
@@ -274,6 +359,14 @@ private:
         return value;
     }
 
+    Stroka ReadString()
+    {
+        size_t length = ReadUInt32();
+        Stroka value(length);
+        ReadRaw(const_cast<char*>(value.data()), length);
+        return value;
+    }
+
     void ReadRaw(void* buffer, size_t size)
     {
         CheckResult(CodedStream_.ReadRaw(buffer, size));
@@ -301,7 +394,7 @@ private:
                 break;
 
             default:
-                YUNREACHABLE();
+                break;
         }
     }
 
@@ -338,8 +431,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtocolReader::TProtocolReader(TRef data)
+TProtocolReader::TProtocolReader(const Stroka& data)
     : Impl_(new TImpl(data))
+{ }
+
+TProtocolReader::~TProtocolReader()
 { }
 
 EProtocolCommand TProtocolReader::ReadCommand()
@@ -347,14 +443,29 @@ EProtocolCommand TProtocolReader::ReadCommand()
     return Impl_->ReadCommand();
 }
 
+TColumnFilter TProtocolReader::ReadColumnFilter()
+{
+    return Impl_->ReadColumnFilter();
+}
+
 TUnversionedRow TProtocolReader::ReadUnversionedRow()
 {
     return Impl_->ReadUnversionedRow();
 }
 
+TVersionedRow TProtocolReader::ReadVersionedRow()
+{
+    return Impl_->ReadVersionedRow();
+}
+
 void TProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
 {
     Impl_->ReadUnversionedRowset(rowset);
+}
+
+void TProtocolReader::ReadVersionedRowset(std::vector<TVersionedRow>* rowset)
+{
+    Impl_->ReadVersionedRowset(rowset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

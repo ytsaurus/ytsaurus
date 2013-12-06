@@ -19,57 +19,71 @@ DECLARE_ENUM(EProtocolCommand,
 
     // Read commands:
     
-    ((Lookup)(1))
+    ((LookupRow)(1))
     // Finds a row with a given key and fetches its components.
     //
     // Input:
-    //   Key
+    //   * Key
+    //   * Column filter
     //
     // Output:
-    //   Versioned rowset containing 0 or 1 rows
+    //   * Versioned rowset containing 0 or 1 rows
 
     // Write commands:
 
-    ((Insert)(2))
+    ((WriteRow)(2))
     // Inserts a new row or completely replaces an existing one with matching key.
     //
     // Input:
-    //   Unversioned row
+    //   * Unversioned row
     // Output:
     //   None
 
-    ((Update)(3))
-    // Inserts a new row or updates some values of an existing one with matching key.
+    ((DeleteRow)(3))
+    // Deletes a row with a given key, if it exists.
     //
     // Input:
-    //   Unversioned row
-    // Output:
-    //   None
-
-    ((Delete)(4))
-    // Deletes a row with a given key, if it exists
-    //
-    // Input:
-    //   Key
+    //   * Key
     // Output:
     //   None
 
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TColumnFilter
+{
+    TColumnFilter();
+    TColumnFilter(const std::vector<Stroka>& columns);
+    TColumnFilter(const TColumnFilter& other);
+
+    bool All;
+    TSmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProtocolWriter
 {
 public:
     TProtocolWriter();
+    ~TProtocolWriter();
 
     void WriteCommand(EProtocolCommand command);
 
+    void WriteColumnFilter(const TColumnFilter& filter);
+
     void WriteUnversionedRow(NVersionedTableClient::TUnversionedRow row);
+    void WriteUnversionedRow(const std::vector<NVersionedTableClient::TUnversionedValue>& row);
     void WriteVersionedRow(NVersionedTableClient::TVersionedRow row);
+    void WriteVersionedRow(const std::vector<NVersionedTableClient::TVersionedValue>& row);
 
     void WriteUnversionedRowset(const std::vector<NVersionedTableClient::TUnversionedRow>& rowset);
     void WriteVersionedRowset(const std::vector<NVersionedTableClient::TVersionedRow>& rowset);
 
     Stroka Finish();
+
+    void foo();
 
 private:
     class TImpl;
@@ -82,10 +96,13 @@ private:
 class TProtocolReader
 {
 public:
-    explicit TProtocolReader(TRef data);
+    explicit TProtocolReader(const Stroka& data); 
+    ~TProtocolReader();
 
     EProtocolCommand ReadCommand();
     
+    TColumnFilter ReadColumnFilter();
+
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
     NVersionedTableClient::TVersionedRow ReadVersionedRow();
     

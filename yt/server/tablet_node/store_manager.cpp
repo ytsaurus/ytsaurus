@@ -6,14 +6,8 @@
 #include "compaction.h"
 #include "config.h"
 
-#include <ytlib/chunk_client/memory_reader.h>
-#include <ytlib/chunk_client/memory_writer.h>
+#include <ytlib/tablet_client/protocol.h>
 
-#include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/chunk_reader.h>
-#include <ytlib/new_table_client/writer.h>
-#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/tablet_client/config.h>
@@ -25,6 +19,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,57 +51,32 @@ TTablet* TStoreManager::GetTablet() const
     return Tablet_;
 }
 
-void TStoreManager::Lookup(
-    NVersionedTableClient::TKey key,
+void TStoreManager::LookupRow(
     TTimestamp timestamp,
-    const TColumnFilter& columnFilter,
-    TChunkMeta* chunkMeta,
-    std::vector<TSharedRef>* blocks)
+    NTabletClient::TProtocolReader* reader,
+    NTabletClient::TProtocolWriter* writer)
 {
-    auto memoryWriter = New<TMemoryWriter>();
-
-    auto chunkWriter = New<TChunkWriter>(
-        New<TChunkWriterConfig>(), // TODO(babenko): make static
-        New<TEncodingWriterOptions>(), // TODO(babenko): make static
-        memoryWriter);
+    auto key = reader->ReadUnversionedRow();
+    auto columnFilter = reader->ReadColumnFilter();
 
     int keyCount = static_cast<int>(Tablet_->KeyColumns().size());
     int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
 
-    TSmallVector<int, TypicalColumnCount> fixedColumnIds(schemaColumnCount);
-
-    auto globalNameTable = Tablet_->GetNameTable();
-    TNameTablePtr localNameTable;
+    TSmallVector<bool, TypicalColumnCount> columnFilterFlags(schemaColumnCount);
     if (columnFilter.All) {
-        localNameTable = globalNameTable;
-
-        for (int globalId = 0; globalId < schemaColumnCount; ++globalId) {
-            fixedColumnIds[globalId] = globalId;
+        for (int id = 0; id < schemaColumnCount; ++id) {
+            columnFilterFlags[id] = true;
         }
     } else {
-        localNameTable = New<TNameTable>();
-
-        for (int globalId = 0; globalId < schemaColumnCount; ++globalId) {
-            fixedColumnIds[globalId] = -1;
-        }
-
         for (const auto& name : columnFilter.Columns) {
-            auto globalId = globalNameTable->FindId(name);
-            if (globalId) {
-                int localId = localNameTable->GetIdOrRegisterName(name);
-                if (*globalId < schemaColumnCount) {
-                    fixedColumnIds[*globalId] = localId;
-                }
+            auto id = NameTable_->FindId(name);
+            if (id) {
+                columnFilterFlags[*id] = true;
             }
         }
     }
 
-    chunkWriter->Open(
-        std::move(localNameTable),
-        Tablet_->Schema(),
-        Tablet_->KeyColumns());
-
-    // TODO(babenko): replace with small vector once we update our fork from LLVM
+    // TODO(babenko): replace with small vector once it supports move semantics
     std::vector<std::unique_ptr<IStoreScanner>> scanners;
 
     scanners.push_back(ActiveDynamicMemoryStore_->CreateScanner());
@@ -118,6 +88,7 @@ void TStoreManager::Lookup(
     }
 
     bool keysWritten = false;
+    TVersionedRowBuilder builder;
 
     for (const auto& scanner : scanners) {
         auto scannerTimestamp = scanner->Find(key, timestamp);
@@ -130,26 +101,20 @@ void TStoreManager::Lookup(
 
         if (!keysWritten) {
             const auto keys = scanner->GetKeys();
-            for (int globalId = 0; globalId < keyCount; ++globalId) {
-                int localId = fixedColumnIds[globalId];
-                if (localId >= 0) {
-                    auto valueCopy = keys[globalId];
-                    valueCopy.Id = localId;
-                    chunkWriter->WriteValue(valueCopy);
+            for (int id = 0; id < keyCount; ++id) {
+                if (columnFilterFlags[id]) {
+                    builder.AddValue(MakeVersionedValue(keys[id], NullTimestamp));
                 }
             }
             keysWritten = true;
         }
 
-        for (int globalId = keyCount; globalId < schemaColumnCount; ++globalId) {
-            int localId = fixedColumnIds[globalId];
-            if (localId >= 0) {
-                auto* value = scanner->GetFixedValue(globalId - keyCount);
+        for (int id = keyCount; id < schemaColumnCount; ++id) {
+            if (columnFilterFlags[id]) {
+                auto* value = scanner->GetFixedValue(id - keyCount);
                 if (value) {
-                    auto valueCopy = *value;
-                    valueCopy.Id = localId;
-                    chunkWriter->WriteValue(valueCopy);
-                    fixedColumnIds[globalId] = -1;
+                    builder.AddValue(*value);
+                    columnFilterFlags[id] = false;
                 }
             }
         }
@@ -158,97 +123,41 @@ void TStoreManager::Lookup(
             break;
     }
 
+    PooledRowset_.clear();
     if (keysWritten) {
-        for (int globalId = keyCount; globalId < schemaColumnCount; ++globalId) {
-            int localId = fixedColumnIds[globalId];
-            if (localId >= 0) {
-                chunkWriter->WriteValue(MakeUnversionedSentinelValue(EValueType::Null, localId));
-            }
-        }
-
-        chunkWriter->EndRow();
+        PooledRowset_.push_back(builder.GetRow());
     }
-
-    // NB: The writer must be synchronous.
-    YCHECK(chunkWriter->AsyncClose().Get().IsOK());
-
-    *chunkMeta = std::move(memoryWriter->GetChunkMeta());
-    *blocks = std::move(memoryWriter->GetBlocks());
+    writer->WriteVersionedRowset(PooledRowset_);
 }
 
-void TStoreManager::Write(
+void TStoreManager::WriteRow(
     TTransaction* transaction,
-    TChunkMeta chunkMeta,
-    std::vector<TSharedRef> blocks,
+    TUnversionedRow row,
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    auto memoryReader = New<TMemoryReader>(
-        std::move(chunkMeta),
-        std::move(blocks));
-
-    auto chunkReader = CreateChunkReader(
-        New<TChunkReaderConfig>(), // TODO(babenko): make configurable or cache this at least
-        memoryReader);
-
-    auto nameTable = New<TNameTable>();
-
-    {
-        // The reader is typically synchronous.
-        auto error = chunkReader->Open(
-            nameTable,
-            Tablet_->Schema(),
-            true).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
-
-    const int RowsBufferSize = 1000;
-    // TODO(babenko): use unversioned rows
-    std::vector<TVersionedRow> rows;
-    rows.reserve(RowsBufferSize);
-
-    while (true) {
-        bool hasData = chunkReader->Read(&rows);
-        
-        for (auto row : rows) {
-            auto dynamicRow = ActiveDynamicMemoryStore_->WriteRow(
-                nameTable,
-                transaction,
-                row,
-                prewrite);
-            if (lockedRows) {
-            	lockedRows->push_back(dynamicRow);
-            }
-        }
-
-        if (!hasData) {
-            break;
-        }
-        
-        if (rows.size() < rows.capacity()) {
-            // The reader is typically synchronous.
-            auto result = chunkReader->GetReadyEvent().Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-        
-        rows.clear();
+    auto dynamicRow = ActiveDynamicMemoryStore_->WriteRow(
+        NameTable_,
+        transaction,
+        row,
+        prewrite);
+    if (lockedRows) {
+        lockedRows->push_back(dynamicRow);
     }
 }
 
-void TStoreManager::Delete(
+void TStoreManager::DeleteRow(
     TTransaction* transaction,
-    const std::vector<NVersionedTableClient::TOwningKey>& keys,
-    bool predelete,
+    NVersionedTableClient::TKey key,
+    bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    for (auto key : keys) {
-        auto dynamicRow = ActiveDynamicMemoryStore_->DeleteRow(
-            transaction,
-            key,
-            predelete);
-        if (lockedRows) {
-            lockedRows->push_back(dynamicRow);
-        }
+    auto dynamicRow = ActiveDynamicMemoryStore_->DeleteRow(
+        transaction,
+        key,
+        prewrite);
+    if (lockedRows) {
+        lockedRows->push_back(dynamicRow);
     }
 }
 

@@ -10,6 +10,8 @@
 
 #include <ytlib/chunk_client/chunk.pb.h>
 
+#include <ytlib/tablet_client/public.h>
+
 #include <server/hydra/entity_map.h>
 
 #include <server/cell_node/public.h>
@@ -35,24 +37,16 @@ public:
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
 
+    void Read(
+        TTablet* tablet,
+        NTransactionClient::TTimestamp timestamp,
+        const Stroka& encodedRequest,
+        Stroka* encodedResponse);
+
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        NChunkClient::NProto::TChunkMeta chunkMeta,
-        std::vector<TSharedRef> blocks);
-
-    void Delete(
-        TTablet* tablet,
-        TTransaction* transaction,
-        const std::vector<NVersionedTableClient::TOwningKey>& keys);
-
-    void Lookup(
-        TTablet* tablet,
-        NVersionedTableClient::TKey key,
-        NTransactionClient::TTimestamp timestamp,
-        const TColumnFilter& columnFilter,
-        NChunkClient::NProto::TChunkMeta* chunkMeta,
-        std::vector<TSharedRef>* blocks);
+        const Stroka& encodedRequest);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 

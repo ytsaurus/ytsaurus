@@ -22,6 +22,11 @@ extern const TTabletId NullTabletId;
 class TTableMountConfig;
 typedef TIntrusivePtr<TTableMountConfig> TTableMountConfigPtr;
 
+class TProtocolReader;
+class TProtocolWriter;
+
+struct TColumnFilter;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletClient

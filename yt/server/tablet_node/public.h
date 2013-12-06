@@ -65,8 +65,6 @@ typedef TIntrusivePtr<TTabletService> TTabletServicePtr;
 class TTablet;
 class TTransaction;
 
-struct TColumnFilter;
-
 struct IStore;
 typedef TIntrusivePtr<IStore> IStorePtr;
 

@@ -46,31 +46,31 @@ void CheckSerialize(TUnversionedRow row)
 
 TEST(TUnversionedRowTest, Serialize1)
 {
-    TUnversionedRowBuilder builder;
-    auto row = builder.GetRow();
+    TUnversionedOwningRowBuilder builder;
+    auto row = builder.Finish();
     CheckSerialize(row);
 }
 
 TEST(TUnversionedRowTest, Serialize2)
 {
-    TUnversionedRowBuilder builder;
+    TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeSentinelValue<TUnversionedValue>(EValueType::Null, 0));
     builder.AddValue(MakeIntegerValue<TUnversionedValue>(42, 1));
     builder.AddValue(MakeDoubleValue<TUnversionedValue>(0.25, 2));
-    CheckSerialize(builder.GetRow());
+    CheckSerialize(builder.Finish());
 }
 
 TEST(TUnversionedRowTest, Serialize3)
 {
     // TODO(babenko): cannot test Any type at the moment since CompareRowValues does not work
     // for it.
-    TUnversionedRowBuilder builder;
+    TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeStringValue<TUnversionedValue>("string1", 10));
     builder.AddValue(MakeIntegerValue<TUnversionedValue>(1234, 20));
     builder.AddValue(MakeStringValue<TUnversionedValue>("string2", 30));
     builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
     builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
-    CheckSerialize(builder.GetRow());
+    CheckSerialize(builder.Finish());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

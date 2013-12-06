@@ -16,6 +16,7 @@
 #include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/tablet_client/config.h>
+#include <ytlib/tablet_client/protocol.h>
 
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
@@ -84,8 +85,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraCreateTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraFollowerDeleteRows, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
     }
 
 
@@ -109,117 +109,75 @@ public:
     }
 
 
+    void Read(
+        TTablet* tablet,
+        TTimestamp timestamp,
+        const Stroka& encodedRequest,
+        Stroka* encodedResponse)
+    {
+        const auto& storeManager = tablet->GetStoreManager();
+
+        TProtocolReader reader(encodedRequest);
+        TProtocolWriter writer;
+
+        while (ExecuteSingleRead(
+            tablet,
+            timestamp,
+            &reader,
+            &writer))
+        { }
+
+        *encodedResponse = writer.Finish();
+    }
+
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        TChunkMeta chunkMeta,
-        std::vector<TSharedRef> blocks)
+        const Stroka& encodedRequest)
     {
         const auto& storeManager = tablet->GetStoreManager();
         const auto& store = storeManager->GetActiveDynamicMemoryStore();
 
-        JustLockedRows_.clear();
+        TProtocolReader reader(encodedRequest);
+
+        PooledRows_.clear();
+        int commandsSucceded = 0;
         try {
-            storeManager->Write(
+            while (ExecuteSingleWrite(
+                tablet,
                 transaction,
-                chunkMeta,
-                blocks,
+                &reader,
                 true,
-                &JustLockedRows_);
-        } catch (const std::exception& ex) {
-            // Abort just taken locks.
-            for (auto row : JustLockedRows_) {
-                store->AbortRow(row);
+                &PooledRows_))
+            {
+                ++commandsSucceded;
             }
-            throw;
+        } catch (const std::exception& /*ex*/) {
+            // Just break.
         }
 
-        int rowCount = static_cast<int>(JustLockedRows_.size());
+        int rowCount = static_cast<int>(PooledRows_.size());
 
-        LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d)",
+        LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d, CommandsSucceded: %d)",
             ~ToString(transaction->GetId()),
             ~ToString(tablet->GetId()),
-            rowCount);
+            rowCount,
+            commandsSucceded);
 
-        for (auto row : JustLockedRows_) {
-            LockedRows_.push(TDynamicRowRef(store, row));
+        for (auto row : PooledRows_) {
+            PrewrittenRows_.push(TDynamicRowRef(store, row));
         }
 
-        TReqWriteRows request;
-        ToProto(request.mutable_transaction_id(), transaction->GetId());
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.mutable_chunk_meta()->Swap(&chunkMeta);
-        // TODO(babenko): avoid copying
-        for (const auto& block : blocks) {
-            request.add_blocks(ToString(block));
-        }
-        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
+        TReqExecuteWrite hydraRequest;
+        ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
+        ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
+        hydraRequest.set_commands_succeded(commandsSucceded);
+        hydraRequest.set_encoded_request(encodedRequest);
+        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), hydraRequest)
             ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
 
         CheckForMemoryCompaction(storeManager);
-    }
-
-    void Delete(
-        TTablet* tablet,
-        TTransaction* transaction,
-        const std::vector<NVersionedTableClient::TOwningKey>& keys)
-    {
-        const auto& storeManager = tablet->GetStoreManager();
-        const auto& store = storeManager->GetActiveDynamicMemoryStore();
-
-        JustLockedRows_.clear();
-        try {
-            storeManager->Delete(
-                transaction,
-                keys,
-                true,
-                &JustLockedRows_);
-        } catch (const std::exception& ex) {
-            // Abort just taken locks.
-            for (auto row : JustLockedRows_) {
-                store->AbortRow(row);
-            }
-            throw;
-        }
-
-        int rowCount = static_cast<int>(JustLockedRows_.size());
-
-        LOG_DEBUG("Rows predeleted (TransactionId: %s, TabletId: %s, RowCount: %d)",
-            ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()),
-            rowCount);
-
-        for (auto row : JustLockedRows_) {
-            LockedRows_.push(TDynamicRowRef(store, row));
-        }
-
-        TReqDeleteRows request;
-        ToProto(request.mutable_transaction_id(), transaction->GetId());
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        ToProto(request.mutable_keys(), keys);
-        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), request)
-            ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
-            ->Commit();
-
-        CheckForMemoryCompaction(storeManager);
-    }
-
-    void Lookup(
-        TTablet* tablet,
-        NVersionedTableClient::TKey key,
-        TTimestamp timestamp,
-        const TColumnFilter& columnFilter,
-        TChunkMeta* chunkMeta,
-        std::vector<TSharedRef>* blocks)
-    {
-        const auto& storeManager = tablet->GetStoreManager();
-        storeManager->Lookup(
-            key,
-            timestamp,
-            columnFilter,
-            chunkMeta,
-            blocks);
     }
 
 
@@ -230,8 +188,8 @@ private:
 
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
 
-    std::vector<TDynamicRow> JustLockedRows_; // pooled instance
-    TRingQueue<TDynamicRowRef> LockedRows_;
+    std::vector<TDynamicRow> PooledRows_;
+    TRingQueue<TDynamicRowRef> PrewrittenRows_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -283,15 +241,15 @@ private:
 
     virtual void OnStartLeading()
     {
-        LockedRows_.clear();
+        PrewrittenRows_.clear();
     }
 
     virtual void OnStopLeading()
     {
         LOG_DEBUG("Started aborting prewritten locks");
-        while (!LockedRows_.empty()) {
-            auto rowRef = LockedRows_.front();
-            LockedRows_.pop();
+        while (!PrewrittenRows_.empty()) {
+            auto rowRef = PrewrittenRows_.front();
+            PrewrittenRows_.pop();
             rowRef.Store->AbortRow(rowRef.Row);
         }
         LOG_DEBUG("Finished aborting prewritten locks");
@@ -358,9 +316,9 @@ private:
     void HydraLeaderConfirmRows(int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!LockedRows_.empty());
-            auto rowRef = LockedRows_.front();
-            LockedRows_.pop();
+            YASSERT(!PrewrittenRows_.empty());
+            auto rowRef = PrewrittenRows_.front();
+            PrewrittenRows_.pop();
             rowRef.Store->ConfirmRow(rowRef.Row);
         }
 
@@ -368,7 +326,7 @@ private:
             rowCount);
     }
 
-    void HydraFollowerWriteRows(const TReqWriteRows& request)
+    void HydraFollowerExecuteWrite(const TReqExecuteWrite& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto transactionManager = Slot_->GetTransactionManager();
@@ -376,54 +334,28 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = GetTablet(tabletId);
-        const auto& storeManager = tablet->GetStoreManager();
 
-        std::vector<TSharedRef> blocks;
-        for (const auto& block : request.blocks()) {
-            blocks.push_back(TSharedRef::FromRefNonOwning(TRef::FromString(block)));
-        }
+        int commandsSucceded = request.commands_succeded();
+
+        TProtocolReader reader(request.encoded_request());
 
         try {
-            storeManager->Write(
-                transaction,
-                request.chunk_meta(),
-                std::move(blocks),
-                false,
-                nullptr);
+            for (int index = 0; index < commandsSucceded; ++index) {
+                YCHECK(ExecuteSingleWrite(
+                    tablet,
+                    transaction,
+                    &reader,
+                    false,
+                    nullptr));
+            }
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error writing rows");
+            LOG_FATAL(ex, "Error executing writes");
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s, CommandsSucceded: %d)",
             ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()));
-    }
-
-    void HydraFollowerDeleteRows(const TReqDeleteRows& request)
-    {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransaction(transactionId);
-
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = GetTablet(tabletId);
-        const auto& storeManager = tablet->GetStoreManager();
-
-        auto keys = FromProto<NVersionedTableClient::TOwningKey>(request.keys());
-
-        try {
-            storeManager->Delete(
-                transaction,
-                keys,
-                false,
-                nullptr);
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error deleting rows");
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows deleted (TransactionId: %s, TabletId: %s)",
-            ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()));
+            ~ToString(tablet->GetId()),
+            commandsSucceded);
     }
 
 
@@ -467,6 +399,78 @@ private:
     }
 
 
+    bool ExecuteSingleRead(
+        TTablet* tablet,
+        TTimestamp timestamp,
+        TProtocolReader* reader,
+        TProtocolWriter* writer)
+    {
+        auto command = reader->ReadCommand();
+        if (command == EProtocolCommand::End) {
+            return false;
+        }
+
+        const auto& storeManager = tablet->GetStoreManager();
+
+        switch (command) {
+            case EProtocolCommand::LookupRow:
+                storeManager->LookupRow(
+                    timestamp,
+                    reader,
+                    writer);
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unknown read command %s",
+                    ~command.ToString());
+        }
+
+        return true;
+    }
+
+    bool ExecuteSingleWrite(
+        TTablet* tablet,
+        TTransaction* transaction,
+        TProtocolReader* reader,
+        bool prewrite,
+        std::vector<TDynamicRow>* lockedRows)
+    {
+        auto command = reader->ReadCommand();
+        if (command == EProtocolCommand::End) {
+            return false;
+        }
+            
+        const auto& storeManager = tablet->GetStoreManager();
+
+        switch (command) {
+            case EProtocolCommand::WriteRow: {
+                auto row = reader->ReadUnversionedRow();
+                storeManager->WriteRow(
+                    transaction,
+                    row,
+                    prewrite,
+                    lockedRows);
+                break;
+            }
+
+            case EProtocolCommand::DeleteRow: {
+                auto key = reader->ReadUnversionedRow();
+                storeManager->DeleteRow(
+                    transaction,
+                    key,
+                    prewrite,
+                    lockedRows);
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unknown write command %s",
+                    ~command.ToString());
+        }
+
+        return true;
+    }
+
     void CheckForMemoryCompaction(const TStoreManagerPtr& storeManager)
     {
         if (!IsLeader())
@@ -507,45 +511,28 @@ void TTabletManager::Initialize()
     Impl->Initialize();
 }
 
+void TTabletManager::Read(
+    TTablet* tablet,
+    TTimestamp timestamp,
+    const Stroka& encodedRequest,
+    Stroka* encodedResponse)
+{
+    Impl->Read(
+        tablet,
+        timestamp,
+        encodedRequest,
+        encodedResponse);
+}
+
 void TTabletManager::Write(
     TTablet* tablet,
     TTransaction* transaction,
-    TChunkMeta chunkMeta,
-    std::vector<TSharedRef> blocks)
+    const Stroka& encodedRequest)
 {
     Impl->Write(
         tablet,
         transaction,
-        std::move(chunkMeta),
-        std::move(blocks));
-}
-
-void TTabletManager::Delete(
-    TTablet* tablet,
-    TTransaction* transaction,
-    const std::vector<NVersionedTableClient::TOwningKey>& keys)
-{
-    Impl->Delete(
-        tablet,
-        transaction,
-        keys);
-}
-
-void TTabletManager::Lookup(
-    TTablet* tablet,
-    NVersionedTableClient::TKey key,
-    TTimestamp timestamp,
-    const TColumnFilter& columnFilter,
-    TChunkMeta* chunkMeta,
-    std::vector<TSharedRef>* blocks)
-{
-    Impl->Lookup(
-        tablet,
-        key,
-        timestamp,
-        columnFilter,
-        chunkMeta,
-        blocks);
+        encodedRequest);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl)

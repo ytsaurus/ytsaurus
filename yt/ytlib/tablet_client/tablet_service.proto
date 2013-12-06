@@ -24,45 +24,31 @@ message TReqStartTransactionExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqRead
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 timestamp = 2;
+    required bytes encoded_request = 3;
+}
+
+message TRspRead
+{
+    required bytes encoded_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqWrite
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid tablet_id = 2;
-    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
-    // Chunk blocks are passed via attachments.
+    required bytes encoded_request = 3;
 }
 
 message TRspWrite
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqLookup
 {
-    required NYT.NProto.TGuid tablet_id = 1;
-    required bytes key = 2;
-    required int64 timestamp = 3;
-    optional bool all_columns = 4 [default = true];
-    repeated string columns = 5;
+    required bytes encoded_response = 1;
 }
-
-message TRspLookup
-{
-    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 1;
-    // Chunk blocks are passed via attachments.
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqDelete
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid tablet_id = 2;
-    repeated bytes keys = 3;
-}
-
-message TRspDelete
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

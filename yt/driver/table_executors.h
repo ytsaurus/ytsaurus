@@ -83,6 +83,7 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::SwitchArg UpdateArg;
     TUnlabeledStringArg ValueArg;
 
     bool UseStdIn;

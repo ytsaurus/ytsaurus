@@ -133,6 +133,14 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TVersionedValue MakeVersionedValue(const TUnversionedValue& value, TTimestamp timestamp)
+{
+    TVersionedValue result;
+    static_cast<TUnversionedValue&>(result) = value;
+    result.Timestamp = timestamp;
+    return result;
+}
+
 inline TVersionedValue MakeVersionedSentinelValue(EValueType type, TTimestamp timestamp, int id = 0)
 {
     TVersionedValue result;
@@ -254,6 +262,7 @@ public:
         return Header;
     }
 
+
     TValue& operator[](int index)
     {
         YASSERT(index >= 0 && index < GetValueCount());
@@ -266,12 +275,35 @@ public:
         return reinterpret_cast<TValue*>(Header + 1)[index];
     }
 
+
+    const TValue* Begin() const
+    {
+        return &(*this)[0];
+    }
+
+    TValue* Begin()
+    {
+        return &(*this)[0];
+    }
+
+    
+    const TValue* End() const
+    {
+        return Begin() + GetValueCount();
+    }
+
+    TValue* End()
+    {
+        return Begin() + GetValueCount();
+    }
+
+
     int GetValueCount() const
     {
         return Header->ValueCount;
     }
 
-    //! Compatibility with standard containers.
+    //! For better interoperability with std.
     int size() const
     {
         return GetValueCount();
@@ -378,17 +410,47 @@ public:
         return header ? static_cast<int>(header->ValueCount) : 0;
     }
 
-    //! Compatibility with standard containers.
+    //! For better interoperability with std.
     int size() const
     {
         return GetValueCount();
     }
 
-    const TUnversionedValue& operator[](int index) const
+
+    const TValue& operator[](int index) const
     {
         YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<const TUnversionedValue*>(GetHeader() + 1)[index];
+        return reinterpret_cast<const TValue*>(GetHeader() + 1)[index];
     }
+
+    TValue& operator[](int index)
+    {
+        YASSERT(index >= 0 && index < GetValueCount());
+        return reinterpret_cast<TValue*>(GetHeader() + 1)[index];
+    }
+
+
+    const TValue* Begin() const
+    {
+        return &(*this)[0];
+    }
+
+    TValue* Begin()
+    {
+        return &(*this)[0];
+    }
+
+    
+    const TValue* End() const
+    {
+        return Begin() + GetValueCount();
+    }
+
+    TValue* End()
+    {
+        return Begin() + GetValueCount();
+    }
+
 
     operator TRow<TValue> () const
     {
@@ -413,7 +475,7 @@ private:
     friend void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
     friend void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
-    friend class TRowBuilder<TValue>;
+    friend class TOwningRowBuilder<TValue>;
 
 
     TSharedRef RowData; // TRowHeader plus TValue-s
@@ -439,12 +501,65 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper used for constructing TOwningRow instances.
+//! A helper used for constructing TRow instances.
+//! Only row values are kept, strings are only referenced.
 template <class TValue>
 class TRowBuilder
 {
 public:
     explicit TRowBuilder(int initialValueCapacity = 16)
+    {
+        ValueCapacity_ = initialValueCapacity;
+        RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+
+        auto* header = GetHeader();
+        header->ValueCount = 0;
+        header->Padding = 0;
+    }
+
+    void AddValue(const TValue& value)
+    {
+        if (GetHeader()->ValueCount == ValueCapacity_) {
+            ValueCapacity_ *= 2;
+            RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+        }
+
+        auto* header = GetHeader();
+        *GetValue(header->ValueCount) = value;
+        ++header->ValueCount;
+    }
+
+    TRow<TValue> GetRow()
+    {
+        return TRow<TValue>(GetHeader());
+    }
+
+private:
+    int ValueCapacity_;
+    TBlob RowData_;
+
+
+    TRowHeader* GetHeader()
+    {
+        return reinterpret_cast<TRowHeader*>(RowData_.Begin());
+    }
+
+    TValue* GetValue(int index)
+    {
+        return reinterpret_cast<TValue*>(GetHeader() + 1) + index;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A helper used for constructing TOwningRow instances.
+//! Keeps both row values and strings.
+template <class TValue>
+class TOwningRowBuilder
+{
+public:
+    explicit TOwningRowBuilder(int initialValueCapacity = 16)
         : InitialValueCapacity_(initialValueCapacity)
     {
         Init();
@@ -482,7 +597,7 @@ public:
         ++header->ValueCount;
     }
 
-    TOwningRow<TValue> GetRow()
+    TOwningRow<TValue> Finish()
     {
         auto row = TOwningRow<TValue>(
             TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
@@ -497,6 +612,7 @@ private:
 
     TBlob RowData_;
     Stroka StringData_;
+
 
     void Init()
     {

@@ -32,13 +32,13 @@ public:
     TDynamicRow WriteRow(
         const NVersionedTableClient::TNameTablePtr& nameTable,
         TTransaction* transaction,
-        NVersionedTableClient::TVersionedRow row,
+        NVersionedTableClient::TUnversionedRow row,
         bool prewrite);
 
     TDynamicRow DeleteRow(
         TTransaction* transaction,
         NVersionedTableClient::TKey key,
-        bool predelete);
+        bool prewrite);
 
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
 
@@ -74,7 +74,7 @@ private:
     void LockRow(
         TDynamicRow row,
         TTransaction* transaction,
-        bool preliminary);
+        bool prewrite);
 
     void CopyValue(
         NVersionedTableClient::TUnversionedValue* dst,

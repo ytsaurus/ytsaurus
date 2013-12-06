@@ -35,6 +35,7 @@
 
 #include <ytlib/tablet_client/public.h>
 #include <ytlib/tablet_client/tablet_service_proxy.h>
+#include <ytlib/tablet_client/protocol.h>
 
 #include <ytlib/hive/cell_directory.h>
 
@@ -66,9 +67,9 @@ using namespace NVersionedTableClient;
 
 namespace {
 
-Stroka SerializeKey(const std::vector<INodePtr> key)
+NVersionedTableClient::TOwningKey SerializeKey(const std::vector<INodePtr> key)
 {
-    TUnversionedRowBuilder keyBuilder;
+    TUnversionedOwningRowBuilder keyBuilder;
     for (auto keyPart : key) {
         switch (keyPart->GetType()) {
             case ENodeType::Integer:
@@ -86,7 +87,7 @@ Stroka SerializeKey(const std::vector<INodePtr> key)
                 break;
         }
     }
-    return ToProto<Stroka>(keyBuilder.GetRow());
+    return keyBuilder.Finish();
 }
 
 } // namespace
@@ -166,7 +167,7 @@ void TReadCommand::DoExecute()
 
 void TWriteCommand::DoExecute()
 {
-    // COMPAT(babenko): remove Request->TableReader
+    // COMPAT(babenko): remove Request->TableWriter
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableWriter,
         Request->TableWriter);
@@ -245,6 +246,14 @@ void TUnmountCommand::DoExecute()
 
 void TInsertCommand::DoExecute()
 {
+    // COMPAT(babenko): remove Request->TableWriter
+    auto config = UpdateYsonSerializable(
+        Context->GetConfig()->TableWriter,
+        Request->TableWriter);
+    config = UpdateYsonSerializable(
+        config,
+        Request->GetOptions());
+
     auto tableMountCache = Context->GetTableMountCache();
     auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
@@ -254,34 +263,12 @@ void TInsertCommand::DoExecute()
         THROW_ERROR_EXCEPTION("Table is not mounted");
     }
 
-    auto config = UpdateYsonSerializable(
-        Context->GetConfig()->NewTableWriter,
-        Request->TableWriter);
-
     // Parse input data.
 
-    auto nameTable = New<TNameTable>();
-
-    auto memoryWriter = New<TMemoryWriter>();
-
-    // TODO(babenko): make configurable
-    auto encodingOptions = New<TEncodingWriterOptions>();
-
-    auto chunkWriter = New<TChunkWriter>(
-        config,
-        encodingOptions,
-        memoryWriter);
-
-    TVersionedTableConsumer consumer(
-        mountInfo->Schema,
-        mountInfo->KeyColumns,
-        nameTable,
-        chunkWriter);
-
-    chunkWriter->Open(
-        nameTable,
+    TBuildingTableConsumer consumer(
         mountInfo->Schema,
         mountInfo->KeyColumns);
+    consumer.SetTreatMissingAsNull(!Request->Update);
 
     auto format = Context->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
@@ -306,9 +293,6 @@ void TInsertCommand::DoExecute()
 
     parser->Finish();
 
-    auto closeResult = WaitFor(chunkWriter->AsyncClose());
-    THROW_ERROR_EXCEPTION_IF_FAILED(closeResult);
-
     // Write data into the tablet.
 
     auto transactionManager = Context->GetTransactionManager();
@@ -327,8 +311,13 @@ void TInsertCommand::DoExecute()
     auto writeReq = tabletProxy.Write();
     ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
     ToProto(writeReq->mutable_tablet_id(), mountInfo->TabletId);
-    writeReq->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());
-    writeReq->Attachments() = std::move(memoryWriter->GetBlocks());
+
+    TProtocolWriter writer;
+    for (const auto& row : consumer.GetRows()) {
+        writer.WriteCommand(EProtocolCommand::WriteRow);
+        writer.WriteUnversionedRow(row);
+    }
+    writeReq->set_encoded_request(writer.Finish());
 
     auto writeRsp = WaitFor(writeReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
@@ -449,94 +438,73 @@ void TLookupCommand::DoExecute()
         THROW_ERROR_EXCEPTION("Table is not mounted");
     }
 
+    auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
+
     auto cellDirectory = Context->GetCellDirectory();
     auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
 
     TTabletServiceProxy proxy(channel);
-    auto req = proxy.Lookup();
+    auto req = proxy.Read();
+
     ToProto(req->mutable_tablet_id(), mountInfo->TabletId);
     req->set_timestamp(Request->Timestamp);
-    if (Request->Columns) {
-        req->set_all_columns(false);
-        for (const auto& column : *Request->Columns) {
-            req->add_columns(column);
-        }
-    }
-    *req->mutable_key() = SerializeKey(Request->Key);
+
+    TProtocolWriter writer;
+    writer.WriteCommand(EProtocolCommand::LookupRow);
+    writer.WriteUnversionedRow(SerializeKey(Request->Key));
+    writer.WriteColumnFilter(
+        Request->Columns
+        ? TColumnFilter(*Request->Columns)
+        : TColumnFilter());
+    req->set_encoded_request(writer.Finish());
 
     auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    // TODO(babenko): eliminate copy-paste (see TSelectCommand::DoExecute).
-    auto memoryReader = New<TMemoryReader>(
-        std::move(*rsp->mutable_chunk_meta()),
-        std::move(rsp->Attachments()));
-    auto chunkReader = CreateChunkReader(
-        New<TChunkReaderConfig>(),
-        memoryReader);
+    TProtocolReader reader(rsp->encoded_response());
+    std::vector<TVersionedRow> rowset;
+    reader.ReadVersionedRowset(&rowset);
 
-    TBlobOutput buffer;
-    auto format = Context->GetOutputFormat();
-    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+    if (!rowset.empty()) {
+        YCHECK(rowset.size() <= 1);
+        auto row = rowset[0];
 
-    auto nameTable = New<TNameTable>();
-    {
-        auto error = WaitFor(chunkReader->Open(
-            nameTable,
-            TTableSchema(),
-            true));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
-
-    const int RowsBufferSize = 1000;
-    std::vector<NVersionedTableClient::TVersionedRow> rows;
-    rows.reserve(RowsBufferSize);
-
-    while (true) {
-        bool hasData = chunkReader->Read(&rows);
-        for (auto row : rows) {
-            consumer->OnListItem();
-            consumer->OnBeginMap();
-            for (int i = 0; i < row.GetValueCount(); ++i) {
-                const auto& value = row[i];
-                if (value.Type == EValueType::Null)
-                    continue;
-                consumer->OnKeyedItem(nameTable->GetName(value.Id));
-                switch (value.Type) {
-                    case EValueType::Integer:
-                        consumer->OnIntegerScalar(value.Data.Integer);
-                        break;
-                    case EValueType::Double:
-                        consumer->OnDoubleScalar(value.Data.Double);
-                        break;
-                    case EValueType::String:
-                        consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                        break;
-                    case EValueType::Any:
-                        consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
-                        break;
-                    default:
-                        YUNREACHABLE();
-                }
+        TBlobOutput buffer;
+        auto format = Context->GetOutputFormat();
+        auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+        
+        consumer->OnListItem();
+        consumer->OnBeginMap();
+        for (int index = 0; index < row.GetValueCount(); ++index) {
+            const auto& value = row[index];
+            if (value.Type == EValueType::Null)
+                continue;
+            consumer->OnKeyedItem(nameTable->GetName(value.Id));
+            switch (value.Type) {
+                case EValueType::Integer:
+                    consumer->OnIntegerScalar(value.Data.Integer);
+                    break;
+                case EValueType::Double:
+                    consumer->OnDoubleScalar(value.Data.Double);
+                    break;
+                case EValueType::String:
+                    consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                    break;
+                case EValueType::Any:
+                    consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                    break;
+                default:
+                    YUNREACHABLE();
             }
-            consumer->OnEndMap();
         }
-        if (!hasData) {
-            break;
-        }
-        if (rows.size() < rows.capacity()) {
-            auto result = WaitFor(chunkReader->GetReadyEvent());
+        consumer->OnEndMap();
+
+        auto output = Context->Request().OutputStream;
+        if (!output->Write(buffer.Begin(), buffer.Size())) {
+            auto result = WaitFor(output->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
-        rows.clear();
     }
-
-    auto output = Context->Request().OutputStream;
-    if (!output->Write(buffer.Begin(), buffer.Size())) {
-        auto result = WaitFor(output->GetReadyEvent());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
-    buffer.Clear();
 
     ReplySuccess();
 }
@@ -567,13 +535,17 @@ void TDeleteCommand::DoExecute()
     auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
 
     TTabletServiceProxy proxy(channel);
-    auto deleteReq = proxy.Delete();
-    ToProto(deleteReq->mutable_transaction_id(), transaction->GetId());
-    ToProto(deleteReq->mutable_tablet_id(), mountInfo->TabletId);
-    *deleteReq->add_keys() = SerializeKey(Request->Key);
+    auto writeReq = proxy.Write();
+    ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
+    ToProto(writeReq->mutable_tablet_id(), mountInfo->TabletId);
 
-    auto deleteRsp = WaitFor(deleteReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*deleteRsp);
+    TProtocolWriter writer;
+    writer.WriteCommand(EProtocolCommand::DeleteRow);
+    writer.WriteUnversionedRow(SerializeKey(Request->Key));
+    writeReq->set_encoded_request(writer.Finish());
+
+    auto writeRsp = WaitFor(writeReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
 
     auto commitResult = WaitFor(transaction->AsyncCommit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);

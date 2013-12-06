@@ -9,7 +9,6 @@
 #include <core/concurrency/fiber.h>
 
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -315,21 +314,16 @@ TTablet* TDynamicMemoryStore::GetTablet() const
 TDynamicRow TDynamicMemoryStore::WriteRow(
     const TNameTablePtr& nameTable,
     TTransaction* transaction,
-    TVersionedRow row,
+    TUnversionedRow row,
     bool prewrite)
 {
     TDynamicRow result;
 
-    auto writeFixedValue = [&] (TDynamicRow dynamicRow, int id) {
-        const auto& srcValue = row[id];
-
-        int listIndex = id - KeyCount_;
+    auto writeFixedValue = [&] (TDynamicRow dynamicRow, const TUnversionedValue& srcValue) {
+        int listIndex = srcValue.Id - KeyCount_;
         auto list = dynamicRow.GetFixedValueList(listIndex, KeyCount_);
 
-        if (!list) {
-            list = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            dynamicRow.SetFixedValueList(listIndex, KeyCount_, list);
-        } else {
+        if (list) {
             auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
                 CopyValue(&lastValue, srcValue);
@@ -339,25 +333,28 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
             if (AllocateListIfNeeded(&list, &AlignedPool_)) {
                 dynamicRow.SetFixedValueList(listIndex, KeyCount_, list);
             }
+        } else {
+            list = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
+            dynamicRow.SetFixedValueList(listIndex, KeyCount_, list);
         }
 
         list.Push([&] (TVersionedValue* dstValue) {
             CopyValue(dstValue, srcValue);
             dstValue->Timestamp = UncommittedTimestamp;
-            dstValue->Id = id;
         });
 
         ++AllocatedValueCount_;
     };
 
     auto writeValues = [&] (TDynamicRow dynamicRow) {
-        // Fixed values.
-        for (int id = KeyCount_; id < SchemaColumnCount_; ++id) {
-            writeFixedValue(dynamicRow, id);
+        for (int index = KeyCount_; index < row.GetValueCount(); ++index) {
+            const auto& value = row[index];
+            if (value.Id < SchemaColumnCount_) {
+                writeFixedValue(dynamicRow, value);
+            } else {
+                // TODO(babenko): variable values
+            }
         }
-
-        // Variable values.
-        // TODO(babenko)
     };
 
     auto writeTimestamp = [&] (TDynamicRow dynamicRow) {
@@ -365,12 +362,15 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
         if (timestampList) {
             auto lastTimestamp = timestampList.Back();
-            if (lastTimestamp == (TombstoneTimestampMask | UncommittedTimestamp)) {
-                YCHECK(prewrite);
-                THROW_ERROR_EXCEPTION("Cannot change a deleted row");
-            }
-            if (!(lastTimestamp & UncommittedTimestamp)) {
-                pushTimestamp = true;
+            if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
+                if (lastTimestamp & TombstoneTimestampMask) {
+                    YCHECK(prewrite);
+                    THROW_ERROR_EXCEPTION("Cannot write to a deleted row");
+                }
+            } else {
+                if (lastTimestamp & TombstoneTimestampMask) {
+                    pushTimestamp = true;
+                }
             }
         } else {
             timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
@@ -430,39 +430,41 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 TDynamicRow TDynamicMemoryStore::DeleteRow(
     TTransaction* transaction,
     NVersionedTableClient::TKey key,
-    bool predelete)
+    bool prewrite)
 {
     TDynamicRow result;
 
     auto writeTombstone = [&] (TDynamicRow dynamicRow) {
+        bool pushTimestamp = false;
         auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
-        if (!timestampList) {
-            auto timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
+        if (timestampList) {
+            auto lastTimestamp = timestampList.Back();
+            if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
+                if (!(lastTimestamp & TombstoneTimestampMask)) {
+                    YCHECK(prewrite);
+                    THROW_ERROR_EXCEPTION("Cannot delete a written row");
+                }
+            } else {
+                pushTimestamp = true;
+            }
+        } else {
+            timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
             dynamicRow.SetTimestampList(KeyCount_, timestampList);
+            pushTimestamp = true;
+        }
+
+        if (pushTimestamp) {
+            if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
+                dynamicRow.SetTimestampList(KeyCount_, timestampList);
+            }
             timestampList.Push(UncommittedTimestamp | TombstoneTimestampMask);
-            return;
         }
-
-        auto lastTimestamp = timestampList.Back();
-        if (lastTimestamp == UncommittedTimestamp) {
-            YCHECK(predelete);
-            THROW_ERROR_EXCEPTION("Cannot delete a changed row");
-        }
-
-        if (lastTimestamp & TombstoneTimestampMask)
-            return;
-
-        if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-            dynamicRow.SetTimestampList(KeyCount_, timestampList);
-        }
-
-        timestampList.Push(UncommittedTimestamp | TombstoneTimestampMask);
     };
 
     auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
         auto dynamicRow = result = AllocateRow();
-        LockRow(dynamicRow, transaction, predelete);
+        LockRow(dynamicRow, transaction, prewrite);
 
         // Add tombstone.
         writeTombstone(dynamicRow);
@@ -481,7 +483,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
         // Check for lock conflicts and acquire the lock.
         result = dynamicRow;
-        LockRow(dynamicRow, transaction, predelete);
+        LockRow(dynamicRow, transaction, prewrite);
 
         // Add tombstone.
         writeTombstone(dynamicRow);
@@ -591,22 +593,22 @@ TDynamicRow TDynamicMemoryStore::AllocateRow()
 void TDynamicMemoryStore::LockRow(
     TDynamicRow row,
     TTransaction* transaction,
-    bool preliminary)
+    bool prewrite)
 {
     auto* existingTransaction = row.GetTransaction();
     if (existingTransaction && existingTransaction != transaction) {
-        YCHECK(preliminary);
+        YCHECK(prewrite);
         THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %s",
             ~ToString(existingTransaction->GetId()));
     }
 
     if (row.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
-        YCHECK(preliminary);
+        YCHECK(prewrite);
         THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
             row.GetLastCommitTimestamp());
     }
 
-    if (!preliminary && !existingTransaction) {
+    if (!prewrite && !existingTransaction) {
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }
 
@@ -615,24 +617,11 @@ void TDynamicMemoryStore::LockRow(
 
 void TDynamicMemoryStore::CopyValue(TUnversionedValue* dst, const TUnversionedValue& src)
 {
-    switch (src.Type) {
-        case EValueType::Integer:
-        case EValueType::Double:
-        case EValueType::Null:
-            *dst = src;
-            break;
-
-        case EValueType::String:
-        case EValueType::Any:
-            dst->Type = src.Type;
-            dst->Length = src.Length;
-            dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
-            memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
-            AllocatedStringSpace_ += src.Length;
-            break;
-
-        default:
-            YUNREACHABLE();
+    *dst = src;
+    if (src.Type == EValueType::String || src.Type == EValueType::Any) {
+        dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
+        memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
+        AllocatedStringSpace_ += src.Length;
     }
 }
 
