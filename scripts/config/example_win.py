@@ -111,6 +111,7 @@ class Holder(WinNode, Server):
             'query_agent': {
             },
             'data_node' : {
+                'incremental_heartbeat_period' : 500,
                 'store_locations' : [
                     { 'path' : r'%(work_dir)s\chunk_store.0' }
                 ],
