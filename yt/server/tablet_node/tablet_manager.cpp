@@ -115,8 +115,6 @@ public:
         const Stroka& encodedRequest,
         Stroka* encodedResponse)
     {
-        const auto& storeManager = tablet->GetStoreManager();
-
         TProtocolReader reader(encodedRequest);
         TProtocolWriter writer;
 
