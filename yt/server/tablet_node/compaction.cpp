@@ -150,7 +150,7 @@ TStaticMemoryStorePtr TMemoryCompactor::Run(
         int compareResult;
         if (dynamicResult != NullTimestamp && staticResult != NullTimestamp) {
             compareResult = Comparer_(staticScanner->GetKeys(), dynamicScanner->GetKeys());
-        } else if (staticScanner != NullTimestamp) {
+        } else if (staticResult != NullTimestamp) {
             compareResult = -1;
         } else {
             compareResult = +1;
