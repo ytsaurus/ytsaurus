@@ -849,10 +849,9 @@ public:
     void DoStop()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        
-        StopEpoch();
-        ControlState_ = EPeerState::Stopped;
 
+        // NB: This will raise the needed callbacks
+        // (OnElectionStopLeading or OnElectionStopFollowing).
         ElectionManager_->Stop();
 
         RpcServer->UnregisterService(this);
@@ -1124,6 +1123,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto electionEpochContext = ElectionManager_->GetEpochContext();
+
+        YCHECK(!EpochContext_);
         EpochContext_ = New<TEpochContext>();
         EpochContext_->LeaderId = electionEpochContext->LeaderId;
         EpochContext_->EpochId = electionEpochContext->EpochId;
