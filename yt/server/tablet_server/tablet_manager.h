@@ -40,13 +40,26 @@ public:
     NHydra::TMutationPtr CreateRevokePeerMutation(
         const NProto::TReqRevokePeer& request);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
-
     NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
 
-    void MountTable(NTableServer::TTableNode* table);
-    void UnmountTable(NTableServer::TTableNode* table);
+    void MountTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex);
+
+    void UnmountTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex);
+
+    void ReshardTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        const std::vector<NVersionedTableClient::TOwningKey>& pivotKeys);
+
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
     class TTabletCellTypeHandler;

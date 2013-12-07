@@ -48,6 +48,7 @@ using NTabletClient::NullTabletCellId;
 
 using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
+using NTabletClient::ETabletState;
 
 ////////////////////////////////////////////////////////////////////////////////
 

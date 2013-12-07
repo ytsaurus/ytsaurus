@@ -80,8 +80,12 @@ Stroka TWriteExecutor::GetCommandName() const
 
 TMountExecutor::TMountExecutor()
     : PathArg("path", "table path to mount", true, "", "YPATH")
+    , FirstTabletIndexArg("", "first", "first tablet index to mount", false, -1, "INTEGER")
+    , LastTabletIndexArg("", "last", "last tablet index to mount", false, -1, "INTEGER")
 {
     CmdLine.add(PathArg);
+    CmdLine.add(FirstTabletIndexArg);
+    CmdLine.add(LastTabletIndexArg);
 }
 
 void TMountExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -89,7 +93,13 @@ void TMountExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Value(path);
+        .Item("path").Value(path)
+        .DoIf(FirstTabletIndexArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("first_tablet_index").Value(FirstTabletIndexArg.getValue());
+        })
+        .DoIf(LastTabletIndexArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("last_tablet_index").Value(LastTabletIndexArg.getValue());
+        });
 }
 
 Stroka TMountExecutor::GetCommandName() const 
@@ -101,8 +111,12 @@ Stroka TMountExecutor::GetCommandName() const
 
 TUnmountExecutor::TUnmountExecutor()
     : PathArg("path", "table path to unmount", true, "", "YPATH")
+    , FirstTabletIndexArg("", "first", "first tablet index to mount", false, -1, "INTEGER")
+    , LastTabletIndexArg("", "last", "last tablet index to mount", false, -1, "INTEGER")
 {
     CmdLine.add(PathArg);
+    CmdLine.add(FirstTabletIndexArg);
+    CmdLine.add(LastTabletIndexArg);
 }
 
 void TUnmountExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -110,7 +124,13 @@ void TUnmountExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Value(path);
+        .Item("path").Value(path)
+        .DoIf(FirstTabletIndexArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("first_tablet_index").Value(FirstTabletIndexArg.getValue());
+        })
+        .DoIf(LastTabletIndexArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("last_tablet_index").Value(LastTabletIndexArg.getValue());
+        });
 }
 
 Stroka TUnmountExecutor::GetCommandName() const 

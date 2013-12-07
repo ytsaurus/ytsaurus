@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <core/misc/property.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -20,7 +22,10 @@ namespace NTableServer {
 class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
-    DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTablet*, Tablet);
+public:
+    // Most tables have no tablets.
+    typedef std::vector<NTabletServer::TTablet*> TTabletList;
+    DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
@@ -28,7 +33,6 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() const;
     TTableNode* GetTrunkNode() const;
 
-    bool IsMounted() const;
     bool IsSorted() const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const;

@@ -242,7 +242,7 @@ public:
     }
 
 
-    TTablet* CreateTablet(TTableNode* table, TTabletCell* cell)
+    TTablet* CreateTablet(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -250,8 +250,13 @@ public:
         auto id = objectManager->GenerateId(EObjectType::Tablet);
         auto* tablet = new TTablet(id);
         tablet->SetTable(table);
-        tablet->SetCell(cell);
         TabletMap.Insert(id, tablet);
+        objectManager->RefObject(tablet);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %s, TabletId: %s)",
+            ~ToString(table->GetId()),
+            ~ToString(tablet->GetId()));
+
         return tablet;
     }
 
@@ -259,8 +264,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* cell = tablet->GetCell();
-        YCHECK(cell->Tablets().erase(tablet) == 1);
+        auto* table = tablet->GetTable();
+
+        YCHECK(!tablet->GetCell());
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet destroyed (TableId: %s, TabletId: %s)",
+            ~ToString(table->GetId()),
+            ~ToString(tablet->GetId()));
     }
 
 
@@ -289,33 +299,44 @@ public:
         return schema;
     }
 
-    void MountTable(TTableNode* table)
+
+    void MountTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-
-        if (table->IsMounted()) {
-            THROW_ERROR_EXCEPTION("Table is already mounted");
-        }
-
+        
         if (!table->IsSorted()) {
             THROW_ERROR_EXCEPTION("Table is not sorted");
         }
 
+        auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
-
-        auto* cell = AllocateCell(); // may throw
-
-        auto* tablet = CreateTablet(table, cell);
-        tablet->SetState(ETabletState::Initializing);
-        table->SetTablet(tablet);
+        ValidateHasHealthyCells(); // may throw
 
         auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->RefObject(tablet);
 
-        YCHECK(cell->Tablets().insert(tablet).second);
+        if (table->Tablets().empty()) {
+            auto* tablet = CreateTablet(table);
+            tablet->PivotKey() = EmptyKey();
+            table->Tablets().push_back(tablet);
+            tabletRange = std::make_pair(table->Tablets().begin(), table->Tablets().end());
+        }
 
-        {
+        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
+            auto* tablet = *it;
+            if (tablet->GetCell())
+                continue;
+
+            auto* cell = AllocateCell();
+            tablet->SetCell(cell);
+            objectManager->RefObject(cell);
+
+            YCHECK(tablet->GetState() == ETabletState::Unmounted);
+            tablet->SetState(ETabletState::Mounting);
+
             TReqCreateTablet req;           
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_schema(), schema);
@@ -324,45 +345,116 @@ public:
             auto hiveManager = Bootstrap->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
-        }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Mounting table (NodeId: %s, TabletId: %s, CellId: %s)",
-            ~ToString(table->GetId()),
-            ~ToString(tablet->GetId()),
-            ~ToString(cell->GetId()));
+            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
+                ~ToString(table->GetId()),
+                ~ToString(tablet->GetId()),
+                ~ToString(cell->GetId()));
+        }
     }
 
-    void UnmountTable(TTableNode* table)
+    void UnmountTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
-        if (!table->IsMounted()) {
-            THROW_ERROR_EXCEPTION("Table is not mounted");
+        auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
+
+        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
+            auto* tablet = *it;
+            auto* cell = tablet->GetCell();
+            if (tablet->GetState() != ETabletState::Mounted)
+                continue;
+            
+            tablet->SetState(ETabletState::Unmounting);
+
+            auto hiveManager = Bootstrap->GetHiveManager();
+
+            {
+                TReqRemoveTablet req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, req);
+            }
+
+            LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
+                ~ToString(table->GetId()),
+                ~ToString(tablet->GetId()),
+                ~ToString(cell->GetId()));
+        }
+    }
+
+    void ReshardTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        const std::vector<TOwningKey>& pivotKeys)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(table->IsTrunk());
+
+        auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
+
+        const int MaxTabletCount = 1000;
+        auto& tablets = table->Tablets();
+        int oldTabletCount = std::distance(tabletRange.first, tabletRange.second);
+        int newTabletCount = static_cast<int>(pivotKeys.size());
+        if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
+            THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
+                MaxTabletCount);
         }
 
-        auto* tablet = table->GetTablet();
-        if (tablet->GetState() != ETabletState::Running) {
-            THROW_ERROR_EXCEPTION("Tablet is not running");
+        if (newTabletCount > 0) {
+            if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
+                THROW_ERROR_EXCEPTION(
+                    "First pivot key must match that of the leading tablet "
+                    "of the resharded range");
+            }
+
+            for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
+                if (CompareRows(pivotKeys[index], pivotKeys[index + 1]) >= 0) {
+                    THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
+                }
+            }
+
+            if (tabletRange.second != tablets.end()) {
+                if (CompareRows(pivotKeys.back(), (*tabletRange.second)->PivotKey()) >= 0) {
+                    THROW_ERROR_EXCEPTION(
+                        "Last pivot key must be strictly less than that of the tablet "
+                        "which follows the resharded range");
+                }
+            }
         }
 
-        tablet->SetState(ETabletState::Finalizing);
-
-        auto* cell = tablet->GetCell();
-
-        auto hiveManager = Bootstrap->GetHiveManager();
-
-        {
-            TReqRemoveTablet req;
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            hiveManager->PostMessage(mailbox, req);
+        // Validate that all tablets are unmounted.
+        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
+            auto* tablet = *it;
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                THROW_ERROR_EXCEPTION("Cannot reshard table: tablet %s is in %s state",
+                    ~ToString(tablet->GetId()),
+                    ~FormatEnum(tablet->GetState()).Quote());
+            }
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Unmounting table (NodeId: %s, TabletId: %s, CellId: %s)",
-            ~ToString(table->GetId()),
-            ~ToString(tablet->GetId()),
-            ~ToString(cell->GetId()));
+        // Perform resharding.
+        auto objectManager = Bootstrap->GetObjectManager();
+        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
+            auto* tablet = *it;
+            objectManager->UnrefObject(tablet);
+        }
+        tablets.erase(tabletRange.first, tabletRange.second);
+
+        std::vector<TTablet*> newTablets;
+        for (int index = 0; index < newTabletCount; ++index) {
+            auto* tablet = CreateTablet(table);
+            tablet->PivotKey() = pivotKeys[index];
+            newTablets.push_back(tablet);
+        }
+
+        tablets.insert(tabletRange.first, newTablets.begin(), newTablets.end());
     }
 
 
@@ -739,41 +831,40 @@ private:
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
-        if (!tablet || tablet->GetState() != ETabletState::Initializing)
+        if (!tablet || tablet->GetState() != ETabletState::Mounting)
             return;
         
-        tablet->SetState(ETabletState::Running);
-
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Table mounted (NodeId: %s, TabletId: %s, CellId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %s, TabletId: %s, CellId: %s)",
             ~ToString(table->GetId()),
             ~ToString(tablet->GetId()),
             ~ToString(cell->GetId()));
+
+        tablet->SetState(ETabletState::Mounted);
     }
 
     void OnTabletRemoved(const TReqOnTabletRemoved& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
-        if (!tablet || tablet->GetState() != ETabletState::Finalizing)
+        if (!tablet || tablet->GetState() != ETabletState::Unmounting)
             return;
-
-        tablet->SetState(ETabletState::Finalized);
         
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Table unmounted (NodeId: %s, TabletId: %s, CellId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %s, TabletId: %s, CellId: %s)",
             ~ToString(table->GetId()),
             ~ToString(tablet->GetId()),
             ~ToString(cell->GetId()));
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->UnrefObject(tablet);
+        tablet->SetState(ETabletState::Unmounted);
+        tablet->SetCell(nullptr);
 
-        table->SetTablet(nullptr);
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->UnrefObject(cell);
     }
 
 
@@ -830,6 +921,17 @@ private:
         cellRegistry->RegisterCell(cell->GetId(), cell->Config());
     }
 
+
+    void ValidateHasHealthyCells()
+    {
+        auto cells = TabletCellMap.GetValues();
+        for (auto* cell : cells) {
+            if (cell->GetHealth() == ETabletCellHealth::Good)
+                return;
+        }
+        THROW_ERROR_EXCEPTION("No healthy tablet cells");
+    }
+
     TTabletCell* AllocateCell()
     {
         // TODO(babenko): do something smarter?
@@ -843,12 +945,38 @@ private:
                     return cell->GetHealth() != ETabletCellHealth::Good;
                 }),
             cells.end());
-
-        if (cells.empty()) {
-            THROW_ERROR_EXCEPTION("No healthy tablet cells");
-        }
-
+        
+        YCHECK(!cells.empty());
         return cells[RandomNumber<size_t>(cells.size())];
+    }
+
+
+    static std::pair<TTableNode::TTabletList::iterator, TTableNode::TTabletList::iterator> ParseTabletRange(
+        TTableNode* table,
+        int first,
+        int last)
+    {
+        auto& tablets = table->Tablets();
+        if (first == -1 && last == -1) {
+            return std::make_pair(tablets.begin(), tablets.end());
+        } else {
+            if (first < 0 || first >= tablets.size()) {
+                THROW_ERROR_EXCEPTION("First tablet index %d is out of range [%d, %d]",
+                    first,
+                    0,
+                    static_cast<int>(tablets.size()) - 1);
+            }
+            if (last < 0 || last >= tablets.size()) {
+                THROW_ERROR_EXCEPTION("Last tablet index %d is out of range [%d, %d]",
+                    last,
+                    0,
+                    static_cast<int>(tablets.size()) - 1);
+            }
+            if (first > last) {
+                THROW_ERROR_EXCEPTION("First tablet index is greater than last tablet index");
+            }
+            return std::make_pair(tablets.begin() + first, tablets.begin() + last + 1);
+        }
     }
 
 };
@@ -938,14 +1066,39 @@ TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
     return Impl->GetTableSchema(table);
 }
 
-void TTabletManager::MountTable(TTableNode* table)
+void TTabletManager::MountTable(
+    TTableNode* table,
+    int firstTabletIndex,
+    int lastTabletIndex)
 {
-    Impl->MountTable(table);
+    Impl->MountTable(
+        table,
+        firstTabletIndex,
+        lastTabletIndex);
 }
 
-void TTabletManager::UnmountTable(TTableNode* table)
+void TTabletManager::UnmountTable(
+    TTableNode* table,
+    int firstTabletIndex,
+    int lastTabletIndex)
 {
-    Impl->UnmountTable(table);
+    Impl->UnmountTable(
+        table,
+        firstTabletIndex,
+        lastTabletIndex);
+}
+
+void TTabletManager::ReshardTable(
+    TTableNode* table,
+    int firstTabletIndex,
+    int lastTabletIndex,
+    const std::vector<TOwningKey>& pivotKeys)
+{
+    Impl->ReshardTable(
+        table,
+        firstTabletIndex,
+        lastTabletIndex,
+        pivotKeys);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, TTabletCellId, *Impl)

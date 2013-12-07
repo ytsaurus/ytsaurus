@@ -53,6 +53,8 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::ValueArg<int> FirstTabletIndexArg;
+    TCLAP::ValueArg<int> LastTabletIndexArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -68,6 +70,8 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::ValueArg<int> FirstTabletIndexArg;
+    TCLAP::ValueArg<int> LastTabletIndexArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

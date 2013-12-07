@@ -31,7 +31,6 @@ using namespace NSecurityServer;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
-    , Tablet_(nullptr)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -44,11 +43,6 @@ TTableNode* TTableNode::GetTrunkNode() const
     return static_cast<TTableNode*>(TrunkNode_);
 }
 
-bool TTableNode::IsMounted() const
-{
-    return Tablet_ != nullptr;
-}
-
 bool TTableNode::IsSorted() const
 {
     return !ChunkList_->SortedBy().empty();
@@ -58,7 +52,7 @@ void TTableNode::Save(TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);
 
-    SaveObjectRef(context, Tablet_);
+    SaveObjectRefs(context, Tablets_);
 }
 
 void TTableNode::Load(TLoadContext& context)
@@ -67,7 +61,7 @@ void TTableNode::Load(TLoadContext& context)
 
     // COMPAT(babenko)
     if (context.GetVersion() >= 100) {
-        LoadObjectRef(context, Tablet_);
+        LoadObjectRefs(context, Tablets_);
     }
 }
 
@@ -121,14 +115,15 @@ protected:
             trunkNode);
     }
 
-    virtual void DoDestroy(TTableNode* node) override
+    virtual void DoDestroy(TTableNode* table) override
     {
-        TBase::DoDestroy(node);
+        TBase::DoDestroy(table);
 
-        if (node->IsMounted()) {
-            auto tabletManager = Bootstrap->GetTabletManager();
-            tabletManager->UnmountTable(node);
-        }
+        auto tabletManager = Bootstrap->GetTabletManager();
+        tabletManager->UnmountTable(
+            table,
+            0,
+            table->Tablets().size());
     }
 };
 

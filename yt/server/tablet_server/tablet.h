@@ -5,6 +5,8 @@
 #include <core/misc/property.h>
 #include <core/misc/enum.h>
 
+#include <ytlib/new_table_client/row.h>
+
 #include <server/object_server/object.h>
 
 #include <server/table_server/public.h>
@@ -16,19 +18,13 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETabletState,
-    ((Initializing)    (0))
-    ((Running)         (1))
-    ((Finalizing)      (2))
-    ((Finalized)       (3))
-);
-
 class TTablet
     : public NObjectServer::TNonversionedObjectBase
 {
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
+    DEFINE_BYREF_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
 
 public:
     explicit TTablet(const TTabletId& id);

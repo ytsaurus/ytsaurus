@@ -19,7 +19,11 @@ message TRspSetSorted
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqMount
-{ }
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
 
 message TRspMount
 { }
@@ -27,9 +31,26 @@ message TRspMount
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnmount
-{ }
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
 
 message TRspUnmount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReshard
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    repeated bytes pivot_keys = 3;
+}
+
+message TRspReshard
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,8 +61,10 @@ message TReqGetMountInfo
 message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required NYT.NProto.TGuid cell_id = 2;
-    required NYT.NHydra.NProto.TCellConfig cell_config = 3;
+    required int32 state = 2;
+    required bytes pivot_key = 3;
+    optional NYT.NProto.TGuid cell_id = 4;
+    optional NYT.NHydra.NProto.TCellConfig cell_config = 5;
 }
 
 message TRspGetMountInfo
@@ -49,7 +72,7 @@ message TRspGetMountInfo
     required NYT.NProto.TGuid table_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
-    optional TTabletInfo tablet = 4;
+    repeated TTabletInfo tablets = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

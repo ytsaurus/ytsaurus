@@ -113,29 +113,36 @@ private:
         auto& entry = it->second;
         entry.Timestamp = TInstant::Now();
         if (rsp->IsOK()) {
-            auto info = New<TTableMountInfo>();
-            info->TableId = FromProto<TObjectId>(rsp->table_id());
-            info->Schema = FromProto<TTableSchema>(rsp->schema());
-            info->KeyColumns = FromProto<Stroka>(rsp->key_columns().names());
+            auto mountInfo = New<TTableMountInfo>();
+            mountInfo->TableId = FromProto<TObjectId>(rsp->table_id());
+            mountInfo->Schema = FromProto<TTableSchema>(rsp->schema());
+            mountInfo->KeyColumns = FromProto<Stroka>(rsp->key_columns().names());
 
-            if (rsp->has_tablet()) {
-                const auto& tablet = rsp->tablet();
-                info->TabletId = FromProto<TObjectId>(tablet.tablet_id());
-                info->CellId = FromProto<TTabletCellId>(tablet.cell_id()); 
-                CellDirectory->RegisterCell(info->CellId, tablet.cell_config());
+            for (const auto& protoTabletInfo : rsp->tablets()) {
+                TTabletInfo tabletInfo;
+                tabletInfo.TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
+                tabletInfo.State = ETabletState(protoTabletInfo.state());
+                tabletInfo.PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
+                if (protoTabletInfo.has_cell_id()) {
+                    tabletInfo.CellId = FromProto<TTabletCellId>(protoTabletInfo.cell_id()); 
+                }
+                if (protoTabletInfo.has_cell_config()) {
+                    CellDirectory->RegisterCell(tabletInfo.CellId, protoTabletInfo.cell_config());
+                }
+                mountInfo->Tablets.push_back(tabletInfo);
             }
 
-            TErrorOr<TTableMountInfoPtr> promiseResult(info);
+            TErrorOr<TTableMountInfoPtr> promiseResult(mountInfo);
             if (entry.Promise.IsSet()) {
                 entry.Promise = MakePromise(promiseResult);
             } else {
                 entry.Promise.Set(promiseResult);
             }
 
-            LOG_DEBUG("Table mount info received (Path: %s, TableId: %s, TabletId: %s)",
+            LOG_DEBUG("Table mount info received (Path: %s, TableId: %s, TabletCount: %d)",
                 ~path,
-                ~ToString(info->TableId),
-                ~ToString(info->TabletId));
+                ~ToString(mountInfo->TableId),
+                static_cast<int>(mountInfo->Tablets.size()));
         } else {
             auto error = TError("Error getting mount info for %s",
                 ~path)

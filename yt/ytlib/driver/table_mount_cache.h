@@ -18,6 +18,7 @@
 
 #include <ytlib/new_table_client/public.h>
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/row.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
@@ -25,14 +26,21 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletInfo
+{
+    NObjectClient::TObjectId TabletId;
+    NTabletClient::ETabletState State;
+    NVersionedTableClient::TOwningKey PivotKey;
+    NTabletClient::TTabletCellId CellId;
+};
+
 struct TTableMountInfo
     : public TIntrinsicRefCounted
 {
-    NObjectClient::TObjectId TableId;
-    NObjectClient::TObjectId TabletId; // NullObjectId if not mounted
-    NTabletClient::TTabletCellId CellId; // NullObjectId if not mounted
     NVersionedTableClient::TTableSchema Schema;
     NVersionedTableClient::TKeyColumns KeyColumns;
+    NObjectClient::TObjectId TableId;
+    std::vector<TTabletInfo> Tablets;
 };
 
 class TTableMountCache

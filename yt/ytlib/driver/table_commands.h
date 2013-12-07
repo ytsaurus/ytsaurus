@@ -67,10 +67,16 @@ struct TMountRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
+    TNullable<int> FirstTabletIndex;
+    TNullable<int> LastTabletIndex;
 
     TMountRequest()
     {
         RegisterParameter("path", Path);
+        RegisterParameter("first_tablet_index", FirstTabletIndex)
+            .Default(Null);
+        RegisterParameter("last_tablet_index", LastTabletIndex)
+            .Default(Null);
     }
 };
 
@@ -88,10 +94,16 @@ struct TUnmountRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
+    TNullable<int> FirstTabletIndex;
+    TNullable<int> LastTabletIndex;
 
     TUnmountRequest()
     {
         RegisterParameter("path", Path);
+        RegisterParameter("first_tablet_index", FirstTabletIndex)
+            .Default(Null);
+        RegisterParameter("last_tablet_index", LastTabletIndex)
+            .Default(Null);
     }
 };
 

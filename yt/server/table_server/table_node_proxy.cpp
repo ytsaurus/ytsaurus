@@ -40,6 +40,7 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NTransactionServer;
+using namespace NTabletServer;
 
 using NChunkClient::TChannel;
 
@@ -111,8 +112,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("row_count");
     attributes->push_back("sorted");
     attributes->push_back(TAttributeInfo("sorted_by", node->IsSorted()));
-    attributes->push_back("mounted");
-    attributes->push_back(TAttributeInfo("tablet_id", node->IsMounted()));
+    attributes->push_back(TAttributeInfo("tablets", true, true));
     TBase::ListSystemAttributes(attributes);
 }
 
@@ -154,18 +154,22 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         }
     }
 
-    if (key == "mounted") {
+    if (key == "tablets") {
         BuildYsonFluently(consumer)
-            .Value(node->IsMounted());
+            .DoListFor(node->Tablets(), [] (TFluentList fluent, TTablet* tablet) {
+                auto* cell = tablet->GetCell();
+                fluent
+                    .Item().BeginMap()
+                        .Item("tablet_id").Value(tablet->GetId())
+                        .Item("state").Value(tablet->GetState())
+                        .Item("pivot_key").Value(tablet->PivotKey())
+                        .DoIf(cell, [&] (TFluentMap fluent) {
+                            fluent
+                                .Item("cell_id").Value(cell->GetId());
+                        })
+                    .EndMap();
+            });
         return true;
-    }
-
-    if (node->IsMounted()) {
-        if (key == "tablet_id") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetTablet()->GetId());
-            return true;
-        }
     }
 
     return TBase::GetSystemAttribute(key, consumer);
@@ -249,14 +253,21 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
 {
     DeclareMutating();
 
-    context->SetRequestInfo("");
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->first_tablet_index();
+    context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+        firstTabletIndex,
+        lastTabletIndex);
 
     ValidateNoTransaction();
 
     auto* impl = LockThisTypedImpl();
 
     auto tabletManager = Bootstrap->GetTabletManager();
-    tabletManager->MountTable(impl);
+    tabletManager->MountTable(
+        impl,
+        firstTabletIndex,
+        lastTabletIndex);
 
     context->Reply();
 }
@@ -265,14 +276,21 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
 {
     DeclareMutating();
 
-    context->SetRequestInfo("");
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->first_tablet_index();
+    context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+        firstTabletIndex,
+        lastTabletIndex);
 
     ValidateNoTransaction();
 
     auto* impl = LockThisTypedImpl();
 
     auto tabletManager = Bootstrap->GetTabletManager();
-    tabletManager->UnmountTable(impl);
+    tabletManager->UnmountTable(
+        impl,
+        firstTabletIndex,
+        lastTabletIndex);
 
     context->Reply();
 }
@@ -296,15 +314,20 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     const auto* chunkList = impl->GetChunkList();
     ToProto(response->mutable_key_columns()->mutable_names(), chunkList->SortedBy());
 
-    auto* tablet = impl->GetTablet();
-    if (tablet) {
+    for (auto* tablet : impl->Tablets()) {
         auto* cell = tablet->GetCell();
-        auto* protoTablet = response->mutable_tablet();
+        auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
-        ToProto(protoTablet->mutable_cell_id(), cell->GetId());
-        protoTablet->mutable_cell_config()->CopyFrom(cell->Config());
+        protoTablet->set_state(tablet->GetState());
+        ToProto(protoTablet->mutable_pivot_key(), tablet->PivotKey());
+        if (cell) {
+            ToProto(protoTablet->mutable_cell_id(), cell->GetId());
+            protoTablet->mutable_cell_config()->CopyFrom(cell->Config());
+        }
     }
 
+    context->SetRequestInfo("TabletCount: %d",
+        static_cast<int>(impl->Tablets().size()));
     context->Reply();
 }
 

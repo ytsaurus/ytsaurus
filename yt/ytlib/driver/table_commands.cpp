@@ -194,6 +194,12 @@ void TWriteCommand::DoExecute()
 void TMountCommand::DoExecute()
 {
     auto req = TTableYPathProxy::Mount(Request->Path.GetPath());
+    if (Request->FirstTabletIndex) {
+        req->set_first_tablet_index(*Request->FirstTabletIndex);
+    }
+    if (Request->LastTabletIndex) {
+        req->set_first_tablet_index(*Request->LastTabletIndex);
+    }
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -206,6 +212,12 @@ void TMountCommand::DoExecute()
 void TUnmountCommand::DoExecute()
 {
     auto req = TTableYPathProxy::Unmount(Request->Path.GetPath());
+    if (Request->FirstTabletIndex) {
+        req->set_first_tablet_index(*Request->FirstTabletIndex);
+    }
+    if (Request->LastTabletIndex) {
+        req->set_first_tablet_index(*Request->LastTabletIndex);
+    }
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -230,9 +242,11 @@ void TInsertCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
 
     const auto& mountInfo = mountInfoOrError.GetValue();
-    if (mountInfo->TabletId == NullTabletId) {
+    // TODO(babenko): multitablet
+    if (mountInfo->Tablets.empty() || mountInfo->Tablets[0].State != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION("Table is not mounted");
     }
+    const auto& tabletInfo = mountInfo->Tablets[0];
 
     // Parse input data.
 
@@ -273,15 +287,15 @@ void TInsertCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
-    transaction->AddParticipant(mountInfo->CellId);
+    transaction->AddParticipant(tabletInfo.CellId);
 
     auto cellDirectory = Context->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
+    auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
 
     TTabletServiceProxy tabletProxy(channel);
     auto writeReq = tabletProxy.Write();
     ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
-    ToProto(writeReq->mutable_tablet_id(), mountInfo->TabletId);
+    ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
 
     TProtocolWriter writer;
     for (const auto& row : consumer.GetRows()) {
@@ -405,19 +419,21 @@ void TLookupCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
 
     const auto& mountInfo = mountInfoOrError.GetValue();
-    if (mountInfo->TabletId == NullTabletId) {
+    // TODO(babenko): multitablet
+    if (mountInfo->Tablets.empty() || mountInfo->Tablets[0].State != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION("Table is not mounted");
     }
+    const auto& tabletInfo = mountInfo->Tablets[0];
 
     auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
 
     auto cellDirectory = Context->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
+    auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
 
     TTabletServiceProxy proxy(channel);
     auto req = proxy.Read();
 
-    ToProto(req->mutable_tablet_id(), mountInfo->TabletId);
+    ToProto(req->mutable_tablet_id(), tabletInfo.TabletId);
     req->set_timestamp(Request->Timestamp);
 
     TProtocolWriter writer;
@@ -489,9 +505,11 @@ void TDeleteCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
 
     const auto& mountInfo = mountInfoOrError.GetValue();
-    if (mountInfo->TabletId == NullTabletId) {
+    // TODO(babenko): multitablet
+    if (mountInfo->Tablets.empty() || mountInfo->Tablets[0].State != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION("Table is not mounted");
     }
+    const auto& tabletInfo = mountInfo->Tablets[0];
 
     auto transactionManager = Context->GetTransactionManager();
     TTransactionStartOptions startOptions;
@@ -500,15 +518,15 @@ void TDeleteCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
-    transaction->AddParticipant(mountInfo->CellId);
+    transaction->AddParticipant(tabletInfo.CellId);
 
     auto cellDirectory = Context->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(mountInfo->CellId);
+    auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
 
     TTabletServiceProxy proxy(channel);
     auto writeReq = proxy.Write();
     ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
-    ToProto(writeReq->mutable_tablet_id(), mountInfo->TabletId);
+    ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
 
     TProtocolWriter writer;
     writer.WriteCommand(EProtocolCommand::DeleteRow);
