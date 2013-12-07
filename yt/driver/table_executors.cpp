@@ -3,11 +3,14 @@
 
 #include <ytlib/driver/driver.h>
 
+#include <ytlib/new_table_client/row.h>
+
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,17 +81,17 @@ Stroka TWriteExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMountExecutor::TMountExecutor()
-    : PathArg("path", "table path to mount", true, "", "YPATH")
-    , FirstTabletIndexArg("", "first", "first tablet index to mount", false, -1, "INTEGER")
-    , LastTabletIndexArg("", "last", "last tablet index to mount", false, -1, "INTEGER")
+TTabletExecutor::TTabletExecutor()
+    : PathArg("path", "table path", true, "", "YPATH")
+    , FirstTabletIndexArg("", "first", "first tablet index", false, -1, "INTEGER")
+    , LastTabletIndexArg("", "last", "last tablet index", false, -1, "INTEGER")
 {
     CmdLine.add(PathArg);
     CmdLine.add(FirstTabletIndexArg);
     CmdLine.add(LastTabletIndexArg);
 }
 
-void TMountExecutor::BuildArgs(IYsonConsumer* consumer)
+void TTabletExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -100,6 +103,16 @@ void TMountExecutor::BuildArgs(IYsonConsumer* consumer)
         .DoIf(LastTabletIndexArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("last_tablet_index").Value(LastTabletIndexArg.getValue());
         });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMountExecutor::TMountExecutor()
+{ }
+
+void TMountExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    TTabletExecutor::BuildArgs(consumer);
 }
 
 Stroka TMountExecutor::GetCommandName() const 
@@ -110,32 +123,42 @@ Stroka TMountExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnmountExecutor::TUnmountExecutor()
-    : PathArg("path", "table path to unmount", true, "", "YPATH")
-    , FirstTabletIndexArg("", "first", "first tablet index to mount", false, -1, "INTEGER")
-    , LastTabletIndexArg("", "last", "last tablet index to mount", false, -1, "INTEGER")
-{
-    CmdLine.add(PathArg);
-    CmdLine.add(FirstTabletIndexArg);
-    CmdLine.add(LastTabletIndexArg);
-}
+{ }
 
 void TUnmountExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto path = PreprocessYPath(PathArg.getValue());
-
-    BuildYsonMapFluently(consumer)
-        .Item("path").Value(path)
-        .DoIf(FirstTabletIndexArg.isSet(), [&] (TFluentMap fluent) {
-            fluent.Item("first_tablet_index").Value(FirstTabletIndexArg.getValue());
-        })
-        .DoIf(LastTabletIndexArg.isSet(), [&] (TFluentMap fluent) {
-            fluent.Item("last_tablet_index").Value(LastTabletIndexArg.getValue());
-        });
+    TTabletExecutor::BuildArgs(consumer);
 }
 
 Stroka TUnmountExecutor::GetCommandName() const 
 {
     return "unmount";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReshardExecutor::TReshardExecutor()
+    : PivotKeysArg("pivot_keys", "pivot keys", true, "", "YSON_LIST_FRAGMENT")
+{
+    CmdLine.add(PivotKeysArg);
+}
+
+void TReshardExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    TTabletExecutor::BuildArgs(consumer);
+
+    std::vector<TOwningKey> pivotKeys;
+    for (const auto& key : PivotKeysArg) {
+        pivotKeys.push_back(ConvertTo<TOwningKey>(TYsonString(key, EYsonType::ListFragment)));
+    }
+
+    BuildYsonMapFluently(consumer)
+        .Item("pivot_keys").Value(pivotKeys);
+}
+
+Stroka TReshardExecutor::GetCommandName() const 
+{
+    return "reshard";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

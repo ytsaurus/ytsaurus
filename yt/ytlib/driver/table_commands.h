@@ -117,6 +117,35 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReshardRequest
+    : public TRequest
+{
+    NYPath::TRichYPath Path;
+    TNullable<int> FirstTabletIndex;
+    TNullable<int> LastTabletIndex;
+    std::vector<NVersionedTableClient::TOwningKey> PivotKeys;
+
+    TReshardRequest()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("first_tablet_index", FirstTabletIndex)
+            .Default(Null);
+        RegisterParameter("last_tablet_index", LastTabletIndex)
+            .Default(Null);
+        RegisterParameter("pivot_keys", PivotKeys);
+    }
+};
+
+class TReshardCommand
+    : public TTypedCommand<TReshardRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TInsertRequest
     : public TRequest
 {

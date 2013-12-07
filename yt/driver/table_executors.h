@@ -45,17 +45,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMountExecutor
+class TTabletExecutor
     : public TRequestExecutor
+{
+public:
+    TTabletExecutor();
+
+protected:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::ValueArg<int> FirstTabletIndexArg;
+    TCLAP::ValueArg<int> LastTabletIndexArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMountExecutor
+    : public TTabletExecutor
 {
 public:
     TMountExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
-    TCLAP::ValueArg<int> FirstTabletIndexArg;
-    TCLAP::ValueArg<int> LastTabletIndexArg;
-
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
@@ -63,15 +76,26 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnmountExecutor
-    : public TRequestExecutor
+    : public TTabletExecutor
 {
 public:
     TUnmountExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
-    TCLAP::ValueArg<int> FirstTabletIndexArg;
-    TCLAP::ValueArg<int> LastTabletIndexArg;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReshardExecutor
+    : public TTabletExecutor
+{
+public:
+    TReshardExecutor();
+
+private:
+    TCLAP::UnlabeledMultiArg<Stroka> PivotKeysArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

@@ -135,6 +135,7 @@ public:
         REGISTER(TReadCommand,              "read",              Null,       Tabular,    false, true );
         REGISTER(TMountCommand,             "mount",             Null,       Null,       true,  false);
         REGISTER(TUnmountCommand,           "unmount",           Null,       Null,       true,  false);
+        REGISTER(TReshardCommand,           "reshard",           Null,       Null,       true,  false);
         REGISTER(TInsertCommand,            "insert",            Tabular,    Null,       true,  true );
         REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
         REGISTER(TLookupCommand,            "lookup",            Null,       Tabular,    false, true );

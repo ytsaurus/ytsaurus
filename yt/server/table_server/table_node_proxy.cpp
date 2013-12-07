@@ -78,6 +78,7 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
 
 };
@@ -101,6 +102,7 @@ bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
     DISPATCH_YPATH_SERVICE_METHOD(Mount);
     DISPATCH_YPATH_SERVICE_METHOD(Unmount);
+    DISPATCH_YPATH_SERVICE_METHOD(Reshard);
     DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
     return TBase::DoInvoke(context);
 }
@@ -291,6 +293,32 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
         impl,
         firstTabletIndex,
         lastTabletIndex);
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Reshard)
+{
+    DeclareMutating();
+
+    int firstTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->first_tablet_index();
+    auto pivotKeys = FromProto<NVersionedTableClient::TOwningKey>(request->pivot_keys());
+    context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d, PivotKeyCount: %d",
+        firstTabletIndex,
+        lastTabletIndex,
+        static_cast<int>(pivotKeys.size()));
+
+    ValidateNoTransaction();
+
+    auto* impl = LockThisTypedImpl();
+
+    auto tabletManager = Bootstrap->GetTabletManager();
+    tabletManager->ReshardTable(
+        impl,
+        firstTabletIndex,
+        lastTabletIndex,
+        pivotKeys);
 
     context->Reply();
 }

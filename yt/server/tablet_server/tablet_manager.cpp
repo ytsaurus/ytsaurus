@@ -402,30 +402,33 @@ public:
         auto& tablets = table->Tablets();
         int oldTabletCount = std::distance(tabletRange.first, tabletRange.second);
         int newTabletCount = static_cast<int>(pivotKeys.size());
+        
+        if (newTabletCount == 0) {
+            THROW_ERROR_EXCEPTION("At least one pivot key is needed");
+        }
+
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
                 MaxTabletCount);
         }
 
-        if (newTabletCount > 0) {
-            if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
+        if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
+            THROW_ERROR_EXCEPTION(
+                "First pivot key must match that of the first tablet "
+                "in the resharded range");
+        }
+
+        for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
+            if (CompareRows(pivotKeys[index], pivotKeys[index + 1]) >= 0) {
+                THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
+            }
+        }
+
+        if (tabletRange.second != tablets.end()) {
+            if (CompareRows(pivotKeys.back(), (*tabletRange.second)->PivotKey()) >= 0) {
                 THROW_ERROR_EXCEPTION(
-                    "First pivot key must match that of the leading tablet "
-                    "of the resharded range");
-            }
-
-            for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
-                if (CompareRows(pivotKeys[index], pivotKeys[index + 1]) >= 0) {
-                    THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
-                }
-            }
-
-            if (tabletRange.second != tablets.end()) {
-                if (CompareRows(pivotKeys.back(), (*tabletRange.second)->PivotKey()) >= 0) {
-                    THROW_ERROR_EXCEPTION(
-                        "Last pivot key must be strictly less than that of the tablet "
-                        "which follows the resharded range");
-                }
+                    "Last pivot key must be strictly less than that of the tablet "
+                    "which follows the resharded range");
             }
         }
 
@@ -445,7 +448,6 @@ public:
             auto* tablet = *it;
             objectManager->UnrefObject(tablet);
         }
-        tablets.erase(tabletRange.first, tabletRange.second);
 
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
@@ -454,7 +456,9 @@ public:
             newTablets.push_back(tablet);
         }
 
-        tablets.insert(tabletRange.first, newTablets.begin(), newTablets.end());
+        int actualFirstTabletIndex = std::distance(tablets.begin(), tabletRange.first);
+        tablets.erase(tabletRange.first, tabletRange.second);
+        tablets.insert(tablets.begin() + actualFirstTabletIndex, newTablets.begin(), newTablets.end());
     }
 
 

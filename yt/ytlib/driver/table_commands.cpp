@@ -227,6 +227,25 @@ void TUnmountCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TReshardCommand::DoExecute()
+{
+    auto req = TTableYPathProxy::Reshard(Request->Path.GetPath());
+    if (Request->FirstTabletIndex) {
+        req->set_first_tablet_index(*Request->FirstTabletIndex);
+    }
+    if (Request->LastTabletIndex) {
+        req->set_first_tablet_index(*Request->LastTabletIndex);
+    }
+    ToProto(req->mutable_pivot_keys(), Request->PivotKeys);
+
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+    ReplySuccess();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TInsertCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request->TableWriter
@@ -306,7 +325,8 @@ void TInsertCommand::DoExecute()
     for (const auto& row : consumer.GetRows()) {
         const auto& tabletInfo = mountInfo->GetTablet(row);
         if (tabletInfo.State != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet is not mounted");
+            THROW_ERROR_EXCEPTION("Tablet %s is not mounted",
+                ~ToString(tabletInfo.TabletId));
         }
 
         transaction->AddParticipant(tabletInfo.CellId);
@@ -448,7 +468,8 @@ void TLookupCommand::DoExecute()
     const auto& mountInfo = mountInfoOrError.GetValue();
     const auto& tabletInfo = mountInfo->GetTablet(Request->Key);
     if (tabletInfo.State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION("Tablet is not mounted");
+        THROW_ERROR_EXCEPTION("Tablet %s is not mounted",
+            ~ToString(tabletInfo.TabletId));
     }
 
     auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
@@ -533,7 +554,8 @@ void TDeleteCommand::DoExecute()
     const auto& mountInfo = mountInfoOrError.GetValue();
     const auto& tabletInfo = mountInfo->GetTablet(Request->Key);
     if (tabletInfo.State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION("Tablet is not mounted");
+        THROW_ERROR_EXCEPTION("Tablet %s is not mounted",
+            ~ToString(tabletInfo.TabletId));
     }
 
     auto transactionManager = Context->GetTransactionManager();
