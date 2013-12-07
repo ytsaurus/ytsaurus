@@ -72,6 +72,7 @@ set( SRCS
   ${BASE}/memory_store_ut.h
   ${BASE}/static_memory_store_ut.cpp
   ${BASE}/dynamic_memory_store_ut.cpp
+  ${BASE}/memory_store_pt.cpp
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )

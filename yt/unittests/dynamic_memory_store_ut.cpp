@@ -6,7 +6,6 @@
 #include <yt/server/tablet_node/public.h>
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/tablet_manager.h>
-#include <yt/server/tablet_node/transaction.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -22,45 +21,11 @@ class TDynamicMemoryStoreTest
 {
 public:
     TDynamicMemoryStoreTest()
-        : CurrentTimestamp(MinTimestamp)
     {
         auto config = New<TTabletManagerConfig>();
         Store = New<TDynamicMemoryStore>(config, Tablet.get());
     }
 
-
-    TTimestamp GenerateTimestamp()
-    {
-        return CurrentTimestamp++;
-    }
-
-
-    std::unique_ptr<TTransaction> StartTransaction()
-    {
-        std::unique_ptr<TTransaction> transaction(new TTransaction(NullTransactionId));
-        transaction->SetStartTimestamp(GenerateTimestamp());
-        transaction->SetState(ETransactionState::Active);
-        return transaction;
-    }
-
-    void PrepareTransaction(TTransaction* transaction)
-    {
-        ASSERT_EQ(transaction->GetState(), ETransactionState::Active);
-        transaction->SetPrepareTimestamp(GenerateTimestamp());
-        transaction->SetState(ETransactionState::TransientlyPrepared);
-    }
-
-    void CommitTransaction(TTransaction* transaction)
-    {
-        ASSERT_EQ(transaction->GetState(), ETransactionState::TransientlyPrepared);
-        transaction->SetCommitTimestamp(GenerateTimestamp());
-        transaction->SetState(ETransactionState::Committed);
-    }
-
-    void AbortTransaction(TTransaction* transaction)
-    {
-        transaction->SetState(ETransactionState::Aborted);
-    }
 
 
     void ConfirmRow(TDynamicRow row)
@@ -208,7 +173,6 @@ public:
 
 
     TDynamicMemoryStorePtr Store;
-    TTimestamp CurrentTimestamp;
 
 };
 

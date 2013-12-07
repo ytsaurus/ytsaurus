@@ -18,6 +18,7 @@
 #include <yt/server/tablet_node/static_memory_store.h>
 #include <yt/server/tablet_node/dynamic_memory_store.h>
 #include <yt/server/tablet_node/tablet.h>
+#include <yt/server/tablet_node/transaction.h>
 
 #include <contrib/testing/framework.h>
 
@@ -37,6 +38,7 @@ class TMemoryStoreTestBase
 {
 public:
     TMemoryStoreTestBase()
+        : CurrentTimestamp(MinTimestamp)
     {
         NameTable = New<TNameTable>();
 
@@ -136,6 +138,41 @@ public:
     }
 
 
+    TTimestamp GenerateTimestamp()
+    {
+        return CurrentTimestamp++;
+    }
+
+
+    std::unique_ptr<TTransaction> StartTransaction()
+    {
+        std::unique_ptr<TTransaction> transaction(new TTransaction(NullTransactionId));
+        transaction->SetStartTimestamp(GenerateTimestamp());
+        transaction->SetState(ETransactionState::Active);
+        return transaction;
+    }
+
+    void PrepareTransaction(TTransaction* transaction)
+    {
+        ASSERT_EQ(transaction->GetState(), ETransactionState::Active);
+        transaction->SetPrepareTimestamp(GenerateTimestamp());
+        transaction->SetState(ETransactionState::TransientlyPrepared);
+    }
+
+    void CommitTransaction(TTransaction* transaction)
+    {
+        ASSERT_EQ(transaction->GetState(), ETransactionState::TransientlyPrepared);
+        transaction->SetCommitTimestamp(GenerateTimestamp());
+        transaction->SetState(ETransactionState::Committed);
+    }
+
+    void AbortTransaction(TTransaction* transaction)
+    {
+        transaction->SetState(ETransactionState::Aborted);
+    }
+
+
+    TTimestamp CurrentTimestamp;
     TNameTablePtr NameTable;
     std::unique_ptr<TTablet> Tablet;
 
