@@ -281,6 +281,7 @@ public:
         Header_->Transaction = nullptr;
         Header_->LockIndex = -1;
         Header_->LockMode = ERowLockMode::None;
+        Header_->PrepareTimestamp = NTransactionClient::MaxTimestamp;
     }
 
 
@@ -328,7 +329,7 @@ public:
         return TValueList(GetLists(keyCount)[index + 1]);
     }
 
-    void SetFixedValueList(int index, int keyCount, TValueList list)
+    void SetFixedValueList(int index, TValueList list, int keyCount)
     {
         GetLists(keyCount)[index + 1] = list.Header_;
     }
@@ -339,7 +340,7 @@ public:
         return TTimestampList(GetLists(keyCount)[0]);
     }
 
-    void SetTimestampList(int keyCount, TTimestampList list)
+    void SetTimestampList(TTimestampList list, int keyCount)
     {
         GetLists(keyCount)[0] = list.Header_;
     }

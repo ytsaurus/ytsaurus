@@ -73,9 +73,10 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(CompactionThread);
 
+    
+    TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);
 
     void DoMemoryCompaction();
-    void FinishMemoryCompaction(TStaticMemoryStorePtr compactedStore);
 
 };
 

@@ -29,6 +29,8 @@ public:
 
     TTablet* GetTablet() const;
 
+    void MakePassive();
+
     TDynamicRow WriteRow(
         const NVersionedTableClient::TNameTablePtr& nameTable,
         TTransaction* transaction,
@@ -42,10 +44,13 @@ public:
 
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
 
-    void CheckRowLockAndMaybeMigrate(
+    void CheckLockAndMaybeMigrateRow(
         NVersionedTableClient::TKey key,
         TTransaction* transaction,
         ERowLockMode mode,
+        const TDynamicMemoryStorePtr& migrateTo);
+    TDynamicRow MigrateRow(
+        TDynamicRow row,
         const TDynamicMemoryStorePtr& migrateTo);
 
     void ConfirmRow(TDynamicRow row);
@@ -61,6 +66,8 @@ private:
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
+
+    bool Active_;
 
     int KeyCount_;
     int SchemaColumnCount_;

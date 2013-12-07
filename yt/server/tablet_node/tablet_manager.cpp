@@ -317,7 +317,7 @@ private:
             YASSERT(!PrewrittenRows_.empty());
             auto rowRef = PrewrittenRows_.front();
             PrewrittenRows_.pop();
-            rowRef.Store->ConfirmRow(rowRef.Row);
+            rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(rowRef);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %d)",

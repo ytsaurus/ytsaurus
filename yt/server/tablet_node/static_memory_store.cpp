@@ -2,6 +2,7 @@
 #include "static_memory_store.h"
 #include "config.h"
 #include "tablet.h"
+#include "private.h"
 
 #include <ytlib/transaction_client/public.h>
 
@@ -10,6 +11,10 @@ namespace NTabletNode {
 
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -456,7 +461,18 @@ TStaticMemoryStore::TStaticMemoryStore(
     : Config_(config)
     , Tablet_(tablet)
     , Data_(std::move(data))
-{ }
+{
+    LOG_DEBUG("Static memory store created (TabletId: %s, This: %p)",
+        ~ToString(Tablet_->GetId()),
+        this);
+}
+
+TStaticMemoryStore::~TStaticMemoryStore()
+{
+    LOG_DEBUG("Static memory store destroyed (TabletId: %s, This: %p)",
+        ~ToString(Tablet_->GetId()),
+        this);
+}
 
 std::unique_ptr<IStoreScanner> TStaticMemoryStore::CreateScanner()
 {

@@ -76,6 +76,8 @@ public:
         TTablet* tablet,
         std::unique_ptr<TData> data);
 
+    ~TStaticMemoryStore();
+
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
 
 private:

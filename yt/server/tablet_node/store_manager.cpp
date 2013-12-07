@@ -6,6 +6,8 @@
 #include "compaction.h"
 #include "config.h"
 
+#include <core/concurrency/fiber.h>
+
 #include <ytlib/tablet_client/protocol.h>
 
 #include <ytlib/new_table_client/name_table.h>
@@ -20,6 +22,7 @@ using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NTabletClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,7 +140,7 @@ void TStoreManager::WriteRow(
     std::vector<TDynamicRow>* lockedRows)
 {
     if (PassiveDynamicMemoryStore_) {
-        PassiveDynamicMemoryStore_->CheckRowLockAndMaybeMigrate(
+        PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
             row,
             transaction,
             ERowLockMode::Write,
@@ -161,7 +164,7 @@ void TStoreManager::DeleteRow(
     std::vector<TDynamicRow>* lockedRows)
 {
     if (PassiveDynamicMemoryStore_) {
-        PassiveDynamicMemoryStore_->CheckRowLockAndMaybeMigrate(
+        PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
             key,
             transaction,
             ERowLockMode::Delete,
@@ -179,31 +182,45 @@ void TStoreManager::DeleteRow(
 
 void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
 {
-    ActiveDynamicMemoryStore_->ConfirmRow(rowRef.Row);
+    auto row = MigrateRowIfNeeded(rowRef);
+    ActiveDynamicMemoryStore_->ConfirmRow(row);
 }
 
 void TStoreManager::PrepareRow(const TDynamicRowRef& rowRef)
 {
+    auto row = MigrateRowIfNeeded(rowRef);
     ActiveDynamicMemoryStore_->PrepareRow(rowRef.Row);
 }
 
 void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
 {
-    if (ActiveDynamicMemoryStore_ == rowRef.Store) {
-        ActiveDynamicMemoryStore_->CommitRow(rowRef.Row);
-    } else {
-        // TODO(babenko): copy values
-    }
+    auto row = MigrateRowIfNeeded(rowRef);
+    ActiveDynamicMemoryStore_->CommitRow(row);
 }
 
 void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
 {
-    ActiveDynamicMemoryStore_->AbortRow(rowRef.Row);
+    // NB: Even passive store can handle it.
+    YASSERT(rowRef.Store == ActiveDynamicMemoryStore_ ||
+            rowRef.Store == PassiveDynamicMemoryStore_);
+    rowRef.Store->AbortRow(rowRef.Row);
 }
 
 const TDynamicMemoryStorePtr& TStoreManager::GetActiveDynamicMemoryStore() const
 {
     return ActiveDynamicMemoryStore_;
+}
+
+TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
+{
+    if (rowRef.Store == ActiveDynamicMemoryStore_) {
+        return rowRef.Row;
+    }
+
+    YASSERT(rowRef.Store == PassiveDynamicMemoryStore_);
+    return PassiveDynamicMemoryStore_->MigrateRow(
+        rowRef.Row,
+        ActiveDynamicMemoryStore_);
 }
 
 bool TStoreManager::IsMemoryCompactionNeeded() const
@@ -234,6 +251,8 @@ void TStoreManager::RunMemoryCompaction()
     
     YCHECK(PassiveDynamicMemoryStore_);
     PassiveDynamicMemoryStore_ = ActiveDynamicMemoryStore_;
+    PassiveDynamicMemoryStore_->MakePassive();
+
     ActiveDynamicMemoryStore_ = New<TDynamicMemoryStore>(Config_, Tablet_);
 
     CompactionInvoker_->Invoke(
@@ -245,14 +264,12 @@ void TStoreManager::DoMemoryCompaction()
     VERIFY_THREAD_AFFINITY(CompactionThread);
     YCHECK(MemoryCompactionInProgress_);
 
-    auto compactedStore = MemoryCompactor_->Run(PassiveDynamicMemoryStore_, StaticMemoryStore_);
+    auto compactedStore = MemoryCompactor_->Run(
+        PassiveDynamicMemoryStore_,
+        StaticMemoryStore_);
 
-    AutomatonInvoker_->Invoke(
-        BIND(&TStoreManager::FinishMemoryCompaction, MakeStrong(this), compactedStore));
-}
+    SwitchTo(AutomatonInvoker_);
 
-void TStoreManager::FinishMemoryCompaction(TStaticMemoryStorePtr compactedStore)
-{
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(MemoryCompactionInProgress_);
 
