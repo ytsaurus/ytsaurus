@@ -189,7 +189,7 @@ void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
 void TStoreManager::PrepareRow(const TDynamicRowRef& rowRef)
 {
     auto row = MigrateRowIfNeeded(rowRef);
-    ActiveDynamicMemoryStore_->PrepareRow(rowRef.Row);
+    ActiveDynamicMemoryStore_->PrepareRow(row);
 }
 
 void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
