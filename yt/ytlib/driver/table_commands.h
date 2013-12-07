@@ -8,6 +8,8 @@
 
 #include <ytlib/formats/format.h>
 
+#include <ytlib/new_table_client/row.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -155,7 +157,7 @@ struct TLookupRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
-    std::vector<NYTree::INodePtr> Key;
+    NVersionedTableClient::TOwningKey Key;
     NTransactionClient::TTimestamp Timestamp;
     TNullable<std::vector<Stroka>> Columns;
 
@@ -184,7 +186,7 @@ struct TDeleteRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
-    std::vector<NYTree::INodePtr> Key;
+    NVersionedTableClient::TOwningKey Key;
 
     TDeleteRequest()
     {

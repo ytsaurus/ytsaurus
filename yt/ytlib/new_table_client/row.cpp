@@ -2,6 +2,12 @@
 #include "row.h"
 
 #include <core/misc/varint.h>
+#include <core/misc/string.h>
+
+#include <core/yson/consumer.h>
+
+#include <core/ytree/node.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <util/stream/str.h>
 
@@ -9,6 +15,8 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NChunkClient;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,6 +247,83 @@ TKey EmptyKey()
 {
     static TRowHeader header = {};
     return TKey(&header);
+}
+
+void Serialize(TKey key, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    for (int index = 0; index < key.GetValueCount(); ++index) {
+        consumer->OnListItem();
+        const auto& value = key[index];
+        if (value.Id != index) {
+            THROW_ERROR_EXCEPTION("Invalid key component id: expected %d, found %d",
+                index,
+                static_cast<int>(value.Id));
+        }
+        auto type = EValueType(value.Type);
+        switch (type) {
+            case EValueType::Integer:
+                consumer->OnIntegerScalar(value.Data.Integer);
+                break;
+
+            case EValueType::Double:
+                consumer->OnDoubleScalar(value.Data.Double);
+                break;
+
+            case EValueType::String:
+                consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                break;
+
+            case EValueType::Any:
+                THROW_ERROR_EXCEPTION("Key cannot contain \"any\" components");
+                break;
+
+            default:
+                consumer->OnBeginAttributes();
+                consumer->OnKeyedItem("type");
+                consumer->OnStringScalar(FormatEnum(type));
+                consumer->OnEndAttributes();
+                break;
+        }
+    }
+    consumer->OnEndList();
+}
+
+void Deserialize(TOwningKey& key, INodePtr node)
+{
+    if (node->GetType() != ENodeType::List) {
+        THROW_ERROR_EXCEPTION("Key can only be parsed from a list");
+    }
+
+    TUnversionedOwningRowBuilder builder;
+    int id = 0;
+    for (const auto& item : node->AsList()->GetChildren()) {
+        switch (item->GetType()) {
+            case ENodeType::Integer:
+                builder.AddValue(MakeUnversionedIntegerValue(item->GetValue<i64>(), id));
+                break;
+            
+            case ENodeType::Double:
+                builder.AddValue(MakeUnversionedDoubleValue(item->GetValue<double>(), id));
+                break;
+            
+            case ENodeType::String:
+                builder.AddValue(MakeUnversionedStringValue(item->GetValue<Stroka>(), id));
+                break;
+            
+            case ENodeType::Entity: {
+                auto valueType = item->Attributes().Get<EValueType>("type");
+                builder.AddValue(MakeUnversionedSentinelValue(valueType, id));
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Key cannot contain %s components",
+                    ~FormatEnum(item->GetType()).Quote());
+        }
+        ++id;
+    }
+    key = builder.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

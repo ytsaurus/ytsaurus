@@ -5,7 +5,10 @@
 #include <ytlib/chunk_client/schema.pb.h>
 
 #include <core/misc/chunked_memory_pool.h>
-#include <core/misc/varint.h>
+
+#include <core/ytree/public.h>
+
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -323,9 +326,6 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
-void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
-
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 // by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(const TOwningKey& key);
@@ -337,6 +337,12 @@ TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
 
 //! Returns a key with no components.
 TKey EmptyKey();
+
+void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
+void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
+
+void Serialize(TKey key, NYson::IYsonConsumer* consumer);
+void Deserialize(TOwningKey& key, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

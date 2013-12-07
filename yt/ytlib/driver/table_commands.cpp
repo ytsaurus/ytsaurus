@@ -65,35 +65,6 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-NVersionedTableClient::TOwningKey SerializeKey(const std::vector<INodePtr> key)
-{
-    TUnversionedOwningRowBuilder keyBuilder;
-    for (auto keyPart : key) {
-        switch (keyPart->GetType()) {
-            case ENodeType::Integer:
-                keyBuilder.AddValue(MakeIntegerValue<TUnversionedValue>(keyPart->GetValue<i64>()));
-                break;
-            case ENodeType::Double:
-                keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(keyPart->GetValue<double>()));
-                break;
-            case ENodeType::String:
-                // NB: keyPart will hold the value.
-                keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(keyPart->GetValue<Stroka>()));
-                break;
-            default:
-                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(ConvertToYsonString(keyPart).Data()));
-                break;
-        }
-    }
-    return keyBuilder.Finish();
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TReadCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request->TableReader
@@ -451,7 +422,7 @@ void TLookupCommand::DoExecute()
 
     TProtocolWriter writer;
     writer.WriteCommand(EProtocolCommand::LookupRow);
-    writer.WriteUnversionedRow(SerializeKey(Request->Key));
+    writer.WriteUnversionedRow(Request->Key);
     writer.WriteColumnFilter(
         Request->Columns
         ? TColumnFilter(*Request->Columns)
@@ -541,7 +512,7 @@ void TDeleteCommand::DoExecute()
 
     TProtocolWriter writer;
     writer.WriteCommand(EProtocolCommand::DeleteRow);
-    writer.WriteUnversionedRow(SerializeKey(Request->Key));
+    writer.WriteUnversionedRow(Request->Key);
     writeReq->set_encoded_request(writer.Finish());
 
     auto writeRsp = WaitFor(writeReq->Invoke());
