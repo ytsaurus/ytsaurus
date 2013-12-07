@@ -2,13 +2,14 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/schema.pb.h>
-
 #include <core/misc/chunked_memory_pool.h>
+#include <core/misc/serialize.h>
 
 #include <core/ytree/public.h>
 
 #include <core/yson/public.h>
+
+#include <ytlib/chunk_client/schema.pb.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -312,6 +313,7 @@ public:
         return GetValueCount();
     }
 
+
 private:
     TRowHeader* Header;
 
@@ -475,6 +477,22 @@ public:
     {
         swap(*this, other);
         return *this;
+    }
+
+
+    void Save(TStreamSaveContext& context) const
+    {
+        TProtoStringType str;
+        ToProto(&str, *this);
+        using NYT::Save;
+        Save(context, str);
+    }
+
+    void Load(TStreamLoadContext& context)
+    {
+        using NYT::Load;
+        auto str = Load<Stroka>(context);
+        FromProto(this, str);
     }
 
 private:
