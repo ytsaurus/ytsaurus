@@ -131,6 +131,43 @@ TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
         EValueType::Max);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+static TOwningKey MakeSentinelKey(EValueType type)
+{
+    TUnversionedOwningRowBuilder builder;
+    builder.AddValue(MakeUnversionedSentinelValue(type, 0));
+    return builder.Finish();
+}
+
+static TOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
+static TOwningKey CachedMaxKey = MakeSentinelKey(EValueType::Max);
+
+TKey MinKey()
+{
+    return CachedMinKey;
+}
+
+TKey MaxKey()
+{
+    return CachedMinKey;
+}
+
+static TOwningKey MakeEmptyKey()
+{
+    TUnversionedOwningRowBuilder builder;
+    return builder.Finish();
+}
+
+static TOwningKey CachedEmptyKey = MakeEmptyKey();
+
+TKey EmptyKey()
+{
+    return CachedEmptyKey;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
 {
     size_t variableSize = 0;
@@ -241,12 +278,6 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
     }
 
     *row = TUnversionedOwningRow(std::move(rowData), protoRow);
-}
-
-TKey EmptyKey()
-{
-    static TRowHeader header = {};
-    return TKey(&header);
 }
 
 void Serialize(TKey key, IYsonConsumer* consumer)

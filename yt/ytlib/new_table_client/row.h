@@ -337,8 +337,14 @@ TOwningKey GetKeySuccessor(const TOwningKey& key);
 //! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
 
-//! Returns a key with no components.
+//! Returns the key with no components.
 TKey EmptyKey();
+
+//! Returns the key with a single |Min| component.
+TKey MinKey();
+
+//! Returns the  key with a single |Max| component.
+TKey MaxKey();
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
