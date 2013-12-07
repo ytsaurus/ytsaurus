@@ -727,6 +727,16 @@ const std::vector<TUnversionedOwningRow> TBuildingTableConsumer::GetRows() const
     return Rows;
 }
 
+bool TBuildingTableConsumer::GetTreatMissingAsNull() const
+{
+    return TreatMissingAsNull_;
+}
+
+void TBuildingTableConsumer::SetTreatMissingAsNull(bool value)
+{
+    TreatMissingAsNull_ = value;
+}
+
 TError TBuildingTableConsumer::AttachLocationAttributes(TError error)
 {
     return error

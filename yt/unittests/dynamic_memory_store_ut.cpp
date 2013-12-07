@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
+#include <yt/core/concurrency/fiber.h>
+
 #include <yt/ytlib/new_table_client/writer.h>
 #include <yt/ytlib/new_table_client/chunk_writer.h>
 #include <yt/ytlib/new_table_client/reader.h>
@@ -21,6 +23,7 @@ namespace {
 
 using namespace NChunkClient;
 using namespace NTransactionClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +73,27 @@ public:
     }
 
 
+    void ConfirmRow(TDynamicRow row)
+    {
+        Store->ConfirmRow(row);
+    }
+
+    void PrepareRow(TDynamicRow row)
+    {
+        Store->PrepareRow(row);
+    }
+
+    void CommitRow(TDynamicRow row)
+    {
+        Store->CommitRow(row);
+    }
+
+    void AbortRow(TDynamicRow row)
+    {
+        Store->AbortRow(row);
+    }
+
+
     TDynamicRow WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
@@ -82,6 +106,18 @@ public:
             prewrite);
     }
 
+    TTimestamp WriteRow(TUnversionedRow row)
+    {
+        auto transaction = StartTransaction();
+        auto dynamicRow = WriteRow(transaction.get(), row, false);
+        PrepareTransaction(transaction.get());
+        PrepareRow(dynamicRow);
+        CommitTransaction(transaction.get());
+        CommitRow(dynamicRow);
+        return transaction->GetCommitTimestamp();
+    }
+
+
     TDynamicRow DeleteRow(
         TTransaction* transaction,
         NVersionedTableClient::TKey key,
@@ -92,6 +128,18 @@ public:
             key,
             prewrite);
     }
+
+    TTimestamp DeleteRow(NVersionedTableClient::TKey key)
+    {
+        auto transaction = StartTransaction();
+        auto row = DeleteRow(transaction.get(), key, false);
+        PrepareTransaction(transaction.get());
+        PrepareRow(row);
+        CommitTransaction(transaction.get());
+        CommitRow(row);
+        return transaction->GetCommitTimestamp();
+    }
+
 
     TUnversionedOwningRow LookupRow(
         NVersionedTableClient::TKey key,
@@ -183,7 +231,7 @@ TEST_F(TDynamicMemoryStoreTest, Empty)
     CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 }
 
-TEST_F(TDynamicMemoryStoreTest, Write1)
+TEST_F(TDynamicMemoryStoreTest, PrewriteAndCommit)
 {
     auto transaction = StartTransaction();
 
@@ -195,19 +243,26 @@ TEST_F(TDynamicMemoryStoreTest, Write1)
 
     auto row = WriteRow(transaction.get(), BuildRow(rowString), true);
     ASSERT_EQ(row.GetTransaction(), transaction.get());
+    ASSERT_EQ(row.GetLockMode(), ERowLockMode::Write);
+    ASSERT_EQ(row.GetLockIndex(), -1);
     ASSERT_TRUE(transaction->LockedRows().empty());
 
-    Store->ConfirmRow(row);
+    ConfirmRow(row);
+    ASSERT_EQ(row.GetLockIndex(), 0);
     ASSERT_EQ(transaction->LockedRows().size(), 1);
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
     CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 
     PrepareTransaction(transaction.get());
-    Store->PrepareRow(row);
+    PrepareRow(row);
 
     CommitTransaction(transaction.get());
-    Store->CommitRow(row);
+    CommitRow(row);
+
+    ASSERT_EQ(row.GetTransaction(), nullptr);
+    ASSERT_EQ(row.GetLockMode(), ERowLockMode::None);
+    ASSERT_EQ(row.GetLockIndex(), -1);
 
     CompareRows(LookupRow(key, MinTimestamp), Null);
     CompareRows(LookupRow(key, LastCommittedTimestamp), rowString);
@@ -216,7 +271,7 @@ TEST_F(TDynamicMemoryStoreTest, Write1)
     CompareRows(LookupRow(key, transaction->GetCommitTimestamp() - 1), Null);
 }
 
-TEST_F(TDynamicMemoryStoreTest, Write2)
+TEST_F(TDynamicMemoryStoreTest, PrewriteManyAndCommit)
 {
     auto key = BuildKey("1");
 
@@ -234,10 +289,10 @@ TEST_F(TDynamicMemoryStoreTest, Write2)
         auto row = WriteRow(transaction.get(), BuildRow("key=1;a=" + ToString(i)), false);
 
         PrepareTransaction(transaction.get());
-        Store->PrepareRow(row);
+        PrepareRow(row);
 
         CommitTransaction(transaction.get());
-        Store->CommitRow(row);
+        CommitRow(row);
 
         timestamps.push_back(transaction->GetCommitTimestamp());
     }
@@ -252,37 +307,48 @@ TEST_F(TDynamicMemoryStoreTest, Write2)
     }
 }
 
-TEST_F(TDynamicMemoryStoreTest, Write3)
+TEST_F(TDynamicMemoryStoreTest, WriteSameRow)
 {
     auto key = BuildKey("1");
 
     auto transaction = StartTransaction();
 
-    auto row1 = WriteRow(transaction.get(), BuildRow("key=1;b=3.14"), false);
-    auto row2 = WriteRow(transaction.get(), BuildRow("key=1;b=2.71"), false);
-    ASSERT_TRUE(row1 == row2);
+    auto row = WriteRow(transaction.get(), BuildRow("key=1;b=3.14"), false);
+    ASSERT_TRUE(WriteRow(transaction.get(), BuildRow("key=1;b=2.71"), false) == TDynamicRow());
+
+    ASSERT_EQ(row.GetLockIndex(), 0);
+    ASSERT_EQ(transaction->LockedRows().size(), 1);
+    ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
     PrepareTransaction(transaction.get());
-    Store->PrepareRow(row1);
+    PrepareRow(row);
 
     CommitTransaction(transaction.get());
-    Store->CommitRow(row1);
+    CommitRow(row);
 
     CompareRows(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;b=2.71"));
 }
 
-TEST_F(TDynamicMemoryStoreTest, Write4)
+TEST_F(TDynamicMemoryStoreTest, WriteAndAbort)
 {
     auto key = BuildKey("1");
 
     auto transaction = StartTransaction();
-    WriteRow(transaction.get(), BuildRow("key=1;c=test"), true);
-    ASSERT_ANY_THROW({
-        DeleteRow(transaction.get(), key, true);
-    });
+
+    auto row = WriteRow(transaction.get(), BuildRow("key=1;b=3.14"), false);
+
+    PrepareTransaction(transaction.get());
+    PrepareRow(row);
+
+    AbortTransaction(transaction.get());
+    AbortRow(row);
+
+    ASSERT_EQ(row.GetTransaction(), nullptr);
+    ASSERT_EQ(row.GetLockMode(), ERowLockMode::None);
+    ASSERT_EQ(row.GetLockIndex(), -1);
 }
 
-TEST_F(TDynamicMemoryStoreTest, Delete1)
+TEST_F(TDynamicMemoryStoreTest, Delete)
 {
     auto key = BuildKey("1");
 
@@ -293,47 +359,157 @@ TEST_F(TDynamicMemoryStoreTest, Delete1)
     CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 }
 
-TEST_F(TDynamicMemoryStoreTest, Delete2)
+TEST_F(TDynamicMemoryStoreTest, WriteDelete)
 {
     auto key = BuildKey("1");
 
-    TTimestamp ts1;
-    TTimestamp ts2;
-
-    {
-        auto transaction = StartTransaction();
-
-        auto row = WriteRow(transaction.get(), BuildRow("key=1;c=value"), false);
-
-        PrepareTransaction(transaction.get());
-        Store->PrepareRow(row);
-
-        CommitTransaction(transaction.get());
-        Store->CommitRow(row);
-
-        ts1 = transaction->GetCommitTimestamp();
-    }
-
-    {
-        auto transaction = StartTransaction();
-
-        auto row = DeleteRow(transaction.get(), key, true);
-
-        PrepareTransaction(transaction.get());
-        Store->PrepareRow(row);
-
-        CommitTransaction(transaction.get());
-        Store->CommitRow(row);
-
-        ts2 = transaction->GetCommitTimestamp();
-    }
+    auto ts1 = WriteRow(BuildRow("key=1;c=value"));
+    auto ts2 = DeleteRow(key);
 
     CompareRows(LookupRow(key, MinTimestamp), Null);
     CompareRows(LookupRow(key, ts1), Stroka("key=1;c=value"));
     CompareRows(LookupRow(key, ts2), Null);
 }
 
-TEST_F(TDynamicMemoryStoreTest, Conflict1)
+TEST_F(TDynamicMemoryStoreTest, DeleteSameRow)
+{
+    auto key = BuildKey("1");
+
+    auto transaction = StartTransaction();
+
+    auto row = DeleteRow(transaction.get(), key, false);
+    ASSERT_TRUE(DeleteRow(transaction.get(), key, false) == TDynamicRow());
+
+    PrepareTransaction(transaction.get());
+    PrepareRow(row);
+
+    CommitTransaction(transaction.get());
+    CommitRow(row);
+
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
+}
+
+TEST_F(TDynamicMemoryStoreTest, Update1)
+{
+    auto key = BuildKey("1");
+    
+    auto ts = WriteRow(BuildRow("key=1", false));
+    
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, ts), Stroka("key=1"));
+}
+
+TEST_F(TDynamicMemoryStoreTest, Update2)
+{
+    auto key = BuildKey("1");
+    
+    auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
+    auto ts2 = WriteRow(BuildRow("key=1;b=3.0", false));
+    auto ts3 = WriteRow(BuildRow("key=1;c=test", false));
+    
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, ts1), Stroka("key=1;a=1"));
+    CompareRows(LookupRow(key, ts2), Stroka("key=1;a=1;b=3.0"));
+    CompareRows(LookupRow(key, ts3), Stroka("key=1;a=1;b=3.0;c=test"));
+}
+
+TEST_F(TDynamicMemoryStoreTest, Update3)
+{
+    auto key = BuildKey("1");
+    
+    auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
+    auto ts2 = WriteRow(BuildRow("key=1;a=2", false));
+    auto ts3 = WriteRow(BuildRow("key=1;a=3", false));
+    
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, ts1), Stroka("key=1;a=1"));
+    CompareRows(LookupRow(key, ts2), Stroka("key=1;a=2"));
+    CompareRows(LookupRow(key, ts3), Stroka("key=1;a=3"));
+}
+
+TEST_F(TDynamicMemoryStoreTest, UpdateDelete1)
+{
+    auto key = BuildKey("1");
+    
+    auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
+    auto ts2 = DeleteRow(key);
+    auto ts3 = WriteRow(BuildRow("key=1;b=2.0", false));
+    auto ts4 = DeleteRow(key);
+    auto ts5 = WriteRow(BuildRow("key=1;c=test", false));
+    auto ts6 = DeleteRow(key);
+    
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, ts1), Stroka("key=1;a=1"));
+    CompareRows(LookupRow(key, ts2), Null);
+    CompareRows(LookupRow(key, ts3), Stroka("key=1;b=2.0"));
+    CompareRows(LookupRow(key, ts4), Null);
+    CompareRows(LookupRow(key, ts5), Stroka("key=1;c=test"));
+    CompareRows(LookupRow(key, ts6), Null);
+}
+
+TEST_F(TDynamicMemoryStoreTest, UpdateDelete2)
+{
+    auto key = BuildKey("1");
+    
+    auto ts1 = DeleteRow(key);
+    auto ts2 = DeleteRow(key);
+    auto ts3 = WriteRow(BuildRow("key=1;a=1", false));
+    auto ts4 = DeleteRow(key);
+    auto ts5 = DeleteRow(key);
+    
+    CompareRows(LookupRow(key, MinTimestamp), Null);
+    CompareRows(LookupRow(key, ts1), Null);
+    CompareRows(LookupRow(key, ts2), Null);
+    CompareRows(LookupRow(key, ts3), Stroka("key=1;a=1"));
+    CompareRows(LookupRow(key, ts4), Null);
+    CompareRows(LookupRow(key, ts5), Null);
+}
+
+TEST_F(TDynamicMemoryStoreTest, DeleteAfterWriteFailure1)
+{
+    auto transaction = StartTransaction();
+    WriteRow(transaction.get(), BuildRow("key=1"), true);
+    ASSERT_ANY_THROW({
+        DeleteRow(transaction.get(), BuildKey("1"), true);
+    });
+}
+
+TEST_F(TDynamicMemoryStoreTest, DeleteAfterWriteFailure2)
+{
+    WriteRow(BuildRow("key=1"));
+
+    {
+        auto transaction = StartTransaction();
+        WriteRow(transaction.get(), BuildRow("key=1"), true);
+        ASSERT_ANY_THROW({
+            DeleteRow(transaction.get(), BuildKey("1"), true);
+        });
+    }
+}
+
+TEST_F(TDynamicMemoryStoreTest, WriteAfterDeleteFailure1)
+{
+    auto transaction = StartTransaction();
+    DeleteRow(transaction.get(), BuildKey("1"), true);
+    ASSERT_ANY_THROW({
+        WriteRow(transaction.get(), BuildRow("key=1"), true);
+    });
+}
+
+TEST_F(TDynamicMemoryStoreTest, WriteAfterDeleteFailure2)
+{
+    WriteRow(BuildRow("key=1"));
+
+    {
+        auto transaction = StartTransaction();
+        DeleteRow(transaction.get(), BuildKey("1"), true);
+        ASSERT_ANY_THROW({
+            WriteRow(transaction.get(), BuildRow("key=1"), true);
+        });
+    }
+}
+
+TEST_F(TDynamicMemoryStoreTest, WriteWriteConflict1)
 {
     auto key = BuildKey("1");
 
@@ -345,18 +521,7 @@ TEST_F(TDynamicMemoryStoreTest, Conflict1)
     });
 }
 
-TEST_F(TDynamicMemoryStoreTest, Conflict2)
-{
-    auto key = BuildKey("1");
-
-    auto transaction = StartTransaction();
-    DeleteRow(transaction.get(), key, true);
-    ASSERT_ANY_THROW({
-        WriteRow(transaction.get(), BuildRow("key=1"), true);
-    });
-}
-
-TEST_F(TDynamicMemoryStoreTest, Conflict3)
+TEST_F(TDynamicMemoryStoreTest, WriteWriteConflict2)
 {
     auto key = BuildKey("1");
 
@@ -366,14 +531,87 @@ TEST_F(TDynamicMemoryStoreTest, Conflict3)
     auto row = WriteRow(transaction1.get(), BuildRow("key=1;a=1"), true);
 
     PrepareTransaction(transaction1.get());
-    Store->PrepareRow(row);
+    PrepareRow(row);
 
     CommitTransaction(transaction1.get());
-    Store->CommitRow(row);
+    CommitRow(row);
 
     ASSERT_ANY_THROW({
         WriteRow(transaction2.get(), BuildRow("key=1;a=2"), true);
     });
+}
+
+TEST_F(TDynamicMemoryStoreTest, ReadNotPostponed)
+{
+    auto key = BuildKey("1");
+
+    auto transaction = StartTransaction();
+
+    auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
+    
+    PrepareTransaction(transaction.get());
+    PrepareRow(row);
+
+    auto fiber = New<TFiber>(BIND([&] () {
+        // Not postponed because of timestamp.
+        CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
+        CompareRows(LookupRow(key, transaction->GetPrepareTimestamp()), Null);
+    }));
+
+    fiber->Run();
+    ASSERT_EQ(fiber->GetState(), EFiberState::Terminated);
+}
+
+TEST_F(TDynamicMemoryStoreTest, ReadPostpostedAbort)
+{
+    auto key = BuildKey("1");
+
+    auto transaction = StartTransaction();
+    
+    auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
+    
+    PrepareTransaction(transaction.get());
+    PrepareRow(row);
+
+    auto fiber = New<TFiber>(BIND([&] () {
+        // Postponed, old value is read.
+        CompareRows(LookupRow(key, MaxTimestamp), Null);
+    }));
+
+    fiber->Run();
+    ASSERT_EQ(fiber->GetState(), EFiberState::Suspended);
+
+    AbortTransaction(transaction.get());
+    AbortRow(row);
+
+    fiber->Run();
+    ASSERT_EQ(fiber->GetState(), EFiberState::Terminated);
+}
+
+TEST_F(TDynamicMemoryStoreTest, ReadPostponedCommit)
+{
+    auto key = BuildKey("1");
+
+    auto transaction = StartTransaction();
+    
+    auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
+    
+    PrepareTransaction(transaction.get());
+    PrepareRow(row);
+
+    auto fiber = New<TFiber>(BIND([&] () {
+        // Postponed, new value is read.
+        CompareRows(LookupRow(key, MaxTimestamp), Stroka("key=1;a=1"));
+    }));
+
+    fiber->Run();
+    ASSERT_EQ(fiber->GetState(), EFiberState::Suspended);
+
+    CommitTransaction(transaction.get());
+    CommitRow(row);
+
+    fiber->Run();
+    ASSERT_EQ(fiber->GetState(), EFiberState::Terminated);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

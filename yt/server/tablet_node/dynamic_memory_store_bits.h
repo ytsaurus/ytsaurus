@@ -2,9 +2,12 @@
 
 #include "public.h"
 
+#include <core/misc/enum.h>
 #include <core/misc/chunked_memory_pool.h>
 
 #include <ytlib/new_table_client/row.h>
+
+#include <tuple>
 
 namespace NYT {
 namespace NTabletNode {
@@ -14,6 +17,8 @@ namespace NTabletNode {
 struct TDynamicRowHeader
 {
     TTransaction* Transaction;
+    i32 LockIndex;
+    i32 LockMode;
     NVersionedTableClient::TTimestamp PrepareTimestamp;
     NVersionedTableClient::TTimestamp LastCommitTimestamp;
     
@@ -193,6 +198,12 @@ static_assert(sizeof (TTimestampList) == sizeof (intptr_t), "TTimestampList size
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ERowLockMode,
+    (None)
+    (Write)
+    (Delete)
+);
+
 //! A lightweight wrapper around TDynamicRowHeader*.
 class TDynamicRow
 {
@@ -220,6 +231,8 @@ public:
             keyCount * sizeof (NVersionedTableClient::TUnversionedValue) +
             listCount * sizeof(TEditListHeader*)));
         header->Transaction = nullptr;
+        header->LockIndex = -1;
+        header->LockMode = ERowLockMode::None;
         header->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
         header->LastCommitTimestamp = NVersionedTableClient::NullTimestamp;
         auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(header + 1);
@@ -234,16 +247,42 @@ public:
         return Header_ != nullptr;
     }
 
-    
+
     TTransaction* GetTransaction() const
     {
         return Header_->Transaction;
     }
 
-    void SetTransaction(TTransaction* transaction)
+    int GetLockIndex() const
+    {
+        return Header_->LockIndex;
+    }
+
+    void SetLockIndex(int index)
+    {
+        YASSERT(Header_->LockIndex == -1);
+        Header_->LockIndex = index;
+    }
+
+    ERowLockMode GetLockMode() const
+    {
+        return ERowLockMode(Header_->LockMode);
+    }
+
+    void Lock(TTransaction* transaction, int index, ERowLockMode mode)
     {
         Header_->Transaction = transaction;
+        Header_->LockIndex = index;
+        Header_->LockMode = mode;
     }
+
+    void Unlock()
+    {
+        Header_->Transaction = nullptr;
+        Header_->LockIndex = -1;
+        Header_->LockMode = ERowLockMode::None;
+    }
+
 
 
     NVersionedTableClient::TTimestamp GetPrepareTimestamp() const

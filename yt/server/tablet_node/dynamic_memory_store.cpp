@@ -363,10 +363,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         if (timestampList) {
             auto lastTimestamp = timestampList.Back();
             if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
-                if (lastTimestamp & TombstoneTimestampMask) {
-                    YCHECK(prewrite);
-                    THROW_ERROR_EXCEPTION("Cannot write to a deleted row");
-                }
+                YASSERT(!(lastTimestamp & TombstoneTimestampMask));
             } else {
                 if (lastTimestamp & TombstoneTimestampMask) {
                     pushTimestamp = true;
@@ -389,7 +386,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
         auto dynamicRow = result = AllocateRow();
-        LockRow(dynamicRow, transaction, prewrite);
+        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Write, prewrite));
 
         // Add timestamp.
         writeTimestamp(dynamicRow);
@@ -409,8 +406,9 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
         // Check for lock conflicts and acquire the lock.
-        result = dynamicRow;
-        LockRow(dynamicRow, transaction, prewrite);
+        if (LockRow(dynamicRow, transaction, ERowLockMode::Write, prewrite)) {
+            result = dynamicRow;
+        }
 
         // Add timestamp, if needed.
         writeTimestamp(dynamicRow);
@@ -440,10 +438,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
         if (timestampList) {
             auto lastTimestamp = timestampList.Back();
             if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
-                if (!(lastTimestamp & TombstoneTimestampMask)) {
-                    YCHECK(prewrite);
-                    THROW_ERROR_EXCEPTION("Cannot delete a written row");
-                }
+                YASSERT(lastTimestamp & TombstoneTimestampMask);
             } else {
                 pushTimestamp = true;
             }
@@ -464,7 +459,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
         auto dynamicRow = result = AllocateRow();
-        LockRow(dynamicRow, transaction, prewrite);
+        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Delete, prewrite));
 
         // Add tombstone.
         writeTombstone(dynamicRow);
@@ -482,8 +477,9 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
         // Check for lock conflicts and acquire the lock.
-        result = dynamicRow;
-        LockRow(dynamicRow, transaction, prewrite);
+        if (LockRow(dynamicRow, transaction, ERowLockMode::Delete, prewrite)) {
+            result = dynamicRow;
+        }
 
         // Add tombstone.
         writeTombstone(dynamicRow);
@@ -502,11 +498,32 @@ std::unique_ptr<IStoreScanner> TDynamicMemoryStore::CreateScanner()
     return std::unique_ptr<IStoreScanner>(new TScanner(this));
 }
 
+void TDynamicMemoryStore::CheckRowLockAndMaybeMigrate(
+    NVersionedTableClient::TKey key,
+    TTransaction* transaction,
+    ERowLockMode mode,
+    const TDynamicMemoryStorePtr& migrateTo)
+{
+    TDynamicRow row;
+    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> scanner(Tree_.get());
+    if (!scanner->Find(key, &row))
+        return;
+
+    CheckRowLock(row, transaction, mode);
+
+    if (row.GetLockMode() != ERowLockMode::None) {
+        // TODO(babenko)
+    }
+}
+
 void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
 {
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
+    
+    int lockIndex = static_cast<int>(transaction->LockedRows().size());
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
+    row.SetLockIndex(lockIndex);
 }
 
 void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
@@ -545,14 +562,14 @@ void TDynamicMemoryStore::CommitRow(TDynamicRow row)
     // Variable values.
     // TODO(babenko)
 
-    row.SetTransaction(nullptr);
+    row.Unlock();
     row.SetPrepareTimestamp(MaxTimestamp);
     row.SetLastCommitTimestamp(transaction->GetCommitTimestamp());
 }
 
 void TDynamicMemoryStore::AbortRow(TDynamicRow row)
 {
-    // Edit timestamps.
+    // Timestamps.
     auto timestampList = row.GetTimestampList(KeyCount_);
     if (timestampList) {
         auto lastTimestamp = timestampList.Back();
@@ -579,7 +596,8 @@ void TDynamicMemoryStore::AbortRow(TDynamicRow row)
     // Variable values.
     // TODO(babenko)
 
-    row.SetTransaction(nullptr);
+    row.Unlock();
+    row.SetPrepareTimestamp(MaxTimestamp);
 }
 
 TDynamicRow TDynamicMemoryStore::AllocateRow()
@@ -590,29 +608,52 @@ TDynamicRow TDynamicMemoryStore::AllocateRow()
         SchemaColumnCount_);
 }
 
-void TDynamicMemoryStore::LockRow(
+void TDynamicMemoryStore::CheckRowLock(
     TDynamicRow row,
     TTransaction* transaction,
-    bool prewrite)
+    ERowLockMode mode)
 {
     auto* existingTransaction = row.GetTransaction();
-    if (existingTransaction && existingTransaction != transaction) {
-        YCHECK(prewrite);
-        THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %s",
-            ~ToString(existingTransaction->GetId()));
+    if (existingTransaction) {
+        if (existingTransaction == transaction) {
+            if (row.GetLockMode() != mode) {
+                THROW_ERROR_EXCEPTION("Cannot change row lock mode from %s to %s",
+                    ~FormatEnum(row.GetLockMode()).Quote(),
+                    ~FormatEnum(mode).Quote());
+            }
+        } else {
+            THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %s",
+                ~ToString(existingTransaction->GetId()));
+        }
     }
 
     if (row.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
-        YCHECK(prewrite);
         THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
             row.GetLastCommitTimestamp());
     }
+}
 
-    if (!prewrite && !existingTransaction) {
-        transaction->LockedRows().push_back(TDynamicRowRef(this, row));
+bool TDynamicMemoryStore::LockRow(
+    TDynamicRow row,
+    TTransaction* transaction,
+    ERowLockMode mode,
+    bool prewrite)
+{
+    CheckRowLock(row, transaction, mode);
+
+    if (row.GetLockMode() != ERowLockMode::None) {
+        YASSERT(row.GetTransaction() == transaction);
+        return false;
     }
 
-    row.SetTransaction(transaction);
+    int lockIndex = -1;
+    if (!prewrite) {
+        lockIndex = static_cast<int>(transaction->LockedRows().size());
+        transaction->LockedRows().push_back(TDynamicRowRef(this, row));
+    }
+    row.Lock(transaction, lockIndex, mode);
+
+    return true;
 }
 
 void TDynamicMemoryStore::CopyValue(TUnversionedValue* dst, const TUnversionedValue& src)

@@ -136,12 +136,20 @@ void TStoreManager::WriteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
+    if (PassiveDynamicMemoryStore_) {
+        PassiveDynamicMemoryStore_->CheckRowLockAndMaybeMigrate(
+            row,
+            transaction,
+            ERowLockMode::Write,
+            ActiveDynamicMemoryStore_);
+    }
+
     auto dynamicRow = ActiveDynamicMemoryStore_->WriteRow(
         NameTable_,
         transaction,
         row,
         prewrite);
-    if (lockedRows) {
+    if (lockedRows && dynamicRow) {
         lockedRows->push_back(dynamicRow);
     }
 }
@@ -152,11 +160,19 @@ void TStoreManager::DeleteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
+    if (PassiveDynamicMemoryStore_) {
+        PassiveDynamicMemoryStore_->CheckRowLockAndMaybeMigrate(
+            key,
+            transaction,
+            ERowLockMode::Delete,
+            ActiveDynamicMemoryStore_);
+    }
+
     auto dynamicRow = ActiveDynamicMemoryStore_->DeleteRow(
         transaction,
         key,
         prewrite);
-    if (lockedRows) {
+    if (lockedRows && dynamicRow) {
         lockedRows->push_back(dynamicRow);
     }
 }

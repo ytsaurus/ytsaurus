@@ -102,8 +102,6 @@ class TTableConsumerBase
 public:
     NVersionedTableClient::TNameTablePtr GetNameTable() const;
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, TreatMissingAsNull);
-
 protected:
     TTableConsumerBase(
         const NVersionedTableClient::TTableSchema& schema,
@@ -150,6 +148,8 @@ protected:
         (ExpectEntity)
     );
 
+
+    bool TreatMissingAsNull_;
     int KeyColumnCount_;
     NVersionedTableClient::TNameTablePtr NameTable_;
 
@@ -218,6 +218,9 @@ public:
         const NVersionedTableClient::TKeyColumns& keyColumns);
 
     const std::vector<NVersionedTableClient::TUnversionedOwningRow> GetRows() const;
+
+    bool GetTreatMissingAsNull() const;
+    void SetTreatMissingAsNull(bool value);
 
 private:
     virtual TError AttachLocationAttributes(TError error) override;

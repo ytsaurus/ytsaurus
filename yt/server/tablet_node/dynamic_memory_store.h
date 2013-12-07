@@ -42,6 +42,12 @@ public:
 
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
 
+    void CheckRowLockAndMaybeMigrate(
+        NVersionedTableClient::TKey key,
+        TTransaction* transaction,
+        ERowLockMode mode,
+        const TDynamicMemoryStorePtr& migrateTo);
+
     void ConfirmRow(TDynamicRow row);
     void PrepareRow(TDynamicRow row);
     void CommitRow(TDynamicRow row);
@@ -71,9 +77,14 @@ private:
 
     TDynamicRow AllocateRow();
     
-    void LockRow(
+    void CheckRowLock(
         TDynamicRow row,
         TTransaction* transaction,
+        ERowLockMode mode);
+    bool LockRow(
+        TDynamicRow row,
+        TTransaction* transaction,
+        ERowLockMode mode,
         bool prewrite);
 
     void CopyValue(

@@ -85,7 +85,7 @@ public:
         return keyBuilder.Finish();
     }
 
-    TUnversionedOwningRow BuildRow(const Stroka& yson)
+    TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
         auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(TYsonString(yson, EYsonType::MapFragment));
 
@@ -119,7 +119,7 @@ public:
             auto it = rowParts.find(NameTable->GetName(id));
             if (it != rowParts.end()) {
                 addValue(id, it->second);
-            } else {
+            } else if (treatMissingAsNull) {
                 rowBuilder.AddValue(MakeSentinelValue<TVersionedValue>(EValueType::Null, id));
             }
         }
