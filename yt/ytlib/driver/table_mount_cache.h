@@ -41,6 +41,9 @@ struct TTableMountInfo
     NVersionedTableClient::TKeyColumns KeyColumns;
     NObjectClient::TObjectId TableId;
     std::vector<TTabletInfo> Tablets;
+
+    const TTabletInfo& GetTablet(NVersionedTableClient::TUnversionedRow row);
+
 };
 
 class TTableMountCache

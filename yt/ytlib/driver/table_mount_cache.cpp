@@ -11,6 +11,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
+#include <ytlib/new_table_client/row.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -21,10 +23,25 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NVersionedTableClient;
 using namespace NHive;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = DriverLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TTabletInfo& TTableMountInfo::GetTablet(TUnversionedRow row)
+{
+    auto it = std::upper_bound(
+        Tablets.begin(),
+        Tablets.end(),
+        row,
+        [&] (TUnversionedRow lhs, const TTabletInfo& rhs) {
+            return CompareRows(lhs, rhs.PivotKey, KeyColumns.size()) < 0;
+        });
+    return *(it - 1);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

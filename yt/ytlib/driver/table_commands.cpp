@@ -242,11 +242,6 @@ void TInsertCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
 
     const auto& mountInfo = mountInfoOrError.GetValue();
-    // TODO(babenko): multitablet
-    if (mountInfo->Tablets.empty() || mountInfo->Tablets[0].State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION("Table is not mounted");
-    }
-    const auto& tabletInfo = mountInfo->Tablets[0];
 
     // Parse input data.
 
@@ -278,7 +273,28 @@ void TInsertCommand::DoExecute()
 
     parser->Finish();
 
-    // Write data into the tablet.
+    // Write data into the tablets.
+
+    struct TWriteBuffer
+        : public TIntrinsicRefCounted
+    {
+        TProtocolWriter Writer;
+    };
+
+    typedef TIntrusivePtr<TWriteBuffer> TWriteBufferPtr;
+
+    yhash_map<const TTabletInfo*, TWriteBufferPtr> tabletToBuffer;
+
+    auto getBuffer = [&] (const TTabletInfo& tabletInfo) -> TWriteBufferPtr {
+        auto it = tabletToBuffer.find(&tabletInfo);
+        if (it == tabletToBuffer.end()) {
+            auto buffer = New<TWriteBuffer>();
+            YCHECK(tabletToBuffer.insert(std::make_pair(&tabletInfo, buffer)).second);
+            return buffer;
+        } else {
+            return it->second;
+        }
+    };
 
     auto transactionManager = Context->GetTransactionManager();
     TTransactionStartOptions startOptions;
@@ -287,25 +303,36 @@ void TInsertCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
-    transaction->AddParticipant(tabletInfo.CellId);
+    for (const auto& row : consumer.GetRows()) {
+        const auto& tabletInfo = mountInfo->GetTablet(row);
+        if (tabletInfo.State != ETabletState::Mounted) {
+            THROW_ERROR_EXCEPTION("Tablet is not mounted");
+        }
+
+        transaction->AddParticipant(tabletInfo.CellId);
+
+        auto buffer = getBuffer(tabletInfo);
+        buffer->Writer.WriteCommand(EProtocolCommand::WriteRow);
+        buffer->Writer.WriteUnversionedRow(row);
+    }
 
     auto cellDirectory = Context->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
+    
+    for (const auto& pair : tabletToBuffer) {
+        const auto& tabletInfo = *pair.first;
+        const auto& buffer = pair.second;
+    
+        auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
 
-    TTabletServiceProxy tabletProxy(channel);
-    auto writeReq = tabletProxy.Write();
-    ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
-    ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
+        TTabletServiceProxy tabletProxy(channel);
+        auto writeReq = tabletProxy.Write();
+        ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
+        ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
+        writeReq->set_encoded_request(buffer->Writer.Finish());
 
-    TProtocolWriter writer;
-    for (const auto& row : consumer.GetRows()) {
-        writer.WriteCommand(EProtocolCommand::WriteRow);
-        writer.WriteUnversionedRow(row);
+        auto writeRsp = WaitFor(writeReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
     }
-    writeReq->set_encoded_request(writer.Finish());
-
-    auto writeRsp = WaitFor(writeReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
 
     auto commitResult = WaitFor(transaction->AsyncCommit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
@@ -419,11 +446,10 @@ void TLookupCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
 
     const auto& mountInfo = mountInfoOrError.GetValue();
-    // TODO(babenko): multitablet
-    if (mountInfo->Tablets.empty() || mountInfo->Tablets[0].State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION("Table is not mounted");
+    const auto& tabletInfo = mountInfo->GetTablet(Request->Key);
+    if (tabletInfo.State != ETabletState::Mounted) {
+        THROW_ERROR_EXCEPTION("Tablet is not mounted");
     }
-    const auto& tabletInfo = mountInfo->Tablets[0];
 
     auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
 
@@ -505,11 +531,10 @@ void TDeleteCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
 
     const auto& mountInfo = mountInfoOrError.GetValue();
-    // TODO(babenko): multitablet
-    if (mountInfo->Tablets.empty() || mountInfo->Tablets[0].State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION("Table is not mounted");
+    const auto& tabletInfo = mountInfo->GetTablet(Request->Key);
+    if (tabletInfo.State != ETabletState::Mounted) {
+        THROW_ERROR_EXCEPTION("Tablet is not mounted");
     }
-    const auto& tabletInfo = mountInfo->Tablets[0];
 
     auto transactionManager = Context->GetTransactionManager();
     TTransactionStartOptions startOptions;
