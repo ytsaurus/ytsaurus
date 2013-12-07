@@ -3,15 +3,6 @@
 
 #include <yt/core/concurrency/fiber.h>
 
-#include <yt/ytlib/new_table_client/writer.h>
-#include <yt/ytlib/new_table_client/chunk_writer.h>
-#include <yt/ytlib/new_table_client/reader.h>
-#include <yt/ytlib/new_table_client/chunk_reader.h>
-
-#include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/ytlib/chunk_client/memory_reader.h>
-
 #include <yt/server/tablet_node/public.h>
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/tablet_manager.h>
@@ -21,7 +12,6 @@ namespace NYT {
 namespace NTabletNode {
 namespace {
 
-using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NConcurrency;
 
