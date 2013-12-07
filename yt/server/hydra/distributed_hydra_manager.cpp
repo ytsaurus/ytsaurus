@@ -585,6 +585,16 @@ public:
                         ~ToString(committedVersion),
                         ~ToString(epochId));
 
+                    epochContext->FollowerRecovery = New<TFollowerRecovery>(
+                        Config_,
+                        CellManager_,
+                        DecoratedAutomaton_,
+                        ChangelogStore_,
+                        SnapshotStore_,
+                        epochContext->EpochId,
+                        epochContext->LeaderId,
+                        epochContext->EpochSystemAutomatonInvoker);
+
                     epochContext->EpochControlInvoker->Invoke(
                         BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this), loggedVersion));
                 }
@@ -1062,15 +1072,6 @@ public:
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             auto epochContext = EpochContext_;
-            epochContext->FollowerRecovery = New<TFollowerRecovery>(
-                Config_,
-                CellManager_,
-                DecoratedAutomaton_,
-                ChangelogStore_,
-                SnapshotStore_,
-                epochContext->EpochId,
-                epochContext->LeaderId,
-                epochContext->EpochSystemAutomatonInvoker);
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
