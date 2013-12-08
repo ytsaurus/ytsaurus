@@ -563,7 +563,7 @@ private:
 
         // Various request helpers.
 
-        auto requestCreate = [&] (TTabletCell* cell) {
+        auto requestCreateSlot = [&] (TTabletCell* cell) {
             if (!response)
                 return;
 
@@ -577,7 +577,7 @@ private:
                 ~ToString(cellId));
         };
 
-        auto requestConfigure = [&] (TTabletCell* cell) {
+        auto requestConfigureSlot = [&] (TTabletCell* cell) {
             if (!response)
                 return;
 
@@ -594,7 +594,7 @@ private:
                 cell->Config().version());
         };
 
-        auto requestRemove = [&] (const TTabletCellId& cellId) {
+        auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
             if (!response)
                 return;
 
@@ -636,7 +636,7 @@ private:
                 LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %s, CellId: %s)",
                     ~node->GetAddress(),
                     ~ToString(cellId));
-                requestRemove(cellId);
+                requestRemoveSlot(cellId);
                 continue;
             }
 
@@ -651,7 +651,7 @@ private:
                 LOG_INFO_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %s, CellId: %s)",
                     ~node->GetAddress(),
                     ~ToString(cellId));
-                requestRemove(cellId);
+                requestRemoveSlot(cellId);
                 continue;
             }
 
@@ -661,7 +661,7 @@ private:
                     peerId,
                     ~node->GetAddress(),
                     ~ToString(cellId));
-                requestRemove(cellId);
+                requestRemoveSlot(cellId);
                 continue;
             }
 
@@ -694,7 +694,7 @@ private:
                 slot.Cell->GetState() == ETabletCellState::Running &&
                 slotInfo.config_version() != slot.Cell->Config().version())
             {
-                requestConfigure(slot.Cell);
+                requestConfigureSlot(slot.Cell);
             }
         }
 
@@ -722,27 +722,53 @@ private:
             // Skip cells whose instances were already found on the node.
             // Only makes sense to protect from asking to create a slot that is already initializing.
             if (actualCellToIndex.find(cell) == actualCellToIndex.end()) {
-                requestCreate(cell);
+                requestCreateSlot(cell);
                 --availableSlots;
             }
         }
 
-        // Request to remove orphaned Hive cells and reconfigured outdates ones.
+        // Request to remove orphaned Hive cells.
+        // Reconfigure missing and outdated ones.
+        auto requestReconfigureCell = [&] (TTabletCell* cell) {
+            if (!response)
+                return;
+
+            auto* reconfigureInfo = response->add_hive_cells_to_reconfigure();
+            ToProto(reconfigureInfo->mutable_cell_guid(), cell->GetId());
+            reconfigureInfo->mutable_config()->CopyFrom(cell->Config());
+        };
+
+        auto requestUnregisterCell = [&] (const TTabletCellId& cellId) {
+            if (!response)
+                return;
+
+            auto* unregisterInfo = response->add_hive_cells_to_unregister();
+            ToProto(unregisterInfo->mutable_cell_guid(), cellId);
+        };
+
+        yhash_set<TTabletCell*> missingCells;
+        for (const auto& pair : TabletCellMap) {
+            YCHECK(missingCells.insert(pair.second).second);
+        }
+            
         for (const auto& cellInfo : request.hive_cells()) {
-            auto cellGuid = FromProto<TCellGuid>(cellInfo.cell_guid());
-            if (cellGuid == Bootstrap->GetCellGuid())
+            auto cellId = FromProto<TCellGuid>(cellInfo.cell_guid());
+            if (cellId == Bootstrap->GetCellGuid())
                 continue;
-            auto* cell = FindTabletCell(cellGuid);
+
+            auto* cell = FindTabletCell(cellId);
             if (cell) {
+                YCHECK(missingCells.erase(cell) == 1);
                 if (cellInfo.config_version() < cell->Config().version()) {
-                    auto* reconfigureInfo = response->add_hive_cells_to_reconfigure();
-                    ToProto(reconfigureInfo->mutable_cell_guid(), cellGuid);
-                    reconfigureInfo->mutable_config()->CopyFrom(cell->Config());
+                    requestReconfigureCell(cell);
                 }
             } else {
-                auto* unregisterInfo = response->add_hive_cells_to_unregister();
-                ToProto(unregisterInfo->mutable_cell_guid(), cellGuid);
+                requestUnregisterCell(cellId);
             }
+        }
+
+        for (auto* cell : missingCells) {
+            requestReconfigureCell(cell);
         }
     }
 
@@ -940,7 +966,7 @@ private:
     {
         // TODO(babenko): do something smarter?
         auto cells = TabletCellMap.GetValues();
-        
+
         cells.erase(
             std::remove_if(
                 cells.begin(),
@@ -951,7 +977,17 @@ private:
             cells.end());
         
         YCHECK(!cells.empty());
-        return cells[RandomNumber<size_t>(cells.size())];
+
+        std::sort(
+            cells.begin(),
+            cells.end(),
+            [] (TTabletCell* lhs, TTabletCell* rhs) {
+                return lhs->GetId() < rhs->GetId();
+            });
+
+        auto* mutationContext = Bootstrap->GetMetaStateFacade()->GetManager()->GetMutationContext();
+        int index = mutationContext->RandomGenerator().Generate<size_t>() % cells.size();
+        return cells[index];
     }
 
 

@@ -83,11 +83,11 @@ public:
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this), nullptr));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransactionSimple, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransactionDistributed, Unretained(this), nullptr));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartDistributedCommit, Unretained(this), nullptr));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraFinalizeDistributedCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this), nullptr));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnTransactionCommitPrepared, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnTransactionPrepared, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitPreparedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortFailedTransaction, Unretained(this)));
 
@@ -145,8 +145,8 @@ private:
     ITransactionManagerPtr TransactionManager;
     ITimestampProviderPtr TimestampProvider;
 
-    TEntityMap<TTransactionId, TCommit> PersistentCommitMap;
-    TEntityMap<TTransactionId, TCommit> TransientCommitMap;
+    TEntityMap<TTransactionId, TCommit> DistributedCommitMap;
+    TEntityMap<TTransactionId, TCommit> SimpleCommitMap;
 
 
     // RPC handlers.
@@ -167,23 +167,25 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto participantCellGuids = FromProto<TCellGuid>(request->participant_cell_guids());
 
-        context->SetRequestInfo("TransactionId: %s, ParticipantCellGuids: [%s]",
-            ~ToString(transactionId),
-            ~JoinToString(participantCellGuids));
-
-        auto* commit = FindCommit(transactionId);
-        if (commit) {
-            ScheduleCommitReply(context, commit);
-            return;
-        }
-
         auto prepareTimestamp = TimestampProvider->GetLatestTimestamp();
 
         if (request->participant_cell_guids_size() == 0) {
-            commit = new TCommit(false, transactionId, participantCellGuids);
-            TransientCommitMap.Insert(transactionId, commit);
-
             // Simple commit.
+            context->SetRequestInfo("TransactionId: %s",
+                ~ToString(transactionId));
+
+            auto* commit = FindCommit(transactionId);
+            if (commit) {
+                LOG_DEBUG_UNLESS("Waiting for simple commit to complete (TransactionId: %s)",
+                    ~ToString(transactionId));
+                SubscribeToCommitResult(commit, context);
+                return;
+            }
+
+            commit = new TCommit(false, transactionId, participantCellGuids);
+            SimpleCommitMap.Insert(transactionId, commit);
+            SubscribeToCommitResult(commit, context);
+
             try {
                 // Any exception thrown here is replied to the client.
                 TransactionManager->PrepareTransactionCommit(
@@ -192,34 +194,25 @@ private:
                     prepareTimestamp);
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
-                LOG_DEBUG_UNLESS(IsRecovery(), error, "Simple commit has failed to prepare (TransactionId: %s)",
+                LOG_DEBUG(error, "Simple commit has failed to prepare (TransactionId: %s)",
                     ~ToString(transactionId));
-                SetCommitFailed(transactionId, commit, error);
-                throw;
+                SetCommitFailed(commit, error);
+                return;
             }
-
-            ScheduleCommitReply(context, commit);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %s, PrepareTimestamp: %" PRIu64 ")",
                 ~ToString(transactionId),
                 prepareTimestamp);
 
-            if (!GenerateCommitTimestamp(commit))
-                return;
-
-            TReqCommitTransactionSimple hydraRequest;
-            hydraRequest.mutable_transaction_id()->CopyFrom(request->transaction_id());
-            hydraRequest.set_commit_timestamp(commit->GetCommitTimestamp());
-            CreateMutation(HydraManager, AutomatonInvoker, hydraRequest)
-                ->Commit();
+            GenerateCommitTimestamp(commit);
         } else {
             // Distributed commit.
-            TReqCommitTransactionDistributed hydraRequest;
-            hydraRequest.mutable_transaction_id()->Swap(request->mutable_transaction_id());
-            hydraRequest.mutable_participant_cell_guids()->Swap(request->mutable_participant_cell_guids());
-            hydraRequest.set_prepare_timestamp(prepareTimestamp);
-            CreateMutation(HydraManager, AutomatonInvoker, hydraRequest)
-                ->SetAction(BIND(&TImpl::HydraCommitTransactionDistributed, MakeStrong(this), context, hydraRequest))
+            TReqStartDistributedCommit startCommitRequest;
+            startCommitRequest.mutable_transaction_id()->Swap(request->mutable_transaction_id());
+            startCommitRequest.mutable_participant_cell_guids()->Swap(request->mutable_participant_cell_guids());
+            startCommitRequest.set_prepare_timestamp(prepareTimestamp);
+            CreateMutation(HydraManager, AutomatonInvoker, startCommitRequest)
+                ->SetAction(BIND(&TImpl::HydraStartDistributedCommit, MakeStrong(this), context, startCommitRequest))
                 ->Commit();
         }
     }
@@ -279,84 +272,6 @@ private:
         }
     }
 
-    void HydraCommitTransactionSimple(const TReqCommitTransactionSimple& request)
-    {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto commitTimestamp = TTimestamp(request.commit_timestamp());
-
-        try {
-            // Any exception thrown here is caught below.
-            TransactionManager->CommitTransaction(transactionId, commitTimestamp);
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Simple transaction commit failed");
-            return;
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Simple transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
-            ~ToString(transactionId),
-            commitTimestamp);
-
-        // Commit could be missing (e.g. at followers).
-        auto* commit = FindCommit(transactionId);
-        if (commit) {
-            SetCommitSucceded(commit);
-        }
-    }
-
-    void HydraCommitTransactionDistributed(TCtxCommitTransactionPtr context, const TReqCommitTransactionDistributed& request)
-    {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto participantCellGuids = FromProto<TCellGuid>(request.participant_cell_guids());
-        auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
-        if (context) {
-            context->SetRequestInfo("TransactionId: %s, ParticipantCellGuids: [%s]",
-                ~ToString(transactionId),
-                ~JoinToString(participantCellGuids));
-        }
-
-        YCHECK(!TransientCommitMap.Find(transactionId));
-
-        auto* commit = PersistentCommitMap.Find(transactionId);
-        if (commit) {
-            if (context) {
-                ScheduleCommitReply(context, commit);
-                return;
-            }
-            return;
-        }
-            
-        commit = new TCommit(true, transactionId, participantCellGuids);
-        PersistentCommitMap.Insert(transactionId, commit);
-
-        if (context) {
-            ScheduleCommitReply(context, commit);
-        }
-
-        const auto& coordinatorCellGuid = HiveManager->GetSelfCellGuid();
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit started (TransactionId: %s, ParticipantCellGuids: [%s])",
-            ~ToString(transactionId),
-            ~JoinToString(participantCellGuids));
-
-        try {
-            // Any exception thrown here is caught below.
-            DoPrepareDistributedCommit(transactionId, prepareTimestamp, coordinatorCellGuid);
-        } catch (const std::exception& ex) {
-            SetCommitFailed(transactionId, commit, ex);
-            return;
-        }
-
-        // Schedule preparation at other participants.
-        TReqPrepareTransactionCommit prepareRequest;
-        ToProto(prepareRequest.mutable_transaction_id(), transactionId);
-        prepareRequest.set_prepare_timestamp(prepareTimestamp);
-        ToProto(prepareRequest.mutable_coordinator_cell_guid(), coordinatorCellGuid);
-        for (const auto& cellGuid : participantCellGuids) {
-            auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);
-            HiveManager->PostMessage(mailbox, prepareRequest);
-        }
-    }
-
     void HydraAbortTransaction(TCtxAbortTransactionPtr context, const TReqAbortTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
@@ -384,73 +299,120 @@ private:
         }
     }
 
-    void HydraPrepareTransactionCommit(const TReqPrepareTransactionCommit& request)
+    void HydraStartDistributedCommit(TCtxCommitTransactionPtr context, const TReqStartDistributedCommit& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto participantCellGuids = FromProto<TCellGuid>(request.participant_cell_guids());
+        auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
+
+        if (context) {
+            context->SetRequestInfo("TransactionId: %s, ParticipantCellGuids: [%s]",
+                ~ToString(transactionId),
+                ~JoinToString(participantCellGuids));
+        }
+
+        YCHECK(!SimpleCommitMap.Find(transactionId));
+
+        auto* commit = DistributedCommitMap.Find(transactionId);
+        if (commit) {
+            if (context) {
+                LOG_DEBUG_UNLESS("Waiting for distributed commit to complete (TransactionId: %s)",
+                    ~ToString(transactionId));
+                SubscribeToCommitResult(commit, context);
+            }
+            return;
+        }
+            
+        commit = new TCommit(true, transactionId, participantCellGuids);
+        DistributedCommitMap.Insert(transactionId, commit);
+
+        if (context) {
+            SubscribeToCommitResult(commit, context);
+        }
+
+        const auto& coordinatorCellGuid = HiveManager->GetSelfCellGuid();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit first phase started (TransactionId: %s, ParticipantCellGuids: [%s], CoordinatorCellGuid: %s)",
+            ~ToString(transactionId),
+            ~JoinToString(participantCellGuids),
+            ~ToString(coordinatorCellGuid));
+
+        // Prepare at coordinator.
+        try {
+            // Any exception thrown here is caught below.
+            DoPrepareDistributed(
+                transactionId,
+                prepareTimestamp,
+                coordinatorCellGuid,
+                true);
+        } catch (const std::exception& ex) {
+            SetCommitFailed(commit, ex);
+            return;
+        }
+
+        // Prepare at participants.
+        {
+            TReqPrepareTransaction hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            hydraRequest.set_prepare_timestamp(prepareTimestamp);
+            ToProto(hydraRequest.mutable_coordinator_cell_guid(), coordinatorCellGuid);
+            PostToParticipants(commit, hydraRequest);
+        }
+    }
+
+    void HydraPrepareTransaction(const TReqPrepareTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
         auto coordinatorCellGuid = FromProto<TCellGuid>(request.coordinator_cell_guid());
 
-        TReqOnTransactionCommitPrepared onPreparedRequest;
-        ToProto(onPreparedRequest.mutable_transaction_id(), transactionId);
-        ToProto(onPreparedRequest.mutable_participant_cell_guid(), HiveManager->GetSelfCellGuid());
+        TReqOnTransactionPrepared response;
+        ToProto(response.mutable_transaction_id(), transactionId);
+        ToProto(response.mutable_participant_cell_guid(), HiveManager->GetSelfCellGuid());
 
         try {
             // Any exception thrown here is replied to the coordinator.
-            DoPrepareDistributedCommit(transactionId, prepareTimestamp, coordinatorCellGuid);
+            DoPrepareDistributed(
+                transactionId,
+                prepareTimestamp,
+                coordinatorCellGuid,
+                false);
         } catch (const std::exception& ex) {
-            ToProto(onPreparedRequest.mutable_error(), TError(ex));
+            ToProto(response.mutable_error(), TError(ex));
         }
 
-        auto* mailbox = HiveManager->GetOrCreateMailbox(coordinatorCellGuid);
-        HiveManager->PostMessage(mailbox, onPreparedRequest);
+        PostToCoordinator(coordinatorCellGuid, response);
     }
 
-    void HydraOnTransactionCommitPrepared(const TReqOnTransactionCommitPrepared& request)
+    void HydraOnTransactionPrepared(const TReqOnTransactionPrepared& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto participantCellGuid = FromProto<TCellGuid>(request.participant_cell_guid());
 
-        auto* commit = PersistentCommitMap.Find(transactionId);
+        auto* commit = DistributedCommitMap.Find(transactionId);
         if (!commit) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Invalid or expired transaction commit has prepared, ignoring (TransactionId: %s, ParticipantCellGuid: %s)",
-                ~ToString(transactionId),
-                ~ToString(participantCellGuid));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Invalid or expired transaction has prepared, ignoring (TransactionId: %s)",
+                ~ToString(transactionId));
             return;
         }
 
         if (request.has_error()) {
             auto error = FromProto(request.error());
-            LOG_DEBUG_UNLESS(IsRecovery(), error, "Distributed commit has failed to prepare (TransactionId: %s, ParticipantCellGuid: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %s, ParticipantCellGuid: %s)",
                 ~ToString(transactionId),
                 ~ToString(participantCellGuid));
-            SetCommitFailed(transactionId, commit, error);
+            SetCommitFailed(commit, error);
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit prepared by participant (TransactionId: %s, ParticipantCellGuid: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared (TransactionId: %s, ParticipantCellGuid: %s)",
             ~ToString(transactionId),
             ~ToString(participantCellGuid));
 
         YCHECK(commit->PreparedParticipantCellGuids().insert(participantCellGuid).second);
 
-        if (IsLeader() && commit->PreparedParticipantCellGuids().size() == commit->ParticipantCellGuids().size()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit is fully prepared (TransactionId: %s)",
-                ~ToString(transactionId));
-
-            if (!GenerateCommitTimestamp(commit))
-                return;
-
-            DoCommitDistributed(transactionId, commit->GetCommitTimestamp());
-
-            TReqCommitPreparedTransaction commitRequest;
-            ToProto(commitRequest.mutable_transaction_id(), transactionId);
-            commitRequest.set_commit_timestamp(commit->GetCommitTimestamp());
-            for (const auto& cellGuid : commit->ParticipantCellGuids()) {
-                auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);
-                HiveManager->PostMessage(mailbox, commitRequest);
-            }
-
-            SetCommitSucceded(commit);
+        if (IsLeader()) {
+            CheckForSecondPhaseStart(commit);
         }
     }
 
@@ -458,7 +420,20 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto commitTimestamp = TTimestamp(request.commit_timestamp());
-        DoCommitDistributed(transactionId, commitTimestamp);
+        bool isDistributed = request.is_distributed();
+        DoCommitPrepared(
+            transactionId,
+            commitTimestamp,
+            isDistributed,
+            false);
+
+        if (!isDistributed) {
+            // Commit could be missing (e.g. at followers).
+            auto* commit = FindCommit(transactionId);
+            if (commit) {
+                SetCommitCompleted(commit, commitTimestamp);
+            }
+        }
     }
 
     void HydraAbortFailedTransaction(const TReqAbortFailedTransaction& request)
@@ -473,97 +448,178 @@ private:
         }
     }
 
+    void HydraFinalizeDistributedCommit(const TReqFinalizeDistributedCommit& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto commitTimestamp = TTimestamp(request.commit_timestamp());
+
+        auto* commit = FindCommit(transactionId);
+        if (!commit) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Requested to finalize an invalid or expired transaction, ignoring (TransactionId: %s)",
+                ~ToString(transactionId));
+            return;
+        }
+
+        YCHECK(commit->IsDistributed());
+
+        // Commit at coordinator.
+        DoCommitPrepared(
+            transactionId,
+            commitTimestamp,
+            true,
+            true);
+
+        // Commit at participants.
+        {
+            TReqCommitPreparedTransaction commitRequest;
+            ToProto(commitRequest.mutable_transaction_id(), transactionId);
+            commitRequest.set_commit_timestamp(commitTimestamp);
+            commitRequest.set_is_distributed(true);
+            PostToParticipants(commit, commitRequest);
+        }
+
+        SetCommitCompleted(commit, commitTimestamp);
+    }
+
 
     TCommit* FindCommit(const TTransactionId& transactionId)
     {
         TCommit* commit = nullptr;
         if (!commit) {
-            commit = PersistentCommitMap.Find(transactionId);
+            commit = DistributedCommitMap.Find(transactionId);
         }
         if (!commit) {
-            commit = TransientCommitMap.Find(transactionId);
+            commit = SimpleCommitMap.Find(transactionId);
         }
         return commit;
     }
 
-    void SetCommitFailed(const TTransactionId& transactionId, TCommit* commit, const TError& error)
+    void SetCommitFailed(TCommit* commit, const TError& error)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction commit failed (TransactionId: %s)",
-            ~ToString(transactionId));
-
-        if (!commit)
-            return;
-
         commit->SetResult(error);
 
-        TReqAbortFailedTransaction request;
-        ToProto(request.mutable_transaction_id(), transactionId);
+        const auto& transactionId = commit->GetTransactionId();
+
+        TReqAbortFailedTransaction abortFailedRequest;
+        ToProto(abortFailedRequest.mutable_transaction_id(), transactionId);
 
         if (HydraManager->IsMutating()) {
+            // Abort at coordinator.
             DoAbortFailed(transactionId);
-            for (const auto& cellGuid : commit->ParticipantCellGuids()) {
-                auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);
-                HiveManager->PostMessage(mailbox, request);
-            }
+
+            // Abort at participants.
+            PostToParticipants(commit, abortFailedRequest);
+
             RemoveCommit(commit);
         } else {
             YCHECK(commit->ParticipantCellGuids().empty());
-            CreateMutation(HydraManager, AutomatonInvoker, request)
+            CreateMutation(HydraManager, AutomatonInvoker, abortFailedRequest)
                 ->Commit();
         }
     }
 
-    void SetCommitSucceded(TCommit* commit)
+    void SetCommitCompleted(TCommit* commit, TTimestamp commitTimestamp)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit succeeded (TransactionId: %s)",
-            ~ToString(commit->GetTransactionId()));
+        LOG_DEBUG_UNLESS(IsRecovery(), "%s transaction commit completed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
+            commit->IsDistributed() ? "Distributed" : "Simple",
+            ~ToString(commit->GetTransactionId()),
+            commitTimestamp);
 
-        commit->SetResult(TError());
+        commit->SetResult(TErrorOr<TTimestamp>(commitTimestamp));
         RemoveCommit(commit);
     }
 
     void RemoveCommit(TCommit* commit)
     {
-        if (commit->GetPersistent()) {
-            PersistentCommitMap.Remove(commit->GetTransactionId());
+        if (commit->IsDistributed()) {
+            DistributedCommitMap.Remove(commit->GetTransactionId());
         } else {
-            TransientCommitMap.Remove(commit->GetTransactionId());
+            SimpleCommitMap.Remove(commit->GetTransactionId());
         }
     }
 
-    void ScheduleCommitReply(TCtxCommitTransactionPtr context, TCommit* commit)
+    static void SubscribeToCommitResult(TCommit* commit, TCtxCommitTransactionPtr context)
     {
-        commit->GetResult().Subscribe(BIND([=] (TError error) {
-            if (error.IsOK()) {
+        commit->GetResult().Subscribe(BIND([=] (TErrorOr<TTimestamp> result) {
+            if (result.IsOK()) {
                 auto& response = context->Response();
-                response.set_commit_timestamp(commit->GetCommitTimestamp());
+                response.set_commit_timestamp(result.GetValue());
                 context->Reply();
             } else {
-                context->Reply(error);
+                context->Reply(result);
             }
         }));
     }
 
-    bool GenerateCommitTimestamp(TCommit* commit)
-    {
-        auto commitTimestampOrError = WaitFor(TimestampProvider->GenerateNewTimestamp(), EpochAutomatonInvoker);
-        if (!commitTimestampOrError.IsOK()) {
-            auto error = TError("Error generating commit timestamp")
-                << commitTimestampOrError;
-            LOG_ERROR(error);
-            SetCommitFailed(commit->GetTransactionId(), commit, error);
-            return false;
-        }
 
-        commit->SetCommitTimestamp(commitTimestampOrError.GetValue());
-        return true;
+    template <class TMessage>
+    void PostToParticipants(TCommit* commit, const TMessage& message)
+    {
+        for (const auto& cellGuid : commit->ParticipantCellGuids()) {
+            auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);
+            HiveManager->PostMessage(mailbox, message);
+        }
+    }
+
+    template <class TMessage>
+    void PostToCoordinator(const TCellGuid& coordinatorCellGuid, const TMessage& message)
+    {
+        auto* mailbox = HiveManager->GetOrCreateMailbox(coordinatorCellGuid);
+        HiveManager->PostMessage(mailbox, message);
     }
 
 
-    void DoPrepareDistributedCommit(
+
+    void GenerateCommitTimestamp(TCommit* commit)
+    {
+        TimestampProvider->GenerateNewTimestamp()
+            .Subscribe(BIND(&TImpl::OnCommitTimestampGenerated, MakeStrong(this), commit->GetTransactionId())
+                .Via(EpochAutomatonInvoker));
+    }
+
+    void OnCommitTimestampGenerated(
+        const TTransactionId& transactionId,
+        TErrorOr<TTimestamp> timestampOrError)
+    {
+        auto* commit = FindCommit(transactionId);
+        if (!commit) {
+            LOG_DEBUG("Commit timestamp generated for an invalid or expired transaction, ignoring (TransactionId: %s)",
+                ~ToString(transactionId));
+            return;
+        }
+
+        if (!timestampOrError.IsOK()) {
+            auto error = TError("Error generating commit timestamp")
+                << timestampOrError;
+            LOG_ERROR(error);
+            SetCommitFailed(commit, error);
+            return;
+        }
+
+        auto timestamp = timestampOrError.GetValue();
+
+        if (commit->IsDistributed()) {
+            TReqFinalizeDistributedCommit finalizeRequest;
+            ToProto(finalizeRequest.mutable_transaction_id(), transactionId);
+            finalizeRequest.set_commit_timestamp(timestamp);
+            CreateMutation(HydraManager, AutomatonInvoker, finalizeRequest)
+                ->Commit();
+        } else {
+            TReqCommitPreparedTransaction commitRequest;
+            ToProto(commitRequest.mutable_transaction_id(), transactionId);
+            commitRequest.set_commit_timestamp(timestamp);
+            commitRequest.set_is_distributed(false);
+            CreateMutation(HydraManager, AutomatonInvoker, commitRequest)
+                ->Commit();
+        }
+    }
+
+
+    void DoPrepareDistributed(
         const TTransactionId& transactionId,
         TTimestamp prepareTimestamp,
-        const TCellGuid& coordinatorCellGuid)
+        const TCellGuid& coordinatorCellGuid,
+        bool isCoordinator)
     {
         // Any exception thrown here is propagated to the caller.
         try {
@@ -572,31 +628,36 @@ private:
                 true,
                 prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Distributed commit has failed to prepare (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Failed to prepare distributed commit (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
                 ~ToString(transactionId),
                 ~ToString(coordinatorCellGuid),
                 prepareTimestamp);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit prepared (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distirbuted commit is prepared by %s (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
+            isCoordinator ? "coordinator" : "participant",
             ~ToString(transactionId),
             ~ToString(coordinatorCellGuid),
             prepareTimestamp);
     }
 
-    void DoCommitDistributed(
+    void DoCommitPrepared(
         const TTransactionId& transactionId,
-        TTimestamp commitTimestamp)
+        TTimestamp commitTimestamp,
+        bool isDistributed,
+        bool isCoordinator)
     {
         try {
-            // Cannot throw since it has already prepared successfully.
+            // Any exception thrown here is caught below.
             TransactionManager->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error committing prepared transaction");
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "%s transaction committed %s(TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
+            isDistributed ? "Distributed" : "Simple",
+            isDistributed ? (isCoordinator ? "by coordinator" : "by participant") : "",
             ~ToString(transactionId),
             commitTimestamp);
     }
@@ -614,6 +675,25 @@ private:
         }
     }
 
+
+    void CheckForSecondPhaseStart(TCommit* commit)
+    {
+        if (commit->ParticipantCellGuids().empty())
+            // Not a distributed commit.
+            return;
+        
+        if (commit->PreparedParticipantCellGuids().size() != commit->ParticipantCellGuids().size())
+            // Some participants are not prepared yet.
+            return;
+
+        const auto& transactionId = commit->GetTransactionId();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit second phase started (TransactionId: %s)",
+            ~ToString(transactionId));
+
+        GenerateCommitTimestamp(commit);
+    }
+
     
     virtual bool ValidateSnapshotVersion(int version) override
     {
@@ -626,35 +706,44 @@ private:
     }
 
 
+    virtual void OnLeaderActive() override
+    {
+        for (const auto& pair : DistributedCommitMap) {
+            auto* commit = pair.second;
+            CheckForSecondPhaseStart(commit);
+        }
+    }
+
     virtual void OnStopLeading() override
     {
-        TransientCommitMap.Clear();
+        SimpleCommitMap.Clear();
     }
+
 
     virtual void Clear() override
     {
-        PersistentCommitMap.Clear();
-        TransientCommitMap.Clear();
+        DistributedCommitMap.Clear();
+        SimpleCommitMap.Clear();
     }
 
     void SaveKeys(TSaveContext& context) const
     {
-        PersistentCommitMap.SaveKeys(context);
+        DistributedCommitMap.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context) const
     {
-        PersistentCommitMap.SaveValues(context);
+        DistributedCommitMap.SaveValues(context);
     }
 
     void LoadKeys(TLoadContext& context)
     {
-        PersistentCommitMap.LoadKeys(context);
+        DistributedCommitMap.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
-        PersistentCommitMap.LoadValues(context);
+        DistributedCommitMap.LoadValues(context);
     }
 
 };

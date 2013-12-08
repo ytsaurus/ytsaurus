@@ -64,7 +64,7 @@ public:
             automaton)
         , SelfCellGuid(cellGuid)
         , Config(config)
-        , CellRegistry(cellRegistry)
+        , CellDirectory(cellRegistry)
         , RpcServer(rpcServer)
     {
         Automaton->RegisterPart(this);
@@ -181,7 +181,7 @@ private:
     
     TCellGuid SelfCellGuid;
     THiveManagerConfigPtr Config;
-    TCellDirectoryPtr CellRegistry;
+    TCellDirectoryPtr CellDirectory;
     IRpcServerPtr RpcServer;
 
     TEntityMap<TCellGuid, TMailbox> MailboxMap;
@@ -285,7 +285,7 @@ private:
 
     IChannelPtr GetMailboxChannel(TMailbox* mailbox)
     {
-        return CellRegistry->FindChannel(mailbox->GetCellGuid());
+        return CellDirectory->FindChannel(mailbox->GetCellGuid());
     }
 
 
@@ -372,7 +372,7 @@ private:
         }
 
         int lastReceivedMessageId = rsp->last_received_message_id();
-        LOG_DEBUG(*rsp, "Ping succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessagId: %d)",
+        LOG_DEBUG("Ping succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessagId: %d)",
             ~ToString(SelfCellGuid),
             ~ToString(mailbox->GetCellGuid()),
             lastReceivedMessageId);
@@ -443,7 +443,7 @@ private:
         }
 
         int lastReceivedMessageId = rsp->last_received_message_id();
-        LOG_DEBUG(*rsp, "Send succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessageId: %d)",
+        LOG_DEBUG("Send succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessageId: %d)",
             ~ToString(SelfCellGuid),
             ~ToString(mailbox->GetCellGuid()),
             lastReceivedMessageId);

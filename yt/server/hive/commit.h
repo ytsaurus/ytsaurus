@@ -16,11 +16,9 @@ namespace NHive {
 
 class TCommit
 {
-    DEFINE_BYVAL_RO_PROPERTY(bool, Persistent);
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellGuid>, ParticipantCellGuids);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellGuid>, PreparedParticipantCellGuids);
-    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
 
 public:
     explicit TCommit(const TTransactionId& transactionId);
@@ -29,14 +27,16 @@ public:
         const TTransactionId& transactionId,
         const std::vector<TCellGuid>& participantCellGuids);
 
-    TAsyncError GetResult();
-    void SetResult(const TError& error);
+    TFuture<TErrorOr<TTimestamp>> GetResult();
+    void SetResult(const TErrorOr<TTimestamp>& result);
+
+    bool IsDistributed() const;
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);
 
 private:
-    TPromise<TError> Result_;
+    TPromise<TErrorOr<TTimestamp>> Result_;
 
     void Init();
 

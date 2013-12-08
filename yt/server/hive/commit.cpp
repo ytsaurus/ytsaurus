@@ -13,8 +13,7 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommit::TCommit(const TTransactionId& transationId)
-    : Persistent_(true)
-    , TransactionId_(transationId)
+    : TransactionId_(transationId)
 {
     Init();
 }
@@ -23,49 +22,48 @@ TCommit::TCommit(
     bool persistent,
     const TTransactionId& transationId,
     const std::vector<TCellGuid>& participantCellGuids)
-    : Persistent_(persistent)
-    , TransactionId_(transationId)
+    : TransactionId_(transationId)
     , ParticipantCellGuids_(participantCellGuids)
 {
     Init();
 }
 
-TAsyncError TCommit::GetResult()
+TFuture<TErrorOr<TTimestamp>> TCommit::GetResult()
 {
     return Result_;
 }
 
-void TCommit::SetResult(const TError& error)
+void TCommit::SetResult(const TErrorOr<TTimestamp>& result)
 {
-    Result_.Set(error);
+    Result_.Set(result);
+}
+
+bool TCommit::IsDistributed() const
+{
+    return !ParticipantCellGuids_.empty();
 }
 
 void TCommit::Save(TSaveContext& context) const
 {
     using NYT::Save;
-    YCHECK(!Persistent_);
 
     Save(context, TransactionId_);
     Save(context, ParticipantCellGuids_);
     Save(context, PreparedParticipantCellGuids_);
-    Save(context, CommitTimestamp_);
 }
 
 void TCommit::Load(TLoadContext& context)
 {
     using NYT::Load;
-    YCHECK(Persistent_);
 
     Load(context, TransactionId_);
     Load(context, ParticipantCellGuids_);
     Load(context, PreparedParticipantCellGuids_);
-    Load(context, CommitTimestamp_);
 }
 
 void TCommit::Init()
 {
-    CommitTimestamp_ = NullTimestamp;
-    Result_ = NewPromise<TError>();
+    Result_ = NewPromise<TErrorOr<TTimestamp>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

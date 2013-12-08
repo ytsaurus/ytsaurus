@@ -5,37 +5,38 @@ import "yt/core/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCommitTransactionSimple
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required int64 commit_timestamp = 2;
-}
-
-message TReqCommitTransactionDistributed
+message TReqStartDistributedCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
     repeated NYT.NProto.TGuid participant_cell_guids = 2;
     required int64 prepare_timestamp = 3;
 }
 
-message TReqPrepareTransactionCommit
+message TReqPrepareTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required int64 prepare_timestamp = 2;
     required NYT.NProto.TGuid coordinator_cell_guid = 3;
 }
 
-message TReqOnTransactionCommitPrepared
+message TReqOnTransactionPrepared
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid participant_cell_guid = 2;
     optional NYT.NProto.TError error = 3;
 }
 
+message TReqFinalizeDistributedCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 commit_timestamp = 2;
+}
+
 message TReqCommitPreparedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required int64 commit_timestamp = 2;
+    required bool is_distributed = 3;
 }
 
 message TReqAbortFailedTransaction
