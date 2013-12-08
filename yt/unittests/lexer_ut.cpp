@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/yson/lexer.h>
 
@@ -6,10 +7,9 @@
 #include <core/misc/nullable.h>
 #include <core/misc/foreach.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NYson {
+namespace {
 
 using ::ToString;
 
@@ -168,6 +168,8 @@ TEST_F(TStatelessLexerTest, IncorrectFinish)
     TestIncorrectFinish("-"); // numeric not finished
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYTree
 } // namespace NYT

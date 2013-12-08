@@ -1,13 +1,13 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/foreach.h>
 #include <core/misc/common.h>
 
 #include <util/generic/vector.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,5 +166,6 @@ TEST(TForeachTest, CollectionGivenByConstReference)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
 

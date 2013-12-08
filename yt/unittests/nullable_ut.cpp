@@ -1,13 +1,15 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 using ::ToString;
+
+////////////////////////////////////////////////////////////////////////////////
 
 #ifndef NDEBUG
 TEST(TNullableDeathTest, Uninitialized)
@@ -137,4 +139,8 @@ TEST(TNullableTest, ToString)
 //    TestNullable(nullable, true, std::vector<int>(1, 10));
 //}
 
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT
+

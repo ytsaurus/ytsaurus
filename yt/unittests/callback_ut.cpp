@@ -1,16 +1,14 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/common.h>
+
 #include <core/actions/callback.h>
 #include <core/actions/callback_internal.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 // White-box testpoint.
 struct TFakeInvoker
@@ -19,8 +17,6 @@ struct TFakeInvoker
     static void Run(NDetail::TBindStateBase*)
     { }
 };
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,9 +60,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(sandello): Implement accurate check on the number of Ref() and Unref()s.
-
 namespace {
+
+// TODO(sandello): Implement accurate check on the number of Ref() and Unref()s.
 
 typedef NDetail::TBindState<void(), void(), void(TFakeInvoker)>
     TFakeBindState1;
@@ -169,8 +165,7 @@ TEST_F(TCallbackTest, Reset)
     EXPECT_TRUE(FirstCallback.Equals(NullCallback));
 }
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT

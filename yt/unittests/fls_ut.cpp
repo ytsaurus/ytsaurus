@@ -1,8 +1,7 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/concurrency/fls.h>
-
-#include <contrib/testing/framework.h>
 
 #include <exception>
 

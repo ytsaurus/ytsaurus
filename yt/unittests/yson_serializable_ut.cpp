@@ -1,18 +1,18 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/yson_serializable.h>
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/fluent.h>
-#include <core/yson/writer.h>
 #include <core/ytree/tree_visitor.h>
 #include <core/ytree/ypath_client.h>
 
-#include <contrib/testing/framework.h>
+#include <core/yson/writer.h>
 
 namespace NYT {
-
-using namespace NYTree;
+namespace NYTree {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -398,4 +398,6 @@ TEST(TConfigTest, TestConfigUpdate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+} // namespace NYTree
 } // namespace NYT

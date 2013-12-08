@@ -1,17 +1,17 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/formats/json_parser.h>
 #include <core/ytree/yson_consumer-mock.h>
 
 #include <util/string/base64.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace NFormats {
+namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
-
-namespace NYT {
-namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,5 +347,6 @@ TEST(TJsonParserTest, SomeHackyTest)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NFormats
 } // namespace NYT

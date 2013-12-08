@@ -1,11 +1,11 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/formats/schemed_dsv_writer.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NFormats {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +94,6 @@ TEST(TSchemedDsvWriterTest, TableIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NFormats
 } // namespace NYT
-
-

@@ -1,16 +1,15 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/attributes.h>
 #include <core/ytree/convert.h>
 #include <core/ytree/yson_string.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace NYTree {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using NYT::Null;
-using NYT::NYTree::IAttributeDictionary;
-using NYT::NYTree::CreateEphemeralAttributes;
 
 class TAttributesTest: public ::testing::Test
 {
@@ -115,3 +114,10 @@ TEST_F(TAttributesTest, SerializeToProto)
     auto convertedAttributes = NYT::NYTree::FromProto(protoAttributes);
     EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYTree
+} // namespace NYT
+

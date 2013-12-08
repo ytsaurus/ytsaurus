@@ -1,10 +1,10 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/yson/zigzag.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 using namespace NYson;
 
@@ -56,5 +56,5 @@ TEST(TZigZagTest, Decode64)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
-

@@ -1,31 +1,29 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>
-
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/ypath_client.h>
-
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/tree_visitor.h>
+#include <core/ytree/ephemeral_node_factory.h>
 
 #include <core/yson/parser.h>
 #include <core/yson/writer.h>
-#include <core/ytree/ephemeral_node_factory.h>
 
 #include <ytlib/ypath/rich.h>
 
-#include <contrib/testing/framework.h>
-
 #include <util/string/vector.h>
-
 
 namespace NYT {
 namespace NYTree {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYPathTest: public ::testing::Test
+class TYPathTest
+    : public ::testing::Test
 {
 public:
     IYPathServicePtr RootService;
@@ -348,5 +346,6 @@ TEST_F(TYPathTest, ParseRichYPath5)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYTree
 } // namespace NYT

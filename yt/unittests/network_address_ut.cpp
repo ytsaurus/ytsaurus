@@ -1,9 +1,10 @@
+#include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/address.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,4 +49,5 @@ TEST(TNetworkAddressTest, ParseBadIpv6Address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT

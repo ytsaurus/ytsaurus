@@ -1,14 +1,15 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ypath/tokenizer.h>
-#include <core/misc/foreach.h>
 
-#include <contrib/testing/framework.h>
+#include <core/misc/foreach.h>
 
 #include <util/string/vector.h>
 
 namespace NYT {
 namespace NYPath {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,5 +202,6 @@ TEST_F(TYPathTokenizerTest, InvalidEscapeSequences)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYPath
 } // namespace NYT

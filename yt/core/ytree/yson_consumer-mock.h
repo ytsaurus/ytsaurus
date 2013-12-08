@@ -2,7 +2,7 @@
 
 #include <core/yson/consumer.h>
 
-#include <contrib/testing/framework.h>
+#include <contrib/testing/gmock.h>
 
 namespace NYT {
 namespace NYTree {

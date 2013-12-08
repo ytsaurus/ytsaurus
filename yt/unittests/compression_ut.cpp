@@ -1,20 +1,21 @@
+#include "stdafx.h"
+#include "framework.h"
+
 #include <core/misc/foreach.h>
 #include <core/compression/codec.h>
-
-#include <contrib/testing/framework.h>
-
 
 #include <contrib/libs/snappy/snappy.h>
 #include <contrib/libs/snappy/snappy-sinksource.h>
 
-using NYT::TSharedRef;
-using NYT::NCompression::ECodec;
-using NYT::NCompression::GetCodec;
+namespace NYT {
+namespace NCompression {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCodecTest:
     public ::testing::Test
-{
-};
+{ };
 
 TEST_F(TCodecTest, Compression)
 {
@@ -82,3 +83,9 @@ TEST_F(TCodecTest, LargeTest) {
             Stroka(decompressed.Begin(), decompressed.End()));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NCompression
+} // namespace NYT

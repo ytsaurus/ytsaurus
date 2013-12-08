@@ -1,11 +1,11 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/guid.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,4 +19,5 @@ TEST(TGuidTest, SerializationToProto)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT

@@ -65,6 +65,8 @@ set( SRCS
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
   ${BASE}/fls_ut.cpp
+  ${BASE}/framework.h
+  ${BASE}/framework.cpp
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )

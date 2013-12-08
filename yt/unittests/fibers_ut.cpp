@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/common.h>
 #include <core/misc/lazy_ptr.h>
@@ -9,8 +10,6 @@
 
 #include <core/actions/cancelable_context.h>
 #include <core/actions/invoker_util.h>
-
-#include <contrib/testing/framework.h>
 
 #include <exception>
 

@@ -1,11 +1,11 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/formats/yamr_writer.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NFormats {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -344,8 +344,8 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NFormats
 } // namespace NYT
