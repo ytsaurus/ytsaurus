@@ -398,7 +398,6 @@ public:
 
         auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
 
-        const int MaxTabletCount = 1000;
         auto& tablets = table->Tablets();
         int oldTabletCount = std::distance(tabletRange.first, tabletRange.second);
         int newTabletCount = static_cast<int>(pivotKeys.size());
@@ -407,15 +406,22 @@ public:
             THROW_ERROR_EXCEPTION("At least one pivot key is needed");
         }
 
+        const int MaxTabletCount = 1000;
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
                 MaxTabletCount);
         }
 
-        if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
-            THROW_ERROR_EXCEPTION(
-                "First pivot key must match that of the first tablet "
-                "in the resharded range");
+        if (tabletRange.first == tablets.end()) {
+            if (CompareRows(pivotKeys[0], EmptyKey()) != 0) {
+                THROW_ERROR_EXCEPTION("First pivot key must be empty");
+            }
+        } else {
+            if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
+                THROW_ERROR_EXCEPTION(
+                    "First pivot key must match that of the first tablet "
+                    "in the resharded range");
+            }
         }
 
         for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
