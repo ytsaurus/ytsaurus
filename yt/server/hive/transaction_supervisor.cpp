@@ -657,7 +657,7 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "%s transaction committed %s(TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
             isDistributed ? "Distributed" : "Simple",
-            isDistributed ? (isCoordinator ? "by coordinator" : "by participant") : "",
+            isDistributed ? (isCoordinator ? "by coordinator " : "by participant ") : "",
             ~ToString(transactionId),
             commitTimestamp);
     }
