@@ -48,7 +48,7 @@ set( SRCS
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp
-  ${BASE}/utmain.cpp
+  ${BASE}/main.cpp
   ${BASE}/varint_ut.cpp
   ${BASE}/weak_ptr_ut.cpp
   ${BASE}/yamr_parser_ut.cpp
