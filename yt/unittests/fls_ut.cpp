@@ -19,6 +19,12 @@ struct TMyValue
 
     T Value;
 
+    static void Reset()
+    {
+        CtorCalls = 0;
+        DtorCalls = 0;
+    }
+
     TMyValue()
     {
         ++CtorCalls;
@@ -30,11 +36,11 @@ struct TMyValue
     }
 };
 
-int TMyValue<int>::CtorCalls;
-int TMyValue<int>::DtorCalls;
+template <> int TMyValue<int>::CtorCalls;
+template <> int TMyValue<int>::DtorCalls;
 
-int TMyValue<Stroka>::CtorCalls;
-int TMyValue<Stroka>::DtorCalls;
+template <> int TMyValue<Stroka>::CtorCalls;
+template <> int TMyValue<Stroka>::DtorCalls;
 
 class TFlsTest
     : public ::testing::Test
@@ -42,11 +48,8 @@ class TFlsTest
 public:
     TFlsTest()
     {
-        TMyValue<int>::CtorCalls = 0;
-        TMyValue<int>::DtorCalls = 0;
-
-        TMyValue<Stroka>::CtorCalls = 0;
-        TMyValue<Stroka>::DtorCalls = 0;
+        TMyValue<int>::Reset();
+        TMyValue<Stroka>::Reset();
     }
 };
 
