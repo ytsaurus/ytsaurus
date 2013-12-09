@@ -9,8 +9,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class Iterator, class Comparer>
-void SiftDown(Iterator begin, Iterator end, Iterator current, const Comparer& comparer)
+template <class TIterator, class TComparer>
+void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
 {
     auto value = *current;
     while (true) {
@@ -21,7 +21,7 @@ void SiftDown(Iterator begin, Iterator end, Iterator current, const Comparer& co
             break;
         }
 
-        Iterator min;
+        TIterator min;
         if (right >= end) {
             min = left;
         } else {
@@ -39,8 +39,8 @@ void SiftDown(Iterator begin, Iterator end, Iterator current, const Comparer& co
     *current = value;
 }
 
-template <class Iterator, class Comparer>
-void MakeHeap(Iterator begin, Iterator end, const Comparer& comparer)
+template <class TIterator, class TComparer>
+void MakeHeap(TIterator begin, TIterator end, const TComparer& comparer)
 {
     size_t size = std::distance(begin, end);
     for (auto current = begin + size / 2 - 1; current >= begin; --current) {
@@ -48,14 +48,14 @@ void MakeHeap(Iterator begin, Iterator end, const Comparer& comparer)
     }
 }
 
-template <class Iterator, class Comparer>
-void AdjustHeap(Iterator begin, Iterator end, const Comparer& comparer)
+template <class TIterator, class TComparer>
+void AdjustHeap(TIterator begin, TIterator end, const TComparer& comparer)
 {
     SiftDown(begin, end, begin, comparer);
 }
 
-template <class Iterator, class Comparer>
-void ExtractHeap(Iterator begin, Iterator end, const Comparer& comparer)
+template <class TIterator, class TComparer>
+void ExtractHeap(TIterator begin, TIterator end, const TComparer& comparer)
 {
     auto newEnd = end - 1;
     std::swap(*begin, *newEnd);
