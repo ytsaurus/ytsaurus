@@ -1,29 +1,20 @@
 #pragma once
 
 #include "file_io_dispatcher.h"
+#include "public.h"
 
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/error.h>
-#include <yt/core/actions/future.h>
+#include <core/misc/common.h>
+#include <core/misc/error.h>
+#include <core/actions/future.h>
+#include <core/concurrency/thread_affinity.h>
 
 #include <util/system/thread.h>
-#include <yt/core/concurrency/thread_affinity.h>
 #include <util/thread/lfqueue.h>
 
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NFileIO {
-
-struct IFDWatcher
-    : public virtual TRefCounted
-{
-    virtual void Start(ev::dynamic_loop& eventLoop) = 0;
-
-    virtual ~IFDWatcher() {}
-};
-
-typedef TIntrusivePtr<IFDWatcher> IFDWatcherPtr;
 
 class TFileIODispatcher::TImpl
 {

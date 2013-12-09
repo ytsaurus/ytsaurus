@@ -1,9 +1,10 @@
 #pragma once
 
-#include "file_io_dispatcher_impl.h"
+#include "public.h"
 
-#include <yt/core/misc/blob.h>
+#include <core/misc/blob.h>
 #include <core/logging/tagged_logger.h>
+#include <core/concurrency/thread_affinity.h>
 
 #include <util/system/spinlock.h>
 

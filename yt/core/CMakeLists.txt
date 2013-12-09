@@ -6,7 +6,6 @@ set( DIRS
   logging
   misc
   rpc
-  fileio
   bus
   ytree
   yson

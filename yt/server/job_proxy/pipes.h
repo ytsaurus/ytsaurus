@@ -1,11 +1,11 @@
 ﻿#pragma once
 
 #include "private.h"
-#include <ytlib/table_client/public.h>
 #include <core/misc/blob_output.h>
-#include <core/fileio/async_reader.h>
-#include <core/fileio/async_writer.h>
-#include <core/fileio/file_io_dispatcher.h>
+#include <ytlib/table_client/public.h>
+#include <ytlib/fileio/async_reader.h>
+#include <ytlib/fileio/async_writer.h>
+#include <ytlib/fileio/file_io_dispatcher.h>
 
 namespace NYT {
 namespace NJobProxy {

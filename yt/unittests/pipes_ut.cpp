@@ -1,12 +1,12 @@
 #include "stdafx.h"
 
-#include <core/fileio/file_io_dispatcher.h>
-#include <core/fileio/file_io_dispatcher_impl.h>
-#include <core/fileio/async_reader.h>
-#include <core/fileio/async_writer.h>
-
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
+
+#include <ytlib/fileio/file_io_dispatcher.h>
+#include <ytlib/fileio/file_io_dispatcher_impl.h>
+#include <ytlib/fileio/async_reader.h>
+#include <ytlib/fileio/async_writer.h>
 
 #include <contrib/testing/framework.h>
 

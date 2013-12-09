@@ -1,14 +1,13 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/misc/error.h>
 
 #include <memory>
 
 namespace NYT {
 namespace NFileIO {
-
-class IFDWatcher;
-typedef TIntrusivePtr<IFDWatcher> IFDWatcherPtr;
 
 class TFileIODispatcher
 {
