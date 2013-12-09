@@ -5,6 +5,7 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <server/cypress_server/node_proxy_detail.h>
 
@@ -35,8 +36,8 @@ protected:
         const TNullable<NYTree::TYsonString>& newValue) override;
     virtual void ValidatePathAttributes(
         const TNullable<NChunkClient::TChannel>& channel,
-        const NChunkClient::NProto::TReadLimit& upperLimit,
-        const NChunkClient::NProto::TReadLimit& lowerLimit);
+        const NChunkClient::TReadLimit& upperLimit,
+        const NChunkClient::TReadLimit& lowerLimit);
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual NCypressClient::ELockMode GetLockMode(NChunkClient::EUpdateMode updateMode) = 0;

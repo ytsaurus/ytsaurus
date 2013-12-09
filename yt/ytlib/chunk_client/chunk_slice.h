@@ -6,6 +6,8 @@
 #include <core/misc/phoenix.h>
 
 #include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/read_limit.h>
+#include <ytlib/new_table_client/row.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -42,16 +44,16 @@ private:
     TRefCountedChunkSpecPtr ChunkSpec;
     int PartIndex;
 
-    NProto::TReadLimit StartLimit;
-    NProto::TReadLimit EndLimit;
+    TReadLimit StartLimit;
+    TReadLimit EndLimit;
     NProto::TSizeOverrideExt SizeOverrideExt;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
     friend TChunkSlicePtr CreateChunkSlice(
         TRefCountedChunkSpecPtr chunkSpec,
-        const TNullable<NProto::TKey>& startKey,
-        const TNullable<NProto::TKey>& endKey);
+        const TNullable<NVersionedTableClient::TOwningKey>& startKey,
+        const TNullable<NVersionedTableClient::TOwningKey>& endKey);
 
     // XXX(sandello): Do we really need codecId here?
     friend std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
@@ -64,8 +66,8 @@ private:
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TChunkSlicePtr CreateChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
-    const TNullable<NProto::TKey>& startKey = Null,
-    const TNullable<NProto::TKey>& endKey = Null);
+    const TNullable<NVersionedTableClient::TOwningKey>& startKey = Null,
+    const TNullable<NVersionedTableClient::TOwningKey>& endKey = Null);
 
 //! Constructs separate chunk slice for each part of erasure chunk.
 std::vector<TChunkSlicePtr> CreateErasureChunkSlices(

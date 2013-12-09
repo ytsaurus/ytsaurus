@@ -14,6 +14,8 @@
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
+#include <ytlib/new_table_client/row.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -51,7 +53,7 @@ public:
         int index,
         NChunkClient::TRefCountedChunkSpecPtr chunkSpec);
 
-    const std::vector<NChunkClient::NProto::TKey>& GetSamples() const;
+    const std::vector<NVersionedTableClient::TOwningKey>& GetSamples() const;
 
     NLog::TTaggedLogger& GetLogger();
 
@@ -67,7 +69,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     //! All samples fetched so far.
-    std::vector<NChunkClient::NProto::TKey> Samples;
+    std::vector<NVersionedTableClient::TOwningKey> Samples;
 
     NChunkClient::TDataNodeServiceProxy::TReqGetTableSamplesPtr CurrentRequest;
 

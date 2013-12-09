@@ -12,6 +12,7 @@
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
@@ -30,8 +31,11 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NYTree;
+
+using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +52,7 @@ const TRow& TTableChunkReaderFacade::GetRow() const
     return Reader->GetRow();
 }
 
-const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
+const NVersionedTableClient::TKey& TTableChunkReaderFacade::GetKey() const
 {
     return Reader->GetKey();
 }
@@ -84,21 +88,20 @@ protected:
 class TTableChunkReader::TKeyValidator
 {
 public:
-    TKeyValidator(const NChunkClient::NProto::TKey& pivot, bool leftBoundary)
+    TKeyValidator(const NVersionedTableClient::TOwningKey& pivot, bool leftBoundary)
         : LeftBoundary(leftBoundary)
-        , Pivot(TOwningKey::FromProto(pivot))
+        , Pivot(pivot)
     { }
 
-    template <class TBuffer>
-    bool IsValid(const TKey<TBuffer>& key)
+    bool IsValid(const NVersionedTableClient::TOwningKey& key)
     {
-        int result = CompareKeys(key, Pivot);
+        int result = CompareRows(key, Pivot);
         return LeftBoundary ? result >= 0 : result < 0;
     }
 
 private:
     bool LeftBoundary;
-    TOwningKey Pivot;
+    NVersionedTableClient::TOwningKey Pivot;
 
 };
 
@@ -137,9 +140,11 @@ struct TBlockInfo
 template <template <typename T> class TComparator>
 struct TIndexComparator
 {
-    bool operator()(const NChunkClient::NProto::TKey& key, const NProto::TIndexRow& row)
+    bool operator()(const NVersionedTableClient::TKey& key, const NProto::TIndexRow& row)
     {
-        return Comparator(CompareKeys(key, row.key()), 0);
+        NVersionedTableClient::TOwningKey indexKey;
+        FromProto(&indexKey, row.key());
+        return Comparator(CompareRows(key, indexKey), 0);
     }
 
     TComparator<int> Comparator;
@@ -180,9 +185,8 @@ public:
         tags.push_back(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
-        HasRangeRequest =
-            (StartLimit.has_key() && (StartLimit.key().parts_size() > 0)) ||
-            (EndLimit.has_key() && (EndLimit.key().parts_size() > 0));
+        HasRangeRequest = StartLimit.HasKey()||
+            (EndLimit.HasKey() && (EndLimit.GetKey().GetValueCount() > 0));
 
         if (HasRangeRequest) {
             tags.push_back(TProtoExtensionTag<NProto::TIndexExt>::Value);
@@ -248,12 +252,12 @@ private:
 
         chunkReader->EndRowIndex = miscExt.row_count();
 
-        if (StartLimit.has_row_index()) {
-            chunkReader->StartRowIndex = std::max(chunkReader->StartRowIndex, StartLimit.row_index());
+        if (StartLimit.HasRowIndex()) {
+            chunkReader->StartRowIndex = std::max(chunkReader->StartRowIndex, StartLimit.GetRowIndex());
         }
 
-        if (EndLimit.has_row_index()) {
-            chunkReader->EndRowIndex = std::min(chunkReader->EndRowIndex, EndLimit.row_index());
+        if (EndLimit.HasRowIndex()) {
+            chunkReader->EndRowIndex = std::min(chunkReader->EndRowIndex, EndLimit.GetRowIndex());
         }
 
         if (HasRangeRequest || chunkReader->Options->ReadKey) {
@@ -278,15 +282,18 @@ private:
                 }
             }
 
-            chunkReader->CurrentKey.ClearAndResize(chunkReader->KeyColumnsExt.names_size());
+            chunkReader->CurrentKey = TKey::Allocate(
+                &chunkReader->KeyMemoryPool,
+                chunkReader->KeyColumnsExt.names_size());
+            chunkReader->ClearKey();
         }
 
         if (HasRangeRequest) {
             auto indexExt = GetProtoExtension<NProto::TIndexExt>(
                 chunkMeta.extensions());
 
-            if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
-                StartValidator.reset(new TKeyValidator(StartLimit.key(), true));
+            if (StartLimit.HasKey()) {
+                StartValidator.reset(new TKeyValidator(StartLimit.GetKey(), true));
 
                 typedef decltype(indexExt.items().begin()) TSampleIter;
                 std::reverse_iterator<TSampleIter> rbegin(indexExt.items().end());
@@ -294,7 +301,7 @@ private:
                 auto it = std::upper_bound(
                     rbegin,
                     rend,
-                    StartLimit.key(),
+                    StartLimit.GetKey(),
                     TIndexComparator<std::greater>());
 
                 if (it != rend) {
@@ -302,13 +309,13 @@ private:
                 }
             }
 
-            if (EndLimit.has_key() && EndLimit.key().parts_size() > 0) {
-                chunkReader->EndValidator.reset(new TKeyValidator(EndLimit.key(), false));
+            if (EndLimit.HasKey()) {
+                chunkReader->EndValidator.reset(new TKeyValidator(EndLimit.GetKey(), false));
 
                 auto it = std::upper_bound(
                     indexExt.items().begin(),
                     indexExt.items().end(),
-                    EndLimit.key(),
+                    EndLimit.GetKey(),
                     TIndexComparator<std::less>());
 
                 if (it != indexExt.items().end()) {
@@ -590,8 +597,8 @@ private:
 
     TChannel Channel;
 
-    NChunkClient::NProto::TReadLimit StartLimit;
-    NChunkClient::NProto::TReadLimit EndLimit;
+    TReadLimit StartLimit;
+    TReadLimit EndLimit;
 
     std::unique_ptr<TKeyValidator> StartValidator;
 
@@ -804,6 +811,13 @@ void TTableChunkReader::OnRowFetched(TError error)
     }
 }
 
+void TTableChunkReader::ClearKey()
+{
+    for (int i = 0; i < CurrentKey.GetValueCount(); ++i) {
+        CurrentKey[i] = MakeUnversionedSentinelValue(EValueType::Null);
+    }
+}
+
 bool TTableChunkReader::DoFetchNextRow()
 {
     CurrentRowIndex = std::min(CurrentRowIndex + 1, EndRowIndex);
@@ -815,7 +829,7 @@ bool TTableChunkReader::DoFetchNextRow()
     }
 
     CurrentRow.clear();
-    CurrentKey.Clear();
+    ClearKey();
 
     return ContinueFetchNextRow(-1, TError());
 }
@@ -904,10 +918,7 @@ void TTableChunkReader::MakeCurrentRow()
 
                 if (columnInfo.KeyIndex >= 0) {
                     // Use first token to create key part.
-                    CurrentKey.SetKeyPart(
-                        columnInfo.KeyIndex,
-                        reader->GetValue(),
-                        Lexer);
+                    CurrentKey[columnInfo.KeyIndex] = MakeKeyPart(reader->GetValue(), Lexer);
                 }
 
                 if (columnInfo.InChannel) {
@@ -926,7 +937,7 @@ const TRow& TTableChunkReader::GetRow() const
     return CurrentRow;
 }
 
-const TNonOwningKey& TTableChunkReader::GetKey() const
+const NVersionedTableClient::TKey& TTableChunkReader::GetKey() const
 {
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);

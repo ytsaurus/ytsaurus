@@ -3,11 +3,15 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/row.h>
+#include <core/ytree/convert.h>
 
 #include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
+
+using namespace NYTree;
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +75,20 @@ TEST(TUnversionedRowTest, Serialize3)
     builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
     builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
     CheckSerialize(builder.Finish());
+}
+
+TEST(TUnversionedRowTest, Serialize4)
+{
+    // TODO(babenko): cannot test Any type at the moment since CompareRowValues does not work
+    // for it.
+    TUnversionedRowBuilder builder;
+    builder.AddValue(MakeUnversionedStringValue("string1"));
+    builder.AddValue(MakeStringValue<TUnversionedValue>("string2"));
+    auto row = builder.GetRow();
+    Cout << ConvertToYsonString(row).Data() << Endl;
+    //builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
+    //builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
+    CheckSerialize(builder.GetRow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

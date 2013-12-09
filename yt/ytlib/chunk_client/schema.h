@@ -91,19 +91,5 @@ void Deserialize(TChannel& channel, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
-void Deserialize(TReadLimit& readLimit, NYTree::INodePtr node);
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsNontrivial(const NProto::TReadLimit& limit);
-bool IsTrivial(const NProto::TReadLimit& limit);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NChunkClient
 } // namespace NYT

@@ -80,7 +80,7 @@ void TBlockWriter::WriteString(const TVersionedValue& value, int index)
         column.NullBitMap.Push(false);
     } else {
         ui32 offset = FixedBuffer.GetSize();
-        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarintSize), value.Length));
+        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarInt64Size), value.Length));
         FixedBuffer.DoWrite(value.Data.String, value.Length);
 
         column.Stream.DoWrite(&offset, sizeof(ui32));
@@ -107,7 +107,7 @@ TStringBuf TBlockWriter::WriteKeyString(const TVersionedValue& value, int index)
         ui32 offset = FixedBuffer.GetSize();
         column.Stream.DoWrite(&offset, sizeof(ui32));
 
-        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarintSize), value.Length));
+        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarInt64Size), value.Length));
         char* pos = FixedBuffer.Allocate(value.Length);
         std::copy(value.Data.String, value.Data.String + value.Length, pos);
         FixedBuffer.Skip(value.Length);
@@ -120,13 +120,13 @@ void TBlockWriter::WriteVariable(const TVersionedValue& value, int nameTableInde
     ++VariableColumnCount;
 
     // Index in name table.
-    VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), nameTableIndex));
+    VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarInt64Size), nameTableIndex));
 
     if (value.Type == EValueType::Null) {
-       VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), 0));
+       VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarInt64Size), 0));
     } else if (value.Type == EValueType::Any) {
         // Length
-        VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarintSize), value.Length));
+        VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarInt64Size), value.Length));
         // Yson
         VariableBuffer.DoWrite(value.Data.String, value.Length);
     } else {
@@ -149,7 +149,7 @@ void TBlockWriter::WriteVariable(const TVersionedValue& value, int nameTableInde
 
         // Length
         VariableBuffer.Skip(WriteVarUInt64(
-            VariableBuffer.Allocate(MaxVarintSize), 
+            VariableBuffer.Allocate(MaxVarInt64Size),
             IntermediateBuffer.Size()));
         // Yson
         VariableBuffer.DoWrite(IntermediateBuffer.Begin(), IntermediateBuffer.Size());

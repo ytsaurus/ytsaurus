@@ -6,6 +6,7 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
@@ -24,6 +25,7 @@ using namespace NYson;
 using namespace NTransactionServer;
 
 using NChunkClient::TChannel;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,8 +82,8 @@ private:
             THROW_ERROR_EXCEPTION("Column selectors are not supported for files");
         }
 
-        if (upperLimit.has_key() || upperLimit.has_row_index() ||
-            lowerLimit.has_key() || lowerLimit.has_row_index())
+        if (upperLimit.HasKey() || upperLimit.HasRowIndex() ||
+            lowerLimit.HasKey() || lowerLimit.HasRowIndex())
         {
             THROW_ERROR_EXCEPTION("Row selectors are not supported for files");
         }

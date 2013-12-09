@@ -22,6 +22,8 @@
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/config.h>
 
+#include <ytlib/new_table_client/row.h>
+
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/public.h>
@@ -192,7 +194,7 @@ protected:
 
     struct TEndpoint
     {
-        NChunkClient::NProto::TKey Key;
+        NVersionedTableClient::TOwningKey Key;
         bool Left;
         int ChunkTreeKey;
 

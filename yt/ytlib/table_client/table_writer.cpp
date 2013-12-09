@@ -334,6 +334,8 @@ void TAsyncTableWriter::Close()
     }
 
     if (Options->KeyColumns) {
+        using NYT::ToProto;
+
         auto path = RichPath.GetPath();
         auto keyColumns = Options->KeyColumns.Get();
         LOG_INFO("Marking table as sorted by %s",

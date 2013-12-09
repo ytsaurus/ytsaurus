@@ -18,8 +18,9 @@ namespace NScheduler {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NVersionedTableClient;
 
-using NChunkClient::NProto::TKey;
+using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -77,7 +78,7 @@ void TSamplesFetcher::Prepare(const std::vector<TRefCountedChunkSpecPtr>& chunks
     CurrentSize = SizeBetweenSamples;
 }
 
-const std::vector<TKey>& TSamplesFetcher::GetSamples() const
+const std::vector<TOwningKey>& TSamplesFetcher::GetSamples() const
 {
     return Samples;
 }
@@ -142,7 +143,9 @@ TError TSamplesFetcher::ProcessResponseItem(
         index);
 
     for (const auto& sample : chunkSamples.items()) {
-        Samples.push_back(sample);
+        TOwningKey key;
+        FromProto(&key, sample);
+        Samples.push_back(key);
     }
 
     return TError();

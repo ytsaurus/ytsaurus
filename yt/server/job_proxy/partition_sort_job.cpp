@@ -11,9 +11,10 @@
 
 #include <ytlib/table_client/value.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
+#include <ytlib/new_table_client/row.h>
 
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
@@ -24,6 +25,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NYTree;
@@ -31,6 +33,9 @@ using namespace NYson;
 using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
+
+using NVersionedTableClient::TKey;
+using NTableClient::TRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,7 +197,8 @@ public:
 
                 TMemoryInput input;
                 TRow row;
-                TNonOwningKey key(keyColumnCount);
+                TChunkedMemoryPool keyMemoryPool;
+                TKey key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 bool isRowReady = false;
 
                 auto prepareRow = [&] () {
@@ -202,10 +208,10 @@ public:
                     rowIndexHeap.pop_back();
 
                     // Prepare key.
-                    key.Clear();
+                    ResetToNull(&key);
                     for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                         auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
-                        SetKeyPart(&key, keyPart, keyIndex);
+                        key[keyIndex] = MakeKeyPart(keyPart);
                     }
 
                     // Prepare row.

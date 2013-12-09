@@ -5,8 +5,6 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/chunk_client/key.h>
-
 namespace NYT {
 namespace NScheduler {
 

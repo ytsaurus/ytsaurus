@@ -18,6 +18,8 @@
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/sync_writer.h>
 
+#include <ytlib/new_table_client/row.h>
+
 #include <core/yson/lexer.h>
 
 namespace NYT {
@@ -30,6 +32,8 @@ using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
+
+using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,8 +79,10 @@ public:
 
         if (PartitionJobSpecExt.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt.partition_keys_size() + 1 == PartitionJobSpecExt.partition_count());
-            for (const auto& key : PartitionJobSpecExt.partition_keys()) {
-                PartitionKeys.push_back(TOwningKey::FromProto(key));
+            for (const auto& protoKey : PartitionJobSpecExt.partition_keys()) {
+                TOwningKey key;
+                FromProto(&key, protoKey);
+                PartitionKeys.push_back(key );
             }
             Partitioner = CreateOrderedPartitioner(&PartitionKeys);
         } else {

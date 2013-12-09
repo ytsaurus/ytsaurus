@@ -21,12 +21,12 @@
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/private.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
@@ -1274,7 +1274,7 @@ void TOperationControllerBase::CommitResults()
                     [=] (const TEndpoint& lhs, const TEndpoint& rhs) -> bool {
                         // First sort by keys.
                         // Then sort by ChunkTreeKeys.
-                        auto keysResult = NChunkClient::NProto::CompareKeys(lhs.Key, rhs.Key);
+                        auto keysResult = CompareRows(lhs.Key, rhs.Key);
                         if (keysResult != 0) {
                             return keysResult < 0;
                         }
@@ -2905,17 +2905,17 @@ void TOperationControllerBase::RegisterEndpoints(
     int key,
     TOutputTable* outputTable)
 {
-    YCHECK(boundaryKeys.start() <= boundaryKeys.end());
+    YCHECK(CompareKeys(boundaryKeys.start(), boundaryKeys.end()) <= 0);
     {
         TEndpoint endpoint;
-        endpoint.Key = boundaryKeys.start();
+        FromProto(&endpoint.Key, boundaryKeys.start());
         endpoint.Left = true;
         endpoint.ChunkTreeKey = key;
         outputTable->Endpoints.push_back(endpoint);
     }
     {
         TEndpoint endpoint;
-        endpoint.Key = boundaryKeys.end();
+        FromProto(&endpoint.Key, boundaryKeys.end());
         endpoint.Left = false;
         endpoint.ChunkTreeKey = key;
         outputTable->Endpoints.push_back(endpoint);

@@ -17,6 +17,7 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NYTree;
 
@@ -46,7 +47,7 @@ void TPartitionChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 
 void TPartitionChunkWriterFacade::WriteRowUnsafe(
     const TRow& row,
-    const TNonOwningKey& key)
+    const NVersionedTableClient::TKey& key)
 {
     UNUSED(key);
     WriteRowUnsafe(row);
@@ -124,12 +125,12 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
     YASSERT(State.IsActive());
 
     int keyColumnCount = Options->KeyColumns.Get().size();
-    TNonOwningKey key(keyColumnCount);
+    TPartitionKey key(keyColumnCount, MakeUnversionedSentinelValue(EValueType::Null));
 
     for (const auto& pair : row) {
         auto it = KeyColumnIndexes.find(pair.first);
         if (it != KeyColumnIndexes.end()) {
-            key.SetKeyPart(it->second, pair.second, Lexer);
+            key[it->second] = MakeKeyPart(pair.second, Lexer);
         }
     }
 

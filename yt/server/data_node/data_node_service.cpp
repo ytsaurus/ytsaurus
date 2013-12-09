@@ -23,11 +23,13 @@
 #include <core/concurrency/parallel_awaiter.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/private.h>
+#include <ytlib/new_table_client/row.h>
 
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -46,6 +48,7 @@ using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NCellNode;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -616,6 +619,27 @@ void TDataNodeService::ProcessSample(
         return;
     }
 
+    if (result.GetValue().type() != EChunkType::Table) {
+        auto error = TError("Invalid chunk type (Actual: %s, Expected: %s)",
+            ~FormatEnum(EChunkType(result.GetValue().type())),
+            ~FormatEnum(EChunkType(EChunkType::Table)));
+        LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
+            ~ToString(chunkId));
+        ToProto(chunkSamples->mutable_error(), error);
+        return;
+    }
+
+    // XXX(psushin): implement sampling for new chunks.
+    if (result.GetValue().version() != 1) {
+        // Only old chunks support sampling now.
+        auto error = TError("Invalid chunk version (Expected: 1, Actual: %d)",
+            result.GetValue().version());
+        LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
+            ~ToString(chunkId));
+        ToProto(chunkSamples->mutable_error(), error);
+        return;
+    }
+
     auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.GetValue().extensions());
     std::vector<NTableClient::NProto::TSample> samples;
     RandomSampleN(
@@ -624,6 +648,7 @@ void TDataNodeService::ProcessSample(
         std::back_inserter(samples),
         sampleRequest->sample_count());
 
+    TUnversionedRowBuilder rowBuilder;
     for (const auto& sample : samples) {
         auto* key = chunkSamples->add_items();
 
@@ -632,7 +657,6 @@ void TDataNodeService::ProcessSample(
             if (size >= MaxKeySize)
                 break;
 
-            auto* keyPart = key->add_parts();
             auto it = std::lower_bound(
                 sample.parts().begin(),
                 sample.parts().end(),
@@ -641,33 +665,33 @@ void TDataNodeService::ProcessSample(
                     return part.column() < column;
             });
 
-            size += sizeof(int); // part type
+            TUnversionedValue keyPart = MakeUnversionedSentinelValue(EValueType::Null);
+            size += sizeof(keyPart); // part type
             if (it != sample.parts().end() && it->column() == column) {
-                keyPart->set_type(it->key_part().type());
                 switch (it->key_part().type()) {
                 case EKeyPartType::Composite:
+                    keyPart = MakeUnversionedAnyValue(TStringBuf());
                     break;
                 case EKeyPartType::Integer:
-                    keyPart->set_int_value(it->key_part().int_value());
-                    size += sizeof(keyPart->int_value());
+                    keyPart = MakeUnversionedIntegerValue(it->key_part().int_value());
                     break;
                 case EKeyPartType::Double:
-                    keyPart->set_double_value(it->key_part().double_value());
-                    size += sizeof(keyPart->double_value());
+                    keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                     break;
                 case EKeyPartType::String: {
                     auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
-                    keyPart->set_str_value(it->key_part().str_value().begin(), partSize);
+                    auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
+                    keyPart = MakeUnversionedStringValue(value);
                     size += partSize;
                     break;
                 }
                 default:
                     YUNREACHABLE();
                 }
-            } else {
-                keyPart->set_type(EKeyPartType::Null);
             }
+            rowBuilder.AddValue(keyPart);
         }
+        ToProto(key, rowBuilder.GetRow());
     }
 }
 
@@ -718,37 +742,44 @@ void TDataNodeService::MakeChunkSplits(
     auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
     if (!result.IsOK()) {
-        auto error = TError("Error getting meta of chunk %s", ~ToString(chunkId))
-            << result;
-        LOG_ERROR(error);
+        auto error = TError("Error getting chunk meta") << result;
+        LOG_WARNING(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
     if (result.GetValue().type() != EChunkType::Table) {
-        auto error =  TError("Requested chunk splits for non-table chunk %s",
-            ~ToString(chunkId));
-        LOG_ERROR(error);
+        auto error =  TError("Invalid chunk type (Expected: table, Actual: %s",
+            ~FormatEnum(EChunkType(result.GetValue().type())));
+        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
+        ToProto(splittedChunk->mutable_error(), error);
+        return;
+    }
+
+    // XXX(psushin): implement splitting for new chunks.
+    if (result.GetValue().version() != 1) {
+        // Only old chunks support splitting now.
+        auto error = TError("Invalid chunk version (Expected: 1, Actual: %d)",
+            result.GetValue().version());
+        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
     auto miscExt = GetProtoExtension<TMiscExt>(result.GetValue().extensions());
     if (!miscExt.sorted()) {
-        auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s",
-            ~ToString(chunkId));
-        LOG_ERROR(error);
+        auto error =  TError("Chunk is unsorted");
+        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
     auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.GetValue().extensions());
     if (keyColumnsExt.names_size() < keyColumns.size()) {
-        auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d",
-            ~ToString(chunkId),
+        auto error = TError("Not enough key columns (Expected %d, Actual %d",
             static_cast<int>(keyColumns.size()),
             static_cast<int>(keyColumnsExt.names_size()));
-        LOG_ERROR(error);
+        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
@@ -756,10 +787,10 @@ void TDataNodeService::MakeChunkSplits(
     for (int i = 0; i < keyColumns.size(); ++i) {
         const auto& value = keyColumnsExt.names(i);
         if (keyColumns[i] != value) {
-            auto error = TError("Invalid key columns: expected %s, actual %s",
+            auto error = TError("Invalid key columns (Expected %s, Actual %s",
                 ~keyColumns[i].Quote(),
                 ~value.Quote());
-            LOG_ERROR(error);
+            LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
             ToProto(splittedChunk->mutable_error(), error);
             return;
         }
@@ -779,24 +810,28 @@ void TDataNodeService::MakeChunkSplits(
         miscExt.uncompressed_data_size() /
         indexExt.items_size()));
 
+    using NChunkClient::TReadLimit;
+    using NVersionedTableClient::TOwningKey;
     auto comparer = [&] (
         const TReadLimit& limit,
         const NTableClient::NProto::TIndexRow& indexRow,
         bool isStartLimit) -> int
     {
-        if (!limit.has_row_index() && !limit.has_key()) {
+        if (!limit.HasRowIndex() && !limit.HasKey()) {
             return isStartLimit ? -1 : 1;
         }
 
         auto result = 0;
-        if (limit.has_row_index()) {
-            auto diff = limit.row_index() - indexRow.row_index();
+        if (limit.HasRowIndex()) {
+            auto diff = limit.GetRowIndex() - indexRow.row_index();
             // Sign function.
             result += (diff > 0) - (diff < 0);
         }
 
-        if (limit.has_key()) {
-            result += CompareKeys(limit.key(), indexRow.key(), keyColumns.size());
+        if (limit.HasKey()) {
+            TOwningKey indexKey;
+            FromProto(&indexKey, indexRow.key());
+            result += CompareRows(limit.GetKey(), indexKey, keyColumns.size());
         }
 
         if (result == 0) {
@@ -809,7 +844,7 @@ void TDataNodeService::MakeChunkSplits(
     auto beginIt = std::lower_bound(
         indexExt.items().begin(),
         indexExt.items().end(),
-        chunkSpec->start_limit(),
+        TReadLimit(chunkSpec->start_limit()),
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
              const TReadLimit& limit)
         {
@@ -819,7 +854,7 @@ void TDataNodeService::MakeChunkSplits(
     auto endIt = std::upper_bound(
         beginIt,
         indexExt.items().end(),
-        chunkSpec->end_limit(),
+        TReadLimit(chunkSpec->end_limit()),
         [&] (const TReadLimit& limit,
              const NTableClient::NProto::TIndexRow& indexRow)
         {
@@ -874,11 +909,14 @@ void TDataNodeService::MakeChunkSplits(
             SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
 
             key = GetKeySuccessor(key);
-            *currentSplit->mutable_end_limit()->mutable_key() = key;
+            TOwningKey limitKey;
+            FromProto(&limitKey, key);
+
+            ToProto(currentSplit->mutable_end_limit()->mutable_key(), limitKey);
 
             createNewSplit();
             *boundaryKeysExt.mutable_start() = key;
-            *currentSplit->mutable_start_limit()->mutable_key() = key;
+            ToProto(currentSplit->mutable_start_limit()->mutable_key(), limitKey);
         }
     }
 

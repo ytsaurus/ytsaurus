@@ -9,12 +9,14 @@
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
+
+#include <ytlib/new_table_client/row.h>
 
 #include <core/yson/lexer.h>
 
@@ -22,12 +24,16 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient::NProto;
+
+using NVersionedTableClient::TKey;
+using NTableClient::TRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,10 +198,11 @@ public:
             LOG_INFO("Writing");
             {
                 TRow row;
-                TNonOwningKey key(keyColumnCount);
+                TChunkedMemoryPool keyMemoryPool;
+                TKey key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
                     row.clear();
-                    key.Clear();
+                    ResetToNull(&key);
 
                     ui32 rowIndex = rowIndexBuffer[progressIndex];
                     for (ui32 valueIndex = valueIndexBuffer[rowIndex];
@@ -207,7 +214,7 @@ public:
 
                     for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                         auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
-                        SetKeyPart(&key, keyPart, keyIndex);
+                        key[keyIndex] = MakeKeyPart(keyPart);
                     }
 
                     Writer->WriteRowUnsafe(row, key);

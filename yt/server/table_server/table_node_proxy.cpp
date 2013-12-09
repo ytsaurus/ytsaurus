@@ -16,6 +16,7 @@
 #include <ytlib/table_client/table_ypath_proxy.h>
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
@@ -43,6 +44,7 @@ using namespace NTransactionServer;
 using namespace NTabletServer;
 
 using NChunkClient::TChannel;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +127,7 @@ void TTableNodeProxy::ValidatePathAttributes(
 {
     UNUSED(channel);
 
-    if (upperLimit.has_offset() || lowerLimit.has_offset()) {
+    if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
         THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
     }
 }

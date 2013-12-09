@@ -8,7 +8,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NYTree;
-using namespace NChunkClient;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,17 +20,17 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TSta
 
     switch (token.GetType()) {
     case NYson::ETokenType::Integer:
-        keyPart.Type = EKeyPartType::Integer;
+        keyPart.Type = EValueType::Integer;
         keyPart.Value.Int = token.GetIntegerValue();
         break;
 
     case NYson::ETokenType::Double:
-        keyPart.Type = EKeyPartType::Double;
+        keyPart.Type = EValueType::Double;
         keyPart.Value.Double = token.GetDoubleValue();
         break;
 
     case NYson::ETokenType::String: {
-        keyPart.Type = EKeyPartType::String;
+        keyPart.Type = EValueType::String;
         auto& value = token.GetStringValue();
         keyPart.Value.Str = ~value;
         keyPart.Length = static_cast<ui32>(value.size());
@@ -38,7 +38,7 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TSta
     }
 
     default:
-        keyPart.Type = EKeyPartType::Composite;
+        keyPart.Type = EValueType::Any;
         break;
     }
 }
@@ -50,25 +50,25 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
     }
 
     switch (lhs.Type) {
-    case EKeyPartType::Integer:
+    case EValueType::Integer:
         if (lhs.Value.Int > rhs.Value.Int)
             return 1;
         if (lhs.Value.Int < rhs.Value.Int)
             return -1;
         return 0;
 
-    case EKeyPartType::Double:
+    case EValueType::Double:
         if (lhs.Value.Double > rhs.Value.Double)
             return 1;
         if (lhs.Value.Double < rhs.Value.Double)
             return -1;
         return 0;
 
-    case EKeyPartType::String:
+    case EValueType::String:
         return lhs.GetString().compare(rhs.GetString());
 
-    case EKeyPartType::Composite:
-    case EKeyPartType::Null:
+    case EValueType::Any:
+    case EValueType::Null:
         return 0;
 
     default:
@@ -78,26 +78,23 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
     YUNREACHABLE();
 }
 
-
-void SetKeyPart(TNonOwningKey* key, const TSmallKeyPart& keyPart, int keyIndex)
+TUnversionedValue MakeKeyPart(const TSmallKeyPart& keyPart)
 {
     switch (keyPart.Type) {
-    case EKeyPartType::Integer:
-        key->SetValue(keyIndex, keyPart.Value.Int);
-        break;
+    case EValueType::Integer:
+        return MakeUnversionedIntegerValue(keyPart.Value.Int);
 
-    case EKeyPartType::Double:
-        key->SetValue(keyIndex, keyPart.Value.Double);
-        break;
+    case EValueType::Double:
+        return MakeUnversionedDoubleValue(keyPart.Value.Double);
 
-    case EKeyPartType::String:
-        key->SetValue(keyIndex, keyPart.GetString());
-        break;
+    case EValueType::String:
+        return MakeUnversionedStringValue(keyPart.GetString());
 
-    case EKeyPartType::Null:
-    case EKeyPartType::Composite:
-        key->SetSentinel(keyIndex, keyPart.Type);
-        break;
+    case EValueType::Null:
+        return MakeUnversionedSentinelValue(EValueType::Null);
+
+    case EValueType::Any:
+        return MakeUnversionedAnyValue(TStringBuf());
 
     default:
         YUNREACHABLE();

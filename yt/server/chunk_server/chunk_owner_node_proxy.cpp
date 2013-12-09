@@ -28,8 +28,10 @@ using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NNodeTrackerServer;
+using namespace NVersionedTableClient;
 
 using NChunkClient::TChannel;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,10 +201,10 @@ bool TFetchChunkVisitor::OnChunk(
 
     // Try to keep responses small -- avoid producing redundant limits.
     if (IsNontrivial(startLimit)) {
-        *chunkSpec->mutable_start_limit() = startLimit;
+        *chunkSpec->mutable_start_limit() = startLimit.AsProto();
     }
     if (IsNontrivial(endLimit)) {
-        *chunkSpec->mutable_end_limit() = endLimit;
+        *chunkSpec->mutable_end_limit() = endLimit.AsProto();
     }
 
     return true;
@@ -776,10 +778,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         channel);
 
     if (complement) {
-        if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
+        if (lowerLimit.HasRowIndex() || lowerLimit.HasKey()) {
             visitor->StartSession(TReadLimit(), lowerLimit);
         }
-        if (upperLimit.has_row_index() || upperLimit.has_key()) {
+        if (upperLimit.HasRowIndex() || upperLimit.HasKey()) {
             visitor->StartSession(upperLimit, TReadLimit());
         }
     } else {

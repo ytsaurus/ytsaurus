@@ -6,13 +6,15 @@
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/compression/public.h>
+#include <core/yson/lexer.h>
+
+#include <ytlib/new_table_client/row.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
 namespace NYT {
@@ -31,7 +33,7 @@ public:
     void WriteRowUnsafe(const TRow& row);
 
     // Required by SyncWriterAdapter.
-    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key);
 
 private:
     friend class TPartitionChunkWriter;

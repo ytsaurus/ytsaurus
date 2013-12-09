@@ -3,9 +3,9 @@
 #include "private.h"
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/key.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/private.h>
 
 #include <core/rpc/channel_cache.h>
 

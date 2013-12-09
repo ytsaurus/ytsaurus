@@ -11,6 +11,11 @@
 
 #include <ytlib/chunk_client/schema.pb.h>
 
+#include <core/misc/chunked_memory_pool.h>
+#include <core/misc/varint.h>
+#include <core/misc/serialize.h>
+#include <core/misc/string.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -209,6 +214,15 @@ static_assert(sizeof(TRowHeader) == 8, "TRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int GetByteSize(const TUnversionedValue& value);
+int WriteValue(char* output, const TUnversionedValue& value);
+int ReadValue(const char* input, TUnversionedValue* value);
+Stroka ToString(const TUnversionedValue& value);
+
+int GetByteSize(const TVersionedValue& value);
+int WriteValue(char* output, const TVersionedValue& value);
+int ReadValue(const char* input, TVersionedValue* value);
+
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
@@ -216,6 +230,15 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 //! Ternary comparison predicate for TRow-s stripped to a given number of
 //! (leading) values.
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength = std::numeric_limits<int>::max());
+
+bool operator== (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator!= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator<= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator< (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator>= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator> (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+
+void ResetToNull(TUnversionedRow* row);
 
 //! Computes hash for a given TUnversionedValue.
 size_t GetHash(const TUnversionedValue& value);
@@ -348,13 +371,78 @@ TKey MaxKey();
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
+void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
 
 void Serialize(TKey key, NYson::IYsonConsumer* consumer);
 void Deserialize(TOwningKey& key, NYTree::INodePtr node);
 
+Stroka ToString(const TUnversionedOwningRow& row);
+Stroka ToString(const TUnversionedRow& row);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOwningRowTag { };
+
+template<class TRow>
+size_t GetHash(const TRow& row) {
+    size_t result = 0xdeadc0de;
+    int partCount = row.size();
+    for (int i = 0; i < partCount; ++i) {
+        result = (result * 1000003) ^ GetHash(row[i]);
+    }
+    return result ^ partCount;
+}
+
+template <class TRow>
+Stroka SerializeToString(const TRow& row)
+{
+    int size = 2 * MaxVarUInt32Size; // header size
+    for (int i = 0; i < row.size(); ++i) {
+        size += GetByteSize(row[i]);
+    }
+
+    Stroka buffer;
+    buffer.resize(size);
+
+    char* current = const_cast<char*>(buffer.data());
+    current += WriteVarUInt32(current, 0); // format version
+    current += WriteVarUInt32(current, static_cast<ui32>(row.size()));
+
+    for (int i = 0; i < row.size(); ++i) {
+        current += WriteValue(current, row[i]);
+    }
+    buffer.resize(current - buffer.data());
+    return buffer;
+}
+
+template <class TValue>
+TOwningRow<TValue> DeserializeFromString(const Stroka& data)
+{
+    const char* current = ~data;
+
+    ui32 version;
+    current += ReadVarUInt32(current, &version);
+    YCHECK(version == 0);
+
+    ui32 valueCount;
+    current += ReadVarUInt32(current, &valueCount);
+
+    size_t fixedSize = GetRowDataSize<TValue>(valueCount);
+    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
+
+    header->ValueCount = static_cast<i32>(valueCount);
+
+    TValue* values = reinterpret_cast<TValue*>(header + 1);
+    for (int index = 0; index < valueCount; ++index) {
+        TValue* value = values + index;
+        current += ReadValue(current, value);
+    }
+
+    return TOwningRow<TValue>(std::move(rowData), data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! An immutable owning version of TRow.
 /*!
@@ -430,19 +518,17 @@ public:
         return GetValueCount();
     }
 
-
-    const TValue& operator[](int index) const
-    {
-        YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<const TValue*>(GetHeader() + 1)[index];
-    }
-
     TValue& operator[](int index)
     {
         YASSERT(index >= 0 && index < GetValueCount());
         return reinterpret_cast<TValue*>(GetHeader() + 1)[index];
     }
 
+    const TValue& operator[](int index) const
+    {
+        YASSERT(index >= 0 && index < GetValueCount());
+        return reinterpret_cast<const TValue*>(GetHeader() + 1)[index];
+    }
 
     const TValue* Begin() const
     {
@@ -465,12 +551,10 @@ public:
         return Begin() + GetValueCount();
     }
 
-
     operator TRow<TValue> () const
     {
         return TRow<TValue>(const_cast<TRowHeader*>(GetHeader()));
     }
-
 
     friend void swap(TOwningRow& lhs, TOwningRow& rhs)
     {
@@ -485,28 +569,27 @@ public:
         return *this;
     }
 
-
     void Save(TStreamSaveContext& context) const
     {
-        TProtoStringType str;
-        ToProto(&str, *this);
         using NYT::Save;
-        Save(context, str);
+        Save(context, SerializeToString(*this));
     }
 
     void Load(TStreamLoadContext& context)
     {
         using NYT::Load;
-        auto str = Load<Stroka>(context);
-        FromProto(this, str);
+        Stroka data;
+        Load(context, data);
+        *this = DeserializeFromString<TValue>(data);
     }
 
 private:
-    friend void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
-    friend void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
+    friend void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
-    friend class TOwningRowBuilder<TValue>;
 
+    friend TOwningRow<TValue> DeserializeFromString<TValue>(const Stroka& data);
+
+    friend class TOwningRowBuilder<TValue>;
 
     TSharedRef RowData; // TRowHeader plus TValue-s
     Stroka StringData;  // Holds string data
@@ -550,7 +633,7 @@ public:
     void AddValue(const TValue& value)
     {
         if (GetHeader()->ValueCount == ValueCapacity_) {
-            ValueCapacity_ *= 2;
+            ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
             RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
         }
 
@@ -704,8 +787,8 @@ public:
     template <class TLhs, class TRhs>
     int operator () (TLhs lhs, TRhs rhs) const
     {
-        int lhsLength = std::min(lhs.size(), PrefixLength_);
-        int rhsLength = std::min(rhs.size(), PrefixLength_);
+        int lhsLength = std::min(static_cast<int>(lhs.size()), PrefixLength_);
+        int rhsLength = std::min(static_cast<int>(rhs.size()), PrefixLength_);
         int minLength = std::min(lhsLength, rhsLength);
         for (int index = 0; index < minLength; ++index) {
             int result = CompareRowValues(lhs[index], rhs[index]);

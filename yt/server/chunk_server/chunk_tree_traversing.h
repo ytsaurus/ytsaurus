@@ -6,7 +6,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <server/cell_master/public.h>
 
@@ -24,8 +24,8 @@ struct IChunkVisitor
     virtual bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
-        const NChunkClient::NProto::TReadLimit& startLimit,
-        const NChunkClient::NProto::TReadLimit& endLimit) = 0;
+        const NChunkClient::TReadLimit& startLimit,
+        const NChunkClient::TReadLimit& endLimit) = 0;
 
     virtual void OnError(const TError& error) = 0;
 
@@ -55,8 +55,8 @@ void TraverseChunkTree(
     IChunkTraverserCallbacksPtr bootstrap,
     IChunkVisitorPtr visitor,
     TChunkList* root,
-    const NChunkClient::NProto::TReadLimit& lowerBound = NChunkClient::NProto::TReadLimit(),
-    const NChunkClient::NProto::TReadLimit& upperBound = NChunkClient::NProto::TReadLimit());
+    const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
+    const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
 
 ////////////////////////////////////////////////////////////////////////////////
 

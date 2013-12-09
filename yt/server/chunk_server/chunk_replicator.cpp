@@ -48,6 +48,8 @@ using namespace NNodeTrackerServer;
 using namespace NChunkServer::NProto;
 using namespace NConcurrency;
 
+using NChunkClient::TReadLimit;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = ChunkServerLogger;

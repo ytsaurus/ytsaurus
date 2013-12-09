@@ -11,8 +11,9 @@
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/chunk_client/key.h>
+#include <ytlib/new_table_client/row.h>
 #include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 namespace NYT {
@@ -22,9 +23,7 @@ namespace NYPath {
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
-using NChunkClient::NProto::TKey;
-using NChunkClient::NProto::TKeyPart;
-using NChunkClient::NProto::TReadLimit;
+using namespace  NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,29 +221,26 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
 
 void ParseKeyPart(
     NYson::TTokenizer& tokenizer,
-    TKey* key)
+    TUnversionedOwningRowBuilder* rowBuilder)
 {
-    auto *keyPart = key->add_parts();
+    // We don't fill id here, because key part columns are well known.
+    // Also we don't have a name table for them :)
+    TUnversionedValue value;
 
     switch (tokenizer.GetCurrentType()) {
         case NYson::ETokenType::String: {
-            auto value = tokenizer.CurrentToken().GetStringValue();
-            keyPart->set_str_value(value.begin(), value.size());
-            keyPart->set_type(EKeyPartType::String);
+            auto str = tokenizer.CurrentToken().GetStringValue();
+            value = MakeUnversionedStringValue(str);
             break;
         }
 
         case NYson::ETokenType::Integer: {
-            auto value = tokenizer.CurrentToken().GetIntegerValue();
-            keyPart->set_int_value(value);
-            keyPart->set_type(EKeyPartType::Integer);
+            value = MakeUnversionedIntegerValue(tokenizer.CurrentToken().GetIntegerValue());
             break;
         }
 
         case NYson::ETokenType::Double: {
-            auto value = tokenizer.CurrentToken().GetDoubleValue();
-            keyPart->set_double_value(value);
-            keyPart->set_type(EKeyPartType::Double);
+            value = MakeUnversionedDoubleValue(tokenizer.CurrentToken().GetDoubleValue());
             break;
         }
 
@@ -252,6 +248,7 @@ void ParseKeyPart(
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;
     }
+    rowBuilder->AddValue(value);
     tokenizer.ParseNext();
 }
 
@@ -265,18 +262,18 @@ void ParseRowLimit(
         return;
     }
 
+    TUnversionedOwningRowBuilder rowBuilder;
     switch (tokenizer.GetCurrentType()) {
         case RowIndexMarkerToken:
             tokenizer.ParseNext();
-            limit->set_row_index(tokenizer.CurrentToken().GetIntegerValue());
+            limit->SetRowIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             break;
 
         case BeginTupleToken:
             tokenizer.ParseNext();
-            limit->mutable_key();
             while (tokenizer.GetCurrentType() != EndTupleToken) {
-                ParseKeyPart(tokenizer, limit->mutable_key());
+                ParseKeyPart(tokenizer, &rowBuilder);
                 switch (tokenizer.GetCurrentType()) {
                     case KeySeparatorToken:
                         tokenizer.ParseNext();
@@ -292,8 +289,13 @@ void ParseRowLimit(
             break;
 
         default:
-            ParseKeyPart(tokenizer, limit->mutable_key());
+            ParseKeyPart(tokenizer, &rowBuilder);
             break;
+    }
+
+    auto key = rowBuilder.Finish();
+    if (key.GetValueCount() > 0) {
+        limit->SetKey(key);
     }
 
     tokenizer.CurrentToken().CheckType(separator);
@@ -309,10 +311,10 @@ void ParseRowLimits(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
         ParseRowLimit(tokenizer, RangeToken, &lowerLimit);
         ParseRowLimit(tokenizer, EndRowSelectorToken, &upperLimit);
 
-        if (lowerLimit.has_key() || lowerLimit.has_row_index()) {
+        if (lowerLimit.HasKey() || lowerLimit.HasRowIndex()) {
             attributes->SetYson("lower_limit", ConvertToYsonString(lowerLimit));
         }
-        if (upperLimit.has_key() || upperLimit.has_row_index()) {
+        if (upperLimit.HasKey() || upperLimit.HasRowIndex()) {
             attributes->SetYson("upper_limit", ConvertToYsonString(upperLimit));
         }
     }

@@ -4,9 +4,10 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/chunk_spec.h>
+
+#include <ytlib/new_table_client/row.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
@@ -32,7 +33,7 @@ class TTableChunkReaderFacade
 {
 public:
     const TRow& GetRow() const;
-    const NChunkClient::TNonOwningKey& GetKey() const;
+    const NVersionedTableClient::TKey& GetKey() const;
     int GetTableIndex() const;
     i64 GetTableRowIndex() const;
 
@@ -81,7 +82,7 @@ public:
 
     // Called by facade.
     const TRow& GetRow() const;
-    const NChunkClient::TNonOwningKey& GetKey() const;
+    const NVersionedTableClient::TKey& GetKey() const;
     int GetTableIndex() const;
 
 private:
@@ -115,6 +116,8 @@ private:
     bool ValidateRow();
     void OnRowFetched(TError error);
 
+    void ClearKey();
+
     TColumnInfo& GetColumnInfo(const TStringBuf& column);
 
     TTableChunkReaderProviderPtr Provider;
@@ -133,7 +136,9 @@ private:
     TChunkReaderOptionsPtr Options;
 
     TRow CurrentRow;
-    NChunkClient::TNonOwningKey CurrentKey;
+    NVersionedTableClient::TKey CurrentKey;
+    TChunkedMemoryPool KeyMemoryPool;
+
     int TableIndex;
 
     NYson::TStatelessLexer Lexer;

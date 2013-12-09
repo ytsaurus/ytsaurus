@@ -12,7 +12,7 @@
 
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -82,14 +82,14 @@ TAsyncError TAsyncReader::AsyncOpen()
 
         i64 lowerLimit = Offset.Get(0);
         if (Offset) {
-            NChunkClient::NProto::TReadLimit limit;
-            limit.set_offset(*Offset);
+            TReadLimit limit;
+            limit.SetOffset(*Offset);
             attributes->SetYson("lower_limit", ConvertToYsonString(limit));
         }
 
         if (Length) {
-            NChunkClient::NProto::TReadLimit limit;
-            limit.set_offset(lowerLimit + *Length);
+            TReadLimit limit;
+            limit.SetOffset(lowerLimit + *Length);
             attributes->SetYson("upper_limit", ConvertToYsonString(limit));
         }
 

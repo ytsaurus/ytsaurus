@@ -3,7 +3,7 @@
 #include "config.h"
 #include "table_chunk_reader.h"
 
-#include <ytlib/chunk_client/key.h>
+#include <ytlib/new_table_client/row.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <core/misc/sync.h>
@@ -18,6 +18,7 @@ namespace NTableClient {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +28,7 @@ inline bool CompareReaders(
     const TTableChunkSequenceReader* lhs,
     const TTableChunkSequenceReader* rhs)
 {
-    int result = CompareKeys(lhs->GetFacade()->GetKey(), rhs->GetFacade()->GetKey());
+    int result = CompareRows(lhs->GetFacade()->GetKey(), rhs->GetFacade()->GetKey());
     if (result == 0) {
         result = lhs->GetFacade()->GetTableIndex() - rhs->GetFacade()->GetTableIndex();
     }
@@ -109,7 +110,7 @@ public:
         }
     }
 
-    virtual const TNonOwningKey& GetKey() const override
+    virtual const NVersionedTableClient::TKey& GetKey() const override
     {
         return ReaderHeap.front()->GetFacade()->GetKey();
     }

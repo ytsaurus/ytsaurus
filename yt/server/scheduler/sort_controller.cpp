@@ -20,6 +20,8 @@
 #include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
+#include <ytlib/new_table_client/row.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
@@ -39,6 +41,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
@@ -49,7 +52,7 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 
-using NChunkClient::NProto::TKey;
+using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1648,7 +1651,7 @@ private:
     TSortOperationSpecPtr Spec;
 
     //! |PartitionCount - 1| separating keys.
-    std::vector<TKey> PartitionKeys;
+    std::vector<TOwningKey> PartitionKeys;
 
 
     // Custom bits of preparation pipeline.
@@ -1715,13 +1718,13 @@ private:
         InitJobSpecTemplates();
     }
 
-    std::vector<const TKey*> SortSamples(TSamplesFetcherPtr samplesFetcher)
+    std::vector<const TOwningKey*> SortSamples(TSamplesFetcherPtr samplesFetcher)
     {
         const auto& samples = samplesFetcher->GetSamples();
         int sampleCount = static_cast<int>(samples.size());
         LOG_INFO("Sorting %d samples", sampleCount);
 
-        std::vector<const TKey*> sortedSamples;
+        std::vector<const TOwningKey*> sortedSamples;
         sortedSamples.reserve(sampleCount);
         for (const auto& sample : samples) {
             sortedSamples.push_back(&sample);
@@ -1730,14 +1733,14 @@ private:
         std::sort(
             sortedSamples.begin(),
             sortedSamples.end(),
-            [] (const TKey* lhs, const TKey* rhs) {
-                return CompareKeys(*lhs, *rhs) < 0;
+            [] (const TOwningKey* lhs, const TOwningKey* rhs) {
+                return CompareRows(*lhs, *rhs) < 0;
             });
 
         return sortedSamples;
     }
 
-    void BuildPartitions(const std::vector<const TKey*>& sortedSamples)
+    void BuildPartitions(const std::vector<const TOwningKey*>& sortedSamples)
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
@@ -1791,7 +1794,7 @@ private:
         SortStartThresholdReached = true;
     }
 
-    void AddPartition(const TKey& key)
+    void AddPartition(const TOwningKey& key)
     {
         using NChunkClient::ToString;
 
@@ -1800,13 +1803,13 @@ private:
             index,
             ~ToString(key));
 
-        YCHECK(PartitionKeys.empty() || CompareKeys(PartitionKeys.back(), key) < 0);
+        YCHECK(PartitionKeys.empty() || CompareRows(PartitionKeys.back(), key) < 0);
 
         PartitionKeys.push_back(key);
         Partitions.push_back(New<TPartition>(this, index));
     }
 
-    void BuildMulitplePartitions(const std::vector<const TKey*>& sortedSamples, int partitionCount)
+    void BuildMulitplePartitions(const std::vector<const TOwningKey*>& sortedSamples, int partitionCount)
     {
         LOG_INFO("Building partition keys");
 
@@ -1829,14 +1832,13 @@ private:
         while (sampleIndex < partitionCount - 1) {
             auto* sampleKey = getSampleKey(sampleIndex);
             // Check for same keys.
-            if (PartitionKeys.empty() || CompareKeys(*sampleKey, PartitionKeys.back()) != 0) {
+            if (PartitionKeys.empty() || CompareRows(*sampleKey, PartitionKeys.back()) != 0) {
                 AddPartition(*sampleKey);
-                ++sampleIndex;
-            } else {
+                ++sampleIndex;            } else {
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                    CompareKeys(*getSampleKey(sampleIndex), PartitionKeys.back()) == 0)
+                    CompareRows(*getSampleKey(sampleIndex), PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
@@ -1914,7 +1916,7 @@ private:
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(Partitions.size());
             for (const auto& key : PartitionKeys) {
-                *partitionJobSpecExt->add_partition_keys() = key;
+                ToProto(partitionJobSpecExt->add_partition_keys(), key);
             }
             ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->SortBy);
         }

@@ -10,8 +10,11 @@
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
+
+#include <ytlib/new_table_client/row.h>
 
 #include <core/rpc/channel.h>
 
@@ -29,6 +32,10 @@ using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
+
+using NTableClient::TRow;
+using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +72,7 @@ public:
         , EstimatedRowCount(estimatedRowCount)
         , TotalRowCount(0)
         , ReadRowCount(0)
-        , CurrentKey(KeyColumnCount)
+        , CurrentKey(TKey::Allocate(&KeyMemoryPool, KeyColumnCount))
         , SortComparer(this)
         , MergeComparer(this)
     {
@@ -97,7 +104,7 @@ public:
         return IsValid_ ? &CurrentRow : nullptr;
     }
 
-    virtual const TNonOwningKey& GetKey() const override
+    virtual const TKey& GetKey() const override
     {
         return CurrentKey;
     }
@@ -156,7 +163,9 @@ private:
 
     TMemoryInput RowInput;
     TRow CurrentRow;
-    TNonOwningKey CurrentKey;
+
+    TKey CurrentKey;
+    TChunkedMemoryPool KeyMemoryPool;
 
     std::vector<TSmallKeyPart> KeyBuffer;
     std::vector<const char*> RowPtrBuffer;
@@ -395,6 +404,13 @@ private:
         LOG_INFO("Finished merge");
     }
 
+    void ClearKey()
+    {
+        for (int i = 0; i < KeyColumnCount; ++i) {
+            CurrentKey[i] = MakeUnversionedSentinelValue(EValueType::Null);
+        }
+    }
+
     void DoNextRow()
     {
         if (ReadRowCount == TotalRowCount) {
@@ -418,10 +434,10 @@ private:
         auto sortedIndex = SortedIndexes[currentIndex];
 
         // Prepare key.
-        CurrentKey.Clear();
+        ClearKey();
         for (int index = 0; index < KeyColumnCount; ++index) {
             const auto& keyPart = KeyBuffer[sortedIndex * KeyColumnCount + index];
-            SetKeyPart(&CurrentKey, keyPart, index);
+            CurrentKey[index] = MakeKeyPart(keyPart);
         }
 
         // Prepare row.

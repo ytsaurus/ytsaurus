@@ -17,8 +17,6 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/chunk_client/key.h>
-
 #include <server/job_proxy/config.h>
 
 #include <cmath>

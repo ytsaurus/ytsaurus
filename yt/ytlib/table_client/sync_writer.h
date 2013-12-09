@@ -5,8 +5,9 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+
+#include <ytlib/new_table_client/row.h>
 
 #include <core/misc/ref_counted.h>
 #include <core/misc/nullable.h>
@@ -29,7 +30,7 @@ struct ISyncWriterUnsafe
     : public ISyncWriter
 {
     virtual void WriteRowUnsafe(const TRow& row) = 0;
-    virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) = 0;
+    virtual void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key) = 0;
 
     virtual const std::vector<NChunkClient::NProto::TChunkSpec>& GetWrittenChunks() const = 0;
 
@@ -73,7 +74,7 @@ public:
         GetCurrentWriter()->WriteRowUnsafe(row);
     }
 
-    virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) override
+    virtual void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key) override
     {
         EnsureOpen();
         GetCurrentWriter()->WriteRowUnsafe(row, key);

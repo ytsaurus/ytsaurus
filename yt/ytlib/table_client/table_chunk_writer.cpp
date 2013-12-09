@@ -24,6 +24,10 @@ namespace NTableClient {
 using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NVersionedTableClient;
+
+using NVersionedTableClient::TKey;
+using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +47,7 @@ void TTableChunkWriterFacade::WriteRow(const TRow& row)
 }
 
 // Used internally. All column names are guaranteed to be unique.
-void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row, const TKey& key)
 {
     Writer->WriteRowUnsafe(row, key);
 }
@@ -94,8 +98,9 @@ TTableChunkWriter::TTableChunkWriter(
 
     if (options->KeyColumns) {
         MiscExt.set_sorted(true);
-        CurrentKey.ClearAndResize(options->KeyColumns->size());
-        LastKey.ClearAndResize(options->KeyColumns->size());
+
+        CurrentKey = TKey::Allocate(&CurrentKeyMemoryPool, options->KeyColumns->size());
+        ResetToNull(&CurrentKey);
 
         for (int keyIndex = 0; keyIndex < options->KeyColumns->size(); ++keyIndex) {
             const auto& column = options->KeyColumns->at(keyIndex);
@@ -256,7 +261,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
         WriteValue(pair, columnInfo);
 
         if (columnInfo.KeyColumnIndex >= 0) {
-            CurrentKey.SetKeyPart(columnInfo.KeyColumnIndex, pair.second, Lexer);
+            CurrentKey[columnInfo.KeyColumnIndex] = MakeKeyPart(pair.second, Lexer);
         }
     }
 
@@ -271,7 +276,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     FinalizeRow(row);
 
     if (Options->KeyColumns) {
-        if (CompareKeys(LastKey, CurrentKey) > 0) {
+        if (CompareRows(LastKey, CurrentKey) > 0) {
             State.Fail(TError(
                 EErrorCode::SortOrderViolation,
                 "Sort order violation (PreviousKey: %s, CurrentKey: %s)",
@@ -289,10 +294,10 @@ void TTableChunkWriter::WriteRow(const TRow& row)
 //  1. row doesn't contain duplicate column names.
 //  2. data is sorted
 // All checks are disabled.
-void TTableChunkWriter::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+void TTableChunkWriter::WriteRowUnsafe(const TRow& row, const TKey& key)
 {
     WriteRowUnsafe(row);
-    LastKey = key;
+    LastKey = TOwningKey(key);
     ProcessKey();
 }
 
@@ -312,7 +317,7 @@ void TTableChunkWriter::WriteRowUnsafe(const TRow& row)
 void TTableChunkWriter::ProcessKey()
 {
     if (RowCount == 1) {
-        *BoundaryKeysExt.mutable_start() = LastKey.ToProto();
+        ToProto(BoundaryKeysExt.mutable_start(), LastKey);
     }
 
     if (IndexSize < Config->IndexRate * DataWeight * EncodingWriter->GetCompressionRatio()) {
@@ -390,20 +395,22 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
 
     if (Options->KeyColumns) {
-        *BoundaryKeysExt.mutable_end() = LastKey.ToProto();
+        ToProto(BoundaryKeysExt.mutable_end(), LastKey);
 
         const auto lastIndexRow = --IndexExt.items().end();
         if (RowCount > lastIndexRow->row_index() + 1) {
             auto* item = IndexExt.add_items();
-            *item->mutable_key() = LastKey.ToProto();
+            ToProto(item->mutable_key(), LastKey);
             item->set_row_index(RowCount - 1);
         }
 
         SetProtoExtension(Meta.mutable_extensions(), IndexExt);
         SetProtoExtension(Meta.mutable_extensions(), BoundaryKeysExt);
         {
+            using NYT::ToProto;
+
             NProto::TKeyColumnsExt keyColumnsExt;
-            ToProto(keyColumnsExt.mutable_names(), Options->KeyColumns.Get());
+            ToProto(keyColumnsExt.mutable_names(), *Options->KeyColumns);
             SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
         }
     }
@@ -414,10 +421,10 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
 void TTableChunkWriter::EmitIndexEntry()
 {
     auto* item = IndexExt.add_items();
-    *item->mutable_key() = LastKey.ToProto();
+    ToProto(item->mutable_key(), LastKey);
     // RowCount is already increased
     item->set_row_index(RowCount - 1);
-    IndexSize += LastKey.GetSize();
+    IndexSize += LastKey.GetValueCount();
 }
 
 i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
@@ -435,11 +442,13 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
         YCHECK(!token.IsEmpty());
 
         switch (token.GetType()) {
-            case ETokenType::Integer:
-                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
-                    token.GetIntegerValue()).ToProto();
+            case ETokenType::Integer: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Integer);
+                keyPart->set_int_value(token.GetIntegerValue());
                 size += sizeof(i64);
                 break;
+            }
 
             case ETokenType::String: {
                 auto* keyPart = part->mutable_key_part();
@@ -450,15 +459,19 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
                 break;
             }
 
-            case ETokenType::Double:
-                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
-                    token.GetDoubleValue()).ToProto();
+            case ETokenType::Double: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Double);
+                keyPart->set_double_value(token.GetDoubleValue());
                 size += sizeof(double);
                 break;
+            }
 
-            default:
-                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateSentinel(EKeyPartType::Composite).ToProto();
+            default: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Composite);
                 break;
+            }
         }
     }
 
@@ -547,7 +560,7 @@ void TTableChunkWriterProvider::OnChunkFinished()
             const auto& boundaryKeys = CurrentWriter->GetBoundaryKeys();
             *BoundaryKeysExt.mutable_start() = boundaryKeys.start();
         }
-        *BoundaryKeysExt.mutable_end() = CurrentWriter->GetLastKey().ToProto();
+        ToProto(BoundaryKeysExt.mutable_end(), CurrentWriter->GetLastKey());
     }
     CurrentWriter.Reset();
 }

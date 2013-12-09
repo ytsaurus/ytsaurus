@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "row.h"
 
+#include <ytlib/table_client/private.h>
+
 #include <core/misc/varint.h>
 #include <core/misc/string.h>
 
@@ -15,10 +17,165 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NChunkClient;
+using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+int GetByteSize(const TUnversionedValue& value)
+{
+    int result = MaxVarUInt32Size * 2; // id and type
+
+    switch (value.Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
+
+        case EValueType::Integer:
+            result += MaxVarInt64Size;
+            break;
+
+        case EValueType::Double:
+            result += sizeof(double);
+            break;
+
+        case EValueType::String:
+        case EValueType::Any:
+            result += MaxVarUInt32Size + value.Length;
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    return result;
+}
+
+int WriteValue(char* output, const TUnversionedValue& value)
+{
+    char* current = output;
+    current += WriteVarUInt32(current, value.Id);
+    current += WriteVarUInt32(current, value.Type);
+    switch (value.Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
+
+        case EValueType::Integer:
+            current += WriteVarInt64(current, value.Data.Integer);
+            break;
+
+        case EValueType::Double:
+            ::memcpy(current, &value.Data.Double, sizeof (double));
+            current += sizeof (double);
+            break;
+
+        case EValueType::String:
+        case EValueType::Any:
+            current += WriteVarUInt32(current, value.Length);
+            ::memcpy(current, value.Data.String, value.Length);
+            current += value.Length;
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+    return current - output;
+}
+
+int ReadValue(const char* input, TUnversionedValue* value)
+{
+    char* current = const_cast<char *>(input);
+    ui32 id;
+    current += ReadVarUInt32(current, &id);
+    value->Id = static_cast<ui16>(id);
+
+    ui32 type;
+    current += ReadVarUInt32(current, &type);
+    value->Type = static_cast<ui16>(type);
+
+    switch (value->Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
+
+        case EValueType::Integer:
+            current += ReadVarInt64(current, &value->Data.Integer);
+            break;
+
+        case EValueType::Double:
+            ::memcpy(&value->Data.Double, current, sizeof (double));
+            current += sizeof (double);
+            break;
+
+        case EValueType::String:
+        case EValueType::Any:
+            current += ReadVarUInt32(current, &value->Length);
+            value->Data.String = current;
+            current += value->Length;
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+    return current - input;
+}
+
+Stroka ToString(const TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            return Sprintf("{Type: %s}", ~FormatEnum(EValueType(value.Type)));
+
+        case EValueType::Integer:
+           return Sprintf("{Type: %s, Value: %" PRId64 "}",
+                ~FormatEnum(EValueType(value.Type)),
+                value.Data.Integer);
+
+        case EValueType::Double:
+            return Sprintf("{Type: %s, Value: %f}",
+                ~FormatEnum(EValueType(value.Type)),
+                value.Data.Double);
+
+        case EValueType::String:
+        case EValueType::Any:
+            return Sprintf("{Type: %s, Value: %s}",
+                ~FormatEnum(EValueType(value.Type)),
+                value.Data.String);
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+int GetByteSize(const TVersionedValue& value)
+{
+    return GetByteSize(static_cast<TUnversionedValue>(value)) + MaxVarInt64Size;
+}
+
+int WriteValue(char* output, const TVersionedValue& value)
+{
+    int result = WriteValue(output, static_cast<TUnversionedValue>(value));
+    result += WriteVarUInt64(output + result, value.Timestamp);
+    return result;
+}
+
+int ReadValue(const char* input, TVersionedValue* value)
+{
+    int result = ReadValue(input, static_cast<TUnversionedValue*>(value));
+    result += ReadVarUInt64(input + result, &value->Timestamp);
+    return result;
+}
 
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
@@ -84,6 +241,44 @@ int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 {
     TKeyComparer comparer(prefixLength);
     return comparer(lhs, rhs);
+}
+
+bool operator== (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+{
+    return !CompareRows(lhs, rhs);
+}
+
+bool operator!= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+{
+    return CompareRows(lhs, rhs);
+}
+
+bool operator <=(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+{
+    return CompareRows(lhs, rhs) <= 0;
+}
+
+bool operator <(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+{
+    return CompareRows(lhs, rhs) < 0;
+}
+
+bool operator >=(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+{
+    return CompareRows(lhs, rhs) >= 0;
+}
+
+bool operator >(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+{
+    return !CompareRows(lhs, rhs) > 0;
+}
+
+void ResetToNull(TUnversionedRow* row)
+{
+    auto& rowRef = *row;
+    for (int i = 0; i < row->GetValueCount(); ++i) {
+        rowRef[i] = MakeUnversionedSentinelValue(EValueType::Null);
+    }
 }
 
 size_t GetHash(const TUnversionedValue& value)
@@ -170,106 +365,58 @@ TKey EmptyKey()
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
 {
-    size_t variableSize = 0;
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        const auto& otherValue = row[index];
-        if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
-            variableSize += otherValue.Length;
-        }
-    }
-
-    Stroka buffer;
-    buffer.resize(
-        64 +                           // encoded TRowHeader  (approx)
-        16 * row.GetValueCount() +     // encoded TUnversionedValue-s (approx)
-        variableSize);                 // strings
-    char* current = const_cast<char*>(buffer.data());
-
-    current += WriteVarUInt32(current, 0); // format version
-    current += WriteVarUInt32(current, static_cast<ui32>(row.GetValueCount()));
-
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        const auto& value = row[index];
-        current += WriteVarUInt32(current, value.Id);
-        current += WriteVarUInt32(current, value.Type);
-        switch (value.Type) {
-            case EValueType::Null:
-                break;
-
-            case EValueType::Integer:
-                current += WriteVarInt64(current, value.Data.Integer);
-                break;
-            
-            case EValueType::Double:
-                ::memcpy(current, &value.Data.Double, sizeof (double));
-                current += sizeof (double);
-                break;
-            
-            case EValueType::String:
-            case EValueType::Any:
-                current += WriteVarUInt32(current, value.Length);
-                ::memcpy(current, value.Data.String, value.Length);
-                current += value.Length;
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    buffer.resize(current - buffer.data());
-    *protoRow = buffer;
+    *protoRow = SerializeToString(row);
 }
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 {
-    char* current = const_cast<char*>(protoRow.data());
+    *row = DeserializeFromString<TUnversionedValue>(protoRow);
+}
 
-    ui32 version;
-    current += ReadVarUInt32(current, &version);
-    YCHECK(version == 0);
+Stroka ToString(const TUnversionedRow& row)
+{
+    auto begin = &row[0];
+    auto* end = begin + row.size();
+    return JoinToString(begin, end);
+}
 
-    ui32 valueCount;
-    current += ReadVarUInt32(current, &valueCount);
-    
-    size_t fixedSize = GetRowDataSize<TUnversionedValue>(valueCount);
-    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
-    auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
-    
-    header->ValueCount = static_cast<i32>(valueCount);
+Stroka ToString(const TUnversionedOwningRow& row)
+{
+    return ToString(TUnversionedRow(row));
+}
 
-    auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
-    for (int index = 0; index < valueCount; ++index) {
-        auto& value = values[index];
-        
-        ui32 id;
-        current += ReadVarUInt32(current, &id);
-        YCHECK(id <= std::numeric_limits<ui16>::max());
-        value.Id = static_cast<ui16>(id);
-        
-        ui32 type;
-        current += ReadVarUInt32(current, &type);
-        YCHECK(type <= std::numeric_limits<ui16>::max());
-        value.Type = static_cast<ui16>(type);
-
-        switch (value.Type) {
-            case EValueType::Null:
+void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
+{
+    TOwningRowBuilder<TUnversionedValue> rowBuilder(protoKey.parts_size());
+    for (int id = 0; id < protoKey.parts_size(); ++id) {
+        auto& keyPart = protoKey.parts(id);
+        switch (keyPart.type()) {
+            case EKeyPartType::Null:
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
                 break;
 
-            case EValueType::Integer:
-                current += ReadVarInt64(current, &value.Data.Integer);
+            case EKeyPartType::MinSentinel:
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Min, id));
                 break;
-            
-            case EValueType::Double:
-                ::memcpy(&value.Data.Double, current, sizeof (double));
-                current += sizeof (double);
+
+            case EKeyPartType::MaxSentinel:
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Max, id));
                 break;
-            
-            case EValueType::String:
-            case EValueType::Any:
-                current += ReadVarUInt32(current, &value.Length);
-                value.Data.String = current;
-                current += value.Length;
+
+            case EKeyPartType::Integer:
+                rowBuilder.AddValue(MakeUnversionedIntegerValue(keyPart.int_value(), id));
+                break;
+
+            case EKeyPartType::Double:
+                rowBuilder.AddValue(MakeUnversionedDoubleValue(keyPart.double_value(), id));
+                break;
+
+            case EKeyPartType::String:
+                rowBuilder.AddValue(MakeUnversionedStringValue(keyPart.str_value(), id));
+                break;
+
+            case EKeyPartType::Composite:
+                rowBuilder.AddValue(MakeUnversionedAnyValue(TStringBuf(), id));
                 break;
 
             default:
@@ -277,7 +424,7 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
         }
     }
 
-    *row = TUnversionedOwningRow(std::move(rowData), protoRow);
+    *row = rowBuilder.Finish();
 }
 
 void Serialize(TKey key, IYsonConsumer* consumer)
@@ -286,11 +433,6 @@ void Serialize(TKey key, IYsonConsumer* consumer)
     for (int index = 0; index < key.GetValueCount(); ++index) {
         consumer->OnListItem();
         const auto& value = key[index];
-        if (value.Id != index) {
-            THROW_ERROR_EXCEPTION("Invalid key component id: expected %d, found %d",
-                index,
-                static_cast<int>(value.Id));
-        }
         auto type = EValueType(value.Type);
         switch (type) {
             case EValueType::Integer:
@@ -314,6 +456,7 @@ void Serialize(TKey key, IYsonConsumer* consumer)
                 consumer->OnKeyedItem("type");
                 consumer->OnStringScalar(FormatEnum(type));
                 consumer->OnEndAttributes();
+                consumer->OnEntity();
                 break;
         }
     }

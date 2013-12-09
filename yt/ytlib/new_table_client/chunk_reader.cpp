@@ -11,6 +11,7 @@
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -41,7 +42,8 @@ namespace NVersionedTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
+using NChunkClient::NProto::TMiscExt;
+using NChunkClient::NProto::TChunkSpec;
 
 // TableChunkReaderAdapter stuff
 using namespace NTableClient;

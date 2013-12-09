@@ -6,18 +6,20 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
+#include <ytlib/new_table_client/row.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/blob_output.h>
 
-#include <core/compression/public.h>
+#include <core/yson/lexer.h>
 
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <core/compression/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -35,7 +37,7 @@ public:
     void WriteRow(const TRow& row);
 
     // Used internally. All column names are guaranteed to be unique.
-    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key);
     void WriteRowUnsafe(const TRow& row);
 
 private:
@@ -59,7 +61,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         NChunkClient::IAsyncWriterPtr chunkWriter,
-        NChunkClient::TOwningKey&& lastKey);
+        NVersionedTableClient::TOwningKey&& lastKey);
 
     ~TTableChunkWriter();
 
@@ -71,12 +73,12 @@ public:
     NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const;
 
     // Used by provider.
-    const NChunkClient::TOwningKey& GetLastKey() const;
+    const NVersionedTableClient::TOwningKey& GetLastKey() const;
     const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
 
     // Used by facade.
     void WriteRow(const TRow& row);
-    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key);
     void WriteRowUnsafe(const TRow& row);
 
 private:
@@ -112,8 +114,10 @@ private:
     // Used for key creation.
     NYson::TStatelessLexer Lexer;
 
-    NChunkClient::TNonOwningKey CurrentKey;
-    NChunkClient::TOwningKey LastKey;
+    TChunkedMemoryPool CurrentKeyMemoryPool;
+    NVersionedTableClient::TKey CurrentKey;
+
+    NVersionedTableClient::TOwningKey LastKey;
 
     //! Approximate size of collected samples.
     i64 SamplesSize;

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
@@ -20,8 +21,8 @@ namespace NVersionedTableClient {
 IReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr asyncReader,
-    const NChunkClient::NProto::TReadLimit& startLimit = NChunkClient::NProto::TReadLimit(),
-    const NChunkClient::NProto::TReadLimit& endLimit = NChunkClient::NProto::TReadLimit(),
+    const NChunkClient::TReadLimit& startLimit = NChunkClient::TReadLimit(),
+    const NChunkClient::TReadLimit& endLimit = NChunkClient::TReadLimit(),
     TTimestamp timestamp = NullTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

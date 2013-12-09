@@ -2,6 +2,8 @@
 #include "table_producer.h"
 #include "sync_reader.h"
 
+#include <core/misc/string.h>
+
 #include <core/yson/consumer.h>
 
 #include <core/ytree/yson_string.h>

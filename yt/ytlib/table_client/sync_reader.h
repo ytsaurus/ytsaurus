@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/key.h>
+#include <ytlib/new_table_client/row.h>
+
 #include <ytlib/chunk_client/data_statistics.h>
 
 #include <core/misc/sync.h>
@@ -27,7 +28,7 @@ struct ISyncReader
 
     //! Returns the key of the current row.
     //! Not all implementations support this call.
-    virtual const NChunkClient::TNonOwningKey& GetKey() const = 0;
+    virtual const NVersionedTableClient::TKey& GetKey() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
     virtual int GetTableIndex() const = 0;
@@ -67,7 +68,7 @@ public:
         return facade ? &facade->GetRow() : nullptr;
     }
 
-    virtual const NChunkClient::TNonOwningKey& GetKey() const override
+    virtual const NVersionedTableClient::TKey& GetKey() const override
     {
         return AsyncReader->GetFacade()->GetKey();
     }

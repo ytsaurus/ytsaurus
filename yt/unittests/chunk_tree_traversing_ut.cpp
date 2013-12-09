@@ -7,6 +7,7 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <server/chunk_server/chunk_tree_traversing.h>
@@ -21,12 +22,13 @@ namespace NChunkServer {
 
 using namespace NObjectClient;
 using namespace NChunkClient::NProto;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool operator == (const TReadLimit& lhs, const TReadLimit& rhs)
 {
-    return lhs.DebugString() == rhs.DebugString();
+    return lhs.AsProto().DebugString() == rhs.AsProto().DebugString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,8 +91,8 @@ std::ostream& operator << (std::ostream& os, const TChunkInfo& chunkInfo)
 {
     os << "ChunkInfo(Id=" << ToString(chunkInfo.Chunk->GetId())
        << ", RowIndex=" << chunkInfo.RowIndex 
-       << ", StartLimit=(" << chunkInfo.StartLimit.DebugString() << ")"
-       << ", EndLimit=(" << chunkInfo.EndLimit.DebugString() << ")"
+       << ", StartLimit=(" << chunkInfo.StartLimit.AsProto().DebugString() << ")"
+       << ", EndLimit=(" << chunkInfo.EndLimit.AsProto().DebugString() << ")"
        << ")";
     return os;
 }
@@ -219,18 +221,18 @@ TEST(TraverseChunkTree, Simple)
         auto visitor = New<TTestChunkVisitor>();
         
         TReadLimit startLimit;
-        startLimit.set_row_index(2);
+        startLimit.SetRowIndex(2);
         
         TReadLimit endLimit;
-        endLimit.set_row_index(5);
+        endLimit.SetRowIndex(5);
 
         TraverseChunkTree(bootstrap, visitor, &listA, startLimit, endLimit);
 
         TReadLimit correctStartLimit;
-        correctStartLimit.set_row_index(1);
+        correctStartLimit.SetRowIndex(1);
         
         TReadLimit correctEndLimit;
-        correctEndLimit.set_row_index(2);
+        correctEndLimit.SetRowIndex(2);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(

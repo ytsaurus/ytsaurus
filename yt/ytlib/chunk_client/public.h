@@ -152,10 +152,10 @@ class TMultiChunkSequentialWriter;
 template <class TBuffer>
 class TKey;
 
-template <class TStrType>
-class TKeyPart;
+//template <class TStrType>
+//class TKeyPart;
 
-typedef TKey<TBlobOutput> TOwningKey;
+//typedef TKey<TBlobOutput> TOwningKey;
 typedef TKey<TFakeStringBufStore> TNonOwningKey;
 
 struct TRefCountedChunkSpec;

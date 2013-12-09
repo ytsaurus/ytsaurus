@@ -14,11 +14,11 @@ set( SRCS
   ${BASE}/erasure_writer.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
-  ${BASE}/key.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
+  ${BASE}/read_limit.cpp
   ${BASE}/replication_reader.cpp
   ${BASE}/replication_writer.cpp
   ${BASE}/schema.cpp
@@ -48,7 +48,6 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h
-  ${BASE}/key.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
   ${BASE}/multi_chunk_parallel_reader-inl.h
@@ -61,6 +60,7 @@ set( HDRS
   ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/read_limit.h
   ${BASE}/replication_reader.h
   ${BASE}/replication_writer.h
   ${BASE}/schema.h

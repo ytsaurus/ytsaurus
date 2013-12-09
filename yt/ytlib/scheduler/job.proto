@@ -237,11 +237,15 @@ message TPartitionJobSpecExt
 
     // If empty then THashPartitioner is used.
     // Otherwise TOrderedPartitioner is used.
-    repeated NYT.NChunkClient.NProto.TKey partition_keys = 2;
+
+    // Deprecated
+    //repeated NYT.NChunkClient.NProto.TKey partition_keys = 2;
 
     repeated string key_columns = 3;
 
     optional TUserJobSpec mapper_spec = 4;
+
+    repeated string partition_keys = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
