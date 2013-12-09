@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/action_queue.h>
@@ -6,15 +7,11 @@
 #include <core/actions/bind.h>
 #include <core/actions/future.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
-
-using namespace NConcurrency;
+namespace NConcurrency {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 class TMyObject
 {
@@ -103,8 +100,6 @@ void TangledThreadAccess2(TMyObject* object)
 
 #undef PROLOGUE
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TThreadAffinityTest, SingleThreadedAccess)
@@ -149,5 +144,6 @@ TEST(TThreadAffinityDeathTest, TangledThreadAccess2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+} // namespace NConcurrency
 } // namespace NYT
-

@@ -1,20 +1,19 @@
 #include "stdafx.h"
+#include "framework.h"
+#include "probe.h"
 
 #include <core/misc/common.h>
+
 #include <core/actions/bind.h>
 #include <core/actions/callback.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace {
 
 using ::testing::Mock;
 using ::testing::Return;
 using ::testing::AllOf;
 using ::testing::StrictMock;
-
-#include "probe.h"
-
-namespace NYT {
-namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Auxiliary types and functions.

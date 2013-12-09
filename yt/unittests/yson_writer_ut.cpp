@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/yson/writer.h>
 #include <core/yson/parser.h>
@@ -7,13 +8,12 @@
 
 #include <util/string/escape.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace NYson {
+namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
-
-namespace NYT {
-namespace NYson {
 
 using namespace NYTree;
 
@@ -331,5 +331,6 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYTree
 } // namespace NYT

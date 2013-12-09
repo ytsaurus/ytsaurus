@@ -1,16 +1,26 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/attributes.h>
 #include <core/ytree/convert.h>
 #include <core/ytree/yson_string.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NYTree {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TAttributesTest
+    : public ::testing::Test
+{
+protected:
+    virtual void SetUp()
+    { }
+
+    virtual void TearDown()
+    { }
+};
 
 TEST(TAttributesTest, CheckAccessors)
 {

@@ -1,9 +1,8 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/phoenix.h>
 #include <core/misc/blob_output.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace {

@@ -1,18 +1,18 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/assert.h>
 
 #include <util/generic/yexception.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace {
 
 using ::testing::_;
 using ::testing::A;
 using ::testing::NiceMock;
 using ::testing::ReturnArg;
 using ::testing::Throw;
-
-namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,5 +57,5 @@ TEST(TVerifyDeathTest, CrashForFalseExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
-

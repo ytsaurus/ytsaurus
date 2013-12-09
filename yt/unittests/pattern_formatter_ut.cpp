@@ -1,10 +1,10 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/pattern_formatter.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,5 +97,6 @@ TEST_F(TPatternFormatterTest, BadSyntax)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
 

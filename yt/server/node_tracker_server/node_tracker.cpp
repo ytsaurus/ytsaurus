@@ -419,6 +419,10 @@ private:
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         NodeMap.LoadKeys(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() < 40) {
+            YCHECK(NodeMap.GetSize() == 0);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)

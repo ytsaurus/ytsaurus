@@ -1,13 +1,13 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/yson_consumer-mock.h>
 
 #include <ytlib/formats/schemed_dsv_parser.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NFormats {
+namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
@@ -98,7 +98,7 @@ TEST(TSchemedDsvParserTest, TableIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 } // namespace NFormats
 } // namespace NYT
-
-

@@ -1,17 +1,18 @@
 #include "stdafx.h"
+#include "framework.h"
+#include "probe.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 
-#include <contrib/testing/framework.h>
-
-#include "probe.h"
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using ::ToString;
+
+////////////////////////////////////////////////////////////////////////////////
 
 #ifndef NDEBUG
 TEST(TNullableDeathTest, Uninitialized)
@@ -277,5 +278,6 @@ TEST(TNullableTest, Destructor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
 

@@ -1,12 +1,12 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/checkpointable_stream.h>
 
 #include <util/stream/str.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,4 +75,5 @@ TEST(TCheckpointableStreamTest, Checkpoints)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT

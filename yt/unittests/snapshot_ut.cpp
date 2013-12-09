@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <ytlib/meta_state/private.h>
 #include <ytlib/meta_state/config.h>
@@ -10,10 +11,9 @@
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NMetaState {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,6 +137,6 @@ TEST_F(TSnapshotTest, SnapshotStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NMetaState
 } // namespace NYT
-

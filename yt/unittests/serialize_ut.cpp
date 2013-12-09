@@ -1,12 +1,12 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/serialize.h>
 #include <core/ytree/convert.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
-namespace NYTree{
+namespace NYTree {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,5 +59,6 @@ TEST(TSerializationTest, PackRefs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYTree
 } // namespace NYT

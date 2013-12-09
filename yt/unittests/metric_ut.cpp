@@ -1,15 +1,17 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/metric.h>
 
-#include <contrib/testing/framework.h>
 #include <cmath>
 
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMetricTest : public ::testing::Test
+class TMetricTest
+    : public ::testing::Test
 { };
 
 TEST_F(TMetricTest, ZeroValues)
@@ -76,5 +78,5 @@ TEST_F(TMetricTest, ManyValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
-

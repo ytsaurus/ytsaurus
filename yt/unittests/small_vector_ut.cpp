@@ -12,12 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "stdafx.h"
+#include "framework.h"
+
 #include <core/misc/small_vector.h>
 
 #include <stdarg.h>
 #include <list>
-
-#include "contrib/testing/framework.h"
 
 namespace NYT {
 namespace {
@@ -414,4 +414,4 @@ TEST_F(TSmallVectorTest, IteratorTest) {
 }
 
 }
-} // namespace NYTs
+} // namespace NYT

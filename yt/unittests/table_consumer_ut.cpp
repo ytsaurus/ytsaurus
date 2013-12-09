@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/convert.h>
 #include <core/ytree/yson_consumer-mock.h>
@@ -6,10 +7,9 @@
 #include <ytlib/table_client/async_writer.h>
 #include <ytlib/table_client/table_consumer.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NTableClient {
+namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
@@ -189,5 +189,6 @@ TEST(TTableConsumerTest, EntityRow)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NTableClient
 } // namespace NYT

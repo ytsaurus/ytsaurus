@@ -1,17 +1,16 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <ytlib/chunk_client/schema.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
-namespace NUnitTest {
+namespace NChunkClient {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT::NChunkClient;
-
-class TSchemaTest : public ::testing::Test
+class TSchemaTest
+    : public ::testing::Test
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +199,6 @@ TEST_F(TSchemaTest, ChannelSubtract)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NUnitTest
+} // namespace
+} // namespace NChunkClient
 } // namespace NYT
-

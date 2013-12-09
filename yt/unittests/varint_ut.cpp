@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/varint.h>
 
@@ -6,15 +7,14 @@
 
 #include <util/random/random.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace {
 
 using ::std::tr1::tuple;
 using ::std::tr1::get;
 using ::std::tr1::make_tuple;
 
 using ::testing::Values;
-
-namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,5 +133,5 @@ TEST(TVarInt64Test, RandomValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
-

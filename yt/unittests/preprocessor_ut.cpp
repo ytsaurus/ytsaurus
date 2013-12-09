@@ -1,10 +1,10 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/preprocessor.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,5 +98,5 @@ TEST(TPreprocessorTest, IsSequence)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
-

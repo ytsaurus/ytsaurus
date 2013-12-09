@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <yt/unittests/rpc_ut.pb.h>
 
@@ -17,12 +18,11 @@
 #include <core/rpc/service_detail.h>
 #include <core/rpc/bus_channel.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace NRpc {
+namespace {
 
 using namespace NBus;
-using namespace NRpc;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -503,8 +503,6 @@ TEST_F(TRpcTest, OneWayNoMethod)
     EXPECT_TRUE(response->IsOK());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 TEST_F(TRpcTest, LostConnection)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
@@ -527,5 +525,8 @@ TEST_F(TRpcTest, LostConnection)
     EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+} // namespace NRpc
 } // namespace NYT

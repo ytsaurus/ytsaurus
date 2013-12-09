@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/actions/future.h>
 #include <core/actions/bind.h>
@@ -9,8 +10,6 @@
 #include <core/actions/invoker_util.h>
 
 #include <util/system/thread.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace {

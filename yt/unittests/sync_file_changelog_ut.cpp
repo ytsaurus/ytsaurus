@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <server/hydra/config.h>
 #include <server/hydra/changelog.h>
@@ -9,10 +10,9 @@
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NHydra {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -385,5 +385,6 @@ TEST_F(TSyncFileChangelogTest, SealEmptyChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NMetaState
 } // namespace NYT

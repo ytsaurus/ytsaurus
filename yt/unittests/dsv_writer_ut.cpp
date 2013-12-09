@@ -1,12 +1,12 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <ytlib/formats/dsv_writer.h>
 #include <ytlib/formats/dsv_parser.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NFormats {
+namespace {
 
 using namespace NYTree;
 using namespace NYson;
@@ -344,5 +344,6 @@ TEST(TTskvWriterTest, EscapingOfCustomSeparator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NDriver
 } // namespace NYT

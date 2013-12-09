@@ -11,6 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "stdafx.h"
+#include "framework.h"
+
 #include <core/misc/small_string.h>
 #include <core/misc/small_vector.h>
 
@@ -20,9 +23,6 @@
 #include <stdarg.h>
 #include <climits>
 #include <cstring>
-
-#include <contrib/testing/framework.h>
-
 
 namespace NYT {
 namespace {
@@ -204,5 +204,5 @@ TEST(TStringRefTest, Comparisons) {
 //  EXPECT_EQ( 1, TSmallString<10>("V8_q0").compare_numeric("V1_q0"));
 }
 
+} // namespace
 } // namespace NYT
-}

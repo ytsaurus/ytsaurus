@@ -1,19 +1,18 @@
 #include "stdafx.h"
-
-#include <ytlib/formats/yamr_parser.h>
+#include "framework.h"
 
 #include <core/ytree/yson_consumer-mock.h>
 #include <core/ytree/null_yson_consumer.h>
 
-#include <contrib/testing/framework.h>
+#include <ytlib/formats/yamr_parser.h>
+
+namespace NYT {
+namespace NFormats {
+namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::NiceMock;
-
-
-namespace NYT {
-namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -357,5 +356,6 @@ TEST(TYamrLenvalParserTest, HugeLength)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NFormats
 } // namespace NYT

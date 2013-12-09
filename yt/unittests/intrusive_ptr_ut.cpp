@@ -1,19 +1,18 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/common.h>
 #include <core/misc/ref_counted.h>
 #include <core/misc/new.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace {
 
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::InSequence;
 using ::testing::MockFunction;
 using ::testing::StrictMock;
-
-namespace NYT {
-namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Auxiliary types and functions.
