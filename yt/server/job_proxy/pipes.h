@@ -56,7 +56,6 @@ struct IDataPipe
      */
     virtual void PrepareProxyDescriptors() = 0;
 
-    virtual TError Register(NPipes::TIODispatcher& dispatcher) = 0;
     virtual TError DoAll() = 0;
 
     virtual void Finish() = 0;
@@ -78,7 +77,6 @@ public:
     virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
-    virtual TError Register(NPipes::TIODispatcher& dispatcher) override;
     virtual TError DoAll()
     {
         return ReadAll();
@@ -120,7 +118,6 @@ public:
     void PrepareJobDescriptors() override;
     void PrepareProxyDescriptors() override;
 
-    virtual TError Register(NPipes::TIODispatcher& dispatcher) override;
     virtual TError DoAll() override
     {
         return WriteAll();

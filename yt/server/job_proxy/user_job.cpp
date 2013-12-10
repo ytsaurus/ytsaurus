@@ -304,18 +304,16 @@ private:
         std::vector<TAsyncError> inputFinishEvents;
         std::vector<TAsyncError> outputFinishEvents;
 
-        auto registerAndDoAll = [this] (IDataPipePtr pipe) {
-            auto error = pipe->Register(Dispatcher);
-            RETURN_IF_ERROR(error);
+        auto doAll = [this] (IDataPipePtr pipe) {
             return pipe->DoAll();
         };
 
         for (auto& pipe : InputPipes) {
-            inputFinishEvents.push_back(BIND(registerAndDoAll, pipe).AsyncVia(queue->GetInvoker()).Run());
+            inputFinishEvents.push_back(BIND(doAll, pipe).AsyncVia(queue->GetInvoker()).Run());
         }
 
         for (auto& pipe : OutputPipes) {
-            outputFinishEvents.push_back(BIND(registerAndDoAll, pipe).AsyncVia(queue->GetInvoker()).Run());
+            outputFinishEvents.push_back(BIND(doAll, pipe).AsyncVia(queue->GetInvoker()).Run());
         }
 
         for (auto& asyncError : outputFinishEvents) {
@@ -544,7 +542,6 @@ private:
     }
 
 
-    NPipes::TIODispatcher Dispatcher;
     std::unique_ptr<TUserJobIO> JobIO;
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;

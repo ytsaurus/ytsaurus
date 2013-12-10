@@ -23,15 +23,16 @@ public:
     TAsyncError AsyncClose();
     TAsyncError GetReadyEvent();
 
-    virtual void Start(ev::dynamic_loop& eventLoop);
-
 private:
+    void Start(ev::dynamic_loop& eventLoop) override;
+
     void TryCleanBuffer();
     size_t TryWrite(const char* data, size_t size);
     void Close();
 
     ev::io FDWatcher;
 
+    TAsyncError RegistrationError;
     TNullable<TAsyncErrorPromise> ReadyPromise;
 
     int FD;

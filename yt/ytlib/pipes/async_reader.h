@@ -59,12 +59,14 @@ public:
     std::pair<TBlob, bool> Read();
     TAsyncError GetReadyEvent();
 
-    virtual void Start(ev::dynamic_loop& eventLoop);
 private:
+    void Start(ev::dynamic_loop& eventLoop) override;
+
     NDetail::TNonBlockReader Reader;
     ev::io FDWatcher;
     ev::async StartWatcher;
 
+    TAsyncError RegistrationError;
     TNullable<TAsyncErrorPromise> ReadyPromise;
 
     TSpinLock ReadLock;

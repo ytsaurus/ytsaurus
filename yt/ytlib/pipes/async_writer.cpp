@@ -1,5 +1,6 @@
 #include "async_writer.h"
 
+#include "io_dispatcher.h"
 #include "private.h"
 
 namespace NYT {
@@ -18,6 +19,8 @@ TAsyncWriter::TAsyncWriter(int fd)
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
     FDWatcher.set(fd, ev::WRITE);
+
+    RegistrationError = TIODispatcher::Get()->AsyncRegister(this);
 }
 
 TAsyncWriter::~TAsyncWriter()
@@ -159,6 +162,10 @@ TAsyncError TAsyncWriter::GetReadyEvent()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(WriteLock);
+
+    if (!RegistrationError.IsSet() || !RegistrationError.Get().IsOK()) {
+        return RegistrationError;
+    }
 
     if (LastSystemError != 0) {
         return MakePromise<TError>(TError::FromSystem(LastSystemError));

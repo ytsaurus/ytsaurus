@@ -17,9 +17,13 @@ public:
 
     static TIODispatcher* Get();
 
-    TAsyncError AsyncRegister(IFDWatcherPtr watcher);
     void Shutdown();
 private:
+    friend class TAsyncReader;
+    friend class TAsyncWriter;
+
+    TAsyncError AsyncRegister(IFDWatcherPtr watcher);
+
     class TImpl;
     std::unique_ptr<TImpl> Impl;
 };

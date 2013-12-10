@@ -218,11 +218,6 @@ void TOutputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.ReadFd);
 }
 
-TError TOutputPipe::Register(NPipes::TIODispatcher& dispatcher)
-{
-    return WaitFor(dispatcher.AsyncRegister(Reader));
-}
-
 TError TOutputPipe::ReadAll()
 {
     bool isClosed = false;
@@ -297,11 +292,6 @@ void TInputPipe::PrepareProxyDescriptors()
     YASSERT(!IsFinished);
 
     SafeMakeNonblocking(Pipe.WriteFd);
-}
-
-TError TInputPipe::Register(NPipes::TIODispatcher& dispatcher)
-{
-    return WaitFor(dispatcher.AsyncRegister(Writer));
 }
 
 TError TInputPipe::WriteAll()

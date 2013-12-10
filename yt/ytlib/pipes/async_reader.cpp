@@ -1,5 +1,6 @@
 #include "async_reader.h"
 
+#include "io_dispatcher.h"
 #include "private.h"
 
 namespace NYT {
@@ -137,6 +138,8 @@ TAsyncReader::TAsyncReader(int fd)
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
     FDWatcher.set(fd, ev::READ);
+
+    RegistrationError = TIODispatcher::Get()->AsyncRegister(this);
 }
 
 void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
@@ -212,6 +215,10 @@ TAsyncError TAsyncReader::GetReadyEvent()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(ReadLock);
+
+    if (!RegistrationError.IsSet() || !RegistrationError.Get().IsOK()) {
+        return RegistrationError;
+    }
 
     if (Reader.IsReady()) {
         return MakePromise(GetState());

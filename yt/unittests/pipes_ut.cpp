@@ -17,45 +17,10 @@ namespace NPipes {
 
 using NConcurrency::WaitFor;
 
-struct TNopFDWatcher : public IFDWatcher
-{
-    virtual void Start(ev::dynamic_loop& eventLoop)
-    {
-    }
-};
-
-struct TFailFDWatcher : public IFDWatcher
-{
-    virtual void Start(ev::dynamic_loop& eventLoop)
-    {
-        throw std::exception();
-    }
-};
-
 TEST(TIODispatcher, StartStop)
 {
     TIODispatcher dispatcher;
     dispatcher.Shutdown();
-}
-
-TEST(TIODispatcher, RegisterSucess)
-{
-    TIODispatcher dispatcher;
-
-    auto watcher = New<TNopFDWatcher>();
-
-    auto error = dispatcher.AsyncRegister(watcher);
-    EXPECT_TRUE(error.Get().IsOK());
-}
-
-TEST(TIODispatcher, RegisterFail)
-{
-    TIODispatcher dispatcher;
-
-    auto watcher = New<TFailFDWatcher>();
-
-    auto error = dispatcher.AsyncRegister(watcher);
-    EXPECT_FALSE(error.Get().IsOK());
 }
 
 TEST(TNonBlockReader, BrandNew)
@@ -107,23 +72,12 @@ class TReadWriteTest : public ::testing::Test
 protected:
     void SetUp()
     {
-        TIODispatcher* dispatcher = TIODispatcher::Get();
-
         int pipefds[2];
         int err = pipe2(pipefds, O_NONBLOCK);
 
         ASSERT_TRUE(err == 0);
         Reader = New<TAsyncReader>(pipefds[0]);
         Writer = New<TAsyncWriter>(pipefds[1]);
-
-        {
-            auto error = dispatcher->AsyncRegister(Reader).Get();
-            ASSERT_TRUE(error.IsOK());
-        }
-        {
-            auto error = dispatcher->AsyncRegister(Writer).Get();
-            ASSERT_TRUE(error.IsOK());
-        }
     }
 
     TIntrusivePtr<TAsyncReader> Reader;
