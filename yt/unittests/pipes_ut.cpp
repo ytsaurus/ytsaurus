@@ -5,6 +5,7 @@
 
 #include <ytlib/pipes/io_dispatcher.h>
 #include <ytlib/pipes/io_dispatcher_impl.h>
+#include <ytlib/pipes/non_block_reader.h>
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
 

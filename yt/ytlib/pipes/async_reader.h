@@ -14,47 +14,14 @@ namespace NYT {
 namespace NPipes {
 
 namespace NDetail {
-// Do not use this clas directly
-    class TNonBlockReader
-    {
-    public:
-        // It own this fd
-        TNonBlockReader(int fd);
-        ~TNonBlockReader();
-
-        void TryReadInBuffer();
-        std::pair<TBlob, bool> GetRead();
-
-        bool IsBufferFull();
-        bool IsBufferEmpty();
-
-        bool InFailedState();
-        bool ReachedEOF();
-        int GetLastSystemError();
-
-        bool IsReady();
-
-        void Close();
-    private:
-        int FD;
-
-        TBlob ReadBuffer;
-        size_t BytesInBuffer;
-
-        bool ReachedEOF_;
-        bool Closed;
-        int LastSystemError;
-
-        NLog::TTaggedLogger Logger;
-    };
+    class TNonBlockReader;
 }
-
 
 class TAsyncReader : public IFDWatcher
 {
 public:
     TAsyncReader(int fd);
-    virtual ~TAsyncReader() {}
+    ~TAsyncReader() override;
 
     std::pair<TBlob, bool> Read();
     TAsyncError GetReadyEvent();
@@ -62,7 +29,7 @@ public:
 private:
     void Start(ev::dynamic_loop& eventLoop) override;
 
-    NDetail::TNonBlockReader Reader;
+    std::unique_ptr<NDetail::TNonBlockReader> Reader;
     ev::io FDWatcher;
     ev::async StartWatcher;
 
