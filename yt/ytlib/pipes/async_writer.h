@@ -17,10 +17,10 @@ class TAsyncWriter : public IFDWatcher
 {
 public:
     TAsyncWriter(int fd);
-    virtual ~TAsyncWriter() {}
+    ~TAsyncWriter() override;
 
     bool Write(const void* data, size_t size);
-    TAsyncError Close();
+    TAsyncError AsyncClose();
     TAsyncError GetReadyEvent();
 
     virtual void Start(ev::dynamic_loop& eventLoop);
@@ -28,6 +28,7 @@ public:
 private:
     void TryCleanBuffer();
     size_t TryWrite(const char* data, size_t size);
+    void Close();
 
     ev::io FDWatcher;
 
@@ -38,6 +39,7 @@ private:
     TBlob WriteBuffer;
     size_t BytesWrittenTotal;
     bool NeedToClose;
+    bool Closed;
     int LastSystemError;
 
     TSpinLock WriteLock;

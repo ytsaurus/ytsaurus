@@ -134,7 +134,7 @@ TEST_F(TReadWriteTest, ReadSomethingSpin)
 {
     std::string message("Hello pipe!\n");
     Writer->Write(message.c_str(), message.size());
-    Writer->Close();
+    Writer->AsyncClose();
 
     bool isClosed = false;
     TBlob data, whole;
@@ -173,7 +173,7 @@ TEST_F(TReadWriteTest, ReadSomethingWait)
 {
     std::string message("Hello pipe!\n");
     Writer->Write(message.c_str(), message.size());
-    Writer->Close();
+    Writer->AsyncClose();
 
     TBlob whole = ReadAll(Reader, false);
 
@@ -184,7 +184,7 @@ TEST_F(TReadWriteTest, ReadWrite)
 {
     const std::string text("Hello cruel world!\n");
     Writer->Write(text.c_str(), text.size());
-    TAsyncError errorsOnClose = Writer->Close();
+    TAsyncError errorsOnClose = Writer->AsyncClose();
 
     TBlob textFromPipe = ReadAll(Reader, false);
 
@@ -214,7 +214,7 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
         }
     }
     {
-        TError error = WaitFor(writer->Close());
+        TError error = WaitFor(writer->AsyncClose());
         return error;
     }
 }

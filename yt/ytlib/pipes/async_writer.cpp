@@ -11,12 +11,18 @@ TAsyncWriter::TAsyncWriter(int fd)
     : FD(fd)
     , BytesWrittenTotal(0)
     , NeedToClose(false)
+    , Closed(false)
     , LastSystemError(0)
     , Logger(WriterLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
     FDWatcher.set(fd, ev::WRITE);
+}
+
+TAsyncWriter::~TAsyncWriter()
+{
+    Close();
 }
 
 void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
@@ -46,21 +52,7 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
             BytesWrittenTotal += bytesWritten;
             TryCleanBuffer();
             if (NeedToClose && WriteBuffer.Size() == 0) {
-                int errCode = close(FD);
-                if (errCode == -1) {
-                    // please, read
-                    // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
-                    // http://rb.yandex-team.ru/arc/r/44030/
-                    // before editing
-                    if (errno != EAGAIN) {
-                        LOG_DEBUG(TError::FromSystem(), "Error closing");
-
-                        LastSystemError = errno;
-                    }
-                }
-
-                NeedToClose = false;
-                FDWatcher.stop();
+                Close();
             }
         } else {
             // Error.  We've done all we could
@@ -127,7 +119,29 @@ size_t TAsyncWriter::TryWrite(const char* data, size_t size)
     }
 }
 
-TAsyncError TAsyncWriter::Close()
+void TAsyncWriter::Close()
+{
+    if (!Closed) {
+        int errCode = close(FD);
+        if (errCode == -1) {
+            // please, read
+            // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
+            // http://rb.yandex-team.ru/arc/r/44030/
+            // before editing
+            if (errno != EAGAIN) {
+                LOG_DEBUG(TError::FromSystem(), "Error closing");
+
+                LastSystemError = errno;
+            }
+        }
+
+        Closed = true;
+        NeedToClose = false;
+        FDWatcher.stop();
+    }
+}
+
+TAsyncError TAsyncWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

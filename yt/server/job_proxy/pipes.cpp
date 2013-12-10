@@ -317,7 +317,7 @@ TError TInputPipe::WriteAll()
         }
     }
     {
-        auto error = WaitFor(Writer->Close());
+        auto error = WaitFor(Writer->AsyncClose());
         return error;
     }
 }
