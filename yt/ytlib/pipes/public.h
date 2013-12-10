@@ -2,7 +2,10 @@
 
 #include <yt/core/actions/future.h>
 
-#include <contrib/libev/ev++.h>
+namespace ev {
+    class dynamic_loop;
+}
+
 
 namespace NYT {
 namespace NPipes {
@@ -14,6 +17,12 @@ struct IFDWatcher
 };
 
 typedef TIntrusivePtr<IFDWatcher> IFDWatcherPtr;
+
+class TAsyncReader;
+typedef TIntrusivePtr<TAsyncReader> TAsyncReaderPtr;
+
+class TAsyncWriter;
+typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
 }
 }

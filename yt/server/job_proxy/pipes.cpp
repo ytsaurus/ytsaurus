@@ -7,6 +7,10 @@
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
 
+#include <ytlib/pipes/async_reader.h>
+#include <ytlib/pipes/async_writer.h>
+#include <ytlib/pipes/io_dispatcher.h>
+
 #include <core/misc/proc.h>
 #include <core/concurrency/fiber.h>
 

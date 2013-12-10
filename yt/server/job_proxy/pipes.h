@@ -3,9 +3,8 @@
 #include "private.h"
 #include <core/misc/blob_output.h>
 #include <ytlib/table_client/public.h>
-#include <ytlib/pipes/async_reader.h>
-#include <ytlib/pipes/async_writer.h>
-#include <ytlib/pipes/io_dispatcher.h>
+
+#include <ytlib/pipes/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -95,7 +94,7 @@ private:
     bool IsClosed;
     TBlob Buffer;
 
-    TIntrusivePtr<NPipes::TAsyncReader> Reader;
+    NPipes::TAsyncReaderPtr Reader;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -138,7 +137,7 @@ private:
     bool HasData;
     bool IsFinished;
 
-    TIntrusivePtr<NPipes::TAsyncWriter> Writer;
+    NPipes::TAsyncWriterPtr Writer;
 };
 
 ////////////////////////////////////////////////////////////////////

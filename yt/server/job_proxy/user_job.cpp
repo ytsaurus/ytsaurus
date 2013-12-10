@@ -20,8 +20,6 @@
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/pipes/io_dispatcher_impl.h>
-
 #include <core/rpc/channel.h>
 
 #include <core/actions/invoker_util.h>
