@@ -107,6 +107,8 @@ class TReadWriteTest : public ::testing::Test
 protected:
     void SetUp()
     {
+        TIODispatcher* dispatcher = TIODispatcher::Get();
+
         int pipefds[2];
         int err = pipe2(pipefds, O_NONBLOCK);
 
@@ -115,16 +117,15 @@ protected:
         Writer = New<TAsyncWriter>(pipefds[1]);
 
         {
-            auto error = Dispatcher.AsyncRegister(Reader).Get();
+            auto error = dispatcher->AsyncRegister(Reader).Get();
             ASSERT_TRUE(error.IsOK());
         }
         {
-            auto error = Dispatcher.AsyncRegister(Writer).Get();
+            auto error = dispatcher->AsyncRegister(Writer).Get();
             ASSERT_TRUE(error.IsOK());
         }
     }
 
-    TIODispatcher Dispatcher;
     TIntrusivePtr<TAsyncReader> Reader;
     TIntrusivePtr<TAsyncWriter> Writer;
 };

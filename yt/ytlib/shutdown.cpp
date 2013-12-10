@@ -7,6 +7,7 @@
 #include <core/logging/log_manager.h>
 #include <ytlib/driver/dispatcher.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/pipes/io_dispatcher.h>
 
 namespace NYT {
 
@@ -14,6 +15,7 @@ namespace NYT {
 
 void Shutdown()
 {
+    NPipes::TIODispatcher::Get()->Shutdown();
     NDriver::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NRpc::TDispatcher::Get()->Shutdown();
