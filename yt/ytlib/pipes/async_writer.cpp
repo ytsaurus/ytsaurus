@@ -3,7 +3,7 @@
 #include "private.h"
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
 static const size_t WriteBufferSize = 64 * 1024;
 

@@ -11,7 +11,7 @@
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
 class TAsyncWriter : public IFDWatcher
 {

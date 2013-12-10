@@ -1,7 +1,7 @@
 #include "public.h"
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
 }
 }

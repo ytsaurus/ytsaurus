@@ -3,15 +3,15 @@
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
 
-#include <ytlib/fileio/file_io_dispatcher.h>
-#include <ytlib/fileio/file_io_dispatcher_impl.h>
-#include <ytlib/fileio/async_reader.h>
-#include <ytlib/fileio/async_writer.h>
+#include <ytlib/pipes/io_dispatcher.h>
+#include <ytlib/pipes/io_dispatcher_impl.h>
+#include <ytlib/pipes/async_reader.h>
+#include <ytlib/pipes/async_writer.h>
 
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,15 +32,15 @@ struct TFailFDWatcher : public IFDWatcher
     }
 };
 
-TEST(TFileIODispatcher, StartStop)
+TEST(TIODispatcher, StartStop)
 {
-    TFileIODispatcher dispatcher;
+    TIODispatcher dispatcher;
     dispatcher.Shutdown();
 }
 
-TEST(TFileIODispatcher, RegisterSucess)
+TEST(TIODispatcher, RegisterSucess)
 {
-    TFileIODispatcher dispatcher;
+    TIODispatcher dispatcher;
 
     auto watcher = New<TNopFDWatcher>();
 
@@ -48,9 +48,9 @@ TEST(TFileIODispatcher, RegisterSucess)
     EXPECT_TRUE(error.Get().IsOK());
 }
 
-TEST(TFileIODispatcher, RegisterFail)
+TEST(TIODispatcher, RegisterFail)
 {
-    TFileIODispatcher dispatcher;
+    TIODispatcher dispatcher;
 
     auto watcher = New<TFailFDWatcher>();
 
@@ -124,7 +124,7 @@ protected:
         }
     }
 
-    TFileIODispatcher Dispatcher;
+    TIODispatcher Dispatcher;
     TIntrusivePtr<TAsyncReader> Reader;
     TIntrusivePtr<TAsyncWriter> Writer;
 };
@@ -261,5 +261,5 @@ INSTANTIATE_TEST_CASE_P(ValueParametrized, TBigReadWriteTest,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileIO
+} // namespace NPipes
 } // namespace NYT

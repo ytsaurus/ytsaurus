@@ -188,7 +188,7 @@ TOutputPipe::TOutputPipe(
     , IsFinished(false)
     , IsClosed(false)
     , Buffer(OutputBufferSize)
-    , Reader(New<NFileIO::TAsyncReader>(Pipe.ReadFd))
+    , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
 {
     YCHECK(JobDescriptor);
 }
@@ -218,7 +218,7 @@ void TOutputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.ReadFd);
 }
 
-TError TOutputPipe::Register(NFileIO::TFileIODispatcher& dispatcher)
+TError TOutputPipe::Register(NPipes::TIODispatcher& dispatcher)
 {
     return WaitFor(dispatcher.AsyncRegister(Reader));
 }
@@ -236,14 +236,12 @@ TError TOutputPipe::ReadAll()
             OutputStream->Write(data.Begin(), data.Size());
         } catch (const std::exception& ex) {
             return TError("Failed to write into output (Fd: %d)",
-                          JobDescriptor) << TError(ex);
+                JobDescriptor) << TError(ex);
         }
 
         if ((!isClosed) && (data.Size() == 0)) {
             auto error = WaitFor(Reader->GetReadyEvent());
-            if (!error.IsOK()) {
-                return error;
-            }
+            RETURN_IF_ERROR(error);
         }
     }
     return TError();
@@ -277,7 +275,7 @@ TInputPipe::TInputPipe(
     , Position(0)
     , HasData(true)
     , IsFinished(false)
-    , Writer(New<NFileIO::TAsyncWriter>(Pipe.WriteFd))
+    , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))
 {
     YCHECK(~TableProducer);
     YCHECK(~Buffer);
@@ -308,7 +306,7 @@ void TInputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.WriteFd);
 }
 
-TError TInputPipe::Register(NFileIO::TFileIODispatcher& dispatcher)
+TError TInputPipe::Register(NPipes::TIODispatcher& dispatcher)
 {
     return WaitFor(dispatcher.AsyncRegister(Writer));
 }
@@ -321,14 +319,12 @@ TError TInputPipe::WriteAll()
         Buffer->Clear();
 
         if (enough) {
-            TError error = WaitFor(Writer->GetReadyEvent());
-            if (!error.IsOK()) {
-                return error;
-            }
+            auto error = WaitFor(Writer->GetReadyEvent());
+            RETURN_IF_ERROR(error);
         }
     }
     {
-        TError error = WaitFor(Writer->Close());
+        auto error = WaitFor(Writer->Close());
         return error;
     }
 }

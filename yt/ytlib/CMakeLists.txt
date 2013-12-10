@@ -1,6 +1,6 @@
 set( DIRS
   misc
-  fileio
+  pipes
   ypath
   election
   orchid

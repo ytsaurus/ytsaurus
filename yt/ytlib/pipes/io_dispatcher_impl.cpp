@@ -1,9 +1,9 @@
-#include "file_io_dispatcher_impl.h"
+#include "io_dispatcher_impl.h"
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
-TFileIODispatcher::TImpl::TImpl()
+TIODispatcher::TImpl::TImpl()
     : Thread(ThreadFunc, this)
     , Stopped(false)
     , StopWatcher(EventLoop)
@@ -18,12 +18,12 @@ TFileIODispatcher::TImpl::TImpl()
     Thread.Start();
 }
 
-TFileIODispatcher::TImpl::~TImpl()
+TIODispatcher::TImpl::~TImpl()
 {
     Shutdown();
 }
 
-void TFileIODispatcher::TImpl::Shutdown()
+void TIODispatcher::TImpl::Shutdown()
 {
     StopWatcher.send();
     Thread.Join();
@@ -31,7 +31,7 @@ void TFileIODispatcher::TImpl::Shutdown()
     Stopped = true;
 }
 
-TAsyncError TFileIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)
+TAsyncError TIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -42,14 +42,14 @@ TAsyncError TFileIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)
     return entry.Promise;
 }
 
-void TFileIODispatcher::TImpl::OnStop(ev::async&, int)
+void TIODispatcher::TImpl::OnStop(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     EventLoop.break_loop();
 }
 
-void TFileIODispatcher::TImpl::OnRegister(ev::async&, int)
+void TIODispatcher::TImpl::OnRegister(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -64,14 +64,14 @@ void TFileIODispatcher::TImpl::OnRegister(ev::async&, int)
     }
 }
 
-void* TFileIODispatcher::TImpl::ThreadFunc(void* param)
+void* TIODispatcher::TImpl::ThreadFunc(void* param)
 {
     auto* self = reinterpret_cast<TImpl*>(param);
     self->ThreadMain();
     return NULL;
 }
 
-void TFileIODispatcher::TImpl::ThreadMain()
+void TIODispatcher::TImpl::ThreadMain()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 

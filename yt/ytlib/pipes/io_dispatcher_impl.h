@@ -1,6 +1,6 @@
 #pragma once
 
-#include "file_io_dispatcher.h"
+#include "io_dispatcher.h"
 #include "public.h"
 
 #include <core/misc/common.h>
@@ -14,9 +14,9 @@
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
-class TFileIODispatcher::TImpl
+class TIODispatcher::TImpl
 {
 public:
     TImpl();

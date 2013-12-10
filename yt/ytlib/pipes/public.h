@@ -5,7 +5,7 @@
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
 struct IFDWatcher
     : public virtual TRefCounted

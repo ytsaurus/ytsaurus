@@ -20,7 +20,7 @@
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/fileio/file_io_dispatcher_impl.h>
+#include <ytlib/pipes/io_dispatcher_impl.h>
 
 #include <core/rpc/channel.h>
 
@@ -306,9 +306,7 @@ private:
 
         auto registerAndDoAll = [this] (IDataPipePtr pipe) {
             auto error = pipe->Register(Dispatcher);
-            if (!error.IsOK()) {
-                return error;
-            }
+            RETURN_IF_ERROR(error);
             return pipe->DoAll();
         };
 
@@ -320,8 +318,6 @@ private:
             outputFinishEvents.push_back(BIND(registerAndDoAll, pipe).AsyncVia(queue->GetInvoker()).Run());
         }
 
-        LOG_DEBUG("Waiting for reading to finish...");
-
         for (auto& asyncError : outputFinishEvents) {
             auto error = asyncError.Get();
             if (!error.IsOK()) {
@@ -329,7 +325,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Waiting for the child process to finish...");
+        LOG_DEBUG("Reading has been finished");
 
         int status = 0;
         int waitpidResult = waitpid(ProcessId, &status, 0);
@@ -339,6 +335,8 @@ private:
             SetError(StatusToError(status));
         }
 
+        LOG_DEBUG("The child process has been finished");
+
         auto finishPipe = [&] (IDataPipePtr pipe) {
             try {
                 pipe->Finish();
@@ -346,8 +344,6 @@ private:
                 SetError(TError(ex));
             }
         };
-
-        LOG_DEBUG("Finishing pipes...");
 
         // Stderr output pipe finishes first.
         for (auto& pipe : OutputPipes) {
@@ -358,7 +354,7 @@ private:
             finishPipe(pipe);
         }
 
-        LOG_DEBUG("Closing writers...");
+        LOG_DEBUG("Pipes has been finished");
 
         for (auto& writer : Writers) {
             try {
@@ -368,7 +364,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Waiting for writing to finish...");
+        LOG_DEBUG("Writers has been closed");
 
         for (auto& asyncError : inputFinishEvents) {
             auto error = asyncError.Get();
@@ -376,6 +372,8 @@ private:
                 SetError(error);
             }
         }
+
+        LOG_DEBUG("Writing has been finished");
     }
 
     // Called from the forked process.
@@ -546,7 +544,7 @@ private:
     }
 
 
-    NFileIO::TFileIODispatcher Dispatcher;
+    NPipes::TIODispatcher Dispatcher;
     std::unique_ptr<TUserJobIO> JobIO;
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;

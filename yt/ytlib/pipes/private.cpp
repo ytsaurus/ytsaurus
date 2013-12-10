@@ -1,7 +1,7 @@
 #include "private.h"
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
 NLog::TLogger WriterLogger("AsyncWriter");
 NLog::TLogger ReaderLogger("AsyncReader");

@@ -3,9 +3,9 @@
 #include "private.h"
 #include <core/misc/blob_output.h>
 #include <ytlib/table_client/public.h>
-#include <ytlib/fileio/async_reader.h>
-#include <ytlib/fileio/async_writer.h>
-#include <ytlib/fileio/file_io_dispatcher.h>
+#include <ytlib/pipes/async_reader.h>
+#include <ytlib/pipes/async_writer.h>
+#include <ytlib/pipes/io_dispatcher.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -56,7 +56,7 @@ struct IDataPipe
      */
     virtual void PrepareProxyDescriptors() = 0;
 
-    virtual TError Register(NFileIO::TFileIODispatcher& dispatcher) = 0;
+    virtual TError Register(NPipes::TIODispatcher& dispatcher) = 0;
     virtual TError DoAll() = 0;
 
     //! Should be called once.
@@ -81,7 +81,7 @@ public:
     virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
-    virtual TError Register(NFileIO::TFileIODispatcher& dispatcher) override;
+    virtual TError Register(NPipes::TIODispatcher& dispatcher) override;
     virtual TError DoAll()
     {
         return ReadAll();
@@ -101,7 +101,7 @@ private:
     bool IsClosed;
     TBlob Buffer;
 
-    TIntrusivePtr<NFileIO::TAsyncReader> Reader;
+    TIntrusivePtr<NPipes::TAsyncReader> Reader;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -124,7 +124,7 @@ public:
     void PrepareJobDescriptors() override;
     void PrepareProxyDescriptors() override;
 
-    virtual TError Register(NFileIO::TFileIODispatcher& dispatcher) override;
+    virtual TError Register(NPipes::TIODispatcher& dispatcher) override;
     virtual TError DoAll() override
     {
         return WriteAll();
@@ -146,7 +146,7 @@ private:
     bool HasData;
     bool IsFinished;
 
-    TIntrusivePtr<NFileIO::TAsyncWriter> Writer;
+    TIntrusivePtr<NPipes::TAsyncWriter> Writer;
 };
 
 ////////////////////////////////////////////////////////////////////

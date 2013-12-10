@@ -7,14 +7,15 @@
 #include <memory>
 
 namespace NYT {
-namespace NFileIO {
+namespace NPipes {
 
-class TFileIODispatcher
+class TIODispatcher
 {
 public:
-    TFileIODispatcher();
+    TIODispatcher();
+    ~TIODispatcher();
 
-    static TFileIODispatcher* Get();
+    static TIODispatcher* Get();
 
     TAsyncError AsyncRegister(IFDWatcherPtr watcher);
     void Shutdown();
