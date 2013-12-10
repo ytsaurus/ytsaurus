@@ -11,8 +11,6 @@ struct IFDWatcher
     : public virtual TRefCounted
 {
     virtual void Start(ev::dynamic_loop& eventLoop) = 0;
-
-    virtual ~IFDWatcher() {}
 };
 
 typedef TIntrusivePtr<IFDWatcher> IFDWatcherPtr;

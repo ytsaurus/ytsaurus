@@ -247,13 +247,6 @@ TError TOutputPipe::ReadAll()
     return TError();
 }
 
-void TOutputPipe::CloseHandles()
-{
-    SafeClose(Pipe.ReadFd);
-    LOG_DEBUG("Output pipe closed (JobDescriptor: %d)",
-        JobDescriptor);
-}
-
 void TOutputPipe::Finish()
 {
     OutputStream->Finish();
@@ -327,13 +320,6 @@ TError TInputPipe::WriteAll()
         auto error = WaitFor(Writer->Close());
         return error;
     }
-}
-
-void TInputPipe::CloseHandles()
-{
-    LOG_DEBUG("Input pipe closed (JobDescriptor: %d)",
-        JobDescriptor);
-    SafeClose(Pipe.WriteFd);
 }
 
 void TInputPipe::Finish()

@@ -59,9 +59,6 @@ struct IDataPipe
     virtual TError Register(NPipes::TIODispatcher& dispatcher) = 0;
     virtual TError DoAll() = 0;
 
-    //! Should be called once.
-    //TODO! Call it!
-    virtual void CloseHandles() = 0;
     virtual void Finish() = 0;
 };
 
@@ -89,7 +86,6 @@ public:
 
     TError ReadAll();
 
-    virtual void CloseHandles() override;
     virtual void Finish() override;
 
 private:
@@ -131,7 +127,6 @@ public:
     }
     TError WriteAll();
 
-    void CloseHandles() override;
     void Finish() override;
 
 private:
