@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- encoding: utf-8 -*-
 
 from yt.yson import to_yson_type
 from yt.yson.test import YsonParserTestBase
@@ -35,6 +36,10 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         self.assertEqual(
             self.dump_fragment((x for x in [{"x": None}, to_yson_type({"y": 2}, {"a": 10})])),
             '{"x"=#};\n<"a"=10>{"y"=2};\n')
+
+    def test_unicode(self):
+        unicode_str = u"ав"
+        self.assertEqual(unicode_str, loads(dumps(unicode_str)).decode("utf-8"))
 
 
 if __name__ == "__main__":
