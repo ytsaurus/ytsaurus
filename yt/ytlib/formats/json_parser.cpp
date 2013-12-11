@@ -6,8 +6,6 @@
 
 #include <library/json/json_reader.h>
 
-#include <iostream>
-
 namespace NYT {
 namespace NFormats {
 

@@ -29,7 +29,7 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 
 bool IsAscii(const TStringBuf& str)
 {
-    for (unsigned char sym: str) {
+    for (unsigned char sym : str) {
         if (sym >= 128) {
             return false;
         }
@@ -43,7 +43,7 @@ Stroka ByteStringToUtf8(const TStringBuf& str)
     buf[2] = 0;
 
     TStringStream os;
-    for (unsigned char sym: str) {
+    for (unsigned char sym : str) {
         if (sym < 128) {
             os.Write(sym);
         } else {
