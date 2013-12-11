@@ -26,6 +26,7 @@ int main(int argc, char **argv)
     testing::InitGoogleTest(&argc, argv);
     testing::InitGoogleMock(&argc, argv);
 
+#if 0
     NYT::NLog::TLogManager::Get()->Configure(NYT::NYTree::ConvertToNode(NYT::NYTree::TYsonString(
         "{"
         "    rules = ["
@@ -53,6 +54,7 @@ int main(int argc, char **argv)
         "    };"
         "}"
     )));
+#endif
 
     int result = RUN_ALL_TESTS();
 
