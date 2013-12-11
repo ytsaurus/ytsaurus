@@ -87,6 +87,7 @@ private:
     public:
         TSession(IClientResponseHandlerPtr handler, const TNullable<TDuration>& timeout)
             : Handler_(std::move(handler))
+            , Replied_(false)
         {
             if (timeout) {
                 TDelayedExecutor::Submit(
