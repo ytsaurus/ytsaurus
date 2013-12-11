@@ -19,6 +19,7 @@
 #include <core/bus/tcp_server.h>
 
 #include <core/rpc/server.h>
+#include <core/rpc/bus_server.h>
 #include <core/rpc/bus_channel.h>
 
 #include <core/profiling/profiling_manager.h>
@@ -234,7 +235,7 @@ void TBootstrap::Run()
     auto busServerConfig = New<TTcpBusServerConfig>(Config->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
 
-    RpcServer = CreateRpcServer(busServer);
+    RpcServer = CreateBusServer(busServer);
 
     auto selfAddress = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),

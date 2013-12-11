@@ -1,16 +1,22 @@
 #include "stdafx.h"
 #include "server_detail.h"
+#include "private.h"
+#include "message.h"
+#include "config.h"
 
 #include <core/ytree/attribute_helpers.h>
-
-#include <core/rpc/message.h>
 
 namespace NYT {
 namespace NRpc {
 
+using namespace NConcurrency;
 using namespace NBus;
 using namespace NYTree;
 using namespace NRpc::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = RpcServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -411,6 +417,108 @@ void TReplyInterceptorContext::Reply(TSharedRefArray responseMessage)
 {
     TServiceContextWrapper::Reply(std::move(responseMessage));
     OnReply.Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TServerBase::TServerBase()
+    : Started_(false)
+{ }
+
+void TServerBase::RegisterService(IServicePtr service)
+{
+    YCHECK(service);
+
+    auto serviceId = service->GetServiceId();
+
+    {
+        TWriterGuard guard(ServicesLock_);
+        YCHECK(ServiceMap_.insert(std::make_pair(serviceId, service)).second);
+    }
+
+    LOG_INFO("RPC service registered (ServiceName: %s, RealmId: %s)",
+        ~serviceId.ServiceName,
+        ~ToString(serviceId.RealmId));
+}
+
+void TServerBase::UnregisterService(IServicePtr service)
+{
+    YCHECK(service);
+
+    auto serviceId = service->GetServiceId();
+
+    {
+        TWriterGuard guard(ServicesLock_);
+        YCHECK(ServiceMap_.erase(serviceId) == 1);
+    }
+
+    LOG_INFO("RPC service unregistered (ServiceName: %s, RealmId: %s)",
+        ~serviceId.ServiceName,
+        ~ToString(serviceId.RealmId));
+}
+
+NYT::NRpc::IServicePtr TServerBase::FindService(const TServiceId& serviceId)
+{
+    TReaderGuard guard(ServicesLock_);
+    auto it = ServiceMap_.find(serviceId);
+    return it == ServiceMap_.end() ? nullptr : it->second;
+}
+
+void TServerBase::Configure(TServerConfigPtr config)
+{
+    for (const auto& pair : config->Services) {
+        const auto& serviceName = pair.first;
+        const auto& serviceConfig = pair.second;
+        auto services = FindServices(serviceName);
+        if (services.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot find RPC service %s to configure",
+                ~serviceName.Quote());
+        }
+        for (auto service : services) {
+            service->Configure(serviceConfig);
+        }
+    }
+}
+
+void TServerBase::Start()
+{
+    YCHECK(!Started_);
+
+    DoStart();
+
+    LOG_INFO("RPC server started");
+}
+
+void TServerBase::Stop()
+{
+    if (!Started_)
+        return;
+
+    DoStop();
+
+    LOG_INFO("RPC server stopped");
+}
+
+void TServerBase::DoStart()
+{
+    Started_ = true;
+}
+
+void TServerBase::DoStop()
+{
+    Started_ = false;
+}
+
+std::vector<IServicePtr> TServerBase::FindServices(const Stroka& serviceName)
+{
+    std::vector<IServicePtr> result;
+    TReaderGuard guard(ServicesLock_);
+    for (const auto& pair : ServiceMap_) {
+        if (pair.first.ServiceName == serviceName) {
+            result.push_back(pair.second);
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

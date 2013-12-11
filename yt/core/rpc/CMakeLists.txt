@@ -13,13 +13,15 @@ set( SRCS
   ${BASE}/roaming_channel.cpp
   ${BASE}/scoped_channel.cpp
   ${BASE}/serialized_channel.cpp
-  ${BASE}/server.cpp
+  ${BASE}/bus_server.cpp
+  ${BASE}/local_server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
   ${BASE}/service_detail.cpp
   ${BASE}/throttling_channel.cpp
   ${BASE}/static_channel_factory.cpp
   ${BASE}/caching_channel_factory.cpp
+  ${BASE}/local_channel.cpp
 )
 set( HDRS
   ${BASE}/bus_channel.h
@@ -38,11 +40,14 @@ set( HDRS
   ${BASE}/serialized_channel.h
   ${BASE}/server.h
   ${BASE}/server_detail.h
+  ${BASE}/bus_server.h
+  ${BASE}/local_server.h
   ${BASE}/service.h
   ${BASE}/service_detail.h
   ${BASE}/throttling_channel.h
   ${BASE}/static_channel_factory.h
   ${BASE}/caching_channel_factory.h
+  ${BASE}/local_channel.h
 )
 
 list(APPEND YT_SOURCE_FILES

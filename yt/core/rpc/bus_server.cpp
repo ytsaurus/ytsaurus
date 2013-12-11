@@ -1,15 +1,12 @@
 #include "stdafx.h"
-#include "server.h"
+#include "bus_server.h"
+#include "server_detail.h"
 #include "private.h"
-#include "service.h"
-#include "config.h"
 
-#include <core/concurrency/rw_spinlock.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <core/bus/server.h>
 #include <core/bus/bus.h>
-
-#include <core/ytree/fluent.h>
 
 #include <core/rpc/message.h>
 #include <core/rpc/rpc.pb.h>
@@ -19,7 +16,6 @@ namespace NRpc {
 
 using namespace NConcurrency;
 using namespace NBus;
-using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,110 +24,32 @@ static auto& Logger = RpcServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcServer
-    : public IRpcServer
+    : public TServerBase
     , public IMessageHandler
 {
 public:
     explicit TRpcServer(IBusServerPtr busServer)
-        : BusServer(busServer)
-        , Started(false)
+        : BusServer_(busServer)
     { }
 
-    virtual void RegisterService(IServicePtr service) override
+    virtual void DoStart() override
     {
-        YCHECK(service);
+        TServerBase::DoStart();
 
-        auto serviceId = service->GetServiceId();
-
-        {
-            TWriterGuard guard(ServicesSpinLock);
-            YCHECK(Services.insert(std::make_pair(serviceId, service)).second);
-        }
-
-        LOG_INFO("RPC service registered (ServiceName: %s, RealmId: %s)",
-            ~serviceId.ServiceName,
-            ~ToString(serviceId.RealmId));
+        BusServer_->Start(this);
     }
 
-    virtual void UnregisterService(IServicePtr service) override
+    virtual void DoStop() override
     {
-        YCHECK(service);
+        TServerBase::DoStop();
 
-        auto serviceId = service->GetServiceId();
-
-        {
-            TWriterGuard guard(ServicesSpinLock);
-            YCHECK(Services.erase(serviceId) == 1);
-        }
-
-        LOG_INFO("RPC service unregistered (ServiceName: %s, RealmId: %s)",
-            ~serviceId.ServiceName,
-            ~ToString(serviceId.RealmId));
-    }
-
-    virtual void Configure(TServerConfigPtr config) override
-    {
-        for (const auto& pair : config->Services) {
-            const auto& serviceName = pair.first;
-            const auto& serviceConfig = pair.second;
-            auto services = FindServices(serviceName);
-            if (services.empty()) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC service %s to configure",
-                    ~serviceName.Quote());
-            }
-            for (auto service : services) {
-                service->Configure(serviceConfig);
-            }
-        }
-    }
-
-    virtual void Start() override
-    {
-        YCHECK(!Started);
-
-        Started = true;
-        BusServer->Start(this);
-
-        LOG_INFO("RPC server started");
-    }
-
-    virtual void Stop() override
-    {
-        if (!Started)
-            return;
-
-        Started = false;
-        BusServer->Stop();
-        BusServer.Reset();
-
-        LOG_INFO("RPC server stopped");
+        BusServer_->Stop();
+        BusServer_.Reset();
     }
 
 private:
-    IBusServerPtr BusServer;
-    volatile bool Started;
+    IBusServerPtr BusServer_;
 
-    TReaderWriterSpinlock ServicesSpinLock;
-    yhash_map<TServiceId, IServicePtr> Services;
-
-    IServicePtr FindService(const TServiceId& serviceId)
-    {
-        TReaderGuard guard(ServicesSpinLock);
-        auto it = Services.find(serviceId);
-        return it == Services.end() ? nullptr : it->second;
-    }
-
-    std::vector<IServicePtr> FindServices(const Stroka& serviceName)
-    {
-        std::vector<IServicePtr> result;
-        TReaderGuard guard(ServicesSpinLock);
-        for (const auto& pair : Services) {
-            if (pair.first.ServiceName == serviceName) {
-                result.push_back(pair.second);
-            }
-        }
-        return result;
-    }
 
     virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) override
     {
@@ -163,7 +81,7 @@ private:
             header.has_request_start_time() ? ~ToString(TInstant(header.request_start_time())) : "<Null>",
             header.has_retry_start_time() ? ~ToString(TInstant(header.retry_start_time())) : "<Null>");
 
-        if (!Started) {
+        if (!Started_) {
             auto error = TError(EErrorCode::Unavailable, "Server is not started");
 
             LOG_DEBUG(error);
@@ -198,7 +116,7 @@ private:
 
 };
 
-IRpcServerPtr CreateRpcServer(NBus::IBusServerPtr busServer)
+IRpcServerPtr CreateBusServer(NBus::IBusServerPtr busServer)
 {
     return New<TRpcServer>(busServer);
 }

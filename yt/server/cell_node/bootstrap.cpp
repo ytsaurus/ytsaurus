@@ -15,6 +15,7 @@
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/caching_channel_factory.h>
 #include <core/rpc/server.h>
+#include <core/rpc/bus_server.h>
 #include <core/rpc/redirector_service.h>
 #include <core/rpc/throttling_channel.h>
 
@@ -159,7 +160,7 @@ void TBootstrap::Run()
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
-    RpcServer = CreateRpcServer(BusServer);
+    RpcServer = CreateBusServer(BusServer);
 
     TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 

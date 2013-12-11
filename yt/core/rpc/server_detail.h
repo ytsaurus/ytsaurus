@@ -1,6 +1,9 @@
 #pragma once
 
 #include "service.h"
+#include "server.h"
+
+#include <core/concurrency/rw_spinlock.h>
 
 #include <core/rpc/rpc.pb.h>
 
@@ -166,6 +169,37 @@ public:
 
 private:
     TClosure OnReply;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TServerBase
+    : public IRpcServer
+{
+public:
+    TServerBase();
+
+    virtual void RegisterService(IServicePtr service) override;
+    virtual void UnregisterService(IServicePtr service) override;
+    
+    virtual IServicePtr FindService(const TServiceId& serviceId) override;
+
+    virtual void Configure(TServerConfigPtr config) override;
+
+    virtual void Start() override;
+    virtual void Stop() override;
+
+protected:
+    volatile bool Started_;
+
+    NConcurrency::TReaderWriterSpinlock ServicesLock_;
+    yhash_map<TServiceId, IServicePtr> ServiceMap_;
+
+    virtual void DoStart();
+    virtual void DoStop();
+
+    std::vector<IServicePtr> FindServices(const Stroka& serviceName);
 
 };
 

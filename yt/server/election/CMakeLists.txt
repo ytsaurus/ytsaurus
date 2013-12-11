@@ -10,6 +10,7 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/config.h
   ${BASE}/election_manager.h
+  ${BASE}/election_callbacks-mock.h
 )
 
 list(APPEND YT_SOURCE_FILES

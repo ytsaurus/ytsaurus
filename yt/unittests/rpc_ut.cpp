@@ -15,6 +15,7 @@
 
 #include <core/rpc/client.h>
 #include <core/rpc/server.h>
+#include <core/rpc/bus_server.h>
 #include <core/rpc/service_detail.h>
 #include <core/rpc/bus_channel.h>
 
@@ -209,7 +210,7 @@ public:
         busConfig->Port = 2000;
         auto busServer = NBus::CreateTcpBusServer(busConfig);
 
-        RpcServer = CreateRpcServer(busServer);
+        RpcServer = CreateBusServer(busServer);
 
         Queue = New<TActionQueue>();
 

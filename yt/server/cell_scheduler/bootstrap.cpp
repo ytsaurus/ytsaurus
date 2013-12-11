@@ -12,6 +12,7 @@
 #include <core/bus/config.h>
 
 #include <core/rpc/server.h>
+#include <core/rpc/bus_server.h>
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/bus_channel.h>
 
@@ -99,7 +100,7 @@ void TBootstrap::Run()
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
-    auto rpcServer = CreateRpcServer(BusServer);
+    auto rpcServer = CreateBusServer(BusServer);
 
     auto timestampProvider = CreateRemoteTimestampProvider(
         Config->TimestampProvider,

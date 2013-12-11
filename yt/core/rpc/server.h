@@ -15,13 +15,15 @@ struct IRpcServer
     virtual void RegisterService(IServicePtr service) = 0;
     virtual void UnregisterService(IServicePtr service) = 0;
 
+    virtual IServicePtr FindService(const TServiceId& serviceId) = 0;
+
     virtual void Configure(TServerConfigPtr config) = 0;
 
     virtual void Start() = 0;
     virtual void Stop() = 0;
 };
 
-IRpcServerPtr CreateRpcServer(NBus::IBusServerPtr busServer);
+IRpcServerPtr CreateBusServer(NBus::IBusServerPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
