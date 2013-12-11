@@ -98,7 +98,11 @@ void TJsonParser::VisitAny(const TJsonValue& value)
 void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
 {
     FOREACH (const auto& pair, map) {
-        Consumer->OnKeyedItem(pair.first);
+        if (IsAscii(pair.first)) {
+            Consumer->OnKeyedItem(pair.first);
+        } else {
+            Consumer->OnKeyedItem(Utf8ToByteString(pair.first));
+        }
         VisitAny(pair.second);
     }
 }

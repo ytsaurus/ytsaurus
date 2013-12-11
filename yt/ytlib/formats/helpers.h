@@ -40,7 +40,7 @@ private:
 
 bool IsAscii(const TStringBuf& str);
 
-Stroka Utf8ToByteString(const Stroka& str);
+Stroka Utf8ToByteString(const TStringBuf& str);
 
 Stroka ByteStringToUtf8(const TStringBuf& str);
 

@@ -31,17 +31,7 @@ var binding = require("../lib/ytnode");
             toYson("hello").should.eql('"hello"');
             toYson("world").should.eql('"world"');
             toYson("a\"'hell'\"").should.eql('"a\\"\'hell\'\\""');
-
-            // XXX(sandello): Fix 'v8 to yson' one day.
-            if (suite !== "v8 to yson") {
-                toYson("&").should.eql("\"\"");
-                toYson("&Jg==").should.eql("\"&\"");
-                toYson("&JiY=").should.eql("\"&&\"");
-                toYson("&JmhlbGxv").should.eql("\"&hello\"");
-                toYson("&Jndvcmxk").should.eql("\"&world\"");
-                toYson("&aGVsbG8=").should.eql("\"hello\"");
-                toYson("&d29ybGQ=").should.eql("\"world\"");
-            }
+            toYson("\u0080").should.eql('"\\x80"');
 
             toYson({ $value : "hello" }).should.eql('"hello"');
             toYson({ $value : "world" }).should.eql('"world"');

@@ -55,7 +55,7 @@ Stroka ByteStringToUtf8(const TStringBuf& str)
     return os.Str();
 }
 
-Stroka Utf8ToByteString(const Stroka& str)
+Stroka Utf8ToByteString(const TStringBuf& str)
 {
     TStringStream output;
     for (int i = 0; i < str.size(); ++i) {
