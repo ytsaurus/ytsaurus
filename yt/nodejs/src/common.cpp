@@ -6,6 +6,8 @@
 
 #include <core/logging/log_manager.h>
 
+#include <ytlib/chunk_client/dispatcher.h>
+
 #include <ytlib/shutdown.h>
 
 extern "C" {
