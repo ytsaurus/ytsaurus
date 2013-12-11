@@ -71,12 +71,19 @@ TObjectPool<T>& ObjectPool()
 template <class T>
 struct TPooledObjectTraits<
     T,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>, int>::TType>
-    : public TPooledObjectTraitsBase
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&> 
+    >::TType
+>
 {
     static void Clean(::google::protobuf::MessageLite* obj)
     {
         obj->Clear();
+    }
+
+    static int GetMaxPoolSize()
+    {
+        return 256;
     }
 };
 
