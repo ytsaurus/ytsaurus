@@ -38,7 +38,9 @@ private:
 
     TSpinLock ReadLock;
 
+    bool CanReadSomeMore();
     TError GetState();
+
     void OnRead(ev::io&, int);
 
     void OnStart(ev::async&, int);

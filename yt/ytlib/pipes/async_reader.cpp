@@ -62,7 +62,7 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
     if (!Reader->IsBufferFull()) {
         Reader->TryReadInBuffer();
 
-        if (Reader->ReachedEOF()) {
+        if (!CanReadSomeMore()) {
             FDWatcher.stop();
             Reader->Close();
         }
@@ -85,7 +85,7 @@ std::pair<TBlob, bool> TAsyncReader::Read()
 
     TGuard<TSpinLock> guard(ReadLock);
 
-    if (!Reader->ReachedEOF()) {
+    if (CanReadSomeMore()) {
         // ev_io_start is not thread-safe
         StartWatcher.send();
     }
@@ -111,6 +111,11 @@ TAsyncError TAsyncReader::GetReadyEvent()
 
     ReadyPromise.Assign(NewPromise<TError>());
     return ReadyPromise->ToFuture();
+}
+
+bool TAsyncReader::CanReadSomeMore()
+{
+    return (!Reader->InFailedState() && !Reader->ReachedEOF());
 }
 
 TError TAsyncReader::GetState()
