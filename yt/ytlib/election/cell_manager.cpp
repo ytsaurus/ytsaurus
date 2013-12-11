@@ -33,8 +33,11 @@ TCellManager::TCellManager(
 {
     BuildTags();
 
+    PeerChannels.resize(GetPeerCount());
     for (TPeerId id = 0; id < GetPeerCount(); ++id) {
-        PeerChannels.push_back(CreatePeerChannel(id));
+        if (id != selfId) {
+            PeerChannels[id] = CreatePeerChannel(id);
+        }
     }
 
     Logger.AddTag(Sprintf("CellGuid: %s",

@@ -12,6 +12,7 @@ namespace NElection {
 class TElectionCallbacksMock
     : public IElectionCallbacks
 {
+public:
     MOCK_METHOD0(OnStartLeading, void());
     MOCK_METHOD0(OnStopLeading, void());
     MOCK_METHOD0(OnStartFollowing, void());

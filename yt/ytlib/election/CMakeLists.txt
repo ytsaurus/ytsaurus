@@ -12,6 +12,7 @@ set( HDRS
   ${BASE}/cell_manager.h
   ${BASE}/config.h
   ${BASE}/election_service_proxy.h
+  ${BASE}/election_service_mock.h
 )
 
 list(APPEND YT_SOURCE_FILES

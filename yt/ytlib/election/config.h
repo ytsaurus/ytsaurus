@@ -30,7 +30,7 @@ public:
 
         RegisterValidator([&] () {
             if (Addresses.size() % 2 != 1) {
-                THROW_ERROR_EXCEPTION("Number of masters must be odd");
+                THROW_ERROR_EXCEPTION("Number of peers must be odd");
             }
         });
     }

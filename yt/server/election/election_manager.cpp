@@ -197,7 +197,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
         TDelayedExecutor::Submit(
-            BIND(&TFollowerPinger::SendPing, MakeStrong(this), id)
+            BIND(&TFollowerPinger::SendPing, MakeWeak(this), id)
                 .Via(Owner->ControlEpochInvoker),
             Owner->Config->FollowerPingInterval);
     }
@@ -790,7 +790,7 @@ void TElectionManager::TImpl::StartFollowing(
     InitEpochContext(leaderId, epochId);
 
     PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TThis::OnFollowerPingTimeout, MakeStrong(this))
+        BIND(&TThis::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
 
@@ -933,7 +933,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
     TDelayedExecutor::Cancel(PingTimeoutCookie);
 
     PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TThis::OnFollowerPingTimeout, MakeStrong(this))
+        BIND(&TThis::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
         Config->FollowerPingTimeout);
 

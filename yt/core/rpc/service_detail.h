@@ -435,12 +435,12 @@ protected:
     TServiceBase(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const Stroka& loggingCategory);
+        const Stroka& loggingCategory = "");
 
     TServiceBase(
         IInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const Stroka& loggingCategory);
+        const Stroka& loggingCategory = "");
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
@@ -502,7 +502,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_RPC_SERVICE_METHOD(ns, method) \
+#define DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
     typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
@@ -523,6 +523,9 @@ private:
                 typedContext); \
         }); \
     } \
+
+#define DECLARE_RPC_SERVICE_METHOD(ns, method) \
+    DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
     \
     void method( \
         TReq##method* request, \
@@ -538,7 +541,7 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        BIND(&TThis::method##Thunk, ::NYT::Unretained(this)))
+        BIND(&std::remove_reference<decltype(*this)>::type::method##Thunk, ::NYT::Unretained(this)))
 
 ////////////////////////////////////////////////////////////////////////////////
 

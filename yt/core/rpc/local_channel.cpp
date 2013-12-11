@@ -111,12 +111,13 @@ private:
     private:
         IClientResponseHandlerPtr Handler_;
         
-        std::atomic_flag Replied;
+        std::atomic<bool> Replied_;
 
 
         bool AcquireLock()
         {
-            return !Replied.test_and_set();
+            bool expected = false;
+            return Replied_.compare_exchange_strong(expected, true);
         }
 
         void OnTimeout()
