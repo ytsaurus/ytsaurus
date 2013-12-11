@@ -36,7 +36,7 @@
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <core/rpc/channel_cache.h>
+#include <core/rpc/caching_channel_factory.h>
 
 #include <core/concurrency/fiber.h>
 
@@ -196,16 +196,9 @@ public:
         auto replica = replicas[RandomNumber(replicas.size())];
 
         auto& descriptor = NodeDirectory_->GetDescriptor(replica);
-        IChannelPtr channel;
 
-        try {
-            LOG_DEBUG("Opening a channel to %s", ~descriptor.Address);
-            channel = NodeChannelCache_.GetChannel(descriptor.Address);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to open a channel to %s",
-                ~descriptor.Address) << ex;
-        }
+        LOG_DEBUG("Opening a channel to %s", ~descriptor.Address);
+        auto channel = ChannelFactory_->CreateChannel(descriptor.Address);
 
         // TODO(sandello): Send only relevant part of NodeDirectory_.
         return DelegateToPeer(fragment, NodeDirectory_, channel);
@@ -294,7 +287,7 @@ private:
 
 private:
     IChannelPtr MasterChannel_;
-    TChannelCache NodeChannelCache_;
+    IChannelFactoryPtr ChannelFactory_;
     TObjectServiceProxy ObjectProxy_;
     TTableMountCachePtr TableMountCache_;
     TNodeDirectoryPtr NodeDirectory_;

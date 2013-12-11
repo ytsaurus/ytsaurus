@@ -12,6 +12,8 @@
 #include <core/bus/config.h>
 
 #include <core/rpc/channel.h>
+#include <core/rpc/bus_channel.h>
+#include <core/rpc/caching_channel_factory.h>
 #include <core/rpc/server.h>
 #include <core/rpc/redirector_service.h>
 #include <core/rpc/throttling_channel.h>
@@ -143,15 +145,23 @@ void TBootstrap::Run()
         }
     }
 
-    MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
+    MasterChannel = CreatePeerChannel(
+        Config->Masters,
+        GetBusChannelFactory(),
+        EPeerRole::Leader);
 
-    SchedulerChannel = CreateSchedulerChannel(Config->ExecAgent->SchedulerConnector, MasterChannel);
+    SchedulerChannel = CreateSchedulerChannel(
+        Config->ExecAgent->SchedulerConnector,
+        GetBusChannelFactory(),
+        MasterChannel);
 
     ControlQueue = New<TActionQueue>("Control");
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
     RpcServer = CreateRpcServer(BusServer);
+
+    TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -269,10 +279,14 @@ void TBootstrap::Run()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
-    CellRegistry = New<TCellDirectory>();
-    CellRegistry->RegisterCell(Config->Masters);
+    CellDirectory = New<TCellDirectory>(
+        Config->CellDirectory,
+        GetBusChannelFactory());
+    CellDirectory->RegisterCell(Config->Masters);
 
-    TimestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
+    TimestampProvider = CreateRemoteTimestampProvider(
+        Config->TimestampProvider,
+        GetBusChannelFactory());
 
     TabletCellController = New<TTabletCellController>(Config, this);
 
@@ -359,6 +373,11 @@ IRpcServerPtr TBootstrap::GetRpcServer() const
     return RpcServer;
 }
 
+IChannelFactoryPtr TBootstrap::GetTabletChannelFactory() const
+{
+    return TabletChannelFactory;
+}
+
 IMapNodePtr TBootstrap::GetOrchidRoot() const
 {
     return OrchidRoot;
@@ -434,9 +453,9 @@ TMasterConnectorPtr TBootstrap::GetMasterConnector() const
     return MasterConnector;
 }
 
-TCellDirectoryPtr TBootstrap::GetCellRegistry() const
+TCellDirectoryPtr TBootstrap::GetCellDirectory() const
 {
-    return CellRegistry;
+    return CellDirectory;
 }
 
 ITimestampProviderPtr TBootstrap::GetTimestampProvider() const

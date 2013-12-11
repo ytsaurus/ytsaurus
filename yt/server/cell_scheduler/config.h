@@ -32,6 +32,7 @@ public:
     int MonitoringPort;
 
     NHydra::TPeerDiscoveryConfigPtr Masters;
+    NHive::TCellDirectoryConfigPtr CellDirectory;
     NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NScheduler::TSchedulerConfigPtr Scheduler;
@@ -45,6 +46,8 @@ public:
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10001);
         RegisterParameter("masters", Masters);
+        RegisterParameter("cell_directory", CellDirectory)
+            .DefaultNew();
         RegisterParameter("timestamp_provider", TimestampProvider);
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();

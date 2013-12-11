@@ -138,7 +138,9 @@ struct IDriver
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates an implementation of IDriver with a given configuration.
-IDriverPtr CreateDriver(TDriverConfigPtr config);
+IDriverPtr CreateDriver(
+    TDriverConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

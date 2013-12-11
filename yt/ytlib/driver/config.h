@@ -45,6 +45,7 @@ class TDriverConfig
     : public TYsonSerializable
 {
 public:
+    NHive::TCellDirectoryConfigPtr CellDirectory;
     NHydra::TPeerDiscoveryConfigPtr Masters;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
@@ -62,6 +63,8 @@ public:
 
     TDriverConfig()
     {
+        RegisterParameter("cell_directory", CellDirectory)
+            .DefaultNew();
         RegisterParameter("masters", Masters);
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();

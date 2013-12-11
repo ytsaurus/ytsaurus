@@ -5,8 +5,6 @@
 #include "config.h"
 #include "master_connector.h"
 
-#include <core/rpc/channel_cache.h>
-
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -64,7 +62,7 @@ void TPeerBlockUpdater::Update()
             if (it != requests.end()) {
                 request = it->second;
             } else {
-                TProxy proxy(ChannelCache.GetChannel(sourceAddress));
+                TProxy proxy(ChannelFactory->CreateChannel(sourceAddress));
                 request = proxy.UpdatePeer();
                 ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());

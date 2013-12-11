@@ -18,9 +18,7 @@ typedef TCallback< TFuture< TErrorOr<IChannelPtr> >()> TChannelProducer;
  *  This endpoint is cached and reused until some request fails with RPC error code.
  *  In the latter case the endpoint is rediscovered.
  */
-IChannelPtr CreateRoamingChannel(
-    TNullable<TDuration> defaultTimeout,
-    TChannelProducer producer);
+IChannelPtr CreateRoamingChannel(TChannelProducer producer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

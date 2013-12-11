@@ -71,10 +71,10 @@ public:
     NHydra::TFileSnapshotCatalogConfigPtr Snapshots;
 
     //! Generic configuration for all Hydra instances.
-    NHydra::TDistributedHydraManagerConfigPtr Hydra;
+    NHydra::TDistributedHydraManagerConfigPtr HydraManager;
 
     //! Generic configuration for all Hive instances.
-    NHive::THiveManagerConfigPtr Hive;
+    NHive::THiveManagerConfigPtr HiveManager;
 
     TTransactionManagerConfigPtr TransactionManager;
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
@@ -88,9 +88,9 @@ public:
             .Default(4);
         RegisterParameter("changelogs", Changelogs);
         RegisterParameter("snapshots", Snapshots);
-        RegisterParameter("hydra", Hydra)
+        RegisterParameter("hydra_manager", HydraManager)
             .DefaultNew();
-        RegisterParameter("hive", Hive)
+        RegisterParameter("hive_manager", HiveManager)
             .DefaultNew();
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();

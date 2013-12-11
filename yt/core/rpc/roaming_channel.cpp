@@ -15,17 +15,19 @@ class TRoamingChannel
     : public IChannel
 {
 public:
-    TRoamingChannel(
-        TNullable<TDuration> defaultTimeout,
-        TChannelProducer producer)
-        : DefaultTimeout(defaultTimeout)
-        , Producer(producer)
+    explicit TRoamingChannel(TChannelProducer producer)
+        : Producer(std::move(producer))
         , Terminated(false)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
         return DefaultTimeout;
+    }
+
+    void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    {
+        DefaultTimeout = timeout;
     }
 
     virtual void Send(
@@ -190,13 +192,9 @@ private:
 
 };
 
-IChannelPtr CreateRoamingChannel(
-    TNullable<TDuration> defaultTimeout,
-    TChannelProducer producer)
+IChannelPtr CreateRoamingChannel(TChannelProducer producer)
 {
-    return New<TRoamingChannel>(
-        defaultTimeout,
-        producer);
+    return New<TRoamingChannel>(producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,6 +32,9 @@ public:
     //! Cell masters.
     NHydra::TPeerDiscoveryConfigPtr Masters;
 
+    //! Cell directory.
+    NHive::TCellDirectoryConfigPtr CellDirectory;
+
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;
 
@@ -57,6 +60,8 @@ public:
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
         RegisterParameter("masters", Masters);
+        RegisterParameter("cell_directory", CellDirectory)
+            .DefaultNew();
         RegisterParameter("data_node", DataNode);
         RegisterParameter("exec_agent", ExecAgent);
         RegisterParameter("tablet_node", TabletNode);

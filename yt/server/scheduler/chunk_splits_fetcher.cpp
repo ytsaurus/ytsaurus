@@ -2,20 +2,23 @@
 #include "chunk_splits_fetcher.h"
 #include "private.h"
 
+#include <core/misc/protobuf_helpers.h>
+
+#include <core/rpc/channel.h>
+#include <core/rpc/caching_channel_factory.h>
+#include <core/rpc/bus_channel.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/private.h>
-
-#include <core/rpc/channel_cache.h>
-
-#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NScheduler {
 
+using namespace NRpc;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -24,7 +27,7 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NRpc::TChannelCache ChannelCache;
+static IChannelFactoryPtr ChannelFactory(CreateCachingChannelFactory(GetBusChannelFactory()));
 
 ////////////////////////////////////////////////////////////////////
 
@@ -62,8 +65,9 @@ const std::vector<TRefCountedChunkSpecPtr>& TChunkSplitsFetcher::GetChunkSplits(
 
 void TChunkSplitsFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
 {
-    auto channel = ChannelCache.GetChannel(descriptor.Address);
+    auto channel = ChannelFactory->CreateChannel(descriptor.Address);
     auto retryingChannel = CreateRetryingChannel(Config->NodeChannel, channel);
+    
     TDataNodeServiceProxy proxy(retryingChannel);
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 

@@ -24,8 +24,9 @@ class TCellDirectory
     : public TRefCounted
 {
 public:
-    TCellDirectory();
-
+    TCellDirectory(
+        TCellDirectoryConfigPtr config,
+        NRpc::IChannelFactoryPtr channelFactory);
     ~TCellDirectory();
 
     typedef NHydra::NProto::TCellConfig TCellConfig;

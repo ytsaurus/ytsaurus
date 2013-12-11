@@ -5,6 +5,8 @@
 #include "message.h"
 #include "dispatcher.h"
 
+#include <core/misc/singleton.h>
+
 #include <core/actions/future.h>
 
 #include <core/concurrency/delayed_executor.h>
@@ -70,9 +72,8 @@ class TChannel
     : public IChannel
 {
 public:
-    TChannel(IBusClientPtr client, TNullable<TDuration> defaultTimeout)
+    explicit TChannel(IBusClientPtr client)
         : Client(std::move(client))
-        , DefaultTimeout(defaultTimeout)
         , Terminated(false)
     {
         YCHECK(Client);
@@ -81,6 +82,11 @@ public:
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
         return DefaultTimeout;
+    }
+
+    void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    {
+        DefaultTimeout = timeout;
     }
 
     virtual void Send(
@@ -456,6 +462,7 @@ private:
     };
 
     IBusClientPtr Client;
+
     TNullable<TDuration> DefaultTimeout;
 
     TSpinLock SpinLock;
@@ -515,15 +522,34 @@ private:
 
         session_->Terminate(error);
     }
+
 };
 
-IChannelPtr CreateBusChannel(
-    IBusClientPtr client,
-    TNullable<TDuration> defaultTimeout)
+IChannelPtr CreateBusChannel(IBusClientPtr client)
 {
     YCHECK(client);
 
-    return New<TChannel>(client, defaultTimeout);
+    return New<TChannel>(std::move(client));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBusChannelFactory
+    : public IChannelFactory
+{
+public:
+    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    {
+        auto config = New<TTcpBusClientConfig>(address);
+        auto client = CreateTcpBusClient(config);
+        return CreateBusChannel(client);
+    }
+
+};
+
+IChannelFactoryPtr GetBusChannelFactory()
+{
+    return RefCountedSingleton<TBusChannelFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

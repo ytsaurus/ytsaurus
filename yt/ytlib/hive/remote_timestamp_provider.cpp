@@ -21,9 +21,11 @@ class TRemoteTimestampProvider
     : public ITimestampProvider
 {
 public:
-    explicit TRemoteTimestampProvider(TRemoteTimestampProviderConfigPtr config)
+    TRemoteTimestampProvider(
+        TRemoteTimestampProviderConfigPtr config,
+        IChannelFactoryPtr channelFactory)
         : Config(config)
-        , Channel(CreatePeerChannel(config, EPeerRole::Leader))
+        , Channel(CreatePeerChannel(config, channelFactory, EPeerRole::Leader))
         , Proxy(Channel)
         , LatestTimestamp(NullTimestamp)
     { }
@@ -69,9 +71,13 @@ private:
 
 };
 
-ITimestampProviderPtr CreateRemoteTimestampProvider(TRemoteTimestampProviderConfigPtr config)
+ITimestampProviderPtr CreateRemoteTimestampProvider(
+    TRemoteTimestampProviderConfigPtr config,
+    IChannelFactoryPtr channelFactory)
 {
-    return New<TRemoteTimestampProvider>(config);
+    return New<TRemoteTimestampProvider>(
+        config,
+        channelFactory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

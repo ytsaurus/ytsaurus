@@ -7,7 +7,6 @@
 #include <core/rpc/roaming_channel.h>
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/retrying_channel.h>
-#include <core/rpc/channel_cache.h>
 #include <core/rpc/helpers.h>
 
 #include <core/bus/config.h>
@@ -22,7 +21,6 @@ using namespace NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = HydraLogger;
-static TChannelCache ChannelCache; // TODO(babenko): unite with peer_discovery
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +38,7 @@ Stroka FormatRole(EPeerRole role)
 
 TErrorOr<IChannelPtr> OnPeerFound(
     TPeerDiscoveryConfigPtr config,
+    IChannelFactoryPtr channelFactory,
     EPeerRole role,
     TErrorOr<TPeerDiscoveryResult> resultOrError)
 {
@@ -58,7 +57,7 @@ TErrorOr<IChannelPtr> OnPeerFound(
         ~formattedRole,
         ~result.Address);
 
-    auto busChannel = ChannelCache.GetChannel(result.Address);
+    auto busChannel = channelFactory->CreateChannel(result.Address);
     auto realmChannel = CreateRealmChannel(busChannel, config->CellGuid);
     return realmChannel;
 }
@@ -67,16 +66,23 @@ TErrorOr<IChannelPtr> OnPeerFound(
 
 IChannelPtr CreatePeerChannel(
     TPeerDiscoveryConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
     EPeerRole role)
 {
     auto roamingChannel = CreateRoamingChannel(
-        config->RpcTimeout,
         BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
-            return DiscoverPeer(config, role).Apply(BIND(
-                &OnPeerFound,
-                config,
-                role));
+            return
+                DiscoverPeer(
+                    config,
+                    channelFactory,
+                    role)
+                .Apply(BIND(
+                    &OnPeerFound,
+                    config,
+                    channelFactory,
+                    role));
         }));
+    roamingChannel->SetDefaultTimeout(config->RpcTimeout);
     return CreateRetryingChannel(config, roamingChannel);
 }
 

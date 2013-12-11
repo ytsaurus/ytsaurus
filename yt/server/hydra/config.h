@@ -262,7 +262,7 @@ public:
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::MilliSeconds(3000));
+            .Default(TDuration::Seconds(3));
         RegisterParameter("snapshot_timeout", SnapshotTimeout)
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_changelog_read_size", MaxChangelogReadSize)

@@ -52,9 +52,10 @@ public:
 
     NHydra::TFileChangelogStoreConfigPtr Changelogs;
     NHydra::TFileSnapshotStoreConfigPtr Snapshots;
-    NHydra::TDistributedHydraManagerConfigPtr Hydra;
-    
-    NHive::THiveManagerConfigPtr Hive;
+    NHydra::TDistributedHydraManagerConfigPtr HydraManager;
+
+    NHive::TCellDirectoryConfigPtr CellDirectory;
+    NHive::THiveManagerConfigPtr HiveManager;
 
     NNodeTrackerServer::TNodeTrackerConfigPtr NodeTracker;
 
@@ -87,9 +88,11 @@ public:
         RegisterParameter("masters", Masters);
         RegisterParameter("changelogs", Changelogs);
         RegisterParameter("snapshots", Snapshots);
-        RegisterParameter("hydra", Hydra)
+        RegisterParameter("hydra_manager", HydraManager)
             .DefaultNew();
-        RegisterParameter("hive", Hive)
+        RegisterParameter("cell_directory", CellDirectory)
+            .DefaultNew();
+        RegisterParameter("hive_manager", HiveManager)
             .DefaultNew();
         RegisterParameter("node_tracker", NodeTracker)
             .DefaultNew();

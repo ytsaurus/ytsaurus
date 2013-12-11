@@ -20,8 +20,11 @@ namespace NRpc {
 struct IChannel
     : public virtual TRefCounted
 {
-    //! Gets default timeout.
+    //! Gets the default timeout.
     virtual TNullable<TDuration> GetDefaultTimeout() const = 0;
+
+    //! Sets the default timeout.
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) = 0;
 
     //! Sends a request via the channel.
     /*!
@@ -40,6 +43,13 @@ struct IChannel
      *  After the first call the instance is no longer usable.
      */
     virtual TFuture<void> Terminate(const TError& error) = 0;
+};
+
+//! Provides means for parsing addresses and creating channels.
+struct IChannelFactory
+    : public virtual TRefCounted
+{
+    virtual IChannelPtr CreateChannel(const Stroka& address) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

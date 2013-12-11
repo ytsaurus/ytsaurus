@@ -9,22 +9,21 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 class TScopedChannel
     : public IChannel
 {
 public:
     explicit TScopedChannel(IChannelPtr underlyingChannel);
 
-    TNullable<TDuration> GetDefaultTimeout() const override;
+    virtual TNullable<TDuration> GetDefaultTimeout() const override;
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override;
 
-    void Send(
+    virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) override;
 
-    TFuture<void> Terminate(const TError& error) override;
+    virtual TFuture<void> Terminate(const TError& error) override;
 
     void OnRequestCompleted();
 
@@ -87,6 +86,11 @@ TNullable<TDuration> TScopedChannel::GetDefaultTimeout() const
     return UnderlyingChannel->GetDefaultTimeout();
 }
 
+void TScopedChannel::SetDefaultTimeout(const TNullable<TDuration>& timeout)
+{
+    UnderlyingChannel->SetDefaultTimeout(timeout);
+}
+
 void TScopedChannel::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,
@@ -130,8 +134,6 @@ void TScopedChannel::OnRequestCompleted()
         OutstandingRequestsCompleted.Set();
     }
 }
-
-} // anonymous namespace
 
 IChannelPtr CreateScopedChannel(IChannelPtr underlyingChannel)
 {

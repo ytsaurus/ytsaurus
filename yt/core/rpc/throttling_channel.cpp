@@ -1,5 +1,4 @@
 #include "stdafx.h"
-
 #include "config.h"
 #include "public.h"
 #include "throttling_channel.h"
@@ -33,6 +32,11 @@ public:
         return UnderlyingChannel->GetDefaultTimeout();
     }
 
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    {
+        UnderlyingChannel->SetDefaultTimeout(timeout);
+    }
+    
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

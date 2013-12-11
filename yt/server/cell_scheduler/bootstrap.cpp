@@ -13,9 +13,9 @@
 
 #include <core/rpc/server.h>
 #include <core/rpc/retrying_channel.h>
+#include <core/rpc/bus_channel.h>
 
 #include <ytlib/hydra/peer_channel.h>
-
 #include <ytlib/hydra/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
@@ -90,7 +90,10 @@ void TBootstrap::Run()
         ~LocalAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
+    MasterChannel = CreatePeerChannel(
+        Config->Masters,
+        GetBusChannelFactory(),
+        EPeerRole::Leader);
 
     ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
@@ -98,9 +101,13 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(BusServer);
 
-    auto timestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
+    auto timestampProvider = CreateRemoteTimestampProvider(
+        Config->TimestampProvider,
+        GetBusChannelFactory());
 
-    auto cellDirectory = New<TCellDirectory>();
+    auto cellDirectory = New<TCellDirectory>(
+        Config->CellDirectory,
+        GetBusChannelFactory());
     cellDirectory->RegisterCell(Config->Masters);
 
     TransactionManager = New<TTransactionManager>(

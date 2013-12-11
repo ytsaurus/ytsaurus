@@ -27,6 +27,9 @@ class TTypedClientResponse;
 class TOneWayClientResponse;
 typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
 
+class TStaticChannelFactory;
+typedef TIntrusivePtr<TStaticChannelFactory> TStaticChannelFactoryPtr;
+
 class TRetryingChannelConfig;
 typedef TIntrusivePtr<TRetryingChannelConfig> TRetryingChannelConfigPtr;
 
@@ -47,7 +50,8 @@ typedef TIntrusivePtr<IServiceContext> IServiceContextPtr;
 struct IChannel;
 typedef TIntrusivePtr<IChannel> IChannelPtr;
 
-class TChannelCache;
+struct IChannelFactory;
+typedef TIntrusivePtr<IChannelFactory> IChannelFactoryPtr;
 
 class TServiceBase;
 typedef TIntrusivePtr<TServiceBase> TServiceBasePtr;

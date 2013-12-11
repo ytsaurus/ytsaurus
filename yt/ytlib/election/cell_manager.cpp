@@ -9,7 +9,6 @@
 #include <core/bus/client.h>
 #include <core/bus/tcp_client.h>
 
-#include <core/rpc/channel_cache.h>
 #include <core/rpc/helpers.h>
 
 #include <core/profiling/profiling_manager.h>
@@ -23,14 +22,12 @@ using namespace NRpc;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NRpc::TChannelCache ChannelCache;
-
-///////////////////////////////////////////////////////////////////////////////
-
 TCellManager::TCellManager(
     TCellConfigPtr config,
+    IChannelFactoryPtr channelFactory,
     TPeerId selfId)
     : Config(config)
+    , ChannelFactory(channelFactory)
     , SelfId(selfId)
     , Logger(ElectionLogger)
 {
@@ -155,10 +152,7 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 
 IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
 {
-    auto address = GetPeerAddress(id);
-    auto busChannel = ChannelCache.GetChannel(address);
-    auto realmChannel = CreateRealmChannel(busChannel, Config->CellGuid);
-    return realmChannel;
+    return ChannelFactory->CreateChannel(GetPeerAddress(id));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

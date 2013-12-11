@@ -165,11 +165,12 @@ void TJobProxy::Run()
 TJobResult TJobProxy::DoRun()
 {
     auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
-
-    auto supervisorChannel = CreateBusChannel(supervisorClient, Config->SupervisorRpcTimeout);
+    auto supervisorChannel = CreateBusChannel(supervisorClient);
+    
     SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
+    SupervisorProxy->SetDefaultTimeout(Config->SupervisorRpcTimeout);
 
-    MasterChannel = CreateBusChannel(supervisorClient, Null);
+    MasterChannel = CreateBusChannel(supervisorClient);
 
     RetrieveJobSpec();
 

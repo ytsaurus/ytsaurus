@@ -59,8 +59,8 @@ struct TNode
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
         , Descriptor(descriptor)
-        , LightProxy(LightNodeChannelCache->GetChannel(descriptor.Address))
-        , HeavyProxy(HeavyNodeChannelCache->GetChannel(descriptor.Address))
+        , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.Address))
+        , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.Address))
     { }
 
     bool IsAlive() const

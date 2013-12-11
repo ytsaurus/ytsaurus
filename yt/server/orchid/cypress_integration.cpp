@@ -12,7 +12,8 @@
 
 #include <core/rpc/channel.h>
 #include <core/rpc/message.h>
-#include <core/rpc/channel_cache.h>
+#include <core/rpc/caching_channel_factory.h>
+#include <core/rpc/bus_channel.h>
 
 #include <ytlib/orchid/orchid_service_proxy.h>
 
@@ -48,7 +49,7 @@ using namespace NConcurrency;
 
 static auto& Logger = OrchidLogger;
 
-static TChannelCache ChannelCache;
+static IChannelFactoryPtr ChannelFactory(CreateCachingChannelFactory(GetBusChannelFactory()));
 static TLazyIntrusivePtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +91,7 @@ public:
 
         auto manifest = LoadManifest();
 
-        auto channel = ChannelCache.GetChannel(manifest->RemoteAddress);
+        auto channel = ChannelFactory->CreateChannel(manifest->RemoteAddress);
 
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);

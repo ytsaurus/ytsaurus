@@ -6,6 +6,8 @@
 
 #include <core/actions/future.h>
 
+#include <core/rpc/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -30,6 +32,7 @@ struct TPeerDiscoveryResult
  */
 TFuture<TErrorOr<TPeerDiscoveryResult>> DiscoverPeer(
     TPeerDiscoveryConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
     EPeerRole role);
 
 ////////////////////////////////////////////////////////////////////////////////

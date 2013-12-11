@@ -12,6 +12,7 @@ namespace NHydra {
 //! Creates a channel that takes care of choosing a peer with the requested role.
 NRpc::IChannelPtr CreatePeerChannel(
     TPeerDiscoveryConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
     EPeerRole role);
 
 ////////////////////////////////////////////////////////////////////////////////

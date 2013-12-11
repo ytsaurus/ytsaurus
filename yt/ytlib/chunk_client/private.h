@@ -1,10 +1,8 @@
 #pragma once
 
-#include <core/misc/lazy_ptr.h>
-
-#include <core/rpc/channel_cache.h>
-
 #include <core/logging/log.h>
+
+#include <core/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -14,8 +12,8 @@ namespace NChunkClient {
 extern NLog::TLogger ChunkReaderLogger;
 extern NLog::TLogger ChunkWriterLogger;
 
-extern TLazyUniquePtr<NRpc::TChannelCache> HeavyNodeChannelCache;
-extern TLazyUniquePtr<NRpc::TChannelCache> LightNodeChannelCache;
+extern NRpc::IChannelFactoryPtr HeavyNodeChannelFactory;
+extern NRpc::IChannelFactoryPtr LightNodeChannelFactory;
 
 extern const int MaxPrefetchWindow;
 

@@ -52,6 +52,7 @@ public:
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
     NRpc::IRpcServerPtr GetRpcServer() const;
+    NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
     NTabletNode::TTabletCellControllerPtr GetTabletCellController() const;
@@ -67,7 +68,7 @@ public:
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
-    NHive::TCellDirectoryPtr GetCellRegistry() const;
+    NHive::TCellDirectoryPtr GetCellDirectory() const;
     NHive::ITimestampProviderPtr GetTimestampProvider() const;
     NQueryAgent::TQueryManagerPtr GetQueryManager() const;
 
@@ -95,6 +96,7 @@ private:
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;
     NRpc::IRpcServerPtr RpcServer;
+    NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobTrackerPtr JobController;
     NExecAgent::TSlotManagerPtr SlotManager;
@@ -111,7 +113,7 @@ private:
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
-    NHive::TCellDirectoryPtr CellRegistry;
+    NHive::TCellDirectoryPtr CellDirectory;
     NHive::ITimestampProviderPtr TimestampProvider;
     NQueryAgent::TQueryManagerPtr QueryManager;
 

@@ -58,6 +58,11 @@ public:
         return UnderlyingChannel->GetDefaultTimeout();
     }
 
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    {
+        UnderlyingChannel->SetDefaultTimeout(timeout);
+    }
+
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
@@ -99,6 +104,11 @@ public:
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
         return UnderlyingChannel->GetDefaultTimeout();
+    }
+
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    {
+        UnderlyingChannel->SetDefaultTimeout(timeout);
     }
 
     virtual void Send(

@@ -30,6 +30,7 @@ public:
         IChannelPtr underlyingChannel);
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override;
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override;
 
     virtual void Send(
         IClientRequestPtr request,
@@ -216,6 +217,11 @@ TFuture<void> TRetryingChannel::Terminate(const TError& error)
 TNullable<TDuration> TRetryingChannel::GetDefaultTimeout() const
 {
     return UnderlyingChannel->GetDefaultTimeout();
+}
+
+void TRetryingChannel::SetDefaultTimeout(const TNullable<TDuration>& timeout)
+{
+    UnderlyingChannel->SetDefaultTimeout(timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

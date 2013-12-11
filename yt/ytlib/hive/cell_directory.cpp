@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "cell_directory.h"
+#include "config.h"
 
 #include <core/rpc/channel.h>
 
@@ -20,6 +21,13 @@ using namespace NElection;
 class TCellDirectory::TImpl
 {
 public:
+    TImpl(
+        TCellDirectoryConfigPtr config,
+        IChannelFactoryPtr channelFactory)
+        : Config(config)
+        , ChannelFactory(channelFactory)
+    { }
+
     IChannelPtr FindChannel(const TCellGuid& cellGuid)
     {
         TGuard<TSpinLock> guard(Spinlock);
@@ -99,6 +107,9 @@ public:
     }
 
 private:
+    TCellDirectoryConfigPtr Config;
+    IChannelFactoryPtr ChannelFactory;
+
     struct TEntry
     {
         TCellConfig Config;
@@ -113,12 +124,12 @@ private:
     {
         if (entry->Config.version() > 0) {
             auto config = New<TPeerDiscoveryConfig>();
+            config->RpcTimeout = Config->RpcTimeout;
             config->CellGuid = cellGuid;
             for (const auto& peer : entry->Config.peers()) {
                 config->Addresses.push_back(peer.address());
             }
-            // TODO(babenko): configure timeout
-            entry->Channel = CreatePeerChannel(config, EPeerRole::Leader);
+            entry->Channel = CreatePeerChannel(config, ChannelFactory, EPeerRole::Leader);
         }
     }
     
@@ -139,8 +150,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectory::TCellDirectory()
-    : Impl(new TImpl())
+TCellDirectory::TCellDirectory(
+    TCellDirectoryConfigPtr config,
+    IChannelFactoryPtr channelFactory)
+    : Impl(new TImpl(
+        config,
+        channelFactory))
 { }
 
 TCellDirectory::~TCellDirectory()

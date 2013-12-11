@@ -9,7 +9,6 @@
 
 #include <core/actions/invoker_util.h>
 
-#include <core/rpc/channel_cache.h>
 #include <core/rpc/helpers.h>
 
 #include <util/random/random.h>
@@ -24,7 +23,6 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = HydraLogger;
-static TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,8 +32,10 @@ class TPeerDiscovery
 public:
     explicit TPeerDiscovery(
         TPeerDiscoveryConfigPtr config,
+        IChannelFactoryPtr channelFactory,
         EPeerRole role)
         : Config(config)
+        , ChannelFactory(channelFactory)
         , Role(role)
         , PromiseLock(false)
         , Promise(NewPromise<TErrorOr<TPeerDiscoveryResult>>())
@@ -50,9 +50,10 @@ public:
         auto awaiter = Awaiter;
 
         for (const Stroka& address : Config->Addresses) {
-            LOG_DEBUG("Requesting quorum information from peer %s", ~address);
+            LOG_DEBUG("Requesting quorum information from peer %s",
+                ~address);
 
-            auto busChannel = ChannelCache.GetChannel(address);
+            auto busChannel = ChannelFactory->CreateChannel(address);
             auto realmChannel = CreateRealmChannel(busChannel, Config->CellGuid);
             THydraServiceProxy proxy(realmChannel);
             proxy.SetDefaultTimeout(Config->RpcTimeout);
@@ -72,6 +73,7 @@ public:
 
 private:
     TPeerDiscoveryConfigPtr Config;
+    IChannelFactoryPtr ChannelFactory;
     EPeerRole Role;
 
     TAtomic PromiseLock;
@@ -160,9 +162,13 @@ private:
 
 TFuture<TErrorOr<TPeerDiscoveryResult>> DiscoverPeer(
     TPeerDiscoveryConfigPtr config,
+    IChannelFactoryPtr channelFactory,
     EPeerRole role)
 {
-    auto discovery = New<TPeerDiscovery>(config, role);
+    auto discovery = New<TPeerDiscovery>(
+        config,
+        channelFactory,
+        role);
     return discovery->Run();
 }
 

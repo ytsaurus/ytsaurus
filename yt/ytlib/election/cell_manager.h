@@ -23,6 +23,7 @@ class TCellManager
 public:
     TCellManager(
         TCellConfigPtr config,
+        NRpc::IChannelFactoryPtr channelFactory,
         TPeerId selfId);
 
     const TCellGuid& GetCellGuid() const;
@@ -45,6 +46,7 @@ public:
 
 private:
     TCellConfigPtr Config;
+    NRpc::IChannelFactoryPtr ChannelFactory;
     TPeerId SelfId;
 
     std::vector<NRpc::IChannelPtr> PeerChannels;

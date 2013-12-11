@@ -644,7 +644,7 @@ private:
 
                 IChannelPtr channel;
                 try {
-                    channel = LightNodeChannelCache->GetChannel(currentDescriptor.Address);
+                    channel = LightNodeChannelFactory->CreateChannel(currentDescriptor.Address);
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
                     continue;
@@ -876,7 +876,7 @@ private:
 
         IChannelPtr channel;
         try {
-            channel = LightNodeChannelCache->GetChannel(address);
+            channel = LightNodeChannelFactory->CreateChannel(address);
         } catch (const std::exception& ex) {
             OnGetChunkMetaResponseFailed(descriptor, ex);
             return;

@@ -3,11 +3,13 @@
 #include "private.h"
 #include "chunk_pool.h"
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <core/rpc/channel_cache.h>
-
 #include <core/misc/protobuf_helpers.h>
+
+#include <core/rpc/channel.h>
+#include <core/rpc/caching_channel_factory.h>
+#include <core/rpc/bus_channel.h>
+
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -16,6 +18,7 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NRpc;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NVersionedTableClient;
@@ -24,7 +27,7 @@ using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////
 
-static NRpc::TChannelCache ChannelCache;
+static IChannelFactoryPtr ChannelFactory(CreateCachingChannelFactory(GetBusChannelFactory()));
 
 ////////////////////////////////////////////////////////////////////
 
@@ -85,8 +88,9 @@ const std::vector<TOwningKey>& TSamplesFetcher::GetSamples() const
 
 void TSamplesFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
 {
-    auto channel = ChannelCache.GetChannel(descriptor.Address);
+    auto channel = ChannelFactory->CreateChannel(descriptor.Address);
     auto retryingChannel = CreateRetryingChannel(Config->NodeChannel, channel);
+    
     TDataNodeServiceProxy proxy(retryingChannel);
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 

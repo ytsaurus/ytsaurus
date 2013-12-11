@@ -230,12 +230,13 @@ public:
 
             CellManager = New<TCellManager>(
                 cellConfig,
+                Bootstrap->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
             Automaton = New<TTabletAutomaton>(Bootstrap, Owner);
 
             HydraManager = CreateDistributedHydraManager(
-                Config->TabletNode->Hydra,
+                Config->TabletNode->HydraManager,
                 Bootstrap->GetControlInvoker(),
                 GetAutomatonInvoker(),
                 Automaton,
@@ -252,8 +253,8 @@ public:
 
             HiveManager = New<THiveManager>(
                 CellGuid,
-                Config->TabletNode->Hive,
-                Bootstrap->GetCellRegistry(),
+                Config->TabletNode->HiveManager,
+                Bootstrap->GetCellDirectory(),
                 GetAutomatonInvoker(),
                 Bootstrap->GetRpcServer(),
                 HydraManager,

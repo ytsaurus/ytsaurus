@@ -19,6 +19,7 @@
 #include <core/bus/tcp_server.h>
 
 #include <core/rpc/server.h>
+#include <core/rpc/bus_channel.h>
 
 #include <core/profiling/profiling_manager.h>
 
@@ -252,6 +253,7 @@ void TBootstrap::Run()
 
     CellManager = New<TCellManager>(
         Config->Masters,
+        GetBusChannelFactory(),
         selfId);
 
     ChangelogStore = CreateFileChangelogStore(
@@ -264,12 +266,14 @@ void TBootstrap::Run()
 
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
     
-    CellRegistry = New<TCellDirectory>();
+    CellRegistry = New<TCellDirectory>(
+        Config->CellDirectory,
+        GetBusChannelFactory());
     CellRegistry->RegisterCell(Config->Masters);
 
     HiveManager = New<THiveManager>(
         GetCellGuid(),
-        Config->Hive,
+        Config->HiveManager,
         CellRegistry,
         MetaStateFacade->GetInvoker(),
         RpcServer,
@@ -300,7 +304,8 @@ void TBootstrap::Run()
         MetaStateFacade->GetAutomaton());
     
     auto timestampProvider = CreateRemoteTimestampProvider(
-        Config->TimestampProvider);
+        Config->TimestampProvider,
+        GetBusChannelFactory());
     
     TransactionSupervisor = New<TTransactionSupervisor>(
         Config->TransactionSupervisor,

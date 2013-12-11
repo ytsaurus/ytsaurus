@@ -23,35 +23,28 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TErrorOr<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
-{
-    if (!rsp->IsOK()) {
-        return rsp->GetError();
-    }
-
-    auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
-    auto config = New<TTcpBusClientConfig>(address);
-    // TODO(babenko): get rid of this hardcoded priority
-    config->Priority = 6;
-    auto client = CreateTcpBusClient(config);
-    return CreateBusChannel(client);
-}
-
-} // namespace
-
 IChannelPtr CreateSchedulerChannel(
     TSchedulerConnectionConfigPtr config,
+    IChannelFactoryPtr channelFactory,
     IChannelPtr masterChannel)
 {
     auto roamingChannel = CreateRoamingChannel(
-        config->RpcTimeout,
         BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
             TObjectServiceProxy proxy(masterChannel);
             auto req = TYPathProxy::Get("//sys/scheduler/@address");
-            return proxy.Execute(req).Apply(BIND(&OnSchedulerAddressFound));
+            return proxy
+                .Execute(req)
+                .Apply(BIND([=] (TYPathProxy::TRspGetPtr rsp) -> TErrorOr<IChannelPtr> {
+                    if (!rsp->IsOK()) {
+                        return rsp->GetError();
+                    }
+
+                    auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
+                    return channelFactory->CreateChannel(address);
+                }));
         }));
+
+    roamingChannel->SetDefaultTimeout(config->RpcTimeout);
     return CreateRetryingChannel(config, roamingChannel);
 }
 

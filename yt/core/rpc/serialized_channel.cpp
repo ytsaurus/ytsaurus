@@ -16,6 +16,7 @@ public:
     explicit TSerializedChannel(IChannelPtr underlyingChannel);
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override;
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override;
 
     virtual void Send(
         IClientRequestPtr request,
@@ -106,6 +107,11 @@ TSerializedChannel::TSerializedChannel(IChannelPtr underlyingChannel)
 TNullable<TDuration> TSerializedChannel::GetDefaultTimeout() const
 {
     return UnderlyingChannel->GetDefaultTimeout();
+}
+
+void TSerializedChannel::SetDefaultTimeout(const TNullable<TDuration>& timeout)
+{
+    UnderlyingChannel->SetDefaultTimeout(timeout);
 }
 
 void TSerializedChannel::Send(

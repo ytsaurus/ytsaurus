@@ -90,7 +90,7 @@ public:
         Automaton = New<TMasterAutomaton>(Bootstrap);
 
         HydraManager = CreateDistributedHydraManager(
-            Config->Hydra,
+            Config->HydraManager,
             Bootstrap->GetControlInvoker(),
             AutomatonQueue->GetInvoker(EAutomatonThreadQueue::Default),
             Automaton,

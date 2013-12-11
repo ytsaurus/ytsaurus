@@ -17,6 +17,9 @@ typedef TIntrusivePtr<TCellDirectory> TCellDirectoryPtr;
 struct ITimestampProvider;
 typedef TIntrusivePtr<ITimestampProvider> ITimestampProviderPtr;
 
+class TCellDirectoryConfig;
+typedef TIntrusivePtr<TCellDirectoryConfig> TCellDirectoryConfigPtr;
+
 class TRemoteTimestampProviderConfig;
 typedef TIntrusivePtr<TRemoteTimestampProviderConfig> TRemoteTimestampProviderConfigPtr;
 

@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/rpc )
 set( SRCS
   ${BASE}/bus_channel.cpp
-  ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
   ${BASE}/dispatcher.cpp
   ${BASE}/helpers.cpp
@@ -19,11 +18,12 @@ set( SRCS
   ${BASE}/service.cpp
   ${BASE}/service_detail.cpp
   ${BASE}/throttling_channel.cpp
+  ${BASE}/static_channel_factory.cpp
+  ${BASE}/caching_channel_factory.cpp
 )
 set( HDRS
   ${BASE}/bus_channel.h
   ${BASE}/channel.h
-  ${BASE}/channel_cache.h
   ${BASE}/client.h
   ${BASE}/config.h
   ${BASE}/dispatcher.h
@@ -41,6 +41,8 @@ set( HDRS
   ${BASE}/service.h
   ${BASE}/service_detail.h
   ${BASE}/throttling_channel.h
+  ${BASE}/static_channel_factory.h
+  ${BASE}/caching_channel_factory.h
 )
 
 list(APPEND YT_SOURCE_FILES

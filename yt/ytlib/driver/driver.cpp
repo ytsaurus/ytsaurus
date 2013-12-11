@@ -83,18 +83,29 @@ class TDriver
     : public IDriver
 {
 public:
-    explicit TDriver(TDriverConfigPtr config)
+    TDriver(
+        TDriverConfigPtr config,
+        IChannelFactoryPtr channelFactory)
         : Config(config)
     {
         YCHECK(config);
+        YCHECK(channelFactory);
 
-        MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
+        MasterChannel = CreatePeerChannel(
+            Config->Masters,
+            channelFactory,
+            EPeerRole::Leader);
 
-        SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, MasterChannel);
+        SchedulerChannel = CreateSchedulerChannel(
+            Config->Scheduler,
+            channelFactory,
+            MasterChannel);
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
 
-        CellDirectory = New<TCellDirectory>();
+        CellDirectory = New<TCellDirectory>(
+            Config->CellDirectory,
+            channelFactory);
         CellDirectory->RegisterCell(Config->Masters);
 
         TableMountCache = New<TTableMountCache>(
@@ -106,7 +117,9 @@ public:
             MasterChannel,
             TableMountCache);
 
-        TimestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
+        TimestampProvider = CreateRemoteTimestampProvider(
+            Config->TimestampProvider,
+            channelFactory);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -454,9 +467,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDriverPtr CreateDriver(TDriverConfigPtr config)
+IDriverPtr CreateDriver(
+    TDriverConfigPtr config,
+    IChannelFactoryPtr channelFactory)
 {
-    return New<TDriver>(config);
+    return New<TDriver>(
+        config,
+        channelFactory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

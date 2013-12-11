@@ -33,8 +33,7 @@ class TTransactionSupervisorConfig
 {
 public:
     TTransactionSupervisorConfig()
-    {
-    }
+    { }
 };
 
 class TTimestampManagerConfig

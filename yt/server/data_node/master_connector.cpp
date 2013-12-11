@@ -334,7 +334,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         info->set_config_version(slot->GetCellConfig().version());
     }
 
-    auto cellRegistry = Bootstrap->GetCellRegistry();
+    auto cellRegistry = Bootstrap->GetCellDirectory();
     auto cellMap = cellRegistry->GetRegisteredCells();
     for (const auto& pair : cellMap) {
         auto* info = request->add_hive_cells();
@@ -481,7 +481,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         tabletCellController->ConfigureSlot(slot, info);
     }
 
-    auto cellRegistry = Bootstrap->GetCellRegistry();
+    auto cellRegistry = Bootstrap->GetCellDirectory();
 
     for (const auto& info : rsp->hive_cells_to_unregister()) {
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
