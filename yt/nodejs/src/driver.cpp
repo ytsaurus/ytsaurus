@@ -8,12 +8,15 @@
 #include "output_stack.h"
 
 #include <core/misc/error.h>
+#include <core/misc/lazy_ptr.h>
 
 #include <core/concurrency/async_stream.h>
 
-#include <core/misc/lazy_ptr.h>
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>
+
+#include <core/rpc/channel.h>
+#include <core/rpc/bus_channel.h>
 
 #include <core/logging/log.h>
 
@@ -34,6 +37,7 @@ namespace NNodeJS {
 
 COMMON_V8_USES
 
+using namespace NRpc;
 using namespace NYTree;
 using namespace NDriver;
 using namespace NFormats;
@@ -435,7 +439,9 @@ TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
 
     try {
         NDriver::TDispatcher::Get()->Configure(config->Driver->HeavyPoolSize);
-        Driver = CreateDriver(config->Driver);
+        Driver = CreateDriver(
+            config->Driver,
+            GetBusChannelFactory());
     } catch (const std::exception& ex) {
         Message = Sprintf("Error initializing driver instance\n%s", ex.what());
         return;
