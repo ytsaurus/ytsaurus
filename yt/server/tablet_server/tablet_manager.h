@@ -44,13 +44,13 @@ public:
 
     void MountTable(
         NTableServer::TTableNode* table,
-        int firstTabletIndex,
-        int lastTabletIndex);
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
 
     void UnmountTable(
         NTableServer::TTableNode* table,
-        int firstTabletIndex,
-        int lastTabletIndex);
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
 
     void ReshardTable(
         NTableServer::TTableNode* table,
