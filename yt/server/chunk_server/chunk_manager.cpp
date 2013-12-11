@@ -828,7 +828,7 @@ private:
                 reason = ERemoveReplicaReason::FailedToApprove;
             }
             if (reason != ERemoveReplicaReason::None) {
-                // This also removed replica from unapprovedReplicas.
+                // This also removes replica from unapprovedReplicas.
                 RemoveChunkReplica(node, replica, false, reason);
             }
         }
