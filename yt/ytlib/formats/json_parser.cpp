@@ -25,6 +25,9 @@ TJsonParser::TJsonParser(
     if (!Config) {
         Config = New<TJsonFormatConfig>();
     }
+    if (Config->Format == EJsonFormat::Pretty && Type == NYson::EYsonType::ListFragment) {
+        THROW_ERROR_EXCEPTION("Pretty json format isn't supported for list fragments");
+    }
 }
 
 void TJsonParser::Read(const TStringBuf& data)
