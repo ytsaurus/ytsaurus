@@ -69,23 +69,23 @@ template <class T>
     return ::testing::MakeMatcher(new TPredicateMatcher<T>(predicate, description));
 }
 
-#define MAKE_PREDICATE_MATCHER(type, arg, predicate) \
+#define MAKE_PREDICATE_MATCHER(type, arg, capture, predicate) \
     MakePredicateMatcher<type>( \
-        [] (type arg) { return (predicate); }, \
+        capture (type arg) { return (predicate); }, \
         #predicate \
     )
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RPC_MOCK_CALL2(mock, method) \
+#define RPC_MOCK_CALL(mock, method) \
     method( \
         ::testing::_, \
         ::testing::_, \
         ::testing::_)
 
-#define RPC_MOCK_CALL3(mock, method, predicate) \
+#define RPC_MOCK_CALL_WITH_PREDICATE(mock, method, capture, predicate) \
     method( \
-        MAKE_PREDICATE_MATCHER(mock::TReq##method*, request, predicate), \
+        MAKE_PREDICATE_MATCHER(mock::TReq##method*, request, capture, predicate), \
         ::testing::_, \
         ::testing::_)
 
@@ -95,17 +95,17 @@ template <class T>
 #define EXPECT_CALL_WITH_MESSAGE(obj, call, message) \
     EXPECT_CALL_WITH_MESSAGE_IMPL(obj, call, message)
 
-#define EXPECT_RPC_CALL2(mock, method) \
+#define EXPECT_RPC_CALL(mock, method) \
     EXPECT_CALL_WITH_MESSAGE( \
         mock, \
-        RPC_MOCK_CALL2(mock, method), \
+        RPC_MOCK_CALL(mock, method), \
         #method \
     )
 
-#define EXPECT_RPC_CALL3(mock, method, predicate) \
+#define EXPECT_RPC_CALL_WITH_PREDICATE(mock, method, capture, predicate) \
     EXPECT_CALL_WITH_MESSAGE( \
         mock, \
-        RPC_MOCK_CALL3(mock, method, predicate), \
+        RPC_MOCK_CALL_WITH_PREDICATE(mock, method, capture, predicate), \
         #method "(" #predicate ")" \
     )
 
@@ -117,17 +117,17 @@ template <class T>
 #define ON_CALL_WITH_MESSAGE(obj, call, message) \
     ON_CALL_WITH_MESSAGE_IMPL(obj, call, message)
 
-#define ON_RPC_CALL2(mock, method) \
+#define ON_RPC_CALL(mock, method) \
     ON_CALL_WITH_MESSAGE( \
         mock, \
-        RPC_MOCK_CALL2(mock, method), \
+        RPC_MOCK_CALL(mock, method), \
         #method \
     )
 
-#define ON_RPC_CALL3(mock, method, predicate) \
+#define ON_RPC_WITH_PREDICATE(mock, method, capture, predicate) \
     ON_CALL_WITH_MESSAGE( \
         mock, \
-        RPC_MOCK_CALL3(mock, method, predicate), \
+        RPC_MOCK_CALL3(mock, method, capture, predicate), \
         #method "(" #predicate ")" \
     )
 

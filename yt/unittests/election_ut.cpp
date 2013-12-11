@@ -146,7 +146,7 @@ TEST_F(TElectionTest, JoinActiveQuorum)
         .WillRepeatedly(Return(0));
 
     for (int id = 1; id < 3; id++) {
-        EXPECT_RPC_CALL2(*PeerMocks[id], GetStatus)
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 response->set_state(id == 2 ? EPeerState::Leading : EPeerState::Following);
                 response->set_vote_id(2);
