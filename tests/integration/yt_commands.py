@@ -135,11 +135,15 @@ def exists(path, **kwargs):
 
 def read(path, **kwargs):
     kwargs["path"] = path
-    if "output_format" not in kwargs:
+    has_output_format = "output_format" in kwargs
+    if not has_output_format:
         kwargs["output_format"] = yson.loads("<format=text>yson")
     output = StringIO()
     command('read', kwargs, output_stream=output)
-    return yson.loads(output.getvalue(), yson_type="list_fragment")
+    if not has_output_format:
+        return yson.loads(output.getvalue(), yson_type="list_fragment")
+    else:
+        return output.getvalue()
 
 def start_transaction(**kwargs):
     out = command('start_tx', kwargs)

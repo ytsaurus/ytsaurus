@@ -488,3 +488,8 @@ class TestTableCommands(YTEnvSetup):
         commit_transaction(tx)
         sleep(3)
         self._check_replication_factor('//tmp/t', 2)
+
+    def test_json_format(self):
+        create('table', '//tmp/t')
+        write('//tmp/t', '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
+        assert '{"x":"0"}\n{"x":"1"}\n' == read('//tmp/t', output_format="json")
