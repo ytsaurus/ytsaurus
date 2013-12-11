@@ -119,6 +119,7 @@ protected:
     {
         TBase::DoDestroy(table);
 
+        auto tabletManager = Bootstrap->GetTabletManager();
         tabletManager->UnmountTable(table);
     }
 };
