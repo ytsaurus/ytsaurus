@@ -43,10 +43,6 @@ TObjectPool<T>& ObjectPool();
 
 struct TPooledObjectTraitsBase
 {
-    template <class T>
-    static void Clean(T* /*obj*/)
-    { }
-
     static int GetMaxPoolSize()
     {
         return 256;
@@ -54,7 +50,9 @@ struct TPooledObjectTraitsBase
 };
 
 //! Provides various traits for pooled objects of type |T|.
-//! Add your own specializations when needed.
+//! You must provide |Clean| method which is to be called before
+//! an object is put into the pool. You may also customize other parameters,
+//! e.g. pool size.
 template <class T, class = void>
 struct TPooledObjectTraits
     : public TPooledObjectTraitsBase
