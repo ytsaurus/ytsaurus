@@ -176,7 +176,7 @@ private:
 
             auto* commit = FindCommit(transactionId);
             if (commit) {
-                LOG_DEBUG_UNLESS("Waiting for simple commit to complete (TransactionId: %s)",
+                LOG_DEBUG("Waiting for simple commit to complete (TransactionId: %s)",
                     ~ToString(transactionId));
                 SubscribeToCommitResult(commit, context);
                 return;
@@ -316,7 +316,7 @@ private:
         auto* commit = DistributedCommitMap.Find(transactionId);
         if (commit) {
             if (context) {
-                LOG_DEBUG_UNLESS("Waiting for distributed commit to complete (TransactionId: %s)",
+                LOG_DEBUG("Waiting for distributed commit to complete (TransactionId: %s)",
                     ~ToString(transactionId));
                 SubscribeToCommitResult(commit, context);
             }
