@@ -121,8 +121,6 @@ void ShutdownSingletons(void*)
     THREAD_AFFINITY_IS_V8();
 
     Shutdown();
-
-    return Undefined();
 }
 
 } // namespace
