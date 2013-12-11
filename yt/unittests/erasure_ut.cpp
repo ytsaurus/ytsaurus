@@ -1,3 +1,6 @@
+#include "stdafx.h"
+#include "framework.h"
+
 #include <core/erasure/codec.h>
 
 #include <ytlib/chunk_client/file_reader.h>
@@ -6,19 +9,18 @@
 #include <ytlib/chunk_client/erasure_reader.h>
 #include <ytlib/chunk_client/config.h>
 
-#include <contrib/testing/framework.h>
-
 #include <util/random/randcpp.h>
 #include <util/system/fs.h>
 #include <util/stream/file.h>
 
-////////////////////////////////////////////////////////////////////////////////
+namespace NYT {
+namespace NErasure {
+namespace {
 
-using NYT::TRef;
-using NYT::TSharedRef;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 
-using namespace NYT::NChunkClient;
-using namespace NYT::NErasure;
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +122,7 @@ public:
             writer->Open();
         }
 
-        NProto::TChunkMeta meta;
+        TChunkMeta meta;
         meta.set_type(1);
         meta.set_version(1);
 
@@ -430,3 +432,8 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     Cleanup(codec);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NErasure
+} // namespace NYT

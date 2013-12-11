@@ -1,8 +1,7 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/rcu_tree.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace {

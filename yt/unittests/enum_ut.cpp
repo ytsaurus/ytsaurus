@@ -1,16 +1,14 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/common.h>
 #include <core/misc/enum.h>
 #include <core/misc/serialize.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 DECLARE_ENUM(ESimple, (X)(Y)(Z));
 
@@ -28,8 +26,6 @@ DECLARE_FLAGGED_ENUM(EFlag,
     ((_3)(0x0004))
     ((_4)(0x0008))
 );
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,5 +229,6 @@ TEST(TEnumTest, Decompose4)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
 

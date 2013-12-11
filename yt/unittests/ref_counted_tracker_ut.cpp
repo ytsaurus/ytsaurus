@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #define ENABLE_REF_COUNTED_TRACKING
 
@@ -7,13 +8,10 @@
 #include <core/misc/ref_counted.h>
 #include <core/misc/new.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 class TSimpleObject
     : public TRefCounted
@@ -34,8 +32,6 @@ public:
         return TRefCountedTracker::Get()->GetObjectsAllocated(&typeid(TSimpleObject));
     }
 };
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,5 +70,5 @@ TEST(TRefCountedTrackerTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
-

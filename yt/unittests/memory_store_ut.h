@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <yt/core/misc/nullable.h>
 
@@ -19,8 +20,6 @@
 #include <yt/server/tablet_node/dynamic_memory_store.h>
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/transaction.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NTabletNode {

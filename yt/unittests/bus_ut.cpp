@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/bus/bus.h>
 #include <core/bus/config.h>
@@ -6,12 +7,12 @@
 #include <core/bus/client.h>
 #include <core/bus/tcp_server.h>
 #include <core/bus/tcp_client.h>
-#include <core/misc/singleton.h>
 
-#include <contrib/testing/framework.h>
+#include <core/misc/singleton.h>
 
 namespace NYT {
 namespace NBus {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,5 +169,6 @@ TEST(TBusTest, ManyReplies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NBus
 } // namespace NYT

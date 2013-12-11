@@ -1,15 +1,13 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/common.h>
 
 #include <core/concurrency/coroutine.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace NConcurrency {
 namespace {
-
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,5 +120,6 @@ TEST(TCoroutineTest, Binary)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+} // namespace NConcurrency
 } // namespace NYT
 

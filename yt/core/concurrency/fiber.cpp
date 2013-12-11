@@ -52,6 +52,29 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// FLS support.
+/*
+ * Each registered slot maintains a ctor (to be called when a fiber first accesses
+ * the slot) and a dtor (to be called when a fiber terminates).
+ *
+ * To avoid contention, slot registry has a fixed size (see |MaxFlsSlots|).
+ * |FlsGet| and |FlsGet| are lock-free.
+ * |FlsRegister|, however, acquires a global lock.
+ */
+
+struct TFlsSlot
+{
+    TFiber::TFlsSlotCtor Ctor;
+    TFiber::TFlsSlotDtor Dtor;
+};
+
+static const int MaxFlsSlots = 1024;
+static TFlsSlot FlsRegistry[MaxFlsSlots] = {};
+static TAtomic FlsRegistrySize = 0;
+static TSpinLock FlsRegistryLock;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Pointer to the current fiber being run by the current thread.
 /*!
  *  Current fiber is stored as a raw pointer, all Ref/Unref calls are done manually.
@@ -98,6 +121,8 @@ static void InitTls()
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFiberStackBase
 {
@@ -178,13 +203,7 @@ public:
 
 };
 
-template <size_t Size, int GuardedPages>
-void CleanPooledObject(TFiberStack<Size, GuardedPages>* stack)
-{
-#ifndef NDEBUG
-    ::memset(stack->GetStack(), 0, stack->GetSize());
-#endif
-}
+////////////////////////////////////////////////////////////////////////////////
 
 class TFiberContext
 {
@@ -282,6 +301,8 @@ void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next)
 }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TFiberExceptionHandler
 {
 public:
@@ -361,6 +382,10 @@ public:
             State_ == EFiberState::Terminated ||
             State_ == EFiberState::Canceled ||
             State_ == EFiberState::Exception);
+
+        for (int index = 0; index < static_cast<int>(Fls_.size()); ++index) {
+            FlsRegistry[index].Dtor(Fls_[index]);
+        }
     }
 
     static TFiber* GetCurrent()
@@ -392,8 +417,8 @@ public:
     EFiberState Run()
     {
         auto* caller = GetCurrent();
-        YCHECK(caller->Impl->State_ == EFiberState::Running);
-        caller->Impl->State_ = EFiberState::Blocked;
+        YCHECK(caller->Impl_->State_ == EFiberState::Running);
+        caller->Impl_->State_ = EFiberState::Blocked;
 
         if (Canceled_) {
             // When fiber is being cancelled control is always transfered
@@ -413,9 +438,9 @@ public:
 
             YCHECK(!Caller_);
             YCHECK(
-                ResumeTo_->Impl->State_ == EFiberState::Initialized ||
-                ResumeTo_->Impl->State_ == EFiberState::Suspended);
-            ResumeTo_->Impl->State_ = EFiberState::Running;
+                ResumeTo_->Impl_->State_ == EFiberState::Initialized ||
+                ResumeTo_->Impl_->State_ == EFiberState::Suspended);
+            ResumeTo_->Impl_->State_ = EFiberState::Running;
 
             if (ResumeTo_ != This_) {
                 // We are yielding to a suspended descendant
@@ -426,7 +451,7 @@ public:
 
         SetCurrent(ResumeTo_);
         Caller_ = caller;
-        Caller_->Impl->TransferTo(ResumeTo_->Impl.get());
+        Caller_->Impl_->TransferTo(ResumeTo_->Impl_.get());
 
         // Acquire a reference to a just yielded fiber.
         auto* yieldedFrom = GetCurrent();
@@ -440,18 +465,18 @@ public:
         if (yieldedFrom == caller) {
             // Fiber was interrupted while waiting for a child.
             // This usually means that fiber is canceled.
-            YCHECK(caller->Impl->Canceled_);
+            YCHECK(caller->Impl_->Canceled_);
             throw TFiberCanceledException();
         } else {
             // In normal case fiber must receive control back from one of
             // its descendants and continue regular execution.
-            YCHECK(caller->Impl->State_ == EFiberState::Blocked);
-            caller->Impl->State_ = EFiberState::Running;
+            YCHECK(caller->Impl_->State_ == EFiberState::Blocked);
+            caller->Impl_->State_ = EFiberState::Running;
         }
 
         // Rescheduling the yielded fiber may pass its ownership to another thread
         // and eventually change its state in case of any races.
-        auto state = yieldedFrom->Impl->State_;
+        auto state = yieldedFrom->Impl_->State_;
         switch (state) {
             case EFiberState::Terminated:
             case EFiberState::Canceled:
@@ -492,10 +517,10 @@ public:
                 // Before returning control back to the caller fulfill any demands
                 // from the yielded fiber concerning its rescheduling.
                 IInvokerPtr switchTo;
-                yieldedFrom->Impl->SwitchTo_.Swap(switchTo);
+                yieldedFrom->Impl_->SwitchTo_.Swap(switchTo);
 
                 TFuture<void> waitFor;
-                yieldedFrom->Impl->WaitFor_.Swap(waitFor);
+                yieldedFrom->Impl_->WaitFor_.Swap(waitFor);
 
                 if (waitFor) {
                     Forked_ = true;
@@ -537,7 +562,7 @@ public:
         YCHECK(State_ == EFiberState::Running);
         State_ = EFiberState::Suspended;
 
-        TransferTo(target->Impl.get());
+        TransferTo(target->Impl_.get());
 
         YCHECK(State_ == EFiberState::Running);
 
@@ -605,11 +630,11 @@ public:
         YCHECK(
             State_ != EFiberState::Blocked || (
                 ResumeTo_ != This_ &&
-                ResumeTo_->Impl->State_ == EFiberState::Suspended));
+                ResumeTo_->Impl_->State_ == EFiberState::Suspended));
         YCHECK(!Caller_);
         YCHECK(exception);
 
-        ResumeTo_->Impl->Exception_ = std::move(exception);
+        ResumeTo_->Impl_->Exception_ = std::move(exception);
     }
 
     void Cancel()
@@ -684,6 +709,29 @@ public:
         CurrentInvoker_ = std::move(invoker);
     }
 
+
+    static int FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
+    {
+        TGuard<TSpinLock> guard(FlsRegistryLock);
+        YCHECK(FlsRegistrySize < MaxFlsSlots);
+        auto& slot = FlsRegistry[FlsRegistrySize];
+        slot.Ctor = ctor;
+        slot.Dtor = dtor;
+        return AtomicIncrement(FlsRegistrySize) - 1;
+    }
+
+    TFlsSlotValue FlsGet(int index)
+    {
+        EnsureFlsSlot(index);
+        return Fls_[index];
+    }
+
+    void FlsSet(int index, TFlsSlotValue value)
+    {
+        EnsureFlsSlot(index);
+        Fls_[index] = value;
+    }
+
 private:
     friend void DestroyRootFiber();
 
@@ -709,6 +757,24 @@ private:
     IInvokerPtr SwitchTo_;
 
     IInvokerPtr CurrentInvoker_;
+
+    std::vector<TFlsSlotValue> Fls_;
+
+    
+    void EnsureFlsSlot(int index)
+    {
+        YASSERT(index >= 0);
+        if (index < Fls_.size())
+            return;
+        int oldSize = static_cast<int>(Fls_.size());
+        int newSize = AtomicGet(FlsRegistrySize);
+        YCHECK(newSize >= oldSize && index < newSize);
+        Fls_.resize(newSize);
+        for (int index = oldSize; index < newSize; ++index) {
+            Fls_[index] = FlsRegistry[index].Ctor();
+        }
+    }
+
 
     static void Wakeup(TFiberPtr fiber)
     {
@@ -736,13 +802,13 @@ private:
         YASSERT(fiber);
 
         if (CurrentFiber != fiber) {
-            if (!CurrentFiber->Impl->Terminating_) {
+            if (!CurrentFiber->Impl_->Terminating_) {
                 CurrentFiber->Unref();
             }
 
             CurrentFiber = fiber;
 
-            if (!CurrentFiber->Impl->Terminating_) {
+            if (!CurrentFiber->Impl_->Terminating_) {
                 CurrentFiber->Ref();
             }
         }
@@ -771,7 +837,7 @@ private:
             if (current == caller) {
                 return true;
             }
-            current = current->Impl->Caller_;
+            current = current->Impl_->Caller_;
         }
         return false;
     }
@@ -815,7 +881,7 @@ private:
         }
 
         // Jump back to the caller.
-        TransferTo(Caller_->Impl.get());
+        TransferTo(Caller_->Impl_.get());
         YUNREACHABLE();
     }
 
@@ -824,11 +890,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber()
-    : Impl(new TImpl(this))
+    : Impl_(new TImpl(this))
 { }
 
 TFiber::TFiber(TClosure closure, EFiberStack stack)
-    : Impl(new TImpl(this, std::move(closure), stack))
+    : Impl_(new TImpl(this, std::move(closure), stack))
 { }
 
 TFiber::~TFiber()
@@ -851,62 +917,77 @@ void TFiber::SetExecutor(TFiber* executor)
 
 EFiberState TFiber::GetState() const
 {
-    return Impl->GetState();
+    return Impl_->GetState();
 }
 
 bool TFiber::HasForked() const
 {
-    return Impl->HasForked();
+    return Impl_->HasForked();
 }
 
 bool TFiber::IsCanceled() const
 {
-    return Impl->IsCanceled();
+    return Impl_->IsCanceled();
 }
 
 EFiberState TFiber::Run()
 {
-    return Impl->Run();
+    return Impl_->Run();
 }
 
 void TFiber::Yield()
 {
-    Impl->Yield();
+    Impl_->Yield();
 }
 
 void TFiber::Yield(TFiber* caller)
 {
-    Impl->Yield(caller);
+    Impl_->Yield(caller);
 }
 
 void TFiber::Reset()
 {
-    Impl->Reset();
+    Impl_->Reset();
 }
 
 void TFiber::Reset(TClosure closure)
 {
-    Impl->Reset(std::move(closure));
+    Impl_->Reset(std::move(closure));
 }
 
 void TFiber::Inject(std::exception_ptr&& exception)
 {
-    Impl->Inject(std::move(exception));
+    Impl_->Inject(std::move(exception));
 }
 
 void TFiber::Cancel()
 {
-    Impl->Cancel();
+    Impl_->Cancel();
 }
 
 IInvokerPtr TFiber::GetCurrentInvoker() const
 {
-    return Impl->GetCurrentInvoker();
+    return Impl_->GetCurrentInvoker();
 }
 
 void TFiber::SetCurrentInvoker(IInvokerPtr invoker)
 {
-    Impl->SetCurrentInvoker(std::move(invoker));
+    Impl_->SetCurrentInvoker(std::move(invoker));
+}
+
+int TFiber::FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
+{
+    return TImpl::FlsRegister(ctor, dtor);
+}
+
+TFiber::TFlsSlotValue TFiber::FlsGet(int index)
+{
+    return Impl_->FlsGet(index);
+}
+
+void TFiber::FlsSet(int index, TFlsSlotValue value)
+{
+    return Impl_->FlsSet(index, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -915,11 +996,11 @@ void DestroyRootFiber()
 {
     auto* current = CurrentFiber;
     if (!current) return; 
-    YCHECK(current->Impl->Root_);
+    YCHECK(current->Impl_->Root_);
     YCHECK(current->GetRefCount() == 2);
     YCHECK(current->GetState() == EFiberState::Running);
-    *const_cast<bool*>(&current->Impl->Root_) = false;
-    current->Impl->State_ = EFiberState::Terminated;
+    *const_cast<bool*>(&current->Impl_->Root_) = false;
+    current->Impl_->State_ = EFiberState::Terminated;
     current->Unref();
     current->Unref();
     CurrentFiber = nullptr;
@@ -938,12 +1019,12 @@ void Yield(TFiber* target)
 
 void SwitchTo(IInvokerPtr invoker)
 {
-    TFiber::GetCurrent()->Impl->SwitchTo(std::move(invoker));
+    TFiber::GetCurrent()->Impl_->SwitchTo(std::move(invoker));
 }
 
 void WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
-    TFiber::GetCurrent()->Impl->WaitFor(std::move(future), std::move(invoker));
+    TFiber::GetCurrent()->Impl_->WaitFor(std::move(future), std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -962,3 +1043,25 @@ TClosure GetCurrentFiberCanceler()
 } // namespace NConcurrency
 } // namespace NYT
 
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <size_t Size, int GuardedPages>
+struct TPooledObjectTraits<
+    NConcurrency::TFiberStack<Size, GuardedPages>,
+    void>
+    : public TPooledObjectTraitsBase
+{
+    static void Clean(NConcurrency::TFiberStack<Size, GuardedPages>* stack)
+    {
+#ifndef NDEBUG
+    ::memset(stack->GetStack(), 0, stack->GetSize());
+#endif
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

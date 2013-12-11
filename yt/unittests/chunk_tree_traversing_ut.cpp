@@ -1,3 +1,6 @@
+#include "stdafx.h"
+#include "framework.h"
+
 #include <core/misc/protobuf_helpers.h>
 #include <core/actions/invoker_util.h>
 #include <core/profiling/profiling_manager.h>
@@ -15,10 +18,9 @@
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/helpers.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NChunkServer {
+namespace {
 
 using namespace NObjectClient;
 using namespace NChunkClient::NProto;
@@ -252,5 +254,6 @@ TEST(TraverseChunkTree, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NChunkServer
 } // namespace NYT

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <ytlib/meta_state/async_change_log.h>
 #include <ytlib/meta_state/change_log.h>
@@ -6,10 +7,9 @@
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NMetaState {
+namespace {
 
 using namespace NConcurrency;
 
@@ -112,5 +112,6 @@ TEST_F(TAsyncChangeLogTest, ReadWithSizeLimit)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NMetaState
 } // namespace NYT

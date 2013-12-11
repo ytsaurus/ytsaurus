@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "framework.h"
+#include "probe.h"
 
 #include <core/misc/common.h>
 #include <core/misc/lazy_ptr.h>
@@ -12,13 +14,9 @@
 
 #include <exception>
 
-#include <contrib/testing/framework.h>
-#include "probe.h"
-
 namespace NYT {
+namespace NConcurrency {
 namespace {
-
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1531,5 +1529,6 @@ TEST_F(TFiberTest, NestedWaitForOnManyLevels)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+} // namespace NConcurrency
 } // namespace NYT
 

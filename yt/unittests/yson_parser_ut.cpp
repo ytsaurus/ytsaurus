@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/yson_consumer-mock.h>
 
@@ -6,15 +7,15 @@
 
 #include <util/stream/mem.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace NYson {
+namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
 
-namespace NYT {
-namespace NYson {
-
 using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonParserTest: public ::testing::Test
@@ -424,5 +425,6 @@ TEST_F(TYsonParserTest, EmptyMapFragment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYTree
 } // namespace NYT

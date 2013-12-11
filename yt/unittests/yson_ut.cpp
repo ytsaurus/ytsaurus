@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/yson_string.h>
 #include <core/ytree/yson_stream.h>
@@ -6,22 +7,16 @@
 #include <core/ytree/fluent.h>
 #include <core/ytree/ypath_client.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace NYson {
+namespace {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NYT::NYTree::ConvertTo;
-using NYT::NYTree::ConvertToNode;
-using NYT::NYTree::ConvertToYsonString;
-using NYT::NYTree::ConvertToProducer;
-using NYT::NYTree::TYsonString;
-using NYT::NYTree::TYsonInput;
-using NYT::NYson::TYsonWriter;
-using NYT::NYson::EYsonType;
-using NYT::NYson::EYsonFormat;
-using NYT::NYTree::BuildYsonNodeFluently;
-
-class TYsonTest: public ::testing::Test
+class TYsonTest
+    : public ::testing::Test
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,3 +202,7 @@ TEST_F(TYsonTest, UpdateNodes)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYson
+} // namespace NYT

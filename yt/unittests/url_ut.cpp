@@ -1,9 +1,10 @@
+#include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/url.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,4 +16,5 @@ TEST(TUrlUnescapeTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT

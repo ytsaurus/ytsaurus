@@ -1,8 +1,7 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/proc.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace {

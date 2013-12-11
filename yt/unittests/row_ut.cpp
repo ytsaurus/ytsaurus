@@ -1,11 +1,10 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/row.h>
 #include <core/ytree/convert.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NVersionedTableClient {

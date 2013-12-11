@@ -1,19 +1,18 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/heap.h>
-
-#include <contrib/testing/framework.h>
 
 #include <vector>
 
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class THeapTest
     : public ::testing::Test
-{
-};
+{ };
 
 static const int testSize = 10000;
 
@@ -56,4 +55,5 @@ TEST_F(THeapTest, All)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT

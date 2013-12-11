@@ -1,13 +1,13 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <ytlib/formats/json_writer.h>
 
 #include <util/string/base64.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NFormats {
+namespace {
 
 using namespace NYson;
 
@@ -349,5 +349,6 @@ TEST(TJsonWriterTest, AlwaysAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NFormats
 } // namespace NYT

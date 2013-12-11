@@ -1,18 +1,18 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/yson_consumer-mock.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace NYTree {
+namespace {
 
 using ::testing::Types;
 using ::testing::InSequence;
 using ::testing::StrictMock;
 
 // TODO(sandello): Fix this test under clang.
-
-namespace NYT {
-namespace NYTree {
 #ifndef __clang__
 // String-like Scalars {{{
 ////////////////////////////////////////////////////////////////////////////////
@@ -390,5 +390,7 @@ TEST(TYTreeFluentTest, Complex)
 
 ////////////////////////////////////////////////////////////////////////////////
 #endif
+
+} // namespace
 } // namespace NYTree
 } // namespace NYT

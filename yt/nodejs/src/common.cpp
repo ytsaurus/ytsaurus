@@ -6,8 +6,6 @@
 
 #include <core/logging/log_manager.h>
 
-#include <ytlib/chunk_client/dispatcher.h>
-
 #include <ytlib/shutdown.h>
 
 extern "C" {
@@ -116,10 +114,9 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     return Undefined();
 }
 
-Handle<Value> ShutdownSingletons(const Arguments& args)
+void ShutdownSingletons(void*)
 {
     THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
 
     YASSERT(args.Length());
 
@@ -143,9 +140,8 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("ConfigureSingletons"),
         FunctionTemplate::New(ConfigureSingletons)->GetFunction());
-    target->Set(
-        String::NewSymbol("ShutdownSingletons"),
-        FunctionTemplate::New(ShutdownSingletons)->GetFunction());
+
+    node::AtExit(&ShutdownSingletons);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

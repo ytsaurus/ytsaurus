@@ -1,11 +1,11 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <ytlib/formats/yamred_dsv_writer.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace NFormats {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,6 +261,6 @@ TEST(TYamredDsvWriterTest, EscapingInLenval)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NFormats
 } // namespace NYT
-

@@ -1,12 +1,13 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <yt/core/logging/log.h>
 #include <yt/core/logging/log_manager.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 #ifndef _win_
 

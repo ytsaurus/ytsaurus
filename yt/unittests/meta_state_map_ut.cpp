@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/misc/serialize.h>
 #include <core/concurrency/action_queue.h>
@@ -6,11 +7,10 @@
 
 #include <util/random/random.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
+namespace NMetaState {
+namespace {
 
-using namespace NMetaState;
 using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,4 +207,6 @@ TEST_F(TMetaStateMapTest, StressSave)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+} // namespace NMetaState
 } // namespace NYT

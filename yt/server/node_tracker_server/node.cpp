@@ -129,10 +129,10 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
     }
 }
 
-void TNode::MarkReplicaUnapproved(TChunkPtrWithIndex replica)
+void TNode::MarkReplicaUnapproved(TChunkPtrWithIndex replica, TInstant timestamp)
 {
     YASSERT(HasReplica(replica, false));
-    YCHECK(UnapprovedReplicas_.insert(replica).second);
+    YCHECK(UnapprovedReplicas_.insert(std::make_pair(replica, timestamp)).second);
 }
 
 bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const

@@ -49,7 +49,7 @@ set( SRCS
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp
-  ${BASE}/utmain.cpp
+  ${BASE}/main.cpp
   ${BASE}/varint_ut.cpp
   ${BASE}/versioned_table_client_ut.cpp
   ${BASE}/weak_ptr_ut.cpp
@@ -73,6 +73,9 @@ set( SRCS
   ${BASE}/static_memory_store_ut.cpp
   ${BASE}/dynamic_memory_store_ut.cpp
   ${BASE}/memory_store_pt.cpp
+  ${BASE}/fls_ut.cpp
+  ${BASE}/framework.h
+  ${BASE}/framework.cpp
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )

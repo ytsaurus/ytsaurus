@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <ytlib/new_table_client/chunk_reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
@@ -11,13 +12,12 @@
 
 #include <core/compression/public.h>
 
-#include <contrib/testing/framework.h>
-
 namespace NYT {
-
+namespace NVersionedTableClient {
+namespace {
+    
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,4 +223,6 @@ TEST_F(TVersionedTableClientTest, SimpleReadBadSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+} // namespace NVersionedTableClient
 } // namespace NYT

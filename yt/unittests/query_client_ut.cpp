@@ -1,3 +1,6 @@
+#include "stdafx.h"
+#include "framework.h"
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/query_client/plan_fragment.h>
@@ -14,14 +17,12 @@
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/chunk_writer.h>
 
-#include <contrib/testing/framework.h>
+namespace NYT {
+namespace NQueryClient {
+namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
-using namespace NYT;
-using namespace NYT::NYPath;
-using namespace NYT::NObjectClient;
-using namespace NYT::NQueryClient;
+using namespace NYPath;
+using namespace NObjectClient;
 
 using ::testing::_;
 using ::testing::StrictMock;
@@ -29,6 +30,8 @@ using ::testing::HasSubstr;
 using ::testing::ContainsRegex;
 using ::testing::Invoke;
 using ::testing::Return;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPrepareCallbacksMock
     : public IPrepareCallbacks
@@ -251,3 +254,6 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+} // namespace NQueryClient
+} // namespace NYT
