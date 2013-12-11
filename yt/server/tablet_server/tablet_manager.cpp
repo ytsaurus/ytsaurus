@@ -1006,6 +1006,9 @@ private:
         if (first == -1 && last == -1) {
             return std::make_pair(tablets.begin(), tablets.end());
         } else {
+            if (tablets.empty()) {
+                THROW_ERROR_EXCEPTION("Table has no tablets");
+            }
             if (first < 0 || first >= tablets.size()) {
                 THROW_ERROR_EXCEPTION("First tablet index %d is out of range [%d, %d]",
                     first,
