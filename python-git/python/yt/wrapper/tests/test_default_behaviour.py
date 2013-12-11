@@ -262,6 +262,10 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         table = TEST_DIR + "/table"
 
         yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.run_map(change_x, table, table, format=yt.YsonFormat())
+        self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
+
+        yt.write_table(table, ["x=1\n", "y=2\n"])
         yt.run_map(change_x, table, table)
         self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
@@ -454,7 +458,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                    input_format=yt.Format("yamred_dsv", attributes={"key_column_names": ["y"]}),
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
-    
+
     def test_schemed_dsv(self):
         def foo(rec):
             yield rec
