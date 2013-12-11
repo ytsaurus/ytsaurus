@@ -65,8 +65,11 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
         }
     }
 
-    if (IsStringLike(obj)) {
+    if (PyString_Check(obj.ptr())) {
         consumer->OnStringScalar(TStringBuf(PyString_AsString(ConvertToString(obj).ptr())));
+    } else if (obj.isUnicode()) {
+        Py::String encoded = Py::String(PyUnicode_AsUTF8String(obj.ptr()), true);
+        consumer->OnStringScalar(TStringBuf(PyString_AsString(encoded.ptr())));
     } else if (obj.isMapping()) {
         consumer->OnBeginMap();
         SerializeMapFragment(Py::Mapping(obj), consumer);
