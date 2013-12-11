@@ -31,6 +31,7 @@ private:
     void Close();
 
     ev::io FDWatcher;
+    ev::async StartWatcher;
 
     TAsyncError RegistrationError;
     TNullable<TAsyncErrorPromise> ReadyPromise;
@@ -48,6 +49,8 @@ private:
     NLog::TTaggedLogger Logger;
 
     void OnWrite(ev::io&, int);
+
+    void OnStart(ev::async&, int);
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 };

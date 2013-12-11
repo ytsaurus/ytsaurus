@@ -32,8 +32,22 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
+    TGuard<TSpinLock> guard(WriteLock);
+
+    StartWatcher.set(eventLoop);
+    StartWatcher.set<TAsyncWriter, &TAsyncWriter::OnStart>(this);
+    StartWatcher.start();
+
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncWriter, &TAsyncWriter::OnWrite>(this);
+    FDWatcher.start();
+}
+
+void TAsyncWriter::OnStart(ev::async&, int eventType)
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+    YCHECK(eventType == ev::ASYNC);
+
     FDWatcher.start();
 }
 
@@ -59,7 +73,7 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
             }
         } else {
             // Error.  We've done all we could
-            FDWatcher.stop();
+            Close();
         }
 
         if (ReadyPromise.HasValue()) {
@@ -71,7 +85,8 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
             ReadyPromise.Reset();
         }
     } else {
-        // I should stop because these is nothing to write
+        // I stop because these is nothing to write
+        FDWatcher.stop();
     }
 }
 
@@ -93,6 +108,15 @@ bool TAsyncWriter::Write(const void* data, size_t size)
 
     LOG_DEBUG("%" PRISZT " bytes has been added to internal write buffer", size - bytesWritten);
     WriteBuffer.Append(data + bytesWritten, size - bytesWritten);
+
+    // restart watcher
+    if (LastSystemError == 0) {
+        if (WriteBuffer.Size() > 0 || NeedToClose) {
+            StartWatcher.send();
+        }
+    } else {
+        YCHECK(Closed);
+    }
 
     return ((LastSystemError != 0) || (WriteBuffer.Size() >= WriteBufferSize));
 }
@@ -152,6 +176,8 @@ TAsyncError TAsyncWriter::AsyncClose()
 
     NeedToClose = true;
     YCHECK(!ReadyPromise.HasValue());
+
+    StartWatcher.send();
 
     ReadyPromise.Assign(NewPromise<TError>());
     return ReadyPromise->ToFuture();
