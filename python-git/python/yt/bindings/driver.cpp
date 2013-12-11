@@ -29,6 +29,8 @@
 #include <core/profiling/profiling_manager.h>
 
 #include <core/rpc/dispatcher.h>
+#include <core/rpc/channel.h>
+#include <core/rpc/bus_channel.h>
 
 #include <core/bus/tcp_dispatcher.h>
 
@@ -41,7 +43,6 @@
 
 namespace NYT {
 namespace NPython {
-
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +73,9 @@ public:
             throw Py::RuntimeError("Fail while loading config: " + error.Error().GetMessage());
         }
         NLog::TLogManager::Get()->Configure(configNode->AsMap()->FindChild("logging"));
-        DriverInstance_ = CreateDriver(config);
+        DriverInstance_ = CreateDriver(
+            config,
+            NRpc::GetBusChannelFactory());
     }
 
     virtual ~TDriver()
@@ -278,6 +281,6 @@ extern "C" EXPORT_SYMBOL void initdriver_lib()
 // symbol required for the debug version
 extern "C" EXPORT_SYMBOL void initdriver_lib_d()
 {
-	initdriver_lib();
+    initdriver_lib();
 }
 
