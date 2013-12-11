@@ -152,7 +152,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
 
     if (Error_.IsOK()) {
         // Deserialize body.
-        YASSERT(message.Size() >=1 );
+        YASSERT(message.Size() >= 2);
         DeserializeBody(message[1]);
 
         // Load attachments.

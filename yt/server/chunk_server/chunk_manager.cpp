@@ -807,8 +807,8 @@ private:
                 reason = ERemoveReplicaReason::FailedToApprove;
             }
             if (reason != ERemoveReplicaReason::None) {
+                // This also removes replica from unapprovedReplicas.
                 RemoveChunkReplica(node, replica, false, reason);
-                unapprovedReplicas.erase(jt);
             }
         }
 

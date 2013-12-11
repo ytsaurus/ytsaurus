@@ -3,6 +3,8 @@
 #endif
 #undef OBJECT_POOL_INL_H_
 
+#include <core/misc/mpl.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,6 +65,27 @@ TObjectPool<T>& ObjectPool()
     return pool;
 #endif
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TPooledObjectTraits<
+    T,
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&> 
+    >::TType
+>
+{
+    static void Clean(::google::protobuf::MessageLite* obj)
+    {
+        obj->Clear();
+    }
+
+    static int GetMaxPoolSize()
+    {
+        return 256;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
