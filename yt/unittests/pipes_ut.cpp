@@ -144,7 +144,8 @@ TEST_F(TReadWriteTest, ReadWrite)
 
     TBlob textFromPipe = ReadAll(Reader, false);
 
-    EXPECT_TRUE(errorsOnClose.Get().IsOK());
+    auto error = errorsOnClose.Get();
+    EXPECT_TRUE(error.IsOK()) << error.GetMessage();
     EXPECT_EQ(std::string(textFromPipe.Begin(), textFromPipe.End()), text);
 }
 

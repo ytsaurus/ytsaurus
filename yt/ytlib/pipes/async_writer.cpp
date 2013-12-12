@@ -1,4 +1,5 @@
 #include "async_writer.h"
+#include "non_block_writer.h"
 
 #include "io_dispatcher.h"
 #include "private.h"
@@ -9,15 +10,10 @@ namespace NPipes {
 static const size_t WriteBufferSize = 64 * 1024;
 
 TAsyncWriter::TAsyncWriter(int fd)
-    : FD(fd)
-    , BytesWrittenTotal(0)
+    : Writer(new NDetail::TNonBlockWriter(fd))
     , NeedToClose(false)
-    , Closed(false)
-    , LastSystemError(0)
     , Logger(WriterLogger)
 {
-    Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
-
     FDWatcher.set(fd, ev::WRITE);
 
     RegistrationError = TIODispatcher::Get()->AsyncRegister(this);
@@ -58,29 +54,18 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(WriteLock);
 
-    if (WriteBuffer.Size() != 0 || NeedToClose) {
-        YCHECK(WriteBuffer.Size() >= BytesWrittenTotal);
-        const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
-        const char* data = WriteBuffer.Begin() + BytesWrittenTotal;
+    if (!Writer->IsBufferEmpty() || NeedToClose) {
+        Writer->TryWriteFromBuffer();
 
-        const size_t bytesWritten = TryWrite(data, size);
-
-        if (LastSystemError == 0) {
-            BytesWrittenTotal += bytesWritten;
-            TryCleanBuffer();
-            if (NeedToClose && WriteBuffer.Size() == 0) {
-                Close();
-            }
-        } else {
-            // Error.  We've done all we could
+        if (Writer->InFailedState() || (NeedToClose && Writer->IsBufferEmpty())) {
             Close();
         }
 
         if (ReadyPromise.HasValue()) {
-            if (LastSystemError == 0) {
+            if (!Writer->InFailedState()) {
                 ReadyPromise->Set(TError());
             } else {
-                ReadyPromise->Set(TError::FromSystem(LastSystemError));
+                ReadyPromise->Set(TError::FromSystem(Writer->GetLastSystemError()));
             }
             ReadyPromise.Reset();
         }
@@ -97,75 +82,27 @@ bool TAsyncWriter::Write(const void* data, size_t size)
 
     TGuard<TSpinLock> guard(WriteLock);
 
-    size_t bytesWritten = 0;
-
-    if (WriteBuffer.Size() == 0) {
-        LOG_DEBUG("Internal buffer is empty. Trying to write %" PRISZT " bytes", size);
-        bytesWritten = TryWrite(static_cast<const char*>(data), size);
-    }
-
     YCHECK(!ReadyPromise.HasValue());
 
-    LOG_DEBUG("%" PRISZT " bytes has been added to internal write buffer", size - bytesWritten);
-    WriteBuffer.Append(data + bytesWritten, size - bytesWritten);
+    Writer->WriteToBuffer(static_cast<const char*>(data), size);
 
     // restart watcher
-    if (LastSystemError == 0) {
-        if (WriteBuffer.Size() > 0 || NeedToClose) {
+    if (!Writer->InFailedState()) {
+        if (!Writer->IsBufferEmpty() || NeedToClose) {
             StartWatcher.send();
         }
     } else {
-        YCHECK(Closed);
+        YCHECK(Writer->IsClosed());
     }
 
-    return ((LastSystemError != 0) || (WriteBuffer.Size() >= WriteBufferSize));
-}
-
-size_t TAsyncWriter::TryWrite(const char* data, size_t size)
-{
-    int errCode;
-    do {
-        errCode = ::write(FD, data, size);
-    } while (errCode == -1 && errno == EINTR);
-
-    if (errCode == -1) {
-        if (errno != EWOULDBLOCK && errno != EAGAIN) {
-            LOG_DEBUG(TError::FromSystem(), "Error writing");
-
-            LastSystemError = errno;
-        }
-        return 0;
-    } else {
-        size_t bytesWritten = errCode;
-        if (bytesWritten > 0) {
-            LOG_DEBUG("Wrote %" PRISZT " bytes", bytesWritten);
-        }
-
-        YCHECK(bytesWritten <= size);
-        return bytesWritten;
-    }
+    return (Writer->InFailedState() || Writer->IsBufferFull());
 }
 
 void TAsyncWriter::Close()
 {
-    if (!Closed) {
-        int errCode = close(FD);
-        if (errCode == -1) {
-            // please, read
-            // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
-            // http://rb.yandex-team.ru/arc/r/44030/
-            // before editing
-            if (errno != EAGAIN) {
-                LOG_DEBUG(TError::FromSystem(), "Error closing");
-
-                LastSystemError = errno;
-            }
-        }
-
-        Closed = true;
-        NeedToClose = false;
-        FDWatcher.stop();
-    }
+    Writer->Close();
+    NeedToClose = false;
+    FDWatcher.stop();
 }
 
 TAsyncError TAsyncWriter::AsyncClose()
@@ -193,21 +130,13 @@ TAsyncError TAsyncWriter::GetReadyEvent()
         return RegistrationError;
     }
 
-    if (LastSystemError != 0) {
-        return MakePromise<TError>(TError::FromSystem(LastSystemError));
-    } else if (WriteBuffer.Size() < WriteBufferSize) {
+    if (Writer->InFailedState()) {
+        return MakePromise<TError>(TError::FromSystem(Writer->GetLastSystemError()));
+    } else if (!Writer->IsBufferFull()) {
         return MakePromise<TError>(TError());
     } else {
         ReadyPromise.Assign(NewPromise<TError>());
         return ReadyPromise->ToFuture();
-    }
-}
-
-void TAsyncWriter::TryCleanBuffer()
-{
-    if (BytesWrittenTotal == WriteBuffer.Size()) {
-        WriteBuffer.Clear();
-        BytesWrittenTotal = 0;
     }
 }
 

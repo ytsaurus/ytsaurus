@@ -13,6 +13,10 @@
 namespace NYT {
 namespace NPipes {
 
+namespace NDetail {
+    class TNonBlockWriter;
+}
+
 class TAsyncWriter : public IFDWatcher
 {
 public:
@@ -26,23 +30,16 @@ public:
 private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
 
-    void TryCleanBuffer();
-    size_t TryWrite(const char* data, size_t size);
     void Close();
 
+    std::unique_ptr<NDetail::TNonBlockWriter> Writer;
     ev::io FDWatcher;
     ev::async StartWatcher;
 
     TAsyncError RegistrationError;
     TNullable<TAsyncErrorPromise> ReadyPromise;
 
-    int FD;
-
-    TBlob WriteBuffer;
-    size_t BytesWrittenTotal;
     bool NeedToClose;
-    bool Closed;
-    int LastSystemError;
 
     TSpinLock WriteLock;
 
