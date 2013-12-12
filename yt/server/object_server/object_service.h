@@ -22,7 +22,6 @@ public:
         NCellMaster::TBootstrap* bootstrap);
 
 private:
-    typedef TObjectService TThis;
     class TExecuteSession;
 
     TObjectManagerConfigPtr Config;

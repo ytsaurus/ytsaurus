@@ -29,7 +29,6 @@ public:
         NCellNode::TBootstrap* bootstrap);
 
 private:
-    typedef TDataNodeService TThis;
     typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     TDataNodeConfigPtr Config;

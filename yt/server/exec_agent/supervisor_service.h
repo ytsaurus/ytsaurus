@@ -20,8 +20,6 @@ public:
     explicit TSupervisorService(NCellNode::TBootstrap* bootstrap);
 
 private:
-    typedef TSupervisorService TThis;
-
     NCellNode::TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);

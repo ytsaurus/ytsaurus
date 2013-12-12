@@ -25,8 +25,6 @@ public:
     void Stop();
 
 private:
-    typedef TTabletService TThis;
-
     TTabletSlot* Slot;
     NCellNode::TBootstrap* Bootstrap;
 

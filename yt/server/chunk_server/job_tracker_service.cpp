@@ -54,8 +54,6 @@ public:
     }
 
 private:
-    typedef TJobTrackerService TThis;
-
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
         ValidateActiveLeader();

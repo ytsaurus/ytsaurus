@@ -44,8 +44,6 @@ public:
     }
 
 private:
-    typedef TSchedulerService TThis;
-
     TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)

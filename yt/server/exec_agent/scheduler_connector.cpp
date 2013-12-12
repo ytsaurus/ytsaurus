@@ -41,7 +41,7 @@ void TSchedulerConnector::Start()
 {
     HeartbeatExecutor = New<TPeriodicExecutor>(
         ControlInvoker,
-        BIND(&TThis::SendHeartbeat, MakeWeak(this)),
+        BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod,
         EPeriodicExecutorMode::Manual,
         Config->HeartbeatSplay);

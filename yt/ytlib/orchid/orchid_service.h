@@ -20,8 +20,6 @@ public:
         IInvokerPtr invoker);
 
 private:
-    typedef TOrchidService TThis;
-
     NYTree::IYPathServicePtr RootService;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute);

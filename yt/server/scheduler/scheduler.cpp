@@ -116,31 +116,31 @@ public:
         InitStrategy();
 
         MasterConnector->AddGlobalWatcherRequester(BIND(
-            &TThis::RequestConfig,
+            &TImpl::RequestConfig,
             Unretained(this)));
         MasterConnector->AddGlobalWatcherHandler(BIND(
-            &TThis::HandleConfig,
+            &TImpl::HandleConfig,
             Unretained(this)));
 
         MasterConnector->SubscribeMasterConnected(BIND(
-            &TThis::OnMasterConnected,
+            &TImpl::OnMasterConnected,
             Unretained(this)));
         MasterConnector->SubscribeMasterDisconnected(BIND(
-            &TThis::OnMasterDisconnected,
+            &TImpl::OnMasterDisconnected,
             Unretained(this)));
 
         MasterConnector->SubscribeUserTransactionAborted(BIND(
-            &TThis::OnUserTransactionAborted,
+            &TImpl::OnUserTransactionAborted,
             Unretained(this)));
         MasterConnector->SubscribeSchedulerTransactionAborted(BIND(
-            &TThis::OnSchedulerTransactionAborted,
+            &TImpl::OnSchedulerTransactionAborted,
             Unretained(this)));
 
         MasterConnector->Start();
 
         ProfilingExecutor = New<TPeriodicExecutor>(
             Bootstrap->GetControlInvoker(),
-            BIND(&TThis::OnProfiling, MakeWeak(this)),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor->Start();
     }
@@ -148,7 +148,7 @@ public:
 
     IYPathServicePtr GetOrchidService()
     {
-        auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
+        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
         return IYPathService::FromProducer(producer);
     }
 
@@ -303,7 +303,7 @@ public:
 
         // Spawn a new fiber where all startup logic will work asynchronously.
         return
-            BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
+            BIND(&TImpl::DoStartOperation, MakeStrong(this), operation)
                 .AsyncVia(Bootstrap->GetControlInvoker())
                 .Run()
                 .Apply(BIND([=] (TError error) {
@@ -577,7 +577,7 @@ public:
         operation->SetState(EOperationState::Completing);
 
         auto controller = operation->GetController();
-        BIND(&TThis::DoCompleteOperation, MakeStrong(this), operation)
+        BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation)
             .AsyncVia(controller->GetCancelableControlInvoker())
             .Run();
     }
@@ -596,7 +596,6 @@ public:
 
 
 private:
-    typedef TImpl TThis;
     friend class TSchedulingContext;
 
     TSchedulerConfigPtr Config;
@@ -1070,7 +1069,7 @@ private:
         operation->SetController(controller);
         RegisterOperation(operation);
 
-        BIND(&TThis::DoReviveOperation, MakeStrong(this), operation)
+        BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation)
             .AsyncVia(controller->GetCancelableControlInvoker())
             .Run();
     }
@@ -1501,7 +1500,7 @@ private:
         // Fire-and-forget.
         // The subscriber is only needed to log the outcome.
         proxy.Execute(req).Subscribe(
-            BIND(&TThis::OnStdErrChunkReleased, MakeStrong(this)));
+            BIND(&TImpl::OnStdErrChunkReleased, MakeStrong(this)));
     }
 
     void OnStdErrChunkReleased(TTransactionYPathProxy::TRspUnstageObjectPtr rsp)
