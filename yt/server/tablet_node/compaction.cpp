@@ -86,7 +86,7 @@ public:
             auto it = Timestamps_.begin();
             auto jt = Timestamps_.begin();
             while (it != Timestamps_.end()) {
-                if ((*it) & TimestampValueMask < firstCommitTimestamp)
+                if ((*it & TimestampValueMask) < firstCommitTimestamp)
                     break;
                 if (it == Timestamps_.begin() || (*it & TombstoneTimestampMask) != (*(it - 1) & TombstoneTimestampMask)) {
                     *jt++ = *it;
@@ -111,7 +111,7 @@ private:
 
 
     bool KeysListed_;
-    
+
     std::vector<std::vector<TVersionedValue>> Values_;
     std::vector<TTimestamp> Timestamps_;
 
@@ -133,7 +133,7 @@ TStaticMemoryStorePtr TMemoryCompactor::Run(
 {
     LOG_INFO("Memory compaction started (TabletId: %s)",
         ~ToString(Tablet_->GetId()));
-    
+
     TStaticMemoryStoreBuilder builder(Config_, Tablet_);
 
     TRowCombiner combiner(
