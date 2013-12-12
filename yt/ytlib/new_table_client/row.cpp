@@ -243,41 +243,40 @@ int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
     return comparer(lhs, rhs);
 }
 
-bool operator== (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
     return !CompareRows(lhs, rhs);
 }
 
-bool operator!= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
     return CompareRows(lhs, rhs);
 }
 
-bool operator <=(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator <= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
     return CompareRows(lhs, rhs) <= 0;
 }
 
-bool operator <(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator < (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
     return CompareRows(lhs, rhs) < 0;
 }
 
-bool operator >=(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator >= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
     return CompareRows(lhs, rhs) >= 0;
 }
 
-bool operator >(const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator > (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
-    return !CompareRows(lhs, rhs) > 0;
+    return CompareRows(lhs, rhs) > 0;
 }
 
-void ResetToNull(TUnversionedRow* row)
+void ResetRowValues(TUnversionedRow* row)
 {
-    auto& rowRef = *row;
-    for (int i = 0; i < row->GetValueCount(); ++i) {
-        rowRef[i] = MakeUnversionedSentinelValue(EValueType::Null);
+    for (int index = 0; index < row->GetValueCount(); ++index) {
+        (*row)[index].Type = EValueType::Null;
     }
 }
 

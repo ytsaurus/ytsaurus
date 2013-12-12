@@ -202,7 +202,7 @@ public:
                 TKey key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
                     row.clear();
-                    ResetToNull(&key);
+                    ResetRowValues(&key);
 
                     ui32 rowIndex = rowIndexBuffer[progressIndex];
                     for (ui32 valueIndex = valueIndexBuffer[rowIndex];

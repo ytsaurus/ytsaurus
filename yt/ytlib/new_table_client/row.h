@@ -231,14 +231,15 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 //! (leading) values.
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength = std::numeric_limits<int>::max());
 
-bool operator== (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator!= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator<= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator< (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator>= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator> (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator <= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator <  (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator >= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator >  (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 
-void ResetToNull(TUnversionedRow* row);
+//! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
+void ResetRowValues(TUnversionedRow* row);
 
 //! Computes hash for a given TUnversionedValue.
 size_t GetHash(const TUnversionedValue& value);

@@ -208,7 +208,6 @@ public:
                     rowIndexHeap.pop_back();
 
                     // Prepare key.
-                    ResetToNull(&key);
                     for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                         auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
                         key[keyIndex] = MakeKeyPart(keyPart);

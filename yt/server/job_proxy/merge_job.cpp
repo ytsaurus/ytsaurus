@@ -137,7 +137,7 @@ public:
 
                 while (const auto* row = Reader->GetRow()) {
                     if (KeyColumns) {
-                        ResetToNull(&key);
+                        ResetRowValues(&key);
 
                         for (const auto& pair : *row) {
                             auto it = keyColumnToIndex.find(pair.first);

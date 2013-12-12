@@ -100,7 +100,7 @@ TTableChunkWriter::TTableChunkWriter(
         MiscExt.set_sorted(true);
 
         CurrentKey = TKey::Allocate(&CurrentKeyMemoryPool, options->KeyColumns->size());
-        ResetToNull(&CurrentKey);
+        ResetRowValues(&CurrentKey);
 
         for (int keyIndex = 0; keyIndex < options->KeyColumns->size(); ++keyIndex) {
             const auto& column = options->KeyColumns->at(keyIndex);
