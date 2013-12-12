@@ -276,20 +276,20 @@ class TTypedClientResponse
     , public TResponseMessage
 {
 public:
-    typedef TIntrusivePtr<TTypedClientResponse> TPtr;
+    typedef TIntrusivePtr<TTypedClientResponse> TThisPtr;
 
     explicit TTypedClientResponse(const TRequestId& requestId)
         : TClientResponse(requestId)
-        , Promise(NewPromise<TPtr>())
+        , Promise(NewPromise<TThisPtr>())
     { }
 
-    TFuture<TPtr> GetAsyncResult()
+    TFuture<TThisPtr> GetAsyncResult()
     {
         return Promise;
     }
 
 private:
-    TPromise<TPtr> Promise;
+    TPromise<TThisPtr> Promise;
 
     virtual void FireCompleted()
     {
@@ -310,14 +310,14 @@ class TOneWayClientResponse
     : public TClientResponseBase
 {
 public:
-    typedef TIntrusivePtr<TOneWayClientResponse> TPtr;
+    typedef TIntrusivePtr<TOneWayClientResponse> TThisPtr;
 
     explicit TOneWayClientResponse(const TRequestId& requestId);
 
-    TFuture<TPtr> GetAsyncResult();
+    TFuture<TThisPtr> GetAsyncResult();
 
 private:
-    TPromise<TPtr> Promise;
+    TPromise<TThisPtr> Promise;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;

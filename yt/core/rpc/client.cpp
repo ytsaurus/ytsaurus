@@ -224,7 +224,7 @@ const IAttributeDictionary& TClientResponse::Attributes() const
 
 TOneWayClientResponse::TOneWayClientResponse(const TRequestId& requestId)
     : TClientResponseBase(requestId)
-    , Promise(NewPromise<TPtr>())
+    , Promise(NewPromise<TThisPtr>())
 { }
 
 void TOneWayClientResponse::OnAcknowledgement()
