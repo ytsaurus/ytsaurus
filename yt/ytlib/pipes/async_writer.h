@@ -24,7 +24,7 @@ public:
     TAsyncError GetReadyEvent();
 
 private:
-    void Start(ev::dynamic_loop& eventLoop) override;
+    virtual void Start(ev::dynamic_loop& eventLoop) override;
 
     void TryCleanBuffer();
     size_t TryWrite(const char* data, size_t size);

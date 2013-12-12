@@ -29,7 +29,7 @@ public:
     TError Close();
 
 private:
-    void Start(ev::dynamic_loop& eventLoop) override;
+    virtual void Start(ev::dynamic_loop& eventLoop) override;
 
     std::unique_ptr<NDetail::TNonBlockReader> Reader;
     ev::io FDWatcher;
@@ -40,8 +40,8 @@ private:
 
     TSpinLock ReadLock;
 
-    bool CanReadSomeMore();
-    TError GetState();
+    bool CanReadSomeMore() const;
+    TError GetState() const;
 
     void OnRead(ev::io&, int);
 

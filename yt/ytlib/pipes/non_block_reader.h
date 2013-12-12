@@ -7,6 +7,7 @@ namespace NYT {
 namespace NPipes {
 namespace NDetail {
 
+// It is not thread-safe
 class TNonBlockReader
 {
 public:
@@ -15,18 +16,21 @@ public:
     ~TNonBlockReader();
 
     void TryReadInBuffer();
+    void Close();
+
     std::pair<TBlob, bool> GetRead();
 
-    bool IsBufferFull();
-    bool IsBufferEmpty();
+    bool IsBufferFull() const;
+    bool IsBufferEmpty() const;
 
-    bool InFailedState();
-    bool ReachedEOF();
-    int GetLastSystemError();
+    bool InFailedState() const;
+    bool ReachedEOF() const;
 
-    bool IsReady();
+    // Returns the last IO error encountered
+    // in TryReadInBuffer and Close functions
+    int GetLastSystemError() const;
 
-    void Close();
+    bool IsReady() const;
 private:
     int FD;
 

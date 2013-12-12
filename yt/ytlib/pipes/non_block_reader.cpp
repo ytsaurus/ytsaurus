@@ -59,53 +59,6 @@ void TNonBlockReader::TryReadInBuffer()
     }
 }
 
-std::pair<TBlob, bool> TNonBlockReader::GetRead()
-{
-    TBlob result(std::move(ReadBuffer));
-    result.Resize(BytesInBuffer);
-
-    ReadBuffer.Resize(ReadBufferSize);
-    BytesInBuffer = 0;
-
-    return std::make_pair(std::move(result), ReachedEOF_);
-}
-
-bool TNonBlockReader::IsBufferFull()
-{
-    return (BytesInBuffer == ReadBuffer.Size());
-}
-
-bool TNonBlockReader::IsBufferEmpty()
-{
-    return (BytesInBuffer == 0);
-}
-
-bool TNonBlockReader::InFailedState()
-{
-    return (LastSystemError != 0);
-}
-
-bool TNonBlockReader::ReachedEOF()
-{
-    return ReachedEOF_;
-}
-
-int TNonBlockReader::GetLastSystemError()
-{
-    YCHECK(InFailedState());
-    return LastSystemError;
-}
-
-bool TNonBlockReader::IsReady()
-{
-    if (InFailedState()) {
-        return true;
-    } else if (ReachedEOF_ || !IsBufferEmpty()) {
-        return true;
-    }
-    return false;
-}
-
 void TNonBlockReader::Close()
 {
     if (!Closed) {
@@ -125,10 +78,56 @@ void TNonBlockReader::Close()
     }
 }
 
+std::pair<TBlob, bool> TNonBlockReader::GetRead()
+{
+    TBlob result(std::move(ReadBuffer));
+    result.Resize(BytesInBuffer);
+
+    ReadBuffer.Resize(ReadBufferSize);
+    BytesInBuffer = 0;
+
+    return std::make_pair(std::move(result), ReachedEOF_);
+}
+
+bool TNonBlockReader::IsBufferFull() const
+{
+    return (BytesInBuffer == ReadBuffer.Size());
+}
+
+bool TNonBlockReader::IsBufferEmpty() const
+{
+    return (BytesInBuffer == 0);
+}
+
+bool TNonBlockReader::InFailedState() const
+{
+    return (LastSystemError != 0);
+}
+
+bool TNonBlockReader::ReachedEOF() const
+{
+    return ReachedEOF_;
+}
+
+int TNonBlockReader::GetLastSystemError() const
+{
+    YCHECK(InFailedState());
+    return LastSystemError;
+}
+
+bool TNonBlockReader::IsReady() const
+{
+    if (InFailedState()) {
+        return true;
+    } else if (ReachedEOF_ || !IsBufferEmpty()) {
+        return true;
+    }
+    return false;
+}
+
 } // NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
 }
 }
-

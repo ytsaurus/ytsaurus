@@ -133,12 +133,12 @@ TError TAsyncReader::Close()
     }
 }
 
-bool TAsyncReader::CanReadSomeMore()
+bool TAsyncReader::CanReadSomeMore() const
 {
     return (!Reader->InFailedState() && !Reader->ReachedEOF());
 }
 
-TError TAsyncReader::GetState()
+TError TAsyncReader::GetState() const
 {
     if (Reader->ReachedEOF() || !Reader->IsBufferEmpty()) {
         return TError();
