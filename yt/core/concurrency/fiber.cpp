@@ -5,6 +5,7 @@
 #include <core/misc/object_pool.h>
 
 #include <stdexcept>
+#include <atomic>
 
 #if defined(_unix_)
 #   include <sys/mman.h>
