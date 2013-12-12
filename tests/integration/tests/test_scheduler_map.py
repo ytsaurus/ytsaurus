@@ -68,7 +68,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('file', file1)
         upload(file1, '{value=42};\n')
 
-        command = 'cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;'
+        command = 'bash -c "cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;"'
         op_id = map(dont_track=True,
                     in_='//tmp/t_input',
                     out=['//tmp/t_output1', '//tmp/t_output2'],

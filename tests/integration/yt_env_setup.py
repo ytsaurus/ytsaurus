@@ -46,7 +46,6 @@ class YTEnvSetup(YTEnv):
             import settings_local
             ports = settings_local.ports
         except Exception, e:
-            print e
             ports = {
                 "master": 29000,
                 "node": 29100,
