@@ -12,8 +12,6 @@ namespace NOrchid {
 struct TOrchidManifest
     : public TYsonSerializable
 {
-    typedef TIntrusivePtr<TOrchidManifest> TPtr;
-
     Stroka RemoteAddress;
     Stroka RemoteRoot;
     TDuration Timeout;
@@ -27,6 +25,8 @@ struct TOrchidManifest
             .Default(TDuration::Seconds(15));
     }
 };
+
+typedef TIntrusivePtr<TOrchidManifest> TOrchidManifestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

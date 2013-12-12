@@ -36,8 +36,6 @@ struct ILogWriter
     struct TConfig
         : public TYsonSerializable
     {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
         EType Type;
         Stroka Pattern;
         Stroka FileName;
@@ -74,6 +72,9 @@ struct ILogWriter
             }
         }
     };
+    
+    typedef TIntrusivePtr<TConfig> TConfigPtr;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

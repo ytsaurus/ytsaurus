@@ -36,9 +36,6 @@ class TIntricateObject
     : public TExtrinsicRefCounted
 {
 public:
-    typedef TIntrusivePtr<TIntricateObject> TPtr;
-    typedef TWeakPtr<TIntricateObject> TWkPtr;
-
     TIntricateObject()
     {
         ++ConstructorShadowState;
@@ -71,17 +68,19 @@ private:
     TIntricateObject& operator=(TIntricateObject&&);
 };
 
+typedef TIntrusivePtr<TIntricateObject> TIntricateObjectPtr;
+typedef TWeakPtr<TIntricateObject> TIntricateObjectWkPtr;
+
 class TDerivedIntricateObject
     : public TIntricateObject
 {
-public:
-    typedef TIntrusivePtr<TDerivedIntricateObject> TPtr;
-    typedef TWeakPtr<TDerivedIntricateObject> TWkPtr;
-
 private:
     // Payload.
     char Payload[32];
 };
+
+typedef TIntrusivePtr<TDerivedIntricateObject> TDerivedIntricateObjectPtr;
+typedef TWeakPtr<TDerivedIntricateObject> TDerivedIntricateObjectWkPtr;
 
 MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
     "The object has "
@@ -98,9 +97,6 @@ class TSlowlyDyingObject
     : public TExtrinsicRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSlowlyDyingObject> TPtr;
-    typedef TWeakPtr<TSlowlyDyingObject> TWkPtr;
-
     TSlowlyDyingObject()
     {
         ++ConstructorShadowState;
@@ -113,6 +109,9 @@ public:
         ++DestructorShadowState;
     }
 };
+
+typedef TIntrusivePtr<TSlowlyDyingObject> TSlowlyDyingObjectPtr;
+typedef TWeakPtr<TSlowlyDyingObject> TSlowlyDyingObjectWkPtr;
 
 template <class T>
 void PrintExtrinsicRefCounted(const T& arg, ::std::ostream* os)
@@ -148,19 +147,19 @@ public:
 
 TEST_F(TWeakPtrTest, Empty)
 {
-    TIntricateObject::TWkPtr emptyPointer;
-    EXPECT_EQ(TIntricateObject::TPtr(), emptyPointer.Lock());
+    TIntricateObjectWkPtr emptyPointer;
+    EXPECT_EQ(TIntricateObjectPtr(), emptyPointer.Lock());
 }
 
 TEST_F(TWeakPtrTest, Basic)
 {
-    TIntricateObject::TPtr object = New<TIntricateObject>();
+    TIntricateObjectPtr object = New<TIntricateObject>();
     TIntricateObject* objectPtr = object.Get();
 
     EXPECT_THAT(*object, HasRefCounts(1, 1));
 
     {
-        TIntricateObject::TWkPtr ptr(objectPtr);
+        TIntricateObjectWkPtr ptr(objectPtr);
         EXPECT_THAT(*object, HasRefCounts(1, 2));
         EXPECT_EQ(object, ptr.Lock());
     }
@@ -168,7 +167,7 @@ TEST_F(TWeakPtrTest, Basic)
     EXPECT_THAT(*object, HasRefCounts(1, 1));
 
     {
-        TIntricateObject::TWkPtr ptr(object);
+        TIntricateObjectWkPtr ptr(object);
         EXPECT_THAT(*object, HasRefCounts(1, 2));
         EXPECT_EQ(object, ptr.Lock());
     }
@@ -183,8 +182,8 @@ TEST_F(TWeakPtrTest, Basic)
 
 TEST_F(TWeakPtrTest, ResetToNull)
 {
-    TIntricateObject::TPtr object = New<TIntricateObject>();
-    TIntricateObject::TWkPtr ptr(object);
+    TIntricateObjectPtr object = New<TIntricateObject>();
+    TIntricateObjectWkPtr ptr(object);
 
     EXPECT_THAT(*object, HasRefCounts(1, 2));
     EXPECT_EQ(object, ptr.Lock());
@@ -192,16 +191,16 @@ TEST_F(TWeakPtrTest, ResetToNull)
     ptr.Reset();
 
     EXPECT_THAT(*object, HasRefCounts(1, 1));
-    EXPECT_EQ(TIntricateObject::TPtr(), ptr.Lock());
+    EXPECT_EQ(TIntricateObjectPtr(), ptr.Lock());
 }
 
 TEST_F(TWeakPtrTest, ResetToOtherObject)
 {
-    TIntricateObject::TPtr firstObject = New<TIntricateObject>();
-    TIntricateObject::TPtr secondObject = New<TIntricateObject>();
+    TIntricateObjectPtr firstObject = New<TIntricateObject>();
+    TIntricateObjectPtr secondObject = New<TIntricateObject>();
 
     {
-        TIntricateObject::TWkPtr ptr(firstObject);
+        TIntricateObjectWkPtr ptr(firstObject);
 
         EXPECT_THAT(*firstObject, HasRefCounts(1, 2));
         EXPECT_THAT(*secondObject, HasRefCounts(1, 1));
@@ -218,7 +217,7 @@ TEST_F(TWeakPtrTest, ResetToOtherObject)
     TIntricateObject* secondObjectPtr = secondObject.Get();
 
     {
-        TIntricateObject::TWkPtr ptr(firstObjectPtr);
+        TIntricateObjectWkPtr ptr(firstObjectPtr);
 
         EXPECT_THAT(*firstObject, HasRefCounts(1, 2));
         EXPECT_THAT(*secondObject, HasRefCounts(1, 1));
@@ -234,12 +233,12 @@ TEST_F(TWeakPtrTest, ResetToOtherObject)
 
 TEST_F(TWeakPtrTest, CopySemantics)
 {
-    TIntricateObject::TPtr object = New<TIntricateObject>();
-    TIntricateObject::TWkPtr foo(object);
+    TIntricateObjectPtr object = New<TIntricateObject>();
+    TIntricateObjectWkPtr foo(object);
 
     {
         EXPECT_THAT(*object, HasRefCounts(1, 2));
-        TIntricateObject::TWkPtr bar(foo);
+        TIntricateObjectWkPtr bar(foo);
         EXPECT_THAT(*object, HasRefCounts(1, 3));
 
         EXPECT_EQ(object, foo.Lock());
@@ -248,7 +247,7 @@ TEST_F(TWeakPtrTest, CopySemantics)
 
     {
         EXPECT_THAT(*object, HasRefCounts(1, 2));
-        TIntricateObject::TWkPtr bar;
+        TIntricateObjectWkPtr bar;
         bar = foo;
         EXPECT_THAT(*object, HasRefCounts(1, 3));
 
@@ -259,15 +258,15 @@ TEST_F(TWeakPtrTest, CopySemantics)
 
 TEST_F(TWeakPtrTest, MoveSemantics)
 {
-    TIntricateObject::TPtr object = New<TIntricateObject>();
-    TIntricateObject::TWkPtr foo(object);
+    TIntricateObjectPtr object = New<TIntricateObject>();
+    TIntricateObjectWkPtr foo(object);
 
     {
         EXPECT_THAT(*object, HasRefCounts(1, 2));
-        TIntricateObject::TWkPtr bar(std::move(foo));
+        TIntricateObjectWkPtr bar(std::move(foo));
         EXPECT_THAT(*object, HasRefCounts(1, 2));
 
-        EXPECT_EQ(TIntricateObject::TPtr(), foo.Lock());
+        EXPECT_EQ(TIntricateObjectPtr(), foo.Lock());
         EXPECT_EQ(object, bar.Lock());
     }
 
@@ -275,47 +274,47 @@ TEST_F(TWeakPtrTest, MoveSemantics)
 
     {
         EXPECT_THAT(*object, HasRefCounts(1, 2));
-        TIntricateObject::TWkPtr bar;
+        TIntricateObjectWkPtr bar;
         bar = std::move(foo);
         EXPECT_THAT(*object, HasRefCounts(1, 2));
 
-        EXPECT_EQ(TIntricateObject::TPtr(), foo.Lock());
+        EXPECT_EQ(TIntricateObjectPtr(), foo.Lock());
         EXPECT_EQ(object, bar.Lock());
     }
 }
 
 TEST_F(TWeakPtrTest, OutOfScope)
 {
-    TIntricateObject::TWkPtr ptr;
+    TIntricateObjectWkPtr ptr;
 
-    EXPECT_EQ(TIntricateObject::TPtr(), ptr.Lock());
+    EXPECT_EQ(TIntricateObjectPtr(), ptr.Lock());
     {
-        TIntricateObject::TPtr object = New<TIntricateObject>();
+        TIntricateObjectPtr object = New<TIntricateObject>();
         ptr = object;
         EXPECT_EQ(object, ptr.Lock());
     }
-    EXPECT_EQ(TIntricateObject::TPtr(), ptr.Lock());
+    EXPECT_EQ(TIntricateObjectPtr(), ptr.Lock());
 }
 
 TEST_F(TWeakPtrTest, OutOfNestedScope)
 {
-    TIntricateObject::TWkPtr foo;
+    TIntricateObjectWkPtr foo;
 
-    EXPECT_EQ(TIntricateObject::TPtr(), foo.Lock());
+    EXPECT_EQ(TIntricateObjectPtr(), foo.Lock());
     {
-        TIntricateObject::TPtr object = New<TIntricateObject>();
+        TIntricateObjectPtr object = New<TIntricateObject>();
         foo = object;
 
         EXPECT_EQ(object, foo.Lock());
         {
-            TIntricateObject::TWkPtr bar;
+            TIntricateObjectWkPtr bar;
             bar = object;
 
             EXPECT_EQ(object, bar.Lock());
         }
         EXPECT_EQ(object, foo.Lock());
     }
-    EXPECT_EQ(TIntricateObject::TPtr(), foo.Lock());
+    EXPECT_EQ(TIntricateObjectPtr(), foo.Lock());
 
     EXPECT_EQ(1, ConstructorShadowState);
     EXPECT_EQ(1, DestructorShadowState);
@@ -323,11 +322,11 @@ TEST_F(TWeakPtrTest, OutOfNestedScope)
 
 TEST_F(TWeakPtrTest, IsExpired)
 {
-    TIntricateObject::TWkPtr ptr;
+    TIntricateObjectWkPtr ptr;
 
     EXPECT_TRUE(ptr.IsExpired());
     {
-        TIntricateObject::TPtr object = New<TIntricateObject>();
+        TIntricateObjectPtr object = New<TIntricateObject>();
         ptr = object;
         EXPECT_FALSE(ptr.IsExpired());
     }
@@ -336,24 +335,24 @@ TEST_F(TWeakPtrTest, IsExpired)
 
 TEST_F(TWeakPtrTest, UpCast)
 {
-    TDerivedIntricateObject::TPtr object = New<TDerivedIntricateObject>();
-    TIntricateObject::TWkPtr ptr = object;
+    TDerivedIntricateObjectPtr object = New<TDerivedIntricateObject>();
+    TIntricateObjectWkPtr ptr = object;
 
     EXPECT_EQ(object.Get(), ptr.Lock().Get());
 }
 
 static void* AsynchronousDeleter(void* param)
 {
-    TSlowlyDyingObject::TPtr* indirectObject =
-        reinterpret_cast<TSlowlyDyingObject::TPtr*>(param);
+    TSlowlyDyingObjectPtr* indirectObject =
+        reinterpret_cast<TSlowlyDyingObjectPtr*>(param);
     indirectObject->Reset();
     return NULL;
 }
 
 TEST_F(TWeakPtrTest, AcquisionOfSlowlyDyingObject)
 {
-    TSlowlyDyingObject::TPtr object = New<TSlowlyDyingObject>();
-    TSlowlyDyingObject::TWkPtr ptr(object);
+    TSlowlyDyingObjectPtr object = New<TSlowlyDyingObject>();
+    TSlowlyDyingObjectWkPtr ptr(object);
 
     TSlowlyDyingObject* objectPtr = object.Get();
 
@@ -371,7 +370,7 @@ TEST_F(TWeakPtrTest, AcquisionOfSlowlyDyingObject)
     ASSERT_EQ(1, ConstructorShadowState);
     ASSERT_EQ(1, DestructorShadowState);
 
-    EXPECT_EQ(TSlowlyDyingObject::TPtr(), ptr.Lock());
+    EXPECT_EQ(TSlowlyDyingObjectPtr(), ptr.Lock());
     EXPECT_THAT(*objectPtr, HasRefCounts(0, 2));
 
     // Finalize object destruction.
@@ -381,7 +380,7 @@ TEST_F(TWeakPtrTest, AcquisionOfSlowlyDyingObject)
     ASSERT_EQ(1, ConstructorShadowState);
     ASSERT_EQ(2, DestructorShadowState);
 
-    EXPECT_EQ(TSlowlyDyingObject::TPtr(), ptr.Lock());
+    EXPECT_EQ(TSlowlyDyingObjectPtr(), ptr.Lock());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

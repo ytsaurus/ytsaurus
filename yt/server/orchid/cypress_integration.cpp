@@ -149,7 +149,7 @@ private:
     TCypressNodeBase* TrunkNode;
     TTransaction* Transaction;
 
-    TOrchidManifest::TPtr LoadManifest()
+    TOrchidManifestPtr LoadManifest()
     {
         auto objectManager = Bootstrap->GetObjectManager();
         auto proxy = objectManager->GetProxy(TrunkNode, Transaction);
@@ -166,7 +166,7 @@ private:
 
     void OnResponse(
         IServiceContextPtr context,
-        TOrchidManifest::TPtr manifest,
+        TOrchidManifestPtr manifest,
         const TYPath& path,
         const Stroka& verb,
         TOrchidServiceProxy::TRspExecutePtr response)
@@ -188,7 +188,7 @@ private:
         }
     }
 
-    static Stroka GetRedirectPath(TOrchidManifest::TPtr manifest, const TYPath& path)
+    static Stroka GetRedirectPath(TOrchidManifestPtr manifest, const TYPath& path)
     {
         return manifest->RemoteRoot + path;
     }

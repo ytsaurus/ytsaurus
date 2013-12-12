@@ -87,8 +87,6 @@ class TChecking42BusHandler
     : public IMessageHandler
 {
 public:
-    typedef TIntrusivePtr<TChecking42BusHandler> TPtr;
-
     TChecking42BusHandler(int numRepliesWaiting)
         : NumRepliesWaiting(numRepliesWaiting)
     { }

@@ -20,8 +20,6 @@ public:
     static const int MaxUpperReserveLimit;
     static const int MinUpperReserveLimit;
 
-    typedef TIntrusivePtr<TChannelWriter> TPtr;
-
     TChannelWriter(
         int bufferIndex,
         int fixedColumnCount,

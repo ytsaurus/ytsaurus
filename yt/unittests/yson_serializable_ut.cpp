@@ -25,8 +25,6 @@ DECLARE_ENUM(ETestEnum,
 struct TTestSubconfig
     : public TYsonSerializable
 {
-    typedef TIntrusivePtr<TTestSubconfig> TPtr;
-
     int MyInt;
     bool MyBool;
     std::vector<Stroka> MyStringList;
@@ -41,16 +39,16 @@ struct TTestSubconfig
     }
 };
 
+typedef TIntrusivePtr<TTestSubconfig> TTestSubconfigPtr;
+
 class TTestConfig
     : public TYsonSerializable
 {
 public:
-    typedef TIntrusivePtr<TTestConfig> TPtr;
-
     Stroka MyString;
-    TTestSubconfig::TPtr Subconfig;
-    std::vector<TTestSubconfig::TPtr> SubconfigList;
-    yhash_map<Stroka, TTestSubconfig::TPtr> SubconfigMap;
+    TTestSubconfigPtr Subconfig;
+    std::vector<TTestSubconfigPtr> SubconfigList;
+    yhash_map<Stroka, TTestSubconfigPtr> SubconfigMap;
 
     TTestConfig()
     {
@@ -65,6 +63,8 @@ public:
         });
     }
 };
+
+typedef TIntrusivePtr<TTestConfig> TTestConfigPtr;
 
 void TestCompleteSubconfig(TTestSubconfig* subconfig)
 {

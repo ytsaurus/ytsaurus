@@ -61,8 +61,6 @@ class TNonExistingServiceProxy
     : public TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TNonExistingServiceProxy> TPtr;
-
     static const Stroka ServiceName;
 
     TNonExistingServiceProxy(IChannelPtr channel)
@@ -99,8 +97,6 @@ class TMyService
     : public TServiceBase
 {
 public:
-    typedef TMyService TThis;
-
     TMyService(IInvokerPtr invoker, Event* event)
         : TServiceBase(invoker, TMyProxy::ServiceName, "Main")
         , Event_(event)

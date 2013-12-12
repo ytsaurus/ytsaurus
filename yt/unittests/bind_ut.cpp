@@ -49,8 +49,6 @@ class TObjectWithRC
     : public TObject
 {
 public:
-    typedef TIntrusivePtr<TObjectWithRC> TPtr;
-
     TObjectWithRC()
     { }
 
@@ -66,6 +64,8 @@ private:
     TObjectWithRC& operator=(TObjectWithRC&&);
 };
 
+typedef TIntrusivePtr<TObjectWithRC> TObjectWithRCPtr;
+
 // A simple mock object which mocks Ref()/Unref() and prohibits
 // public destruction.
 class TObjectWithRCAndPrivateDtor
@@ -80,13 +80,12 @@ private:
 class TObjectWithExtrinsicRC
     : public TObject
     , public TExtrinsicRefCounted
-{
-public:
-    typedef TIntrusivePtr<TObjectWithExtrinsicRC> TPtr;
-    typedef TIntrusivePtr<const TObjectWithExtrinsicRC> TConstPtr;
-    typedef TWeakPtr<TObjectWithExtrinsicRC> TWkPtr;
-    typedef TWeakPtr<const TObjectWithExtrinsicRC> TConstWkPtr;
-};
+{ };
+
+typedef TIntrusivePtr<TObjectWithExtrinsicRC> TObjectWithExtrinsicRCPtr;
+typedef TIntrusivePtr<const TObjectWithExtrinsicRC> TObjectWithExtrinsicRCConstPtr;
+typedef TWeakPtr<TObjectWithExtrinsicRC> TObjectWithExtrinsicRCWkPtr;
+typedef TWeakPtr<const TObjectWithExtrinsicRC> TObjectWithExtrinsicRCConstWkPtr;
 
 // Below there is a serie of either reference-counted or not classes
 // with simple inheritance and both virtual and non-virtual methods.
@@ -393,7 +392,7 @@ TEST_F(TBindTest, FunctionTypeSupport)
     TClosure boundMethodViaRawPtr =
         BIND(&TObjectWithRC::VoidMethod0, &ObjectWithRC); // (NoRef)
     TClosure boundMethodViaRefPtr =
-        BIND(&TObjectWithRC::VoidMethod0, TObjectWithRC::TPtr(&ObjectWithRC)); // (Ref)
+        BIND(&TObjectWithRC::VoidMethod0, TObjectWithRCPtr(&ObjectWithRC)); // (Ref)
 
     boundMethodViaRawPtr.Run();
     boundMethodViaRefPtr.Run();
@@ -703,8 +702,8 @@ TEST_F(TBindTest, UnretainedWrapper)
 //     not canceled.
 TEST_F(TBindTest, WeakPtr)
 {
-    TObjectWithExtrinsicRC::TPtr object = New<TObjectWithExtrinsicRC>();
-    TObjectWithExtrinsicRC::TWkPtr objectWk(object);
+    TObjectWithExtrinsicRCPtr object = New<TObjectWithExtrinsicRC>();
+    TObjectWithExtrinsicRCWkPtr objectWk(object);
 
     EXPECT_CALL(*object, VoidMethod0());
     EXPECT_CALL(*object, VoidConstMethod0()).Times(2);
@@ -712,25 +711,25 @@ TEST_F(TBindTest, WeakPtr)
     TClosure boundMethod =
         BIND(
             &TObjectWithExtrinsicRC::VoidMethod0,
-            TObjectWithExtrinsicRC::TWkPtr(object));
+            TObjectWithExtrinsicRCWkPtr(object));
     boundMethod.Run();
 
     TClosure constMethodNonConstObject =
         BIND(
             &TObject::VoidConstMethod0,
-            TObjectWithExtrinsicRC::TWkPtr(object));
+            TObjectWithExtrinsicRCWkPtr(object));
     constMethodNonConstObject.Run();
 
     TClosure constMethodConstObject =
         BIND(
             &TObject::VoidConstMethod0,
-            TObjectWithExtrinsicRC::TConstWkPtr(object));
+            TObjectWithExtrinsicRCConstWkPtr(object));
     constMethodConstObject.Run();
 
     TCallback<int(int)> normalFunc =
         BIND(
             &FunctionWithWeakParam<TObjectWithExtrinsicRC>,
-            TObjectWithExtrinsicRC::TWkPtr(object));
+            TObjectWithExtrinsicRCWkPtr(object));
 
     EXPECT_EQ(1, normalFunc.Run(1));
 

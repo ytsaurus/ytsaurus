@@ -32,8 +32,6 @@ class TSequentialReader
     DEFINE_BYVAL_RO_PROPERTY(volatile i64, CompressedDataSize);
 
 public:
-    typedef TIntrusivePtr<TSequentialReader> TPtr;
-
     struct TBlockInfo
     {
         int Index;

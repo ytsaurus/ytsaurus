@@ -14,14 +14,12 @@ class TOrchidServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TOrchidServiceProxy> TPtr;
-
     static Stroka GetServiceName()
     {
         return "OrchidService";
     }
 
-    TOrchidServiceProxy(NRpc::IChannelPtr channel)
+    explicit TOrchidServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

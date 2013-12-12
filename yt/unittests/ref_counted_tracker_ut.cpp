@@ -20,8 +20,6 @@ class TSimpleObject
     ui32 Bar;
 
 public:
-    typedef TIntrusivePtr<TSimpleObject> TPtr;
-
     static i64 GetAliveCount()
     {
         return TRefCountedTracker::Get()->GetObjectsAlive(&typeid(TSimpleObject));
@@ -33,11 +31,13 @@ public:
     }
 };
 
+typedef TIntrusivePtr<TSimpleObject> TSimpleObjectPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TRefCountedTrackerTest, Simple)
 {
-    std::vector<TSimpleObject::TPtr> container;
+    std::vector<TSimpleObjectPtr> container;
     container.reserve(2000);
 
     EXPECT_EQ(   0, TSimpleObject::GetAliveCount());

@@ -204,8 +204,6 @@ private:
 struct TRule
     : public TYsonSerializable
 {
-    typedef TIntrusivePtr<TRule> TPtr;
-
     bool IncludeAllCategories;
     yhash_set<Stroka> IncludeCategories;
     yhash_set<Stroka> ExcludeCategories;
@@ -261,6 +259,8 @@ struct TRule
     }
 
 };
+
+typedef TIntrusivePtr<TRule> TRulePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,8 +540,8 @@ private:
     int HighBacklogWatermark;
     int LowBacklogWatermark;
 
-    std::vector<TRule::TPtr> Rules;
-    yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
+    std::vector<TRulePtr> Rules;
+    yhash_map<Stroka, ILogWriter::TConfigPtr> WriterConfigs;
 
     yhash_map<Stroka, ILogWriterPtr> Writers;
     ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
