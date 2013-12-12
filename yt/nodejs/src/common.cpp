@@ -122,9 +122,12 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     return Undefined();
 }
 
-void ShutdownSingletons(void*)
+Handle<Value> ShutdownSingletons(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length());
 
     // TODO(sandello): Refactor this.
     // XXX(sandello): Keep in sync with...
@@ -143,6 +146,8 @@ void ShutdownSingletons(void*)
     NProfiling::TProfilingManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
     NLog::TLogManager::Get()->Shutdown();
+
+    return Undefined();
 }
 
 } // namespace
@@ -160,8 +165,9 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("ConfigureSingletons"),
         FunctionTemplate::New(ConfigureSingletons)->GetFunction());
-
-    node::AtExit(&ShutdownSingletons);
+    target->Set(
+        String::NewSymbol("ShutdownSingletons"),
+        FunctionTemplate::New(ShutdownSingletons)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
