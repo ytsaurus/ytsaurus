@@ -257,10 +257,12 @@ class WaitStrategy(object):
                     str(state),
                     operation_result,
                     jobs_errors))
-        if config.PRINT_STDERRS:
+
+        stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
+        if logger.LOGGER.isEnabledFor(stderr_level):
             stderrs = get_stderrs(operation)
             if stderrs:
-                logger.info("\n" + stderrs)
+                logger.log(stderr_level, "\n" + stderrs)
 
 # TODO(ignat): Fix interaction with transactions
 class AsyncStrategy(object):
