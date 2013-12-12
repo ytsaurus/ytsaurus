@@ -113,6 +113,26 @@ TAsyncError TAsyncReader::GetReadyEvent()
     return ReadyPromise->ToFuture();
 }
 
+TError TAsyncReader::Close()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(ReadLock);
+
+    Reader->Close();
+
+    if (ReadyPromise.HasValue()) {
+        ReadyPromise->Set(TError("The reader was aborted"));
+        ReadyPromise.Reset();
+    }
+
+    if (Reader->InFailedState()) {
+        return TError::FromSystem(Reader->GetLastSystemError());
+    } else {
+        return TError();
+    }
+}
+
 bool TAsyncReader::CanReadSomeMore()
 {
     return (!Reader->InFailedState() && !Reader->ReachedEOF());

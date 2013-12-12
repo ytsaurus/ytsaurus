@@ -80,6 +80,28 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read('//tmp/t_output2') == [{'value': 42}]
         assert read('//tmp/t_output1') == [{'index': i} for i in xrange(count)]
 
+    def test_first_after_second(self):
+        create('table', '//tmp/t_input')
+        create('table', '//tmp/t_output1')
+        create('table', '//tmp/t_output2')
+
+        count = 10000;
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t_input', original_data);
+
+        file1 = '//tmp/some_file.txt'
+        create('file', file1)
+        upload(file1, '}}}}};\n')
+
+        command = 'cat some_file.txt >&4; cat >&4; echo "{value=42}"'
+        op_id = map(dont_track=True,
+                    in_='//tmp/t_input',
+                    out=['//tmp/t_output1', '//tmp/t_output2'],
+                    command=command,
+                    file=[file1],
+                    verbose=True)
+        with pytest.raises(YtError): track_op(op_id)
+
     @only_linux
     def test_in_equal_to_out(self):
         create('table', '//tmp/t1')
@@ -113,7 +135,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
     # check that stderr is captured for failed jobs
     @only_linux
-
     def test_stderr_failed(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')

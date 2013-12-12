@@ -57,6 +57,8 @@ struct IDataPipe
 
     virtual TError DoAll() = 0;
 
+    virtual TError Close() = 0;
+
     virtual void Finish() = 0;
 };
 
@@ -76,13 +78,11 @@ public:
     virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
-    virtual TError DoAll()
-    {
-        return ReadAll();
-    }
+    virtual TError DoAll() override;
 
     TError ReadAll();
 
+    virtual TError Close() override;
     virtual void Finish() override;
 
 private:
@@ -114,16 +114,15 @@ public:
         std::unique_ptr<NYson::IYsonConsumer> consumer,
         int jobDescriptor);
 
-    void PrepareJobDescriptors() override;
-    void PrepareProxyDescriptors() override;
+    virtual void PrepareJobDescriptors() override;
+    virtual void PrepareProxyDescriptors() override;
 
-    virtual TError DoAll() override
-    {
-        return WriteAll();
-    }
+    virtual TError DoAll() override;
+
     TError WriteAll();
 
-    void Finish() override;
+    virtual TError Close() override;
+    virtual void Finish() override;
 
 private:
     TPipe Pipe;

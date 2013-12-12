@@ -222,6 +222,11 @@ void TOutputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.ReadFd);
 }
 
+TError TOutputPipe::DoAll()
+{
+    return ReadAll();
+}
+
 TError TOutputPipe::ReadAll()
 {
     bool isClosed = false;
@@ -244,6 +249,11 @@ TError TOutputPipe::ReadAll()
         }
     }
     return TError();
+}
+
+TError TOutputPipe::Close()
+{
+    return Reader->Close();
 }
 
 void TOutputPipe::Finish()
@@ -298,6 +308,11 @@ void TInputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.WriteFd);
 }
 
+TError TInputPipe::DoAll()
+{
+    return WriteAll();
+}
+
 TError TInputPipe::WriteAll()
 {
     while (HasData) {
@@ -314,6 +329,11 @@ TError TInputPipe::WriteAll()
         auto error = WaitFor(Writer->AsyncClose());
         return error;
     }
+}
+
+TError TInputPipe::Close()
+{
+    return WaitFor(Writer->AsyncClose());
 }
 
 void TInputPipe::Finish()

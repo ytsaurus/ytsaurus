@@ -26,6 +26,8 @@ public:
     std::pair<TBlob, bool> Read();
     TAsyncError GetReadyEvent();
 
+    TError Close();
+
 private:
     void Start(ev::dynamic_loop& eventLoop) override;
 

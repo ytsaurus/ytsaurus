@@ -110,6 +110,8 @@ void TNonBlockReader::Close()
 {
     if (!Closed) {
         int errCode = close(FD);
+        LOG_DEBUG("close syscall returns %" PRId32, errno);
+
         if (errCode == -1) {
             // please, read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
