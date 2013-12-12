@@ -44,13 +44,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        count = 1000*1000;
+        count = 1000 * 1000;
         original_data = [{'index': i} for i in xrange(count)]
         write('//tmp/t1', original_data);
 
         command = 'cat'
-        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command)
-        track_op(op_id)
+        map(in_='//tmp/t1', out='//tmp/t2', command=command)
 
         new_data = read('//tmp/t2')
         assert new_data == original_data
@@ -64,18 +63,16 @@ class TestSchedulerMapCommands(YTEnvSetup):
         original_data = [{'index': i} for i in xrange(count)]
         write('//tmp/t_input', original_data);
 
-        file1 = '//tmp/some_file.txt'
-        create('file', file1)
-        upload(file1, '{value=42};\n')
+        file = '//tmp/some_file.txt'
+        create('file', file)
+        upload(file, '{value=42};\n')
 
         command = 'bash -c "cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;"'
-        op_id = map(dont_track=True,
-                    in_='//tmp/t_input',
-                    out=['//tmp/t_output1', '//tmp/t_output2'],
-                    command=command,
-                    file=[file1],
-                    verbose=True)
-        track_op(op_id)
+        map(in_='//tmp/t_input',
+            out=['//tmp/t_output1', '//tmp/t_output2'],
+            command=command,
+            file=[file],
+            verbose=True)
 
         assert read('//tmp/t_output2') == [{'value': 42}]
         assert read('//tmp/t_output1') == [{'index': i} for i in xrange(count)]

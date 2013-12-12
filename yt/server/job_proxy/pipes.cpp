@@ -237,16 +237,18 @@ TError TOutputPipe::ReadAll()
         TBlob data;
         std::tie(data, isClosed) = Reader->Read(std::move(buffer));
 
-        try {
-            OutputStream->Write(data.Begin(), data.Size());
-        } catch (const std::exception& ex) {
-            return TError("Failed to write into output (Fd: %d)",
-                JobDescriptor) << TError(ex);
-        }
-
-        if ((!isClosed) && (data.Size() == 0)) {
-            auto error = WaitFor(Reader->GetReadyEvent());
-            RETURN_IF_ERROR(error);
+        if (data.Size() > 0) {
+            try {
+                OutputStream->Write(data.Begin(), data.Size());
+            } catch (const std::exception& ex) {
+                return TError("Failed to write into output (Fd: %d)",
+                              JobDescriptor) << TError(ex);
+            }
+        } else {
+            if (!isClosed) {
+                auto error = WaitFor(Reader->GetReadyEvent());
+                RETURN_IF_ERROR(error);
+            }
         }
         buffer = std::move(data);
     }
