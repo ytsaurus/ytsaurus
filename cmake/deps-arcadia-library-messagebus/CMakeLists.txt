@@ -45,6 +45,8 @@ set( SRCS
   ${BASE}/actor/what_thread_does.cpp
 
   ${BASE}/scheduler/scheduler.cpp
+
+  ${BASE}/protobuf/ybusbuf.cpp  
 )
 
 include_directories(

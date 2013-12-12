@@ -1,16 +1,12 @@
 #include "stdafx.h"
 #include "json_writer.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/null_yson_consumer.h>
 
 #include <library/json/json_writer.h>
-
-#include <util/string/base64.h>
-
-// XXX(sandello): This is a direct hack to yajl's core just to not to implement
-// in-house UTF8 validator.
 
 namespace NYT {
 namespace NFormats {
@@ -53,6 +49,7 @@ private:
 
     std::unique_ptr<NJson::TJsonWriter> UnderlyingJsonWriter;
     NJson::TJsonWriter* JsonWriter;
+    TOutputStream* Output;
     TJsonFormatConfigPtr Config;
     NYson::EYsonType Type;
 
@@ -65,6 +62,7 @@ private:
     std::vector<bool> HasUnfoldedStructureStack;
     int InAttributesBalance;
     bool HasAttributes;
+    int Depth;
 };
 
 class TJsonWriter
@@ -87,54 +85,18 @@ private:
     TJsonWriterImpl Impl_;
 };
 
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsValidUtf8(const unsigned char* buffer, size_t length)
-{
-    YASSERT(buffer);
-    YASSERT(length);
-
-    const unsigned char* s = buffer;
-    while (length--) {
-        if (*s <= 0x7F) {
-        } else if ((*s >> 5) == 0x06) {
-            ++s;
-            if (!((*s >> 6) == 0x2)) return false;
-        } else if ((*s >> 4) == 0x0E) {
-            ++s;
-            if (!((*s >> 6) == 0x2)) return false;
-            ++s;
-            if (!((*s >> 6) == 0x2)) return false;
-        } else if ((*s >> 3) == 0x1E) {
-            ++s;
-            if (!((*s >> 6) == 0x2)) return false;
-            ++s;
-            if (!((*s >> 6) == 0x2)) return false;
-            ++s;
-            if (!((*s >> 6) == 0x2)) return false;
-        } else {
-            return false;
-        }
-        ++s;
-    }
-
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJsonWriterImpl::TJsonWriterImpl(TOutputStream* output,
     NYson::EYsonType type,
     TJsonFormatConfigPtr config)
-    : Config(config)
+    : Output(output)
+    , Config(config)
     , Type(type)
+    , Depth(0)
 {
     if (Type == EYsonType::MapFragment) {
         THROW_ERROR_EXCEPTION("Map fragments are not supported by Json");
-    }
-    if (Type == EYsonType::ListFragment) {
-        THROW_ERROR_EXCEPTION("List fragments are not supported by Json");
     }
 
     UnderlyingJsonWriter.reset(new NJson::TJsonWriter(
@@ -166,6 +128,8 @@ void TJsonWriterImpl::EnterNode()
         JsonWriter->Write("$value");
         HasAttributes = false;
     }
+
+    Depth += 1;
 }
 
 void TJsonWriterImpl::LeaveNode()
@@ -176,6 +140,8 @@ void TJsonWriterImpl::LeaveNode()
         JsonWriter->CloseMap();
     }
     HasUnfoldedStructureStack.pop_back();
+
+    Depth -= 1;
 }
 
 bool TJsonWriterImpl::IsWriteAllowed()
@@ -262,6 +228,16 @@ void TJsonWriterImpl::OnEndMap()
         JsonWriter->CloseMap();
         LeaveNode();
     }
+
+    if (Depth == 0 && Type == NYson::EYsonType::ListFragment) {
+        JsonWriter->Flush();
+        Output->Write("\n");
+
+        UnderlyingJsonWriter.reset(new NJson::TJsonWriter(
+            Output,
+            Config->Format == EJsonFormat::Pretty));
+        JsonWriter = ~UnderlyingJsonWriter;
+    }
 }
 
 void TJsonWriterImpl::OnBeginAttributes()
@@ -290,15 +266,10 @@ TJsonWriterImpl::TJsonWriterImpl(NJson::TJsonWriter* jsonWriter, TJsonFormatConf
 
 void TJsonWriterImpl::WriteStringScalar(const TStringBuf &value)
 {
-    if (
-        value.empty() ||
-        (value[0] != '&' && IsValidUtf8(
-            reinterpret_cast<const unsigned char*>(value.c_str()),
-            value.length()))
-    ) {
+    if (IsAscii(value)) {
         JsonWriter->Write(value);
     } else {
-        JsonWriter->Write("&" + Base64Encode(value));
+        JsonWriter->Write(ByteStringToUtf8(value));
     }
 }
 

@@ -13,11 +13,10 @@
 #include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/formats/format.h>
+#include <ytlib/formats/helpers.h>
 
 #include <util/stream/zlib.h>
 #include <util/stream/lz.h>
-
-#include <util/string/base64.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -36,8 +35,6 @@ namespace {
 
 static Persistent<String> SpecialValueKey;
 static Persistent<String> SpecialAttributesKey;
-
-static const char SpecialBase64Marker = '&';
 
 // Declare.
 void ConsumeV8Array(Handle<Array> array, ITreeBuilder* builder);
@@ -107,13 +104,13 @@ void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
     THREAD_AFFINITY_IS_V8();
 
     /****/ if (value->IsString()) {
-        String::AsciiValue asciiValue(value->ToString());
-        TStringBuf string(*asciiValue, asciiValue.length());
+        String::Utf8Value utf8Value(value->ToString());
+        TStringBuf string(*utf8Value, utf8Value.length());
 
-        if (string.length() >= 1 && string[0] == SpecialBase64Marker) {
-            builder->OnStringScalar(Base64Decode(string.Tail(1)));
-        } else {
+        if (IsAscii(string)) {
             builder->OnStringScalar(string);
+        } else {
+            builder->OnStringScalar(Utf8ToByteString(string));
         }
     } else if (value->IsNumber()) {
         if (value->IsInt32() || value->IsUint32()) {
@@ -328,7 +325,7 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
             if (arg->IsObject()) {
                 node = ConvertV8ValueToNode(arg);
             } else if (arg->IsString()) {
-                String::AsciiValue argValue(arg->ToString());
+                String::Utf8Value argValue(arg->ToString());
                 node = ConvertToNode(TYsonString(Stroka(*argValue, argValue.length())));
             } else if (arg->IsNull() || arg->IsUndefined()) {
                 node = NULL;
@@ -351,7 +348,7 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
                     compression,
                     format);
             } else if (arg->IsString()) {
-                String::AsciiValue argValue(arg->ToString());
+                String::Utf8Value argValue(arg->ToString());
                 node = ConvertV8BytesToNode(
                     *argValue,
                     argValue.length(),

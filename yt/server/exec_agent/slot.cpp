@@ -119,6 +119,13 @@ void TSlot::MakeLink(
     const Stroka& targetPath,
     bool isExecutable)
 {
+    {
+        // Take exclusive lock in blocking fashion to ensure that no 
+        // forked process is holding an open descriptor to the target file.
+        TFile file(targetPath, RdOnly | CloseOnExec);
+        file.Flock(LOCK_EX);
+    }
+
     auto linkPath = NFS::CombinePaths(SandboxPath, linkName);
     NFS::MakeSymbolicLink(targetPath, linkPath);
     NFS::SetExecutableMode(linkPath, isExecutable);
@@ -126,8 +133,27 @@ void TSlot::MakeLink(
 
 void TSlot::MakeEmptyFile(const Stroka& fileName)
 {
-    TFile file(NFS::CombinePaths(SandboxPath, fileName), CreateAlways);
-    file.Close();
+    TFile file(NFS::CombinePaths(SandboxPath, fileName), CreateAlways | CloseOnExec);
+}
+
+void TSlot::MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer)
+{
+    auto path = NFS::CombinePaths(SandboxPath, fileName);
+    {
+        // NB! Races are possible between file creation and call to flock.
+        // Unfortunately in Linux we cannot make it atomically.
+        TFile file(path, CreateAlways | CloseOnExec);
+        file.Flock(LOCK_EX | LOCK_NB);
+        TFileOutput fileOutput(file);
+        dataProducer(&fileOutput);
+    }
+
+    {
+        // Take exclusive lock in blocking fashion to ensure that no 
+        // forked process is holding an open descriptor.
+        TFile file(path, RdOnly | CloseOnExec);
+        file.Flock(LOCK_EX);
+    }
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const
