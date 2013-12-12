@@ -79,7 +79,7 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
     }
 }
 
-std::pair<TBlob, bool> TAsyncReader::Read()
+std::pair<TBlob, bool> TAsyncReader::Read(TBlob&& buffer)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -90,7 +90,7 @@ std::pair<TBlob, bool> TAsyncReader::Read()
         StartWatcher.send();
     }
 
-    return Reader->GetRead();
+    return Reader->GetRead(std::move(buffer));
 }
 
 TAsyncError TAsyncReader::GetReadyEvent()

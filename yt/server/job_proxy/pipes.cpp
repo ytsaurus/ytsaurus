@@ -231,10 +231,11 @@ TError TOutputPipe::ReadAll()
 {
     bool isClosed = false;
 
+    TBlob buffer;
     while (!isClosed)
     {
         TBlob data;
-        std::tie(data, isClosed) = Reader->Read();
+        std::tie(data, isClosed) = Reader->Read(std::move(buffer));
 
         try {
             OutputStream->Write(data.Begin(), data.Size());
@@ -247,6 +248,7 @@ TError TOutputPipe::ReadAll()
             auto error = WaitFor(Reader->GetReadyEvent());
             RETURN_IF_ERROR(error);
         }
+        buffer = std::move(data);
     }
     return TError();
 }

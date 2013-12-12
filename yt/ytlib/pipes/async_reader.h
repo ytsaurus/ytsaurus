@@ -23,7 +23,7 @@ public:
     TAsyncReader(int fd);
     ~TAsyncReader() override;
 
-    std::pair<TBlob, bool> Read();
+    std::pair<TBlob, bool> Read(TBlob&& buffer);
     TAsyncError GetReadyEvent();
 
     TError Close();

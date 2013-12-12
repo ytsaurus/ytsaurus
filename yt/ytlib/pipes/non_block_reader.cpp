@@ -78,11 +78,12 @@ void TNonBlockReader::Close()
     }
 }
 
-std::pair<TBlob, bool> TNonBlockReader::GetRead()
+std::pair<TBlob, bool> TNonBlockReader::GetRead(TBlob&& buffer)
 {
     TBlob result(std::move(ReadBuffer));
     result.Resize(BytesInBuffer);
 
+    ReadBuffer = buffer;
     ReadBuffer.Resize(ReadBufferSize);
     BytesInBuffer = 0;
 

@@ -18,7 +18,7 @@ public:
     void TryReadInBuffer();
     void Close();
 
-    std::pair<TBlob, bool> GetRead();
+    std::pair<TBlob, bool> GetRead(TBlob&& buffer);
 
     bool IsBufferFull() const;
     bool IsBufferEmpty() const;

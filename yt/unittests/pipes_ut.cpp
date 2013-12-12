@@ -97,7 +97,7 @@ TEST_F(TReadWriteTest, ReadSomethingSpin)
 
     while (!isClosed)
     {
-        std::tie(data, isClosed) = Reader->Read();
+        std::tie(data, isClosed) = Reader->Read(TBlob());
         whole.Append(data.Begin(), data.Size());
     }
 
@@ -111,7 +111,7 @@ TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader, bool useWaitFor)
 
     while (!isClosed)
     {
-        std::tie(data, isClosed) = reader->Read();
+        std::tie(data, isClosed) = reader->Read(TBlob());
         whole.Append(data.Begin(), data.Size());
 
         if ((!isClosed) && (data.Size() == 0)) {
