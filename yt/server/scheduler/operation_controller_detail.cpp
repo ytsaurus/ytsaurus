@@ -3165,10 +3165,8 @@ void TOperationControllerBase::InitUserJobSpec(
     TJobletPtr joblet,
     i64 memoryReserve)
 {
-    if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
-        auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-        ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
-    }
+    auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
+    ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
 
     jobSpec->set_memory_reserve(memoryReserve);
 
