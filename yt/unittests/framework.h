@@ -21,7 +21,6 @@ Stroka GenerateRandomFileName(const char* prefix);
 
 } // namespace NYT
 
-
 namespace NYT {
 namespace NRpc {
 
@@ -144,7 +143,6 @@ template <class T>
 
 } // namespace NRpc
 } // namespace NYT
-
 
 namespace testing {
 

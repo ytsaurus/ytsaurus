@@ -92,6 +92,10 @@ if (MSVC)
   add_definitions( -D_VARIADIC_MAX=10 )
 endif()
 
+if (APPLE)
+  add_definitions( -DGTEST_HAS_TR1_TUPLE=1 -DGTEST_USE_OWN_TR1_TUPLE=1 )
+endif()
+
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
