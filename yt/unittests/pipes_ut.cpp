@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
@@ -8,8 +9,6 @@
 #include <ytlib/pipes/non_block_reader.h>
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
-
-#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NPipes {
