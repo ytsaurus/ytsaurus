@@ -32,7 +32,7 @@ TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
         ToYPathLiteral(ToString(jobId));
 }
 
-TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobPath(operationId, jobId)

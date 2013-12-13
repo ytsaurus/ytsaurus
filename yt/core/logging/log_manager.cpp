@@ -39,9 +39,9 @@ using namespace NConcurrency;
 // TODO: review this and that
 static const char* const SystemPattern = "$(datetime) $(level) $(category) $(message)";
 
-static const char* const DefaultStdErrWriterName = "StdErr";
-static const ELogLevel DefaultStdErrMinLevel= ELogLevel::Info;
-static const char* const DefaultStdErrPattern = "$(datetime) $(level) $(category) $(message)";
+static const char* const DefaultStderrWriterName = "Stderr";
+static const ELogLevel DefaultStderrMinLevel= ELogLevel::Info;
+static const char* const DefaultStderrPattern = "$(datetime) $(level) $(category) $(message)";
 
 static const char* const AllCategoriesName = "*";
 
@@ -408,14 +408,14 @@ public:
         auto config = New<TLogConfig>();
 
         config->Writers.insert(std::make_pair(
-            DefaultStdErrWriterName,
-            New<TStdErrLogWriter>(DefaultStdErrPattern)));
+            DefaultStderrWriterName,
+            New<TStderrLogWriter>(DefaultStderrPattern)));
 
         auto rule = New<TRule>();
 
         rule->IncludeAllCategories = true;
-        rule->MinLevel = DefaultStdErrMinLevel;
-        rule->Writers.push_back(DefaultStdErrWriterName);
+        rule->MinLevel = DefaultStderrMinLevel;
+        rule->Writers.push_back(DefaultStderrWriterName);
 
         config->Rules.push_back(rule);
 
@@ -489,12 +489,12 @@ private:
             std::unique_ptr<TNotificationWatch> watch;
 
             switch (config->Type) {
-                case ILogWriter::EType::StdOut:
-                    writer = New<TStdOutLogWriter>(pattern);
+                case ILogWriter::EType::Stdout:
+                    writer = New<TStdoutLogWriter>(pattern);
                     break;
 
-                case ILogWriter::EType::StdErr:
-                    writer = New<TStdErrLogWriter>(pattern);
+                case ILogWriter::EType::Stderr:
+                    writer = New<TStderrLogWriter>(pattern);
                     break;
 
                 case ILogWriter::EType::File:
@@ -583,7 +583,7 @@ public:
         , Suspended(false)
         , ReopenEnqueued(false)
     {
-        SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
+        SystemWriters.push_back(New<TStderrLogWriter>(SystemPattern));
         DoUpdateConfig(TLogConfig::CreateDefault());
 
         Thread->Start();

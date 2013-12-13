@@ -56,13 +56,13 @@ void TStreamLogWriter::CheckSpace(i64 minSpace)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdErrLogWriter::TStdErrLogWriter(const Stroka& pattern)
+TStderrLogWriter::TStderrLogWriter(const Stroka& pattern)
     : TStreamLogWriter(&StdErrStream(), pattern)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdOutLogWriter::TStdOutLogWriter(const Stroka& pattern)
+TStdoutLogWriter::TStdoutLogWriter(const Stroka& pattern)
     : TStreamLogWriter(&StdOutStream(), pattern)
 { }
 

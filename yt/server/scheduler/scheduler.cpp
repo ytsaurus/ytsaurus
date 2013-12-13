@@ -1475,18 +1475,18 @@ private:
             auto operation = job->GetOperation();
             auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
 
-            if (jobFailed || operation->GetStdErrCount() < operation->GetMaxStdErrCount()) {
+            if (jobFailed || operation->GetStderrCount() < operation->GetMaxStderrCount()) {
                 MasterConnector->CreateJobNode(job, stderrChunkId);
-                operation->SetStdErrCount(operation->GetStdErrCount() + 1);
+                operation->SetStderrCount(operation->GetStderrCount() + 1);
             } else {
-                ReleaseStdErrChunk(job, stderrChunkId);
+                ReleaseStderrChunk(job, stderrChunkId);
             }
         } else if (jobFailed) {
             MasterConnector->CreateJobNode(job, NullChunkId);
         }
     }
 
-    void ReleaseStdErrChunk(TJobPtr job, const TChunkId& chunkId)
+    void ReleaseStderrChunk(TJobPtr job, const TChunkId& chunkId)
     {
         TObjectServiceProxy proxy(GetMasterChannel());
         auto transaction = job->GetOperation()->GetAsyncSchedulerTransaction();
@@ -1500,10 +1500,10 @@ private:
         // Fire-and-forget.
         // The subscriber is only needed to log the outcome.
         proxy.Execute(req).Subscribe(
-            BIND(&TImpl::OnStdErrChunkReleased, MakeStrong(this)));
+            BIND(&TImpl::OnStderrChunkReleased, MakeStrong(this)));
     }
 
-    void OnStdErrChunkReleased(TTransactionYPathProxy::TRspUnstageObjectPtr rsp)
+    void OnStderrChunkReleased(TTransactionYPathProxy::TRspUnstageObjectPtr rsp)
     {
         if (!rsp->IsOK()) {
             LOG_WARNING(*rsp, "Error releasing stderr chunk");

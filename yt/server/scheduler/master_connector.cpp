@@ -180,7 +180,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
+        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StderrChunkId: %s)",
             ~ToString(job->GetOperation()->GetOperationId()),
             ~ToString(job->GetId()),
             ~ToString(stdErrChunkId));
@@ -188,7 +188,7 @@ public:
         auto* list = GetUpdateList(job->GetOperation());
         TJobRequest request;
         request.Job = job;
-        request.StdErrChunkId = stdErrChunkId;
+        request.StderrChunkId = stdErrChunkId;
         list->JobRequests.push_back(request);
     }
 
@@ -289,7 +289,7 @@ private:
     struct TJobRequest
     {
         TJobPtr Job;
-        TChunkId StdErrChunkId;
+        TChunkId StderrChunkId;
     };
 
     struct TLivePreviewRequest
@@ -1352,8 +1352,8 @@ private:
                 req->set_value(BuildJobYson(job).Data());
                 batchReq->AddRequest(req, "update_op_node");
 
-                if (request.StdErrChunkId != NullChunkId) {
-                    auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
+                if (request.StderrChunkId != NullChunkId) {
+                    auto stdErrPath = GetStderrPath(operation->GetOperationId(), job->GetId());
 
                     auto req = TCypressYPathProxy::Create(stdErrPath);
                     GenerateMutationId(req);
@@ -1366,9 +1366,9 @@ private:
                     ToProto(req->mutable_node_attributes(), *attributes);
 
                     auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-                    ToProto(reqExt->mutable_chunk_id(), request.StdErrChunkId);
+                    ToProto(reqExt->mutable_chunk_id(), request.StderrChunkId);
 
-                    batchReq->AddRequest(req, "create_std_err");
+                    batchReq->AddRequest(req, "create_stderr");
                 }
             }
             requests.clear();
@@ -1434,10 +1434,10 @@ private:
             }
         }
 
-        // NB: Here we silently ignore (but still log down) create_std_err and update_live_preview failures.
+        // NB: Here we silently ignore (but still log down) create_stderr and update_live_preview failures.
         // These requests may fail due to user transaction being aborted.
         {
-            auto rsps = batchRsp->GetResponses("create_std_err");
+            auto rsps = batchRsp->GetResponses("create_stderr");
             for (auto rsp : rsps) {
                 if (!rsp->IsOK()) {
                     LOG_WARNING(

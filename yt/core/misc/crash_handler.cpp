@@ -151,7 +151,7 @@ int GetSymbol(void* pc, char* buffer, int length)
 }
 
 //! Writes the given buffer with the length to the standard error.
-void WriteToStdErr(const char* buffer, int length)
+void WriteToStderr(const char* buffer, int length)
 {
     if (write(2, buffer, length) < 0) {
         // Ignore errors.
@@ -175,7 +175,7 @@ void DumpTimeInfo()
     formatter.AppendNumber(timeSinceEpoch, 10);
     formatter.AppendString("\" if you are using GNU date ***\n");
 
-    WriteToStdErr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
 //! Dumps information about the signal.
@@ -222,7 +222,7 @@ void DumpSignalInfo(int signal, siginfo_t* si)
 #endif
     formatter.AppendString("***\n");
 
-    WriteToStdErr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
 //! Dumps information about the stack frame.
@@ -243,7 +243,7 @@ void DumpStackFrameInfo(void* pc)
         formatter.GetBytesRemaining()));
     formatter.AppendString("\n");
 
-    WriteToStdErr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
 //! Invoke the default signal handler.
@@ -311,7 +311,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     {
         prefix.Reset();
         prefix.AppendString("PC: ");
-        WriteToStdErr(prefix.GetData(), prefix.GetBytesWritten());
+        WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
         DumpStackFrameInfo(pc);
     }
 
@@ -326,7 +326,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
         prefix.Reset();
         prefix.AppendNumber(i + 1, 10, 2);
         prefix.AppendString(". ");
-        WriteToStdErr(prefix.GetData(), prefix.GetBytesWritten());
+        WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
         DumpStackFrameInfo(stack[i]);
     }
 

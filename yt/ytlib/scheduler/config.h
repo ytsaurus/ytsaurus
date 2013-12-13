@@ -61,7 +61,7 @@ public:
     EUnavailableChunkAction UnavailableChunkTactics;
 
     TNullable<int> MaxFailedJobCount;
-    TNullable<int> MaxStdErrCount;
+    TNullable<int> MaxStderrCount;
 
     bool JobProxyMemoryControl;
 
@@ -81,7 +81,7 @@ public:
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);
-        RegisterParameter("max_stderr_count", MaxStdErrCount)
+        RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default(Null);
 
         RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)

@@ -288,7 +288,7 @@ EExitCode TOperationTracker::DumpResult()
                 stdErrJobIds.size());
             for (const auto& jobId : stdErrJobIds) {
                 printf("yt download '%s'\n",
-                    ~GetStdErrPath(OperationId, jobId));
+                    ~GetStderrPath(OperationId, jobId));
             }
         }
     }

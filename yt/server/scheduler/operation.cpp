@@ -32,8 +32,8 @@ TOperation::TOperation(
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
     , StartTime_(startTime)
-    , StdErrCount_(0)
-    , MaxStdErrCount_(0)
+    , StderrCount_(0)
+    , MaxStderrCount_(0)
     , CleanStart_(false)
     , FinishedPromise(NewPromise())
 { }

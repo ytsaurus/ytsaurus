@@ -987,7 +987,7 @@ void TOperationControllerBase::Initialize()
 
 void TOperationControllerBase::Essentiate()
 {
-    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+    Operation->SetMaxStderrCount(Spec->MaxStderrCount.Get(Config->MaxStderrCount));
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -3176,7 +3176,7 @@ void TOperationControllerBase::InitUserJobSpec(
     TJobletPtr joblet,
     i64 memoryReserve)
 {
-    if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
+    if (Operation->GetStderrCount() < Operation->GetMaxStderrCount()) {
         auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
         ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
     }

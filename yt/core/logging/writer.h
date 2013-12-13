@@ -28,8 +28,8 @@ struct ILogWriter
 
     DECLARE_ENUM(EType,
         (File)
-        (StdOut)
-        (StdErr)
+        (Stdout)
+        (Stderr)
         (Raw)
     );
 
@@ -100,21 +100,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdErrLogWriter
+class TStderrLogWriter
     : public TStreamLogWriter
 {
 public:
-    explicit TStdErrLogWriter(const Stroka& pattern) ;
+    explicit TStderrLogWriter(const Stroka& pattern) ;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdOutLogWriter
+class TStdoutLogWriter
     : public TStreamLogWriter
 {
 public:
-    explicit TStdOutLogWriter(const Stroka& pattern);
+    explicit TStdoutLogWriter(const Stroka& pattern);
 
 };
 

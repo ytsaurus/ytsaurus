@@ -12,7 +12,7 @@ namespace NScheduler {
 NYPath::TYPath GetOperationPath(const TOperationId& operationId);
 NYPath::TYPath GetJobsPath(const TOperationId& operationId);
 NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId);
+NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
 NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);

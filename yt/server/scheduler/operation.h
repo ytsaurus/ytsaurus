@@ -67,10 +67,10 @@ class TOperation
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
     //! Number of stderrs generated so far.
-    DEFINE_BYVAL_RW_PROPERTY(int, StdErrCount);
+    DEFINE_BYVAL_RW_PROPERTY(int, StderrCount);
 
     //! Maximum number of stderrs to capture.
-    DEFINE_BYVAL_RW_PROPERTY(int, MaxStdErrCount);
+    DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
 
     //! Currently existing jobs in the operation.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);

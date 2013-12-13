@@ -96,7 +96,7 @@ public:
     int MaxMemoryReserveAbortJobCount;
 
     //! Limits the number of stderrs the operation is allowed to produce.
-    int MaxStdErrCount;
+    int MaxStderrCount;
 
     //! Number of chunk lists to be allocated when an operation starts.
     int ChunkListPreallocationCount;
@@ -213,7 +213,7 @@ public:
         RegisterParameter("max_memory_reserve_abort_job_count", MaxMemoryReserveAbortJobCount)
             .Default(100)
             .GreaterThanOrEqual(0);
-        RegisterParameter("max_stderr_count", MaxStdErrCount)
+        RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default(100)
             .GreaterThanOrEqual(0);
 
