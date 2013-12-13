@@ -6,14 +6,14 @@ import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCreateTablet
+message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
 }
 
-message TReqRemoveTablet
+message TReqUnmountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }

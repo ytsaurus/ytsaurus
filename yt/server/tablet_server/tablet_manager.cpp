@@ -167,8 +167,8 @@ public:
         RegisterMethod(BIND(&TImpl::StartSlots, Unretained(this)));
         RegisterMethod(BIND(&TImpl::SetCellState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::RevokePeer, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::OnTabletCreated, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::OnTabletRemoved, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::OnTabletMounted, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::OnTabletUnmounted, Unretained(this)));
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
@@ -345,7 +345,7 @@ public:
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
             tablet->SetState(ETabletState::Mounting);
 
-            TReqCreateTablet req;           
+            TReqMountTablet req;           
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->GetChunkList()->SortedBy());
@@ -390,7 +390,7 @@ public:
             auto hiveManager = Bootstrap->GetHiveManager();
 
             {
-                TReqRemoveTablet req;
+                TReqUnmountTablet req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
                 hiveManager->PostMessage(mailbox, req);
@@ -879,7 +879,7 @@ private:
         ReconfigureCell(cell);
     }
 
-    void OnTabletCreated(const TReqOnTabletCreated& request)
+    void OnTabletMounted(const TReqOnTabletMounted& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
@@ -897,7 +897,7 @@ private:
         tablet->SetState(ETabletState::Mounted);
     }
 
-    void OnTabletRemoved(const TReqOnTabletRemoved& request)
+    void OnTabletUnmounted(const TReqOnTabletUnmounted& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);

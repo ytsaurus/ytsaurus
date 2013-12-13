@@ -22,12 +22,12 @@ message TReqRevokePeer
     required int32 peer_id = 2;
 }
 
-message TReqOnTabletCreated
+message TReqOnTabletMounted
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TReqOnTabletRemoved
+message TReqOnTabletUnmounted
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }

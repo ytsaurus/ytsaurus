@@ -83,8 +83,8 @@ public:
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, MakeStrong(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraCreateTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemoveTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
     }
 
@@ -254,7 +254,7 @@ private:
     }
 
 
-    void HydraCreateTablet(const TReqCreateTablet& request)
+    void HydraMountTablet(const TReqMountTablet& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto schema = FromProto<TTableSchema>(request.schema());
@@ -277,16 +277,16 @@ private:
         auto hiveManager = Slot_->GetHiveManager();
 
         {
-            TReqOnTabletCreated req;
+            TReqOnTabletMounted req;
             ToProto(req.mutable_tablet_id(), id);
             hiveManager->PostMessage(Slot_->GetMasterMailbox(), req);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TabletId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s)",
             ~ToString(id));
     }
 
-    void HydraRemoveTablet(const TReqRemoveTablet& request)
+    void HydraUnmountTablet(const TReqUnmountTablet& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
@@ -301,12 +301,12 @@ private:
         auto hiveManager = Slot_->GetHiveManager();
 
         {
-            TReqOnTabletRemoved req;
+            TReqOnTabletUnmounted req;
             ToProto(req.mutable_tablet_id(), id);
             hiveManager->PostMessage(Slot_->GetMasterMailbox(), req);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet removed (TabletId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %s)",
             ~ToString(id));
     }
 
