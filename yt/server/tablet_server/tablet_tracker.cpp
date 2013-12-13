@@ -33,7 +33,7 @@ TCandidatePool::TCandidatePool(NCellMaster::TBootstrap* bootstrap)
 {
     auto nodeTracker = Bootstrap->GetNodeTracker();
     for (auto* node : nodeTracker->Nodes().GetValues()) {
-        if (HasFreeSlots(node)) {
+        if (HasAvailableSlots(node)) {
             YCHECK(Candidates.insert(node).second);
         }
     }
@@ -47,7 +47,7 @@ TNode* TCandidatePool::TryAllocate(
         auto* node = *it;
         if (forbiddenAddresses.count(node->GetAddress()) == 0) {
             node->AddTabletSlotHint();
-            if (!HasFreeSlots(node)) {
+            if (!HasAvailableSlots(node)) {
                 Candidates.erase(it);
             }
             return node;
@@ -56,7 +56,7 @@ TNode* TCandidatePool::TryAllocate(
     return nullptr;
 }
 
-bool TCandidatePool::HasFreeSlots(TNode* node)
+bool TCandidatePool::HasAvailableSlots(TNode* node)
 {
     return
         node->Statistics().available_tablet_slots() >

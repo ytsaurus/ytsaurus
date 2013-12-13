@@ -30,7 +30,7 @@ private:
 
     yhash_set<NNodeTrackerServer::TNode*> Candidates;
 
-    static bool HasFreeSlots(NNodeTrackerServer::TNode* node);
+    static bool HasAvailableSlots(NNodeTrackerServer::TNode* node);
 
 };
 

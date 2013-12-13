@@ -124,7 +124,7 @@ public:
 
     int GetAvailableTabletSlotCount() const
     {
-        return Config_->TabletNode->Slots;
+        return Config_->TabletNode->Slots - UsedSlotCount_;
     }
 
     int GetUsedTabletSlotCount() const

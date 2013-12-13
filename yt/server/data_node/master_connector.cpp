@@ -451,12 +451,12 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
         YCHECK(cellGuid != NullCellGuid);
         if (tabletCellController->GetAvailableTabletSlotCount() == 0) {
-            LOG_WARNING("Requested to start slot %s when all slots are used, ignored",
+            LOG_WARNING("Requested to start cell %s when all slots are used, ignored",
                 ~ToString(cellGuid));
             continue;
         }
         if (tabletCellController->FindSlot(cellGuid)) {
-            LOG_WARNING("Requested to start slot %s when this cell is already being served by the node, ignored",
+            LOG_WARNING("Requested to start cell %s when this cell is already being served by the node, ignored",
                 ~ToString(cellGuid));
             continue;
         }
