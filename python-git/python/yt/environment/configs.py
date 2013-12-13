@@ -81,7 +81,7 @@ def get_master_config():
         ];
         writers = {
             stderr = {
-                type = StdErr;
+                type = Stderr;
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             file = {
@@ -140,7 +140,7 @@ def get_scheduler_config():
         ];
         writers = {
             stderr = {
-                type = StdErr;
+                type = Stderr;
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             file = {
@@ -191,7 +191,7 @@ def get_driver_config():
         ];
         writers = {
             stderr = {
-                type = StdErr;
+                type = Stderr;
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             file = {
@@ -277,7 +277,7 @@ def get_node_config():
             ];
             writers = {
                 stderr = {
-                    type = StdErr;
+                    type = Stderr;
                     pattern = "$(datetime) $(level) $(category) $(message)";
                 };
                 file = {
@@ -329,7 +329,7 @@ def get_node_config():
         ];
         writers = {
             stderr = {
-                type = std_err;
+                type = stderr;
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             file = {
