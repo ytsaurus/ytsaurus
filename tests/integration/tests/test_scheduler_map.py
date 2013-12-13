@@ -40,6 +40,65 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]['v2'].endswith("/mytmp")
         assert res[2]['v2'].startswith("/")
 
+    def test_big_input(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        count = 1000 * 1000;
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t1', original_data);
+
+        command = 'cat'
+        map(in_='//tmp/t1', out='//tmp/t2', command=command)
+
+        new_data = read('//tmp/t2')
+        assert new_data == original_data
+
+    def test_two_inputs_at_the_same_time(self):
+        create('table', '//tmp/t_input')
+        create('table', '//tmp/t_output1')
+        create('table', '//tmp/t_output2')
+
+        count = 1000;
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t_input', original_data);
+
+        file = '//tmp/some_file.txt'
+        create('file', file)
+        upload(file, '{value=42};\n')
+
+        command = 'bash -c "cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;"'
+        map(in_='//tmp/t_input',
+            out=['//tmp/t_output1', '//tmp/t_output2'],
+            command=command,
+            file=[file],
+            verbose=True)
+
+        assert read('//tmp/t_output2') == [{'value': 42}]
+        assert read('//tmp/t_output1') == [{'index': i} for i in xrange(count)]
+
+    def test_first_after_second(self):
+        create('table', '//tmp/t_input')
+        create('table', '//tmp/t_output1')
+        create('table', '//tmp/t_output2')
+
+        count = 10000;
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t_input', original_data);
+
+        file1 = '//tmp/some_file.txt'
+        create('file', file1)
+        upload(file1, '}}}}};\n')
+
+        command = 'cat some_file.txt >&4; cat >&4; echo "{value=42}"'
+        op_id = map(dont_track=True,
+                    in_='//tmp/t_input',
+                    out=['//tmp/t_output1', '//tmp/t_output2'],
+                    command=command,
+                    file=[file1],
+                    verbose=True)
+        with pytest.raises(YtError): track_op(op_id)
+
     @only_linux
     def test_in_equal_to_out(self):
         create('table', '//tmp/t1')

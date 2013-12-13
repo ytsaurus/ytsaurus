@@ -110,6 +110,7 @@ TBlob& TBlob::operator = (const TBlob& rhs)
 TBlob& TBlob::operator = (TBlob&& rhs)
 {
     if (this != &rhs) {
+        delete[] Begin_;
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
         Capacity_ = rhs.Capacity_;
