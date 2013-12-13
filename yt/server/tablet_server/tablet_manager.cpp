@@ -316,14 +316,22 @@ public:
         auto schema = GetTableSchema(table); // may throw
         ValidateHasHealthyCells(); // may throw
 
-        auto objectManager = Bootstrap->GetObjectManager();
-
         if (table->Tablets().empty()) {
             auto* tablet = CreateTablet(table);
             tablet->PivotKey() = EmptyKey();
             table->Tablets().push_back(tablet);
             tabletRange = std::make_pair(table->Tablets().begin(), table->Tablets().end());
         }
+
+        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
+            auto* tablet = *it;
+            if (tablet->GetState() == ETabletState::Unmounting) {
+                THROW_ERROR_EXCEPTION("Tablet %s is currently unmounting",
+                    ~ToString(tablet->GetId()));
+            }
+        }
+
+        auto objectManager = Bootstrap->GetObjectManager();
 
         for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
             auto* tablet = *it;
@@ -362,6 +370,14 @@ public:
         YCHECK(table->IsTrunk());
 
         auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
+
+        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
+            auto* tablet = *it;
+            if (tablet->GetState() == ETabletState::Mounting) {
+                THROW_ERROR_EXCEPTION("Tablet %s is currently mounting",
+                    ~ToString(tablet->GetId()));
+            }
+        }
 
         for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
             auto* tablet = *it;
