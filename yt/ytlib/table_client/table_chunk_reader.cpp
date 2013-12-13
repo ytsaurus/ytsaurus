@@ -286,6 +286,8 @@ private:
                 &chunkReader->KeyMemoryPool,
                 chunkReader->KeyColumnsExt.names_size());
             chunkReader->ClearKey();
+        } else {
+            chunkReader->CurrentKey = TKey::Allocate(&chunkReader->KeyMemoryPool, 0);
         }
 
         if (HasRangeRequest) {
