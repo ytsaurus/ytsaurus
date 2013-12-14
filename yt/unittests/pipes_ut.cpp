@@ -173,7 +173,7 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
     }
     {
         auto error = WaitFor(writer->AsyncClose());
-        RETURN_IF_ERROR(error);
+        return error;
     }
 }
 
