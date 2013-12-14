@@ -5,7 +5,6 @@
 #include <core/misc/object_pool.h>
 
 #include <stdexcept>
-#include <atomic>
 
 #if defined(_unix_)
 #   include <sys/mman.h>
@@ -95,8 +94,8 @@ struct TFlsSlot
 
 static const int MaxFlsSlots = 1024;
 static TFlsSlot FlsSlots[MaxFlsSlots] = {};
-static std::atomic<int> FlsSlotsSize;
-static TSpinLock FlsSlotsLock;
+static TAtomic FlsSlotsSize = 0;
+static TAtomic FlsSlotsLock = 0;
 
 // Sizes of fiber stacks.
 const size_t SmallFiberStackSize = 1 << 18; // 256 Kb
@@ -693,13 +692,15 @@ public:
 
     static int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
     {
-        TGuard<TSpinLock> guard(FlsSlotsLock);
-        // TODO(sandello): Think about relaxing memory ordering here.
-        YCHECK(FlsSlotsSize.load() < MaxFlsSlots);
-        auto& slot = FlsSlots[FlsSlotsSize];
+        AcquireSpinLock(&FlsSlotsLock);
+		int result = AtomicGet(FlsSlotsSize);
+		YCHECK(result < MaxFlsSlots);
+        auto& slot = FlsSlots[result];
         slot.Ctor = ctor;
         slot.Dtor = dtor;
-        return FlsSlotsSize++;
+        AtomicIncrement(FlsSlotsSize);
+		ReleaseSpinLock(&FlsSlotsSize);
+		return result;
     }
 
     TFlsSlotValue FlsGet(int index)
@@ -750,7 +751,7 @@ private:
         }
 
         int oldSize = static_cast<int>(Fls_.size());
-        int newSize = FlsSlotsSize.load();
+        int newSize = FlsSlotsSize;
 
         YCHECK(newSize >= oldSize && index < newSize);
         Fls_.resize(newSize);
