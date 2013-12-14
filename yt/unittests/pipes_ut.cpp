@@ -10,12 +10,16 @@
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
 
+#include <random>
+
 namespace NYT {
 namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NConcurrency::WaitFor;
+using namespace NConcurrency;
+
+#ifndef _win_
 
 TEST(TIODispatcher, StartStop)
 {
@@ -130,7 +134,7 @@ TEST_F(TReadWriteTest, ReadSomethingWait)
     Writer->Write(message.c_str(), message.size());
     Writer->AsyncClose();
 
-    TBlob whole = ReadAll(Reader, false);
+    auto whole = ReadAll(Reader, false);
 
     EXPECT_EQ(std::string(whole.Begin(), whole.End()), message);
 }
@@ -139,9 +143,9 @@ TEST_F(TReadWriteTest, ReadWrite)
 {
     const std::string text("Hello cruel world!\n");
     Writer->Write(text.c_str(), text.size());
-    TAsyncError errorsOnClose = Writer->AsyncClose();
+    auto errorsOnClose = Writer->AsyncClose();
 
-    TBlob textFromPipe = ReadAll(Reader, false);
+    auto textFromPipe = ReadAll(Reader, false);
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
@@ -163,23 +167,22 @@ TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t siz
             data += currentBlockSize;
         }
         if (enough) {
-            TError error = WaitFor(writer->GetReadyEvent());
-            if (!error.IsOK()) {
-                return error;
-            }
+            auto error = WaitFor(writer->GetReadyEvent());
+            RETURN_IF_ERROR(error);
         }
     }
     {
-        TError error = WaitFor(writer->AsyncClose());
-        return error;
+        auto error = WaitFor(writer->AsyncClose());
+        RETURN_IF_ERROR(error);
     }
 }
 
-class TBigReadWriteTest : public TReadWriteTest
-                        , public ::testing::WithParamInterface<std::pair<size_t, size_t>>
-{
-};
+////////////////////////////////////////////////////////////////////////////////
 
+class TBigReadWriteTest
+    : public TReadWriteTest
+    , public ::testing::WithParamInterface<std::pair<size_t, size_t>>
+{ };
 
 TEST_P(TBigReadWriteTest, RealReadWrite)
 {
@@ -191,29 +194,40 @@ TEST_P(TBigReadWriteTest, RealReadWrite)
     std::vector<char> data(dataSize, 'a');
 
     BIND([&] () {
-            auto dice = std::bind(std::uniform_int_distribution<char>(0, 128),
-                                  std::default_random_engine());
-            for (size_t i = 0; i < data.size(); ++i) {
-                data[i] = dice();
-            }
-        }).AsyncVia(queue->GetInvoker()).Run();
+        auto dice = std::bind(
+            std::uniform_int_distribution<char>(0, 128),
+            std::default_random_engine());
+        for (size_t i = 0; i < data.size(); ++i) {
+            data[i] = dice();
+        }
+    }).AsyncVia(queue->GetInvoker()).Run();
 
-    auto writeError = BIND(&WriteAll, Writer, data.data(), data.size(), blockSize).AsyncVia(queue->GetInvoker()).Run();
-    auto readFromPipe = BIND(&ReadAll, Reader, true).AsyncVia(queue->GetInvoker()).Run();
+    auto writeError =
+        BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
+            .AsyncVia(queue->GetInvoker())
+            .Run();
+    auto readFromPipe =
+        BIND(&ReadAll, Reader, true)
+            .AsyncVia(queue->GetInvoker())
+            .Run();
 
     auto textFromPipe = readFromPipe.Get();
     EXPECT_EQ(textFromPipe.Size(), data.size());
-    auto result = mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
-    EXPECT_TRUE(equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<
+    auto result = std::mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
+    EXPECT_TRUE(std::equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<
         (result.first - textFromPipe.Begin()) << " " << (int)(*result.first);
 }
 
-INSTANTIATE_TEST_CASE_P(ValueParametrized, TBigReadWriteTest,
-                        ::testing::Values(
-                            std::make_pair(2000*4096, 4096),
-                            std::make_pair(100*4096, 10000),
-                            std::make_pair(100*4096, 100),
-                            std::make_pair(100, 4096)));
+INSTANTIATE_TEST_CASE_P(
+    ValueParametrized,
+    TBigReadWriteTest,
+    ::testing::Values(
+        std::make_pair(2000*4096, 4096),
+        std::make_pair(100*4096, 10000),
+        std::make_pair(100*4096, 100),
+        std::make_pair(100, 4096)));
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
