@@ -43,7 +43,7 @@ if __name__ == "__main__":
         if chunk_count == 0: continue
 
         modification_time = parse(table.attributes["modification_time"]).replace(tzinfo=None)
-        if  datetime.utcnow() - modification_time < timedelta(args.minimal_age):
+        if  datetime.utcnow() - modification_time < timedelta(hours=args.minimal_age):
             continue
 
         weight = float(table.attributes["compressed_data_size"]) / float(chunk_count)
