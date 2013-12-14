@@ -81,7 +81,7 @@ TEST_F(TFlsTest, TwoFibers)
 
         Yield();
 
-        EXPECT_STREQ("fiber1", StringValue->Value.c_str());
+        EXPECT_EQ("fiber1", StringValue->Value);
     }));
 
     auto fiber2 = New<TFiber>(BIND([] () {
@@ -91,7 +91,7 @@ TEST_F(TFlsTest, TwoFibers)
 
         Yield();
 
-        EXPECT_EQ("fiber2", StringValue->Value.c_str());
+        EXPECT_EQ("fiber2", StringValue->Value);
     }));
 
     fiber1->Run();
