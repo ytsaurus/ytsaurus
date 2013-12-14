@@ -647,13 +647,19 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
 }
 
 void TChunkOwnerNodeProxy::ValidatePathAttributes(
-    const TNullable<TChannel>& channel,
-    const TReadLimit& upperLimit,
-    const TReadLimit& lowerLimit)
+    const TNullable<TChannel>& /*channel*/,
+    const TReadLimit& /*upperLimit*/,
+    const TReadLimit& /*lowerLimit*/)
+{ }
+
+void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
 {
-    UNUSED(channel);
-    UNUSED(upperLimit);
-    UNUSED(lowerLimit);
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+
+    if (node->GetUpdateMode() != EUpdateMode::None) {
+        THROW_ERROR_EXCEPTION("Node is already in %s mode",
+            ~FormatEnum(node->GetUpdateMode()).Quote());
+    }
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
@@ -669,13 +675,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Write);
+    ValidatePrepareForUpdate();
 
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
-
-    if (node->GetUpdateMode() != EUpdateMode::None) {
-        THROW_ERROR_EXCEPTION("Node is already in %s mode",
-            ~FormatEnum(node->GetUpdateMode()).Quote());
-    }
 
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();

@@ -64,15 +64,16 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override;
     bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
+    
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override;
-
     virtual void ValidatePathAttributes(
         const TNullable<TChannel>& channel,
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override;
+    virtual void ValidatePrepareForUpdate() override;
 
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
     virtual bool DoInvoke(IServiceContextPtr context) override;
@@ -125,10 +126,23 @@ void TTableNodeProxy::ValidatePathAttributes(
     const TReadLimit& upperLimit,
     const TReadLimit& lowerLimit)
 {
-    UNUSED(channel);
+    TChunkOwnerNodeProxy::ValidatePathAttributes(
+        channel,
+        upperLimit,
+        lowerLimit);
 
     if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
         THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
+    }
+}
+
+void TTableNodeProxy::ValidatePrepareForUpdate()
+{
+    TChunkOwnerNodeProxy::ValidatePrepareForUpdate();
+
+    auto* node = GetThisTypedImpl();
+    if (!node->Tablets().empty()) {
+        THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
     }
 }
 

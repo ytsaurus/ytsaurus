@@ -38,6 +38,8 @@ protected:
         const TNullable<NChunkClient::TChannel>& channel,
         const NChunkClient::TReadLimit& upperLimit,
         const NChunkClient::TReadLimit& lowerLimit);
+    virtual void ValidatePrepareForUpdate();
+
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual NCypressClient::ELockMode GetLockMode(NChunkClient::EUpdateMode updateMode) = 0;
