@@ -75,9 +75,9 @@ public:
     TCoroutine() = default;
     // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
     TCoroutine(TCoroutine&& other)
-        : Callee_(std::move(other.Callee))
-        , Arguments_(std::move(other.Arguments))
-        , Result_(std::move(other.Result))
+        : Callee_(std::move(other.Callee_))
+        , Arguments_(std::move(other.Arguments_))
+        , Result_(std::move(other.Result_))
     { }
 
     TCoroutine(TCallee&& callee)
@@ -146,9 +146,9 @@ public:
     TCoroutine() = default;
     // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
     TCoroutine(TCoroutine&& other)
-        : Callee_(std::move(other.Callee))
-        , Arguments_(std::move(other.Arguments))
-        , Result_(other.Result)
+        : Callee_(std::move(other.Callee_))
+        , Arguments_(std::move(other.Arguments_))
+        , Result_(other.Result_)
     { }
 
     TCoroutine(TCallee&& callee)
