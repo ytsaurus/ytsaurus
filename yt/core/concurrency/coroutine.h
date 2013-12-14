@@ -47,14 +47,14 @@ struct TGenerateSequence<0, Indexes...> {
 
 template <class TCallee, class TCaller, class TArguments, unsigned... Indexes>
 void Invoke(
-    TCallee& Callee,
-    TCaller& Caller,
-    TArguments&& Arguments,
+    TCallee& callee,
+    TCaller& caller,
+    TArguments&& arguments,
     TSequence<Indexes...>)
 {
-    Callee.Run(
-        Caller,
-        std::get<Indexes>(std::forward<TArguments>(Arguments))...);
+    callee.Run(
+        caller,
+        std::get<Indexes>(std::forward<TArguments>(arguments))...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
