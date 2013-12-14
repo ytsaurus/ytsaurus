@@ -112,22 +112,6 @@ add_subdirectory(cmake/deps-jerasure)
 add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
 
-set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
-set_target_properties(protobuf PROPERTIES FOLDER "Contrib")
-set_target_properties(protoc PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-ev PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-fastlz PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-lz4 PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-minilzo PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-quicklz PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-snappy PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-zlib PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-jerasure PROPERTIES FOLDER "Contrib")
- 
-set_target_properties(yajl PROPERTIES FOLDER "Contrib")
-set_target_properties(yajl_s PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
-
 add_subdirectory(yt)
 
 if (YT_BUILD_ENABLE_PYTHON)
@@ -185,3 +169,34 @@ add_custom_target( install-debian-yandex-yt-http-proxy
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   COMMENT "Installing for package 'yandex-yt-http-proxy'..."
 )
+
+set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
+set_target_properties(protobuf PROPERTIES FOLDER "Contrib")
+set_target_properties(protoc PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-ev PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-fastlz PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-lz4 PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-minilzo PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-quicklz PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-snappy PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-zlib PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-jerasure PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-lfalloc PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-lfalloc-fake PROPERTIES FOLDER "Contrib")
+ 
+set_target_properties(yajl PROPERTIES FOLDER "Contrib")
+set_target_properties(yajl_s PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
+
+set_target_properties(install-debian-yandex-yt PROPERTIES FOLDER "Misc")
+set_target_properties(install-debian-yandex-yt-http-proxy PROPERTIES FOLDER "Misc")
+set_target_properties(package PROPERTIES FOLDER "Misc")
+set_target_properties(version PROPERTIES FOLDER "Misc")
+
+set_target_properties(unittester PROPERTIES FOLDER "YT")
+set_target_properties(yt PROPERTIES FOLDER "YT")
+set_target_properties(ytcore PROPERTIES FOLDER "YT")
+set_target_properties(ytlib PROPERTIES FOLDER "YT")
+set_target_properties(ytserver PROPERTIES FOLDER "YT")
+set_target_properties(ytserver_lib PROPERTIES FOLDER "YT")
+
