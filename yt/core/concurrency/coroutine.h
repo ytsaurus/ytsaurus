@@ -15,20 +15,21 @@ class TCoroutineBase
 {
 protected:
     TCoroutineBase();
+    // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
+    TCoroutineBase(TCoroutineBase&& other);
 
     TCoroutineBase(const TCoroutineBase&) = delete;
-    TCoroutineBase(TCoroutineBase&&) = default;
 
     virtual ~TCoroutineBase();
 
     virtual void Trampoline() = 0;
 
-    TFiberPtr Fiber;
+    TFiberPtr Fiber_;
 
 public:
     EFiberState GetState() const
     {
-        return Fiber->GetState();
+        return Fiber_->GetState();
     }
 
 };
@@ -72,17 +73,22 @@ public:
     typedef std::tuple<TArgs...> TArguments;
 
     TCoroutine() = default;
-    TCoroutine(TCoroutine&& other) = default;
+    // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
+    TCoroutine(TCoroutine&& other)
+        : Callee_(std::move(other.Callee))
+        , Arguments_(std::move(other.Arguments))
+        , Result_(std::move(other.Result))
+    { }
 
     TCoroutine(TCallee&& callee)
         : NDetail::TCoroutineBase()
-        , Callee(std::move(callee))
+        , Callee_(std::move(callee))
     { }
 
     void Reset(TCallee callee)
     {
-        Fiber->Reset();
-        Callee = std::move(callee);
+        Fiber_->Reset();
+        Callee_ = std::move(callee);
     }
 
     template <class... TParams>
@@ -90,17 +96,17 @@ public:
     {
         static_assert(sizeof...(TParams) == sizeof...(TArgs),
             "TParams<> and TArgs<> have different length");
-        Arguments = std::make_tuple(std::forward<TParams>(params)...);
-        Fiber->Run();
-        return Result;
+        Arguments_ = std::make_tuple(std::forward<TParams>(params)...);
+        Fiber_->Run();
+        return Result_;
     }
 
     template <class Q>
     TArguments&& Yield(Q&& result)
     {
-        Result = std::forward<Q>(result);
-        Fiber->Yield();
-        return std::move(Arguments);
+        Result_ = std::forward<Q>(result);
+        Fiber_->Yield();
+        return std::move(Arguments_);
     }
 
 private:
@@ -108,21 +114,21 @@ private:
     {
         try {
             NDetail::Invoke(
-                Callee,
+                Callee_,
                 *this,
-                std::move(Arguments),
+                std::move(Arguments_),
                 typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
-            Result.Reset();
+            Result_.Reset();
         } catch (...) {
-            Result.Reset();
+            Result_.Reset();
             throw;
         }
     }
 
 private:
-    TCallee Callee;
-    TArguments Arguments;
-    TNullable<R> Result;
+    TCallee Callee_;
+    TArguments Arguments_;
+    TNullable<R> Result_;
 
 };
 
@@ -138,17 +144,22 @@ public:
     typedef std::tuple<TArgs...> TArguments;
 
     TCoroutine() = default;
-    TCoroutine(TCoroutine&& other) = default;
+    // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
+    TCoroutine(TCoroutine&& other)
+        : Callee_(std::move(other.Callee))
+        , Arguments_(std::move(other.Arguments))
+        , Result_(other.Result)
+    { }
 
     TCoroutine(TCallee&& callee)
         : NDetail::TCoroutineBase()
-        , Callee(std::move(callee))
+        , Callee_(std::move(callee))
     { }
 
     void Reset(TCallee callee)
     {
-        Fiber->Reset();
-        Callee = std::move(callee);
+        Fiber_->Reset();
+        Callee_ = std::move(callee);
     }
 
     template <class... TParams>
@@ -156,16 +167,16 @@ public:
     {
         static_assert(sizeof...(TParams) == sizeof...(TArgs),
             "TParams<> and TArgs<> have different length");
-        Arguments = std::make_tuple(std::forward<TParams>(params)...);
-        Fiber->Run();
-        return Result;
+        Arguments_ = std::make_tuple(std::forward<TParams>(params)...);
+        Fiber_->Run();
+        return Result_;
     }
 
     TArguments&& Yield()
     {
-        Result = true;
-        Fiber->Yield();
-        return std::move(Arguments);
+        Result_ = true;
+        Fiber_->Yield();
+        return std::move(Arguments_);
     }
 
 private:
@@ -173,21 +184,21 @@ private:
     {
         try {
             NDetail::Invoke(
-                Callee,
+                Callee_,
                 *this,
-                std::move(Arguments),
+                std::move(Arguments_),
                 typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
-            Result = false;
+            Result_ = false;
         } catch (...) {
-            Result = false;
+            Result_ = false;
             throw;
         }
     }
 
 private:
-    TCallee Callee;
-    TArguments Arguments;
-    bool Result;
+    TCallee Callee_;
+    TArguments Arguments_;
+    bool Result_;
 
 };
 

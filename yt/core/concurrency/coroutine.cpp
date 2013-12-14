@@ -7,7 +7,11 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 NDetail::TCoroutineBase::TCoroutineBase()
-    : Fiber(New<TFiber>(BIND(&TCoroutineBase::Trampoline, this)))
+    : Fiber_(New<TFiber>(BIND(&TCoroutineBase::Trampoline, this)))
+{ }
+
+NDetail::TCoroutineBase::TCoroutineBase(TCoroutineBase&& other)
+    : Fiber_(std::move(other.Fiber_))
 { }
 
 NDetail::TCoroutineBase::~TCoroutineBase()
