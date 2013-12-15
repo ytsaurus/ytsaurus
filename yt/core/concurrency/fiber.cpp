@@ -699,8 +699,8 @@ public:
         slot.Ctor = ctor;
         slot.Dtor = dtor;
         AtomicIncrement(FlsSlotsSize);
-		ReleaseSpinLock(&FlsSlotsLock);
-		return result;
+        ReleaseSpinLock(&FlsSlotsLock);
+        return result;
     }
 
     TFlsSlotValue FlsGet(int index)
