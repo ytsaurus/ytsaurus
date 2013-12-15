@@ -128,19 +128,15 @@ struct IDriver
     //! Returns the list of descriptors for all supported commands.
     virtual std::vector<TCommandDescriptor> GetCommandDescriptors() = 0;
 
-    //! Returns a cached master channel.
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    //! Returns the underlying connection.
+    virtual IConnectionPtr GetConnection() = 0;
 
-    //! Returns a cached scheduler channel.
-    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates an implementation of IDriver with a given configuration.
-IDriverPtr CreateDriver(
-    TDriverConfigPtr config,
-    NRpc::IChannelFactoryPtr channelFactory);
+IDriverPtr CreateDriver(TDriverConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

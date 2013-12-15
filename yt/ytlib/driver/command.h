@@ -4,6 +4,7 @@
 #include "public.h"
 #include "driver.h"
 #include "query_callbacks_provider.h"
+#include "connection.h"
 
 #include <core/misc/error.h>
 #include <core/misc/mpl.h>
@@ -105,18 +106,9 @@ typedef TIntrusivePtr<TSuppressableAccessTrackingRequest> TAccessTrackingSuppres
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommandContext
-    : public TRefCounted
+    : public IConnection
 {
-    virtual ~ICommandContext()
-    { }
-
     virtual TDriverConfigPtr GetConfig() = 0;
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
-    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
-    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
-    virtual TTableMountCachePtr GetTableMountCache() = 0;
-    virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() = 0;
 
     virtual const TDriverRequest& Request() const = 0;

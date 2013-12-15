@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "transaction_commands.h"
+#include "connection.h"
 
 #include <core/concurrency/fiber.h>
 

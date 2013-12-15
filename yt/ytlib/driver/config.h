@@ -41,7 +41,7 @@ public:
     }
 };
 
-class TDriverConfig
+class TConnectionConfig
     : public TYsonSerializable
 {
 public:
@@ -49,19 +49,11 @@ public:
     NHydra::TPeerDiscoveryConfigPtr Masters;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
-    NFileClient::TFileReaderConfigPtr FileReader;
-    NFileClient::TFileWriterConfigPtr FileWriter;
-    NTableClient::TTableReaderConfigPtr TableReader;
-    NTableClient::TTableWriterConfigPtr TableWriter;
-    NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     TTableMountCacheConfigPtr TableMountCache;
     NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
-    bool ReadFromFollowers;
-    i64 ReadBufferSize;
-    int HeavyPoolSize;
 
-    TDriverConfig()
+    TConnectionConfig()
     {
         RegisterParameter("cell_directory", CellDirectory)
             .DefaultNew();
@@ -70,6 +62,29 @@ public:
             .DefaultNew();
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
+        RegisterParameter("block_cache", BlockCache)
+            .DefaultNew();
+        RegisterParameter("table_mount_cache", TableMountCache)
+            .DefaultNew();
+        RegisterParameter("timestamp_provider", TimestampProvider);
+    }
+};
+
+class TDriverConfig
+    : public TConnectionConfig
+{
+public:
+    NFileClient::TFileReaderConfigPtr FileReader;
+    NFileClient::TFileWriterConfigPtr FileWriter;
+    NTableClient::TTableReaderConfigPtr TableReader;
+    NTableClient::TTableWriterConfigPtr TableWriter;
+    NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above
+    bool ReadFromFollowers;
+    i64 ReadBufferSize;
+    int HeavyPoolSize;
+
+    TDriverConfig()
+    {
         RegisterParameter("file_reader", FileReader)
             .DefaultNew();
         RegisterParameter("file_writer", FileWriter)
@@ -80,11 +95,6 @@ public:
             .DefaultNew();
         RegisterParameter("new_table_writer", NewTableWriter)
             .DefaultNew();
-        RegisterParameter("block_cache", BlockCache)
-            .DefaultNew();
-        RegisterParameter("table_mount_cache", TableMountCache)
-            .DefaultNew();
-        RegisterParameter("timestamp_provider", TimestampProvider);
         RegisterParameter("read_from_followers", ReadFromFollowers)
             .Describe("Enable read-only requests to followers")
             .Default(false);

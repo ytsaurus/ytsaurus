@@ -9,6 +9,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/driver/connection.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -28,7 +30,7 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
 
 EExitCode TBuildSnapshotExecutor::DoExecute()
 {
-    THydraServiceProxy proxy(Driver->GetMasterChannel());
+    THydraServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.BuildSnapshotDistributed();
     req->set_set_read_only(SetReadOnlyArg.getValue());
@@ -54,7 +56,7 @@ TGCCollectExecutor::TGCCollectExecutor()
 
 EExitCode TGCCollectExecutor::DoExecute()
 {
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.GCCollect();
     auto rsp = req->Invoke().Get();

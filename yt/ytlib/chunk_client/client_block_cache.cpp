@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "private.h"
 #include "config.h"
+#include "block_cache.h"
 #include "client_block_cache.h"
 
 #include <core/misc/cache.h>

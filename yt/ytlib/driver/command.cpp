@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "command.h"
+#include "connection.h"
 
 namespace NYT {
 namespace NDriver {

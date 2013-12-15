@@ -32,6 +32,7 @@
 #include <server/scheduler/job_resources.h>
 
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/async_reader.h>

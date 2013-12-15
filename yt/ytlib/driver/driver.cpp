@@ -11,34 +11,27 @@
 #include "scheduler_commands.h"
 #include "query_callbacks_provider.h"
 #include "table_mount_cache.h"
+#include "connection.h"
 
 #include <core/actions/invoker_util.h>
 
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/fiber.h>
 
-#include <core/ytree/fluent.h>
 #include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/null_yson_consumer.h>
 
 #include <core/yson/parser.h>
 
-#include <core/rpc/scoped_channel.h>
-#include <core/rpc/retrying_channel.h>
 #include <core/rpc/helpers.h>
-
-#include <ytlib/hydra/config.h>
-#include <ytlib/hydra/peer_channel.h>
+#include <core/rpc/scoped_channel.h>
 
 #include <ytlib/hive/timestamp_provider.h>
-#include <ytlib/hive/remote_timestamp_provider.h>
+
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/chunk_client/client_block_cache.h>
-
-#include <ytlib/scheduler/config.h>
-#include <ytlib/scheduler/scheduler_channel.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {
 namespace NDriver {
@@ -83,43 +76,16 @@ class TDriver
     : public IDriver
 {
 public:
-    TDriver(
-        TDriverConfigPtr config,
-        IChannelFactoryPtr channelFactory)
+    explicit TDriver(TDriverConfigPtr config)
         : Config(config)
     {
-        YCHECK(config);
-        YCHECK(channelFactory);
+        YCHECK(Config);
 
-        MasterChannel = CreatePeerChannel(
-            Config->Masters,
-            channelFactory,
-            EPeerRole::Leader);
-
-        SchedulerChannel = CreateSchedulerChannel(
-            Config->Scheduler,
-            channelFactory,
-            MasterChannel);
-
-        BlockCache = CreateClientBlockCache(Config->BlockCache);
-
-        CellDirectory = New<TCellDirectory>(
-            Config->CellDirectory,
-            channelFactory);
-        CellDirectory->RegisterCell(Config->Masters);
-
-        TableMountCache = New<TTableMountCache>(
-            Config->TableMountCache,
-            MasterChannel,
-            CellDirectory);
+        Connection_ = CreateConnection(Config);
 
         QueryCallbacksProvider = New<TQueryCallbacksProvider>(
-            MasterChannel,
-            TableMountCache);
-
-        TimestampProvider = CreateRemoteTimestampProvider(
-            Config->TimestampProvider,
-            channelFactory);
+            Connection_->GetMasterChannel(),
+            Connection_->GetTableMountCache());
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -192,39 +158,11 @@ public:
         YCHECK(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YCHECK(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
-        auto masterChannel = MasterChannel;
-        if (request.AuthenticatedUser) {
-            masterChannel = CreateAuthenticatedChannel(
-                masterChannel,
-                request.AuthenticatedUser.Get());
-        }
-        masterChannel = CreateScopedChannel(masterChannel);
-
-        auto schedulerChannel = SchedulerChannel;
-        if (request.AuthenticatedUser) {
-            schedulerChannel = CreateAuthenticatedChannel(
-                schedulerChannel,
-                request.AuthenticatedUser.Get());
-        }
-        schedulerChannel = CreateScopedChannel(schedulerChannel);
-
-        auto transactionManager = New<TTransactionManager>(
-            Config->TransactionManager,
-            Config->Masters->CellGuid,
-            masterChannel,
-            TimestampProvider,
-            CellDirectory);
-
         // TODO(babenko): ReadFromFollowers is switched off
         auto context = New<TCommandContext>(
             this,
             entry.Descriptor,
             request,
-            std::move(masterChannel),
-            std::move(schedulerChannel),
-            std::move(transactionManager),
-            TableMountCache,
-            CellDirectory,
             QueryCallbacksProvider);
 
         auto command = entry.Factory.Run();
@@ -272,14 +210,9 @@ public:
         return result;
     }
 
-    virtual IChannelPtr GetMasterChannel() override
+    virtual IConnectionPtr GetConnection() override
     {
-        return MasterChannel;
-    }
-
-    virtual IChannelPtr GetSchedulerChannel() override
-    {
-        return SchedulerChannel;
+        return Connection_;
     }
 
 private:
@@ -290,13 +223,8 @@ private:
 
     TDriverConfigPtr Config;
 
-    IChannelPtr MasterChannel;
-    IChannelPtr SchedulerChannel;
-    IBlockCachePtr BlockCache;
-    TTableMountCachePtr TableMountCache;
+    IConnectionPtr Connection_;
     TQueryCallbacksProviderPtr QueryCallbacksProvider;
-    ITimestampProviderPtr TimestampProvider;
-    TCellDirectoryPtr CellDirectory;
 
     struct TCommandEntry
     {
@@ -325,24 +253,39 @@ private:
             TDriver* driver,
             const TCommandDescriptor& descriptor,
             const TDriverRequest& request,
-            IChannelPtr masterChannel,
-            IChannelPtr schedulerChannel,
-            TTransactionManagerPtr transactionManager,
-            TTableMountCachePtr tableMountCache,
-            TCellDirectoryPtr cellDirectory,
             TQueryCallbacksProviderPtr queryCallbacksProvider)
-            : Driver(driver)
-            , Descriptor(descriptor)
+            : Driver_(driver)
+            , Descriptor_(descriptor)
             , Request_(request)
-            , MasterChannel(std::move(masterChannel))
-            , SchedulerChannel(std::move(schedulerChannel))
-            , TransactionManager(std::move(transactionManager))
-            , TableMountCache(std::move(tableMountCache))
-            , CellDirectory(std::move(cellDirectory))
-            , QueryCallbacksProvider(std::move(queryCallbacksProvider))
-            , SyncInputStream(CreateSyncInputStream(request.InputStream))
-            , SyncOutputStream(CreateSyncOutputStream(request.OutputStream))
-        { }
+            , QueryCallbacksProvider_(std::move(queryCallbacksProvider))
+            , SyncInputStream_(CreateSyncInputStream(request.InputStream))
+            , SyncOutputStream_(CreateSyncOutputStream(request.OutputStream))
+        {
+            Connection_ = CreateConnection(driver->Config);
+
+            MasterChannel_ = Connection_->GetMasterChannel();
+            if (request.AuthenticatedUser) {
+                MasterChannel_ = CreateAuthenticatedChannel(
+                    MasterChannel_,
+                    *request.AuthenticatedUser);
+            }
+            MasterChannel_ = CreateScopedChannel(MasterChannel_);
+
+            SchedulerChannel_ = Connection_->GetSchedulerChannel();
+            if (request.AuthenticatedUser) {
+                SchedulerChannel_ = CreateAuthenticatedChannel(
+                    SchedulerChannel_,
+                    *request.AuthenticatedUser);
+            }
+            SchedulerChannel_ = CreateScopedChannel(SchedulerChannel_);
+
+            TransactionManager_ = New<TTransactionManager>(
+                driver->Config->TransactionManager,
+                driver->Config->Masters->CellGuid,
+                MasterChannel_,
+                Connection_->GetTimestampProvider(),
+                Connection_->GetCellDirectory());
+        }
 
         TFuture<void> TerminateChannels()
         {
@@ -350,49 +293,54 @@ private:
 
             TError error("Command context terminated");
             auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-            awaiter->Await(MasterChannel->Terminate(error));
-            awaiter->Await(SchedulerChannel->Terminate(error));
+            awaiter->Await(Connection_->GetMasterChannel()->Terminate(error));
+            awaiter->Await(Connection_->GetSchedulerChannel()->Terminate(error));
             return awaiter->Complete();
         }
 
         virtual TDriverConfigPtr GetConfig() override
         {
-            return Driver->Config;
+            return Driver_->Config;
         }
 
         virtual IChannelPtr GetMasterChannel() override
         {
-            return MasterChannel;
+            return MasterChannel_;
         }
 
         virtual IChannelPtr GetSchedulerChannel() override
         {
-            return SchedulerChannel;
-        }
-
-        virtual IBlockCachePtr GetBlockCache() override
-        {
-            return Driver->BlockCache;
+            return SchedulerChannel_;
         }
 
         virtual TTransactionManagerPtr GetTransactionManager() override
         {
-            return TransactionManager;
+            return TransactionManager_;
+        }
+
+        virtual IBlockCachePtr GetBlockCache() override
+        {
+            return Connection_->GetBlockCache();
         }
 
         virtual TTableMountCachePtr GetTableMountCache() override
         {
-            return TableMountCache;
+            return Connection_->GetTableMountCache();
+        }
+
+        virtual ITimestampProviderPtr GetTimestampProvider() override
+        {
+            return Connection_->GetTimestampProvider();
         }
 
         virtual TCellDirectoryPtr GetCellDirectory() override
         {
-            return CellDirectory;
+            return Connection_->GetCellDirectory();
         }
 
         virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() override
         {
-            return QueryCallbacksProvider;
+            return QueryCallbacksProvider_;
         }
 
         virtual const TDriverRequest& Request() const override
@@ -414,66 +362,60 @@ private:
         {
             return CreateProducerForFormat(
                 GetInputFormat(),
-                Descriptor.InputType,
-                ~SyncInputStream);
+                Descriptor_.InputType,
+                ~SyncInputStream_);
         }
 
         virtual std::unique_ptr<IYsonConsumer> CreateOutputConsumer() override
         {
             return CreateConsumerForFormat(
                 GetOutputFormat(),
-                Descriptor.OutputType,
-                ~SyncOutputStream);
+                Descriptor_.OutputType,
+                ~SyncOutputStream_);
         }
 
         virtual const TFormat& GetInputFormat() override
         {
-            if (!InputFormat) {
-                InputFormat = ConvertTo<TFormat>(Request_.Arguments->GetChild("input_format"));
+            if (!InputFormat_) {
+                InputFormat_ = ConvertTo<TFormat>(Request_.Arguments->GetChild("input_format"));
             }
-            return *InputFormat;
+            return *InputFormat_;
         }
 
         virtual const TFormat& GetOutputFormat() override
         {
-            if (!OutputFormat) {
-                OutputFormat = ConvertTo<TFormat>(Request_.Arguments->GetChild("output_format"));
+            if (!OutputFormat_) {
+                OutputFormat_ = ConvertTo<TFormat>(Request_.Arguments->GetChild("output_format"));
             }
-            return *OutputFormat;
+            return *OutputFormat_;
         }
 
     private:
-        TDriver* Driver;
-        TCommandDescriptor Descriptor;
-
+        TDriver* Driver_;
+        TCommandDescriptor Descriptor_;
         const TDriverRequest Request_;
+        IConnectionPtr Connection_;
+        IChannelPtr MasterChannel_;
+        IChannelPtr SchedulerChannel_;
+        TTransactionManagerPtr TransactionManager_;
+        TQueryCallbacksProviderPtr QueryCallbacksProvider_;
+
         TDriverResponse Response_;
 
-        IChannelPtr MasterChannel;
-        IChannelPtr SchedulerChannel;
-        TTransactionManagerPtr TransactionManager;
-        TTableMountCachePtr TableMountCache;
-        TCellDirectoryPtr CellDirectory;
-        TQueryCallbacksProviderPtr QueryCallbacksProvider;
+        TNullable<TFormat> InputFormat_;
+        TNullable<TFormat> OutputFormat_;
 
-        TNullable<TFormat> InputFormat;
-        TNullable<TFormat> OutputFormat;
-
-        std::unique_ptr<TInputStream> SyncInputStream;
-        std::unique_ptr<TOutputStream> SyncOutputStream;
+        std::unique_ptr<TInputStream> SyncInputStream_;
+        std::unique_ptr<TOutputStream> SyncOutputStream_;
 
     };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDriverPtr CreateDriver(
-    TDriverConfigPtr config,
-    IChannelFactoryPtr channelFactory)
+IDriverPtr CreateDriver(TDriverConfigPtr config)
 {
-    return New<TDriver>(
-        config,
-        channelFactory);
+    return New<TDriver>(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

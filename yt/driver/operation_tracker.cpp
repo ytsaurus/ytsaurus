@@ -6,6 +6,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/driver/connection.h>
+
 #include <util/stream/format.h>
 
 namespace NYT {
@@ -102,7 +104,7 @@ void TOperationTracker::DumpProgress()
 {
     auto operationPath = GetOperationPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -149,7 +151,7 @@ EExitCode TOperationTracker::DumpResult()
     auto operationPath = GetOperationPath(OperationId);
     auto jobsPath = GetJobsPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -298,7 +300,7 @@ EExitCode TOperationTracker::DumpResult()
 EOperationType TOperationTracker::GetOperationType(const TOperationId& operationId)
 {
     auto operationPath = GetOperationPath(OperationId);
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto req = TYPathProxy::Get(operationPath + "/@operation_type");
     auto rsp = proxy.Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation type");
@@ -307,7 +309,7 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
 
 bool TOperationTracker::CheckFinished()
 {
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto operationPath = GetOperationPath(OperationId);
     auto req = TYPathProxy::Get(operationPath + "/@state");
     auto rsp = proxy.Execute(req).Get();

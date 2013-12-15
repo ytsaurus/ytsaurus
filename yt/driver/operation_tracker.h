@@ -10,7 +10,6 @@
 
 #include <server/job_proxy/config.h>
 
-
 namespace NYT {
 namespace NDriver {
 

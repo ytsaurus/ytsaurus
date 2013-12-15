@@ -7,6 +7,9 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class IConnection;
+typedef TIntrusivePtr<IConnection> IConnectionPtr;
+
 struct IDriver;
 typedef TIntrusivePtr<IDriver> IDriverPtr;
 
@@ -21,6 +24,9 @@ typedef TIntrusivePtr<TTableMountCacheConfig> TTableMountCacheConfigPtr;
 
 class TQueryCallbacksProvider;
 typedef TIntrusivePtr<TQueryCallbacksProvider> TQueryCallbacksProviderPtr;
+
+class TConnectionConfig;
+typedef TIntrusivePtr<TConnectionConfig> TConnectionConfigPtr;
 
 class TDriverConfig;
 typedef TIntrusivePtr<TDriverConfig> TDriverConfigPtr;

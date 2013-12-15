@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/command.cpp
   ${BASE}/cypress_commands.cpp
   ${BASE}/dispatcher.cpp
+  ${BASE}/connection.cpp
   ${BASE}/driver.cpp
   ${BASE}/etc_commands.cpp
   ${BASE}/file_commands.cpp
@@ -19,6 +20,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/cypress_commands.h
   ${BASE}/dispatcher.cpp
+  ${BASE}/connection.h
   ${BASE}/driver.h
   ${BASE}/etc_commands.h
   ${BASE}/file_commands.h

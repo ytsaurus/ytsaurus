@@ -11,8 +11,6 @@
 #include <core/yson/format.h>
 #include <core/ytree/fluent.h>
 
-#include <core/rpc/bus_channel.h>
-
 #include <server/job_proxy/config.h>
 
 #include <ytlib/driver/driver.h>
@@ -139,7 +137,7 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
     TDispatcher::Get()->Configure(Config->HeavyPoolSize);
-    Driver = CreateDriver(Config, GetBusChannelFactory());
+    Driver = CreateDriver(Config);
 
     return DoExecute();
 }

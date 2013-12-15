@@ -15,9 +15,6 @@
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>
 
-#include <core/rpc/channel.h>
-#include <core/rpc/bus_channel.h>
-
 #include <core/logging/log.h>
 
 #include <ytlib/driver/config.h>
@@ -439,9 +436,7 @@ TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
 
     try {
         NDriver::TDispatcher::Get()->Configure(config->Driver->HeavyPoolSize);
-        Driver = CreateDriver(
-            config->Driver,
-            GetBusChannelFactory());
+        Driver = CreateDriver(config->Driver);
     } catch (const std::exception& ex) {
         Message = Sprintf("Error initializing driver instance\n%s", ex.what());
         return;
