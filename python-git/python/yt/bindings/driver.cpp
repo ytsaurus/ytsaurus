@@ -18,6 +18,7 @@
 #include <ytlib/formats/format.h>
 
 #include <ytlib/driver/config.h>
+#include <ytlib/driver/connection.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/dispatcher.h>
 
@@ -183,7 +184,7 @@ public:
 
     Py::Object GcCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
-        NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetMasterChannel());
+        NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
         proxy.SetDefaultTimeout(Null); // infinity
         auto req = proxy.GCCollect();
         auto rsp = req->Invoke().Get();
@@ -204,7 +205,7 @@ public:
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        NHydra::THydraServiceProxy proxy(DriverInstance_->GetMasterChannel());
+        NHydra::THydraServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
         proxy.SetDefaultTimeout(Null); // infinity
         auto req = proxy.BuildSnapshotDistributed();
         req->set_set_read_only(setReadOnly);
