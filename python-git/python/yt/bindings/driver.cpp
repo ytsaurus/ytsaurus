@@ -29,8 +29,6 @@
 #include <core/profiling/profiling_manager.h>
 
 #include <core/rpc/dispatcher.h>
-#include <core/rpc/channel.h>
-#include <core/rpc/bus_channel.h>
 
 #include <core/bus/tcp_dispatcher.h>
 
@@ -73,9 +71,7 @@ public:
             throw Py::RuntimeError("Fail while loading config: " + error.Error().GetMessage());
         }
         NLog::TLogManager::Get()->Configure(configNode->AsMap()->FindChild("logging"));
-        DriverInstance_ = CreateDriver(
-            config,
-            NRpc::GetBusChannelFactory());
+        DriverInstance_ = CreateDriver(config);
     }
 
     virtual ~TDriver()
