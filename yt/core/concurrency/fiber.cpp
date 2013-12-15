@@ -699,7 +699,7 @@ public:
         slot.Ctor = ctor;
         slot.Dtor = dtor;
         AtomicIncrement(FlsSlotsSize);
-		ReleaseSpinLock(&FlsSlotsSize);
+		ReleaseSpinLock(&FlsSlotsLock);
 		return result;
     }
 
