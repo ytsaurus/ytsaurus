@@ -28,7 +28,7 @@ template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor)
 {
     // BFS queue. Try to avoid allocations.
-    TSmallVector<TChunkList*, 64> queue;
+    SmallVector<TChunkList*, 64> queue;
     size_t frontIndex = 0;
 
     // Put seed into the queue.

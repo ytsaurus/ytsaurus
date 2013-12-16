@@ -230,7 +230,7 @@ struct TObjectRefSerializerTraits< std::vector<K, A> >
 };
 
 template <class V, unsigned N>
-struct TObjectRefSerializerTraits< TSmallVector<V, N> >
+struct TObjectRefSerializerTraits< SmallVector<V, N> >
 {
     typedef TObjectRefVectorSerializer TSerializer;
 };

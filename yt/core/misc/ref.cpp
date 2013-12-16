@@ -199,7 +199,7 @@ public:
     }
 
 private:
-    TSmallVector<TSharedRef, 4> Parts;
+    SmallVector<TSharedRef, 4> Parts;
 
 };
 

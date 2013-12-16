@@ -58,7 +58,7 @@ struct TColumnFilter
     TColumnFilter(const TColumnFilter& other);
 
     bool All;
-    TSmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
+    SmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

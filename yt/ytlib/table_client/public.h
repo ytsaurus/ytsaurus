@@ -128,7 +128,7 @@ class TTableConsumer;
 class TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
 
-typedef TSmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
+typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
 struct IPartitioner;

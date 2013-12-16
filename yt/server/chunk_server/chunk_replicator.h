@@ -106,15 +106,15 @@ private:
         int DecommissionedReplicaCount[NErasure::MaxTotalPartCount];
 
         //! Recommended replications.
-        TSmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
+        SmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
         
         //! Recommended removals of decommissioned replicas. 
-        TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> DecommissionedRemovalRequests;
+        SmallVector<TNodePtrWithIndex, TypicalReplicaCount> DecommissionedRemovalRequests;
 
         //! Recommended removals to active replicas.
         //! Removal targets must be selected among most loaded nodes.
         //! This can only be nonempty if |DecommissionedRemovalRequests| is empty.
-        TSmallVector<TJobRequest, TypicalReplicaCount> BalancingRemovalRequests;
+        SmallVector<TJobRequest, TypicalReplicaCount> BalancingRemovalRequests;
         
     };
 

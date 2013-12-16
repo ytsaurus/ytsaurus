@@ -31,7 +31,7 @@ extern TChunkListId NullChunkListId;
 typedef NObjectClient::TObjectId TChunkTreeId;
 extern TChunkTreeId NullChunkTreeId;
 
-//! Used as an expected upper bound in TSmallVector.
+//! Used as an expected upper bound in SmallVector.
 /*
  *  Maximum regular number of replicas is 16 (for LRC codec).
  *  Additional +8 enables some flexibility during balancing.
@@ -39,7 +39,7 @@ extern TChunkTreeId NullChunkTreeId;
 const int TypicalReplicaCount = 24;
 
 class TChunkReplica;
-typedef TSmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
+typedef SmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
 
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;

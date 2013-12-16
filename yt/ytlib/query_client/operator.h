@@ -67,7 +67,7 @@ class TUnionOperator
     : public TOperator
 {
 public:
-    typedef TSmallVector<const TOperator*, TypicalUnionArity> TSources;
+    typedef SmallVector<const TOperator*, TypicalUnionArity> TSources;
 
     TUnionOperator(TPlanContext* context)
         : TOperator(context, EOperatorKind::Union)
@@ -132,7 +132,7 @@ class TProjectOperator
     : public TOperator
 {
 public:
-    typedef TSmallVector<const TExpression*, TypicalProjectionCount> TProjections;
+    typedef SmallVector<const TExpression*, TypicalProjectionCount> TProjections;
 
     TProjectOperator(TPlanContext* context, const TOperator* source)
         : TOperator(context, EOperatorKind::Project)

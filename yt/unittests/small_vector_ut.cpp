@@ -88,9 +88,9 @@ int Constructable::numDestructorCalls;
 int Constructable::numAssignmentCalls;
 
 // Test fixture class
-class TSmallVectorTest : public testing::Test {
+class SmallVectorTest : public testing::Test {
 protected:
-  typedef TSmallVector<Constructable, 4> VectorType;
+  typedef SmallVector<Constructable, 4> VectorType;
 
   VectorType theVector;
   VectorType otherVector;
@@ -131,7 +131,7 @@ protected:
 };
 
 // New vector test.
-TEST_F(TSmallVectorTest, EmptyVectorTest) {
+TEST_F(SmallVectorTest, EmptyVectorTest) {
   SCOPED_TRACE("EmptyVectorTest");
   assertEmpty(theVector);
   EXPECT_TRUE(theVector.rbegin() == theVector.rend());
@@ -140,7 +140,7 @@ TEST_F(TSmallVectorTest, EmptyVectorTest) {
 }
 
 // Simple insertions and deletions.
-TEST_F(TSmallVectorTest, PushPopTest) {
+TEST_F(SmallVectorTest, PushPopTest) {
   SCOPED_TRACE("PushPopTest");
 
   // Push an element
@@ -176,7 +176,7 @@ TEST_F(TSmallVectorTest, PushPopTest) {
 }
 
 // Clear test.
-TEST_F(TSmallVectorTest, ClearTest) {
+TEST_F(SmallVectorTest, ClearTest) {
   SCOPED_TRACE("ClearTest");
 
   makeSequence(theVector, 1, 2);
@@ -188,7 +188,7 @@ TEST_F(TSmallVectorTest, ClearTest) {
 }
 
 // Resize smaller test.
-TEST_F(TSmallVectorTest, ResizeShrinkTest) {
+TEST_F(SmallVectorTest, ResizeShrinkTest) {
   SCOPED_TRACE("ResizeShrinkTest");
 
   makeSequence(theVector, 1, 3);
@@ -200,7 +200,7 @@ TEST_F(TSmallVectorTest, ResizeShrinkTest) {
 }
 
 // Resize bigger test.
-TEST_F(TSmallVectorTest, ResizeGrowTest) {
+TEST_F(SmallVectorTest, ResizeGrowTest) {
   SCOPED_TRACE("ResizeGrowTest");
 
   theVector.resize(2);
@@ -213,7 +213,7 @@ TEST_F(TSmallVectorTest, ResizeGrowTest) {
 }
 
 // Resize with fill value.
-TEST_F(TSmallVectorTest, ResizeFillTest) {
+TEST_F(SmallVectorTest, ResizeFillTest) {
   SCOPED_TRACE("ResizeFillTest");
 
   theVector.resize(3, Constructable(77));
@@ -221,7 +221,7 @@ TEST_F(TSmallVectorTest, ResizeFillTest) {
 }
 
 // Overflow past fixed size.
-TEST_F(TSmallVectorTest, OverflowTest) {
+TEST_F(SmallVectorTest, OverflowTest) {
   SCOPED_TRACE("OverflowTest");
 
   // Push more elements than the fixed size.
@@ -240,7 +240,7 @@ TEST_F(TSmallVectorTest, OverflowTest) {
 }
 
 // Iteration tests.
-TEST_F(TSmallVectorTest, IterationTest) {
+TEST_F(SmallVectorTest, IterationTest) {
   makeSequence(theVector, 1, 2);
 
   // Forward Iteration
@@ -279,7 +279,7 @@ TEST_F(TSmallVectorTest, IterationTest) {
 }
 
 // Swap test.
-TEST_F(TSmallVectorTest, SwapTest) {
+TEST_F(SmallVectorTest, SwapTest) {
   SCOPED_TRACE("SwapTest");
 
   makeSequence(theVector, 1, 2);
@@ -290,7 +290,7 @@ TEST_F(TSmallVectorTest, SwapTest) {
 }
 
 // Append test
-TEST_F(TSmallVectorTest, AppendTest) {
+TEST_F(SmallVectorTest, AppendTest) {
   SCOPED_TRACE("AppendTest");
 
   makeSequence(otherVector, 2, 3);
@@ -302,7 +302,7 @@ TEST_F(TSmallVectorTest, AppendTest) {
 }
 
 // Append repeated test
-TEST_F(TSmallVectorTest, AppendRepeatedTest) {
+TEST_F(SmallVectorTest, AppendRepeatedTest) {
   SCOPED_TRACE("AppendRepeatedTest");
 
   theVector.push_back(Constructable(1));
@@ -311,7 +311,7 @@ TEST_F(TSmallVectorTest, AppendRepeatedTest) {
 }
 
 // Assign test
-TEST_F(TSmallVectorTest, AssignTest) {
+TEST_F(SmallVectorTest, AssignTest) {
   SCOPED_TRACE("AssignTest");
 
   theVector.push_back(Constructable(1));
@@ -320,7 +320,7 @@ TEST_F(TSmallVectorTest, AssignTest) {
 }
 
 // Erase a single element
-TEST_F(TSmallVectorTest, EraseTest) {
+TEST_F(SmallVectorTest, EraseTest) {
   SCOPED_TRACE("EraseTest");
 
   makeSequence(theVector, 1, 3);
@@ -329,7 +329,7 @@ TEST_F(TSmallVectorTest, EraseTest) {
 }
 
 // Erase a range of elements
-TEST_F(TSmallVectorTest, EraseRangeTest) {
+TEST_F(SmallVectorTest, EraseRangeTest) {
   SCOPED_TRACE("EraseRangeTest");
 
   makeSequence(theVector, 1, 3);
@@ -338,7 +338,7 @@ TEST_F(TSmallVectorTest, EraseRangeTest) {
 }
 
 // Insert a single element.
-TEST_F(TSmallVectorTest, InsertTest) {
+TEST_F(SmallVectorTest, InsertTest) {
   SCOPED_TRACE("InsertTest");
 
   makeSequence(theVector, 1, 3);
@@ -347,7 +347,7 @@ TEST_F(TSmallVectorTest, InsertTest) {
 }
 
 // Insert repeated elements.
-TEST_F(TSmallVectorTest, InsertRepeatedTest) {
+TEST_F(SmallVectorTest, InsertRepeatedTest) {
   SCOPED_TRACE("InsertRepeatedTest");
 
   makeSequence(theVector, 10, 15);
@@ -356,7 +356,7 @@ TEST_F(TSmallVectorTest, InsertRepeatedTest) {
 }
 
 // Insert range.
-TEST_F(TSmallVectorTest, InsertRangeTest) {
+TEST_F(SmallVectorTest, InsertRangeTest) {
   SCOPED_TRACE("InsertRepeatedTest");
 
   makeSequence(theVector, 1, 3);
@@ -365,7 +365,7 @@ TEST_F(TSmallVectorTest, InsertRangeTest) {
 }
 
 // Comparison tests.
-TEST_F(TSmallVectorTest, ComparisonTest) {
+TEST_F(SmallVectorTest, ComparisonTest) {
   SCOPED_TRACE("ComparisonTest");
 
   makeSequence(theVector, 1, 3);
@@ -382,7 +382,7 @@ TEST_F(TSmallVectorTest, ComparisonTest) {
 }
 
 // Constant vector tests.
-TEST_F(TSmallVectorTest, ConstVectorTest) {
+TEST_F(SmallVectorTest, ConstVectorTest) {
   VectorType constVector;
 
   EXPECT_EQ(0u, constVector.size());
@@ -391,7 +391,7 @@ TEST_F(TSmallVectorTest, ConstVectorTest) {
 }
 
 // Direct array access.
-TEST_F(TSmallVectorTest, DirectVectorTest) {
+TEST_F(SmallVectorTest, DirectVectorTest) {
   EXPECT_EQ(0u, theVector.size());
   EXPECT_LE(4u, theVector.capacity());
   EXPECT_EQ(0, Constructable::getNumConstructorCalls());
@@ -408,7 +408,7 @@ TEST_F(TSmallVectorTest, DirectVectorTest) {
   EXPECT_EQ(4, theVector[3].getValue());
 }
 
-TEST_F(TSmallVectorTest, IteratorTest) {
+TEST_F(SmallVectorTest, IteratorTest) {
   std::list<int> L;
   theVector.insert(theVector.end(), L.begin(), L.end());
 }

@@ -87,7 +87,7 @@ class TNode
 
     };
 
-    typedef TSmallVector<TTabletSlot, NTabletServer::TypicalCellSize> TTabletSlotList;
+    typedef SmallVector<TTabletSlot, NTabletServer::TypicalCellSize> TTabletSlotList;
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
     typedef yhash_set<NTabletServer::TTabletCell*> TTabletCellSet;

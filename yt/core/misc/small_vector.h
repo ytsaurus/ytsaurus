@@ -1,4 +1,4 @@
-//===- llvm/ADT/TSmallVector.h - 'Normally small' vectors --------*- C++ -*-===//
+//===- llvm/ADT/SmallVector.h - 'Normally small' vectors --------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the TSmallVector class.
+// This file defines the SmallVector class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -240,7 +240,7 @@ protected:
   /// starting with "Dest", constructing elements into it as needed.
   template <typename T1, typename T2>
   static void uninitialized_copy(T1 *I, T1 *E, T2 *Dest) {
-    // Use memcpy for PODs iterated by pointers (which includes TSmallVector
+    // Use memcpy for PODs iterated by pointers (which includes SmallVector
     // iterators): std::uninitialized_copy optimizes to memmove, but we can
     // use memcpy here.
     memcpy(Dest, I, (E-I)*sizeof(T));
@@ -270,7 +270,7 @@ public:
 
 
 /// SmallVectorImpl - This class consists of common code factored out of the
-/// TSmallVector class to reduce code duplication based on the TSmallVector 'N'
+/// SmallVector class to reduce code duplication based on the SmallVector 'N'
 /// template parameter.
 template <typename T>
 class SmallVectorImpl : public SmallVectorTemplateBase<T, NMpl::TIsPod<T>::Value> {
@@ -340,7 +340,7 @@ public:
 
   void swap(SmallVectorImpl &RHS);
 
-  /// append - Add the specified range to the end of the TSmallVector.
+  /// append - Add the specified range to the end of the SmallVector.
   ///
   template <typename in_iter>
   void append(in_iter in_start, in_iter in_end) {
@@ -356,7 +356,7 @@ public:
     this->setEnd(this->end() + NumInputs);
   }
 
-  /// append - Add the specified range to the end of the TSmallVector.
+  /// append - Add the specified range to the end of the SmallVector.
   ///
   void append(size_type NumInputs, const T &Elt) {
     // Grow allocated space if needed.
@@ -651,7 +651,7 @@ const SmallVectorImpl<T> &SmallVectorImpl<T>::
 }
 
 
-/// TSmallVector - This is a 'vector' (really, a variable-sized array), optimized
+/// SmallVector - This is a 'vector' (really, a variable-sized array), optimized
 /// for the case when the array is small.  It contains some number of elements
 /// in-place, which allows it to avoid heap allocation when the actual number of
 /// elements is below that threshold.  This allows normal "small" cases to be
@@ -660,7 +660,7 @@ const SmallVectorImpl<T> &SmallVectorImpl<T>::
 /// Note that this does not attempt to be exception safe.
 ///
 template <typename T, unsigned N>
-class TSmallVector : public SmallVectorImpl<T> {
+class SmallVector : public SmallVectorImpl<T> {
   /// InlineElts - These are 'N-1' elements that are stored inline in the body
   /// of the vector.  The extra '1' element is stored in SmallVectorImpl.
   typedef typename SmallVectorImpl<T>::U U;
@@ -682,61 +682,61 @@ class TSmallVector : public SmallVectorImpl<T> {
   };
   U InlineElts[NumInlineEltsElts];
 public:
-  TSmallVector() : SmallVectorImpl<T>(NumTsAvailable) {
+  SmallVector() : SmallVectorImpl<T>(NumTsAvailable) {
   }
 
-  explicit TSmallVector(unsigned Size, const T &Value = T())
+  explicit SmallVector(unsigned Size, const T &Value = T())
     : SmallVectorImpl<T>(NumTsAvailable) {
     this->assign(Size, Value);
   }
 
   template <typename ItTy>
-  TSmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(NumTsAvailable) {
+  SmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(NumTsAvailable) {
     this->append(S, E);
   }
 
-  TSmallVector(const TSmallVector &RHS) : SmallVectorImpl<T>(NumTsAvailable) {
+  SmallVector(const SmallVector &RHS) : SmallVectorImpl<T>(NumTsAvailable) {
     if (!RHS.empty())
       SmallVectorImpl<T>::operator=(RHS);
   }
 
-  const TSmallVector &operator=(const TSmallVector &RHS) {
+  const SmallVector &operator=(const SmallVector &RHS) {
     SmallVectorImpl<T>::operator=(RHS);
     return *this;
   }
 
 };
 
-/// Specialize TSmallVector at N=0.  This specialization guarantees
+/// Specialize SmallVector at N=0.  This specialization guarantees
 /// that it can be instantiated at an incomplete T if none of its
 /// members are required.
 template <typename T>
-class TSmallVector<T,0> : public SmallVectorImpl<T> {
+class SmallVector<T,0> : public SmallVectorImpl<T> {
 public:
-  TSmallVector() : SmallVectorImpl<T>(0) {}
+  SmallVector() : SmallVectorImpl<T>(0) {}
 
-  explicit TSmallVector(unsigned Size, const T &Value = T())
+  explicit SmallVector(unsigned Size, const T &Value = T())
     : SmallVectorImpl<T>(0) {
     this->assign(Size, Value);
   }
 
   template <typename ItTy>
-  TSmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(0) {
+  SmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(0) {
     this->append(S, E);
   }
 
-  TSmallVector(const TSmallVector &RHS) : SmallVectorImpl<T>(0) {
+  SmallVector(const SmallVector &RHS) : SmallVectorImpl<T>(0) {
     SmallVectorImpl<T>::operator=(RHS);
   }
 
-  TSmallVector &operator=(const SmallVectorImpl<T> &RHS) {
+  SmallVector &operator=(const SmallVectorImpl<T> &RHS) {
     return SmallVectorImpl<T>::operator=(RHS);
   }
 
 };
 
 template <typename T, unsigned N>
-static inline size_t capacity_in_bytes(const TSmallVector<T, N> &X) {
+static inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {
   return X.capacity_in_bytes();
 }
 
@@ -744,15 +744,15 @@ static inline size_t capacity_in_bytes(const TSmallVector<T, N> &X) {
 
 namespace std {
 
-/// Implement std::swap in terms of TSmallVector swap.
+/// Implement std::swap in terms of SmallVector swap.
 template <typename T>
 inline void swap(NYT::SmallVectorImpl<T> &LHS, NYT::SmallVectorImpl<T> &RHS) {
     LHS.swap(RHS);
 }
 
-/// Implement std::swap in terms of TSmallVector swap.
+/// Implement std::swap in terms of SmallVector swap.
 template <typename T, unsigned N>
-inline void swap(NYT::TSmallVector<T, N> &LHS, NYT::TSmallVector<T, N> &RHS) {
+inline void swap(NYT::SmallVector<T, N> &LHS, NYT::SmallVector<T, N> &RHS) {
     LHS.swap(RHS);
 }
 

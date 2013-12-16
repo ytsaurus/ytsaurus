@@ -11,7 +11,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TSmallVector<NVersionedTableClient::TUnversionedValue, 5> TPartitionKey;
+typedef SmallVector<NVersionedTableClient::TUnversionedValue, 5> TPartitionKey;
 
 struct IPartitioner
 {

@@ -154,7 +154,7 @@ TTo ConvertTo(const TFrom& value)
         NYson::TTokenizer tokenizer(str.Data()); \
         if (tokenizer.ParseNext()) { \
             auto token = tokenizer.CurrentToken(); \
-            TSmallVector<ETokenType, 2> consideredTokens; \
+            SmallVector<ETokenType, 2> consideredTokens; \
             PP_FOR_EACH(CHECK_TYPE, tokenTypes); \
             token.CheckType( \
                 std::vector<ETokenType>( \

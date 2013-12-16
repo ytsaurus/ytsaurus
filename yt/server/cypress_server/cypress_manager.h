@@ -108,7 +108,7 @@ public:
 
     void SetAccessed(TCypressNodeBase* trunkNode);
 
-    typedef TSmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
+    typedef SmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,

@@ -16,7 +16,7 @@ class TTransactionManager;
 typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
 
 class TTransaction;
-typedef TSmallVector<TTransaction*, 4> TTransactionPath;
+typedef SmallVector<TTransaction*, 4> TTransactionPath;
 
 class TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;

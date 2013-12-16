@@ -39,7 +39,7 @@ class TTabletCell
         TInstant LastSeenTime;
     };
 
-    typedef TSmallVector<TPeer, TypicalCellSize> TPeerList;
+    typedef SmallVector<TPeer, TypicalCellSize> TPeerList;
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
     
     DEFINE_BYREF_RW_PROPERTY(NHydra::NProto::TCellConfig, Config);

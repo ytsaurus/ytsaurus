@@ -14,7 +14,7 @@ namespace NErasure {
 const int MaxTotalPartCount = 16;
 
 //! A vector type for holding block indexes without allocations.
-typedef TSmallVector<int, MaxTotalPartCount> TPartIndexList;
+typedef SmallVector<int, MaxTotalPartCount> TPartIndexList;
 
 //! Each bit corresponds to a possible block index.
 typedef std::bitset<MaxTotalPartCount> TPartIndexSet;

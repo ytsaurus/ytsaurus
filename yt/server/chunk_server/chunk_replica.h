@@ -50,7 +50,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TPtrWithIndex<NNodeTrackerServer::TNode> TNodePtrWithIndex;
-typedef TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> TNodePtrWithIndexList;
+typedef SmallVector<TNodePtrWithIndex, TypicalReplicaCount> TNodePtrWithIndexList;
 
 typedef TPtrWithIndex<TChunk> TChunkPtrWithIndex;
 

@@ -89,9 +89,9 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
     Serialize(*value, consumer);
 }
 
-// TSmallVector
+// SmallVector
 template <class T, unsigned N>
-void Serialize(const TSmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
+void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     for (const auto& item : items) {
@@ -190,9 +190,9 @@ void Deserialize(TNullable<T>& value, INodePtr node)
     Deserialize(*value, node);
 }
 
-// TSmallVector
+// SmallVector
 template <class T, unsigned N>
-void Deserialize(TSmallVector<T, N>& value, INodePtr node)
+void Deserialize(SmallVector<T, N>& value, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();

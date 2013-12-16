@@ -159,9 +159,9 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
     }
 }
 
-TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> TChunk::GetReplicas() const
+SmallVector<TNodePtrWithIndex, TypicalReplicaCount> TChunk::GetReplicas() const
 {
-    TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> result(StoredReplicas_.begin(), StoredReplicas_.end());
+    SmallVector<TNodePtrWithIndex, TypicalReplicaCount> result(StoredReplicas_.begin(), StoredReplicas_.end());
     if (~CachedReplicas_) {
         result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
     }

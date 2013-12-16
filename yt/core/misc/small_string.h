@@ -19,24 +19,24 @@
 
 namespace NYT {
 
-/// TSmallString - A TSmallString is just a TSmallVector with methods and accessors
+/// TSmallString - A TSmallString is just a SmallVector with methods and accessors
 /// that make it work better as a string (e.g. operator+ etc).
 template <unsigned InternalLen>
-class TSmallString : public TSmallVector<char, InternalLen> {
+class TSmallString : public SmallVector<char, InternalLen> {
 public:
 
   /// Default ctor - Initialize to empty.
   TSmallString() {}
 
   /// Initialize from a TStringBuf.
-  TSmallString(TStringBuf S) : TSmallVector<char, InternalLen>(S.begin(), S.end()) {}
+  TSmallString(TStringBuf S) : SmallVector<char, InternalLen>(S.begin(), S.end()) {}
 
   /// Initialize with a range.
   template <typename ItTy>
-  TSmallString(ItTy S, ItTy E) : TSmallVector<char, InternalLen>(S, E) {}
+  TSmallString(ItTy S, ItTy E) : SmallVector<char, InternalLen>(S, E) {}
 
   /// Copy ctor.
-  TSmallString(const TSmallString &RHS) : TSmallVector<char, InternalLen>(RHS) {}
+  TSmallString(const TSmallString &RHS) : SmallVector<char, InternalLen>(RHS) {}
 
   // Note that in order to add new overloads for append & assign, we have to
   // duplicate the inherited versions so as not to inadvertently hide them.
@@ -63,7 +63,7 @@ public:
     SmallVectorImpl<char>::append(RHS.begin(), RHS.end());
   }
 
-  /// Assign from a TSmallVector
+  /// Assign from a SmallVector
   void assign(const SmallVectorImpl<char> &RHS) {
     this->clear();
     SmallVectorImpl<char>::append(RHS.begin(), RHS.end());
@@ -84,7 +84,7 @@ public:
     SmallVectorImpl<char>::append(RHS.begin(), RHS.end());
   }
 
-  /// Append from a TSmallVector
+  /// Append from a SmallVector
   void append(const SmallVectorImpl<char> &RHS) {
     SmallVectorImpl<char>::append(RHS.begin(), RHS.end());
   }

@@ -46,7 +46,7 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
 
-    typedef TSmallVector<TChunkList*, TypicalChunkParentCount> TParents;
+    typedef SmallVector<TChunkList*, TypicalChunkParentCount> TParents;
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
@@ -76,7 +76,7 @@ public:
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
-    TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> GetReplicas() const;
+    SmallVector<TNodePtrWithIndex, TypicalReplicaCount> GetReplicas() const;
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;

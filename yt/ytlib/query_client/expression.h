@@ -187,7 +187,7 @@ class TFunctionExpression
     : public TExpression
 {
 public:
-    typedef TSmallVector<const TExpression*, TypicalFunctionArity> TArguments;
+    typedef SmallVector<const TExpression*, TypicalFunctionArity> TArguments;
 
     TFunctionExpression(
         TPlanContext* context,

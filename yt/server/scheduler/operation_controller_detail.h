@@ -663,8 +663,8 @@ protected:
 
     struct TInputChunkDescriptor
     {
-        TSmallVector<TStripeDescriptor, 1> InputStripes;
-        TSmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
+        SmallVector<TStripeDescriptor, 1> InputStripes;
+        SmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
         EInputChunkState State;
 
         TInputChunkDescriptor()

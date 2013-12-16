@@ -68,7 +68,7 @@ void TStoreManager::LookupRow(
     int keyCount = static_cast<int>(Tablet_->KeyColumns().size());
     int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
 
-    TSmallVector<bool, TypicalColumnCount> columnFilterFlags(schemaColumnCount);
+    SmallVector<bool, TypicalColumnCount> columnFilterFlags(schemaColumnCount);
     if (columnFilter.All) {
         for (int id = 0; id < schemaColumnCount; ++id) {
             columnFilterFlags[id] = true;

@@ -28,13 +28,13 @@ namespace NYT {
 /// set.
 template <typename T, unsigned N,  typename C = std::less<T> >
 class TSmallSet {
-  /// Use a TSmallVector to hold the elements here (even though it will never
+  /// Use a SmallVector to hold the elements here (even though it will never
   /// reach its 'large' stage) to avoid calling the default ctors of elements
   /// we will never use.
-  TSmallVector<T, N> Vector;
+  SmallVector<T, N> Vector;
   std::set<T, C> Set;
-  typedef typename TSmallVector<T, N>::const_iterator VIterator;
-  typedef typename TSmallVector<T, N>::iterator mutable_iterator;
+  typedef typename SmallVector<T, N>::const_iterator VIterator;
+  typedef typename SmallVector<T, N>::iterator mutable_iterator;
 public:
   TSmallSet() {}
 

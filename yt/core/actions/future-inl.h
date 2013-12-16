@@ -27,10 +27,10 @@ class TPromiseState
 {
 public:
     typedef TCallback<void(T)> TResultHandler;
-    typedef TSmallVector<TResultHandler, 8> TResultHandlers;
+    typedef SmallVector<TResultHandler, 8> TResultHandlers;
 
     typedef TClosure TCancelHandler;
-    typedef TSmallVector<TCancelHandler, 8> TCancelHandlers;
+    typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
     TNullable<T> Value_;
@@ -287,7 +287,7 @@ public:
     typedef std::vector<TResultHandler> TResultHandlers;
 
     typedef TClosure TCancelHandler;
-    typedef TSmallVector<TCancelHandler, 8> TCancelHandlers;
+    typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
     bool HasValue_;

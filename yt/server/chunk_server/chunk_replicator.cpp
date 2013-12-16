@@ -1205,7 +1205,7 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
     auto mark = TChunkList::GenerateVisitMark();
 
     // BFS queue. Try to avoid allocations.
-    TSmallVector<TChunkList*, 64> queue;
+    SmallVector<TChunkList*, 64> queue;
     size_t frontIndex = 0;
 
     auto enqueue = [&] (TChunkList* chunkList) {

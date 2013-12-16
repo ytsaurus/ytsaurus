@@ -77,7 +77,7 @@ typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
 class TChunkManagerConfig;
 typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
 
-//! Used as an expected upper bound in TSmallVector.
+//! Used as an expected upper bound in SmallVector.
 const int TypicalChunkParentCount = 2;
 
 //! The number of supported replication priorities.

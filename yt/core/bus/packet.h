@@ -56,7 +56,7 @@ protected:
     char* Chunk;
     size_t PendingSize;
     TPacketHeader Header;
-    TSmallVector<i32, TypicalPacketPartCount> PartSizes;
+    SmallVector<i32, TypicalPacketPartCount> PartSizes;
     i32 PartCount;
     int PartIndex;
     TSharedRefArray Message;

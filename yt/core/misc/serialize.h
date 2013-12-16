@@ -792,10 +792,10 @@ struct TSerializerTraits<std::vector<T>, C, void>
 };
 
 template <class T, unsigned size>
-class TSmallVector;
+class SmallVector;
 
 template <class T, unsigned size, class C>
-struct TSerializerTraits<TSmallVector<T, size>, C, void>
+struct TSerializerTraits<SmallVector<T, size>, C, void>
 {
     typedef TVectorSerializer TSerializer;
 };

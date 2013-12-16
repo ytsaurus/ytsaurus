@@ -1487,7 +1487,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
                 // Remove given chunk from the stripe list.
-                TSmallVector<TChunkSlicePtr, 1> slices;
+                SmallVector<TChunkSlicePtr, 1> slices;
                 std::swap(inputStripe.Stripe->ChunkSlices, slices);
 
                 std::copy_if(

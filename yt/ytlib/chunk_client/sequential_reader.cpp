@@ -162,7 +162,7 @@ void TSequentialReader::FetchNextGroup()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
-    // ToDo(psushin): maybe use TSmallVector here?
+    // ToDo(psushin): maybe use SmallVector here?
     auto firstUnfetched = NextUnfetchedIndex;
     std::vector<int> blockIndexes;
     int groupSize = 0;

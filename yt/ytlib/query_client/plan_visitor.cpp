@@ -30,7 +30,7 @@ static const int TypicalQueueLength = 16;
 
 bool Traverse(IPlanVisitor* visitor, const TOperator* root)
 {
-    TSmallVector<const TOperator*, TypicalQueueLength> queue;
+    SmallVector<const TOperator*, TypicalQueueLength> queue;
     queue.push_back(root);
 
     while (!queue.empty()) {
@@ -71,7 +71,7 @@ bool Traverse(IPlanVisitor* visitor, const TOperator* root)
 
 bool Traverse(IPlanVisitor* visitor, const TExpression* root)
 {
-    TSmallVector<const TExpression*, TypicalQueueLength> queue;
+    SmallVector<const TExpression*, TypicalQueueLength> queue;
     queue.push_back(root);
 
     while (!queue.empty()) {

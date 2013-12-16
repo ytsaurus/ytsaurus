@@ -209,7 +209,7 @@ TNodeList TChunkPlacement::GetRemovalTargets(
 
     // Construct a list of (node, loadFactor) pairs.
     typedef std::pair<TNode*, double> TCandidatePair;
-    TSmallVector<TCandidatePair, TypicalReplicaCount> candidates;
+    SmallVector<TCandidatePair, TypicalReplicaCount> candidates;
     auto* chunk = chunkWithIndex.GetPtr();
     candidates.reserve(chunk->StoredReplicas().size());
     for (auto replica : chunk->StoredReplicas()) {
