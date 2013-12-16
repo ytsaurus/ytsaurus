@@ -116,11 +116,16 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     return Undefined();
 }
 
-void ShutdownSingletons(void*)
+Handle<Value> ShutdownSingletons(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length());
 
     Shutdown();
+
+    return Undefined();
 }
 
 } // namespace
@@ -138,8 +143,9 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("ConfigureSingletons"),
         FunctionTemplate::New(ConfigureSingletons)->GetFunction());
-
-    node::AtExit(&ShutdownSingletons);
+    target->Set(
+        String::NewSymbol("ShutdownSingletons"),
+        FunctionTemplate::New(ShutdownSingletons)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,3 +1,7 @@
+// Register at-exit callback.
+var binding = require("../lib/ytnode");
+process.on("exit", binding.ShutdownSingletons);
+
 global.sinon = require("sinon");
 global.chai = require("chai");
 

@@ -1,3 +1,10 @@
+// Register at-exit callback.
+var binding = require("./lib/ytnode");
+process.on("exit", binding.ShutdownSingletons);
+
+// Ability to configure singletons.
+exports.configureSingletons = binding.ConfigureSingletons;
+
 // Middleware.
 exports.YtApplicationApi = require("./lib/middleware/application_api").that;
 exports.YtApplicationAuth = require("./lib/middleware/application_auth").that;
@@ -21,9 +28,3 @@ exports.YtRegistry = require("./lib/registry").that;
 exports.Pause = require("./lib/utils").Pause;
 exports.utils = require("./lib/utils");
 
-exports.configureSingletons = function(config)
-{
-    var binding = require("./lib/ytnode");
-    process.on("exit", binding.ShutdownSingletons);
-    binding.ConfigureSingletons(config);
-};
