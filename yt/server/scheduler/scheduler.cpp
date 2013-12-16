@@ -29,7 +29,6 @@
 #include <core/logging/tagged_logger.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -1255,9 +1254,8 @@ private:
         LOG_INFO("Committing scheduler transactions (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
 
-        auto commitTransaction = [&] (ITransactionPtr transaction) {
-            auto asyncResult = transaction->AsyncCommit();
-            auto result = WaitFor(asyncResult);
+        auto commitTransaction = [&] (TTransactionPtr transaction) {
+            auto result = WaitFor(transaction->Commit());
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
             if (operation->GetState() != EOperationState::Completing) {
                 throw TFiberCanceledException();
@@ -1272,15 +1270,15 @@ private:
             ~ToString(operation->GetOperationId()));
 
         // NB: Never commit async transaction since it's used for writing Live Preview tables.
-        operation->GetAsyncSchedulerTransaction()->AsyncAbort();
+        operation->GetAsyncSchedulerTransaction()->Abort();
     }
 
     void AbortSchedulerTransactions(TOperationPtr operation)
     {
-        auto abortTransaction = [&] (ITransactionPtr transaction) {
+        auto abortTransaction = [&] (TTransactionPtr transaction) {
             if (transaction) {
                 // Fire-and-forget.
-                transaction->AsyncAbort();
+                transaction->Abort();
             }
         };
 

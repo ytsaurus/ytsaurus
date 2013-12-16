@@ -17,7 +17,7 @@ TOperation::TOperation(
     const TOperationId& operationId,
     EOperationType type,
     const NHydra::TMutationId& mutationId,
-    ITransactionPtr userTransaction,
+    TTransactionPtr userTransaction,
     NYTree::IMapNodePtr spec,
     const Stroka& authenticatedUser,
     TInstant startTime,

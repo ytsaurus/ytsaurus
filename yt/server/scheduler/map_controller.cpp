@@ -15,7 +15,7 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <server/job_proxy/config.h>
 

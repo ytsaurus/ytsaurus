@@ -37,7 +37,7 @@ public:
     TAsyncWriter(
         TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
+        NTransactionClient::TTransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath);
 
@@ -54,9 +54,9 @@ private:
     TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
 
-    NTransactionClient::ITransactionPtr Transaction;
+    NTransactionClient::TTransactionPtr Transaction;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
-    NTransactionClient::ITransactionPtr UploadTransaction;
+    NTransactionClient::TTransactionPtr UploadTransaction;
     NYPath::TRichYPath RichPath;
 
     TIntrusivePtr<TWriter> Writer;
@@ -66,7 +66,7 @@ private:
     NCypressClient::TNodeId NodeId;
 
     TAsyncError OnUploadTransactionStarted(
-        TErrorOr<NTransactionClient::ITransactionPtr> transactionOrError);
+        TErrorOr<NTransactionClient::TTransactionPtr> transactionOrError);
     TAsyncError OnFileInfoReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 };

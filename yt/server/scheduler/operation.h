@@ -8,7 +8,7 @@
 
 #include <core/ytree/node.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
@@ -32,32 +32,32 @@ class TOperation
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
 
     //! User-supplied transaction where the operation resides.
-    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ITransactionPtr, UserTransaction);
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionPtr, UserTransaction);
 
     //! Transaction used for maintaining operation inputs and outputs.
     /*!
      *  SyncSchedulerTransaction is nested inside UserTransaction, if any.
      *  Input and output transactions are nested inside SyncSchedulerTransaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, SyncSchedulerTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, SyncSchedulerTransaction);
 
     //! Transaction used for internal housekeeping, e.g. generating stderrs.
     /*!
      *  Not nested inside any other transaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, AsyncSchedulerTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, AsyncSchedulerTransaction);
 
     //! Transaction used for taking snapshot of operation input.
     /*!
      *  InputTransaction is nested inside SyncSchedulerTransaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, InputTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, InputTransaction);
 
     //! Transaction used for locking and writing operation output.
     /*!
      *  OutputTransaction is nested inside SyncSchedulerTransaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, OutputTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, OutputTransaction);
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
@@ -106,7 +106,7 @@ class TOperation
         const TOperationId& operationId,
         EOperationType type,
         const NHydra::TMutationId& mutationId,
-        NTransactionClient::ITransactionPtr userTransaction,
+        NTransactionClient::TTransactionPtr userTransaction,
         NYTree::IMapNodePtr spec,
         const Stroka& authenticatedUser,
         TInstant startTime,

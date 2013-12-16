@@ -9,11 +9,11 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransaction;
+typedef TIntrusivePtr<TTransaction> TTransactionPtr;
+
 class TTransactionManager;
 typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
-
-struct ITransaction;
-typedef TIntrusivePtr<ITransaction> ITransactionPtr;
 
 class TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;

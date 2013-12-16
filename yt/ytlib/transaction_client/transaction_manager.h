@@ -4,6 +4,8 @@
 
 #include <core/misc/nullable.h>
 
+#include <core/actions/signal.h>
+
 #include <core/ytree/public.h>
 
 #include <core/rpc/public.h>
@@ -21,6 +23,74 @@ DECLARE_ENUM(ETransactionType,
     (Master) // accepted by both masters and tablets
     (Tablet) // accepted by tablets only
 );
+
+//! Represents a transaction within a client.
+class TTransaction
+    : public TRefCounted
+{
+private:
+    friend class TTransactionManager;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
+
+public:
+    explicit TTransaction(TIntrusivePtr<TImpl> impl);
+    ~TTransaction();
+
+    //! Commits the transaction asynchronously.
+    /*!
+     *  Should not be called more than once.
+     *
+     *  \note Thread affinity: ClientThread
+     */
+    TAsyncError Commit(const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+
+    //! Aborts the transaction asynchronously.
+    TAsyncError Abort(const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+
+    //! Detaches the transaction, i.e. stops pings.
+    /*!
+     *  This call does not block and does not throw.
+     *  Safe to call multiple times.
+     *
+     *  \note Thread affinity: ClientThread
+     */
+    void Detach();
+
+    //! Sends an asynchronous ping.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TAsyncError Ping();
+
+    //! Returns the transaction id.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TTransactionId GetId() const;
+
+    //! Returns the transaction start timestamp.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TTimestamp GetStartTimestamp() const;
+
+    //! Called to mark a given cell as a transaction participant.
+    //! Starts the corresponding transaction in background.
+    /*!
+     *  \note Thread affinity: ClientThread
+     */
+    void AddParticipant(const NElection::TCellGuid& cellGuid);
+
+    //! Raised when the transaction is aborted.
+    /*!
+     *  \note Thread affinity: any
+     */
+    DECLARE_SIGNAL(void(), Aborted);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Describes settings for a newly created transaction.
 struct TTransactionStartOptions
@@ -58,8 +128,13 @@ struct TTransactionAttachOptions
  * /note Thread affinity: any
  */
 class TTransactionManager
-    : public virtual TRefCounted
+    : public TRefCounted
 {
+private:
+    friend class TTransaction;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
+
 public:
     //! Initializes an instance.
     /*!
@@ -75,23 +150,16 @@ public:
 
     ~TTransactionManager();
 
-    //! Starts a new transaction.
+    //! Asynchronously starts a new transaction.
     /*!
      *
-     *  If |options.Ping| is True then Transaction Manager will be renewing
-     *  the lease of this transaction.
+     *  If |options.Ping| is |true| then transaction's lease will be renewed periodically.
      *
-     *  If |options.PingAncestors| is True then Transaction Manager will be renewing
-     *  the leases of all ancestors of this transaction.
-     *
-     *  \note
-     *  This call does not block.
+     *  If |options.PingAncestors| is |true| then the above renewal will also apply to all
+     *  ancestor transactions.
      */
-    TFuture<TErrorOr<ITransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
+    TFuture<TErrorOr<TTransactionPtr>> Start(const TTransactionStartOptions& options);
     
-    //! Synchronous version of #AsyncStart.
-    ITransactionPtr Start(const TTransactionStartOptions& options);
-
     //! Attaches to an existing transaction.
     /*!
      *  If |options.AutoAbort| is True then the transaction will be aborted
@@ -106,19 +174,10 @@ public:
      *  \note
      *  This call does not block.
      */
-    ITransactionPtr Attach(const TTransactionAttachOptions& options);
+    TTransactionPtr Attach(const TTransactionAttachOptions& options);
 
-    //! Aborts all active transactions.
-    void AsyncAbortAll();
-
-private:
-    class TTransaction;
-    typedef TIntrusivePtr<TTransaction> TTransactionPtr;
-
-    class TImpl;
-    typedef TIntrusivePtr<TImpl> TImplPtr;
-
-    TImplPtr Impl;
+    //! Asynchronously aborts all active transactions.
+    void AbortAll();
 
 };
 

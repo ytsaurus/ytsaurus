@@ -20,7 +20,7 @@
 #include <core/rpc/serialized_channel.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/rpc_helpers.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
@@ -276,7 +276,7 @@ private:
 
     bool Connected;
 
-    NTransactionClient::ITransactionPtr LockTransaction;
+    NTransactionClient::TTransactionPtr LockTransaction;
 
     TPeriodicExecutorPtr TransactionRefreshExecutor;
     TPeriodicExecutorPtr OperationNodesUpdateExecutor;
@@ -621,12 +621,12 @@ private:
             for (auto operation : Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
-                auto checkTransaction = [&] (TOperationPtr operation, ITransactionPtr transaction) {
+                auto checkTransaction = [&] (TOperationPtr operation, TTransactionPtr transaction) {
                     if (!transaction)
                         return;
 
                     awaiter->Await(
-                        transaction->AsyncPing(),
+                        transaction->Ping(),
                         BIND([&] (TError error) {
                             if (!error.IsOK() && !operation->GetCleanStart()) {
                                 operation->SetCleanStart(true);
@@ -722,11 +722,11 @@ private:
             auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
 
             for (auto operation : Result.Operations) {
-                auto scheduleAbort = [=] (ITransactionPtr transaction) {
+                auto scheduleAbort = [=] (TTransactionPtr transaction) {
                     if (!transaction)
                         return;
 
-                    awaiter->Await(transaction->AsyncAbort());
+                    awaiter->Await(transaction->Abort());
                 };
 
                 // NB: Async transaction is always aborted.
@@ -892,7 +892,7 @@ private:
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
 
-        ITransactionPtr userTransaction;
+        TTransactionPtr userTransaction;
         {
             auto id = attributes.Get<TTransactionId>("user_transaction_id");
             TTransactionAttachOptions options(id);
@@ -902,7 +902,7 @@ private:
             userTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
         }
 
-        ITransactionPtr syncTransaction;
+        TTransactionPtr syncTransaction;
         {
             auto id = attributes.Get<TTransactionId>("sync_scheduler_transaction_id");
             TTransactionAttachOptions options(id);
@@ -913,7 +913,7 @@ private:
         }
 
 
-        ITransactionPtr asyncTransaction;
+        TTransactionPtr asyncTransaction;
         {
             auto id = attributes.Get<TTransactionId>("async_scheduler_transaction_id");
             TTransactionAttachOptions options(id);
@@ -923,7 +923,7 @@ private:
             asyncTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
         }
 
-        ITransactionPtr inputTransaction;
+        TTransactionPtr inputTransaction;
         {
             auto id = attributes.Get<TTransactionId>("input_transaction_id");
             TTransactionAttachOptions options(id);
@@ -933,7 +933,7 @@ private:
             inputTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
         }
 
-        ITransactionPtr outputTransaction;
+        TTransactionPtr outputTransaction;
         {
             auto id = attributes.Get<TTransactionId>("output_transaction_id");
             TTransactionAttachOptions options(id);
@@ -1049,7 +1049,7 @@ private:
 
         // Collect all transactions that are used by currently running operations.
         yhash_set<TTransactionId> watchSet;
-        auto watchTransaction = [&] (ITransactionPtr transaction) {
+        auto watchTransaction = [&] (TTransactionPtr transaction) {
             if (transaction) {
                 watchSet.insert(transaction->GetId());
             }
@@ -1109,7 +1109,7 @@ private:
             }
         }
 
-        auto isTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+        auto isTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
             if (!transaction) {
                 return true;
             }
@@ -1121,7 +1121,7 @@ private:
             return false;
         };
 
-        auto isUserTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+        auto isUserTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
             if (isTransactionAlive(operation, transaction)) {
                 return true;
             }
@@ -1132,7 +1132,7 @@ private:
             return false;
         };
 
-        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
             if (isTransactionAlive(operation, transaction)) {
                 return true;
             }

@@ -20,6 +20,7 @@
 #include <core/rpc/channel.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/rpc_helpers.h>
 
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/attribute_helpers.h>
@@ -167,7 +168,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
         TObjectServiceProxy proxy(masterChannel);
 
-        ITransactionPtr transaction;
+        TTransactionPtr transaction;
 
         // Start outer transaction.
         {
@@ -175,7 +176,9 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             options.Attributes->Set(
                 "title",
                 Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetOperationId())));
-            transaction = transactionManager->Start(options);
+            auto transactionOrError = WaitFor(transactionManager->Start(options));
+            THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+            transaction = transactionOrError.GetValue();
         }
 
         // Remove previous snapshot, if exists.
@@ -236,7 +239,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
         // Commit outer transaction.
         {
-            auto result = WaitFor(transaction->AsyncCommit());
+            auto result = WaitFor(transaction->Commit());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     } catch (const std::exception& ex) {

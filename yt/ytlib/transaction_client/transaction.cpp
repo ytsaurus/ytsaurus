@@ -12,14 +12,5 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetTransactionId(IClientRequestPtr request, ITransactionPtr transaction)
-{
-    NCypressClient::SetTransactionId(
-        request,
-        transaction ? transaction->GetId() : NullTransactionId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NTransactionClient
 } // namespace NYT

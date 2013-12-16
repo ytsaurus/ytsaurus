@@ -15,7 +15,7 @@ protected:
     TTransactionListener();
 
     //! Starts listening for transaction abort.
-    void ListenTransaction(ITransactionPtr transaction);
+    void ListenTransaction(TTransactionPtr transaction);
 
     //! Checks if any of transactions that we are listening to were aborted.
     //! If so, raises an exception.

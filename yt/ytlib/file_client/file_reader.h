@@ -34,7 +34,7 @@ public:
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        NTransactionClient::ITransactionPtr transaction,
+        NTransactionClient::TTransactionPtr transaction,
         const NYPath::TRichYPath& richPath,
         const TNullable<i64>& offset = Null,
         const TNullable<i64>& length = Null);
@@ -53,7 +53,7 @@ private:
     TFileReaderConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NChunkClient::IBlockCachePtr BlockCache;
-    NTransactionClient::ITransactionPtr Transaction;
+    NTransactionClient::TTransactionPtr Transaction;
     NYPath::TRichYPath RichPath;
     TNullable<i64> Offset;
     TNullable<i64> Length;

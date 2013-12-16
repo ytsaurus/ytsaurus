@@ -13,7 +13,7 @@
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>

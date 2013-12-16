@@ -183,7 +183,7 @@ public:
                 LOG_INFO(response.Error, "Command failed (Command: %s)", ~request.CommandName);
             }
 
-            context->GetTransactionManager()->AsyncAbortAll();
+            context->GetTransactionManager()->AbortAll();
 
             WaitFor(context->TerminateChannels());
 

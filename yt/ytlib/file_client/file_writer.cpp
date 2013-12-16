@@ -15,7 +15,7 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/rpc_helpers.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 
@@ -36,7 +36,7 @@ using namespace NConcurrency;
 TAsyncWriter::TAsyncWriter(
     TFileWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    ITransactionPtr transaction,
+    TTransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
     const TRichYPath& richPath)
     : Config(config)
@@ -71,11 +71,11 @@ TAsyncError TAsyncWriter::AsyncOpen()
     options.ParentId = Transaction ? Transaction->GetId() : NullTransactionId;
     options.EnableUncommittedAccounting = false;
     options.Attributes->Set("title", Sprintf("File upload to %s", ~RichPath.GetPath()));
-    return TransactionManager->AsyncStart(options).Apply(
+    return TransactionManager->Start(options).Apply(
             BIND(&TThis::OnUploadTransactionStarted, MakeStrong(this)));
 }
 
-TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> transactionOrError)
+TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<TTransactionPtr> transactionOrError)
 {
     if (!transactionOrError.IsOK()) {
         return MakeFuture(TError("Error creating upload transaction")
@@ -214,7 +214,7 @@ void TAsyncWriter::Close()
     }
 
     {
-        auto error = WaitFor(UploadTransaction->AsyncCommit(NHydra::NullMutationId));
+        auto error = WaitFor(UploadTransaction->Commit(NHydra::NullMutationId));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to commit upload transaction");
     }
 }

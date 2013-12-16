@@ -1,14 +1,11 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
-#include "transaction.h"
 #include "config.h"
 #include "private.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/parallel_awaiter.h>
-
-#include <core/rpc/helpers.h>
 
 #include <core/ytree/attributes.h>
 
@@ -76,11 +73,11 @@ public:
         ITimestampProviderPtr timestampProvider,
         TCellDirectoryPtr cellDirectory);
 
-    TFuture<TErrorOr<ITransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
+    TFuture<TErrorOr<TTransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
 
-    ITransactionPtr Start(const TTransactionStartOptions& options);
+    TTransactionPtr Start(const TTransactionStartOptions& options);
 
-    ITransactionPtr Attach(const TTransactionAttachOptions& options);
+    TTransactionPtr Attach(const TTransactionAttachOptions& options);
 
     void AsyncAbortAll();
 
@@ -94,17 +91,17 @@ private:
     TCellDirectoryPtr CellDirectory_;
 
     TSpinLock SpinLock_;
-    yhash_set<TTransaction*> AliveTransactions_;
+    yhash_set<TTransaction::TImpl*> AliveTransactions_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager::TTransaction
-    : public ITransaction
+class TTransaction::TImpl
+    : public TRefCounted
 {
 public:
-    explicit TTransaction(TImplPtr owner)
+    explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
         , AutoAbort_(false)
         , Ping_(false)
@@ -115,7 +112,7 @@ public:
         , StartTimestamp_(NullTimestamp)
     { }
 
-    ~TTransaction()
+    ~TImpl()
     {
         if (AutoAbort_) {
             if (State_ == EState::Active) {
@@ -145,7 +142,7 @@ public:
         Timeout_ = options.Timeout;
 
         return Owner_->TimestampProvider_->GenerateNewTimestamp()
-            .Apply(BIND(&TTransaction::OnGotStartTimestamp, MakeStrong(this), options));
+            .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
     }
 
     void Attach(const TTransactionAttachOptions& options)
@@ -172,7 +169,7 @@ public:
         }
     }
 
-    virtual TAsyncError AsyncCommit(const TMutationId& mutationId) override
+    TAsyncError AsyncCommit(const TMutationId& mutationId)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -204,10 +201,10 @@ public:
         }
 
         return StartAwaiter_->Complete().Apply(
-            BIND(&TTransaction::OnAllParticipantsStarted, MakeStrong(this), mutationId));
+            BIND(&TImpl::OnAllParticipantsStarted, MakeStrong(this), mutationId));
     }
 
-    virtual TAsyncError AsyncAbort(const TMutationId& mutationId) override
+    TAsyncError AsyncAbort(const TMutationId& mutationId)
     {
         auto this_ = MakeStrong(this);
         return SendAbort(mutationId).Apply(BIND([this, this_] (TError error) -> TError {
@@ -218,12 +215,12 @@ public:
         }));
     }
 
-    virtual TAsyncError AsyncPing() override
+    TAsyncError AsyncPing()
     {
         return SendPing();
     }
 
-    virtual void Detach() override
+    void Detach()
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -255,19 +252,19 @@ public:
     }
 
 
-    virtual TTransactionId GetId() const override
+    TTransactionId GetId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Id_;
     }
 
-    virtual TTimestamp GetStartTimestamp() const override
+    TTimestamp GetStartTimestamp() const
     {
         return StartTimestamp_;
     }
 
     
-    virtual void AddParticipant(const NElection::TCellGuid& cellGuid) override
+    void AddParticipant(const NElection::TCellGuid& cellGuid)
     {
         YCHECK(TypeFromId(cellGuid) == EObjectType::TabletCell);
 
@@ -302,23 +299,25 @@ public:
         asyncRsp.Get();
         StartAwaiter_->Await(
             asyncRsp,
-            BIND(&TTransaction::OnParticipantAdded, MakeStrong(this), cellGuid));
+            BIND(&TImpl::OnParticipantAdded, MakeStrong(this), cellGuid));
     }
 
 
-    virtual void SubscribeAborted(const TCallback<void()>& handler) override
+    void SubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Aborted_.Subscribe(handler);
     }
 
-    virtual void UnsubscribeAborted(const TCallback<void()>& handler) override
+    void UnsubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YUNREACHABLE();
     }
 
 private:
+    friend class TTransactionManager::TImpl;
+
     DECLARE_ENUM(EState,
         (Active)
         (Aborted)
@@ -327,7 +326,7 @@ private:
         (Detached)
    );
 
-    TImplPtr Owner_;
+    TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
     bool AutoAbort_;
     bool Ping_;
@@ -393,7 +392,7 @@ private:
     void SchedulePing()
     {
         TDelayedExecutor::Submit(
-            BIND(IgnoreResult(&TTransaction::SendPing), MakeWeak(this)),
+            BIND(IgnoreResult(&TImpl::SendPing), MakeWeak(this)),
             Owner_->Config_->PingPeriod);
     }
 
@@ -447,7 +446,7 @@ private:
         }
 
         return req->Invoke().Apply(
-            BIND(&TTransaction::OnTransactionStarted, MakeStrong(this)));
+            BIND(&TImpl::OnTransactionStarted, MakeStrong(this)));
     }
 
     TError OnTransactionStarted(TTransactionSupervisorServiceProxy::TRspStartTransactionPtr rsp)
@@ -551,7 +550,7 @@ private:
         SetOrGenerateMutationId(req, mutationId);
 
         return req->Invoke().Apply(
-            BIND(&TTransaction::OnTransactionCommitted, MakeStrong(this), coordinatorCellGuid));
+            BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellGuid));
     }
 
     TError OnTransactionCommitted(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspCommitTransactionPtr rsp)
@@ -581,7 +580,7 @@ private:
         : public TRefCounted
     {
     public:
-        explicit TPingSession(TTransactionPtr transaction)
+        explicit TPingSession(TIntrusivePtr<TTransaction::TImpl> transaction)
             : Transaction_(transaction)
             , Promise_(NewPromise<TError>())
             , Awaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
@@ -617,7 +616,7 @@ private:
         }
 
     private:
-        TTransactionPtr Transaction_;
+        TIntrusivePtr<TTransaction::TImpl> Transaction_;
         TAsyncErrorPromise Promise_;
         TParallelAwaiterPtr Awaiter_;
 
@@ -676,8 +675,8 @@ private:
         : public TRefCounted
     {
     public:
-        // NB: Avoid passing TTransactionPtr here since destruction might be in progress.
-        explicit TAbortSession(TTransaction* transaction, const TMutationId& mutationId)
+        // NB: Avoid passing TIntrusivePtr here since destruction might be in progress.
+        explicit TAbortSession(TTransaction::TImpl* transaction, const TMutationId& mutationId)
             : Transaction_(transaction)
             , TransactionId_(transaction->GetId())
             , MutationId_(mutationId)
@@ -719,7 +718,7 @@ private:
         }
 
     private:
-        TTransaction* Transaction_;
+        TTransaction::TImpl* Transaction_;
         TTransactionId TransactionId_;
         TMutationId MutationId_;
         TAsyncErrorPromise Promise_;
@@ -840,43 +839,36 @@ TTransactionManager::TImpl::TImpl(
     YCHECK(CellDirectory_);
 }
 
-TFuture<TErrorOr<ITransactionPtr>> TTransactionManager::TImpl::AsyncStart(const TTransactionStartOptions& options)
+TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::AsyncStart(const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    typedef TErrorOr<ITransactionPtr> TOutput;
+    typedef TErrorOr<TTransactionPtr> TOutput;
 
-    auto transaction = New<TTransaction>(this);
+    auto transaction = New<TTransaction::TImpl>(this);
     return transaction->Start(options).Apply(
         BIND([=] (TError error) -> TOutput {
-            if (error.IsOK()) {
-                return TOutput(transaction);
+            if (!error.IsOK()) {
+                return TOutput(error);
             }
-            return TOutput(error);
+            return TOutput(New<TTransaction>(transaction));
     }));
 }
 
-ITransactionPtr TTransactionManager::TImpl::Start(const TTransactionStartOptions& options)
-{
-    auto transactionOrError = AsyncStart(options).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting transaction");
-    return transactionOrError.GetValue();
-}
-
-ITransactionPtr TTransactionManager::TImpl::Attach(const TTransactionAttachOptions& options)
+TTransactionPtr TTransactionManager::TImpl::Attach(const TTransactionAttachOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(this);
+    auto transaction = New<TTransaction::TImpl>(this);
     transaction->Attach(options);
-    return transaction;
+    return New<TTransaction>(transaction);
 }
 
 void TTransactionManager::TImpl::AsyncAbortAll()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    std::vector<ITransactionPtr> transactions;
+    std::vector<TIntrusivePtr<TTransaction::TImpl>> transactions;
     {
         TGuard<TSpinLock> guard(SpinLock_);
         for (auto* rawTransaction : AliveTransactions_) {
@@ -888,9 +880,55 @@ void TTransactionManager::TImpl::AsyncAbortAll()
     }
 
     for (const auto& transaction : transactions) {
-        transaction->AsyncAbort();
+        transaction->AsyncAbort(NullMutationId);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransaction::TTransaction(TIntrusivePtr<TImpl> impl)
+    : Impl_(impl)
+{ }
+
+TTransaction::~TTransaction()
+{ }
+
+TAsyncError TTransaction::Commit(const NHydra::TMutationId& mutationId /*= NHydra::NullMutationId*/)
+{
+    return Impl_->AsyncCommit(mutationId);
+}
+
+TAsyncError TTransaction::Abort(const NHydra::TMutationId& mutationId /*= NHydra::NullMutationId*/)
+{
+    return Impl_->AsyncAbort(mutationId);
+}
+
+void TTransaction::Detach()
+{
+    Impl_->Detach();
+}
+
+TAsyncError TTransaction::Ping()
+{
+    return Impl_->AsyncPing();
+}
+
+TTransactionId TTransaction::GetId() const
+{
+    return Impl_->GetId();
+}
+
+TTimestamp TTransaction::GetStartTimestamp() const
+{
+    return Impl_->GetStartTimestamp();
+}
+
+void TTransaction::AddParticipant(const NElection::TCellGuid& cellGuid)
+{
+    Impl_->AddParticipant(cellGuid);
+}
+
+DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -900,7 +938,7 @@ TTransactionManager::TTransactionManager(
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         config,
         masterCellGuid,
         masterChannel,
@@ -911,24 +949,19 @@ TTransactionManager::TTransactionManager(
 TTransactionManager::~TTransactionManager()
 { }
 
-TFuture<TErrorOr<ITransactionPtr>> TTransactionManager::AsyncStart(const TTransactionStartOptions& options)
+TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::Start(const TTransactionStartOptions& options)
 {
-    return Impl->AsyncStart(options);
+    return Impl_->AsyncStart(options);
 }
 
-ITransactionPtr TTransactionManager::Start(const TTransactionStartOptions& options)
+TTransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)
 {
-    return Impl->Start(options);
+    return Impl_->Attach(options);
 }
 
-ITransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)
+void TTransactionManager::AbortAll()
 {
-    return Impl->Attach(options);
-}
-
-void TTransactionManager::AsyncAbortAll()
-{
-    Impl->AsyncAbortAll();
+    Impl_->AsyncAbortAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

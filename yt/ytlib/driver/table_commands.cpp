@@ -39,7 +39,6 @@
 
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/new_table_client/chunk_writer.h>
@@ -318,7 +317,7 @@ void TInsertCommand::DoExecute()
     auto transactionManager = Context->GetTransactionManager();
     TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(transactionManager->AsyncStart(startOptions));
+    auto transactionOrError = WaitFor(transactionManager->Start(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
@@ -354,7 +353,7 @@ void TInsertCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
     }
 
-    auto commitResult = WaitFor(transaction->AsyncCommit());
+    auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
 }
 
@@ -561,7 +560,7 @@ void TDeleteCommand::DoExecute()
     auto transactionManager = Context->GetTransactionManager();
     TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(transactionManager->AsyncStart(startOptions));
+    auto transactionOrError = WaitFor(transactionManager->Start(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
@@ -583,7 +582,7 @@ void TDeleteCommand::DoExecute()
     auto writeRsp = WaitFor(writeReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
 
-    auto commitResult = WaitFor(transaction->AsyncCommit());
+    auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
 }
 

@@ -39,7 +39,7 @@ void TStartTransactionCommand::DoExecute()
     }
 
     auto transactionManager = Context->GetTransactionManager();
-    auto transactionOrError = WaitFor(transactionManager->AsyncStart(options));
+    auto transactionOrError = WaitFor(transactionManager->Start(options));
     auto transaction = transactionOrError.GetValueOrThrow();
     transaction->Detach();
 
@@ -56,7 +56,7 @@ void TPingTransactionCommand::DoExecute()
         return;
 
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->AsyncPing());
+    auto result = WaitFor(transaction->Ping());
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
@@ -65,7 +65,7 @@ void TPingTransactionCommand::DoExecute()
 void TCommitTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->AsyncCommit(GenerateMutationId()));
+    auto result = WaitFor(transaction->Commit(GenerateMutationId()));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
@@ -74,7 +74,7 @@ void TCommitTransactionCommand::DoExecute()
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->AsyncAbort(GenerateMutationId()));
+    auto result = WaitFor(transaction->Abort(GenerateMutationId()));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 

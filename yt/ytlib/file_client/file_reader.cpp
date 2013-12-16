@@ -8,7 +8,8 @@
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/rpc_helpers.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -33,7 +34,7 @@ TAsyncReader::TAsyncReader(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
-    NTransactionClient::ITransactionPtr transaction,
+    NTransactionClient::TTransactionPtr transaction,
     const TRichYPath& richPath,
     const TNullable<i64>& offset,
     const TNullable<i64>& length)

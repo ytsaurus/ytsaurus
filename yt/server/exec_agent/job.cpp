@@ -15,7 +15,7 @@
 
 #include <core/ytree/serialize.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 #include <ytlib/file_client/file_chunk_reader.h>

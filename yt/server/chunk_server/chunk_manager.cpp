@@ -64,7 +64,6 @@ using namespace NRpc;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
-using namespace NTransactionClient;
 using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NYTree;

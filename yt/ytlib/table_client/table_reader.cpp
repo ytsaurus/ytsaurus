@@ -17,7 +17,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -36,7 +36,7 @@ using namespace NConcurrency;
 TAsyncTableReader::TAsyncTableReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NTransactionClient::ITransactionPtr transaction,
+    NTransactionClient::TTransactionPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,
     const NYPath::TRichYPath& richPath)
     : Config(config)
