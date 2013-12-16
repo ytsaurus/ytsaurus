@@ -48,7 +48,11 @@ public:
             channelFactory,
             MasterChannel_);
 
-        TransactionManager_ = New<TTransactionManager>(
+		TimestampProvider_ = CreateRemoteTimestampProvider(
+			Config_->TimestampProvider,
+			channelFactory);
+		
+		TransactionManager_ = New<TTransactionManager>(
             Config_->TransactionManager,
             Config_->Masters->CellGuid,
             MasterChannel_,
@@ -67,10 +71,6 @@ public:
             Config_->TableMountCache,
             MasterChannel_,
             CellDirectory_);
-
-        TimestampProvider_ = CreateRemoteTimestampProvider(
-            Config_->TimestampProvider,
-            channelFactory);
     }
 
 
