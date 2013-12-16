@@ -262,8 +262,7 @@ class TProtocolReader::TImpl
 {
 public:
     explicit TImpl(const Stroka& data)
-        : RawStream_(data.data(), data.length())
-        , CodedStream_(&RawStream_)
+        : CodedStream_(reinterpret_cast<const ui8*>(data.data()), data.length())
         , AlignedPool_(ReaderAlignedChunkSize)
         , UnalignedPool_(ReaderUnalignedChunkSize)
     {
@@ -317,7 +316,6 @@ public:
     }
 
 private:
-    google::protobuf::io::ArrayInputStream RawStream_;
     google::protobuf::io::CodedInputStream CodedStream_;
 
     int ProtocolVersion_;
