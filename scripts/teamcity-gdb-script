@@ -1,4 +1,5 @@
 handle SIGHUP nostop print pass
+handle SIGPIPE nostop print nopass
 
 set print array on
 set print pretty on
