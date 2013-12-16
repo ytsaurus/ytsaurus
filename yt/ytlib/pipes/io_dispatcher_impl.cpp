@@ -75,7 +75,7 @@ void TIODispatcher::TImpl::ThreadMain()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    NConcurrency::SetCurrentThreadName("FileIO");
+    NConcurrency::SetCurrentThreadName("PipesIO");
     EventLoop.run(0);
 }
 

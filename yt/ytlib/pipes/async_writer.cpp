@@ -42,7 +42,7 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
 void TAsyncWriter::OnStart(ev::async&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK(eventType == ev::ASYNC);
+    YCHECK(eventType | ev::ASYNC == ev::ASYNC);
 
     FDWatcher.start();
 }
@@ -50,7 +50,7 @@ void TAsyncWriter::OnStart(ev::async&, int eventType)
 void TAsyncWriter::OnWrite(ev::io&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK(eventType == ev::WRITE);
+    YCHECK(eventType | ev::WRITE == ev::WRITE);
 
     TGuard<TSpinLock> guard(WriteLock);
 
