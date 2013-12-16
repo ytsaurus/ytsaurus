@@ -418,10 +418,6 @@ public:
         int oldTabletCount = std::distance(tabletRange.first, tabletRange.second);
         int newTabletCount = static_cast<int>(pivotKeys.size());
         
-        if (newTabletCount == 0) {
-            THROW_ERROR_EXCEPTION("At least one pivot key is needed");
-        }
-
         const int MaxTabletCount = 1000;
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
