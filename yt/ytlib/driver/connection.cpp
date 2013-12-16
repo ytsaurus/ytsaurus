@@ -52,6 +52,11 @@ public:
             Config_->TimestampProvider,
             channelFactory);
 
+        CellDirectory_ = New<TCellDirectory>(
+            Config_->CellDirectory,
+            channelFactory);
+        CellDirectory_->RegisterCell(config->Masters);
+
         TransactionManager_ = New<TTransactionManager>(
             Config_->TransactionManager,
             Config_->Masters->CellGuid,
@@ -61,11 +66,6 @@ public:
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache);
-
-        CellDirectory_ = New<TCellDirectory>(
-            Config_->CellDirectory,
-            channelFactory);
-        CellDirectory_->RegisterCell(config->Masters);
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
