@@ -34,19 +34,12 @@
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/executor.h>
 
-//#include <ytlib/tablet_client/public.h>
-//#include <ytlib/tablet_client/tablet_service_proxy.h>
-//#include <ytlib/tablet_client/protocol.h>
-
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-//#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/row.h>
-
-//#include <ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <ytlib/api/transaction.h>
 
@@ -58,7 +51,6 @@ using namespace NYTree;
 using namespace NFormats;
 using namespace NChunkClient;
 using namespace NTableClient;
-//using namespace NTabletClient;
 using namespace NQueryClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
