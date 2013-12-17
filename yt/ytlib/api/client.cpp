@@ -167,7 +167,9 @@ private:
             std::vector<TVersionedRow> rows;
             reader.ReadVersionedRowset(&rows);
 
-            return New<TRowset>(rsp->encoded_response(), std::move(rows));
+            return TErrorOr<IRowsetPtr>(New<TRowset>(
+                rsp->encoded_response(),
+                std::move(rows)));
         } catch (const std::exception& ex) {
             return TError(ex);
         }
