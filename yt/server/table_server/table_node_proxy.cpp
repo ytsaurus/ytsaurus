@@ -74,6 +74,7 @@ private:
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override;
     virtual void ValidatePrepareForUpdate() override;
+    virtual void Clear() override;
 
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
     virtual bool DoInvoke(IServiceContextPtr context) override;
@@ -150,6 +151,15 @@ void TTableNodeProxy::ValidatePrepareForUpdate()
     if (!node->Tablets().empty()) {
         THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
     }
+}
+
+void TTableNodeProxy::Clear()
+{
+    TChunkOwnerNodeProxy::Clear();
+
+    auto* node = GetThisTypedImpl();
+    node->KeyColumns().clear();
+    node->SetSorted(false);
 }
 
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)

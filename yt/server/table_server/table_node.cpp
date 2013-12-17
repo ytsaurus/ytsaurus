@@ -146,6 +146,7 @@ protected:
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
+
 };
 
 INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)

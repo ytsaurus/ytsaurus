@@ -662,6 +662,9 @@ void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
     }
 }
 
+void TChunkOwnerNodeProxy::Clear()
+{ }
+
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
     DeclareMutating();
@@ -726,6 +729,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 
             resultChunkList = newChunkList;
 
+            Clear();
+
             LOG_DEBUG_UNLESS(
                 IsRecovery(),
                 "Node is switched to \"overwrite\" mode (NodeId: %s, NewChunkListId: %s)",
@@ -743,7 +748,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     SetModified();
 
     ToProto(response->mutable_chunk_list_id(), resultChunkList->GetId());
-    context->SetResponseInfo("ChunkListId: %s", ~ToString(resultChunkList->GetId()));
+    context->SetResponseInfo("ChunkListId: %s",
+        ~ToString(resultChunkList->GetId()));
 
     context->Reply();
 }

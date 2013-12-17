@@ -39,6 +39,7 @@ protected:
         const NChunkClient::TReadLimit& upperLimit,
         const NChunkClient::TReadLimit& lowerLimit);
     virtual void ValidatePrepareForUpdate();
+    virtual void Clear();
 
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
