@@ -10,24 +10,34 @@ namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const char* const DefaultContentType = "application/json";
+
 //! Formats a canonical "Internal Server Error" (500) response.
-Stroka FormatInternalServerErrorResponse(const Stroka& body = "");
+Stroka FormatInternalServerErrorResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
 //! Formats a canonical "Not Implemented" (501) response.
-Stroka FormatNotImplementedResponse(const Stroka& body = "");
-//! Formats a canonical "Bad Gateway" (502) response.
-Stroka FormatBadGatewayResponse(const Stroka& body = "");
+Stroka FormatNotImplementedResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
+///! Formats a canonical "Bad Gateway" (502) response.
+Stroka FormatBadGatewayResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
 //! Formats a canonical "Service Unavailable" (503) response.
-Stroka FormatServiceUnavailableResponse(const Stroka& body = "");
+Stroka FormatServiceUnavailableResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
 //! Formats a canonical "Gateway Timeout" (504) response.
-Stroka FormatGatewayTimeoutResponse(const Stroka& body = "");
+Stroka FormatGatewayTimeoutResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
 //! Formats a canonical "Bad Request" (400) response.
-Stroka FormatBadRequestResponse(const Stroka& body = "");
+Stroka FormatBadRequestResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
 //! Formats a canonical "Not Found" (404) response.
-Stroka FormatNotFoundResponse(const Stroka& body = "");
+Stroka FormatNotFoundResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
 //! Formats a canonical "See Other" (303) response.
 Stroka FormatRedirectResponse(const Stroka& location);
 //! Formats a canonical "OK" (200) response.
-Stroka FormatOKResponse(const Stroka& body = "");
+Stroka FormatOKResponse(const Stroka& body = "",
+    const Stroka& type = DefaultContentType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
