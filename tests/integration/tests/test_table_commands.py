@@ -92,7 +92,7 @@ class TestTableCommands(YTEnvSetup):
         upload('//tmp/file', content)
         with pytest.raises(YtError): read('//tmp/file')
 
-    def test_row_index_selector(self):
+    def test_row_index_selector1(self):
         create('table', '//tmp/table')
 
         write('//tmp/table', [{"a": 0}, {"b": 1}, {"c": 2}, {"d": 3}])
@@ -114,7 +114,7 @@ class TestTableCommands(YTEnvSetup):
         # reading key selectors from unsorted table
         with pytest.raises(YtError): read('//tmp/table[:a]')
 
-    def test_row_key_selector(self):
+    def test_row_key_selector2(self):
         create('table', '//tmp/table')
 
         v1 = {'s' : 'a', 'i': 0,    'd' : 15.5}
