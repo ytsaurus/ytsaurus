@@ -36,7 +36,7 @@ private:
     ev::async StartWatcher;
 
     TAsyncError RegistrationError;
-    TNullable<TAsyncErrorPromise> ReadyPromise;
+    TAsyncErrorPromise ReadyPromise;
 
     TSpinLock ReadLock;
 

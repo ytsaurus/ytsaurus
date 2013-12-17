@@ -62,9 +62,9 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
             Reader->Close();
         }
 
-        if (ReadyPromise.HasValue()) {
+        if (ReadyPromise) {
             if (Reader->IsReady()) {
-                ReadyPromise->Set(GetState());
+                ReadyPromise.Set(GetState());
                 ReadyPromise.Reset();
             }
         }
@@ -106,8 +106,9 @@ TAsyncError TAsyncReader::GetReadyEvent()
 
     LOG_DEBUG("Returning a new future");
 
-    ReadyPromise.Assign(NewPromise<TError>());
-    return ReadyPromise->ToFuture();
+    YCHECK(!ReadyPromise);
+    ReadyPromise = NewPromise<TError>();
+    return ReadyPromise.ToFuture();
 }
 
 TError TAsyncReader::Close()
@@ -118,8 +119,8 @@ TError TAsyncReader::Close()
 
     Reader->Close();
 
-    if (ReadyPromise.HasValue()) {
-        ReadyPromise->Set(TError("The reader was aborted"));
+    if (ReadyPromise) {
+        ReadyPromise.Set(TError("The reader was aborted"));
         ReadyPromise.Reset();
     }
 
