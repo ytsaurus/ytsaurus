@@ -305,7 +305,7 @@ TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueTy
     for (int index = 0; index < prefixLength; ++index) {
         builder.AddValue(key[index]);
     }
-    builder.AddValue(MakeSentinelValue<TUnversionedValue>(sentinelType));
+    builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
     return builder.Finish();
 }
 
@@ -331,7 +331,7 @@ TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
 static TOwningKey MakeSentinelKey(EValueType type)
 {
     TUnversionedOwningRowBuilder builder;
-    builder.AddValue(MakeUnversionedSentinelValue(type, 0));
+    builder.AddValue(MakeUnversionedSentinelValue(type));
     return builder.Finish();
 }
 
