@@ -6,13 +6,15 @@
 
 #include <core/concurrency/async_stream.h>
 
-#include <ytlib/formats/format.h>
-
 #include <core/ytree/public.h>
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
 
 #include <core/rpc/public.h>
+
+#include <ytlib/formats/format.h>
+
+#include <ytlib/api/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -129,7 +131,7 @@ struct IDriver
     virtual std::vector<TCommandDescriptor> GetCommandDescriptors() = 0;
 
     //! Returns the underlying connection.
-    virtual IConnectionPtr GetConnection() = 0;
+    virtual NApi::IConnectionPtr GetConnection() = 0;
 
 };
 

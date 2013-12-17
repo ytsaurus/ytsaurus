@@ -2,9 +2,11 @@
 
 #include "public.h"
 
+#include <core/rpc/public.h>
+
 #include <yt/ytlib/query_client/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -17,7 +19,7 @@ class TQueryCallbacksProvider
 public:
     TQueryCallbacksProvider(
         NRpc::IChannelPtr masterChannel,
-        TTableMountCachePtr tableMountCache);
+        NTabletClient::TTableMountCachePtr tableMountCache);
     ~TQueryCallbacksProvider();
 
     NQueryClient::IPrepareCallbacks* GetPrepareCallbacks();

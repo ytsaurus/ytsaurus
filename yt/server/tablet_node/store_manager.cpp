@@ -14,6 +14,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
+#include <ytlib/api/transaction.h>
+
 namespace NYT {
 namespace NTabletNode {
 

@@ -22,6 +22,7 @@ set( DIRS
   hydra
   hive
   formats
+  api
 )
 
 foreach( _d_ ${DIRS} )

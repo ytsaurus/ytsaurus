@@ -28,13 +28,20 @@ extern const TTabletId NullTabletId;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TTableMountInfo;
+typedef TIntrusivePtr<TTableMountInfo> TTableMountInfoPtr;
+
+class TTableMountCache;
+typedef TIntrusivePtr<TTableMountCache> TTableMountCachePtr;
+
+class TTableMountCacheConfig;
+typedef TIntrusivePtr<TTableMountCacheConfig> TTableMountCacheConfigPtr;
+
 class TTableMountConfig;
 typedef TIntrusivePtr<TTableMountConfig> TTableMountConfigPtr;
 
 class TProtocolReader;
 class TProtocolWriter;
-
-struct TColumnFilter;
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -7,6 +7,8 @@
 
 #include <ytlib/new_table_client/public.h>
 
+#include <ytlib/api/public.h>
+
 namespace NYT {
 namespace NTabletClient {
 
@@ -51,18 +53,6 @@ DECLARE_ENUM(EProtocolCommand,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TColumnFilter
-{
-    TColumnFilter();
-    TColumnFilter(const std::vector<Stroka>& columns);
-    TColumnFilter(const TColumnFilter& other);
-
-    bool All;
-    SmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TProtocolWriter
 {
 public:
@@ -71,7 +61,7 @@ public:
 
     void WriteCommand(EProtocolCommand command);
 
-    void WriteColumnFilter(const TColumnFilter& filter);
+    void WriteColumnFilter(const NApi::TColumnFilter& filter);
 
     void WriteUnversionedRow(NVersionedTableClient::TUnversionedRow row);
     void WriteUnversionedRow(const std::vector<NVersionedTableClient::TUnversionedValue>& row);
@@ -101,7 +91,7 @@ public:
 
     EProtocolCommand ReadCommand();
     
-    TColumnFilter ReadColumnFilter();
+    NApi::TColumnFilter ReadColumnFilter();
 
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
     NVersionedTableClient::TVersionedRow ReadVersionedRow();

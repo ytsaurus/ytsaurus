@@ -10,8 +10,6 @@
 #include "table_commands.h"
 #include "scheduler_commands.h"
 #include "query_callbacks_provider.h"
-#include "table_mount_cache.h"
-#include "connection.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -33,6 +31,10 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 
+#include <ytlib/tablet_client/table_mount_cache.h>
+
+#include <ytlib/api/connection.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -48,6 +50,8 @@ using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NHive;
+using namespace NApi;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

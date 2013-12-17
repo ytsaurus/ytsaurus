@@ -9,7 +9,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/driver/connection.h>
+#include <ytlib/api/connection.h>
 
 namespace NYT {
 namespace NDriver {

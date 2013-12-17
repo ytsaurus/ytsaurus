@@ -20,58 +20,15 @@
 
 #include <ytlib/hive/config.h>
 
+#include <ytlib/api/config.h>
+
 namespace NYT {
 namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableMountCacheConfig
-    : public TYsonSerializable
-{
-public:
-    TDuration SuccessExpirationTime;
-    TDuration FailureExpirationTime;
-
-    TTableMountCacheConfig()
-    {
-        RegisterParameter("success_expiration_time", SuccessExpirationTime)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("failure_expiration_time", FailureExpirationTime)
-            .Default(TDuration::Seconds(5));
-    }
-};
-
-class TConnectionConfig
-    : public TYsonSerializable
-{
-public:
-    NHive::TCellDirectoryConfigPtr CellDirectory;
-    NHydra::TPeerDiscoveryConfigPtr Masters;
-    NScheduler::TSchedulerConnectionConfigPtr Scheduler;
-    NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
-    NChunkClient::TClientBlockCacheConfigPtr BlockCache;
-    TTableMountCacheConfigPtr TableMountCache;
-    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
-
-    TConnectionConfig()
-    {
-        RegisterParameter("cell_directory", CellDirectory)
-            .DefaultNew();
-        RegisterParameter("masters", Masters);
-        RegisterParameter("scheduler", Scheduler)
-            .DefaultNew();
-        RegisterParameter("transaction_manager", TransactionManager)
-            .DefaultNew();
-        RegisterParameter("block_cache", BlockCache)
-            .DefaultNew();
-        RegisterParameter("table_mount_cache", TableMountCache)
-            .DefaultNew();
-        RegisterParameter("timestamp_provider", TimestampProvider);
-    }
-};
-
 class TDriverConfig
-    : public TConnectionConfig
+    : public NApi::TConnectionConfig
 {
 public:
     NFileClient::TFileReaderConfigPtr FileReader;

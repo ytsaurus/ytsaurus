@@ -14,15 +14,13 @@
 
 #include <ytlib/hive/public.h>
 
-#include <ytlib/tablet_client/public.h>
-
 #include <ytlib/new_table_client/public.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/row.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
-namespace NDriver {
+namespace NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,19 +52,18 @@ public:
         TTableMountCacheConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NHive::TCellDirectoryPtr cellDirectory);
-
     ~TTableMountCache();
 
     TFuture<TErrorOr<TTableMountInfoPtr>> LookupInfo(const NYPath::TYPath& path);
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
+} // namespace NTabletClient
 } // namespace NYT
 

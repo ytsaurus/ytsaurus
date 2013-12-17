@@ -2,11 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/nullable.h>
-
 #include <core/actions/signal.h>
-
-#include <core/ytree/public.h>
 
 #include <core/rpc/public.h>
 
@@ -14,15 +10,12 @@
 
 #include <ytlib/hive/public.h>
 
+#include <ytlib/api/client.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(ETransactionType,
-    (Master) // accepted by both masters and tablets
-    (Tablet) // accepted by tablets only
-);
 
 //! Represents a transaction within a client.
 class TTransaction
@@ -67,7 +60,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    TTransactionId GetId() const;
+    const TTransactionId& GetId() const;
 
     //! Returns the transaction start timestamp.
     /*!
@@ -94,19 +87,15 @@ public:
 
 //! Describes settings for a newly created transaction.
 struct TTransactionStartOptions
+    : public NApi::TTransactionStartOptions
 {
     TTransactionStartOptions();
+    TTransactionStartOptions(const TTransactionStartOptions& other) = default;
+    TTransactionStartOptions(const NApi::TTransactionStartOptions& other);
 
-    TNullable<TDuration> Timeout;
     NHydra::TMutationId MutationId;
-    TTransactionId ParentId;
-    bool AutoAbort;
-    bool Ping;
-    bool PingAncestors;
     bool EnableUncommittedAccounting;
     bool EnableStagedAccounting;
-    std::shared_ptr<NYTree::IAttributeDictionary> Attributes; // to make the type copyable
-    ETransactionType Type;
 };
 
 //! Describes settings used for attaching to existing transactions.

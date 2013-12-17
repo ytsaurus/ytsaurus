@@ -7,7 +7,7 @@
 #include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/parallel_awaiter.h>
 
-#include <core/ytree/attributes.h>
+#include <core/ytree/public.h>
 
 #include <ytlib/transaction_client/transaction_ypath.pb.h>
 
@@ -42,16 +42,15 @@ static std::atomic<ui32> TabletTransactionCounter; // used as a part of transact
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionStartOptions::TTransactionStartOptions()
-    : AutoAbort(true)
-    , Ping(true)
-    , PingAncestors(false)
-    , EnableUncommittedAccounting(true)
+    : EnableUncommittedAccounting(true)
     , EnableStagedAccounting(true)
-    , Attributes(CreateEphemeralAttributes())
-    , Type(ETransactionType::Master)
 { }
 
-////////////////////////////////////////////////////////////////////////////////
+TTransactionStartOptions::TTransactionStartOptions(const NApi::TTransactionStartOptions& other)
+    : TTransactionStartOptions()
+{
+    static_cast<NApi::TTransactionStartOptions&>(*this) = other;
+}
 
 TTransactionAttachOptions::TTransactionAttachOptions(const TTransactionId& id)
     : Id(id)
@@ -252,20 +251,24 @@ public:
     }
 
 
-    TTransactionId GetId() const
+    const TTransactionId& GetId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
         return Id_;
     }
 
     TTimestamp GetStartTimestamp() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return StartTimestamp_;
     }
 
     
     void AddParticipant(const NElection::TCellGuid& cellGuid)
     {
+        VERIFY_THREAD_AFFINITY(ClientThread);
         YCHECK(TypeFromId(cellGuid) == EObjectType::TabletCell);
 
         {
@@ -306,12 +309,14 @@ public:
     void SubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
         Aborted_.Subscribe(handler);
     }
 
     void UnsubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
         YUNREACHABLE();
     }
 
@@ -913,7 +918,7 @@ TAsyncError TTransaction::Ping()
     return Impl_->AsyncPing();
 }
 
-TTransactionId TTransaction::GetId() const
+const TTransactionId& TTransaction::GetId() const
 {
     return Impl_->GetId();
 }

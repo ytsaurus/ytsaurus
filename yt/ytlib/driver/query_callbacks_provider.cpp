@@ -1,5 +1,4 @@
 #include "query_callbacks_provider.h"
-#include "table_mount_cache.h"
 #include "private.h"
 
 #include <core/misc/protobuf_helpers.h>
@@ -9,6 +8,11 @@
 
 #include <core/concurrency/fiber.h>
 
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/attribute_helpers.h>
+
+#include <core/rpc/caching_channel_factory.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -17,6 +21,8 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_ypath_proxy.h>
+
+#include <ytlib/tablet_client/table_mount_cache.h>
 
 #include <ytlib/new_table_client/chunk_reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
@@ -32,13 +38,6 @@
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/query_service_proxy.h>
 #include <ytlib/query_client/plan_fragment.h>
-
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/attribute_helpers.h>
-
-#include <core/rpc/caching_channel_factory.h>
-
-#include <core/concurrency/fiber.h>
 
 #include <util/random/random.h>
 
@@ -56,6 +55,7 @@ using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NQueryClient;
 using namespace NNodeTrackerClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,6 @@
 #include "public.h"
 #include "driver.h"
 #include "query_callbacks_provider.h"
-#include "connection.h"
 
 #include <core/misc/error.h>
 #include <core/misc/mpl.h>
@@ -34,6 +33,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
+
+#include <ytlib/api/connection.h>
 
 namespace NYT {
 namespace NDriver {
@@ -105,7 +106,7 @@ typedef TIntrusivePtr<TSuppressableAccessTrackingRequest> TAccessTrackingSuppres
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommandContext
-    : public IConnection
+    : public NApi::IConnection
 {
     virtual TDriverConfigPtr GetConfig() = 0;
     virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() = 0;
@@ -139,6 +140,7 @@ protected:
     ICommandContextPtr Context;
     bool Replied;
 
+    NApi::IClientPtr Client;
     std::unique_ptr<NObjectClient::TObjectServiceProxy> ObjectProxy;
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 

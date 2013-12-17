@@ -10,8 +10,10 @@
 
 #include <ytlib/hive/public.h>
 
+#include <ytlib/tablet_client/public.h>
+
 namespace NYT {
-namespace NDriver {
+namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +24,7 @@ struct IConnection
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
-    virtual TTableMountCachePtr GetTableMountCache() = 0;
+    virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NHive::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
 };
@@ -31,6 +33,6 @@ IConnectionPtr CreateConnection(TConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
+} // namespace NApi
 } // namespace NYT
 

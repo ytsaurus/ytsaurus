@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "table_commands.h"
 #include "config.h"
-#include "table_mount_cache.h"
 
 #include <core/concurrency/async_stream.h>
 #include <core/concurrency/fiber.h>
@@ -30,22 +29,26 @@
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/row.h>
 
+#include <ytlib/tablet_client/table_mount_cache.h>
+
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/executor.h>
 
-#include <ytlib/tablet_client/public.h>
-#include <ytlib/tablet_client/tablet_service_proxy.h>
-#include <ytlib/tablet_client/protocol.h>
+//#include <ytlib/tablet_client/public.h>
+//#include <ytlib/tablet_client/tablet_service_proxy.h>
+//#include <ytlib/tablet_client/protocol.h>
 
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/new_table_client/chunk_writer.h>
+//#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/row.h>
 
-#include <ytlib/tablet_client/tablet_service_proxy.h>
+//#include <ytlib/tablet_client/tablet_service_proxy.h>
+
+#include <ytlib/api/transaction.h>
 
 namespace NYT {
 namespace NDriver {
@@ -55,12 +58,13 @@ using namespace NYTree;
 using namespace NFormats;
 using namespace NChunkClient;
 using namespace NTableClient;
-using namespace NTabletClient;
+//using namespace NTabletClient;
 using namespace NQueryClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NHive;
 using namespace NVersionedTableClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,7 +262,6 @@ void TInsertCommand::DoExecute()
     auto tableMountCache = Context->GetTableMountCache();
     auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
-
     const auto& mountInfo = mountInfoOrError.GetValue();
 
     // Parse input data.
@@ -293,65 +296,19 @@ void TInsertCommand::DoExecute()
 
     // Write data into the tablets.
 
-    struct TWriteBuffer
-        : public TIntrinsicRefCounted
-    {
-        TProtocolWriter Writer;
-    };
-
-    typedef TIntrusivePtr<TWriteBuffer> TWriteBufferPtr;
-
-    yhash_map<const TTabletInfo*, TWriteBufferPtr> tabletToBuffer;
-
-    auto getBuffer = [&] (const TTabletInfo& tabletInfo) -> TWriteBufferPtr {
-        auto it = tabletToBuffer.find(&tabletInfo);
-        if (it == tabletToBuffer.end()) {
-            auto buffer = New<TWriteBuffer>();
-            YCHECK(tabletToBuffer.insert(std::make_pair(&tabletInfo, buffer)).second);
-            return buffer;
-        } else {
-            return it->second;
-        }
-    };
-
-    auto transactionManager = Context->GetTransactionManager();
-    TTransactionStartOptions startOptions;
+    NApi::TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(transactionManager->Start(startOptions));
+    auto transactionOrError = WaitFor(Client->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
+    // Convert to non-owning.
+    std::vector<TUnversionedRow> rows;
     for (const auto& row : consumer.GetRows()) {
-        const auto& tabletInfo = mountInfo->GetTablet(row);
-        if (tabletInfo.State != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %s is not mounted",
-                ~ToString(tabletInfo.TabletId));
-        }
-
-        transaction->AddParticipant(tabletInfo.CellId);
-
-        auto buffer = getBuffer(tabletInfo);
-        buffer->Writer.WriteCommand(EProtocolCommand::WriteRow);
-        buffer->Writer.WriteUnversionedRow(row);
+        rows.push_back(row);
     }
 
-    auto cellDirectory = Context->GetCellDirectory();
-    
-    for (const auto& pair : tabletToBuffer) {
-        const auto& tabletInfo = *pair.first;
-        const auto& buffer = pair.second;
-    
-        auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
-
-        TTabletServiceProxy tabletProxy(channel);
-        auto writeReq = tabletProxy.Write();
-        ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
-        ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
-        writeReq->set_encoded_request(buffer->Writer.Finish());
-
-        auto writeRsp = WaitFor(writeReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
-    }
+    transaction->WriteRows(Request->Path.GetPath(), std::move(rows));
 
     auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
@@ -460,48 +417,25 @@ void TSelectCommand::DoExecute()
 
 void TLookupCommand::DoExecute()
 {
+    TLookupOptions options;
+    options.Timestamp = Request->Timestamp;
+    options.ColumnFilter = Request->Columns ? TColumnFilter(*Request->Columns) : TColumnFilter();
+    auto lookupResult = WaitFor(Client->Lookup(
+        Request->Path.GetPath(),
+        Request->Key,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
+    auto rowset = lookupResult.GetValue();
+
     auto tableMountCache = Context->GetTableMountCache();
     auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
-
     const auto& mountInfo = mountInfoOrError.GetValue();
-    const auto& tabletInfo = mountInfo->GetTablet(Request->Key);
-    if (tabletInfo.State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION("Tablet %s is not mounted",
-            ~ToString(tabletInfo.TabletId));
-    }
-
     auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
 
-    auto cellDirectory = Context->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
-
-    TTabletServiceProxy proxy(channel);
-    auto req = proxy.Read();
-
-    ToProto(req->mutable_tablet_id(), tabletInfo.TabletId);
-    req->set_timestamp(Request->Timestamp);
-
-    TProtocolWriter writer;
-    writer.WriteCommand(EProtocolCommand::LookupRow);
-    writer.WriteUnversionedRow(Request->Key);
-    writer.WriteColumnFilter(
-        Request->Columns
-        ? TColumnFilter(*Request->Columns)
-        : TColumnFilter());
-    req->set_encoded_request(writer.Finish());
-
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-    TProtocolReader reader(rsp->encoded_response());
-    std::vector<TVersionedRow> rowset;
-    reader.ReadVersionedRowset(&rowset);
-
-    if (!rowset.empty()) {
-        YCHECK(rowset.size() <= 1);
-        auto row = rowset[0];
-
+    if (!rowset->Rows().empty()) {
+        YCHECK(rowset->Rows().size() <= 1);
+        auto row = rowset->Rows()[0];
         TBlobOutput buffer;
         auto format = Context->GetOutputFormat();
         auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
@@ -546,44 +480,18 @@ void TLookupCommand::DoExecute()
 
 void TDeleteCommand::DoExecute()
 {
-    auto tableMountCache = Context->GetTableMountCache();
-    auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
-
-    const auto& mountInfo = mountInfoOrError.GetValue();
-    const auto& tabletInfo = mountInfo->GetTablet(Request->Key);
-    if (tabletInfo.State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION("Tablet %s is not mounted",
-            ~ToString(tabletInfo.TabletId));
-    }
-
-    auto transactionManager = Context->GetTransactionManager();
-    TTransactionStartOptions startOptions;
+    NApi::TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(transactionManager->Start(startOptions));
+    auto transactionOrError = WaitFor(Client->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
-    transaction->AddParticipant(tabletInfo.CellId);
-
-    auto cellDirectory = Context->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
-
-    TTabletServiceProxy proxy(channel);
-    auto writeReq = proxy.Write();
-    ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
-    ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
-
-    TProtocolWriter writer;
-    writer.WriteCommand(EProtocolCommand::DeleteRow);
-    writer.WriteUnversionedRow(Request->Key);
-    writeReq->set_encoded_request(writer.Finish());
-
-    auto writeRsp = WaitFor(writeReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*writeRsp);
+    transaction->DeleteRow(Request->Path.GetPath(), Request->Key);
 
     auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
+
+    ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

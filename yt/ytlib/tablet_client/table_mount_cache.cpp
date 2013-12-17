@@ -5,6 +5,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/table_client/table_ypath_proxy.h>
 
 #include <ytlib/tablet_client/public.h>
@@ -14,20 +16,20 @@
 #include <ytlib/new_table_client/row.h>
 
 namespace NYT {
-namespace NDriver {
+namespace NTabletClient {
 
 using namespace NYPath;
 using namespace NRpc;
 using namespace NObjectClient;
+using namespace NCypressClient;
 using namespace NTableClient;
-using namespace NTabletClient;
 using namespace NVersionedTableClient;
 using namespace NHive;
 using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DriverLogger;
+static auto& Logger = TabletClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,20 +55,20 @@ public:
         TTableMountCacheConfigPtr config,
         IChannelPtr masterChannel,
         TCellDirectoryPtr cellDirectory)
-        : Config(config)
-        , ObjectProxy(masterChannel)
-        , CellDirectory(cellDirectory)
+        : Config_(config)
+        , ObjectProxy_(masterChannel)
+        , CellDirectory_(cellDirectory)
     { }
 
     TFuture<TErrorOr<TTableMountInfoPtr>> LookupInfo(const TYPath& path)
     {
-        TGuard<TSpinLock> guard(Spinlock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        auto it = TableMountInfoCache.find(path);
-        if (it == TableMountInfoCache.end()) {
+        auto it = PathToEntry.find(path);
+        if (it == PathToEntry.end()) {
             TTableCacheEntry entry;
             entry.Promise = NewPromise<TErrorOr<TTableMountInfoPtr>>();
-            it = TableMountInfoCache.insert(std::make_pair(path, entry)).first;
+            it = PathToEntry.insert(std::make_pair(path, entry)).first;
             RequestTableMountInfo(path);
             return entry.Promise;
         }
@@ -79,14 +81,14 @@ public:
         const auto& infoOrError = entry.Promise.Get();
         auto now = TInstant::Now();
         if (infoOrError.IsOK()) {
-            if (entry.Timestamp < now - Config->SuccessExpirationTime) {
+            if (entry.Timestamp < now - Config_->SuccessExpirationTime) {
                 // Return what we already have but refresh the cache in background.
                 RequestTableMountInfo(path);
             }
         } else {
-            if (entry.Timestamp < now - Config->FailureExpirationTime) {
+            if (entry.Timestamp < now - Config_->FailureExpirationTime) {
                 // Evict and retry.
-                TableMountInfoCache.erase(it);
+                PathToEntry.erase(it);
                 guard.Release();
                 return LookupInfo(path);
             }
@@ -96,9 +98,9 @@ public:
     }
 
 private:
-    TTableMountCacheConfigPtr Config;
-    TObjectServiceProxy ObjectProxy;
-    TCellDirectoryPtr CellDirectory;
+    TTableMountCacheConfigPtr Config_;
+    TObjectServiceProxy ObjectProxy_;
+    TCellDirectoryPtr CellDirectory_;
     
 
     struct TTableCacheEntry
@@ -107,8 +109,9 @@ private:
         TPromise<TErrorOr<TTableMountInfoPtr>> Promise;
     };
 
-    TSpinLock Spinlock;
-    yhash<TYPath, TTableCacheEntry> TableMountInfoCache;
+    TSpinLock SpinLock_;
+    yhash<TYPath, TTableCacheEntry> PathToEntry;
+
 
     void RequestTableMountInfo(const TYPath& path)
     {
@@ -116,15 +119,15 @@ private:
             ~path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
-        ObjectProxy.Execute(req).Subscribe(
+        ObjectProxy_.Execute(req).Subscribe(
             BIND(&TImpl::OnTableMountInfoResponse, MakeStrong(this), path));
     }
 
     void OnTableMountInfoResponse(const TYPath& path, TTableYPathProxy::TRspGetMountInfoPtr rsp)
     {
-        TGuard<TSpinLock> guard(Spinlock);
-        auto it = TableMountInfoCache.find(path);
-        if (it == TableMountInfoCache.end())
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = PathToEntry.find(path);
+        if (it == PathToEntry.end())
             return;
 
         auto& entry = it->second;
@@ -144,7 +147,7 @@ private:
                     tabletInfo.CellId = FromProto<TTabletCellId>(protoTabletInfo.cell_id()); 
                 }
                 if (protoTabletInfo.has_cell_config()) {
-                    CellDirectory->RegisterCell(tabletInfo.CellId, protoTabletInfo.cell_config());
+                    CellDirectory_->RegisterCell(tabletInfo.CellId, protoTabletInfo.cell_config());
                 }
                 mountInfo->Tablets.push_back(tabletInfo);
             }
@@ -177,7 +180,7 @@ TTableMountCache::TTableMountCache(
     TTableMountCacheConfigPtr config,
     IChannelPtr masterChannel,
     TCellDirectoryPtr cellDirectory)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         config,
         masterChannel,
         cellDirectory))
@@ -188,11 +191,11 @@ TTableMountCache::~TTableMountCache()
 
 TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::LookupInfo(const TYPath& path)
 {
-    return Impl->LookupInfo(path);
+    return Impl_->LookupInfo(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
+} // namespace NTabletClient
 } // namespace NYT
 

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "command.h"
-#include "connection.h"
+
+#include <ytlib/api/client.h>
 
 namespace NYT {
 namespace NDriver {
@@ -18,6 +19,7 @@ TCommandBase::TCommandBase()
 
 void TCommandBase::Prepare()
 {
+    Client = NApi::CreateClient(Context);
     ObjectProxy.reset(new TObjectServiceProxy(Context->GetMasterChannel()));
     SchedulerProxy.reset(new TSchedulerServiceProxy(Context->GetSchedulerChannel()));
 }

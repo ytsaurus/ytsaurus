@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/common.h>
+#include <core/misc/enum.h>
 
 #include <ytlib/object_client/public.h>
 
@@ -8,6 +9,11 @@ namespace NYT {
 namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(ETransactionType,
+    (Master) // accepted by both masters and tablets
+    (Tablet) // accepted by tablets only
+);
 
 struct TTransaction;
 typedef TIntrusivePtr<TTransaction> TTransactionPtr;

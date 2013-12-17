@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "connection.h"
 #include "config.h"
-#include "table_mount_cache.h"
 
 #include <core/rpc/bus_channel.h>
 
@@ -18,14 +17,17 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/tablet_client/table_mount_cache.h>
+
 namespace NYT {
-namespace NDriver {
+namespace NApi {
 
 using namespace NRpc;
 using namespace NHive;
 using namespace NHydra;
 using namespace NChunkClient;
 using namespace NTransactionClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,5 +131,5 @@ IConnectionPtr CreateConnection(TConnectionConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
+} // namespace NApi
 } // namespace NYT

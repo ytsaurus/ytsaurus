@@ -6,7 +6,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/driver/connection.h>
+#include <ytlib/api/connection.h>
 
 #include <util/stream/format.h>
 

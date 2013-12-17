@@ -7,6 +7,8 @@
 
 #include <ytlib/new_table_client/row.h>
 
+#include <ytlib/api/transaction.h>
+
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
@@ -14,28 +16,13 @@ namespace NYT {
 namespace NTabletClient {
 
 using namespace NVersionedTableClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const ui32 CurrentProtocolVersion = 1;
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TColumnFilter::TColumnFilter()
-    : All(true)
-{ }
-
-TColumnFilter::TColumnFilter(const std::vector<Stroka>& columns)
-    : All(false)
-    , Columns(columns.begin(), columns.end())
-{ }
-
-TColumnFilter::TColumnFilter(const TColumnFilter& other)
-    : All(other.All)
-    , Columns(other.Columns)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,16 +163,20 @@ private:
     template <class TValue>
     void WriteRow(TRow<TValue> row)
     {
-        WriteUInt32(row.GetValueCount());
-        for (int index = 0; index < row.GetValueCount(); ++index) {
-            WriteRowValue(row[index]);
+        if (row) {
+            WriteUInt32(row.GetValueCount() + 1);
+            for (int index = 0; index < row.GetValueCount(); ++index) {
+                WriteRowValue(row[index]);
+            }
+        } else {
+            WriteUInt32(0);
         }
     }
 
     template <class TValue>
     void WriteRow(const std::vector<TValue>& row)
     {
-        WriteUInt32(row.size());
+        WriteUInt32(row.size() + 1);
         for (int index = 0; index < static_cast<int>(row.size()); ++index) {
             WriteRowValue(row[index]);
         }
@@ -406,10 +397,14 @@ private:
     TRow<TValue> ReadRow()
     {
         ui32 count = ReadUInt32();
-        auto* header = reinterpret_cast<TRowHeader*>(AlignedPool_.Allocate(GetRowDataSize<TValue>(count)));
-        header->ValueCount = count;
+        if (count == 0) {
+            return TRow<TValue>();
+        }
+
+        auto* header = reinterpret_cast<TRowHeader*>(AlignedPool_.Allocate(GetRowDataSize<TValue>(count - 1)));
+        header->ValueCount = count - 1;
         auto row = TRow<TValue>(header);
-        for (int index = 0; index != count; ++index) {
+        for (int index = 0; index != count - 1; ++index) {
             ReadRowValue(&row[index]);
         }
         return row;
