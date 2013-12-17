@@ -678,9 +678,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Write);
-    ValidatePrepareForUpdate();
 
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
+    ValidatePrepareForUpdate();
 
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
