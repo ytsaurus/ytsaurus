@@ -379,12 +379,12 @@ NChunkClient::NProto::TDataStatistics TAsyncTableWriter::GetDataStatistics() con
 ////////////////////////////////////////////////////////////////////////////////
 
 IAsyncWriterPtr CreateAsyncTableWriter(
-        TTableWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        TTransactionPtr transaction,
-        TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath,
-        const TNullable<TKeyColumns>& keyColumns)
+    TTableWriterConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    TTransactionPtr transaction,
+    TTransactionManagerPtr transactionManager,
+    const NYPath::TRichYPath& richPath,
+    const TNullable<TKeyColumns>& keyColumns)
 {
     return New<TAsyncTableWriter>(
         config,
