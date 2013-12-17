@@ -68,7 +68,7 @@ void* TIODispatcher::TImpl::ThreadFunc(void* param)
 {
     auto* self = reinterpret_cast<TImpl*>(param);
     self->ThreadMain();
-    return NULL;
+    return nullptr;
 }
 
 void TIODispatcher::TImpl::ThreadMain()

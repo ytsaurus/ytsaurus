@@ -12,8 +12,6 @@ TAsyncReader::TAsyncReader(int fd)
     , ReadyPromise()
     , Logger(ReaderLogger)
 {
-    LOG_TRACE("Constructing...");
-
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
     FDWatcher.set(fd, ev::READ);
@@ -22,8 +20,7 @@ TAsyncReader::TAsyncReader(int fd)
 }
 
 TAsyncReader::~TAsyncReader()
-{
-}
+{ }
 
 void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
 {
@@ -55,8 +52,6 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(ReadLock);
 
-    LOG_DEBUG("Reading to buffer...");
-
     YCHECK(!Reader->ReachedEOF());
 
     if (!Reader->IsBufferFull()) {
@@ -74,6 +69,8 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
             }
         }
     } else {
+        LOG_DEBUG("The internal buffer is full. Stop the watcher");
+
         // pause for a while
         FDWatcher.stop();
     }

@@ -83,7 +83,7 @@ std::pair<TBlob, bool> TNonBlockReader::GetRead(TBlob&& buffer)
     TBlob result(std::move(ReadBuffer));
     result.Resize(BytesInBuffer);
 
-    ReadBuffer = buffer;
+    ReadBuffer = std::move(buffer);
     ReadBuffer.Resize(ReadBufferSize);
     BytesInBuffer = 0;
 
@@ -118,12 +118,7 @@ int TNonBlockReader::GetLastSystemError() const
 
 bool TNonBlockReader::IsReady() const
 {
-    if (InFailedState()) {
-        return true;
-    } else if (ReachedEOF_ || !IsBufferEmpty()) {
-        return true;
-    }
-    return false;
+    return InFailedState() || ReachedEOF_ || !IsBufferEmpty();
 }
 
 } // NDetail

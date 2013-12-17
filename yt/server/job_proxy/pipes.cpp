@@ -242,7 +242,7 @@ TError TOutputPipe::ReadAll()
                 OutputStream->Write(data.Begin(), data.Size());
             } catch (const std::exception& ex) {
                 return TError("Failed to write into output (Fd: %d)",
-                              JobDescriptor) << TError(ex);
+                    JobDescriptor) << TError(ex);
             }
         } else {
             if (!isClosed) {

@@ -305,7 +305,7 @@ private:
         auto doAll = [this] (IDataPipePtr pipe) {
             auto error = pipe->DoAll();
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Pipe failed!");
+                LOG_DEBUG(error, "Pipe has failed");
                 for (auto& pipe : OutputPipes) {
                     auto closeError = pipe->Close();
                     if (!closeError.IsOK()) {

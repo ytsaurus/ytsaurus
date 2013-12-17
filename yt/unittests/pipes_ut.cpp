@@ -9,6 +9,7 @@
 #include <ytlib/pipes/non_block_reader.h>
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
+#include <server/job_proxy/pipes.h>
 
 #include <random>
 
@@ -27,12 +28,17 @@ TEST(TIODispatcher, StartStop)
     dispatcher.Shutdown();
 }
 
+void SafeMakeNonblockingPipes(int fds[2])
+{
+    NJobProxy::SafePipe(fds);
+    NJobProxy::SafeMakeNonblocking(fds[0]);
+    NJobProxy::SafeMakeNonblocking(fds[1]);
+}
+
 TEST(TNonBlockReader, BrandNew)
 {
     int pipefds[2];
-    int err = pipe2(pipefds, O_NONBLOCK);
-
-    ASSERT_TRUE(err == 0);
+    SafeMakeNonblockingPipes(pipefds);
 
     NDetail::TNonBlockReader reader(pipefds[0]);
     EXPECT_TRUE(reader.IsBufferEmpty());
@@ -45,9 +51,7 @@ TEST(TNonBlockReader, BrandNew)
 TEST(TNonBlockReader, TryReadNeverBlocks)
 {
     int pipefds[2];
-    int err = pipe2(pipefds, O_NONBLOCK);
-
-    ASSERT_TRUE(err == 0);
+    SafeMakeNonblockingPipes(pipefds);
 
     NDetail::TNonBlockReader reader(pipefds[0]);
     reader.TryReadInBuffer();
@@ -58,9 +62,8 @@ TEST(TNonBlockReader, TryReadNeverBlocks)
 TEST(TNonBlockReader, Failed)
 {
     int pipefds[2];
-    int err = pipe2(pipefds, O_NONBLOCK);
+    SafeMakeNonblockingPipes(pipefds);
 
-    ASSERT_TRUE(err == 0);
     NDetail::TNonBlockReader reader(pipefds[0]);
 
     ASSERT_TRUE(close(pipefds[0]) == 0);
@@ -71,15 +74,15 @@ TEST(TNonBlockReader, Failed)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TReadWriteTest : public ::testing::Test
+class TReadWriteTest
+    : public ::testing::Test
 {
 protected:
-    void SetUp()
+    virtual void SetUp() override
     {
         int pipefds[2];
-        int err = pipe2(pipefds, O_NONBLOCK);
+        SafeMakeNonblockingPipes(pipefds);
 
-        ASSERT_TRUE(err == 0);
         Reader = New<TAsyncReader>(pipefds[0]);
         Writer = New<TAsyncWriter>(pipefds[1]);
     }
@@ -104,7 +107,7 @@ TEST_F(TReadWriteTest, ReadSomethingSpin)
         whole.Append(data.Begin(), data.Size());
     }
 
-    EXPECT_EQ(std::string(whole.Begin(), whole.End()), message);
+    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
 TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader, bool useWaitFor)
@@ -136,7 +139,7 @@ TEST_F(TReadWriteTest, ReadSomethingWait)
 
     auto whole = ReadAll(Reader, false);
 
-    EXPECT_EQ(std::string(whole.Begin(), whole.End()), message);
+    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
 TEST_F(TReadWriteTest, ReadWrite)
@@ -149,7 +152,7 @@ TEST_F(TReadWriteTest, ReadWrite)
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
-    EXPECT_EQ(std::string(textFromPipe.Begin(), textFromPipe.End()), text);
+    EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
 }
 
 TError WriteAll(TIntrusivePtr<TAsyncWriter> writer, const char* data, size_t size, size_t blockSize)
@@ -200,7 +203,8 @@ TEST_P(TBigReadWriteTest, RealReadWrite)
         for (size_t i = 0; i < data.size(); ++i) {
             data[i] = dice();
         }
-    }).AsyncVia(queue->GetInvoker()).Run();
+    })
+        .AsyncVia(queue->GetInvoker()).Run();
 
     auto writeError =
         BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
@@ -212,7 +216,7 @@ TEST_P(TBigReadWriteTest, RealReadWrite)
             .Run();
 
     auto textFromPipe = readFromPipe.Get();
-    EXPECT_EQ(textFromPipe.Size(), data.size());
+    EXPECT_EQ(data.size(), textFromPipe.Size());
     auto result = std::mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
     EXPECT_TRUE(std::equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<
         (result.first - textFromPipe.Begin()) << " " << (int)(*result.first);
@@ -222,9 +226,9 @@ INSTANTIATE_TEST_CASE_P(
     ValueParametrized,
     TBigReadWriteTest,
     ::testing::Values(
-        std::make_pair(2000*4096, 4096),
-        std::make_pair(100*4096, 10000),
-        std::make_pair(100*4096, 100),
+        std::make_pair(2000 * 4096, 4096),
+        std::make_pair(100 * 4096, 10000),
+        std::make_pair(100 * 4096, 100),
         std::make_pair(100, 4096)));
 
 #endif
