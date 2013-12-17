@@ -37,13 +37,13 @@ YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
     self.logger.debug("Hosts call on '" + req.url + "'");
 
     return Q.try(function() {
-        switch (url.parse(req.url).pathname) {
-            case "/":
-                return self._dispatchBasic(req, rsp, "");
-            case "/fb":
-                return self._dispatchBasic(req, rsp, "-fb");
-            case "/all":
-                return self._dispatchExtended(req, rsp);
+        var suffix;
+        suffix = url.parse(req.url).pathname;
+        suffix = suffix.replace(/\/+/, "-").replace(/-+$/, "")
+        if (suffix === "-all") {
+            return self._dispatchBasic(req, rsp, "");
+        } else {
+            return self._dispatchBasic(req, rsp, suffix);
         }
         throw new YtError("Unknown URI");
     })
