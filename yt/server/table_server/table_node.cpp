@@ -141,8 +141,13 @@ protected:
         TTableNode* originatingNode,
         TTableNode* branchedNode) override
     {
-        originatingNode->KeyColumns() = branchedNode->KeyColumns();
-        originatingNode->SetSorted(branchedNode->GetSorted());
+        if (branchedNode->GetUpdateMode() == EUpdateMode::Append) {
+            originatingNode->KeyColumns().clear();
+            originatingNode->SetSorted(false);
+        } else {
+            originatingNode->KeyColumns() = branchedNode->KeyColumns();
+            originatingNode->SetSorted(branchedNode->GetSorted());
+        }
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
