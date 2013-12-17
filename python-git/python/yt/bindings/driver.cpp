@@ -17,8 +17,9 @@
 
 #include <ytlib/formats/format.h>
 
+#include <ytlib/api/connection.h>
+
 #include <ytlib/driver/config.h>
-#include <ytlib/driver/connection.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/dispatcher.h>
 
