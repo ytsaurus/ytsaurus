@@ -490,19 +490,19 @@ class TestTableCommands(YTEnvSetup):
         sleep(3)
         self._check_replication_factor('//tmp/t', 2)
 
-    def test_set_sorted_by1(self):
-        create('table', '//tmp/t', opt=['/attributes/sorted_by=[a;b]'])
-        assert get('//tmp/t/@sorted') == 'true'
-        assert get('//tmp/t/@sorted_by') == ['a', 'b']
+    def test_key_columns1(self):
+        create('table', '//tmp/t', opt=['/attributes/key_columns=[a;b]'])
+        assert get('//tmp/t/@sorted') == 'false'
+        assert get('//tmp/t/@key_columns') == ['a', 'b']
 
-    def test_set_sorted_by2(self):
+    def test_key_columns2(self):
         create('table', '//tmp/t')
         write('//tmp/t', {'a' : 'b'})
-        with pytest.raises(YtError): set('//tmp/t/@sorted_by', ['a', 'b'])
+        with pytest.raises(YtError): set('//tmp/t/@key_columns', ['a', 'b'])
 
-    def test_set_sorted_by3(self):
+    def test_key_columns3(self):
         create('table', '//tmp/t')
-        with pytest.raises(YtError): set('//tmp/t/@sorted_by', 123)
+        with pytest.raises(YtError): set('//tmp/t/@key_columns', 123)
 
     def test_statistics1(self):
         table = '//tmp/t'
