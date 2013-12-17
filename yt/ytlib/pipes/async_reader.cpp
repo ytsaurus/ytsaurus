@@ -55,7 +55,7 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
     YCHECK(!Reader->ReachedEOF());
 
     if (!Reader->IsBufferFull()) {
-        Reader->TryReadInBuffer();
+        Reader->ReadToBuffer();
 
         if (!CanReadSomeMore()) {
             FDWatcher.stop();

@@ -17,7 +17,8 @@ namespace NDetail {
     class TNonBlockReader;
 }
 
-class TAsyncReader : public IFDWatcher
+class TAsyncReader
+    : public IFDWatcher
 {
 public:
     TAsyncReader(int fd);

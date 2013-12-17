@@ -15,11 +15,11 @@ namespace NDetail {
 
 TNonBlockReader::TNonBlockReader(int fd)
     : FD(fd)
-    , ReadBuffer(ReadBufferSize)
-    , BytesInBuffer(0)
+    , ReadBuffer_(ReadBufferSize)
+    , BytesInBuffer_(0)
     , ReachedEOF_(false)
-    , Closed(false)
-    , LastSystemError(0)
+    , Closed_(false)
+    , LastSystemError_(0)
     , Logger(ReaderLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
@@ -30,26 +30,26 @@ TNonBlockReader::~TNonBlockReader()
     Close();
 }
 
-void TNonBlockReader::TryReadInBuffer()
+void TNonBlockReader::ReadToBuffer()
 {
-    YCHECK(ReadBuffer.Size() >= BytesInBuffer);
-    const size_t count = ReadBuffer.Size() - BytesInBuffer;
+    YCHECK(ReadBuffer_.Size() >= BytesInBuffer_);
+    const size_t count = ReadBuffer_.Size() - BytesInBuffer_;
     if (count > 0) {
         ssize_t size = -1;
         do {
-            size = ::read(FD, ReadBuffer.Begin() + BytesInBuffer, count);
+            size = ::read(FD, ReadBuffer_.Begin() + BytesInBuffer_, count);
         } while (size == -1 && errno == EINTR);
 
         if (size == -1) {
-            LOG_DEBUG("Encounter an error: %" PRId32, errno);
+            LOG_DEBUG(TError::FromSystem(), "Failed to read");
 
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                LastSystemError = errno;
+                LastSystemError_ = errno;
             }
         } else {
             LOG_DEBUG("Read %" PRISZT " bytes", size);
 
-            BytesInBuffer += size;
+            BytesInBuffer_ += size;
             if (size == 0) {
                 ReachedEOF_ = true;
             }
@@ -61,9 +61,9 @@ void TNonBlockReader::TryReadInBuffer()
 
 void TNonBlockReader::Close()
 {
-    if (!Closed) {
+    if (!Closed_) {
         int errCode = close(FD);
-        LOG_DEBUG("close syscall returns %" PRId32, errno);
+        LOG_DEBUG(TError::FromSystem(), "Failed to close");
 
         if (errCode == -1) {
             // please, read
@@ -71,38 +71,38 @@ void TNonBlockReader::Close()
             // http://rb.yandex-team.ru/arc/r/44030/
             // before editing
             if (errno != EAGAIN) {
-                LastSystemError = errno;
+                LastSystemError_ = errno;
             }
         }
-        Closed = true;
+        Closed_ = true;
     }
 }
 
 std::pair<TBlob, bool> TNonBlockReader::GetRead(TBlob&& buffer)
 {
-    TBlob result(std::move(ReadBuffer));
-    result.Resize(BytesInBuffer);
+    TBlob result(std::move(ReadBuffer_));
+    result.Resize(BytesInBuffer_);
 
-    ReadBuffer = std::move(buffer);
-    ReadBuffer.Resize(ReadBufferSize);
-    BytesInBuffer = 0;
+    ReadBuffer_ = std::move(buffer);
+    ReadBuffer_.Resize(ReadBufferSize);
+    BytesInBuffer_ = 0;
 
     return std::make_pair(std::move(result), ReachedEOF_);
 }
 
 bool TNonBlockReader::IsBufferFull() const
 {
-    return (BytesInBuffer == ReadBuffer.Size());
+    return (BytesInBuffer_ == ReadBuffer_.Size());
 }
 
 bool TNonBlockReader::IsBufferEmpty() const
 {
-    return (BytesInBuffer == 0);
+    return (BytesInBuffer_ == 0);
 }
 
 bool TNonBlockReader::InFailedState() const
 {
-    return (LastSystemError != 0);
+    return (LastSystemError_ != 0);
 }
 
 bool TNonBlockReader::ReachedEOF() const
@@ -113,12 +113,12 @@ bool TNonBlockReader::ReachedEOF() const
 int TNonBlockReader::GetLastSystemError() const
 {
     YCHECK(InFailedState());
-    return LastSystemError;
+    return LastSystemError_;
 }
 
 bool TNonBlockReader::IsReady() const
 {
-    return InFailedState() || ReachedEOF_ || !IsBufferEmpty();
+    return InFailedState() || ReachedEOF() || !IsBufferEmpty();
 }
 
 } // NDetail

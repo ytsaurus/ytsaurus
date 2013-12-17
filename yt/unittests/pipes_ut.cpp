@@ -48,13 +48,13 @@ TEST(TNonBlockReader, BrandNew)
     EXPECT_FALSE(reader.InFailedState());
 }
 
-TEST(TNonBlockReader, TryReadNeverBlocks)
+TEST(TNonBlockReader, ReadNeverBlocks)
 {
     int pipefds[2];
     SafeMakeNonblockingPipes(pipefds);
 
     NDetail::TNonBlockReader reader(pipefds[0]);
-    reader.TryReadInBuffer();
+    reader.ReadToBuffer();
 
     EXPECT_FALSE(reader.IsReady());
 }
@@ -67,7 +67,7 @@ TEST(TNonBlockReader, Failed)
     NDetail::TNonBlockReader reader(pipefds[0]);
 
     ASSERT_TRUE(close(pipefds[0]) == 0);
-    reader.TryReadInBuffer();
+    reader.ReadToBuffer();
 
     EXPECT_TRUE(reader.InFailedState());
 }

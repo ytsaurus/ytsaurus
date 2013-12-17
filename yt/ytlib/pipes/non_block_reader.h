@@ -15,7 +15,7 @@ public:
     TNonBlockReader(int fd);
     ~TNonBlockReader();
 
-    void TryReadInBuffer();
+    void ReadToBuffer();
     void Close();
 
     std::pair<TBlob, bool> GetRead(TBlob&& buffer);
@@ -34,12 +34,12 @@ public:
 private:
     int FD;
 
-    TBlob ReadBuffer;
-    size_t BytesInBuffer;
+    TBlob ReadBuffer_;
+    size_t BytesInBuffer_;
 
     bool ReachedEOF_;
-    bool Closed;
-    int LastSystemError;
+    bool Closed_;
+    int LastSystemError_;
 
     NLog::TTaggedLogger Logger;
 };
