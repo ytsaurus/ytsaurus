@@ -108,8 +108,8 @@ add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-ev)
 add_subdirectory(cmake/deps-z-lz-lzo)
 add_subdirectory(cmake/deps-jerasure)
+add_subdirectory(cmake/deps-yajl)
 
-add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
 
 add_subdirectory(yt)
@@ -184,8 +184,7 @@ set_target_properties(ytext-jerasure PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc-fake PROPERTIES FOLDER "Contrib")
  
-set_target_properties(yajl PROPERTIES FOLDER "Contrib")
-set_target_properties(yajl_s PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-yajl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
 
 set_target_properties(install-debian-yandex-yt PROPERTIES FOLDER "Misc")
