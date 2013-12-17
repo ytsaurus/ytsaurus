@@ -36,7 +36,6 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     SaveObjectRefs(context, Parents_);
     SaveObjectRefs(context, OwningNodes_);
     Save(context, Statistics_);
-    Save(context, SortedBy_);
     Save(context, RowCountSums_);
     Save(context, ChunkCountSums_);
     Save(context, DataSizeSums_);
@@ -51,7 +50,9 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, Parents_);
     LoadObjectRefs(context, OwningNodes_);
     Load(context, Statistics_);
-    Load(context, SortedBy_);
+    if (context.GetVersion() < 100) {
+        Load(context, LegacySortedBy_);
+    }
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);
     // COMPAT(psushin)

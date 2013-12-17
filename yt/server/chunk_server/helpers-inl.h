@@ -61,8 +61,7 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd,
-    F chunkAction,
-    bool resetSorted)
+    F chunkAction)
 {
     chunkList->IncrementVersion();
 
@@ -94,9 +93,6 @@ void AttachToChunkList(
         [&] (TChunkList* current) {
             ++delta.Rank;
             current->Statistics().Accumulate(delta);
-            if (resetSorted) {
-                current->SortedBy().clear();
-            }
         });
 }
 

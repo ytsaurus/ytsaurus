@@ -116,7 +116,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
 
     attributes->push_back("row_count");
     attributes->push_back("sorted");
-    attributes->push_back(TAttributeInfo("sorted_by", node->IsSorted()));
+    attributes->push_back("key_columns");
+    attributes->push_back(TAttributeInfo("sorted_by", node->GetSorted()));
     attributes->push_back(TAttributeInfo("tablets", true, true));
     TBase::ListSystemAttributes(attributes);
 }
@@ -130,6 +131,11 @@ void TTableNodeProxy::ValidatePathAttributes(
         channel,
         upperLimit,
         lowerLimit);
+
+    const auto* node = GetThisTypedImpl();
+    if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !node->GetSorted()) {
+        THROW_ERROR_EXCEPTION("Cannot fetch a range of an unsorted table");
+    }
 
     if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
         THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
@@ -160,14 +166,20 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "sorted") {
         BuildYsonFluently(consumer)
-            .Value(node->IsSorted());
+            .Value(node->GetSorted());
         return true;
     }
 
-    if (node->IsSorted()) {
+    if (key == "key_columns") {
+        BuildYsonFluently(consumer)
+            .Value(node->KeyColumns());
+        return true;
+    }
+
+    if (node->GetSorted()) {
         if (key == "sorted_by") {
             BuildYsonFluently(consumer)
-                .List(chunkList->SortedBy());
+                .List(node->KeyColumns());
             return true;
         }
     }
@@ -195,16 +207,19 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
 bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
-    if (key == "sorted_by") {
+    if (key == "key_columns") {
         ValidateNoTransaction();
 
         auto* node = LockThisTypedImpl();
         auto* chunkList = node->GetChunkList();
-        if (!chunkList->Children().empty() || !chunkList->Parents().empty()) {
+        if (!chunkList->Children().empty() ||
+            !chunkList->Parents().empty() ||
+            !node->Tablets().empty())
+        {
             THROW_ERROR_EXCEPTION("Operation is not supported");
         }
 
-        chunkList->SortedBy() = ConvertTo<TKeyColumns>(value);
+        node->KeyColumns() = ConvertTo<TKeyColumns>(value);
         return true;
     }
 
@@ -249,7 +264,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     DeclareMutating();
 
     auto keyColumns = FromProto<Stroka>(request->key_columns());
-    context->SetRequestInfo("SortedBy: %s",
+    context->SetRequestInfo("KeyColumns: %s",
         ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -260,7 +275,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
         THROW_ERROR_EXCEPTION("Table node must be in \"overwrite\" mode");
     }
 
-    node->GetChunkList()->SortedBy() = keyColumns;
+    node->KeyColumns() = keyColumns;
+    node->SetSorted(true);
 
     SetModified();
 
@@ -347,18 +363,16 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     ValidateNoTransaction();
 
-    auto* impl = GetThisTypedImpl();
+    auto* node = GetThisTypedImpl();
 
-    ToProto(response->mutable_table_id(), impl->GetId());
+    ToProto(response->mutable_table_id(), node->GetId());
+    ToProto(response->mutable_key_columns()->mutable_names(), node->KeyColumns());
 
     auto tabletManager = Bootstrap->GetTabletManager();
-    auto schema = tabletManager->GetTableSchema(impl);
+    auto schema = tabletManager->GetTableSchema(node);
     ToProto(response->mutable_schema(), schema);
 
-    const auto* chunkList = impl->GetChunkList();
-    ToProto(response->mutable_key_columns()->mutable_names(), chunkList->SortedBy());
-
-    for (auto* tablet : impl->Tablets()) {
+    for (auto* tablet : node->Tablets()) {
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
@@ -371,7 +385,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     }
 
     context->SetRequestInfo("TabletCount: %d",
-        static_cast<int>(impl->Tablets().size()));
+        static_cast<int>(node->Tablets().size()));
     context->Reply();
 }
 

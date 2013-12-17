@@ -460,12 +460,6 @@ public:
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {
-        bool keyRangeRequest = lowerBound.HasKey() || upperBound.HasKey();
-        if (keyRangeRequest && chunkList->SortedBy().empty()) {
-            Visitor->OnError(TError("Cannot fetch a keyed range of unsorted table"));
-            return;
-        }
-
         int childIndex = GetStartChildIndex(chunkList, lowerBound);
         PushStack(TStackEntry(
             chunkList,

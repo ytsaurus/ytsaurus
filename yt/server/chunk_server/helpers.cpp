@@ -40,28 +40,24 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children,
-    bool resetSorted)
+    const std::vector<TChunkTree*>& children)
 {
     AttachToChunkList(
         chunkList,
         const_cast<TChunkTree**>(children.data()),
         const_cast<TChunkTree**>(children.data() + children.size()),
-        [] (TChunkTree* /*chunk*/) { },
-        resetSorted);
+        [] (TChunkTree* /*chunk*/) { });
 }
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TChunkTree* child,
-    bool resetSorted)
+    TChunkTree* child)
 {
     AttachToChunkList(
         chunkList,
         &child,
         &child + 1,
-        [] (TChunkTree* /*chunk*/) { },
-        resetSorted);
+        [] (TChunkTree* /*chunk*/) { });
 }
 
 ///////////////////////////////////////////////////////////////////////////////

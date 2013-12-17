@@ -188,7 +188,6 @@ protected:
             auto deltaRef = branchedChunkList->Children()[1];
 
             auto* newOriginatingChunkList = chunkManager->CreateChunkList();
-            newOriginatingChunkList->SortedBy() = branchedChunkList->SortedBy();
 
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(newOriginatingChunkList->OwningNodes().insert(originatingNode).second);

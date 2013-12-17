@@ -6,6 +6,8 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
+#include <ytlib/new_table_client/public.h>
+
 #include <server/chunk_server/chunk_owner_base.h>
 
 #include <server/cypress_server/node_detail.h>
@@ -23,6 +25,9 @@ class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
+    DEFINE_BYREF_RW_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
+
     // Most tables have no tablets.
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
     DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
@@ -32,8 +37,6 @@ public:
 
     virtual NObjectClient::EObjectType GetObjectType() const;
     TTableNode* GetTrunkNode() const;
-
-    bool IsSorted() const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

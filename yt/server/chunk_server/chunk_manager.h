@@ -58,16 +58,13 @@ public:
     void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd,
-        bool resetSorted = true);
+        TChunkTree** childrenEnd);
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children,
-        bool resetSorted = true);
+        const std::vector<TChunkTree*>& children);
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree* child,
-        bool resetSorted = true);
+        TChunkTree* child);
 
     void RebalanceChunkTree(TChunkList* chunkList);
 

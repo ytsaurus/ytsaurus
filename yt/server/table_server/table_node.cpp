@@ -31,6 +31,7 @@ using namespace NSecurityServer;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
+    , Sorted_(false)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -43,15 +44,13 @@ TTableNode* TTableNode::GetTrunkNode() const
     return static_cast<TTableNode*>(TrunkNode_);
 }
 
-bool TTableNode::IsSorted() const
-{
-    return !ChunkList_->SortedBy().empty();
-}
-
 void TTableNode::Save(TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);
 
+    using NYT::Save;
+    Save(context, Sorted_);
+    Save(context, KeyColumns_);
     SaveObjectRefs(context, Tablets_);
 }
 
@@ -59,8 +58,11 @@ void TTableNode::Load(TLoadContext& context)
 {
     TChunkOwnerBase::Load(context);
 
+    using NYT::Load;
     // COMPAT(babenko)
     if (context.GetVersion() >= 100) {
+        Load(context, Sorted_);
+        Load(context, KeyColumns_);
         LoadObjectRefs(context, Tablets_);
     }
 }

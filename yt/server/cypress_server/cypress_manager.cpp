@@ -29,6 +29,10 @@
 #include <server/security_server/user.h>
 #include <server/security_server/security_manager.h>
 
+// COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
+#include <server/table_server/table_node.h>
+#include <server/chunk_server/chunk_list.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -1050,8 +1054,7 @@ void TCypressManager::OnAfterSnapshotLoaded()
         }
     }
 
-    // COMPAT(babenko)
-    // Fix parent links
+    // COMPAT(babenko): Fix parent links
     for (const auto& pair1 : NodeMap) {
         auto* node = pair1.second;
         if (TypeFromId(node->GetId()) == EObjectType::MapNode) {
@@ -1065,6 +1068,17 @@ void TCypressManager::OnAfterSnapshotLoaded()
                     child->SetParent(node);
                 }
             }
+        }
+    }
+
+    // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
+    for (const auto& pair : NodeMap) {
+        if (TypeFromId(pair.first.ObjectId) == EObjectType::Table) {
+            auto* tableNode = dynamic_cast<NTableServer::TTableNode*>(pair.second);
+            auto* chunkList = tableNode->GetChunkList();
+            tableNode->SetSorted(!chunkList->LegacySortedBy().empty());
+            tableNode->KeyColumns() = chunkList->LegacySortedBy();
+            chunkList->LegacySortedBy().clear();
         }
     }
 

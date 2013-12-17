@@ -948,7 +948,7 @@ void TOperationControllerBase::Initialize()
             table.LockMode = ELockMode::Exclusive;
         }
 
-        table.Options->KeyColumns = path.Attributes().Find< std::vector<Stroka> >("sorted_by");
+        table.Options->KeyColumns = path.Attributes().Find<TKeyColumns>("sorted_by");
         if (table.Options->KeyColumns) {
             if (!IsSortedOutputSupported()) {
                 THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
@@ -2483,8 +2483,8 @@ void TOperationControllerBase::RequestInputs()
                 const auto& attributes = node->Attributes();
 
                 if (attributes.Get<bool>("sorted")) {
-                    table.KeyColumns = attributes.Get< std::vector<Stroka> >("sorted_by");
-                    LOG_INFO("Input table is sorted (Path: %s, SortedBy: %s)",
+                    table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
+                    LOG_INFO("Input table is sorted (Path: %s, KeyColumns: %s)",
                         ~path,
                         ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
                 } else {

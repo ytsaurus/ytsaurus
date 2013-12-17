@@ -694,7 +694,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
             node->SetChunkList(newChunkList);
             objectManager->RefObject(newChunkList);
 
-            newChunkList->SortedBy() = snapshotChunkList->SortedBy();
             chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
             auto* deltaChunkList = chunkManager->CreateChunkList();

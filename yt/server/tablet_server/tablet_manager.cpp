@@ -281,15 +281,15 @@ public:
 
         // COMPAT(babenko): schema must be mandatory
         auto schema = tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
-        const auto& sortedBy = table->GetChunkList()->SortedBy();
+        const auto& keyColumns = table->KeyColumns();
 
         // Ensure that every key column is mentioned in schema.
         // Move all key columns up the front.
-        for (int keyIndex = 0; keyIndex < static_cast<int>(sortedBy.size()); ++keyIndex) {
-            auto* column = schema.FindColumn(sortedBy[keyIndex]);
+        for (int keyIndex = 0; keyIndex < static_cast<int>(keyColumns.size()); ++keyIndex) {
+            auto* column = schema.FindColumn(keyColumns[keyIndex]);
             if (!column) {
                 THROW_ERROR_EXCEPTION("Schema does define a key column %s",
-                    ~sortedBy[keyIndex].Quote());
+                    ~keyColumns[keyIndex].Quote());
             }
             int schemaIndex = schema.GetColumnIndex(*column);
             if (schemaIndex != keyIndex) {
@@ -308,8 +308,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
         
-        if (!table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Table is not sorted");
+        if (table->KeyColumns().empty()) {
+            THROW_ERROR_EXCEPTION("Table has no key columns");
         }
 
         auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
@@ -348,7 +348,7 @@ public:
             TReqMountTablet req;           
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_schema(), schema);
-            ToProto(req.mutable_key_columns()->mutable_names(), table->GetChunkList()->SortedBy());
+            ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
             
             auto hiveManager = Bootstrap->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());

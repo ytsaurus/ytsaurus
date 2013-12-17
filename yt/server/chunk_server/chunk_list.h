@@ -36,8 +36,8 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkOwnerBase*>, OwningNodes);
 
-    // A tuple of key columns. If empty then the chunk list is not sorted.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, SortedBy);
+    // COMPAT(babenko)
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, LegacySortedBy);
 
     // Increases each time the list changes.
     // Enables optimistic locking during chunk tree traversing.

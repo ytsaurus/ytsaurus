@@ -18,18 +18,15 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd,
-    F chunkAction,
-    bool resetSorted = true);
+    F chunkAction);
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children,
-    bool resetSorted = true);
+    const std::vector<TChunkTree*>& children);
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TChunkTree* child,
-    bool resetSorted = true);
+    TChunkTree* child);
 
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 
