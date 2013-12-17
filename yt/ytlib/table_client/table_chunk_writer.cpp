@@ -63,11 +63,11 @@ TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     NChunkClient::IAsyncWriterPtr chunkWriter,
-    TOwningKey&& lastKey)
+    TOwningKey lastKey)
     : TChunkWriterBase(config, options, chunkWriter)
     , Facade(this)
     , Channels(options->Channels)
-    , LastKey(lastKey)
+    , LastKey(std::move(lastKey))
     , SamplesSize(0)
     , AverageSampleSize(0)
     , IndexSize(0)
@@ -529,17 +529,16 @@ TTableChunkWriterProvider::TTableChunkWriterProvider(
 TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
 {
     YCHECK(FinishedWriterCount == CreatedWriterCount);
-    TOwningKey key;
-
-    if (CurrentWriter) {
-        key = CurrentWriter->GetLastKey();
-    }
+    
+    auto lastKey = CurrentWriter
+        ? CurrentWriter->GetLastKey()
+        : TOwningKey(MinKey());
 
     auto writer = New<TTableChunkWriter>(
         Config,
         Options,
         asyncWriter,
-        std::move(key));
+        std::move(lastKey));
 
     CurrentWriter = writer;
     ++CreatedWriterCount;

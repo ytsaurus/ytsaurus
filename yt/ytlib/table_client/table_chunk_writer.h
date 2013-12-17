@@ -61,7 +61,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         NChunkClient::IAsyncWriterPtr chunkWriter,
-        NVersionedTableClient::TOwningKey&& lastKey);
+        NVersionedTableClient::TOwningKey lastKey);
 
     ~TTableChunkWriter();
 
