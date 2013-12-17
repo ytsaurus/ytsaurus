@@ -126,6 +126,26 @@ protected:
             tabletManager->UnmountTable(table);
         }
     }
+
+    virtual void DoBranch(
+        const TTableNode* originatingNode,
+        TTableNode* branchedNode) override
+    {
+        branchedNode->KeyColumns() = originatingNode->KeyColumns();
+        branchedNode->SetSorted(originatingNode->GetSorted());
+
+        TBase::DoBranch(originatingNode, branchedNode);
+    }
+
+    virtual void DoMerge(
+        TTableNode* originatingNode,
+        TTableNode* branchedNode) override
+    {
+        originatingNode->KeyColumns() = branchedNode->KeyColumns();
+        originatingNode->SetSorted(branchedNode->GetSorted());
+
+        TBase::DoMerge(originatingNode, branchedNode);
+    }
 };
 
 INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
