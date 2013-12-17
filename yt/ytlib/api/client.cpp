@@ -411,12 +411,12 @@ TFuture<TErrorOr<ITransactionPtr>> TClient::StartTransaction(const TTransactionS
     auto this_ = MakeStrong(this);
     auto transactionManager = Connection_->GetTransactionManager();
     return transactionManager->Start(options).Apply(
-        BIND([=](TErrorOr<NTransactionClient::TTransactionPtr> transactionOrError) -> TErrorOr<ITransactionPtr> {
-        if (!transactionOrError.IsOK()) {
-            return TError(transactionOrError);
-        }
-        return New<TTransaction>(this_, transactionOrError.GetValue());
-    }));
+        BIND([=] (TErrorOr<NTransactionClient::TTransactionPtr> transactionOrError) -> TErrorOr<ITransactionPtr> {
+            if (!transactionOrError.IsOK()) {
+                return TError(transactionOrError);
+            }
+            return TErrorOr<ITransactionPtr>(New<TTransaction>(this_, transactionOrError.GetValue()));
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
