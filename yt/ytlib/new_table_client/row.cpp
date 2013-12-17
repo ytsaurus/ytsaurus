@@ -302,8 +302,10 @@ size_t GetHash(const TUnversionedValue& value)
 TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType)
 {
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(GetRowDataSize<TUnversionedValue>(prefixLength + 1), false);
+    auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
+    header->ValueCount = prefixLength + 1;
     ::memcpy(rowData.Begin(), key.RowData.Begin(), GetRowDataSize<TUnversionedValue>(prefixLength));
-    TKey result(reinterpret_cast<TRowHeader*>(rowData.Begin()));
+    TKey result(header);
     result[prefixLength] = MakeSentinelValue<TUnversionedValue>(sentinelType);
     return TOwningKey(std::move(rowData), key.StringData);
 }
