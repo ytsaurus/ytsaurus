@@ -470,9 +470,9 @@ private:
             }
             return std::unique_ptr<TNotificationWatch>(
                 new TNotificationWatch(
-                ~NotificationHandle,
-                fileName.c_str(),
-                BIND(&ILogWriter::Reload, writer)));
+                    NotificationHandle.get(),
+                    fileName.c_str(),
+                    BIND(&ILogWriter::Reload, writer)));
         }
 #endif
         return nullptr;
