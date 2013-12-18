@@ -260,8 +260,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
         Enabled.store(true);
         return descriptors;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Location %s has failed to initialize",
-            ~GetPath().Quote());
+        LOG_ERROR(ex, "Location has failed to initialize");
         ScheduleDisable();
         return std::vector<TChunkDescriptor>();
     }
@@ -275,8 +274,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         i64 minSpace = Config->MinDiskSpace.Get();
         i64 totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Min disk space requirement is not met at %s: required %" PRId64 ", actual %" PRId64,
-                ~path.Quote(),
+            THROW_ERROR_EXCEPTION("Min disk space requirement is not met: required %" PRId64 ", actual %" PRId64,
                 minSpace,
                 totalSpace);
         }
@@ -327,7 +325,8 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
             i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
             if (chunkMetaSize == 0) {
                 // Happens on e.g. power outage.
-                LOG_WARNING("Chunk meta file is empty: %s", ~chunkMetaFileName);
+                LOG_WARNING("Chunk meta file %s is empty",
+                    ~chunkMetaFileName.Quote());
                 RemoveFileOrThrow(chunkDataFileName);
                 RemoveFileOrThrow(chunkMetaFileName);
                 continue;
@@ -337,10 +336,12 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
             descriptor.DiskSpace = chunkDataSize + chunkMetaSize;
             descriptors.push_back(descriptor);
         } else if (!hasMeta) {
-            LOG_WARNING("Missing meta file, removing data file: %s", ~chunkDataFileName);
+            LOG_WARNING("Missing meta file, removing data file %s",
+                ~chunkDataFileName.Quote());
             RemoveFileOrThrow(chunkDataFileName);
         } else if (!hasData) {
-            LOG_WARNING("Missing data file, removing meta file: %s", ~chunkMetaFileName);
+            LOG_WARNING("Missing data file, removing meta file %s",
+                ~chunkMetaFileName.Quote());
             RemoveFileOrThrow(chunkMetaFileName);
         }
     }
@@ -357,8 +358,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
                 ~cellGuidString.Quote());
         }
         if (cellGuid != Bootstrap->GetCellGuid()) {
-            THROW_ERROR_EXCEPTION("Wrong cell GUID found at location %s: expected %s, found %s",
-                ~Id,
+            THROW_ERROR_EXCEPTION("Wrong cell GUID: expected %s, found %s",
                 ~ToString(Bootstrap->GetCellGuid()),
                 ~ToString(cellGuid));
         }
@@ -397,23 +397,28 @@ TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
     Stroka dataFileName = GetChunkFileName(id);
     Stroka metaFileName = dataFileName + ChunkMetaSuffix;
 
-    LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~ToString(id));
+    LOG_INFO("Chunk removal scheduled (ChunkId: %s)",
+        ~ToString(id));
 
     auto promise = NewPromise();
     GetWriteInvoker()->Invoke(BIND([=] () mutable {
-        LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~ToString(id));
+        LOG_DEBUG("Started removing chunk files (ChunkId: %s)",
+            ~ToString(id));
 
         if (!NFS::Remove(dataFileName)) {
-            LOG_ERROR("Failed to remove %s", ~dataFileName.Quote());
+            LOG_ERROR("Failed to remove data file %s",
+                ~dataFileName.Quote());
             Disable();
         }
 
         if (!NFS::Remove(metaFileName)) {
-            LOG_ERROR("Failed to remove %s", ~metaFileName.Quote());
+            LOG_ERROR("Failed to remove meta file %s",
+                ~metaFileName.Quote());
             Disable();
         }
 
-        LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~ToString(id));
+        LOG_DEBUG("Finished removing chunk files (ChunkId: %s)",
+            ~ToString(id));
         promise.Set();
     }));
 
