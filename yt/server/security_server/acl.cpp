@@ -9,7 +9,7 @@
 
 #include <core/ytree/permission.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -38,7 +38,7 @@ TAccessControlEntry::TAccessControlEntry(
 void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    SaveObjectRefs(context, Subjects);
+    Save(context, Subjects);
     Save(context, Permissions);
     Save(context, Action);
 }
@@ -46,7 +46,7 @@ void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
 void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    LoadObjectRefs(context, Subjects);
+    Load(context, Subjects);
     Load(context, Permissions);
     Load(context, Action);
 }
@@ -217,7 +217,7 @@ void TAccessControlDescriptor::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Acl_);
     Save(context, Inherit_);
-    SaveObjectRef(context, Owner_);
+    Save(context, Owner_);
 }
 
 void TAccessControlDescriptor::Load(NCellMaster::TLoadContext& context)
@@ -225,7 +225,7 @@ void TAccessControlDescriptor::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Acl_);
     Load(context, Inherit_);
-    LoadObjectRef(context, Owner_);
+    Load(context, Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,7 @@
 
 #include <server/table_server/table_node.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -27,8 +27,8 @@ void TTablet::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, State_);
-    SaveObjectRef(context, Table_);
-    SaveObjectRef(context, Cell_);
+    Save(context, Table_);
+    Save(context, Cell_);
     Save(context, PivotKey_);
 }
 
@@ -38,8 +38,8 @@ void TTablet::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, State_);
-    LoadObjectRef(context, Table_);
-    LoadObjectRef(context, Cell_);
+    Load(context, Table_);
+    Load(context, Cell_);
     Load(context, PivotKey_);
 }
 

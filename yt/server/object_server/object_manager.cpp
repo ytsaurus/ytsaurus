@@ -27,7 +27,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/transaction.h>

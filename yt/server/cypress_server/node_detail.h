@@ -19,7 +19,7 @@
 #include <server/security_server/security_manager.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NCypressServer {

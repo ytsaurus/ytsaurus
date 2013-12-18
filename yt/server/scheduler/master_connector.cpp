@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
-#include "serialization_context.h"
+#include "serialize.h"
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>

@@ -166,16 +166,10 @@ void TMapNode::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, ChildCountDelta_);
-    // TODO(babenko): refactor when new serialization API is ready
-    auto keyIts = GetSortedIterators(KeyToChild_);
-    TSizeSerializer::Save(context, keyIts.size());
-    for (auto it : keyIts) {
-        const auto& key = it->first;
-        Save(context, key);
-        const auto* node = it->second;
-        auto id = node ? node->GetId() : NullObjectId;
-        Save(context, id);
-    }
+    TMapSerializer<
+        TDefaultSerializer,
+        TNonversionedObjectRefSerializer
+    >::Save(context, KeyToChild_);
 }
 
 void TMapNode::Load(NCellMaster::TLoadContext& context)
@@ -184,15 +178,17 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, ChildCountDelta_);
-    // TODO(babenko): refactor when new serialization API is ready
-    size_t count = TSizeSerializer::Load(context);
-    for (size_t index = 0; index != count; ++index) {
-        auto key = Load<Stroka>(context);
-        auto id = Load<TNodeId>(context);
-        auto* node = id == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(id);
-        YCHECK(KeyToChild_.insert(std::make_pair(key, node)).second);
-        if (node) {
-            YCHECK(ChildToKey_.insert(std::make_pair(node, key)).second);
+    TMapSerializer<
+        TDefaultSerializer,
+        TNonversionedObjectRefSerializer
+    >::Load(context, KeyToChild_);
+
+    // Reconstruct ChildToKey map.
+    for (const auto& pair : KeyToChild_) {
+        const auto& key = pair.first;
+        auto* child = pair.second;
+        if (child) {
+            YCHECK(ChildToKey_.insert(std::make_pair(child, key)).second);
         }
     }
 }
@@ -365,11 +361,9 @@ void TListNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     using NYT::Save;
-    // TODO(babenko): refactor when new serialization API is ready
-    TSizeSerializer::Save(context, IndexToChild_.size());
-    for (auto* child : IndexToChild_) {
-        Save(context, child->GetId());
-    }
+    TVectorSerializer<
+        TNonversionedObjectRefSerializer
+    >::Save(context, IndexToChild_);
 }
 
 void TListNode::Load(NCellMaster::TLoadContext& context)
@@ -377,14 +371,13 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     using NYT::Load;
-    // TODO(babenko): refactor when new serialization API is ready
-    size_t count = TSizeSerializer::Load(context);
-    IndexToChild_.resize(count);
-    for (size_t index = 0; index != count; ++index) {
-        auto id = Load<TNodeId>(context);
-        auto* node = context.Get<TCypressNodeBase>(id);
-        IndexToChild_[index] = node;
-        YCHECK(ChildToIndex_.insert(std::make_pair(node, index)).second);
+    TVectorSerializer<
+        TNonversionedObjectRefSerializer
+    >::Load(context, IndexToChild_);
+
+    // Reconstruct ChildToIndex.
+    for (int index = 0; index < IndexToChild_.size(); ++index) {
+        YCHECK(ChildToIndex_.insert(std::make_pair(IndexToChild_[index], index)).second);
     }
 }
 

@@ -2,7 +2,7 @@
 
 #include "private.h"
 #include "progress_counter.h"
-#include "serialization_context.h"
+#include "serialize.h"
 
 #include <core/misc/small_vector.h>
 

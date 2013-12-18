@@ -9,7 +9,7 @@
 
 #include <core/erasure/codec.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -103,9 +103,9 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, GetVital());
-    SaveObjectRefs(context, Parents_);
-    SaveObjectRefs(context, StoredReplicas_);
-    SaveNullableObjectRefs(context, CachedReplicas_);
+    Save(context, Parents_);
+    Save(context, StoredReplicas_);
+    Save(context, CachedReplicas_);
 }
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
@@ -123,9 +123,9 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     }
     SetMovable(Load<bool>(context));
     SetVital(Load<bool>(context));
-    LoadObjectRefs(context, Parents_);
-    LoadObjectRefs(context, StoredReplicas_);
-    LoadNullableObjectRefs(context, CachedReplicas_);
+    Load(context, Parents_);
+    Load(context, StoredReplicas_);
+    Load(context, CachedReplicas_);
 }
 
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)

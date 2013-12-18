@@ -37,8 +37,6 @@ private:
 
 };
 
-bool CompareObjectsForSerialization(const TChunkOwnerBase* lhs, const TChunkOwnerBase* rhs);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

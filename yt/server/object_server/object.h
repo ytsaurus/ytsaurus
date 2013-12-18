@@ -80,7 +80,6 @@ protected:
 
 TObjectId GetObjectId(const TObjectBase* object);
 bool IsObjectAlive(const TObjectBase* object);
-bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

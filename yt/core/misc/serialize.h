@@ -136,6 +136,16 @@ void UnpackRefs(const TSharedRef& packedRef, std::vector<TSharedRef>* refs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Forward declarations.
+struct TValueBoundComparer;
+
+struct TValueBoundSerializer;
+
+template <class T, class C, class = void>
+struct TSerializerTraits;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStreamSaveContext
 {
 public:
@@ -215,72 +225,6 @@ typedef
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-std::vector<typename T::const_iterator> GetSortedSetIterators(const T& set)
-{
-    typedef typename T::const_iterator TIterator;
-    std::vector<TIterator> iterators;
-    iterators.reserve(set.size());
-    for (auto it = set.begin(); it != set.end(); ++it) {
-        iterators.push_back(it);
-    }
-    std::sort(
-        iterators.begin(),
-        iterators.end(),
-        [] (TIterator lhs, TIterator rhs) {
-            return *lhs < *rhs;
-        });
-    return iterators;
-}
-
-template <class T>
-std::vector <typename T::const_iterator> GetSortedMapIterators(const T& map)
-{
-    typedef typename T::const_iterator TIterator;
-    std::vector<TIterator> iterators;
-    iterators.reserve(map.size());
-    for (auto it = map.begin(); it != map.end(); ++it) {
-        iterators.push_back(it);
-    }
-    std::sort(
-        iterators.begin(),
-        iterators.end(),
-        [] (TIterator lhs, TIterator rhs) {
-            return lhs->first < rhs->first;
-        });
-    return iterators;
-}
-
-template <class TKey>
-std::vector <typename yhash_set<TKey>::const_iterator> GetSortedIterators(
-    const yhash_set<TKey>& set)
-{
-    return GetSortedSetIterators(set);
-}
-
-template <class TKey, class TValue>
-std::vector <typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
-    const yhash_map<TKey, TValue>& map)
-{
-    return GetSortedMapIterators(map);
-}
-
-template <class TKey, class TValue>
-std::vector <typename yhash_multimap<TKey, TValue>::const_iterator> GetSortedIterators(
-    const yhash_multimap<TKey, TValue>& map)
-{
-    return GetSortedMapIterators(map);
-}
-
-template <class TKey, class TValue>
-std::vector <typename std::multimap<TKey, TValue>::const_iterator> GetSortedIterators(
-    const std::multimap<TKey, TValue>& map)
-{
-    return GetSortedMapIterators(map);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T, class C>
 void Save(C& context, const T& value);
 
@@ -315,6 +259,7 @@ struct TPersistMemberTraits<T, typename NMpl::TEnableIfC<THasPersistMember<T>::V
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// Simple types
 
 struct TValueBoundSerializer
 {
@@ -368,7 +313,6 @@ struct TValueBoundSerializer
     {
         TLoader<T, C>::Do(context, value);
     }
-
 };
 
 struct TDefaultSerializer
@@ -497,6 +441,10 @@ struct TStrokaSerializer
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+// Ordered collections
+
+template <class TItemSerializer = TDefaultSerializer>
 struct TVectorSerializer
 {
     template <class TVector, class C>
@@ -505,7 +453,7 @@ struct TVectorSerializer
         using NYT::Save;
         TSizeSerializer::Save(context, objects.size());
         for (const auto& object : objects) {
-            Save(context, object);
+            TItemSerializer::Save(context, object);
         }
     }
 
@@ -516,11 +464,12 @@ struct TVectorSerializer
         size_t size = TSizeSerializer::Load(context);
         objects.resize(size);
         for (size_t index = 0; index != size; ++index) {
-            Load(context, objects[index]);
+            TItemSerializer::Load(context, objects[index]);
         }
     }
 };
 
+template <class TItemSerializer = TDefaultSerializer>
 struct TListSerializer
 {
     template <class TList, class C>
@@ -529,7 +478,7 @@ struct TListSerializer
         using NYT::Save;
         TSizeSerializer::Save(context, objects.size());
         for (const auto& object : objects) {
-            Save(context, object);
+            TItemSerializer::Save(context, object);
         }
     }
 
@@ -540,12 +489,13 @@ struct TListSerializer
         size_t size = TSizeSerializer::Load(context);
         for (size_t index = 0; index != size; ++index) {
             typename TList::value_type obj;
-            Load(context, obj);
+            TItemSerializer::Load(context, obj);
             objects.push_back(obj);
         }
     }
 };
 
+template <class TItemSerializer = TDefaultSerializer>
 struct TNullableListSerializer
 {
     template <class TList, class C>
@@ -553,7 +503,7 @@ struct TNullableListSerializer
     {
         using NYT::Save;
         if (objects) {
-            TListSerializer::Save(context, *objects);
+            TListSerializer<TItemSerializer>::Save(context, *objects);
         } else {
             TSizeSerializer::Save(context, 0);
         }
@@ -573,23 +523,191 @@ struct TNullableListSerializer
         objects.reset(new TList());
         for (size_t index = 0; index != size; ++index) {
             typename TList::value_type obj;
-            Load(context, obj);
+            TItemSerializer::Load(context, obj);
             objects->push_back(obj);
         }
     }
 };
 
-template <class TItemSerializer>
-struct TCustomSetSerializer
+////////////////////////////////////////////////////////////////////////////////
+// Possibly unordered collections
+
+template <class T, class C>
+class TNoopSorter
+{
+public:
+    typedef typename T::const_iterator TIterator;
+
+    explicit TNoopSorter(const T& any)
+        : Any_(any)
+    { }
+
+    TIterator begin()
+    {
+        return Any_.begin();
+    }
+
+    TIterator end()
+    {
+        return Any_.end();
+    }
+
+private:
+    const T& Any_;
+
+};
+
+template <class C>
+struct TSetSorterComparer
+{
+    template <class TIterator>
+    static bool Compare(TIterator lhs, TIterator rhs)
+    {
+        typedef typename std::remove_const<typename std::remove_reference<decltype(*lhs)>::type>::type T;
+        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
+        return TComparer::Compare(*lhs, *rhs);
+    }
+};
+
+template <class C>
+struct TMapSorterComparer
+{
+    template <class TIterator>
+    static bool Compare(TIterator lhs, TIterator rhs)
+    {
+        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type T;
+        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
+        return TComparer::Compare(lhs->first, rhs->first);
+    }
+};
+
+template <class T, class Q>
+class TCollectionSorter
+{
+public:
+    typedef typename T::const_iterator TIterator;
+
+    class TIteratorWrapper
+    {
+    public:
+        TIteratorWrapper(const std::vector<TIterator>* iterators, size_t index)
+            : Iterators_(iterators)
+            , Index_(index)
+        { }
+
+        const typename T::value_type& operator * ()
+        {
+            return *((*Iterators_)[Index_]);
+        }
+
+        TIteratorWrapper& operator ++ ()
+        {
+            ++Index_;
+            return *this;
+        }
+
+        bool operator == (const TIteratorWrapper& other) const
+        {
+            return Index_ == other.Index_;
+        }
+
+        bool operator != (const TIteratorWrapper& other) const
+        {
+            return Index_ != other.Index_;
+        }
+
+    private:
+        const std::vector<TIterator>* Iterators_;
+        size_t Index_;
+
+    };
+
+    explicit TCollectionSorter(const T& set)
+    {
+        Iterators_.reserve(set.size());
+        for (auto it = set.begin(); it != set.end(); ++it) {
+            Iterators_.push_back(it);
+        }
+
+        std::sort(
+            Iterators_.begin(),
+            Iterators_.end(),
+            [] (TIterator lhs, TIterator rhs) {
+                return Q::Compare(lhs, rhs);
+            });
+    }
+
+    TIteratorWrapper begin() const
+    {
+        return TIteratorWrapper(&Iterators_, 0);
+    }
+
+    TIteratorWrapper end() const
+    {
+        return TIteratorWrapper(&Iterators_, Iterators_.size());
+    }
+
+private:
+    std::vector<TIterator> Iterators_;
+
+};
+
+struct TSortedTag { };
+struct TUnsortedTag { };
+
+template <class T, class C, class TTag>
+struct TSorterSelector
+{ };
+
+template <class T, class C>
+struct TSorterSelector<T, C, TUnsortedTag>
+{
+    typedef TNoopSorter<T, C> TSorter;
+};
+
+template <class K, class C>
+struct TSorterSelector<std::set<K>, C, TSortedTag>
+{
+    typedef TNoopSorter<std::set<K>, C> TSorter;
+};
+
+template <class K, class V, class C>
+struct TSorterSelector<std::map<K, V>, C, TSortedTag>
+{
+    typedef TNoopSorter<std::map<K, V>, C> TSorter;
+};
+
+template <class K, class C>
+struct TSorterSelector<yhash_set<K>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_set<K>, TSetSorterComparer<C>> TSorter;
+};
+
+template <class K, class V, class C>
+struct TSorterSelector<yhash_map<K, V>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_map<K, V>, TMapSorterComparer<C>> TSorter;
+};
+
+template <class K, class C>
+struct TSorterSelector<yhash_multiset<K>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_multiset<K>, TSetSorterComparer<C>> TSorter;
+};
+
+template <
+    class TItemSerializer = TDefaultSerializer,
+    class TSortTag = TSortedTag
+>
+struct TSetSerializer
 {
     template <class TSet, class C>
     static void Save(C& context, const TSet& set)
     {
-        typedef typename TSet::key_type TKey;
-        auto iterators = GetSortedIterators(set);
-        TSizeSerializer::Save(context, iterators.size());
-        for (const auto& ptr : iterators) {
-            TItemSerializer::Save(context, *ptr);
+        TSizeSerializer::Save(context, set.size());
+        typename TSorterSelector<TSet, C, TSortTag>::TSorter sorter(set);
+        for (const auto& item : sorter) {
+            TItemSerializer::Save(context, item);
         }
     }
 
@@ -597,6 +715,7 @@ struct TCustomSetSerializer
     static void Load(C& context, TSet& set)
     {
         typedef typename TSet::key_type TKey;
+
         size_t size = TSizeSerializer::Load(context);
         set.clear();
         for (size_t i = 0; i < size; ++i) {
@@ -607,15 +726,44 @@ struct TCustomSetSerializer
     }
 };
 
-typedef TCustomSetSerializer<TDefaultSerializer> TSetSerializer;
+template <
+    class TItemSerializer = TDefaultSerializer,
+    class TSortTag = TSortedTag
+>
+struct TMultiSetSerializer
+{
+    template <class TSet, class C>
+    static void Save(C& context, const TSet& set)
+    {
+        TSetSerializer<TItemSerializer, TSortTag>::Save(context, set);
+    }
 
+    template <class TSet, class C>
+    static void Load(C& context, TSet& set)
+    {
+        typedef typename TSet::key_type TKey;
+
+        size_t size = TSizeSerializer::Load(context);
+        set.clear();
+        for (size_t i = 0; i < size; ++i) {
+            TKey key;
+            TItemSerializer::Load(context, key);
+            set.insert(key);
+        }
+    }
+};
+
+template <
+    class TItemSerializer = TDefaultSerializer,
+    class TSortTag = TSortedTag
+>
 struct TNullableSetSerializer
 {
     template <class TSet, class C>
     static void Save(C& context, const std::unique_ptr<TSet>& set)
     {
         if (set) {
-            TSetSerializer::Save(context, *set);
+            TSetSerializer<TItemSerializer, TSortTag>::Save(context, *set);
         } else {
             TSizeSerializer::Save(context, 0);
         }
@@ -636,33 +784,35 @@ struct TNullableSetSerializer
         set.reset(new TSet());
         for (size_t index = 0; index < size; ++index) {
             TKey key;
-            Load(context, key);
+            TItemSerializer::Load(context, key);
             YCHECK(set->insert(key).second);
         }
     }
 };
 
-template <class TKeySerializer, class TValueSerializer>
-struct TCustomMapSerializer
+template <
+    class TKeySerializer = TDefaultSerializer,
+    class TValueSerializer = TDefaultSerializer,
+    class TSortTag = TSortedTag
+>
+struct TMapSerializer
 {
     template <class TMap, class C>
     static void Save(C& context, const TMap& map)
     {
-        using NYT::Save;
-        auto iterators = GetSortedIterators(map);
-        TSizeSerializer::Save(context, iterators.size());
-        for (const auto& it : iterators) {
-            TKeySerializer::Save(context, it->first);
-            TValueSerializer::Save(context, it->second);
+        TSizeSerializer::Save(context, map.size());
+        typename TSorterSelector<TMap, C, TSortTag>::TSorter sorter(map);
+        for (const auto& pair : sorter) {
+            TKeySerializer::Save(context, pair.first);
+            TValueSerializer::Save(context, pair.second);
         }
     }
 
     template <class TMap, class C>
     static void Load(C& context, TMap& map)
     {
-        using NYT::Load;
-        map.clear();
         size_t size = TSizeSerializer::Load(context);
+        map.clear();
         for (size_t index = 0; index < size; ++index) {
             typename TMap::key_type key;
             TKeySerializer::Load(context, key);
@@ -673,15 +823,21 @@ struct TCustomMapSerializer
     }
 };
 
-typedef TCustomMapSerializer<TDefaultSerializer, TDefaultSerializer> TMapSerializer;
-
-template <class TKeySerializer, class TValueSerializer>
-struct TCustomMultiMapSerializer
+template <
+    class TKeySerializer,
+    class TValueSerializer,
+    class TSortTag
+>
+struct TMultiMapSerializer
 {
     template <class TMap, class C>
     static void Save(C& context, const TMap& map)
     {
-        TCustomMapSerializer<TKeySerializer, TValueSerializer>::Save(context, map);
+        TMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TSortTag
+        >::Save(context, map);
     }
 
     template <class TMap, class C>
@@ -699,14 +855,22 @@ struct TCustomMultiMapSerializer
     }
 };
 
-typedef TCustomMultiMapSerializer<TDefaultSerializer, TDefaultSerializer> TMultiMapSerializer;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class C, class = void>
+struct TValueBoundComparer
+{
+    template <class T>
+    static bool Compare(const T& lhs, const T& rhs)
+    {
+        return lhs < rhs;
+    }
+};
+
+template <class T, class C, class>
 struct TSerializerTraits
 {
     typedef TValueBoundSerializer TSerializer;
+    typedef TValueBoundComparer TComparer;
 };
 
 template <class T, class C>
@@ -729,19 +893,25 @@ T Load(C& context)
     return value;
 }
 
-template <class T, class C>
-void Persist(C& context, T& value)
+template <class S, class T, class C>
+void CustomPersist(C& context, T& value)
 {
     switch (context.GetDirection()) {
         case  EPersistenceDirection::Save:
-            Save(context.SaveContext(), value);
+            S::Save(context.SaveContext(), value);
             break;
         case EPersistenceDirection::Load:
-            Load(context.LoadContext(), value);
+            S::Load(context.LoadContext(), value);
             break;
         default:
             YUNREACHABLE();
     }
+}
+
+template <class T, class C>
+void Persist(C& context, T& value)
+{
+    CustomPersist<TDefaultSerializer, T, C>(context, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -765,6 +935,7 @@ struct TSerializerTraits<
 >
 {
     typedef TPodSerializer TSerializer;
+    typedef TValueBoundComparer TComparer;
 };
 
 template <class T, class C>
@@ -777,18 +948,20 @@ struct TSerializerTraits<
 >
 {
     typedef TEnumSerializer TSerializer;
+    typedef TValueBoundComparer TComparer;
 };
 
 template <class C>
 struct TSerializerTraits<Stroka, C, void>
 {
     typedef TStrokaSerializer TSerializer;
+    typedef TValueBoundComparer TComparer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::vector<T>, C, void>
 {
-    typedef TVectorSerializer TSerializer;
+    typedef TVectorSerializer<> TSerializer;
 };
 
 template <class T, unsigned size>
@@ -797,67 +970,61 @@ class SmallVector;
 template <class T, unsigned size, class C>
 struct TSerializerTraits<SmallVector<T, size>, C, void>
 {
-    typedef TVectorSerializer TSerializer;
+    typedef TVectorSerializer<> TSerializer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::list<T>, C, void>
 {
-    typedef TListSerializer TSerializer;
+    typedef TListSerializer<> TSerializer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::set<T>, C, void>
 {
-    typedef TSetSerializer TSerializer;
+    typedef TSetSerializer<> TSerializer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<yhash_set<T>, C, void>
 {
-    typedef TSetSerializer TSerializer;
+    typedef TSetSerializer<> TSerializer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<yhash_multiset<T>, C, void>
+{
+    typedef TMultiSetSerializer<> TSerializer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::unique_ptr<std::list<T>>, C, void>
 {
-    typedef TNullableListSerializer TSerializer;
+    typedef TNullableListSerializer<> TSerializer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::unique_ptr<std::set<T>>, C, void>
 {
-    typedef TNullableSetSerializer TSerializer;
+    typedef TNullableSetSerializer<> TSerializer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::unique_ptr<yhash_set<T>>, C, void>
 {
-    typedef TNullableSetSerializer TSerializer;
+    typedef TNullableSetSerializer<> TSerializer;
 };
 
 template <class K, class V, class C>
 struct TSerializerTraits<std::map<K, V>, C, void>
 {
-    typedef TMapSerializer TSerializer;
+    typedef TMapSerializer<> TSerializer;
 };
 
 template <class K, class V, class C>
 struct TSerializerTraits<yhash_map<K, V>, C, void>
 {
-    typedef TMapSerializer TSerializer;
-};
-
-template <class K, class V, class C>
-struct TSerializerTraits<std::multimap<K, V>, C, void>
-{
-    typedef TMultiMapSerializer TSerializer;
-};
-
-template <class K, class V, class C>
-struct TSerializerTraits<yhash_multimap<K, V>, C, void>
-{
-    typedef TMultiMapSerializer TSerializer;
+    typedef TMapSerializer<> TSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

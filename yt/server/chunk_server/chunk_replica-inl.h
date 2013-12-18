@@ -3,6 +3,8 @@
 #endif
 #undef CHUNK_REPLICA_INL_H_
 
+#include <core/misc/serialize.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -135,16 +137,28 @@ bool TPtrWithIndex<T>::operator >= (TPtrWithIndex other) const
 }
 
 template <class T>
-bool CompareObjectsForSerialization(TPtrWithIndex<T> lhs, TPtrWithIndex<T> rhs)
+template <class C>
+void TPtrWithIndex<T>::Save(C& context) const
 {
-    return lhs < rhs;
+    using NYT::Save;
+    Save(context, GetPtr());
+    Save(context, GetIndex());
+}
+
+template <class T>
+template <class C>
+void TPtrWithIndex<T>::Load(C& context)
+{
+    using NYT::Load;
+    auto* ptr = Load<T*>(context);
+    int index = Load<int>(context);
+    *this = TPtrWithIndex<T>(ptr, index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
 } // namespace NYT
-
 
 template <class T>
 struct hash< NYT::NChunkServer::TPtrWithIndex<T> >

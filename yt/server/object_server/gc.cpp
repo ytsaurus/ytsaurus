@@ -6,7 +6,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 #include <server/object_server/object_manager.pb.h>
 
@@ -54,24 +54,21 @@ void TGarbageCollector::StopSweep()
 
 void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
 {
-    std::vector<TObjectBase*> allZombies;
-    allZombies.reserve(Zombies.size() + LockedZombies.size());
+    yhash_set<TObjectBase*> allZombies;
     for (auto* object : Zombies) {
-        allZombies.push_back(object);
+        YCHECK(allZombies.insert(object).second);
     }
     for (auto* object : LockedZombies) {
-        allZombies.push_back(object);
+        YCHECK(allZombies.insert(object).second);
     }
-    // NB: allZombies is vector, not hashset; manual sort needed.
-    std::sort(allZombies.begin(), allZombies.end(), CompareObjectsForSerialization);
-    SaveObjectRefs(context, allZombies);
+    NYT::Save(context, allZombies);
 }
 
 void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LoadObjectRefs(context, Zombies);
+    NYT::Load(context, Zombies);
     LockedZombies.clear();
 
     CollectPromise = NewPromise();

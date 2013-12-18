@@ -52,7 +52,7 @@ void TTableNode::Save(TSaveContext& context) const
     using NYT::Save;
     Save(context, Sorted_);
     Save(context, KeyColumns_);
-    SaveObjectRefs(context, Tablets_);
+    Save(context, Tablets_);
 }
 
 void TTableNode::Load(TLoadContext& context)
@@ -64,7 +64,7 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() >= 100) {
         Load(context, Sorted_);
         Load(context, KeyColumns_);
-        LoadObjectRefs(context, Tablets_);
+        Load(context, Tablets_);
     }
 }
 

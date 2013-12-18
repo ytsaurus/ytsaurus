@@ -21,7 +21,7 @@ set( SRCS
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_service.cpp
-  ${BASE}/serialization_context.cpp
+  ${BASE}/serialize.cpp
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/sort_controller.cpp
@@ -53,7 +53,7 @@ set( HDRS
   ${BASE}/scheduler.h
   ${BASE}/scheduler_service.h
   ${BASE}/scheduler_strategy.h
-  ${BASE}/serialization_context.h
+  ${BASE}/serialize.h
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/sort_controller.h

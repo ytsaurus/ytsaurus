@@ -123,7 +123,14 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, OutputChunkListId);
-    Persist(context, OutputChunkTreeIds);
+    // NB: Scheduler snapshots need not be stable.
+    CustomPersist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, OutputChunkTreeIds);
     Persist(context, Endpoints);
 }
 
@@ -199,10 +206,37 @@ void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinNeededResources);
-    Persist(context, NonLocalTasks);
-    Persist(context, CandidateTasks);
-    Persist(context, DelayedTasks);
-    Persist(context, LocalTasks);
+    // NB: Scheduler snapshots need not be stable.
+    CustomPersist<
+        TSetSerializer<
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, NonLocalTasks);
+    CustomPersist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, CandidateTasks);
+    CustomPersist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, DelayedTasks);
+    CustomPersist<
+        TMapSerializer<
+            TDefaultSerializer,
+            TSetSerializer<
+                TDefaultSerializer,
+                TUnsortedTag
+            >,
+            TUnsortedTag
+        >
+    >(context, LocalTasks);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -3324,7 +3358,13 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, JobIndexGenerator);
 
-    Persist(context, InputChunkSpecs);
+    // NB: Scheduler snapshots need not be stable.
+    CustomPersist<
+        TSetSerializer<
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, InputChunkSpecs);
 
     if (context.GetDirection() == EPersistenceDirection::Load) {
         for (auto task : Tasks) {

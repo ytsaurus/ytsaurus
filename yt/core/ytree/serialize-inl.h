@@ -9,9 +9,9 @@
 #include "yson_serializable.h"
 
 #include <core/misc/nullable.h>
-#include <core/misc/serialize.h>
 #include <core/misc/string.h>
 #include <core/misc/error.h>
+#include <core/misc/collection_helpers.h>
 
 namespace NYT {
 namespace NYTree {
@@ -118,10 +118,9 @@ template <class T>
 void Serialize(const yhash_set<T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    auto sortedItems = GetSortedIterators(items);
-    for (const auto& item : sortedItems) {
+    for (auto it : GetSortedIterators(items)) {
         consumer->OnListItem();
-        Serialize(*item, consumer);
+        Serialize(*it, consumer);
     }
     consumer->OnEndList();
 }
@@ -131,10 +130,9 @@ template <class T>
 void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(items);
-    for (const auto& pair : sortedItems) {
-        consumer->OnKeyedItem(pair->first);
-        Serialize(pair->second, consumer);
+    for (auto it : GetSortedIterators(items)) {
+        consumer->OnKeyedItem(it->first);
+        Serialize(it->second, consumer);
     }
     consumer->OnEndMap();
 }

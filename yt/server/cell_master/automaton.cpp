@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "automaton.h"
-#include "serialization_context.h"
+#include "serialize.h"
 #include "meta_state_facade.h"
 #include "bootstrap.h"
 

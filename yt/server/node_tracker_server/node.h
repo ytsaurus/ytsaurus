@@ -149,9 +149,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeId GetObjectId(const TNode* node);
-bool CompareObjectsForSerialization(const TNode* lhs, const TNode* rhs);
-
 struct TNodePtrAddressFormatter
 {
     Stroka Format(TNode* node) const

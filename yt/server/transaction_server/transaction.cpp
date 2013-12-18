@@ -2,7 +2,7 @@
 #include "transaction.h"
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 #include <server/security_server/account.h>
 
@@ -31,15 +31,15 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Timeout_);
     Save(context, UncommittedAccountingEnabled_);
     Save(context, StagedAccountingEnabled_);
-    SaveObjectRefs(context, NestedTransactions_);
-    SaveObjectRef(context, Parent_);
+    Save(context, NestedTransactions_);
+    Save(context, Parent_);
     Save(context, StartTime_);
-    SaveObjectRefs(context, StagedObjects_);
-    SaveObjectRefs(context, LockedNodes_);
-    SaveObjectRefs(context, Locks_);
-    SaveObjectRefs(context, BranchedNodes_);
-    SaveObjectRefs(context, StagedNodes_);
-    SaveObjectRefs(context, AccountResourceUsage_);
+    Save(context, StagedObjects_);
+    Save(context, LockedNodes_);
+    Save(context, Locks_);
+    Save(context, BranchedNodes_);
+    Save(context, StagedNodes_);
+    Save(context, AccountResourceUsage_);
     Save(context, Acd_);
 }
 
@@ -52,18 +52,18 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Timeout_);
     Load(context, UncommittedAccountingEnabled_);
     Load(context, StagedAccountingEnabled_);
-    LoadObjectRefs(context, NestedTransactions_);
-    LoadObjectRef(context, Parent_);
+    Load(context, NestedTransactions_);
+    Load(context, Parent_);
     Load(context, StartTime_);
-    LoadObjectRefs(context, StagedObjects_);
-    LoadObjectRefs(context, LockedNodes_);
+    Load(context, StagedObjects_);
+    Load(context, LockedNodes_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 24) {
-        LoadObjectRefs(context, Locks_);
+        Load(context, Locks_);
     }
-    LoadObjectRefs(context, BranchedNodes_);
-    LoadObjectRefs(context, StagedNodes_);
-    LoadObjectRefs(context, AccountResourceUsage_);
+    Load(context, BranchedNodes_);
+    Load(context, StagedNodes_);
+    Load(context, AccountResourceUsage_);
     Load(context, Acd_);
 }
 

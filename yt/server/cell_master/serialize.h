@@ -3,9 +3,6 @@
 #include "public.h"
 #include "automaton.h"
 
-#include <core/misc/property.h>
-#include <core/misc/small_vector.h>
-
 #include <server/hydra/composite_automaton.h>
 
 #include <server/node_tracker_server/public.h>
@@ -87,41 +84,9 @@ NTabletServer::TTablet* TLoadContext::Get(const NTabletClient::TTabletId& id) co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-void SaveObjectRef(TSaveContext& context, T object);
-
-template <class T>
-void LoadObjectRef(TLoadContext& context, T& object);
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-void SaveObjectRefs(TSaveContext& context, const T& object);
-
-template <class T>
-void LoadObjectRefs(TLoadContext& context, T& object);
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-void SaveNullableObjectRefs(TSaveContext& context, const std::unique_ptr<T>& objects);
-
-template <class T>
-void LoadNullableObjectRefs(TLoadContext& context, std::unique_ptr<T>& objects);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): eliminate this hack when new serialization API is ready
-template <class T>
-void SaveObjectRef(TSaveContext& context, NChunkServer::TPtrWithIndex<T> value);
-template <class T>
-void LoadObjectRef(TLoadContext& context, NChunkServer::TPtrWithIndex<T>& value);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NCellMaster
 } // namespace NYT
-
-#define SERIALIZATION_CONTEXT_INL_H_
-#include "serialization_context-inl.h"
-#undef SERIALIZATION_CONTEXT_INL_H_
+     
+#define SERIALIZE_INL_H_
+#include "serialize-inl.h"
+#undef SERIALIZE_INL_H_

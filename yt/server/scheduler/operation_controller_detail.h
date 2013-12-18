@@ -5,7 +5,7 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
-#include "serialization_context.h"
+#include "serialize.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/id_generator.h>

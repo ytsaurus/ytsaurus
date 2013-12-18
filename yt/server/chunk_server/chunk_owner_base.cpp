@@ -4,7 +4,8 @@
 
 #include "chunk_owner_base.h"
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
+
 #include <server/security_server/cluster_resources.h>
 
 namespace NYT {
@@ -28,7 +29,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     using NYT::Save;
-    SaveObjectRef(context, ChunkList_);
+    Save(context, ChunkList_);
     Save(context, UpdateMode_);
     Save(context, ReplicationFactor_);
     Save(context, Vital_);
@@ -39,7 +40,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     using NYT::Load;
-    LoadObjectRef(context, ChunkList_);
+    Load(context, ChunkList_);
     Load(context, UpdateMode_);
     Load(context, ReplicationFactor_);
     // COMPAT(psushin)
@@ -85,12 +86,7 @@ const TChunkList* TChunkOwnerBase::GetUsageChunkList() const
     }
 }
 
-bool CompareObjectsForSerialization(const TChunkOwnerBase* lhs, const TChunkOwnerBase* rhs)
-{
-    return NCypressServer::CompareObjectsForSerialization(lhs, rhs);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NChunkServer
+} // namespace NYT

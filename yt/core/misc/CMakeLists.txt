@@ -112,6 +112,8 @@ set( HDRS
   ${BASE}/rcu_tree-inl.h
   ${BASE}/varint.h
   ${BASE}/zigzag.h
+  ${BASE}/collection_helpers.h
+  ${BASE}/collection_helpers-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

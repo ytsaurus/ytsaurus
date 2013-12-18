@@ -4,7 +4,7 @@
 
 #include <core/actions/invoker.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -32,9 +32,9 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     TChunkTree::Save(context);
 
     using NYT::Save;
-    SaveObjectRefs(context, Children_);
-    SaveObjectRefs(context, Parents_);
-    SaveObjectRefs(context, OwningNodes_);
+    Save(context, Children_);
+    Save(context, Parents_);
+    Save(context, OwningNodes_);
     Save(context, Statistics_);
     Save(context, RowCountSums_);
     Save(context, ChunkCountSums_);
@@ -46,9 +46,9 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     TChunkTree::Load(context);
 
     using NYT::Load;
-    LoadObjectRefs(context, Children_);
-    LoadObjectRefs(context, Parents_);
-    LoadObjectRefs(context, OwningNodes_);
+    Load(context, Children_);
+    Load(context, Parents_);
+    Load(context, OwningNodes_);
     Load(context, Statistics_);
     if (context.GetVersion() < 100) {
         Load(context, LegacySortedBy_);

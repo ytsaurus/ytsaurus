@@ -31,7 +31,7 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/config.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 #include <server/cypress_server/virtual.h>
 
@@ -73,14 +73,16 @@ TStagedObject::TStagedObject()
 
 void TStagedObject::Save(NCellMaster::TSaveContext& context) const
 {
-    SaveObjectRef(context, StagingTransaction_);
-    SaveObjectRef(context, StagingAccount_);
+    using NYT::Save;
+    Save(context, StagingTransaction_);
+    Save(context, StagingAccount_);
 }
 
 void TStagedObject::Load(NCellMaster::TLoadContext& context)
 {
-    LoadObjectRef(context, StagingTransaction_);
-    LoadObjectRef(context, StagingAccount_);
+    using NYT::Load;
+    Load(context, StagingTransaction_);
+    Load(context, StagingAccount_);
 }
 
 bool TStagedObject::IsStaged() const

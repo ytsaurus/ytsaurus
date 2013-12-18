@@ -4,7 +4,7 @@
 #include <core/ytree/fluent.h>
 #include <core/ytree/yson_serializable.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -23,6 +23,20 @@ TClusterResources::TClusterResources(i64 diskSpace, int nodeCount)
     : DiskSpace(diskSpace)
     , NodeCount(nodeCount)
 { }
+
+void TClusterResources::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, DiskSpace);
+    Save(context, NodeCount);
+}
+
+void TClusterResources::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, DiskSpace);
+    Load(context, NodeCount);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,22 +68,6 @@ void Deserialize(TClusterResources& value, INodePtr node)
     // TODO(babenko): we shouldn't be concerned with manual validation here
     wrapper.Validate();
     value = static_cast<TClusterResources&>(wrapper);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Save(NCellMaster::TSaveContext& context, const TClusterResources& resources)
-{
-    using NYT::Save;
-    Save(context, resources.DiskSpace);
-    Save(context, resources.NodeCount);
-}
-
-void Load(NCellMaster::TLoadContext& context, TClusterResources& resources)
-{
-    using NYT::Load;
-    Load(context, resources.DiskSpace);
-    Load(context, resources.NodeCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

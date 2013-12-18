@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/serialize.h>
+
 #include <core/yson/public.h>
 
 #include <server/cell_master/public.h>
@@ -29,13 +31,14 @@ struct TClusterResources
      *  Branched copies are also counted.
      */
     int NodeCount;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
 };
 
 void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
 void Deserialize(TClusterResources& value, NYTree::INodePtr node);
-
-void Save(NCellMaster::TSaveContext& context, const TClusterResources& resources);
-void Load(NCellMaster::TLoadContext& context, TClusterResources& resources);
 
 const TClusterResources& ZeroClusterResources();
 

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "serialization_context.h"
+#include "serialize.h"
 #include "bootstrap.h"
 
 #include <ytlib/object_client/helpers.h>

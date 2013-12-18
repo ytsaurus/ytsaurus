@@ -825,7 +825,7 @@ TCypressNodeBase* TCypressManager::LockNode(
         childrenToLock.begin(),
         childrenToLock.end(),
         [] (const TCypressNodeBase* lhs, const TCypressNodeBase* rhs) {
-            return CompareObjectsForSerialization(lhs, rhs);
+            return lhs->GetVersionedId() < rhs->GetVersionedId();
         });
 
     TCypressNodeBase* lockedNode = nullptr;

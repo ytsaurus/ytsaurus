@@ -8,7 +8,9 @@
 
 #include <server/tablet_server/tablet_cell.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/node_tracker_server/config.h>
+
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -73,10 +75,10 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, State_);
     Save(context, Statistics_);
     Save(context, Alerts_);
-    SaveObjectRef(context, Transaction_);
-    SaveObjectRefs(context, StoredReplicas_);
-    SaveObjectRefs(context, CachedReplicas_);
-    SaveObjectRefs(context, UnapprovedReplicas_);
+    Save(context, Transaction_);
+    Save(context, StoredReplicas_);
+    Save(context, CachedReplicas_);
+    Save(context, UnapprovedReplicas_);
     // TODO(babenko): tablet
 }
 
@@ -90,10 +92,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 27) {
         Load(context, Alerts_);
     }
-    LoadObjectRef(context, Transaction_);
-    LoadObjectRefs(context, StoredReplicas_);
-    LoadObjectRefs(context, CachedReplicas_);
-    LoadObjectRefs(context, UnapprovedReplicas_);
+    Load(context, Transaction_);
+    Load(context, StoredReplicas_);
+    Load(context, CachedReplicas_);
+    Load(context, UnapprovedReplicas_);
     // TODO(babenko): tablet
 }
 
@@ -239,18 +241,6 @@ int TNode::GetTotalUsedTabletSlots() const
 void TNode::AddTabletSlotHint()
 {
     ++HintedTabletSlots_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeId GetObjectId(const TNode* node)
-{
-    return node->GetId();
-}
-
-bool CompareObjectsForSerialization(const TNode* lhs, const TNode* rhs)
-{
-    return GetObjectId(lhs) < GetObjectId(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,7 @@
 #include <core/yson/parser.h>
 
 #include <core/misc/crash_handler.h>
+#include <core/misc/collection_helpers.h>
 
 #include <server/exec_agent/config.h>
 
