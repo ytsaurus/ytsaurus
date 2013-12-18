@@ -58,7 +58,7 @@ private:
                 // Dump children node ids and thereby determine order on children.
                 // After that use ChildIndex to maintain traversal order.
                 for (auto& pair : children) {
-                    auto* childProxy = dynamic_cast<ICypressNodeProxy*>(~pair.second);
+                    auto* childProxy = dynamic_cast<ICypressNodeProxy*>(pair.second.Get());
                     YCHECK(childProxy);
                     entry.Children.push_back(childProxy->GetId());
                 }
@@ -72,7 +72,7 @@ private:
                 // Dump children node ids and thereby determine order on children.
                 // After that use ChildIndex to maintain traversal order.
                 for (auto& node : children) {
-                    auto* childProxy = dynamic_cast<ICypressNodeProxy*>(~node);
+                    auto* childProxy = dynamic_cast<ICypressNodeProxy*>(node.Get());
                     YCHECK(childProxy);
                     entry.Children.push_back(childProxy->GetId());
                 }

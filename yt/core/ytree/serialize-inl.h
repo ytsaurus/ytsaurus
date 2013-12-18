@@ -68,7 +68,7 @@ void Serialize(T* value, NYson::IYsonConsumer* consumer)
 template <class T>
 void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer)
 {
-    Serialize(~value, consumer);
+    Serialize(value.Get(), consumer);
 }
 
 // TEnumBase

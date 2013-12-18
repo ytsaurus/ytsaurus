@@ -10,7 +10,7 @@ struct hash<NYT::TIntrusivePtr<T>>
 {
     size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
     {
-        return THash<T*>()(~ptr);
+        return THash<T*>()(ptr.Get());
     }
 };
 

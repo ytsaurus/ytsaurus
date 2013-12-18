@@ -107,11 +107,11 @@ private:
     {
         Sleep();
 
-        testing::Mock::VerifyAndClearExpectations(~CallbacksMock);
+        testing::Mock::VerifyAndClearExpectations(CallbacksMock.Get());
 
         for (auto mock : PeerMocks) {
             if (mock) {
-                testing::Mock::VerifyAndClearExpectations(~mock);
+                testing::Mock::VerifyAndClearExpectations(mock.Get());
             }
         }
 

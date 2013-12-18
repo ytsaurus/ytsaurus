@@ -803,12 +803,12 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase
 
 ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(INodePtr node)
 {
-    return dynamic_cast<ICypressNodeProxy*>(~node);
+    return dynamic_cast<ICypressNodeProxy*>(node.Get());
 }
 
 const ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr node)
 {
-    return dynamic_cast<const ICypressNodeProxy*>(~node);
+    return dynamic_cast<const ICypressNodeProxy*>(node.Get());
 }
 
 std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateUserAttributes()
@@ -871,7 +871,7 @@ void TNontemplateCypressNodeProxyBase::SuppressAccessTracking()
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
 {   
     auto node = GetResolver()->ResolvePath(path);
-    auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~node);
+    auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(node.Get());
     YCHECK(nodeProxy);
     return nodeProxy;
 }

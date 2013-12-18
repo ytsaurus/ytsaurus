@@ -155,7 +155,7 @@ private:
 
     static TEntryPtr CookieToEntry(TCookie cookie)
     {
-        return static_cast<TEntry*>(~cookie);
+        return static_cast<TEntry*>(cookie.Get());
     }
 };
 

@@ -195,7 +195,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         auto* item = it->second;
         valueOrError = item->ValueOrError;
 
-        YCHECK(ValueMap.insert(std::make_pair(key, ~value)).second);
+        YCHECK(ValueMap.insert(std::make_pair(key, value.Get())).second);
     }
 
     valueOrError.Set(value);
@@ -209,7 +209,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         }
     }
 
-    OnAdded(~value);
+    OnAdded(value.Get());
     TrimIfNeeded();
 }
 
@@ -285,7 +285,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     // The latter will try to acquire the spinlock.
     guard.Release();
 
-    OnRemoved(~value);
+    OnRemoved(value.Get());
 
     delete item;
 
@@ -342,7 +342,7 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
 
         guard.Release();
 
-        OnRemoved(~value);
+        OnRemoved(value.Get());
 
         delete item;
     }

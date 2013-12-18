@@ -88,7 +88,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
         // Write range column sizes to effectively skip during reading.
         Buffers.push_back(New<TChannelWriter>(partitionTag, 0, true, upperReserveLimit));
-        BuffersHeap.push_back(~Buffers.back());
+        BuffersHeap.push_back(Buffers.back().Get());
         CurrentBufferCapacity += Buffers.back()->GetCapacity();
 
         auto* partitionAttributes = PartitionsExt.add_partitions();

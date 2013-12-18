@@ -179,7 +179,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
         auto objectProxy = resolver->ResolvePath(path, Transaction);
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~objectProxy);
+        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
         if (!nodeProxy) {
             THROW_ERROR_EXCEPTION("Path % points to a nonversioned %s object instead of a node",
                 ~FormatEnum(TypeFromId(objectProxy->GetId())).Quote());
@@ -192,7 +192,7 @@ public:
         INodePtr root;
         auto path = GetNodeYPath(node, &root);
 
-        auto* rootProxy = dynamic_cast<ICypressNodeProxy*>(~root);
+        auto* rootProxy = dynamic_cast<ICypressNodeProxy*>(root.Get());
         YCHECK(rootProxy);
 
         auto cypressManager = Bootstrap->GetCypressManager();

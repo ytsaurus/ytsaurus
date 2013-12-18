@@ -772,7 +772,7 @@ void TReplicationWriter::AddGroup(TGroupPtr group)
         return;
 
     LOG_DEBUG("Block group added (Group: %p, Blocks: %d-%d)",
-        ~group,
+        group.Get(),
         group->GetStartBlockIndex(),
         group->GetEndBlockIndex());
 
@@ -1038,7 +1038,7 @@ void TReplicationWriter::AddBlock(const TSharedRef& block)
 
     LOG_DEBUG("Block added (Block: %d, Group: %p, Size: %" PRISZT ")",
         BlockCount,
-        ~CurrentGroup,
+        CurrentGroup.Get(),
         block.Size());
 
     ++BlockCount;

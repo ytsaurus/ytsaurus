@@ -288,7 +288,7 @@ public:
 
         IOperationControllerPtr controller;
         try {
-            controller = CreateController(~operation);
+            controller = CreateController(operation.Get());
             operation->SetController(controller);
             controller->Initialize();
         } catch (const std::exception& ex) {
@@ -1054,7 +1054,7 @@ private:
 
         IOperationControllerPtr controller;
         try {
-            controller = CreateController(~operation);
+            controller = CreateController(operation.Get());
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %s)",
                 ~ToString(operationId));

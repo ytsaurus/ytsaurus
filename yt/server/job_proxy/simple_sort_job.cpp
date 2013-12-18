@@ -131,7 +131,7 @@ public:
                     keyColumnToIndex[name] = i;
                 }
 
-                Sync(~Reader, &TReader::AsyncOpen);
+                Sync(Reader.Get(), &TReader::AsyncOpen);
 
                 valueBuffer.reserve(1000000);
                 keyBuffer.reserve(estimatedRowCount * keyColumnCount);
@@ -166,7 +166,7 @@ public:
                     valueIndexBuffer.push_back(valueBuffer.size());
 
                     if (!Reader->FetchNext()) {
-                        Sync(~Reader, &TReader::GetReadyEvent);
+                        Sync(Reader.Get(), &TReader::GetReadyEvent);
                     }
                 }
             }

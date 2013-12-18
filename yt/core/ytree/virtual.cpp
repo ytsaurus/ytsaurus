@@ -201,7 +201,7 @@ public:
 
     virtual void SetParent(ICompositeNodePtr parent) override
     {
-        Parent = ~parent;
+        Parent = parent.Get();
     }
 
     virtual TResolveResult Resolve(

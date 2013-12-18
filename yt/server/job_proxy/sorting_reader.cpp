@@ -249,7 +249,7 @@ private:
     {
         LOG_INFO("Initializing input");
         PROFILE_TIMING ("/reduce/init_time") {
-            Sync(~Reader, &TReader::AsyncOpen);
+            Sync(Reader.Get(), &TReader::AsyncOpen);
 
             EstimatedBucketCount = (EstimatedRowCount + SortBucketSize - 1) / SortBucketSize;
             LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
@@ -314,7 +314,7 @@ private:
                 }
 
                 if (!Reader->FetchNext()) {
-                    Sync(~Reader, &TReader::GetReadyEvent);
+                    Sync(Reader.Get(), &TReader::GetReadyEvent);
                 }
             }
 

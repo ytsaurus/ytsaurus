@@ -41,7 +41,7 @@ public:
                 Value = Factory.Run();
             }
         }
-        return ~Value;
+        return Value.Get();
     }
 
     bool HasValue() const throw()
@@ -55,14 +55,6 @@ private:
     mutable TIntrusivePtr<T> Value;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-T* operator ~ (const TLazyIntrusivePtr<T>& ptr)
-{
-    return ptr.Get();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,14 +102,6 @@ private:
     mutable std::unique_ptr<T> Value;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-T* operator ~ (const TLazyUniquePtr<T>& ptr)
-{
-    return ptr.Get();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

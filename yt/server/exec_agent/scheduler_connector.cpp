@@ -68,7 +68,7 @@ void TSchedulerConnector::SendHeartbeat()
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap->GetJobController();
-    jobController->PrepareHeartbeat(~req);
+    jobController->PrepareHeartbeat(req.Get());
 
     req->Invoke().Subscribe(
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
@@ -90,7 +90,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TJobTrackerServiceProxy::TRspHeart
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
     auto jobController = Bootstrap->GetJobController();
-    jobController->ProcessHeartbeat(~rsp);
+    jobController->ProcessHeartbeat(rsp.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

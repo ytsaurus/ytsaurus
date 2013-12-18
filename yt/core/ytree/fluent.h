@@ -378,9 +378,9 @@ public:
 
         TThis& Items(IListNodePtr list)
         {
-            for (const auto& item : list->GetChildren()) {
+            for (auto item : list->GetChildren()) {
                 this->Consumer->OnListItem();
-                VisitTree(~item, this->Consumer);
+                VisitTree(std::move(item), this->Consumer);
             }
             return *this;
         }
@@ -414,7 +414,7 @@ public:
         {
             for (const auto& pair : map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
-                VisitTree(~pair.second, this->Consumer);
+                VisitTree(pair.second, this->Consumer);
             }
             return *this;
         }

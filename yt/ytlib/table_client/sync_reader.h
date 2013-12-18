@@ -53,14 +53,14 @@ public:
 
     virtual void Open() override
     {
-        Sync(~AsyncReader, &TAsyncReader::AsyncOpen);
+        Sync(AsyncReader.Get(), &TAsyncReader::AsyncOpen);
     }
 
     virtual const TRow* GetRow() override
     {
         if (IsReadingStarted && AsyncReader->GetFacade() != nullptr) {
             if (!AsyncReader->FetchNext()) {
-                Sync(~AsyncReader, &TAsyncReader::GetReadyEvent);
+                Sync(AsyncReader.Get(), &TAsyncReader::GetReadyEvent);
             }
         }
         IsReadingStarted = true;

@@ -115,7 +115,7 @@ public:
 
             LOG_INFO("Initializing");
             {
-                Sync(~Reader, &TReader::AsyncOpen);
+                Sync(Reader.Get(), &TReader::AsyncOpen);
 
                 keyBuffer.reserve(estimatedRowCount * keyColumnCount);
                 rowPtrBuffer.reserve(estimatedRowCount);
@@ -174,7 +174,7 @@ public:
                     }
 
                     if (!Reader->FetchNext()) {
-                        Sync(~Reader, &TReader::GetReadyEvent);
+                        Sync(Reader.Get(), &TReader::GetReadyEvent);
                     }
                 }
 

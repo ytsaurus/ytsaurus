@@ -225,7 +225,7 @@ private:
 
     ISystemAttributeProvider* GetTargetSystemAttributeProvider()
     {
-        return dynamic_cast<ISystemAttributeProvider*>(~Service);
+        return dynamic_cast<ISystemAttributeProvider*>(Service.Get());
     }
 
 };

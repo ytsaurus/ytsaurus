@@ -1012,7 +1012,7 @@ private:
 
         operationElement->SetSpec(spec);
 
-        operationElement->SetPool(~pool);
+        operationElement->SetPool(pool.Get());
         pool->AddChild(operationElement);
         IncreasePoolUsage(pool, operationElement->ResourceUsage());
 
@@ -1169,7 +1169,7 @@ private:
         }
         GetPoolParentElement(pool)->RemoveChild(pool);
 
-        pool->SetParent(~parent);
+        pool->SetParent(parent.Get());
         
         GetPoolParentElement(pool)->AddChild(pool);
         if (parent) {
@@ -1179,7 +1179,7 @@ private:
 
     void IncreasePoolUsage(TPoolPtr pool, const TNodeResources& delta)
     {
-        auto* currentPool = ~pool;
+        auto* currentPool = pool.Get();
         while (currentPool) {
             currentPool->ResourceUsage() += delta;
             currentPool = currentPool->GetParent();
@@ -1283,7 +1283,7 @@ private:
                         SetPoolParent(pool, parent);
 
                         // Parse children.
-                        parseConfig(childNode, ~pool);
+                        parseConfig(childNode, pool.Get());
                     }
                 };
 

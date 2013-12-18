@@ -57,7 +57,7 @@ public:
     inline void EnsureOpen()
     {
         if (!IsOpen) {
-            Sync(~Writer, &TAsyncWriter::AsyncOpen);
+            Sync(Writer.Get(), &TAsyncWriter::AsyncOpen);
             IsOpen = true;
         }
     }
@@ -82,7 +82,7 @@ public:
 
     virtual void Close() override
     {
-        Sync(~Writer, &TAsyncWriter::AsyncClose);
+        Sync(Writer.Get(), &TAsyncWriter::AsyncClose);
     }
 
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
@@ -121,7 +121,7 @@ private:
         typename TChunkWriter::TFacade* facade = nullptr;
 
         while ((facade = Writer->GetCurrentWriter()) == nullptr) {
-            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
+            Sync(Writer.Get(), &TAsyncWriter::GetReadyEvent);
         }
         return facade;
     }

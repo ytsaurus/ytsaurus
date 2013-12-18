@@ -127,7 +127,7 @@ public:
         PROFILE_TIMING ("/partition_time") {
             LOG_INFO("Initializing");
             {
-                Sync(~Reader, &TReader::AsyncOpen);
+                Sync(Reader.Get(), &TReader::AsyncOpen);
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
@@ -138,7 +138,7 @@ public:
                     Writer->WriteRowUnsafe(facade->GetRow());
 
                     if (!Reader->FetchNext()) {
-                        Sync(~Reader, &TReader::GetReadyEvent);
+                        Sync(Reader.Get(), &TReader::GetReadyEvent);
                     }
                 }
 

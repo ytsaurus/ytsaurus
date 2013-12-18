@@ -65,7 +65,7 @@ struct TRefCountedFactory
     {
         auto obj = New<T>();
         obj->Ref();
-        return ~obj;
+        return obj.Get();
     }
 };
 

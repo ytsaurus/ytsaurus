@@ -76,7 +76,7 @@ public:
         // Push all non-empty readers to the heap.
         for (auto reader : Readers) {
             if (reader->GetFacade()) {
-                ReaderHeap.push_back(~reader);
+                ReaderHeap.push_back(reader.Get());
             }
         }
 

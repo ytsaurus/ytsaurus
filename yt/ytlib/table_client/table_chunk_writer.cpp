@@ -90,7 +90,7 @@ TTableChunkWriter::TTableChunkWriter(
         *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
         auto channelWriter = New<TChannelWriter>(i, channel.GetColumns().size());
         Buffers.push_back(channelWriter);
-        BuffersHeap.push_back(~channelWriter);
+        BuffersHeap.push_back(channelWriter.Get());
         CurrentBufferCapacity += channelWriter->GetCapacity();
     }
 

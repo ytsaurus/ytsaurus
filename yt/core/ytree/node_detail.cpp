@@ -153,7 +153,7 @@ void TCompositeNodeMixin::SetRecursive(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto factory = CreateFactory();
-    auto value = ConvertToNode(TYsonString(request->value()), ~factory);
+    auto value = ConvertToNode(TYsonString(request->value()), factory.Get());
     SetChild(factory, "/" + path, value, false);
     factory->Commit();
 

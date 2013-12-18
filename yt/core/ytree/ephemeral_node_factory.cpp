@@ -302,7 +302,7 @@ public:
     {
         YASSERT(child);
 
-        auto it = ChildToKey.find(const_cast<INode*>(~child));
+        auto it = ChildToKey.find(const_cast<INode*>(child.Get()));
         YASSERT(it != ChildToKey.end());
         return it->second;
     }
@@ -427,7 +427,7 @@ public:
     {
         YASSERT(child);
 
-        auto it = ChildToIndex.find(const_cast<INode*>(~child));
+        auto it = ChildToIndex.find(const_cast<INode*>(child.Get()));
         YASSERT(it != ChildToIndex.end());
         return it->second;
     }

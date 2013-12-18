@@ -519,7 +519,7 @@ void TMasterConnector::SendJobHeartbeat()
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap->GetJobController();
-    jobController->PrepareHeartbeat(~req);
+    jobController->PrepareHeartbeat(req.Get());
 
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnJobHeartbeatResponse, MakeStrong(this))
@@ -547,7 +547,7 @@ void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeart
     LOG_INFO("Successfully reported job heartbeat to master");
     
     auto jobController = Bootstrap->GetJobController();
-    jobController->ProcessHeartbeat(~rsp);
+    jobController->ProcessHeartbeat(rsp.Get());
 
     ScheduleJobHeartbeat();
 }

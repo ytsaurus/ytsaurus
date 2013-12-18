@@ -286,7 +286,7 @@ private:
                     << ex;
             }
 
-            auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(~nodeProxy);
+            auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeProxy.Get());
             YCHECK(cypressNodeProxy);
 
             auto* node = cypressNodeProxy->GetTrunkNode();

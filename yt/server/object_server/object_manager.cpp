@@ -303,7 +303,7 @@ public:
     {
         const auto& id = proxy->GetId();
         if (IsVersionedType(TypeFromId(id))) {
-            auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
+            auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);
         } else {
@@ -320,7 +320,7 @@ private:
             return std::move(proxy);
         }
 
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
+        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
         if (!nodeProxy) {
             THROW_ERROR_EXCEPTION(
                 "Cannot resolve nontrivial path %s for nonversioned object %s",
@@ -330,7 +330,7 @@ private:
         }
 
         auto resolvedNode = GetNodeByYPath(nodeProxy, path);
-        auto* resolvedNodeProxy = dynamic_cast<ICypressNodeProxy*>(~resolvedNode);
+        auto* resolvedNodeProxy = dynamic_cast<ICypressNodeProxy*>(resolvedNode.Get());
         YCHECK(resolvedNodeProxy);
         return resolvedNodeProxy;
     }

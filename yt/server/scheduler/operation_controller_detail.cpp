@@ -2503,7 +2503,7 @@ void TOperationControllerBase::RequestInputs()
 
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
-                table.FetchResponse.Swap(~rsp);
+                table.FetchResponse.Swap(rsp.Get());
                 LOG_INFO("Input table fetched (Path: %s, ChunkCount: %d)",
                     ~path,
                     rsp->chunks_size());
@@ -2648,7 +2648,7 @@ void TOperationControllerBase::RequestInputs()
                     "Error fetching regular file %s",
                     ~path);
 
-                file.FetchResponse.Swap(~rsp);
+                file.FetchResponse.Swap(rsp.Get());
 
                 LOG_INFO("Regular file fetched (Path: %s)",
                     ~path);
@@ -2700,7 +2700,7 @@ void TOperationControllerBase::RequestInputs()
                     chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
                 }
 
-                file.FetchResponse.Swap(~rsp);
+                file.FetchResponse.Swap(rsp.Get());
                 LOG_INFO("Table file fetched (Path: %s)",
                     ~path);
             }

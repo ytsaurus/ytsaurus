@@ -21,7 +21,7 @@ TJob::TJob(
     TJobSpecBuilder specBuilder)
     : Id_(id)
     , Type_(type)
-    , Operation_(~operation)
+    , Operation_(operation.Get())
     , Node_(node)
     , StartTime_(startTime)
     , State_(EJobState::Waiting)

@@ -27,7 +27,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton)
     : HydraManager(hydraManager)
-    , Automaton(~automaton)
+    , Automaton(automaton.Get())
 {
     YCHECK(HydraManager);
     YCHECK(Automaton);
