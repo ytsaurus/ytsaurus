@@ -44,7 +44,6 @@ set( SRCS
 set( HDRS
   ${BASE}/new.h
   ${BASE}/address.h
-  ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
