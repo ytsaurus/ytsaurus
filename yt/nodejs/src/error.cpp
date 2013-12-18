@@ -86,7 +86,7 @@ Handle<Value> ConvertErrorToV8(const TError& error)
             TStringOutput valueStream(encodedValue);
             auto valueWriter = CreateJsonConsumer(&valueStream);
 
-            Consume(value, ~valueWriter);
+            Consume(value, valueWriter.get());
 
             attributes->Set(
                 String::New(key.data(), key.length()),

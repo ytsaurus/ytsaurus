@@ -203,7 +203,7 @@ INodePtr ConvertV8ValueToNode(Handle<Value> value)
 
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    ConsumeV8Value(value, ~builder);
+    ConsumeV8Value(value, builder.get());
     return builder->EndTree();
 }
 

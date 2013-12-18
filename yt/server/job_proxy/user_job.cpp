@@ -211,7 +211,7 @@ private:
             ErrorOutput = JobIO->CreateErrorOutput(
                 stderrTransactionId,
                 UserJobSpec.max_stderr_size());
-            stdErrOutput = ~ErrorOutput;
+            stdErrOutput = ErrorOutput.get();
         } else {
             stdErrOutput = &NullErrorOutput;
         }
@@ -227,12 +227,12 @@ private:
                 auto consumer = CreateConsumerForFormat(
                     format,
                     EDataType::Tabular,
-                    ~buffer);
+                    buffer.get());
 
                 createPipe(pipe);
                 InputPipes.push_back(New<TInputPipe>(
                     pipe,
-                    JobIO->CreateTableInput(i, ~consumer),
+                    JobIO->CreateTableInput(i, consumer.get()),
                     std::move(buffer),
                     std::move(consumer),
                     3 * i));
@@ -252,7 +252,7 @@ private:
 
             for (int i = 0; i < outputCount; ++i) {
                 std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(Writers, i));
-                auto parser = CreateParserForFormat(format, EDataType::Tabular, ~consumer);
+                auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
                 TableOutput[i].reset(new TTableOutput(
                     std::move(parser),
                     std::move(consumer)));
@@ -262,7 +262,7 @@ private:
                     ? 3 + i
                     : 3 * i + 1;
 
-                OutputPipes.push_back(New<TOutputPipe>(pipe, ~TableOutput[i], jobDescriptor));
+                OutputPipes.push_back(New<TOutputPipe>(pipe, TableOutput[i].get(), jobDescriptor));
             }
         }
 
