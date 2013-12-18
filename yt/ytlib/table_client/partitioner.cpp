@@ -6,6 +6,7 @@
 namespace NYT {
 namespace NTableClient {
 
+using NVersionedTableClient::TKey;
 using NVersionedTableClient::TOwningKey;
 using NVersionedTableClient::TKeyComparer;
 
@@ -24,7 +25,7 @@ public:
         return Keys->size() + 1;
     }
 
-    virtual int GetPartitionTag(const TPartitionKey& key) override
+    virtual int GetPartitionTag(const TKey& key) override
     {
         auto it = std::upper_bound(Keys->begin(), Keys->end(), key, TKeyComparer());
         return std::distance(Keys->begin(), it);
@@ -55,7 +56,7 @@ public:
         return PartitionCount;
     }
 
-    virtual int GetPartitionTag(const TPartitionKey& key) override
+    virtual int GetPartitionTag(const TKey& key) override
     {
         return GetHash(key) % PartitionCount;
     }

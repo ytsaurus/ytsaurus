@@ -43,30 +43,20 @@ static const int TypicalColumnCount = 64;
 
 struct TUnversionedValue;
 struct TVersionedValue;
-struct TRowHeader;
 
-template <class TValue>
-class TRow;
-typedef TRow<TVersionedValue>   TVersionedRow;
-typedef TRow<TUnversionedValue> TUnversionedRow;
+struct TUnversionedRowHeader;
+struct TVersionedRowHeader;
 
-template <class TValue>
-class TOwningRow;
-typedef TOwningRow<TVersionedValue>   TVersionedOwningRow;
-typedef TOwningRow<TUnversionedValue> TUnversionedOwningRow;
+class TUnversionedRow;
+class TUnversionedOwningRow;
 
-typedef TUnversionedOwningRow TOwningKey;
+class TVersionedRow;
+
 typedef TUnversionedRow       TKey;
+typedef TUnversionedOwningRow TOwningKey;
 
-template <class TValue>
-class TRowBuilder;
-typedef TRowBuilder<TVersionedValue>   TVersionedRowBuilder;
-typedef TRowBuilder<TUnversionedValue> TUnversionedRowBuilder;
-
-template <class TValue>
-class TOwningRowBuilder;
-typedef TOwningRowBuilder<TVersionedValue>   TVersionedOwningRowBuilder;
-typedef TOwningRowBuilder<TUnversionedValue> TUnversionedOwningRowBuilder;
+class TUnversionedRowBuilder;
+class TUnversionedOwningRowBuilder;
 
 class TKeyComparer;
 

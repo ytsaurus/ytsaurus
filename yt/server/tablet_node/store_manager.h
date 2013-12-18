@@ -66,7 +66,7 @@ private:
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 
-    std::vector<NVersionedTableClient::TVersionedRow> PooledRowset_;
+    std::vector<NVersionedTableClient::TUnversionedRow> PooledRowset_;
 
     std::unique_ptr<TMemoryCompactor> MemoryCompactor_;
     bool MemoryCompactionInProgress_;

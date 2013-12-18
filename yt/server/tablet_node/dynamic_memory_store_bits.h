@@ -5,7 +5,7 @@
 #include <core/misc/enum.h>
 #include <core/misc/chunked_memory_pool.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <tuple>
 

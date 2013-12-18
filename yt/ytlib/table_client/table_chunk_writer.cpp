@@ -99,7 +99,11 @@ TTableChunkWriter::TTableChunkWriter(
     if (options->KeyColumns) {
         MiscExt.set_sorted(true);
 
-        CurrentKey = TKey::Allocate(&CurrentKeyMemoryPool, options->KeyColumns->size());
+        CurrentKey = TKey::Allocate(
+            &CurrentKeyMemoryPool,
+            options->KeyColumns->size(),
+            options->KeyColumns->size());
+
         ResetRowValues(&CurrentKey);
 
         for (int keyIndex = 0; keyIndex < options->KeyColumns->size(); ++keyIndex) {
@@ -261,7 +265,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
         WriteValue(pair, columnInfo);
 
         if (columnInfo.KeyColumnIndex >= 0) {
-            CurrentKey[columnInfo.KeyColumnIndex] = MakeKeyPart(pair.second, Lexer);
+            CurrentKey.BeginKeys()[columnInfo.KeyColumnIndex] = MakeKeyPart(pair.second, Lexer);
         }
     }
 

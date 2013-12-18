@@ -815,8 +815,8 @@ void TTableChunkReader::OnRowFetched(TError error)
 
 void TTableChunkReader::ClearKey()
 {
-    for (int i = 0; i < CurrentKey.GetValueCount(); ++i) {
-        CurrentKey[i] = MakeUnversionedSentinelValue(EValueType::Null);
+    for (int i = 0; i < CurrentKey.GetKeyCount(); ++i) {
+        CurrentKey.BeginKeys()[i] = MakeUnversionedSentinelValue(EValueType::Null);
     }
 }
 
@@ -920,7 +920,7 @@ void TTableChunkReader::MakeCurrentRow()
 
                 if (columnInfo.KeyIndex >= 0) {
                     // Use first token to create key part.
-                    CurrentKey[columnInfo.KeyIndex] = MakeKeyPart(reader->GetValue(), Lexer);
+                    CurrentKey.BeginKeys()[columnInfo.KeyIndex] = MakeKeyPart(reader->GetValue(), Lexer);
                 }
 
                 if (columnInfo.InChannel) {

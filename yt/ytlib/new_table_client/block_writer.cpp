@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "block_writer.h"
-#include "row.h"
+#include "unversioned_row.h"
 
 #include <core/misc/varint.h>
 
@@ -42,7 +42,7 @@ void TBlockWriter::WriteTimestamp(TTimestamp value, bool deleted, int index)
     column.Stream.DoWrite(&value, sizeof(TTimestamp));
 }
 
-void TBlockWriter::WriteInteger(const TVersionedValue& value, int index)
+void TBlockWriter::WriteInteger(const TUnversionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -56,7 +56,7 @@ void TBlockWriter::WriteInteger(const TVersionedValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteDouble(const TVersionedValue& value, int index)
+void TBlockWriter::WriteDouble(const TUnversionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -70,7 +70,7 @@ void TBlockWriter::WriteDouble(const TVersionedValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteString(const TVersionedValue& value, int index)
+void TBlockWriter::WriteString(const TUnversionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -88,12 +88,12 @@ void TBlockWriter::WriteString(const TVersionedValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteAny(const TVersionedValue& value, int index)
+void TBlockWriter::WriteAny(const TUnversionedValue& value, int index)
 {
     WriteString(value, index);
 }
 
-TStringBuf TBlockWriter::WriteKeyString(const TVersionedValue& value, int index)
+TStringBuf TBlockWriter::WriteKeyString(const TUnversionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -115,7 +115,7 @@ TStringBuf TBlockWriter::WriteKeyString(const TVersionedValue& value, int index)
     }
 }
 
-void TBlockWriter::WriteVariable(const TVersionedValue& value, int nameTableIndex)
+void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIndex)
 {
     ++VariableColumnCount;
 

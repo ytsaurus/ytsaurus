@@ -57,19 +57,19 @@ class TRowset
     : public IRowset
 {
 public:
-    TRowset(Stroka data, std::vector<TVersionedRow> rows)
+    TRowset(Stroka data, std::vector<TUnversionedRow> rows)
         : Data_(std::move(data))
         , Rows_(std::move(rows))
     { }
 
-    const std::vector<TVersionedRow>& Rows() const
+    const std::vector<TUnversionedRow>& Rows() const
     {
         return Rows_;
     }
 
 private:
     Stroka Data_;
-    std::vector<TVersionedRow> Rows_;
+    std::vector<TUnversionedRow> Rows_;
 
 };
 
@@ -164,8 +164,8 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             TProtocolReader reader(rsp->encoded_response());
-            std::vector<TVersionedRow> rows;
-            reader.ReadVersionedRowset(&rows);
+            std::vector<TUnversionedRow> rows;
+            reader.ReadUnversionedRowset(&rows);
 
             return TErrorOr<IRowsetPtr>(New<TRowset>(
                 rsp->encoded_response(),

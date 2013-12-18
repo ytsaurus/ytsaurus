@@ -65,11 +65,7 @@ public:
 
     void WriteUnversionedRow(NVersionedTableClient::TUnversionedRow row);
     void WriteUnversionedRow(const std::vector<NVersionedTableClient::TUnversionedValue>& row);
-    void WriteVersionedRow(NVersionedTableClient::TVersionedRow row);
-    void WriteVersionedRow(const std::vector<NVersionedTableClient::TVersionedValue>& row);
-
     void WriteUnversionedRowset(const std::vector<NVersionedTableClient::TUnversionedRow>& rowset);
-    void WriteVersionedRowset(const std::vector<NVersionedTableClient::TVersionedRow>& rowset);
 
     Stroka Finish();
 
@@ -94,10 +90,7 @@ public:
     NApi::TColumnFilter ReadColumnFilter();
 
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
-    NVersionedTableClient::TVersionedRow ReadVersionedRow();
-    
     void ReadUnversionedRowset(std::vector<NVersionedTableClient::TUnversionedRow>* rowset);
-    void ReadVersionedRowset(std::vector<NVersionedTableClient::TVersionedRow>* rowset);
 
 private:
     class TImpl;

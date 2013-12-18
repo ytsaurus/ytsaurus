@@ -16,7 +16,7 @@
 
 #include <ytlib/new_table_client/public.h>
 #include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {

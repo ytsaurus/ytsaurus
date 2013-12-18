@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/yson/lexer.h>
 #include <core/ytree/public.h>

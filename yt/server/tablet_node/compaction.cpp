@@ -9,6 +9,7 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/tablet_client/config.h>
+#include <ytlib/new_table_client/versioned_row.h>
 
 namespace NYT {
 namespace NTabletNode {

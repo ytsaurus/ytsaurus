@@ -16,7 +16,7 @@
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/yson/lexer.h>
 

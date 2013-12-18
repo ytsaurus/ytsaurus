@@ -13,7 +13,7 @@
 
 #include <yt/ytlib/new_table_client/public.h>
 #include <yt/ytlib/new_table_client/schema.h>
-#include <yt/ytlib/new_table_client/row.h>
+#include <yt/ytlib/new_table_client/unversioned_row.h>
 #include <yt/ytlib/new_table_client/name_table.h>
 
 #include <yt/server/tablet_node/static_memory_store.h>

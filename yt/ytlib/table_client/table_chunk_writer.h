@@ -6,7 +6,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>

@@ -24,7 +24,7 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/private.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>

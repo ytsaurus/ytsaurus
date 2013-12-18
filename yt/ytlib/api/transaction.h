@@ -9,7 +9,7 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/ypath/public.h>
 

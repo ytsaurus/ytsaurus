@@ -5,7 +5,7 @@
 
 #include <ytlib/chunk_client/schema.pb.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -56,7 +56,7 @@ template<class TVersionedRow>
 void ToProto(NChunkClient::NProto::TKey* protoKey, const TVersionedRow& row)
 {
     protoKey->clear_parts();
-    for (int i = 0; i < row.size(); ++i) {
+    for (int i = 0; i < row.GetValueCount(); ++i) {
         auto* keyPart = protoKey->add_parts();
         switch (row[i].Type) {
         case NVersionedTableClient::EValueType::Null:

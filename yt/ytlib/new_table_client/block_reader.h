@@ -16,7 +16,7 @@ class TVariableIterator
 public:
     TVariableIterator(const char* opaque, int count);
 
-    bool ParseNext(TVersionedValue* value);
+    bool ParseNext(TUnversionedValue* value);
     int GetRemainingCount() const;
 
 private:
@@ -44,7 +44,7 @@ public:
     bool GetEndOfKeyFlag() const;
 
     // Defines value type based on column types.
-    TVersionedValue Read(int index) const;
+    TUnversionedValue Read(int index) const;
 
     TVariableIterator GetVariableIterator() const;
 

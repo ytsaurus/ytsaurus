@@ -7,7 +7,7 @@
 #include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 

@@ -8,7 +8,7 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NDriver {

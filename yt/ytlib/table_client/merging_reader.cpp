@@ -3,7 +3,7 @@
 #include "config.h"
 #include "table_chunk_reader.h"
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <core/misc/sync.h>

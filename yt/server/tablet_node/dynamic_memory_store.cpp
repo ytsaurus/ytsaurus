@@ -10,6 +10,7 @@
 #include <core/concurrency/fiber.h>
 
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/versioned_row.h>
 
 #include <ytlib/tablet_client/config.h>
 

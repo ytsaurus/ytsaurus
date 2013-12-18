@@ -11,7 +11,7 @@
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>

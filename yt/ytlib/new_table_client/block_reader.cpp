@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "block_reader.h"
-#include "row.h"
+#include "unversioned_row.h"
 
 #include <core/misc/varint.h>
 
@@ -18,7 +18,7 @@ TVariableIterator::TVariableIterator(const char* opaque, int count)
     YASSERT(Count >= 0);
 }
 
-bool TVariableIterator::ParseNext(TVersionedValue* value)
+bool TVariableIterator::ParseNext(TUnversionedValue* value)
 {
     if (Count == 0) {
         return false;
@@ -131,12 +131,12 @@ bool TBlockReader::GetEndOfKeyFlag() const
     return EndOfKeyFlags.Get(RowIndex);
 }
 
-TVersionedValue TBlockReader::Read(int index) const
+TUnversionedValue TBlockReader::Read(int index) const
 {
     YASSERT(index < Columns.size());
     const auto& column = Columns[index];
 
-    TVersionedValue value;
+    TUnversionedValue value;
     if (column.NullBitMap.Get(RowIndex)) {
         value.Type = column.Type;
 

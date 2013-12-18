@@ -7,7 +7,7 @@
 
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NChunkClient {

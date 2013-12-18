@@ -14,7 +14,7 @@
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/rpc/channel.h>
 

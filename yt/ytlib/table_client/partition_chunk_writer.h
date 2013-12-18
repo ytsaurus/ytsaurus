@@ -8,7 +8,7 @@
 #include <core/compression/public.h>
 #include <core/yson/lexer.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk.pb.h>
@@ -83,6 +83,9 @@ private:
     yhash_map<TStringBuf, int> KeyColumnIndexes;
 
     i64 BasicMetaSize;
+
+    NVersionedTableClient::TKey PartitionKey;
+    TChunkedMemoryPool Pool;
 
     NProto::TPartitionsExt PartitionsExt;
 

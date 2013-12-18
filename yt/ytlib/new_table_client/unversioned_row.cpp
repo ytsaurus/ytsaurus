@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "row.h"
+#include "unversioned_row.h"
 
 #include <ytlib/table_client/private.h>
 
@@ -158,25 +158,6 @@ Stroka ToString(const TUnversionedValue& value)
     }
 }
 
-int GetByteSize(const TVersionedValue& value)
-{
-    return GetByteSize(static_cast<TUnversionedValue>(value)) + MaxVarInt64Size;
-}
-
-int WriteValue(char* output, const TVersionedValue& value)
-{
-    int result = WriteValue(output, static_cast<TUnversionedValue>(value));
-    result += WriteVarUInt64(output + result, value.Timestamp);
-    return result;
-}
-
-int ReadValue(const char* input, TVersionedValue* value)
-{
-    int result = ReadValue(input, static_cast<TUnversionedValue*>(value));
-    result += ReadVarUInt64(input + result, &value->Timestamp);
-    return result;
-}
-
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (UNLIKELY(lhs.Type != rhs.Type)) {
@@ -297,6 +278,11 @@ size_t GetHash(const TUnversionedValue& value)
     }
 }
 
+size_t GetUnversionedRowDataSize(int valueCount)
+{
+    return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType)
@@ -363,6 +349,58 @@ TKey EmptyKey()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka SerializeToString(const TUnversionedRow& row)
+{
+    int size = 2 * MaxVarUInt32Size; // header size
+    for (int i = 0; i < row.GetValueCount(); ++i) {
+        size += GetByteSize(row[i]);
+    }
+
+    Stroka buffer;
+    buffer.resize(size);
+
+    char* current = const_cast<char*>(buffer.data());
+    current += WriteVarUInt32(current, 0); // format version
+    current += WriteVarUInt32(current, static_cast<ui32>(row.GetValueCount()));
+    current += WriteVarUInt32(current, static_cast<ui32>(row.GetKeyCount()));
+
+    for (int i = 0; i < row.GetValueCount(); ++i) {
+        current += WriteValue(current, row[i]);
+    }
+    buffer.resize(current - buffer.data());
+    return buffer;
+}
+
+TUnversionedOwningRow DeserializeFromString(const Stroka& data)
+{
+    const char* current = ~data;
+
+    ui32 version;
+    current += ReadVarUInt32(current, &version);
+    YCHECK(version == 0);
+
+    ui32 valueCount;
+    current += ReadVarUInt32(current, &valueCount);
+
+    ui32 keyCount;
+    current += ReadVarUInt32(current, &keyCount);
+
+    size_t fixedSize = GetUnversionedRowDataSize(valueCount);
+    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
+
+    header->ValueCount = static_cast<i32>(valueCount);
+    header->KeyCount = static_cast<i16>(keyCount);
+
+    auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
+    for (int index = 0; index < valueCount; ++index) {
+        TUnversionedValue* value = values + index;
+        current += ReadValue(current, value);
+    }
+
+    return TUnversionedOwningRow(std::move(rowData), data);
+}
+
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
 {
     *protoRow = SerializeToString(row);
@@ -370,13 +408,13 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 {
-    *row = DeserializeFromString<TUnversionedValue>(protoRow);
+    *row = DeserializeFromString(protoRow);
 }
 
 Stroka ToString(const TUnversionedRow& row)
 {
     auto begin = &row[0];
-    auto* end = begin + row.size();
+    auto* end = begin + row.GetValueCount();
     return JoinToString(begin, end);
 }
 
@@ -387,7 +425,7 @@ Stroka ToString(const TUnversionedOwningRow& row)
 
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
 {
-    TOwningRowBuilder<TUnversionedValue> rowBuilder(protoKey.parts_size());
+    TUnversionedOwningRowBuilder rowBuilder(protoKey.parts_size());
     for (int id = 0; id < protoKey.parts_size(); ++id) {
         auto& keyPart = protoKey.parts(id);
         switch (keyPart.type()) {

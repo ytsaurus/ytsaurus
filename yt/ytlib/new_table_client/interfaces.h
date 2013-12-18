@@ -108,7 +108,7 @@ struct IVersionedWriter
 };
 
 /*!
- *  Reads unversioned rowset without, supports variable columns.
+ *  Reads unversioned rowset, supports variable columns.
  *  Useful for: mapreduce jobs, read command.
  */
 struct IUnversionedReader

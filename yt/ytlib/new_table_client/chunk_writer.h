@@ -33,7 +33,6 @@ public:
         const TKeyColumns& keyColumns = TKeyColumns(),
         ERowsetType type = ERowsetType::Simple) final override;
 
-    virtual void WriteValue(const TVersionedValue& value) final override;
     virtual void WriteValue(const TUnversionedValue& value) final override;
 
     virtual bool EndRow() final override;

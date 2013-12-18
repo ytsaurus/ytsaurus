@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "row_base.h"
 
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/serialize.h>
@@ -50,71 +51,6 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVersionedValue
-    : public TUnversionedValue
-{
-    TTimestamp Timestamp;
-};
-
-static_assert(
-    sizeof(TVersionedValue) == 24,
-    "TVersionedValue has to be exactly 24 bytes.");
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TValue>
-TValue MakeSentinelValue(EValueType type, int id = 0)
-{
-    TValue result;
-    result.Id = id;
-    result.Type = type;
-    return result;
-}
-
-template <class TValue>
-TValue MakeIntegerValue(i64 value, int id = 0)
-{
-    TValue result;
-    result.Id = id;
-    result.Type = EValueType::Integer;
-    result.Data.Integer = value;
-    return result;
-}
-
-template <class TValue>
-TValue MakeDoubleValue(double value, int id = 0)
-{
-    TValue result;
-    result.Id = id;
-    result.Type = EValueType::Double;
-    result.Data.Double = value;
-    return result;
-}
-
-template <class TValue>
-TValue MakeStringValue(const TStringBuf& value, int id = 0)
-{
-    TValue result;
-    result.Id = id;
-    result.Type = EValueType::String;
-    result.Length = value.length();
-    result.Data.String = value.begin();
-    return result;
-}
-
-template <class TValue>
-TValue MakeAnyValue(const TStringBuf& value, int id = 0)
-{
-    TValue result;
-    result.Id = id;
-    result.Type = EValueType::Any;
-    result.Length = value.length();
-    result.Data.String = value.begin();
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0)
 {
     return MakeSentinelValue<TUnversionedValue>(type, id);
@@ -142,75 +78,15 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TVersionedValue MakeVersionedValue(const TUnversionedValue& value, TTimestamp timestamp)
-{
-    TVersionedValue result;
-    static_cast<TUnversionedValue&>(result) = value;
-    result.Timestamp = timestamp;
-    return result;
-}
-
-inline TVersionedValue MakeVersionedSentinelValue(EValueType type, TTimestamp timestamp, int id = 0)
-{
-    TVersionedValue result;
-    result.Id = id;
-    result.Type = EValueType::Null;
-    result.Timestamp = timestamp;
-    return result;
-}
-
-inline TVersionedValue MakeVersionedIntegerValue(i64 value, TTimestamp timestamp, int id = 0)
-{
-    TVersionedValue result;
-    result.Id = id;
-    result.Type = EValueType::Integer;
-    result.Data.Integer = value;
-    result.Timestamp = timestamp;
-    return result;
-}
-
-inline TVersionedValue MakeVersionedDoubleValue(double value, TTimestamp timestamp, int id = 0)
-{
-    TVersionedValue result;
-    result.Id = id;
-    result.Type = EValueType::Double;
-    result.Data.Double = value;
-    result.Timestamp = timestamp;
-    return result;
-}
-
-inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
-{
-    TVersionedValue result;
-    result.Id = id;
-    result.Type = EValueType::String;
-    result.Length = value.length();
-    result.Data.String = value.begin();
-    result.Timestamp = timestamp;
-    return result;
-}
-
-inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
-{
-    TVersionedValue result;
-    result.Id = id;
-    result.Type = EValueType::Any;
-    result.Length = value.length();
-    result.Data.String = value.begin();
-    result.Timestamp = timestamp;
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Header which precedes row values in memory layout.
-struct TRowHeader
+struct TUnversionedRowHeader
 {
     ui32 ValueCount;
-    ui32 Padding;
+    ui16 KeyCount;
+    ui16 Padding;
 };
 
-static_assert(sizeof(TRowHeader) == 8, "TRowHeader has to be exactly 8 bytes.");
+static_assert(sizeof(TUnversionedRowHeader) == 8, "TUnversionedRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,15 +95,11 @@ int WriteValue(char* output, const TUnversionedValue& value);
 int ReadValue(const char* input, TUnversionedValue* value);
 Stroka ToString(const TUnversionedValue& value);
 
-int GetByteSize(const TVersionedValue& value);
-int WriteValue(char* output, const TVersionedValue& value);
-int ReadValue(const char* input, TVersionedValue* value);
-
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
-//! Ternary comparison predicate for TRow-s stripped to a given number of
+//! Ternary comparison predicate for TUnversionedRow-s stripped to a given number of
 //! (leading) values.
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength = std::numeric_limits<int>::max());
 
@@ -245,34 +117,31 @@ void ResetRowValues(TUnversionedRow* row);
 size_t GetHash(const TUnversionedValue& value);
 
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
-template <class TValue>
-size_t GetRowDataSize(int valueCount)
-{
-    return sizeof(TRowHeader) + sizeof(TValue) * valueCount;
-}
+size_t GetUnversionedRowDataSize(int valueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A lightweight wrapper around TRowHeader* plus an array of values.
-template <class TValue>
-class TRow
+//! A lightweight wrapper around TUnversionedRowHeader* plus an array of values.
+class TUnversionedRow
 {
 public:
-    TRow()
+    TUnversionedRow()
         : Header(nullptr)
     { }
 
-    explicit TRow(TRowHeader* header)
+    explicit TUnversionedRow(TUnversionedRowHeader* header)
         : Header(header)
     { }
 
-    static TRow Allocate(
+    static TUnversionedRow Allocate(
         TChunkedMemoryPool* pool, 
-        int valueCount)
+        int valueCount,
+        int keyCount = 0)
     {
-        auto* header = reinterpret_cast<TRowHeader*>(pool->Allocate(GetRowDataSize<TValue>(valueCount)));
+        auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->Allocate(GetUnversionedRowDataSize(valueCount)));
         header->ValueCount = valueCount;
-        return TRow(header);
+        header->KeyCount = keyCount;
+        return TUnversionedRow(header);
     }
 
     explicit operator bool()
@@ -280,72 +149,102 @@ public:
         return Header != nullptr;
     }
 
-    TRowHeader* GetHeader()
+    TUnversionedRowHeader* GetHeader()
     {
         return Header;
     }
 
-    const TRowHeader* GetHeader() const
+    const TUnversionedRowHeader* GetHeader() const
     {
         return Header;
     }
 
-
-    TValue& operator[](int index)
+    const TUnversionedValue* BeginValues() const
     {
-        YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<TValue*>(Header + 1)[index];
+        return reinterpret_cast<const TUnversionedValue*>(Header + 1);
     }
 
-    const TValue& operator[](int index) const
+    TUnversionedValue* BeginValues()
     {
-        YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<TValue*>(Header + 1)[index];
-    }
-
-
-    const TValue* Begin() const
-    {
-        return &(*this)[0];
-    }
-
-    TValue* Begin()
-    {
-        return &(*this)[0];
+        return reinterpret_cast<TUnversionedValue*>(Header + 1);
     }
 
     
-    const TValue* End() const
+    const TUnversionedValue* EndValues() const
     {
-        return Begin() + GetValueCount();
+        return BeginValues() + GetValueCount();
     }
 
-    TValue* End()
+    TUnversionedValue* EndValues()
     {
-        return Begin() + GetValueCount();
+        return BeginValues() + GetValueCount();
     }
 
+    const TUnversionedValue* BeginKeys() const
+    {
+        return BeginValues();
+    }
+
+    TUnversionedValue* BeginKeys()
+    {
+        return BeginKeys();
+    }
+
+    const TUnversionedValue* EndKeys() const
+    {
+        return BeginKeys() + GetKeyCount();
+    }
+
+    TUnversionedValue* EndKeys()
+    {
+        return BeginKeys() + GetKeyCount();
+    }
+
+    void SetKey(int index, const TUnversionedValue& value)
+    {
+        BeginKeys()[index] = value;
+    }
+
+    const TUnversionedValue& GetKey(int index) const
+    {
+        return BeginKeys()[index];
+    }
+
+    void SetValue(int index, const TUnversionedValue& value)
+    {
+        BeginValues()[index] = value;
+    }
+
+    const TUnversionedValue& GetValue(int index) const
+    {
+        return BeginValues()[index];
+    }
 
     int GetValueCount() const
     {
         return Header->ValueCount;
     }
 
-    //! For better interoperability with std.
-    int size() const
+    int GetKeyCount() const
     {
-        return GetValueCount();
+        return Header->KeyCount;
     }
 
+    const TUnversionedValue& operator[] (int index) const
+    {
+        return GetValue(index);
+    }
+
+    TUnversionedValue& operator[] (int index)
+    {
+        return BeginValues()[index];
+    }
 
 private:
-    TRowHeader* Header;
+    TUnversionedRowHeader* Header;
 
 };
 
-static_assert(
-    sizeof(TVersionedRow) == sizeof(intptr_t),
-    "TVersionedRow size must match that of a pointer.");
 static_assert(
     sizeof(TUnversionedRow) == sizeof(intptr_t),
     "TUnversionedRow size must match that of a pointer.");
@@ -384,86 +283,29 @@ Stroka ToString(const TUnversionedRow& row);
 
 struct TOwningRowTag { };
 
-template<class TRow>
-size_t GetHash(const TRow& row) {
-    size_t result = 0xdeadc0de;
-    int partCount = row.size();
-    for (int i = 0; i < partCount; ++i) {
-        result = (result * 1000003) ^ GetHash(row[i]);
-    }
-    return result ^ partCount;
-}
-
-template <class TRow>
-Stroka SerializeToString(const TRow& row)
-{
-    int size = 2 * MaxVarUInt32Size; // header size
-    for (int i = 0; i < row.size(); ++i) {
-        size += GetByteSize(row[i]);
-    }
-
-    Stroka buffer;
-    buffer.resize(size);
-
-    char* current = const_cast<char*>(buffer.data());
-    current += WriteVarUInt32(current, 0); // format version
-    current += WriteVarUInt32(current, static_cast<ui32>(row.size()));
-
-    for (int i = 0; i < row.size(); ++i) {
-        current += WriteValue(current, row[i]);
-    }
-    buffer.resize(current - buffer.data());
-    return buffer;
-}
-
-template <class TValue>
-TOwningRow<TValue> DeserializeFromString(const Stroka& data)
-{
-    const char* current = ~data;
-
-    ui32 version;
-    current += ReadVarUInt32(current, &version);
-    YCHECK(version == 0);
-
-    ui32 valueCount;
-    current += ReadVarUInt32(current, &valueCount);
-
-    size_t fixedSize = GetRowDataSize<TValue>(valueCount);
-    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
-    auto* header = reinterpret_cast<TRowHeader*>(rowData.Begin());
-
-    header->ValueCount = static_cast<i32>(valueCount);
-
-    TValue* values = reinterpret_cast<TValue*>(header + 1);
-    for (int index = 0; index < valueCount; ++index) {
-        TValue* value = values + index;
-        current += ReadValue(current, value);
-    }
-
-    return TOwningRow<TValue>(std::move(rowData), data);
-}
+Stroka SerializeToString(const TUnversionedRow& row);
+TUnversionedOwningRow DeserializeFromString(const Stroka& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable owning version of TRow.
+//! An immutable owning version of TUnversionedRow.
 /*!
  *  Instances of TOwningRow are lightweight ref-counted handles.
  *  Fixed part is stored in a (shared) blob.
  *  Variable part is stored in a (shared) string.
  */
-template <class TValue>
-class TOwningRow
+class TUnversionedOwningRow
 {
 public:
-    TOwningRow()
+    TUnversionedOwningRow()
     { }
 
-    TOwningRow(TRow<TValue> other)
+    TUnversionedOwningRow(TUnversionedRow other)
     {
         if (!other)
             return;
 
-        size_t fixedSize = GetRowDataSize<TValue>(other.GetValueCount());
+        size_t fixedSize = GetUnversionedRowDataSize(other.GetValueCount());
         RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
         ::memcpy(RowData.Begin(), other.GetHeader(), fixedSize);
 
@@ -481,7 +323,7 @@ public:
 
             for (int index = 0; index < other.GetValueCount(); ++index) {
                 const auto& otherValue = other[index];
-                auto& value = reinterpret_cast<TValue*>(GetHeader() + 1)[index];;
+                auto& value = reinterpret_cast<TUnversionedValue*>(GetHeader() + 1)[index];;
                 if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
                     ::memcpy(current, otherValue.Data.String, otherValue.Length);
                     value.Data.String = current;
@@ -491,12 +333,12 @@ public:
         }
     }
 
-    TOwningRow(const TOwningRow& other)
+    TUnversionedOwningRow(const TUnversionedOwningRow& other)
         : RowData(other.RowData)
         , StringData(other.StringData)
     { }
 
-    TOwningRow(TOwningRow&& other)
+    TUnversionedOwningRow(TUnversionedOwningRow&& other)
         : RowData(std::move(other.RowData))
         , StringData(std::move(other.StringData))
     { }
@@ -513,58 +355,87 @@ public:
         return header ? static_cast<int>(header->ValueCount) : 0;
     }
 
-    //! For better interoperability with std.
-    int size() const
+    int GetKeyCount() const
     {
-        return GetValueCount();
+        const auto* header = GetHeader();
+        return header ? static_cast<int>(header->KeyCount) : 0;
     }
 
-    TValue& operator[](int index)
+    const TUnversionedValue* BeginValues() const
     {
-        YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<TValue*>(GetHeader() + 1)[index];
+        const auto* header = GetHeader();
+        return header ? reinterpret_cast<const TUnversionedValue*>(header + 1) : nullptr;
     }
 
-    const TValue& operator[](int index) const
+    TUnversionedValue* BeginValues()
     {
-        YASSERT(index >= 0 && index < GetValueCount());
-        return reinterpret_cast<const TValue*>(GetHeader() + 1)[index];
+        auto* header = GetHeader();
+        return header ? reinterpret_cast<TUnversionedValue*>(header + 1) : nullptr;
     }
 
-    const TValue* Begin() const
+    const TUnversionedValue* EndValues() const
     {
-        return &(*this)[0];
+        return BeginValues() + GetValueCount();
     }
 
-    TValue* Begin()
+    TUnversionedValue* EndValues()
     {
-        return &(*this)[0];
+        return BeginValues() + GetValueCount();
     }
 
-    
-    const TValue* End() const
+    const TUnversionedValue* BeginKeys() const
     {
-        return Begin() + GetValueCount();
+        return BeginValues();
     }
 
-    TValue* End()
+    TUnversionedValue* BeginKeys()
     {
-        return Begin() + GetValueCount();
+        return BeginValues();
     }
 
-    operator TRow<TValue> () const
+    const TUnversionedValue* EndKeys() const
     {
-        return TRow<TValue>(const_cast<TRowHeader*>(GetHeader()));
+        return BeginKeys() + GetKeyCount();
     }
 
-    friend void swap(TOwningRow& lhs, TOwningRow& rhs)
+    TUnversionedValue* EndKeys()
+    {
+        return BeginKeys() + GetKeyCount();
+    }
+
+    const TUnversionedValue& GetKey(int index) const
+    {
+        return BeginKeys()[index];
+    }
+
+    const TUnversionedValue& GetValue(int index) const
+    {
+        return BeginValues()[index];
+    }
+
+    const TUnversionedValue& operator[] (int index) const
+    {
+        return GetValue(index);
+    }
+
+    TUnversionedValue& operator[] (int index)
+    {
+        return BeginValues()[index];
+    }
+
+    operator const TUnversionedRow() const
+    {
+        return TUnversionedRow(const_cast<TUnversionedRowHeader*>(GetHeader()));
+    }
+
+    friend void swap(TUnversionedOwningRow& lhs, TUnversionedOwningRow& rhs)
     {
         using std::swap;
         swap(lhs.RowData, rhs.RowData);
         swap(lhs.StringData, rhs.StringData);
     }
 
-    TOwningRow& operator = (TOwningRow other)
+    TUnversionedOwningRow& operator = (TUnversionedOwningRow other)
     {
         swap(*this, other);
         return *this;
@@ -581,61 +452,59 @@ public:
         using NYT::Load;
         Stroka data;
         Load(context, data);
-        *this = DeserializeFromString<TValue>(data);
+        *this = DeserializeFromString(data);
     }
 
 private:
     friend void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
+    friend TUnversionedOwningRow DeserializeFromString(const Stroka& data);
 
-    friend TOwningRow<TValue> DeserializeFromString<TValue>(const Stroka& data);
-
-    friend class TOwningRowBuilder<TValue>;
+    friend class TUnversionedOwningRowBuilder;
 
     TSharedRef RowData; // TRowHeader plus TValue-s
     Stroka StringData;  // Holds string data
 
 
-    TOwningRow(TSharedRef rowData, Stroka stringData)
+    TUnversionedOwningRow(TSharedRef rowData, Stroka stringData)
         : RowData(std::move(rowData))
         , StringData(std::move(stringData))
     { }
 
-    TRowHeader* GetHeader()
+    TUnversionedRowHeader* GetHeader()
     {
-        return reinterpret_cast<TRowHeader*>(RowData.Begin());
+        return reinterpret_cast<TUnversionedRowHeader*>(RowData.Begin());
     }
 
-    const TRowHeader* GetHeader() const
+    const TUnversionedRowHeader* GetHeader() const
     {
-        return reinterpret_cast<const TRowHeader*>(RowData.Begin());
+        return reinterpret_cast<const TUnversionedRowHeader*>(RowData.Begin());
     }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper used for constructing TRow instances.
+//! A helper used for constructing TUnversionedRow instances.
 //! Only row values are kept, strings are only referenced.
-template <class TValue>
-class TRowBuilder
+class TUnversionedRowBuilder
 {
 public:
-    explicit TRowBuilder(int initialValueCapacity = 16)
+    explicit TUnversionedRowBuilder(int initialValueCapacity = 16)
     {
         ValueCapacity_ = initialValueCapacity;
-        RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
 
         auto* header = GetHeader();
         header->ValueCount = 0;
         header->Padding = 0;
     }
 
-    void AddValue(const TValue& value)
+    void AddValue(const TUnversionedValue& value)
     {
         if (GetHeader()->ValueCount == ValueCapacity_) {
             ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
-            RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+            RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
         }
 
         auto* header = GetHeader();
@@ -643,9 +512,11 @@ public:
         ++header->ValueCount;
     }
 
-    TRow<TValue> GetRow()
+    TUnversionedRow GetRow(int keyCount = 0)
     {
-        return TRow<TValue>(GetHeader());
+        auto* header = GetHeader();
+        header->KeyCount = keyCount;
+        return TUnversionedRow(header);
     }
 
 private:
@@ -653,37 +524,36 @@ private:
     TBlob RowData_;
 
 
-    TRowHeader* GetHeader()
+    TUnversionedRowHeader* GetHeader()
     {
-        return reinterpret_cast<TRowHeader*>(RowData_.Begin());
+        return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
     }
 
-    TValue* GetValue(int index)
+    TUnversionedValue* GetValue(int index)
     {
-        return reinterpret_cast<TValue*>(GetHeader() + 1) + index;
+        return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
     }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper used for constructing TOwningRow instances.
+//! A helper used for constructing TUnversionedOwningRow instances.
 //! Keeps both row values and strings.
-template <class TValue>
-class TOwningRowBuilder
+class TUnversionedOwningRowBuilder
 {
 public:
-    explicit TOwningRowBuilder(int initialValueCapacity = 16)
+    explicit TUnversionedOwningRowBuilder(int initialValueCapacity = 16)
         : InitialValueCapacity_(initialValueCapacity)
     {
         Init();
     }
 
-    void AddValue(const TValue& value)
+    void AddValue(const TUnversionedValue& value)
     {
         if (GetHeader()->ValueCount == ValueCapacity_) {
             ValueCapacity_ *= 2;
-            RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+            RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
         }
 
         auto* header = GetHeader();
@@ -711,9 +581,10 @@ public:
         ++header->ValueCount;
     }
 
-    TOwningRow<TValue> Finish()
+    TUnversionedOwningRow Finish(int keyCount = 0)
     {
-        auto row = TOwningRow<TValue>(
+        GetHeader()->KeyCount = keyCount;
+        auto row = TUnversionedOwningRow(
             TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
             std::move(StringData_));
         Init();
@@ -731,78 +602,22 @@ private:
     void Init()
     {
         ValueCapacity_ = InitialValueCapacity_;
-        RowData_.Resize(GetRowDataSize<TValue>(ValueCapacity_));
+        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
 
         auto* header = GetHeader();
         header->ValueCount = 0;
         header->Padding = 0;
     }
 
-    TRowHeader* GetHeader()
+    TUnversionedRowHeader* GetHeader()
     {
-        return reinterpret_cast<TRowHeader*>(RowData_.Begin());
+        return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
     }
 
-    TValue* GetValue(int index)
+    TUnversionedValue* GetValue(int index)
     {
-        return reinterpret_cast<TValue*>(GetHeader() + 1) + index;
+        return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
     }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TKeyPrefixComparer
-{
-public:
-    explicit TKeyPrefixComparer(int prefixLength)
-        : PrefixLength_(prefixLength)
-    { }
-
-    template <class TLhs, class TRhs>
-    int operator () (TLhs lhs, TRhs rhs) const
-    {
-        for (int index = 0; index < PrefixLength_; ++index) {
-            int result = CompareRowValues(lhs[index], rhs[index]);
-            if (result != 0) {
-                return result;
-            }
-        }
-        return 0;
-    }
-
-private:
-    int PrefixLength_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TKeyComparer
-{
-public:
-    explicit TKeyComparer(int prefixLength = std::numeric_limits<int>::max())
-        : PrefixLength_(prefixLength)
-    { }
-
-    template <class TLhs, class TRhs>
-    int operator () (TLhs lhs, TRhs rhs) const
-    {
-        int lhsLength = std::min(static_cast<int>(lhs.size()), PrefixLength_);
-        int rhsLength = std::min(static_cast<int>(rhs.size()), PrefixLength_);
-        int minLength = std::min(lhsLength, rhsLength);
-        for (int index = 0; index < minLength; ++index) {
-            int result = CompareRowValues(lhs[index], rhs[index]);
-            if (result != 0) {
-                return result;
-            }
-        }
-
-        return lhsLength - rhsLength;
-    }
-
-private:
-    int PrefixLength_;
 
 };
 

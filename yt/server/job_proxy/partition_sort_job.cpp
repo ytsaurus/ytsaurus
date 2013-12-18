@@ -12,7 +12,7 @@
 #include <ytlib/table_client/value.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>

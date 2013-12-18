@@ -11,6 +11,7 @@
 #include <ytlib/tablet_client/protocol.h>
 
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/versioned_row.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -96,7 +97,7 @@ void TStoreManager::LookupRow(
     }
 
     bool keysWritten = false;
-    TVersionedRowBuilder builder;
+    TUnversionedRowBuilder builder;
 
     for (const auto& scanner : scanners) {
         auto scannerTimestamp = scanner->Find(key, timestamp);
@@ -111,7 +112,7 @@ void TStoreManager::LookupRow(
             const auto keys = scanner->GetKeys();
             for (int id = 0; id < keyCount; ++id) {
                 if (columnFilterFlags[id]) {
-                    builder.AddValue(MakeVersionedValue(keys[id], NullTimestamp));
+                    builder.AddValue(keys[id]);
                 }
             }
             keysWritten = true;
@@ -135,7 +136,7 @@ void TStoreManager::LookupRow(
     if (keysWritten) {
         PooledRowset_.push_back(builder.GetRow());
     }
-    writer->WriteVersionedRowset(PooledRowset_);
+    writer->WriteUnversionedRowset(PooledRowset_);
 }
 
 void TStoreManager::WriteRow(

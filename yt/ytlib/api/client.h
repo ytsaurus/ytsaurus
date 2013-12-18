@@ -34,7 +34,7 @@ struct TTransactionStartOptions
 struct IRowset
     : public virtual TRefCounted
 {
-    virtual const std::vector<NVersionedTableClient::TVersionedRow>& Rows() const = 0;
+    virtual const std::vector<NVersionedTableClient::TUnversionedRow>& Rows() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/misc/small_vector.h>
 
@@ -11,15 +11,13 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef SmallVector<NVersionedTableClient::TUnversionedValue, 5> TPartitionKey;
-
 struct IPartitioner
 {
     virtual ~IPartitioner()
     { }
 
     virtual int GetPartitionCount() = 0;
-    virtual int GetPartitionTag(const TPartitionKey& key) = 0;
+    virtual int GetPartitionTag(const NVersionedTableClient::TKey& key) = 0;
 };
 
 std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<NVersionedTableClient::TOwningKey>* keys);

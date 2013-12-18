@@ -6,7 +6,7 @@
 #include <core/misc/string.h>
 
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
@@ -755,8 +755,8 @@ void TBuildingTableConsumer::OnEndRow()
 {
     auto row = Builder.Finish();
     std::sort(
-        row.Begin(),
-        row.End(),
+        row.BeginValues(),
+        row.EndValues(),
         [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
             return lhs.Id < rhs.Id;
         });

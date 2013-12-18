@@ -13,7 +13,7 @@
 
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NTabletClient {

@@ -7,7 +7,7 @@
 #include "name_table.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
-#include "row.h"
+#include "unversioned_row.h"
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -68,7 +68,7 @@ public:
         bool includeAllColumns,
         ERowsetType type) override;
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override;
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TAsyncError GetReadyEvent() override;
 
 private:
@@ -254,7 +254,7 @@ void TChunkReader::DoOpen()
     }
 }
 
-bool TChunkReader::Read(std::vector<TVersionedRow> *rows)
+bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
 {
     YCHECK(rows->empty());
 
@@ -281,28 +281,32 @@ bool TChunkReader::Read(std::vector<TVersionedRow> *rows)
         if (IncludeAllColumns) {
             auto variableIt = BlockReader->GetVariableIterator();
 
-            rows->push_back(TVersionedRow::Allocate(
+            rows->push_back(TUnversionedRow::Allocate(
                 &MemoryPool,
                 FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount()));
 
             auto& row = rows->back();
             for (const auto& column : VariableColumns) {
-                row[column.IndexInRow] = BlockReader->Read(column.IndexInBlock);
-                row[column.IndexInRow].Id = column.IndexInNameTable;
+                auto value = BlockReader->Read(column.IndexInBlock);
+                value.Id = column.IndexInNameTable;
+                row.SetValue(column.IndexInRow, value);
             }
 
             for (int index = FixedColumns.size() + VariableColumns.size(); index < row.GetValueCount(); ++index) {
-                YASSERT(variableIt.ParseNext(&row[index]));
-                row[index].Id = ChunkIndexToOutputIndex[row[index].Id];
+                TUnversionedValue value;
+                YASSERT(variableIt.ParseNext(&value));
+                value.Id = ChunkIndexToOutputIndex[value.Id];
+                row.SetValue(index, value);
             }
         } else {
-            rows->push_back(TVersionedRow::Allocate(&MemoryPool, FixedColumns.size()));
+            rows->push_back(TUnversionedRow::Allocate(&MemoryPool, FixedColumns.size()));
         }
 
         auto& row = rows->back();
         for (const auto& column : FixedColumns) {
-            row[column.IndexInRow] = BlockReader->Read(column.IndexInBlock);
-            row[column.IndexInRow].Id = column.IndexInNameTable;
+            auto value = BlockReader->Read(column.IndexInBlock);
+            value.Id = column.IndexInNameTable;
+            row.SetValue(column.IndexInRow, value);
         }
 
         BlockReader->NextRow();
@@ -359,7 +363,7 @@ public:
         bool includeAllColumns,
         ERowsetType type) override;
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override;
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TAsyncError GetReadyEvent() override;
 
 private:
@@ -401,7 +405,7 @@ TAsyncError TTableChunkReaderAdapter::Open(
     return UnderlyingReader->AsyncOpen();
 }
 
-bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
+bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow> *rows)
 {
     YCHECK(rows->capacity() > 0);
 
@@ -426,7 +430,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TVersionedRow> *rows)
             }
         }
 
-        rows->push_back(TVersionedRow::Allocate(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
+        rows->push_back(TUnversionedRow::Allocate(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
         auto& outputRow = rows->back();
 
         for (int i = 0; i < schemaIndexes.size(); ++i) {

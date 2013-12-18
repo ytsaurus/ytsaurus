@@ -20,7 +20,7 @@
 #include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>

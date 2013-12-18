@@ -27,7 +27,7 @@
 #include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
@@ -39,7 +39,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/api/transaction.h>
 
@@ -353,7 +353,7 @@ void TSelectCommand::DoExecute()
     }
 
     const int RowsBufferSize = 1000;
-    std::vector<NVersionedTableClient::TVersionedRow> rows;
+    std::vector<NVersionedTableClient::TUnversionedRow> rows;
     rows.reserve(RowsBufferSize);
     
     while (true) {
@@ -362,7 +362,7 @@ void TSelectCommand::DoExecute()
             consumer->OnListItem();
             consumer->OnBeginMap();
             for (int i = 0; i < row.GetValueCount(); ++i) {
-                const auto& value = row[i];
+                const auto& value = row.GetValue(i);
                 if (value.Type == EValueType::Null)
                     continue;
                 consumer->OnKeyedItem(nameTable->GetName(value.Id));
@@ -435,7 +435,7 @@ void TLookupCommand::DoExecute()
         consumer->OnListItem();
         consumer->OnBeginMap();
         for (int index = 0; index < row.GetValueCount(); ++index) {
-            const auto& value = row[index];
+            const auto& value = row.GetValue(index);
             if (value.Type == EValueType::Null)
                 continue;
             consumer->OnKeyedItem(nameTable->GetName(value.Id));

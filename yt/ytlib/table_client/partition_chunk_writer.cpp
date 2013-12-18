@@ -21,6 +21,8 @@ using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NYTree;
 
+using NVersionedTableClient::TKey;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = TableWriterLogger;
@@ -47,7 +49,7 @@ void TPartitionChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 
 void TPartitionChunkWriterFacade::WriteRowUnsafe(
     const TRow& row,
-    const NVersionedTableClient::TKey& key)
+    const TKey& key)
 {
     UNUSED(key);
     WriteRowUnsafe(row);
@@ -65,7 +67,10 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     , Facade(this)
     , BasicMetaSize(0)
 {
-    for (int i = 0; i < options->KeyColumns.Get().size(); ++i) {
+    int keyColumnCount = Options->KeyColumns.Get().size();
+    PartitionKey = TKey::Allocate(&Pool, keyColumnCount, keyColumnCount);
+
+    for (int i = 0; i < keyColumnCount; ++i) {
         KeyColumnIndexes[options->KeyColumns.Get()[i]] = i;
     }
     *ChannelsExt.add_items()->mutable_channel() = TChannel::Universal().ToProto();
@@ -124,17 +129,16 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
 {
     YASSERT(State.IsActive());
 
-    int keyColumnCount = Options->KeyColumns.Get().size();
-    TPartitionKey key(keyColumnCount, MakeUnversionedSentinelValue(EValueType::Null));
+    ResetRowValues(&PartitionKey);
 
     for (const auto& pair : row) {
         auto it = KeyColumnIndexes.find(pair.first);
         if (it != KeyColumnIndexes.end()) {
-            key[it->second] = MakeKeyPart(pair.second, Lexer);
+            PartitionKey.BeginKeys()[it->second] = MakeKeyPart(pair.second, Lexer);
         }
     }
 
-    int partitionTag = Partitioner->GetPartitionTag(key);
+    int partitionTag = Partitioner->GetPartitionTag(PartitionKey);
     auto& channelWriter = Buffers[partitionTag];
 
     i64 rowDataWeight = 1;

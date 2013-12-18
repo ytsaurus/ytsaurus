@@ -26,18 +26,18 @@ public:
 
     TBlockWriter(const std::vector<int> columnSizes);
 
-    void WriteInteger(const TVersionedValue& value, int index);
-    void WriteDouble(const TVersionedValue& value, int index);
-    void WriteString(const TVersionedValue& value, int index);
-    void WriteAny(const TVersionedValue& value, int index);
+    void WriteInteger(const TUnversionedValue& value, int index);
+    void WriteDouble(const TUnversionedValue& value, int index);
+    void WriteString(const TUnversionedValue& value, int index);
+    void WriteAny(const TUnversionedValue& value, int index);
 
     // Stores string in a contiguous memory region.
     // Return TStingBuf containing stored string.
-    TStringBuf WriteKeyString(const TVersionedValue& value, int index);
+    TStringBuf WriteKeyString(const TUnversionedValue& value, int index);
 
     void WriteTimestamp(TTimestamp timestamp, bool deleted, int index);
 
-    void WriteVariable(const TVersionedValue& value, int index);
+    void WriteVariable(const TUnversionedValue& value, int index);
 
     void EndRow();
 

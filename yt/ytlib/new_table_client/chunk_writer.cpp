@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "chunk_writer.h"
-#include "row.h"
+#include "unversioned_row.h"
 #include "name_table.h"
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
@@ -107,7 +107,7 @@ void TChunkWriter::Open(
     CurrentBlock.reset(new TBlockWriter(ColumnSizes));
 }
 
-void TChunkWriter::WriteValue(const TVersionedValue& value)
+void TChunkWriter::WriteValue(const TUnversionedValue& value)
 {
     if (ColumnDescriptors.size() <= value.Id) {
         ColumnDescriptors.resize(value.Id + 1);
@@ -174,15 +174,6 @@ void TChunkWriter::WriteValue(const TVersionedValue& value)
         default:
             YUNREACHABLE();
     }
-}
-
-void TChunkWriter::WriteValue(const TUnversionedValue& value)
-{
-    // TODO(babenko): avoid copying
-    TVersionedValue versionedValue;
-    static_cast<TUnversionedValue&>(versionedValue) = value;
-    versionedValue.Timestamp = NullTimestamp;
-    WriteValue(versionedValue);
 }
 
 bool TChunkWriter::EndRow()

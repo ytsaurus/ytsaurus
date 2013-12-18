@@ -5,7 +5,7 @@
 #include <core/misc/property.h>
 #include <core/misc/enum.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <server/object_server/object.h>
 

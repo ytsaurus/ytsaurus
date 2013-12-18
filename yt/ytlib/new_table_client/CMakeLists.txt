@@ -8,7 +8,8 @@ set( SRCS
   ${BASE}/name_table.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
-  ${BASE}/row.cpp
+  ${BASE}/versioned_row.cpp
+  ${BASE}/unversioned_row.cpp
 )
 
 set( HDRS
@@ -21,10 +22,12 @@ set( HDRS
   ${BASE}/name_table.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/row.h
+  ${BASE}/row_base.h
   ${BASE}/reader.h
   ${BASE}/writer.h
   ${BASE}/schema.h
+  ${BASE}/versioned_row.h
+  ${BASE}/unversioned_row.h
 )
 
 list(APPEND YT_SOURCE_FILES

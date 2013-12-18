@@ -5,7 +5,7 @@
 #include <core/misc/zigzag.h>
 #include <core/misc/chunked_memory_pool.h>
 
-#include <ytlib/new_table_client/row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/api/transaction.h>
 
@@ -36,12 +36,10 @@ public:
         WriteUInt32(CurrentProtocolVersion);
     }
 
-
     void WriteCommand(EProtocolCommand command)
     {
         WriteUInt32(command);
     }
-
 
     void WriteColumnFilter(const TColumnFilter& filter)
     {
@@ -54,7 +52,6 @@ public:
         }
     }
 
-
     void WriteUnversionedRow(TUnversionedRow row)
     {
         WriteRow(row);
@@ -64,28 +61,14 @@ public:
     {
         WriteRow(row);
     }
-    
-    void WriteVersionedRow(TVersionedRow row)
-    {
-        WriteRow(row);
-    }
-
-    void WriteVersionedRow(const std::vector<TVersionedValue>& row)
-    {
-        WriteRow(row);
-    }
-
 
     void WriteUnversionedRowset(const std::vector<TUnversionedRow>& rowset)
     {
-        WriteRowset(rowset);
+        WriteUInt32(rowset.size());
+        for (auto row : rowset) {
+            WriteRow(row);
+        }
     }
-
-    void WriteVersionedRowset(const std::vector<TVersionedRow>& rowset)
-    {
-        WriteRowset(rowset);
-    }
-
 
     Stroka Finish()
     {
@@ -154,14 +137,15 @@ private:
         }
     }
 
-    void WriteRowValue(const TVersionedValue& value)
+    void WriteRow(const std::vector<TUnversionedValue>& row)
     {
-        WriteUInt64(value.Timestamp);
-        WriteRowValue(static_cast<const TUnversionedValue&>(value));
+        WriteUInt32(row.size() + 1);
+        for (int index = 0; index < row.size(); ++index) {
+            WriteRowValue(row[index]);
+        }
     }
 
-    template <class TValue>
-    void WriteRow(TRow<TValue> row)
+    void WriteRow(TUnversionedRow row)
     {
         if (row) {
             WriteUInt32(row.GetValueCount() + 1);
@@ -170,24 +154,6 @@ private:
             }
         } else {
             WriteUInt32(0);
-        }
-    }
-
-    template <class TValue>
-    void WriteRow(const std::vector<TValue>& row)
-    {
-        WriteUInt32(row.size() + 1);
-        for (int index = 0; index < static_cast<int>(row.size()); ++index) {
-            WriteRowValue(row[index]);
-        }
-    }
-
-    template <class TValue>
-    void WriteRowset(const std::vector<TRow<TValue>>& rowset)
-    {
-        WriteUInt32(rowset.size());
-        for (auto row : rowset) {
-            WriteRow(row);
         }
     }
 
@@ -227,24 +193,9 @@ void TProtocolWriter::WriteUnversionedRow(const std::vector<TUnversionedValue>& 
     Impl_->WriteUnversionedRow(row);
 }
 
-void TProtocolWriter::WriteVersionedRow(TVersionedRow row)
-{
-    Impl_->WriteVersionedRow(row);
-}
-
-void TProtocolWriter::WriteVersionedRow(const std::vector<TVersionedValue>& row)
-{
-    Impl_->WriteVersionedRow(row);
-}
-
 void TProtocolWriter::WriteUnversionedRowset(const std::vector<TUnversionedRow>& rowset)
 {
     Impl_->WriteUnversionedRowset(rowset);
-}
-
-void TProtocolWriter::WriteVersionedRowset(const std::vector<TVersionedRow>& rowset)
-{
-    Impl_->WriteVersionedRowset(rowset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,23 +238,16 @@ public:
 
     TUnversionedRow ReadUnversionedRow()
     {
-        return ReadRow<TUnversionedValue>();
+        return ReadRow();
     }
-
-    TVersionedRow ReadVersionedRow()
-    {
-        return ReadRow<TVersionedValue>();
-    }
-
 
     void ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
     {
-        ReadRowset(rowset);
-    }
-
-    void ReadVersionedRowset(std::vector<TVersionedRow>* rowset)
-    {
-        ReadRowset(rowset);
+        ui32 count = ReadUInt32();
+        rowset->resize(count);
+        for (int index = 0; index != count; ++index) {
+            (*rowset)[index] = ReadRow();
+        }
     }
 
 private:
@@ -387,37 +331,22 @@ private:
         }
     }
 
-    void ReadRowValue(TVersionedValue* value)
-    {
-        value->Timestamp = ReadUInt64();
-        ReadRowValue(static_cast<TUnversionedValue*>(value));
-    }
-
-    template <class TValue>
-    TRow<TValue> ReadRow()
+    TUnversionedRow ReadRow()
     {
         ui32 count = ReadUInt32();
         if (count == 0) {
-            return TRow<TValue>();
+            return TUnversionedRow();
         }
 
-        auto* header = reinterpret_cast<TRowHeader*>(AlignedPool_.Allocate(GetRowDataSize<TValue>(count - 1)));
+        auto* header = reinterpret_cast<TUnversionedRowHeader*>(
+            AlignedPool_.Allocate(GetUnversionedRowDataSize(count - 1)));
         header->ValueCount = count - 1;
-        auto row = TRow<TValue>(header);
+        header->KeyCount = 0;
+        auto row = TUnversionedRow(header);
         for (int index = 0; index != count - 1; ++index) {
             ReadRowValue(&row[index]);
         }
         return row;
-    }
-
-    template <class TValue>
-    void ReadRowset(std::vector<TRow<TValue>>* rowset)
-    {
-        ui32 count = ReadUInt32();
-        rowset->resize(count);
-        for (int index = 0; index != count; ++index) {
-            (*rowset)[index] = ReadRow<TValue>();
-        }
     }
 
 };
@@ -446,19 +375,9 @@ TUnversionedRow TProtocolReader::ReadUnversionedRow()
     return Impl_->ReadUnversionedRow();
 }
 
-TVersionedRow TProtocolReader::ReadVersionedRow()
-{
-    return Impl_->ReadVersionedRow();
-}
-
 void TProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
 {
     Impl_->ReadUnversionedRowset(rowset);
-}
-
-void TProtocolReader::ReadVersionedRowset(std::vector<TVersionedRow>* rowset)
-{
-    Impl_->ReadVersionedRowset(rowset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

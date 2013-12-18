@@ -37,8 +37,8 @@ using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TKeyColumns;
 
 // TODO(sandello): Change me after migrating to TUnversionedValue in query_client.
-typedef NVersionedTableClient::TVersionedRow TRow;
-typedef NVersionedTableClient::TVersionedValue TValue;
+typedef NVersionedTableClient::TUnversionedRow TRow;
+typedef NVersionedTableClient::TUnversionedValue TValue;
 
 ////////////////////////////////////////////////////////////////////////////////
 
