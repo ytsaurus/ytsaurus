@@ -3,6 +3,8 @@
 
 #include <yt/core/concurrency/fiber.h>
 
+#include <yt/ytlib/new_table_client/versioned_row.h>
+
 #include <yt/server/tablet_node/public.h>
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/tablet_manager.h>

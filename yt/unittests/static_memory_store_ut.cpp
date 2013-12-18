@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
+#include <ytlib/new_table_client/versioned_row.h>
 #include <server/tablet_node/config.h>
 
 namespace NYT {
@@ -44,7 +45,7 @@ TEST_F(TStaticMemoryStoreTest, Small1)
         Builder.BeginRow();
         
         auto* keys = Builder.AllocateKeys();
-        keys[0] = MakeIntegerValue<TUnversionedValue>(1);
+        keys[0] = MakeUnversionedIntegerValue(1);
 
         auto* timestamps = Builder.AllocateTimestamps(1);
         timestamps[0] = 10;

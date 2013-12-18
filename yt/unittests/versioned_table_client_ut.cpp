@@ -136,7 +136,7 @@ TEST_F(TVersionedTableClientTest, Empty)
 
     EXPECT_TRUE(ChunkReader->Open(New<TNameTable>(), TTableSchema()).Get().IsOK());
 
-    std::vector<TVersionedRow> rows;
+    std::vector<TUnversionedRow> rows;
     rows.reserve(10);
 
     EXPECT_FALSE(ChunkReader->Read(&rows));
@@ -152,7 +152,7 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema).Get().IsOK());
 
-    std::vector<TVersionedRow> rows;
+    std::vector<TUnversionedRow> rows;
     rows.reserve(10);
 
     EXPECT_TRUE(ChunkReader->Read(&rows));
@@ -191,7 +191,7 @@ TEST_F(TVersionedTableClientTest, SimpleReadAll)
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema, true).Get().IsOK());
 
-    std::vector<TVersionedRow> rows;
+    std::vector<TUnversionedRow> rows;
     rows.reserve(10);
 
     EXPECT_TRUE(ChunkReader->Read(&rows));

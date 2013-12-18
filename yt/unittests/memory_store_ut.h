@@ -70,16 +70,16 @@ public:
         for (auto keyPart : keyParts) {
             switch (keyPart->GetType()) {
                 case ENodeType::Integer:
-                    keyBuilder.AddValue(MakeIntegerValue<TUnversionedValue>(keyPart->GetValue<i64>()));
+                    keyBuilder.AddValue(MakeUnversionedIntegerValue(keyPart->GetValue<i64>()));
                     break;
                 case ENodeType::Double:
-                    keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(keyPart->GetValue<double>()));
+                    keyBuilder.AddValue(MakeUnversionedDoubleValue(keyPart->GetValue<double>()));
                     break;
                 case ENodeType::String:
-                    keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(keyPart->GetValue<Stroka>()));
+                    keyBuilder.AddValue(MakeUnversionedStringValue(keyPart->GetValue<Stroka>()));
                     break;
                 default:
-                    keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(ConvertToYsonString(keyPart).Data()));
+                    keyBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(keyPart).Data()));
                     break;
             }
         }
@@ -94,16 +94,16 @@ public:
         auto addValue = [&] (int id, INodePtr value) {
             switch (value->GetType()) {
                 case ENodeType::Integer:
-                    rowBuilder.AddValue(MakeIntegerValue<TVersionedValue>(value->GetValue<i64>(), id));
+                    rowBuilder.AddValue(MakeUnversionedIntegerValue(value->GetValue<i64>(), id));
                     break;
                 case ENodeType::Double:
-                    rowBuilder.AddValue(MakeDoubleValue<TVersionedValue>(value->GetValue<double>(), id));
+                    rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
                     break;
                 case ENodeType::String:
-                    rowBuilder.AddValue(MakeStringValue<TVersionedValue>(value->GetValue<Stroka>(), id));
+                    rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
                     break;
                 default:
-                    rowBuilder.AddValue(MakeAnyValue<TVersionedValue>(ConvertToYsonString(value).Data(), id));
+                    rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
                     break;
             }
         };
@@ -121,7 +121,7 @@ public:
             if (it != rowParts.end()) {
                 addValue(id, it->second);
             } else if (treatMissingAsNull) {
-                rowBuilder.AddValue(MakeSentinelValue<TVersionedValue>(EValueType::Null, id));
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
             }
         }
 
