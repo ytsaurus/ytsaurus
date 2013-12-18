@@ -101,6 +101,7 @@ public:
 
         TResultHandlers handlers;
         Event* event;
+
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
@@ -110,7 +111,7 @@ public:
             YASSERT(!Value_);
             Value_.Assign(std::forward<U>(value));
 
-            event = ~ReadyEvent_;
+            event = ReadyEvent_.get();
 
             ResultHandlers_.swap(handlers);
             CancelHandlers_.clear();
@@ -134,6 +135,7 @@ public:
 
         TResultHandlers handlers;
         Event* event;
+
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
@@ -142,7 +144,7 @@ public:
 
             Value_.Assign(std::forward<U>(value));
 
-            event = ~ReadyEvent_;
+            event = ReadyEvent_.get();
 
             ResultHandlers_.swap(handlers);
             CancelHandlers_.clear();
@@ -320,6 +322,7 @@ public:
     void Set()
     {
         TResultHandlers handlers;
+        Event* event;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -330,13 +333,14 @@ public:
             YASSERT(!HasValue_);
             HasValue_= true;
 
-            auto* event = ~ReadyEvent_;
-            if (event) {
-                event->Signal();
-            }
+            event = ReadyEvent_.get();
 
             ResultHandlers_.swap(handlers);
             CancelHandlers_.clear();
+        }
+
+        if (event) {
+            event->Signal();
         }
 
         for (auto& handler : handlers) {
@@ -347,6 +351,7 @@ public:
     bool TrySet()
     {
         TResultHandlers handlers;
+        Event* event;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -356,13 +361,14 @@ public:
 
             HasValue_= true;
 
-            auto* event = ~ReadyEvent_;
-            if (event) {
-                event->Signal();
-            }
+            event = ReadyEvent_.get();
 
             ResultHandlers_.swap(handlers);
             CancelHandlers_.clear();
+        }
+
+        if (event) {
+            event->Signal();
         }
 
         for (auto& handler : handlers) {

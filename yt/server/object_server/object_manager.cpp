@@ -406,7 +406,7 @@ TObjectBase* TObjectManager::GetMasterObject()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return ~MasterObject;
+    return MasterObject.get();
 }
 
 IObjectProxyPtr TObjectManager::GetMasterProxy()
@@ -425,7 +425,7 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
         return nullptr;
     }
 
-    return ~TypeToEntry[typeValue].SchemaObject;
+    return TypeToEntry[typeValue].SchemaObject.get();
 }
 
 TObjectBase* TObjectManager::GetSchema(EObjectType type)
@@ -675,14 +675,14 @@ void TObjectManager::DoClear()
     MasterObject.reset(new TMasterObject(MasterObjectId));
     MasterObject->RefObject();
 
-    MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
+    MasterProxy = CreateMasterProxy(Bootstrap, MasterObject.get());
 
     for (auto type : RegisteredTypes)  {
         auto& entry = TypeToEntry[static_cast<int>(type)];
         if (HasSchema(type)) {
             entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
             entry.SchemaObject->RefObject();
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap, entry.SchemaObject.get());
         }
     }
 
@@ -983,7 +983,7 @@ TObjectBase* TObjectManager::CreateObject(
 
 IObjectResolver* TObjectManager::GetObjectResolver()
 {
-    return ~ObjectResolver;
+    return ObjectResolver.get();
 }
 
 void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceContextPtr context)

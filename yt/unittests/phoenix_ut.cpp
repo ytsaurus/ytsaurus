@@ -249,7 +249,7 @@ struct A
 TEST(TPhoenixTest, Ref4)
 {
     auto a1 = New<A>();
-    a1->X = ~a1;
+    a1->X = a1.Get();
 
     TIntrusivePtr<A> a2;
     Deserialize(a2, Serialize(a1));
@@ -308,7 +308,7 @@ TEST(TPhoenixTest, Ref5)
     auto a1 = New<A>();
     a1->Y = New<B>();
     a1->Y->V = 7;
-    a1->X = ~a1->Y;
+    a1->X = a1->Y.Get();
 
     TIntrusivePtr<A> a2;
     Deserialize(a2, Serialize(a1));
@@ -382,7 +382,7 @@ TEST(TPhoenixTest, Ref6)
     Deserialize(base2, Serialize(base1));
 
     EXPECT_EQ(base2->GetRefCount(), 1);
-    auto* derived2 = dynamic_cast<TDerived1*>(~base2);
+    auto* derived2 = dynamic_cast<TDerived1*>(base2.Get());
     EXPECT_NE(derived2, nullptr);
     EXPECT_EQ(derived2->V, 5);
 }
@@ -472,14 +472,14 @@ TEST(TPhoenixTest, Ref8)
     a1->X = 123;
     a1->T.reset(new B());
     a1->T->Y = 456;
-    a1->T->Z = ~a1;
+    a1->T->Z = a1.get();
 
     std::unique_ptr<A> a2;
     Deserialize(a2, Serialize(a1));
 
     EXPECT_EQ(a2->X, 123);
     EXPECT_EQ(a2->T->Y, 456);
-    EXPECT_EQ(a2->T->Z, ~a2);
+    EXPECT_EQ(a2->T->Z, a2.get());
 }
 
 } // namespace NRef8
@@ -545,14 +545,14 @@ TEST(TPhoenixTest, Ref9)
     std::unique_ptr<B> b1(new B());
     b1->X = 123;
     b1->Y = 456;
-    b1->Z = ~b1;
+    b1->Z = b1.get();
 
     std::unique_ptr<A> a1(b1.release());
 
     std::unique_ptr<A> a2;
     Deserialize(a2, Serialize(a1));
 
-    B* b2 = dynamic_cast<B*>(~a2);
+    B* b2 = dynamic_cast<B*>(a2.get());
     EXPECT_NE(b2, nullptr);
     EXPECT_EQ(b2->X, 123);
     EXPECT_EQ(b2->Y, 456);

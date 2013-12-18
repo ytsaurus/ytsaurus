@@ -125,7 +125,7 @@ private:
 
         if (key == "cached_replicas") {
             TNodePtrWithIndexList replicas;
-            if (~chunk->CachedReplicas()) {
+            if (chunk->CachedReplicas()) {
                 replicas = TNodePtrWithIndexList(chunk->CachedReplicas()->begin(), chunk->CachedReplicas()->end());
             }
             serializeReplicas(consumer, replicas);

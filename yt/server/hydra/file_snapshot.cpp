@@ -257,19 +257,19 @@ private:
 
                 auto codec = ECodec(header.Codec);
                 if (IsRaw || codec == ECodec::None) {
-                    FacadeInput = ~RawInput;
+                    FacadeInput = RawInput.get();
                 } else {
                     switch (codec) {
                         case ECodec::Snappy:
-                            CodecInput.reset(new TSnappyDecompress(~RawInput));
+                            CodecInput.reset(new TSnappyDecompress(RawInput.get()));
                             break;
                         case ECodec::Lz4:
-                            CodecInput.reset(new TLz4Decompress(~RawInput));
+                            CodecInput.reset(new TLz4Decompress(RawInput.get()));
                             break;
                         default:
                             YUNREACHABLE();
                     }
-                    FacadeInput = ~CodecInput;
+                    FacadeInput = CodecInput.get();
                 }
 
             } catch (const std::exception& ex) {
@@ -329,32 +329,32 @@ private:
                 RawOutput.reset(new TBufferedFileOutput(*File));
 
                 if (IsRaw) {
-                    FacadeOutput = ~RawOutput;
+                    FacadeOutput = RawOutput.get();
                 } else {
                     TSnapshotHeader header;
                     WritePod(*File, header);
                     File->Flush();
 
-                    ChecksumOutput.reset(new TChecksumOutput(~RawOutput));
+                    ChecksumOutput.reset(new TChecksumOutput(RawOutput.get()));
 
                     auto codec = Store->Config->Codec;
                     if (codec == ECodec::None) {
-                        LengthMeasureOutput.reset(new TLengthMeasureOutputStream(~ChecksumOutput));
+                        LengthMeasureOutput.reset(new TLengthMeasureOutputStream(ChecksumOutput.get()));
                     } else {
                         switch (codec) {
                             case ECodec::Snappy:
-                                CodecOutput.reset(new TSnappyCompress(~ChecksumOutput));
+                                CodecOutput.reset(new TSnappyCompress(ChecksumOutput.get()));
                                 break;
                             case ECodec::Lz4:
-                                CodecOutput.reset(new TLz4Compress(~ChecksumOutput));
+                                CodecOutput.reset(new TLz4Compress(ChecksumOutput.get()));
                                 break;
                             default:
                                 YUNREACHABLE();
                         }
-                        LengthMeasureOutput.reset(new TLengthMeasureOutputStream(~CodecOutput));
+                        LengthMeasureOutput.reset(new TLengthMeasureOutputStream(CodecOutput.get()));
                     }
 
-                    FacadeOutput = ~LengthMeasureOutput;
+                    FacadeOutput = LengthMeasureOutput.get();
                 }
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error opening snapshot %s for writing",

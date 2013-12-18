@@ -331,12 +331,12 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual void Persist(TPersistenceContext& context) override
@@ -555,7 +555,7 @@ protected:
         {
             return
                 Controller->SimpleSort
-                ? ~Controller->SimpleSortPool
+                ? Controller->SimpleSortPool.get()
                 : Controller->ShufflePool->GetInput();
         }
 
@@ -563,7 +563,7 @@ protected:
         {
             return
                 Controller->SimpleSort
-                ? ~Controller->SimpleSortPool
+                ? Controller->SimpleSortPool.get()
                 : Partition->ChunkPoolOutput;
         }
 
@@ -925,7 +925,7 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual void Persist(TPersistenceContext& context) override
@@ -955,7 +955,7 @@ protected:
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual int GetChunkListCountPerJob() const override
@@ -1783,7 +1783,7 @@ private:
         // Create the fake partition.
         auto partition = New<TPartition>(this, 0);
         Partitions.push_back(partition);
-        partition->ChunkPoolOutput = ~SimpleSortPool;
+        partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
         partition->SortTask->FinishInput();
 

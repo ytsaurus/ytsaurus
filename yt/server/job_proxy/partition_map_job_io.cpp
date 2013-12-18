@@ -79,7 +79,7 @@ public:
         auto writerProvider = New<TPartitionChunkWriterProvider>(
             IOConfig->TableWriter,
             options,
-            ~Partitioner);
+            Partitioner.get());
 
         Writer = CreateSyncWriter<TPartitionChunkWriter>(New<TWriter>(
             IOConfig->TableWriter,

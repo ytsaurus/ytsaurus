@@ -142,17 +142,17 @@ TEST(TConfigTest, Complete)
     config->Load(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
-    TestCompleteSubconfig(~config->Subconfig);
+    TestCompleteSubconfig(config->Subconfig.Get());
     EXPECT_EQ(2, config->SubconfigList.size());
-    TestCompleteSubconfig(~config->SubconfigList[0]);
-    TestCompleteSubconfig(~config->SubconfigList[1]);
+    TestCompleteSubconfig(config->SubconfigList[0].Get());
+    TestCompleteSubconfig(config->SubconfigList[1].Get());
     EXPECT_EQ(2, config->SubconfigMap.size());
     auto it1 = config->SubconfigMap.find("sub1");
     EXPECT_FALSE(it1 == config->SubconfigMap.end());
-    TestCompleteSubconfig(~it1->second);
+    TestCompleteSubconfig(it1->second.Get());
     auto it2 = config->SubconfigMap.find("sub2");
     EXPECT_FALSE(it2 == config->SubconfigMap.end());
-    TestCompleteSubconfig(~it2->second);
+    TestCompleteSubconfig(it2->second.Get());
 }
 
 TEST(TConfigTest, MissingParameter)
@@ -236,7 +236,7 @@ TEST(TConfigTest, IncorrectNodeType)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value(1) // incorrect type
         .EndMap();
@@ -250,7 +250,7 @@ TEST(TConfigTest, ArithmeticOverflow)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub").BeginMap()
@@ -274,7 +274,7 @@ TEST(TConfigTest, Validate)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("") // empty!
         .EndMap();
@@ -289,7 +289,7 @@ TEST(TConfigTest, ValidateSubconfig)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub").BeginMap()
@@ -307,7 +307,7 @@ TEST(TConfigTest, ValidateSubconfigList)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub_list").BeginList()
@@ -327,7 +327,7 @@ TEST(TConfigTest, ValidateSubconfigMap)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub_map").BeginMap()

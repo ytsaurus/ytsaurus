@@ -97,7 +97,7 @@ public:
             request,
             response);
 
-        node->SetTrunkNode(~node);
+        node->SetTrunkNode(node.get());
 
         return std::move(node);
     }
@@ -129,14 +129,14 @@ public:
         // Run core stuff.
         BranchCore(
             originatingNode,
-            ~branchedNode,
+            branchedNode.get(),
             transaction,
             mode);
 
         // Run custom stuff.
         DoBranch(
             dynamic_cast<const TImpl*>(originatingNode),
-            ~branchedNode);
+            branchedNode.get());
 
         return std::move(branchedNode);
     }
@@ -162,15 +162,16 @@ public:
     {
         // Run core prologue stuff.
         auto clonedNode = CloneCorePrologue(sourceNode, factory);
+        auto* clonedNode_ = clonedNode.get();
 
         // Run custom stuff.
         DoClone(
             dynamic_cast<TImpl*>(sourceNode),
-            dynamic_cast<TImpl*>(~clonedNode),
+            dynamic_cast<TImpl*>(clonedNode_),
             factory);
 
         // Run core epilogue stuff.
-        CloneCoreEpilogue(sourceNode, ~clonedNode, factory);
+        CloneCoreEpilogue(sourceNode, clonedNode_, factory);
 
         return clonedNode;
     }

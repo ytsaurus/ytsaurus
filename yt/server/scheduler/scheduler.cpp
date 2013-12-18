@@ -453,7 +453,7 @@ public:
                 LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
             } else {
                 PROFILE_TIMING ("/schedule_time") {
-                    Strategy->ScheduleJobs(~schedulingContext);
+                    Strategy->ScheduleJobs(schedulingContext.get());
                 }
             }
 
@@ -508,7 +508,7 @@ public:
 
     virtual TMasterConnector* GetMasterConnector() override
     {
-        return ~MasterConnector;
+        return MasterConnector.get();
     }
 
     virtual TNodeResources GetTotalResourceLimits() override
@@ -1660,7 +1660,7 @@ private:
                 .Item("nodes").DoMapFor(AddressToNode, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
-                .DoIf(Strategy != nullptr, BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
+                .DoIf(Strategy.get(), BIND(&ISchedulerStrategy::BuildOrchidYson, Strategy.get()))
             .EndMap();
     }
 
@@ -1673,7 +1673,7 @@ private:
                 .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildProgressYson, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, ~Strategy, operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, Strategy.get(), operation))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")

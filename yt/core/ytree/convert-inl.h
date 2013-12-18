@@ -93,7 +93,7 @@ INodePtr ConvertToNode(
             break;
     }
 
-    Consume(value, ~builder);
+    Consume(value, builder.get());
 
     switch (type) {
         case NYson::EYsonType::ListFragment:
@@ -115,7 +115,7 @@ template <class T>
 std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value)
 {
     auto attributes = CreateEphemeralAttributes();
-    TAttributeConsumer consumer(~attributes);
+    TAttributeConsumer consumer(attributes.get());
     Consume(value, &consumer);
     return attributes;
 }

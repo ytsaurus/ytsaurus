@@ -246,7 +246,7 @@ TTcpDispatcher::TImpl::TImpl()
 
 TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 {
-    return ~TTcpDispatcher::Get()->Impl;
+    return TTcpDispatcher::Get()->Impl.get();
 }
 
 void TTcpDispatcher::TImpl::Shutdown()

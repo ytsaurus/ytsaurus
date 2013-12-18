@@ -79,7 +79,7 @@ void ParseYamr(
     TYamrFormatConfigPtr config)
 {
     auto parser = CreateParserForYamr(consumer, config);
-    Parse(input, ~parser);
+    Parse(input, parser.get());
 }
 
 void ParseYamr(

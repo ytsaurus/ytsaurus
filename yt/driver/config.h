@@ -28,12 +28,12 @@ public:
         auto structuredAttributes = NYTree::CreateEphemeralAttributes();
         structuredAttributes->Set("format", Stroka("pretty"));
         RegisterParameter("structured", Structured)
-            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, ~structuredAttributes));
+            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, structuredAttributes.get()));
 
         auto tabularAttributes = NYTree::CreateEphemeralAttributes();
         tabularAttributes->Set("format", Stroka("text"));
         RegisterParameter("tabular", Tabular)
-            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, ~tabularAttributes));
+            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, tabularAttributes.get()));
     }
 };
 

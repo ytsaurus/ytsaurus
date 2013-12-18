@@ -46,7 +46,7 @@ void TCommandBase::ReplySuccess(const TYsonString& yson)
     YCHECK(!Replied);
 
     auto consumer = Context->CreateOutputConsumer();
-    Consume(yson, ~consumer);
+    Consume(yson, consumer.get());
 
     Context->Response() = TDriverResponse(TError());
     Replied = true;

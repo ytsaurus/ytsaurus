@@ -29,7 +29,7 @@ public:
     {
         auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
         builder->BeginTree();
-        Producer.Run(~builder);
+        Producer.Run(builder.get());
         auto node = builder->EndTree();
         return TResolveResult::There(node, path);
     }

@@ -111,7 +111,7 @@ private:
                 transaction,
                 account,
                 type,
-                ~attributes,
+                attributes.get(),
                 request,
                 response);
             const auto& objectId = object->GetId();

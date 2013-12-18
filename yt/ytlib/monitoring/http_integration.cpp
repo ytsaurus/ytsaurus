@@ -37,7 +37,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
     // TODO(babenko): maybe extract method
     TStringStream output;
     auto writer = NFormats::CreateJsonConsumer(&output);
-    Consume(TYsonString(rsp->value()), ~writer);
+    Consume(TYsonString(rsp->value()), writer.get());
 
     return FormatOKResponse(output.Str());
 }

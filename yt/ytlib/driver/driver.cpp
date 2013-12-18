@@ -367,7 +367,7 @@ private:
             return CreateProducerForFormat(
                 GetInputFormat(),
                 Descriptor_.InputType,
-                ~SyncInputStream_);
+                SyncInputStream_.get());
         }
 
         virtual std::unique_ptr<IYsonConsumer> CreateOutputConsumer() override
@@ -375,7 +375,7 @@ private:
             return CreateConsumerForFormat(
                 GetOutputFormat(),
                 Descriptor_.OutputType,
-                ~SyncOutputStream_);
+                SyncOutputStream_.get());
         }
 
         virtual const TFormat& GetInputFormat() override

@@ -111,7 +111,7 @@ public:
         auto writerProvider = New<TPartitionChunkWriterProvider>(
             config->JobIO->TableWriter,
             options,
-            ~Partitioner);
+            Partitioner.get());
 
         Writer = CreateSyncWriter<TPartitionChunkWriter>(New<TWriter>(
             config->JobIO->TableWriter,

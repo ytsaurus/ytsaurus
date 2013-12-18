@@ -520,7 +520,7 @@ private:
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
                     YCHECK(NotificationWatchesIndex.insert(
-                        std::make_pair(watch->GetWd(), ~watch)).second);
+                        std::make_pair(watch->GetWd(), watch.get())).second);
                 }
                 NotificationWatches.emplace_back(std::move(watch));
             }

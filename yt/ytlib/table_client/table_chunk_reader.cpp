@@ -572,7 +572,7 @@ private:
             }
 
             YCHECK(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
-            if (~StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
+            if (StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
                 // This quick check is aimed to improve potential performance issue and
                 // eliminate unnecessary calls to Subscribe and BIND.
                 if (!chunkReader->DoFetchNextRow()) {

@@ -50,15 +50,15 @@ void SetupFormatter(TPatternFormatter* formatter, const TLogEvent& event)
     std::unique_ptr<TMessageBuffer> out(new TMessageBuffer());
 
     out->Reset();
-    FormatLevel(~out, event.Level);
+    FormatLevel(out.get(), event.Level);
     formatter->AddProperty("level", ToString(*out));
 
     out->Reset();
-    FormatDateTime(~out, event.DateTime);
+    FormatDateTime(out.get(), event.DateTime);
     formatter->AddProperty("datetime", ToString(*out));
 
     out->Reset();
-    FormatMessage(~out, event.Message);
+    FormatMessage(out.get(), event.Message);
     formatter->AddProperty("message", ToString(*out));
 
     formatter->AddProperty("category", event.Category);

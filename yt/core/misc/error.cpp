@@ -24,7 +24,7 @@ TError::TErrorOr()
 TError::TErrorOr(const TError& other)
     : Code_(other.Code_)
     , Message_(other.Message_)
-    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : nullptr)
+    , Attributes_(other.Attributes_ ? other.Attributes_->Clone() : nullptr)
     , InnerErrors_(other.InnerErrors_)
 { }
 
@@ -102,7 +102,7 @@ TError& TError::operator= (const TError& other)
     if (this != &other) {
         Code_ = other.Code_;
         Message_ = other.Message_;
-        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : nullptr;
+        Attributes_ = other.Attributes_ ? other.Attributes_->Clone() : nullptr;
         InnerErrors_ = other.InnerErrors_;
     }
     return *this;
@@ -143,7 +143,7 @@ TError& TError::SetMessage(const Stroka& message)
 
 const IAttributeDictionary& TError::Attributes() const
 {
-    return ~Attributes_ ? *Attributes_ : EmptyAttributes();
+    return Attributes_ ? *Attributes_ : EmptyAttributes();
 }
 
 IAttributeDictionary& TError::Attributes()

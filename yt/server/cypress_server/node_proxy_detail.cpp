@@ -973,7 +973,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto newProxy = factory->CreateNode(
         type,
-        ~attributes,
+        attributes.get(),
         request,
         response);
 

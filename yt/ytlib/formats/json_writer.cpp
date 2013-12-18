@@ -140,7 +140,7 @@ TJsonWriterImpl::TJsonWriterImpl(TOutputStream* output,
     UnderlyingJsonWriter.reset(new NJson::TJsonWriter(
         output,
         Config->Format == EJsonFormat::Pretty));
-    JsonWriter = ~UnderlyingJsonWriter;
+    JsonWriter = UnderlyingJsonWriter.get();
     HasAttributes = false;
     InAttributesBalance = 0;
 }

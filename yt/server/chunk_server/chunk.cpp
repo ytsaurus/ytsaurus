@@ -143,7 +143,7 @@ void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YASSERT(~CachedReplicas_);
+        YASSERT(CachedReplicas_);
         YCHECK(CachedReplicas_->erase(replica) == 1);
         if (CachedReplicas_->empty()) {
             CachedReplicas_.reset();
@@ -162,7 +162,7 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 SmallVector<TNodePtrWithIndex, TypicalReplicaCount> TChunk::GetReplicas() const
 {
     SmallVector<TNodePtrWithIndex, TypicalReplicaCount> result(StoredReplicas_.begin(), StoredReplicas_.end());
-    if (~CachedReplicas_) {
+    if (CachedReplicas_) {
         result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
     }
     return result;

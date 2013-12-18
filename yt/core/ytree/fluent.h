@@ -505,7 +505,7 @@ public:
 
     NYson::IYsonConsumer* GetConsumer()
     {
-        return ~Builder;
+        return Builder.get();
     }
 
 private:

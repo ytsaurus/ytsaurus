@@ -121,9 +121,9 @@ public:
     TImpl(int port)
     {
         Callback.reset(new TCallback(*this));
-        Server.reset(new THttpServer(~Callback,
-            THttpServerOptions(static_cast<ui16>(port))
-        ));
+        Server.reset(new THttpServer(
+            Callback.get(),
+            THttpServerOptions(static_cast<ui16>(port))));
     }
 
     void Start()

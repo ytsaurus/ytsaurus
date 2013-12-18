@@ -20,7 +20,7 @@ IAttributeDictionary* TEphemeralAttributeOwner::MutableAttributes()
     if (!HasAttributes()) {
         Attributes_ = CreateEphemeralAttributes();
     }
-    return ~Attributes_;
+    return Attributes_.get();
 }
 
 bool TEphemeralAttributeOwner::HasAttributes() const

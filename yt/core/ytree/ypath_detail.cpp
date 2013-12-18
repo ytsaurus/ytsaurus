@@ -276,8 +276,8 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stro
         };
 
         std::unique_ptr<TStringStream> asyncStream(new TStringStream());
-        std::unique_ptr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(~asyncStream));
-        auto asyncResult = systemAttributeProvider->GetSystemAttributeAsync(key, ~asyncWriter);
+        std::unique_ptr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(asyncStream.get()));
+        auto asyncResult = systemAttributeProvider->GetSystemAttributeAsync(key, asyncWriter.get());
         if (asyncResult) {
             return asyncResult.Apply(BIND(
                 onAsyncAttribute,
@@ -836,7 +836,7 @@ private:
         Stroka localKey(key);
         AttributeWriter.reset(new NYson::TYsonWriter(&AttributeStream));
         Forward(
-            ~AttributeWriter,
+            AttributeWriter.get(),
             BIND ([=] () {
                 AttributeWriter.reset();
                 Attributes->SetYson(localKey, TYsonString(AttributeStream.Str()));
@@ -898,7 +898,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     AttributesSetter.reset(new TAttributesSetter(Node->MutableAttributes()));
-    Forward(~AttributesSetter, TClosure(), NYson::EYsonType::MapFragment);
+    Forward(AttributesSetter.get(), TClosure(), NYson::EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()

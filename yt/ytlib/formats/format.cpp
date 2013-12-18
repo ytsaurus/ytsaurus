@@ -50,7 +50,7 @@ TFormat& TFormat::operator=(const TFormat& other)
 {
     if (this != &other) {
         Type_ = other.Type_;
-        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : NULL;
+        Attributes_ = other.Attributes_ ? other.Attributes_->Clone() : nullptr;
     }
     return *this;
 }

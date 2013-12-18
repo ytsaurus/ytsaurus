@@ -283,9 +283,9 @@ TInputPipe::TInputPipe(
     , IsFinished(false)
     , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))
 {
-    YCHECK(~TableProducer);
-    YCHECK(~Buffer);
-    YCHECK(~Consumer);
+    YCHECK(TableProducer);
+    YCHECK(Buffer);
+    YCHECK(Consumer);
 }
 
 void TInputPipe::PrepareJobDescriptors()

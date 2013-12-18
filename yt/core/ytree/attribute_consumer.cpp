@@ -24,7 +24,7 @@ void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
 {
     Stroka localKey(key);
     Writer.reset(new TYsonWriter(&Output));
-    Forward(~Writer, BIND([=] () {
+    Forward(Writer.get(), BIND([=] () {
         Writer.reset();
         Attributes->SetYson(localKey, TYsonString(Output.Str()));
         Output.clear();

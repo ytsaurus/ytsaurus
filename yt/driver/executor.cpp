@@ -227,7 +227,7 @@ IMapNodePtr TRequestExecutor::GetArgs()
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
 
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Do(BIND(&TRequestExecutor::BuildArgs, Unretained(this)))
         .EndMap();

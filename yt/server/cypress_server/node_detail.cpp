@@ -130,7 +130,7 @@ std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneC
     auto clonedId = objectManager->GenerateId(type);
 
     auto clonedNode = Instantiate(TVersionedNodeId(clonedId));
-    clonedNode->SetTrunkNode(~clonedNode);
+    clonedNode->SetTrunkNode(clonedNode.get());
 
     return clonedNode;
 }

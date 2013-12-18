@@ -113,7 +113,7 @@ void TReadCommand::DoExecute()
     };
 
     while (true) {
-        ProduceRow(~consumer, reader->GetRow());
+        ProduceRow(consumer.get(), reader->GetRow());
 
         if (buffer.Size() > bufferLimit) {
             flushBuffer();

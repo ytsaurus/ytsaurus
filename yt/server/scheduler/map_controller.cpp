@@ -117,12 +117,12 @@ private:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual void Persist(TPersistenceContext& context) override

@@ -576,7 +576,7 @@ IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
     if (!UserAttributes) {
         UserAttributes = DoCreateUserAttributes();
     }
-    return ~UserAttributes;
+    return UserAttributes.get();
 }
 
 ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()

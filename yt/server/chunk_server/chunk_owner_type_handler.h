@@ -73,7 +73,7 @@ protected:
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
-        YCHECK(chunkList->OwningNodes().insert(~node).second);
+        YCHECK(chunkList->OwningNodes().insert(node.get()).second);
         objectManager->RefObject(chunkList);
 
         return node;

@@ -45,7 +45,7 @@ TRichYPath::TRichYPath()
 
 TRichYPath::TRichYPath(const TRichYPath& other)
     : Path_(other.Path_)
-    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : nullptr)
+    , Attributes_(other.Attributes_ ? other.Attributes_->Clone() : nullptr)
 { }
 
 TRichYPath::TRichYPath(const char* path)
@@ -78,7 +78,7 @@ void TRichYPath::SetPath(const TYPath& path)
 
 const IAttributeDictionary& TRichYPath::Attributes() const
 {
-    return ~Attributes_ ? *Attributes_ : EmptyAttributes();
+    return Attributes_ ? *Attributes_ : EmptyAttributes();
 }
 
 IAttributeDictionary& TRichYPath::Attributes()
@@ -93,7 +93,7 @@ TRichYPath& TRichYPath::operator = (const TRichYPath& other)
 {
     if (this != &other) {
         Path_ = other.Path_;
-        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : NULL;
+        Attributes_ = other.Attributes_ ? other.Attributes_->Clone() : nullptr;
     }
     return *this;
 }
@@ -326,7 +326,7 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
 {
     auto attributes = CreateEphemeralAttributes();
 
-    auto strWithoutAttributes = ParseAttributes(str, ~attributes);
+    auto strWithoutAttributes = ParseAttributes(str, attributes.get());
     TTokenizer ypathTokenizer(strWithoutAttributes);
 
     while (ypathTokenizer.GetType() != ETokenType::EndOfStream && ypathTokenizer.GetType() != ETokenType::Range) {
@@ -338,8 +338,8 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
     if (ypathTokenizer.GetType() == ETokenType::Range) {
         NYson::TTokenizer ysonTokenizer(rangeStr);
         ysonTokenizer.ParseNext();
-        ParseChannel(ysonTokenizer, ~attributes);
-        ParseRowLimits(ysonTokenizer, ~attributes);
+        ParseChannel(ysonTokenizer, attributes.get());
+        ParseRowLimits(ysonTokenizer, attributes.get());
         ysonTokenizer.CurrentToken().CheckType(NYson::ETokenType::EndOfStream);
     }
 

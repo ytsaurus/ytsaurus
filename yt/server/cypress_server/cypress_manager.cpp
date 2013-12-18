@@ -340,7 +340,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
 
     auto* transaction = factory->GetTransaction();
     auto node = handler->Create(transaction, request, response);
-    auto node_ = ~node;
+    auto node_ = node.get();
 
     RegisterNode(std::move(node));
 
@@ -377,7 +377,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
     auto clonedNode = handler->Clone(sourceNode, factory);
 
     // Make a rawptr copy and transfer the ownership.
-    auto clonedNode_ = ~clonedNode;
+    auto clonedNode_ = clonedNode.get();
     RegisterNode(std::move(clonedNode));
 
     // Set account.

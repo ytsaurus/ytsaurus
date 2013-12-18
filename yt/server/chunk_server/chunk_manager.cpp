@@ -662,7 +662,7 @@ private:
             unregisterReplica(replica, false);
         }
 
-        if (~chunk->CachedReplicas()) {
+        if (chunk->CachedReplicas()) {
             for (auto replica : *chunk->CachedReplicas()) {
                 unregisterReplica(replica, true);
             }

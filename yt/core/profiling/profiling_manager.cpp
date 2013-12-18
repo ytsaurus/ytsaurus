@@ -221,7 +221,7 @@ private:
 
         virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         {
-            auto* profilingManager = ~TProfilingManager::Get()->Impl;
+            auto* profilingManager = TProfilingManager::Get()->Impl.get();
             TGuard<TSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
             context->SetRequestInfo("");

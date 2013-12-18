@@ -134,7 +134,7 @@ void TFileLogWriter::EnsureInitialized()
         return;
     }
 
-    LogWriter = New<TStreamLogWriter>(~FileOutput, Pattern);
+    LogWriter = New<TStreamLogWriter>(FileOutput.get(), Pattern);
     Write(GetBannerEvent());
 }
 
@@ -164,7 +164,7 @@ void TFileLogWriter::Reload()
 {
     Flush();
 
-    if (~File) {
+    if (File) {
         try {
             File->Close();
         } catch (const std::exception& ex) {
@@ -212,12 +212,12 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
         return;
     }
 
-    auto* buffer = ~Buffer;
+    auto* buffer = Buffer.get();
     buffer->Reset();
 
     FormatDateTime(buffer, event.DateTime);
     buffer->AppendChar('\t');
-    FormatLevel(~Buffer, event.Level);
+    FormatLevel(buffer, event.Level);
     buffer->AppendChar('\t');
     buffer->AppendString(~event.Category);
     buffer->AppendChar('\t');
@@ -233,7 +233,7 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
 
 void TRawFileLogWriter::Flush()
 {
-    if (~FileOutput && !NotEnoughSpace) {
+    if (FileOutput && !NotEnoughSpace) {
         try {
             FileOutput->Flush();
         } catch (const std::exception& ex) {
@@ -246,7 +246,7 @@ void TRawFileLogWriter::Reload()
 {
     Flush();
 
-    if (~File) {
+    if (File) {
         try {
             File->Close();
         } catch (const std::exception& ex) {

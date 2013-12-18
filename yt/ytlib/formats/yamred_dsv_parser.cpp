@@ -113,7 +113,7 @@ void ParseYamredDsv(
     TYamredDsvFormatConfigPtr config)
 {
     auto parser = CreateParserForYamredDsv(consumer, config);
-    Parse(input, ~parser);
+    Parse(input, parser.get());
 }
 
 void ParseYamredDsv(

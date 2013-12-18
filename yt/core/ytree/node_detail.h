@@ -60,7 +60,7 @@ protected:
 
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(factory);
-        SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
+        SetNodeFromProducer(node, ConvertToProducer(value), builder.get());
         factory->Commit();
     }
 

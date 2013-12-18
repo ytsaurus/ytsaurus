@@ -1145,7 +1145,7 @@ public:
 
     virtual IChunkPoolOutput* GetOutput(int partitionIndex) override
     {
-        return ~Outputs[partitionIndex];
+        return Outputs[partitionIndex].get();
     }
 
     // IChunkPoolInput implementation.

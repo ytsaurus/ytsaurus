@@ -716,7 +716,7 @@ private:
                     format,
                     NFormats::EDataType::Tabular,
                     output);
-                ProduceYson(syncReader, ~consumer);
+                ProduceYson(syncReader, consumer.get());
             };
 
             Slot->MakeFile(fileName, producer);

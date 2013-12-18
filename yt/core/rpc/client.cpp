@@ -115,7 +115,7 @@ const NYTree::IAttributeDictionary& TClientRequest::Attributes() const
 
 NYTree::IAttributeDictionary* TClientRequest::MutableAttributes()
 {
-    return ~Attributes_;
+    return Attributes_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
