@@ -187,7 +187,7 @@ public:
 
     TUnversionedValue* BeginKeys()
     {
-        return BeginKeys();
+        return BeginValues();
     }
 
     const TUnversionedValue* EndKeys() const
