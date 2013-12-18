@@ -336,7 +336,7 @@ public:
         {
             for (const auto& pair : map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
-                VisitTree(~pair.second, this->Consumer);
+                VisitTree(pair.second, this->Consumer);
             }
             return *this;
         }
