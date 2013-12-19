@@ -44,15 +44,17 @@ from collections import Iterable, Mapping
 
 from yson_types import YsonEntity
 
+import sys
+
 __all__ = ["dump", "dumps"]
 
-def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
+def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
     '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent))
+    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent, yson_type=yson_type))
 
 
-def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
+def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
     '''Serialize ``object`` as a Yson formatted string'''
     if yson_format is not None and yson_format != "pretty":
         raise YsonError("binary and text formats are not supported")
@@ -60,12 +62,14 @@ def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='
         indent = 4
     if isinstance(indent, int):
         indent = " " * indent
-    d = Dumper(check_circular, encoding, indent)
+    d = Dumper(check_circular, encoding, indent, yson_type)
     return d.dumps(object)
 
 
 class Dumper(object):
-    def __init__(self, check_circular, encoding, indent):
+    def __init__(self, check_circular, encoding, indent, yson_type):
+        self.yson_type = yson_type
+
         self._seen_objects = None
         if check_circular:
             self._seen_objects = {}
@@ -123,7 +127,7 @@ class Dumper(object):
         return ''.join(result)
 
     def _dump_list(self, obj):
-        result = ['[', self._format.nextline()]
+        result = [self._format.nextline()]
         for v in obj:
             @self._circular_check(v)
             def process_item():
@@ -132,8 +136,11 @@ class Dumper(object):
 
             result += process_item()
 
-        result += [self._format.prefix(self._level), ']']
-        return ''.join(result)
+        result += [self._format.prefix(self._level)]
+        if self.yson_type == "list_fragment" and self._level == 0:
+            return ''.join(result)
+        else:
+            return "[%s]" % ''.join(result)
 
     def _dump_attributes(self, obj):
         result = ['<', self._format.nextline()]
