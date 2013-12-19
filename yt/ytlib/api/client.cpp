@@ -127,6 +127,10 @@ private:
         const TYPath& tablePath,
         TKey key)
     {
+        if (mountInfo->Tablets.empty()) {
+            THROW_ERROR_EXCEPTION("Table %s is not mounted",
+                ~tablePath);
+        }
         const auto& tabletInfo = mountInfo->GetTablet(key);
         if (tabletInfo.State != ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Tablet %s of table %s is not mounted",
