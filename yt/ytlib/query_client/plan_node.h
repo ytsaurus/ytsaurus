@@ -27,20 +27,37 @@ template <class TPlanNode, class EKind>
 class TPlanNodeBase
     : public TPlanContext::TTrackedObject
 {
-    EKind Kind_;
-
 public:
     explicit TPlanNodeBase(TPlanContext* context, EKind kind)
         : TTrackedObject(context)
         , Kind_(kind)
+        , RefCount_(1)
     { }
 
     virtual ~TPlanNodeBase()
-    { }
+    {
+        // XXX(sandello): This is a WIP.
+        // YCHECK(RefCount_ == 0);
+    }
+
+    int Ref() const
+    {
+        return ++RefCount_;
+    }
+
+    int Unref() const
+    {
+        return --RefCount_;
+    }
 
     inline EKind GetKind() const
     {
         return Kind_;
+    }
+
+    inline int GetRefCount() const
+    {
+        return RefCount_;
     }
 
     TPlanNode* Clone(TPlanContext* context) const
@@ -98,6 +115,10 @@ public:
     }
 
     virtual TArrayRef<const TPlanNode*> Children() const = 0;
+
+private:
+    EKind Kind_;
+    mutable int RefCount_;
 
 };
 
