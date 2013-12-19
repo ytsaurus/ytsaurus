@@ -313,9 +313,9 @@ private:
                 
                 transaction->Transaction_->AddTabletParticipant(tabletInfo.CellId);
                 
-                auto buffer = transaction->GetWriteBuffer(tabletInfo);
-                buffer->Writer.WriteCommand(EProtocolCommand::WriteRow);
-                buffer->Writer.WriteUnversionedRow(row);
+                auto* writer = transaction->GetWriter(tabletInfo);
+                writer->WriteCommand(EProtocolCommand::WriteRow);
+                writer->WriteUnversionedRow(row);
             }
         }
 
@@ -343,9 +343,9 @@ private:
 
                 transaction->Transaction_->AddTabletParticipant(tabletInfo.CellId);
 
-                auto buffer = transaction->GetWriteBuffer(tabletInfo);
-                buffer->Writer.WriteCommand(EProtocolCommand::DeleteRow);
-                buffer->Writer.WriteUnversionedRow(key);
+                auto* writer = transaction->GetWriter(tabletInfo);
+                writer->WriteCommand(EProtocolCommand::DeleteRow);
+                writer->WriteUnversionedRow(key);
             }
         }
 
@@ -357,20 +357,15 @@ private:
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
 
 
-    struct TWriteBuffer
+    std::map<const TTabletInfo*, std::unique_ptr<TProtocolWriter>> TabletToWriter_;
+
+
+    TProtocolWriter* GetWriter(const TTabletInfo& tabletInfo)
     {
-        TProtocolWriter Writer;
-    };
-
-    std::map<const TTabletInfo*, std::unique_ptr<TWriteBuffer>> TabletToBuffer_;
-
-
-    TWriteBuffer* GetWriteBuffer(const TTabletInfo& tabletInfo)
-    {
-        auto it = TabletToBuffer_.find(&tabletInfo);
-        if (it == TabletToBuffer_.end()) {
-            std::unique_ptr<TWriteBuffer> buffer(new TWriteBuffer());
-            it = TabletToBuffer_.insert(std::make_pair(&tabletInfo, std::move(buffer))).first;
+        auto it = TabletToWriter_.find(&tabletInfo);
+        if (it == TabletToWriter_.end()) {
+            std::unique_ptr<TProtocolWriter> buffer(new TProtocolWriter());
+            it = TabletToWriter_.insert(std::make_pair(&tabletInfo, std::move(buffer))).first;
         }
         return it->second.get();
     }
@@ -387,9 +382,9 @@ private:
 
             auto writeCollector = New<TParallelCollector<void>>();
 
-            for (const auto& pair : TabletToBuffer_) {
+            for (const auto& pair : TabletToWriter_) {
                 const auto& tabletInfo = *pair.first;
-                auto* buffer = pair.second.get();
+                auto* writer = pair.second.get();
 
                 auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
 
@@ -397,7 +392,7 @@ private:
                 auto writeReq = tabletProxy.Write();
                 ToProto(writeReq->mutable_transaction_id(), Transaction_->GetId());
                 ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
-                writeReq->set_encoded_request(buffer->Writer.Finish());
+                writeReq->set_encoded_request(writer->Finish());
 
                 writeCollector->Collect(
                     writeReq->Invoke().Apply(BIND([] (TTabletServiceProxy::TRspWritePtr rsp) {
