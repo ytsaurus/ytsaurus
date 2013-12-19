@@ -7,14 +7,13 @@ import yt.logger as logger
 import yt.wrapper as yt
 
 import os
-import sys
 import tempfile
 import subprocess
 import simplejson as json
 
 import pytest
 
-class TestDefaultBehaviour(YtTestBase, YTEnv):
+class TestNativeMode(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
         YtTestBase._setup_class(YTEnv)
@@ -215,26 +214,6 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
         yt.run_sort(table, sort_by=["x"])
         self.assertItemsEqual(["y=2\n", "x=1\n"], yt.read_table(table))
-
-    def test_printing_stderr(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\n"])
-
-        # Prepare
-        yt.config.PRINT_STDERRS = True
-        old = logger.info
-        output = []
-        def print_info(msg, *args, **kwargs):
-            output.append(msg)
-        logger.info = print_info
-
-        yt.run_map("cat 1>&2", table, table)
-
-        # Return settings back
-        logger.info = old
-        yt.config.PRINT_STDERRS = False
-
-        self.assertTrue(any(map(lambda line: line.find("x=1") != -1, output)))
 
     def test_write_many_chunks(self):
         yt.config.WRITE_BUFFER_SIZE = 1
