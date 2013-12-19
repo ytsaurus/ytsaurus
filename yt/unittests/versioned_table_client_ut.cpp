@@ -28,7 +28,7 @@ const Stroka Empty = "";
 class TVersionedTableClientTest
     : public ::testing::Test
 {
-private:
+protected:
     virtual void SetUp() override
     {
         MemoryWriter = New<TMemoryWriter>();
@@ -38,7 +38,6 @@ private:
             MemoryWriter);
     }
 
-protected:
     IReaderPtr ChunkReader;
     TChunkWriterPtr ChunkWriter;
 

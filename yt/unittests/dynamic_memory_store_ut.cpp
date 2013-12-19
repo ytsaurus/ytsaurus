@@ -1,14 +1,6 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <yt/core/concurrency/fiber.h>
-
-#include <yt/ytlib/new_table_client/versioned_row.h>
-
-#include <yt/server/tablet_node/public.h>
-#include <yt/server/tablet_node/config.h>
-#include <yt/server/tablet_node/tablet_manager.h>
-
 namespace NYT {
 namespace NTabletNode {
 namespace {
@@ -21,14 +13,13 @@ using namespace NConcurrency;
 class TDynamicMemoryStoreTest
     : public TMemoryStoreTestBase
 {
-public:
+protected:
     TDynamicMemoryStoreTest()
-    {
-        auto config = New<TTabletManagerConfig>();
-        Store = New<TDynamicMemoryStore>(config, Tablet.get());
-    }
-
-
+        : TMemoryStoreTestBase()
+        , Store(New<TDynamicMemoryStore>(
+            New<TTabletManagerConfig>(),
+            Tablet.get()))
+    { }
 
     void ConfirmRow(TDynamicRow row)
     {
@@ -144,7 +135,8 @@ public:
         ASSERT_TRUE(static_cast<bool>(row));
         ASSERT_TRUE(yson.HasValue());
 
-        auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(TYsonString(*yson, EYsonType::MapFragment));
+        auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
+            TYsonString(*yson, EYsonType::MapFragment));
 
         for (int index = 0; index < row.GetCount(); ++index) {
             const auto& value = row[index];
@@ -152,15 +144,21 @@ public:
             auto it = expectedRowParts.find(name);
             switch (value.Type) {
                 case EValueType::Integer:
-                    ASSERT_EQ(it->second->GetValue<i64>(), value.Data.Integer);
+                    ASSERT_EQ(
+                        it->second->GetValue<i64>(),
+                        value.Data.Integer);
                     break;
-                
+
                 case EValueType::Double:
-                    ASSERT_EQ(it->second->GetValue<double>(), value.Data.Double);
+                    ASSERT_EQ(
+                        it->second->GetValue<double>(),
+                        value.Data.Double);
                     break;
-                
+
                 case EValueType::String:
-                    ASSERT_EQ(it->second->GetValue<Stroka>(), Stroka(value.Data.String, value.Length));
+                    ASSERT_EQ(
+                        it->second->GetValue<Stroka>(),
+                        Stroka(value.Data.String, value.Length));
                     break;
 
                 case EValueType::Null:
@@ -575,3 +573,4 @@ TEST_F(TDynamicMemoryStoreTest, ReadPostponedCommit)
 } // namespace
 } // namespace NTabletNode
 } // namespace NYT
+

@@ -1,9 +1,6 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <ytlib/new_table_client/versioned_row.h>
-#include <server/tablet_node/config.h>
-
 namespace NYT {
 namespace NTabletNode {
 namespace {
@@ -19,7 +16,7 @@ using namespace NYTree;
 class TStaticMemoryStoreTest
     : public TMemoryStoreTestBase
 {
-public:
+protected:
     TStaticMemoryStoreTest()
         : Builder(
             New<TTabletManagerConfig>(),
@@ -27,7 +24,6 @@ public:
     { }
 
     TStaticMemoryStoreBuilder Builder;
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -43,7 +39,7 @@ TEST_F(TStaticMemoryStoreTest, Small1)
 {
     {
         Builder.BeginRow();
-        
+
         auto* keys = Builder.AllocateKeys();
         keys[0] = MakeUnversionedIntegerValue(1);
 
@@ -205,3 +201,4 @@ TEST_F(TStaticMemoryStoreTest, Large1)
 } // namespace
 } // namespace NTabletNode
 } // namespace NYT
+
