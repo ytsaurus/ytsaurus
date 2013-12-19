@@ -715,6 +715,7 @@ public:
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(
             TChannel::FromProto(channelsExt.items(0).channel())));
 
+        chunkReader->CurrentKey = TKey::Allocate(&chunkReader->KeyMemoryPool, 0);
         chunkReader->DoFetchNextRow();
         chunkReader->RowState.GetOperationError().Subscribe(BIND(
             &TTableChunkReader::OnRowFetched,
