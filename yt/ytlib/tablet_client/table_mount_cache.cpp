@@ -131,7 +131,16 @@ private:
             return;
 
         auto& entry = it->second;
-        entry.Timestamp = TInstant::Now();
+
+        auto setResult = [&](TErrorOr<TTableMountInfoPtr> result) {
+            entry.Timestamp = TInstant::Now();
+            if (entry.Promise.IsSet()) {
+                entry.Promise = MakePromise(result);
+            } else {
+                entry.Promise.Set(result);
+            }
+        };
+
         if (rsp->IsOK()) {
             auto mountInfo = New<TTableMountInfo>();
             mountInfo->TableId = FromProto<TObjectId>(rsp->table_id());
@@ -152,12 +161,7 @@ private:
                 mountInfo->Tablets.push_back(tabletInfo);
             }
 
-            TErrorOr<TTableMountInfoPtr> promiseResult(mountInfo);
-            if (entry.Promise.IsSet()) {
-                entry.Promise = MakePromise(promiseResult);
-            } else {
-                entry.Promise.Set(promiseResult);
-            }
+            setResult(mountInfo);
 
             LOG_DEBUG("Table mount info received (Path: %s, TableId: %s, TabletCount: %d)",
                 ~path,
@@ -167,7 +171,7 @@ private:
             auto error = TError("Error getting mount info for %s",
                 ~path)
                 << *rsp;
-            entry.Promise.Set(error);
+            setResult(error);
             LOG_DEBUG(error);
         }
     }
