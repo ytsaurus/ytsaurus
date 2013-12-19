@@ -9,6 +9,8 @@ import sys
 def remove(table):
     if yt.exists(table):
         yt.remove(table, force=True)
+    elif yt.exists(table + "&"):
+        yt.remove(table + "&", force=True)
     else:
         return -1
 
