@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/query_client/expression.pb.h>
 
+#include <yt/ytlib/new_table_client/unversioned_row.h>
+
 #include <core/misc/protobuf_helpers.h>
 
 #ifdef __GNUC__
@@ -44,6 +46,31 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
     YUNREACHABLE();
 }
 
+EBinaryOpKind GetBinaryOpcodeKind(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Plus:
+        case EBinaryOp::Minus:
+        case EBinaryOp::Multiply:
+        case EBinaryOp::Divide:
+            return EBinaryOpKind::Arithmetical;
+        case EBinaryOp::Modulo:
+            return EBinaryOpKind::Integral;
+        case EBinaryOp::And:
+        case EBinaryOp::Or:
+            return EBinaryOpKind::Logical;
+        case EBinaryOp::Equal:
+        case EBinaryOp::NotEqual:
+        case EBinaryOp::Less:
+        case EBinaryOp::LessOrEqual:
+        case EBinaryOp::Greater:
+        case EBinaryOp::GreaterOrEqual:
+            return EBinaryOpKind::Relational;
+        ENSURE_ALL_CASES
+    }
+    YUNREACHABLE();
+}
+
 Stroka TExpression::GetSource() const
 {
     auto debugInformation = Context_->GetDebugInformation();
@@ -68,6 +95,16 @@ EValueType TExpression::GetType(const TTableSchema& sourceSchema) const
 Stroka TExpression::GetName() const
 {
     return InferName(this);
+}
+
+bool TExpression::IsConstant() const
+{
+    return ::NYT::NQueryClient::IsConstant(this);
+}
+
+TValue TExpression::GetConstantValue() const
+{
+    return ::NYT::NQueryClient::GetConstantValue(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

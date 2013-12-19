@@ -21,6 +21,13 @@ DECLARE_ENUM(EExpressionKind,
     (BinaryOp)
 );
 
+DECLARE_ENUM(EBinaryOpKind,
+    (Arithmetical)
+    (Integral)
+    (Logical)
+    (Relational)
+);
+
 DECLARE_ENUM(EBinaryOp,
     // Arithmetical operations.
     (Plus)
@@ -32,7 +39,7 @@ DECLARE_ENUM(EBinaryOp,
     // Logical operations.
     (And)
     (Or)
-    // Comparsion operations.
+    // Relational operations.
     (Equal)
     (NotEqual)
     (Less)
@@ -42,6 +49,7 @@ DECLARE_ENUM(EBinaryOp,
 );
 
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
+EBinaryOpKind GetBinaryOpcodeKind(EBinaryOp opcode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +78,12 @@ public:
 
     //! Piggy-backed method |InferName|.
     Stroka GetName() const;
+
+    //! Piggy-backed method |IsConstant|.
+    bool IsConstant() const;
+
+    //! Piggy-backed method |GetConstantValue|.
+    TValue GetConstantValue() const;
 
 private:
     TSourceLocation SourceLocation_;

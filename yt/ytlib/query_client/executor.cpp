@@ -27,23 +27,24 @@ public:
         IWriterPtr writer) override
     {
         return BIND([=] () -> TError {
-                return TEvaluateController(Callbacks_, fragment, std::move(writer))
-                    .Run();            
-            })
-            .AsyncVia(Invoker_)
-            .Run();
+            TEvaluateController evaluator(Callbacks_, fragment, std::move(writer));
+            return evaluator.Run();
+        })
+        .AsyncVia(Invoker_)
+        .Run();
     }
 
 private:
     IInvokerPtr Invoker_;
     IEvaluateCallbacks* Callbacks_;
+
 };
 
-class TCoordinatedEvaluatorProxy
+class TCoordinatorProxy
     : public IExecutor
 {
 public:
-    TCoordinatedEvaluatorProxy(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
+    TCoordinatorProxy(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
     { }
@@ -53,28 +54,26 @@ public:
         IWriterPtr writer) override
     {
         return BIND([=] () -> TError {
-                TCoordinateController coordinator(Callbacks_, fragment);
+            TCoordinateController coordinator(Callbacks_, fragment);
 
-                auto result = coordinator.Run();
+            auto error = coordinator.Run();
+            RETURN_IF_ERROR(error);
 
-                if (result.IsOK()) {
-                    TEvaluateController evaluator(
-                        &coordinator, 
-                        coordinator.GetCoordinatorSplit(), 
-                        std::move(writer));
+            TEvaluateController evaluator(
+                &coordinator,
+                coordinator.GetCoordinatorFragment(),
+                std::move(writer));
 
-                    return evaluator.Run();
-                } else {
-                    return result;
-                }
-            })
-            .AsyncVia(Invoker_)
-            .Run();
+            return evaluator.Run();
+        })
+        .AsyncVia(Invoker_)
+        .Run();
     }
 
 private:
     IInvokerPtr Invoker_;
     ICoordinateCallbacks* Callbacks_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,9 +83,9 @@ IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
     return New<TEvaluatorProxy>(std::move(invoker), callbacks);
 }
 
-IExecutorPtr CreateCoordinatedEvaluator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
+IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
 {
-    return New<TCoordinatedEvaluatorProxy>(std::move(invoker), callbacks);
+    return New<TCoordinatorProxy>(std::move(invoker), callbacks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,7 @@
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -25,6 +26,7 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +44,13 @@ TCoordinateController::TCoordinateController(
 
 TCoordinateController::~TCoordinateController()
 { }
+
+int TCoordinateController::GetPeerIndex(const TDataSplit& dataSplit)
+{
+    auto objectId = GetObjectIdFromDataSplit(dataSplit);
+    YCHECK(TypeFromId(objectId) == EObjectType::QueryPlan);
+    return CounterFromId(objectId);
+}
 
 IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
 {
@@ -70,21 +79,22 @@ TError TCoordinateController::Run()
         PushdownGroups();
         PushdownProjects();
         DistributeToPeers();
+        InitializeReaders();
 
-        for (auto& peer : Peers_) {
-            std::get<1>(peer) = GetCallbacks()->Delegate(
-                std::get<0>(peer),
-                GetHeaviestSplit(std::get<0>(peer).GetHead()));
-        } 
+        return TError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to coordinate plan fragment") << ex;
         LOG_ERROR(error);
         return error;
     }
-    return TError();
 }
 
-std::vector<TPlanFragment> TCoordinateController::GetPeerSplits() const
+TPlanFragment TCoordinateController::GetCoordinatorFragment() const
+{
+    return Fragment_;
+}
+
+std::vector<TPlanFragment> TCoordinateController::GetPeerFragments() const
 {
     std::vector<TPlanFragment> result;
     result.reserve(Peers_.size());
@@ -105,11 +115,10 @@ void TCoordinateController::SplitFurther()
     [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         if (auto* scanOp = op->As<TScanOperator>()) {
             auto objectId = GetObjectIdFromDataSplit(scanOp->DataSplit());
-            if (!GetCallbacks()->CanSplit(scanOp->DataSplit())) {
-                LOG_DEBUG("Skipping input %s", ~ToString(objectId));
-                return scanOp;
-            } else {
+            if (GetCallbacks()->CanSplit(scanOp->DataSplit())) {
                 LOG_DEBUG("Splitting input %s", ~ToString(objectId));
+            } else {
+                return scanOp;
             }
 
             auto dataSplitsOrError = WaitFor(
@@ -151,12 +160,10 @@ void TCoordinateController::PushdownFilters()
             if (auto* unionOp = filterOp->GetSource()->As<TUnionOperator>()) {
                 auto* newUnionOp = new (context) TUnionOperator(context);
                 newUnionOp->Sources().reserve(unionOp->Sources().size());
-                for (const auto& source : unionOp->Sources()) {
-                    auto clonedFilterOp = new (context) TFilterOperator(
-                        context,
-                        source);
-                    clonedFilterOp->SetPredicate(filterOp->GetPredicate());
-                    newUnionOp->Sources().push_back(clonedFilterOp);
+                for (const auto& sourceOp : unionOp->Sources()) {
+                    auto* newFilterOp = filterOp->Clone(context)->As<TFilterOperator>();
+                    newFilterOp->SetSource(sourceOp);
+                    newUnionOp->Sources().push_back(newFilterOp);
                 }
                 return newUnionOp;
             }
@@ -178,12 +185,10 @@ void TCoordinateController::PushdownProjects()
             if (auto* unionOp = projectOp->GetSource()->As<TUnionOperator>()) {
                 auto* newUnionOp = new (context) TUnionOperator(context);
                 newUnionOp->Sources().reserve(unionOp->Sources().size());
-                for (const auto& source : unionOp->Sources()) {
-                    auto clonedProjectOp = new (context) TProjectOperator(
-                        context,
-                        source);
-                    clonedProjectOp->Projections() = projectOp->Projections();
-                    newUnionOp->Sources().push_back(clonedProjectOp);
+                for (const auto& sourceOp : unionOp->Sources()) {
+                    auto* newProjectOp = projectOp->Clone(context)->As<TProjectOperator>();
+                    newProjectOp->SetSource(sourceOp);
+                    newUnionOp->Sources().push_back(newProjectOp);
                 }
                 return newUnionOp;
             }
@@ -271,39 +276,71 @@ void TCoordinateController::DistributeToPeers()
         //   U -> { O1 ... Ok }
         // to
         //   U -> { S1 ... Sk } && S1 -> O1, ..., Sk -> Ok
-        if (auto* unionOp = op->As<TUnionOperator>()) {
-            auto* facadeUnionOp = new (GetContext()) TUnionOperator(GetContext());
-
-            for (const auto& source : unionOp->Sources()) {
-                auto fragment = TPlanFragment(GetContext(), source);
-                Peers_.emplace_back(fragment, nullptr);
-
-                LOG_DEBUG("Created subfragment %s", ~ToString(fragment.Guid()));
-
-                auto* facadeScanOp = new (GetContext()) TScanOperator(
-                    GetContext(),
-                    GetContext()->GetFakeTableIndex());
-
-                SetObjectId(
-                    &facadeScanOp->DataSplit(),
-                    MakeId(EObjectType::QueryPlan, 0xBABE, Peers_.size() - 1, 0));
-                SetTableSchema(
-                    &facadeScanOp->DataSplit(),
-                    source->GetTableSchema());
-                SetKeyColumns(
-                    &facadeScanOp->DataSplit(),
-                    source->GetKeyColumns());
-
-                facadeUnionOp->Sources().push_back(facadeScanOp);
-            }
-
-            return facadeUnionOp;
+        auto* unionOp = op->As<TUnionOperator>();
+        if (!unionOp) {
+            return op;
         }
 
-        return op;
+        auto* facadeUnionOp = new (GetContext()) TUnionOperator(GetContext());
+
+        for (const auto& sourceOp : unionOp->Sources()) {
+            auto fragment = TPlanFragment(GetContext(), sourceOp);
+            LOG_DEBUG("Created subfragment (SubFragmentId: %s)", ~ToString(fragment.Guid()));
+
+            auto inferredKeyRange = InferKeyRange(fragment.GetHead());
+            if (IsEmpty(inferredKeyRange)) {
+                LOG_DEBUG("Subfragment is empty (SubFragmentId: %s)", ~ToString(fragment.Guid()));
+                continue;
+            } else {
+                LOG_DEBUG("Inferred key range %s ... %s (SubFragmentId: %s)",
+                    ~ToString(inferredKeyRange.first),
+                    ~ToString(inferredKeyRange.second),
+                    ~ToString(fragment.Guid()));
+            }
+
+            fragment.Rewrite(
+            [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+                if (auto* scanOp = op->As<TScanOperator>()) {
+                    auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                    auto* clonedDataSplit = &clonedScanOp->DataSplit();
+                    SetBothBounds(clonedDataSplit, Intersect(
+                        GetBothBoundsFromDataSplit(*clonedDataSplit),
+                        inferredKeyRange));
+                    return clonedScanOp;
+                }
+                return op;
+            });
+
+            Peers_.emplace_back(fragment, nullptr);
+
+            auto* facadeScanOp = new (GetContext()) TScanOperator(
+                GetContext(),
+                GetContext()->GetFakeTableIndex());
+            auto* facadeDataSplit = &facadeScanOp->DataSplit();
+
+            SetObjectId(
+                facadeDataSplit,
+                MakeId(EObjectType::QueryPlan, 0xBABE, Peers_.size() - 1, 0));
+            SetTableSchema(facadeDataSplit, sourceOp->GetTableSchema());
+            SetKeyColumns(facadeDataSplit, sourceOp->GetKeyColumns());
+            SetBothBounds(facadeDataSplit, inferredKeyRange);
+
+            facadeUnionOp->Sources().push_back(facadeScanOp);
+        }
+
+        return facadeUnionOp;
     });
 
     LOG_DEBUG("Distributed %" PRISZT " subfragments to peers", Peers_.size());
+}
+
+void TCoordinateController::InitializeReaders()
+{
+    for (auto& peer : Peers_) {
+        std::get<1>(peer) = GetCallbacks()->Delegate(
+            std::get<0>(peer),
+            GetHeaviestSplit(std::get<0>(peer).GetHead()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

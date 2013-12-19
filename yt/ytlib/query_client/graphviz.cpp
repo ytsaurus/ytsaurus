@@ -333,8 +333,8 @@ public:
     {
         CurrentSourceSchema_ = op->GetTableSchema();
         WriteNode(op, TLabel(op).Build());
-        for (const auto& source : op->Sources()) {
-            WriteEdge(op, source);
+        for (const auto& sourceOp : op->Sources()) {
+            WriteEdge(op, sourceOp);
         }
         return true;
     }
