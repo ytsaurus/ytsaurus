@@ -502,7 +502,7 @@ private:
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");
-        ToProto(reqExt->mutable_attributes(), *attributes);
+        ToProto(req->mutable_object_attributes(), *attributes);
 
         auto rsp = WaitFor(ExecuteVerb(service, req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
