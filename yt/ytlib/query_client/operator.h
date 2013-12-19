@@ -28,6 +28,8 @@ public:
         : TPlanNodeBase(context, kind)
     { }
 
+    TOperator* CloneImpl(TPlanContext* context) const;
+
     //! Piggy-backed method |InferTableSchema|.
     TTableSchema GetTableSchema() const;
 
@@ -46,6 +48,13 @@ public:
         : TOperator(context, EOperatorKind::Scan)
         , TableIndex_(tableIndex)
     { }
+
+    TScanOperator(TPlanContext* context, const TScanOperator& other)
+        : TOperator(context, EOperatorKind::Scan)
+        , TableIndex_(other.TableIndex_)
+    {
+        DataSplit_ = other.DataSplit_;
+    }
 
     static inline bool IsClassOf(const TOperator* op)
     {
@@ -71,6 +80,11 @@ public:
 
     TUnionOperator(TPlanContext* context)
         : TOperator(context, EOperatorKind::Union)
+    { }
+
+    TUnionOperator(TPlanContext* context, const TUnionOperator& other)
+        : TOperator(context, EOperatorKind::Union)
+        , Sources_(other.Sources_)
     { }
 
     static inline bool IsClassOf(const TOperator* op)
@@ -112,6 +126,12 @@ public:
         , Source_(source)
     { }
 
+    TFilterOperator(TPlanContext* context, const TFilterOperator& other)
+        : TOperator(context, EOperatorKind::Filter)
+        , Source_(other.Source_)
+        , Predicate_(other.Predicate_)
+    { }
+
     static inline bool IsClassOf(const TOperator* op)
     {
         return op->GetKind() == EOperatorKind::Filter;
@@ -137,6 +157,12 @@ public:
     TProjectOperator(TPlanContext* context, const TOperator* source)
         : TOperator(context, EOperatorKind::Project)
         , Source_(source)
+    { }
+
+    TProjectOperator(TPlanContext* context, const TProjectOperator& other)
+        : TOperator(context, EOperatorKind::Project)
+        , Source_(other.Source_)
+        , Projections_(other.Projections_)
     { }
 
     static inline bool IsClassOf(const TOperator* op)

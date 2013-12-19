@@ -43,6 +43,11 @@ public:
         return Kind_;
     }
 
+    TPlanNode* Clone(TPlanContext* context) const
+    {
+        return static_cast<const TPlanNode*>(this)->CloneImpl(context);
+    }
+
     template <class TDerivedPlanNode>
     inline bool IsA(
         typename std::enable_if<
@@ -62,6 +67,20 @@ public:
     {
         if (IsA<TDerivedPlanNode>()) {
             return static_cast<const TDerivedPlanNode*>(this);
+        } else {
+            return nullptr;
+        }
+    }
+
+    template <class TDerivedPlanNode>
+    inline TDerivedPlanNode* As(
+        typename std::enable_if<
+            std::is_base_of<TPlanNode, TDerivedPlanNode>::value,
+            int
+        >::type = 0)
+    {
+        if (IsA<TDerivedPlanNode>()) {
+            return static_cast<TDerivedPlanNode*>(this);
         } else {
             return nullptr;
         }

@@ -25,6 +25,34 @@ namespace NQueryClient {
 using NYT::ToProto;
 using NYT::FromProto;
 
+TOperator* TOperator::CloneImpl(TPlanContext* context) const
+{
+    TOperator* result = nullptr;
+
+    switch (GetKind()) {
+
+        case EOperatorKind::Scan:
+            result = new TScanOperator(context, *this->As<TScanOperator>());
+            break;
+
+        case EOperatorKind::Union:
+            result = new TUnionOperator(context, *this->As<TUnionOperator>());
+            break;
+
+        case EOperatorKind::Filter:
+            result = new TFilterOperator(context, *this->As<TFilterOperator>());
+            break;
+
+        case EOperatorKind::Project:
+            result = new TProjectOperator(context, *this->As<TProjectOperator>());
+
+        ENSURE_ALL_CASES
+    }
+
+    YCHECK(result);
+    return result;
+}
+
 TTableSchema TOperator::GetTableSchema() const
 {
     return InferTableSchema(this);
