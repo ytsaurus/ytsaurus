@@ -12,6 +12,7 @@
 #include <core/ytree/attribute_helpers.h>
 
 #include <core/rpc/caching_channel_factory.h>
+#include <core/rpc/bus_channel.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -153,6 +154,7 @@ public:
         IChannelPtr masterChannel,
         TTableMountCachePtr tableMountCache)
         : MasterChannel_(masterChannel)
+        , ChannelFactory_(GetBusChannelFactory())
         , ObjectProxy_(masterChannel)
         , TableMountCache_(std::move(tableMountCache))
         , NodeDirectory_(New<TNodeDirectory>())
