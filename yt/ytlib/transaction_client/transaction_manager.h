@@ -69,11 +69,11 @@ public:
     TTimestamp GetStartTimestamp() const;
 
     //! Called to mark a given cell as a transaction participant.
-    //! Starts the corresponding transaction in background.
+    //! Starts the corresponding transaction and returns the async result.
     /*!
      *  \note Thread affinity: ClientThread
      */
-    void AddParticipant(const NElection::TCellGuid& cellGuid);
+    TAsyncError AddTabletParticipant(const NElection::TCellGuid& cellGuid);
 
     //! Raised when the transaction is aborted.
     /*!
@@ -141,7 +141,6 @@ public:
 
     //! Asynchronously starts a new transaction.
     /*!
-     *
      *  If |options.Ping| is |true| then transaction's lease will be renewed periodically.
      *
      *  If |options.PingAncestors| is |true| then the above renewal will also apply to all

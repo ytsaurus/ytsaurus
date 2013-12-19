@@ -118,9 +118,6 @@ private:
     TDuration GetActualTimeout(TNullable<TDuration> timeout);
 
     // ITransactionManager overrides
-    virtual TTransactionId StartTransaction(
-        TTimestamp startTimestamp,
-        const NHive::NProto::TReqStartTransaction& request) override;
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
         bool persistent,

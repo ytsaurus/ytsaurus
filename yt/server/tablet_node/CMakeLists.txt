@@ -45,3 +45,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/tablet_manager.proto YT_SOURCE_FILES )
+protoc( ${BASE}/transaction_manager.proto YT_SOURCE_FILES )

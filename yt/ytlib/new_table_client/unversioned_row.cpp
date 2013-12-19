@@ -278,6 +278,16 @@ size_t GetHash(const TUnversionedValue& value)
     }
 }
 
+size_t GetHash(TUnversionedRow row)
+{
+    size_t result = 0xdeadc0de;
+    int partCount = row.GetValueCount();
+    for (int i = 0; i < row.GetValueCount(); ++i) {
+        result = (result * 1000003) ^ GetHash(row[i]);
+    }
+    return result ^ partCount;
+}
+
 size_t GetUnversionedRowDataSize(int valueCount)
 {
     return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
@@ -362,7 +372,6 @@ Stroka SerializeToString(const TUnversionedRow& row)
     char* current = const_cast<char*>(buffer.data());
     current += WriteVarUInt32(current, 0); // format version
     current += WriteVarUInt32(current, static_cast<ui32>(row.GetValueCount()));
-    current += WriteVarUInt32(current, static_cast<ui32>(row.GetKeyCount()));
 
     for (int i = 0; i < row.GetValueCount(); ++i) {
         current += WriteValue(current, row[i]);
@@ -382,15 +391,11 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     ui32 valueCount;
     current += ReadVarUInt32(current, &valueCount);
 
-    ui32 keyCount;
-    current += ReadVarUInt32(current, &keyCount);
-
     size_t fixedSize = GetUnversionedRowDataSize(valueCount);
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
     header->ValueCount = static_cast<i32>(valueCount);
-    header->KeyCount = static_cast<i16>(keyCount);
 
     auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
     for (int index = 0; index < valueCount; ++index) {

@@ -77,12 +77,10 @@ public:
         YCHECK(TransactionManager);
         YCHECK(TimestampProvider);
 
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this), nullptr));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartDistributedCommit, Unretained(this), nullptr));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraFinalizeDistributedCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this), nullptr));
@@ -121,11 +119,6 @@ public:
     }
 
 
-    TMutationPtr CreateStartTransactionMutation(const TReqStartTransaction& request)
-    {
-        return CreateMutation(HydraManager, AutomatonInvoker, request);
-    }
-
     TMutationPtr CreateCommitTransactionMutation(const TReqCommitTransaction& request)
     {
         return CreateMutation(HydraManager, AutomatonInvoker, request);
@@ -150,15 +143,6 @@ private:
 
 
     // RPC handlers.
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, StartTransaction)
-    {
-        ValidateActiveLeader();
-
-        CreateMutation(HydraManager, AutomatonInvoker, *request)
-            ->SetAction(BIND(IgnoreResult(&TImpl::HydraStartTransaction), MakeStrong(this), context, ConstRef(*request)))
-            ->Commit();
-    }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CommitTransaction)
     {
@@ -242,35 +226,6 @@ private:
 
 
     // Hydra handlers.
-
-    void HydraStartTransaction(TCtxStartTransactionPtr context, const TReqStartTransaction& request)
-    {
-        auto startTimestamp = TTimestamp(request.start_timestamp());
-
-        if (context) {
-            context->SetRequestInfo("StartTimestamp: %" PRIu64,
-                startTimestamp);
-        }
-
-        TTransactionId transactionId;
-        try {
-            // Any exception thrown here is replied to the client.
-            transactionId = TransactionManager->StartTransaction(startTimestamp, request);
-        } catch (const std::exception& ex) {
-            if (context) {
-                context->Reply(ex);
-            }
-            return;
-        }
-
-        if (context) {
-            auto& response = context->Response();
-            ToProto(response.mutable_transaction_id(), transactionId);
-            context->SetResponseInfo("TransactionId: %s",
-                ~ToString(transactionId));
-            context->Reply();
-        }
-    }
 
     void HydraAbortTransaction(TCtxAbortTransactionPtr context, const TReqAbortTransaction& request)
     {
@@ -781,11 +736,6 @@ void TTransactionSupervisor::Start()
 void TTransactionSupervisor::Stop()
 {
     Impl->Stop();
-}
-
-TMutationPtr TTransactionSupervisor::CreateStartTransactionMutation(const TReqStartTransaction& request)
-{
-    return Impl->CreateStartTransactionMutation(request);
 }
 
 TMutationPtr TTransactionSupervisor::CreateCommitTransactionMutation(const TReqCommitTransaction& request)

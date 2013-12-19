@@ -9,17 +9,19 @@
 
 #include <core/ytree/public.h>
 
-#include <ytlib/transaction_client/transaction_ypath.pb.h>
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/object_client/helpers.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/hive/cell_directory.h>
 #include <ytlib/hive/timestamp_provider.h>
 #include <ytlib/hive/transaction_supervisor_service_proxy.h>
 
-#include <ytlib/tablet_client/tablet_service.pb.h>
+#include <ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <atomic>
 
@@ -266,43 +268,47 @@ public:
     }
 
     
-    void AddParticipant(const NElection::TCellGuid& cellGuid)
+    TAsyncError AddTabletParticipant(const NElection::TCellGuid& cellGuid)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
         YCHECK(TypeFromId(cellGuid) == EObjectType::TabletCell);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ != EState::Active)
-                return;
-            if (!Error_.IsOK())
+            if (State_ != EState::Active) {
+                return MakeFuture(TError("Transaction is not active"));
+            }
+            if (!Error_.IsOK()) {
                 THROW_ERROR Error_;
-            if (!ParticipantGuids_.insert(cellGuid).second)
-                return;
+            }
+            if (!ParticipantGuids_.insert(cellGuid).second) {
+                return MakeFuture(TError());
+            }
         }
 
-        LOG_DEBUG("Adding transaction participant (TransactionId: %s, CellGuid: %s)",
+        LOG_DEBUG("Adding transaction tablet participant (TransactionId: %s, CellGuid: %s)",
             ~ToString(Id_),
             ~ToString(cellGuid));
 
         auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellGuid);
-        TTransactionSupervisorServiceProxy proxy(channel);
-        auto req = proxy.StartTransaction();
-        req->set_start_timestamp(StartTimestamp_);
+        TTabletServiceProxy proxy(channel);
 
-        auto* reqExt = req->MutableExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
-        reqExt->set_start_timestamp(StartTimestamp_);
-        ToProto(reqExt->mutable_transaction_id(), Id_);
+        auto req = proxy.StartTransaction();
+        ToProto(req->mutable_transaction_id(), Id_);
+        req->set_start_timestamp(StartTimestamp_);
+        req->set_start_timestamp(StartTimestamp_);
         if (Timeout_) {
-            reqExt->set_timeout(Timeout_->MilliSeconds());
+            req->set_timeout(Timeout_->MilliSeconds());
         }
+        
+        auto asyncRsp = req->Invoke();
+        StartAwaiter_->Await(asyncRsp);
 
         // TODO(babenko): make async
-        auto asyncRsp = req->Invoke();
         asyncRsp.Get();
-        StartAwaiter_->Await(
-            asyncRsp,
-            BIND(&TImpl::OnParticipantAdded, MakeStrong(this), cellGuid));
+
+        return asyncRsp.Apply(
+            BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellGuid));
     }
 
 
@@ -429,11 +435,10 @@ private:
 
     TAsyncError StartMasterTransaction(const TTransactionStartOptions& options)
     {
-        TTransactionSupervisorServiceProxy proxy(Owner_->MasterChannel_);
-        auto req = proxy.StartTransaction();
-        req->set_start_timestamp(StartTimestamp_);
+        TObjectServiceProxy proxy(Owner_->MasterChannel_);
+        auto req = TMasterYPathProxy::CreateObjects();
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::start_transaction_ext);
+        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         if (!options.Attributes->List().empty()) {
             ToProto(reqExt->mutable_attributes(), *options.Attributes);
         }
@@ -450,11 +455,11 @@ private:
             SetOrGenerateMutationId(req, options.MutationId);
         }
 
-        return req->Invoke().Apply(
+        return proxy.Execute(req).Apply(
             BIND(&TImpl::OnTransactionStarted, MakeStrong(this)));
     }
 
-    TError OnTransactionStarted(TTransactionSupervisorServiceProxy::TRspStartTransactionPtr rsp)
+    TError OnTransactionStarted(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
     {
         if (!rsp->IsOK()) {
             State_ = EState::Aborted;
@@ -462,7 +467,10 @@ private:
         }
 
         State_ = EState::Active;
-        Id_ = FromProto<TTransactionId>(rsp->transaction_id());
+        
+        YCHECK(rsp->object_ids_size() == 1);
+        Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
+        
         YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
 
         LOG_INFO("Master transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s, Ping: %s, PingAncestors: %s)",
@@ -501,21 +509,22 @@ private:
     }
 
 
-    void OnParticipantAdded(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspStartTransactionPtr rsp)
+    TError OnTabletParticipantAdded(const TCellGuid& cellGuid, TTabletServiceProxy::TRspStartTransactionPtr rsp)
     {
         if (rsp->IsOK()) {
-            LOG_DEBUG("Transaction participant added (TransactionId: %s, CellGuid: %s)",
+            LOG_DEBUG("Transaction tablet participant added (TransactionId: %s, CellGuid: %s)",
                 ~ToString(Id_),
                 ~ToString(cellGuid));
         } else {
-            LOG_DEBUG(*rsp, "Error adding transaction participant (TransactionId: %s, CellGuid: %s)",
+            LOG_DEBUG(*rsp, "Error adding transaction tablet participant (TransactionId: %s, CellGuid: %s)",
                 ~ToString(Id_),
                 ~ToString(cellGuid));
 
-            DoAbort(TError("Error adding participant cell %s",
+            DoAbort(TError("Error adding participant tablet cell %s",
                 ~ToString(cellGuid))
                 << *rsp);
         }
+        return rsp->GetError();
     }
 
 
@@ -545,6 +554,7 @@ private:
 
         auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellGuid);
         TTransactionSupervisorServiceProxy proxy(channel);
+
         auto req = proxy.CommitTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
         for (const auto& cellGuid : participantGuids) {
@@ -601,6 +611,7 @@ private:
 
                 auto channel = Transaction_->Owner_->CellDirectory_->GetChannelOrThrow(cellGuid);
                 TTransactionSupervisorServiceProxy proxy(channel);
+
                 auto req = proxy.PingTransaction();
                 ToProto(req->mutable_transaction_id(), Transaction_->Id_);
 
@@ -928,9 +939,9 @@ TTimestamp TTransaction::GetStartTimestamp() const
     return Impl_->GetStartTimestamp();
 }
 
-void TTransaction::AddParticipant(const NElection::TCellGuid& cellGuid)
+TAsyncError TTransaction::AddTabletParticipant(const NElection::TCellGuid& cellGuid)
 {
-    Impl_->AddParticipant(cellGuid);
+    return Impl_->AddTabletParticipant(cellGuid);
 }
 
 DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);

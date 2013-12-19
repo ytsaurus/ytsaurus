@@ -133,7 +133,8 @@ public:
                 NYson::TStatelessLexer lexer;
                 // Unsorted write - use dummy key.
                 TChunkedMemoryPool keyMemoryPool;
-                TKey key = TKey::Allocate(&keyMemoryPool, KeyColumns ? KeyColumns->size() : 0);
+                int keyColumnCount = KeyColumns ? KeyColumns->size() : 0;
+                auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
 
                 while (const auto* row = Reader->GetRow()) {
                     if (KeyColumns) {

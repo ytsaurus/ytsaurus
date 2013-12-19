@@ -78,6 +78,7 @@ static_assert(sizeof(TVersionedRowHeader) == 8, "TVersionedRowHeader has to be e
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetByteSize(const TVersionedValue& value);
+
 int WriteValue(char* output, const TVersionedValue& value);
 int ReadValue(const char* input, TVersionedValue* value);
 
@@ -211,6 +212,10 @@ private:
 static_assert(
     sizeof(TVersionedRow) == sizeof(intptr_t),
     "TVersionedRow size must match that of a pointer.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t GetHash(TVersionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

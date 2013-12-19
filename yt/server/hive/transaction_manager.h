@@ -18,10 +18,6 @@ namespace NHive {
 struct ITransactionManager
     : public virtual TRefCounted
 {
-    virtual TTransactionId StartTransaction(
-        TTimestamp startTimestamp,
-        const NProto::TReqStartTransaction& request) = 0;
-
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
         bool persistent,

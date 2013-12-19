@@ -58,22 +58,6 @@ TValue MakeAnyValue(const TStringBuf& value, int id = 0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TRow>
-size_t GetHash(const TRow& row) {
-    size_t result = 0xdeadc0de;
-    int partCount = row.GetKeyCount() + row.GetValueCount();
-    for (int i = 0; i < row.GetKeyCount(); ++i) {
-        result = (result * 1000003) ^ GetHash(row.BeginKeys()[i]);
-    }
-    for (int i = 0; i < row.GetValueCount(); ++i) {
-        result = (result * 1000003) ^ GetHash(row[i]);
-    }
-    return result ^ partCount;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-
 class TKeyPrefixComparer
 {
 public:
@@ -110,8 +94,8 @@ public:
     template <class TLhs, class TRhs>
     int operator () (TLhs lhs, TRhs rhs) const
     {
-        int lhsLength = std::min(static_cast<int>(lhs.GetKeyCount()), PrefixLength_);
-        int rhsLength = std::min(static_cast<int>(rhs.GetKeyCount()), PrefixLength_);
+        int lhsLength = std::min(static_cast<int>(lhs.GetValueCount()), PrefixLength_);
+        int rhsLength = std::min(static_cast<int>(rhs.GetValueCount()), PrefixLength_);
         int minLength = std::min(lhsLength, rhsLength);
         for (int index = 0; index < minLength; ++index) {
             int result = CompareRowValues(lhs[index], rhs[index]);

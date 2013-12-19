@@ -25,9 +25,10 @@ public:
     void Stop();
 
 private:
-    TTabletSlot* Slot;
-    NCellNode::TBootstrap* Bootstrap;
+    TTabletSlot* Slot_;
+    NCellNode::TBootstrap* Bootstrap_;
 
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, StartTransaction);
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read);
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write);
 

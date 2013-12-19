@@ -68,7 +68,7 @@ void TStoreManager::LookupRow(
     auto key = reader->ReadUnversionedRow();
     auto columnFilter = reader->ReadColumnFilter();
 
-    int keyCount = static_cast<int>(Tablet_->KeyColumns().size());
+    int keyColumnCount = static_cast<int>(Tablet_->KeyColumns().size());
     int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
 
     SmallVector<bool, TypicalColumnCount> columnFilterFlags(schemaColumnCount);
@@ -97,6 +97,7 @@ void TStoreManager::LookupRow(
     }
 
     bool keysWritten = false;
+
     TUnversionedRowBuilder builder;
 
     for (const auto& scanner : scanners) {
@@ -109,8 +110,8 @@ void TStoreManager::LookupRow(
             break;
 
         if (!keysWritten) {
-            const auto keys = scanner->GetKeys();
-            for (int id = 0; id < keyCount; ++id) {
+            const auto* keys = scanner->GetKeys();
+            for (int id = 0; id < keyColumnCount; ++id) {
                 if (columnFilterFlags[id]) {
                     builder.AddValue(keys[id]);
                 }
@@ -118,9 +119,9 @@ void TStoreManager::LookupRow(
             keysWritten = true;
         }
 
-        for (int id = keyCount; id < schemaColumnCount; ++id) {
+        for (int id = keyColumnCount; id < schemaColumnCount; ++id) {
             if (columnFilterFlags[id]) {
-                auto* value = scanner->GetFixedValue(id - keyCount);
+                const auto* value = scanner->GetFixedValue(id - keyColumnCount);
                 if (value) {
                     builder.AddValue(*value);
                     columnFilterFlags[id] = false;
@@ -134,7 +135,8 @@ void TStoreManager::LookupRow(
 
     PooledRowset_.clear();
     if (keysWritten) {
-        PooledRowset_.push_back(builder.GetRow());
+        auto row = builder.GetRow();
+        PooledRowset_.push_back(row);
     }
     writer->WriteUnversionedRowset(PooledRowset_);
 }

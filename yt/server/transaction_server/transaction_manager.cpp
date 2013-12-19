@@ -301,14 +301,11 @@ public:
 
     virtual TNonversionedObjectBase* Create(
         TTransaction* parent,
-        TAccount* account,
+        TAccount* /*account*/,
         IAttributeDictionary* attributes,
         TReqCreateObjects* request,
-        TRspCreateObjects* response) override
+        TRspCreateObjects* /*response*/) override
     {
-        UNUSED(account);
-        UNUSED(response);
-
         const auto* requestExt = &request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
         auto timeout =
             requestExt->has_timeout()
@@ -774,48 +771,6 @@ void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase*
     auto objectManager = Bootstrap->GetObjectManager();
     transaction->StagedNodes().push_back(node);
     objectManager->RefObject(node);
-}
-
-TTransactionId TTransactionManager::StartTransaction(
-    TTimestamp startTimestamp,
-    const NHive::NProto::TReqStartTransaction& request)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto* transactionSchema = objectManager->GetSchema(EObjectType::Transaction);
-
-    auto securityManager = Bootstrap->GetSecurityManager();
-    securityManager->ValidatePermission(transactionSchema, EPermission::Create);
-
-    const auto& requestExt = request.GetExtension(TReqStartTransactionExt::start_transaction_ext);
-
-    auto parentId =
-        requestExt.has_parent_transaction_id()
-        ? FromProto<TTransactionId>(requestExt.parent_transaction_id())
-        : NullTransactionId;
-    auto* parent =
-        parentId == NullTransactionId
-        ? nullptr
-        : GetTransactionOrThrow(parentId);
-    auto timeout =
-        requestExt.has_timeout()
-        ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt.timeout()))
-        : Null;
-
-    auto* transaction = StartTransaction(parent, timeout);
-
-    if (requestExt.has_attributes()) {
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(transaction->GetId()));
-        for (const auto& attribute : requestExt.attributes().attributes()) {
-            attributeSet->Attributes().insert(std::make_pair(
-                attribute.key(),
-                TYsonString(attribute.value())));
-        }
-    }
-
-    return transaction->GetId();
 }
 
 void TTransactionManager::PrepareTransactionCommit(

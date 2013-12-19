@@ -1,0 +1,15 @@
+package NYT.NTabletNode.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 start_timestamp = 2;
+    required int32 timeout = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

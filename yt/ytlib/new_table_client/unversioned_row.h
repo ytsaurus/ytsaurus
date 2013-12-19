@@ -82,8 +82,7 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 struct TUnversionedRowHeader
 {
     ui32 ValueCount;
-    ui16 KeyCount;
-    ui16 Padding;
+    ui32 Padding;
 };
 
 static_assert(sizeof(TUnversionedRowHeader) == 8, "TUnversionedRowHeader has to be exactly 8 bytes.");
@@ -116,6 +115,9 @@ void ResetRowValues(TUnversionedRow* row);
 //! Computes hash for a given TUnversionedValue.
 size_t GetHash(const TUnversionedValue& value);
 
+//! Computes hash for a given TUnversionedRow.
+size_t GetHash(TUnversionedRow row);
+
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
 size_t GetUnversionedRowDataSize(int valueCount);
 
@@ -135,12 +137,11 @@ public:
 
     static TUnversionedRow Allocate(
         TChunkedMemoryPool* pool, 
-        int valueCount,
-        int keyCount = 0)
+        int valueCount)
     {
         auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->Allocate(GetUnversionedRowDataSize(valueCount)));
         header->ValueCount = valueCount;
-        header->KeyCount = keyCount;
+        header->Padding = 0;
         return TUnversionedRow(header);
     }
 
@@ -169,7 +170,6 @@ public:
         return reinterpret_cast<TUnversionedValue*>(Header + 1);
     }
 
-    
     const TUnversionedValue* EndValues() const
     {
         return BeginValues() + GetValueCount();
@@ -178,36 +178,6 @@ public:
     TUnversionedValue* EndValues()
     {
         return BeginValues() + GetValueCount();
-    }
-
-    const TUnversionedValue* BeginKeys() const
-    {
-        return BeginValues();
-    }
-
-    TUnversionedValue* BeginKeys()
-    {
-        return BeginValues();
-    }
-
-    const TUnversionedValue* EndKeys() const
-    {
-        return BeginKeys() + GetKeyCount();
-    }
-
-    TUnversionedValue* EndKeys()
-    {
-        return BeginKeys() + GetKeyCount();
-    }
-
-    void SetKey(int index, const TUnversionedValue& value)
-    {
-        BeginKeys()[index] = value;
-    }
-
-    const TUnversionedValue& GetKey(int index) const
-    {
-        return BeginKeys()[index];
     }
 
     void SetValue(int index, const TUnversionedValue& value)
@@ -223,11 +193,6 @@ public:
     int GetValueCount() const
     {
         return Header->ValueCount;
-    }
-
-    int GetKeyCount() const
-    {
-        return Header->KeyCount;
     }
 
     const TUnversionedValue& operator[] (int index) const
@@ -355,12 +320,6 @@ public:
         return header ? static_cast<int>(header->ValueCount) : 0;
     }
 
-    int GetKeyCount() const
-    {
-        const auto* header = GetHeader();
-        return header ? static_cast<int>(header->KeyCount) : 0;
-    }
-
     const TUnversionedValue* BeginValues() const
     {
         const auto* header = GetHeader();
@@ -381,31 +340,6 @@ public:
     TUnversionedValue* EndValues()
     {
         return BeginValues() + GetValueCount();
-    }
-
-    const TUnversionedValue* BeginKeys() const
-    {
-        return BeginValues();
-    }
-
-    TUnversionedValue* BeginKeys()
-    {
-        return BeginValues();
-    }
-
-    const TUnversionedValue* EndKeys() const
-    {
-        return BeginKeys() + GetKeyCount();
-    }
-
-    TUnversionedValue* EndKeys()
-    {
-        return BeginKeys() + GetKeyCount();
-    }
-
-    const TUnversionedValue& GetKey(int index) const
-    {
-        return BeginKeys()[index];
     }
 
     const TUnversionedValue& GetValue(int index) const
@@ -497,7 +431,6 @@ public:
 
         auto* header = GetHeader();
         header->ValueCount = 0;
-        header->Padding = 0;
     }
 
     void AddValue(const TUnversionedValue& value)
@@ -512,11 +445,9 @@ public:
         ++header->ValueCount;
     }
 
-    TUnversionedRow GetRow(int keyCount = 0)
+    TUnversionedRow GetRow()
     {
-        auto* header = GetHeader();
-        header->KeyCount = keyCount;
-        return TUnversionedRow(header);
+        return TUnversionedRow(GetHeader());
     }
 
 private:
@@ -581,9 +512,8 @@ public:
         ++header->ValueCount;
     }
 
-    TUnversionedOwningRow Finish(int keyCount = 0)
+    TUnversionedOwningRow Finish()
     {
-        GetHeader()->KeyCount = keyCount;
         auto row = TUnversionedOwningRow(
             TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
             std::move(StringData_));
@@ -606,7 +536,6 @@ private:
 
         auto* header = GetHeader();
         header->ValueCount = 0;
-        header->Padding = 0;
     }
 
     TUnversionedRowHeader* GetHeader()

@@ -24,7 +24,6 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, StartTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto, CommitTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto, AbortTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto, PingTransaction);

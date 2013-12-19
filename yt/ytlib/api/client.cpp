@@ -57,8 +57,8 @@ class TRowset
     : public IRowset
 {
 public:
-    TRowset(Stroka data, std::vector<TUnversionedRow> rows)
-        : Data_(std::move(data))
+    TRowset(std::unique_ptr<TProtocolReader> reader, std::vector<TUnversionedRow> rows)
+        : Reader_(std::move(reader))
         , Rows_(std::move(rows))
     { }
 
@@ -68,7 +68,7 @@ public:
     }
 
 private:
-    Stroka Data_;
+    std::unique_ptr<TProtocolReader> Reader_;
     std::vector<TUnversionedRow> Rows_;
 
 };
@@ -116,7 +116,8 @@ private:
     TTableMountInfoPtr GetTableMountInfo(const TYPath& tablePath)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
-        auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(tablePath));
+        // TODO(babenko): make async
+        auto mountInfoOrError = tableMountCache->LookupInfo(tablePath).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
         return mountInfoOrError.GetValue();
     }
@@ -163,12 +164,12 @@ private:
             auto rsp = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-            TProtocolReader reader(rsp->encoded_response());
+            std::unique_ptr<TProtocolReader> reader(new TProtocolReader(rsp->encoded_response()));
             std::vector<TUnversionedRow> rows;
-            reader.ReadUnversionedRowset(&rows);
+            reader->ReadUnversionedRowset(&rows);
 
             return TErrorOr<IRowsetPtr>(New<TRowset>(
-                rsp->encoded_response(),
+                std::move(reader),
                 std::move(rows)));
         } catch (const std::exception& ex) {
             return TError(ex);
@@ -237,11 +238,9 @@ public:
         const TYPath& tablePath,
         std::vector<TUnversionedRow> rows) override
     {
-        Client_->Invoker_->Invoke(BIND(
-            &TTransaction::DoWrite,
-            MakeStrong(this),
+        Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
             tablePath,
-            Passed(std::move(rows))));
+            std::move(rows))));
     }
 
 
@@ -258,11 +257,9 @@ public:
         const TYPath& tablePath,
         std::vector<TKey> keys) override
     {
-        Client_->Invoker_->Invoke(BIND(
-            &TTransaction::DoDelete,
-            MakeStrong(this),
+        Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
             tablePath,
-            Passed(std::move(keys))));
+            std::move(keys))));
     }
 
 
@@ -280,105 +277,119 @@ private:
     TClientPtr Client_;
     NTransactionClient::TTransactionPtr Transaction_;
 
+    class TRequestBase
+    {
+    public:
+        ~TRequestBase()
+        { }
+
+        virtual void PopulateBuffers(TTransaction* transaction) = 0;
+
+    protected:
+        explicit TRequestBase(const TYPath& tablePath)
+            : TablePath_(tablePath)
+        { }
+
+        TYPath TablePath_;
+
+    };
+
+    class TWriteRequest
+        : public TRequestBase
+    {
+    public:
+        TWriteRequest(
+            const TYPath& tablePath,
+            std::vector<TUnversionedRow> rows)
+            : TRequestBase(tablePath)
+            , Rows_(std::move(rows))
+        { }
+
+        virtual void PopulateBuffers(TTransaction* transaction) override
+        {
+            auto mountInfo = transaction->Client_->GetTableMountInfo(TablePath_);
+            for (auto row : Rows_) {
+                const auto& tabletInfo = transaction->Client_->GetTabletInfo(mountInfo, TablePath_, row);
+                
+                transaction->Transaction_->AddTabletParticipant(tabletInfo.CellId);
+                
+                auto buffer = transaction->GetWriteBuffer(tabletInfo);
+                buffer->Writer.WriteCommand(EProtocolCommand::WriteRow);
+                buffer->Writer.WriteUnversionedRow(row);
+            }
+        }
+
+    private:
+        std::vector<TUnversionedRow> Rows_;
+
+    };
+
+    class TDeleteRequest
+        : public TRequestBase
+    {
+    public:
+        TDeleteRequest(
+            const TYPath& tablePath,
+            std::vector<TKey> keys)
+            : TRequestBase(tablePath)
+            , Keys_(std::move(keys))
+        { }
+
+        virtual void PopulateBuffers(TTransaction* transaction) override
+        {
+            auto mountInfo = transaction->Client_->GetTableMountInfo(TablePath_);
+            for (auto key : Keys_) {
+                const auto& tabletInfo = transaction->Client_->GetTabletInfo(mountInfo, TablePath_, key);
+
+                transaction->Transaction_->AddTabletParticipant(tabletInfo.CellId);
+
+                auto buffer = transaction->GetWriteBuffer(tabletInfo);
+                buffer->Writer.WriteCommand(EProtocolCommand::DeleteRow);
+                buffer->Writer.WriteUnversionedRow(key);
+            }
+        }
+
+    private:
+        std::vector<TUnversionedRow> Keys_;
+
+    };
+
+    std::vector<std::unique_ptr<TRequestBase>> Requests_;
+
+
     struct TWriteBuffer
-        : public TIntrinsicRefCounted
     {
         TProtocolWriter Writer;
     };
 
-    typedef TIntrusivePtr<TWriteBuffer> TWriteBufferPtr;
-
-    yhash_map<const TTabletInfo*, TWriteBufferPtr> TabletToBuffer_;
-
-    TError Error_;
+    std::map<const TTabletInfo*, std::unique_ptr<TWriteBuffer>> TabletToBuffer_;
 
 
-    TWriteBufferPtr GetWriteBuffer(const TTabletInfo& tabletInfo)
+    TWriteBuffer* GetWriteBuffer(const TTabletInfo& tabletInfo)
     {
         auto it = TabletToBuffer_.find(&tabletInfo);
         if (it == TabletToBuffer_.end()) {
-            auto buffer = New<TWriteBuffer>();
-            YCHECK(TabletToBuffer_.insert(std::make_pair(&tabletInfo, buffer)).second);
-            return buffer;
-        } else {
-            return it->second;
+            std::unique_ptr<TWriteBuffer> buffer(new TWriteBuffer());
+            it = TabletToBuffer_.emplace(&tabletInfo, std::move(buffer)).first;
         }
+        return it->second.get();
     }
 
-
-    bool IsFailed() const
-    {
-        return !Error_.IsOK();
-    }
-
-    void SetFailed(const TError& error)
-    {
-        if (Error_.IsOK()) {
-            Error_ = error;
-        }
-    }
-
-
-    void DoWrite(
-        const TYPath& tablePath,
-        std::vector<TUnversionedRow> rows)
-    {
-        if (IsFailed())
-            return;
-
-        try {
-            auto mountInfo = Client_->GetTableMountInfo(tablePath);
-            for (auto row : rows) {
-                const auto& tabletInfo = Client_->GetTabletInfo(mountInfo, tablePath, row);
-                
-                Transaction_->AddParticipant(tabletInfo.CellId);
-                
-                auto buffer = GetWriteBuffer(tabletInfo);
-                buffer->Writer.WriteCommand(EProtocolCommand::WriteRow);
-                buffer->Writer.WriteUnversionedRow(row);
-            }
-        } catch (const std::exception& ex) {
-            SetFailed(ex);
-        }
-    }
-
-    void DoDelete(
-        const TYPath& tablePath,
-        std::vector<TKey> keys)
-    {
-        if (IsFailed())
-            return;
-
-        try {
-            auto mountInfo = Client_->GetTableMountInfo(tablePath);
-            for (auto key : keys) {
-                const auto& tabletInfo = Client_->GetTabletInfo(mountInfo, tablePath, key);
-
-                Transaction_->AddParticipant(tabletInfo.CellId);
-
-                auto buffer = GetWriteBuffer(tabletInfo);
-                buffer->Writer.WriteCommand(EProtocolCommand::DeleteRow);
-                buffer->Writer.WriteUnversionedRow(key);
-            }
-        } catch (const std::exception& ex) {
-            SetFailed(ex);
-        }
-    }
 
     TError DoCommit()
     {
-        if (IsFailed()) {
-            return Error_;
-        }
-
         try {
+            for (const auto& request : Requests_) {
+                request->PopulateBuffers(this);
+            }
+
             auto cellDirectory = Client_->Connection_->GetCellDirectory();
 
             auto writeCollector = New<TParallelCollector<void>>();
 
             for (const auto& pair : TabletToBuffer_) {
                 const auto& tabletInfo = *pair.first;
-                const auto& buffer = pair.second;
+                auto* buffer = pair.second.get();
 
                 auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
 

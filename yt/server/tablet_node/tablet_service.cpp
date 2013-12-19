@@ -34,26 +34,48 @@ TTabletService::TTabletService(
         slot->GetAutomatonInvoker(),
         NRpc::TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellGuid()),
         TabletNodeLogger.GetCategory())
-    , Slot(slot)
-    , Bootstrap(bootstrap)
+    , Slot_(slot)
+    , Bootstrap_(bootstrap)
 {
-    YCHECK(Slot);
-    YCHECK(Bootstrap);
+    YCHECK(Slot_);
+    YCHECK(Bootstrap_);
 
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
 }
 
 void TTabletService::Start()
 {
-    auto rpcServer = Bootstrap->GetRpcServer();
+    auto rpcServer = Bootstrap_->GetRpcServer();
     rpcServer->RegisterService(this);
 }
 
 void TTabletService::Stop()
 {
-    auto rpcServer = Bootstrap->GetRpcServer();
+    auto rpcServer = Bootstrap_->GetRpcServer();
     rpcServer->UnregisterService(this);
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTabletService, StartTransaction)
+{
+    ValidateActiveLeader();
+
+    auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+    auto startTimestamp = TTimestamp(request->start_timestamp());
+    auto timeout = request->has_timeout() ? MakeNullable(TDuration::MilliSeconds(request->timeout())) : Null;
+
+    context->SetRequestInfo("TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %s",
+        ~ToString(transactionId),
+        startTimestamp,
+        timeout ? ~ToString(timeout->MilliSeconds()) : "<Null>");
+
+    auto transactionManager = Slot_->GetTransactionManager();
+    transactionManager
+        ->StartTransaction(transactionId, startTimestamp, timeout)
+        .Subscribe(BIND([=] (TError error) {
+            context->Reply(error);
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTabletService, Read)
@@ -66,7 +88,7 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Read)
         ~ToString(tabletId),
         timestamp);
 
-    auto tabletManager = Slot->GetTabletManager();
+    auto tabletManager = Slot_->GetTabletManager();
     auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
 
     tabletManager->Read(
@@ -88,10 +110,10 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
         ~ToString(transactionId),
         ~ToString(tabletId));
 
-    auto transactionManager = Slot->GetTransactionManager();
+    auto transactionManager = Slot_->GetTransactionManager();
     auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
-    auto tabletManager = Slot->GetTabletManager();
+    auto tabletManager = Slot_->GetTabletManager();
     auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
     tabletManager->Write(
         tablet,

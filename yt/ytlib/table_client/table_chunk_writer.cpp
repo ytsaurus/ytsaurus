@@ -101,7 +101,6 @@ TTableChunkWriter::TTableChunkWriter(
 
         CurrentKey = TKey::Allocate(
             &CurrentKeyMemoryPool,
-            options->KeyColumns->size(),
             options->KeyColumns->size());
 
         ResetRowValues(&CurrentKey);
@@ -265,7 +264,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
         WriteValue(pair, columnInfo);
 
         if (columnInfo.KeyColumnIndex >= 0) {
-            CurrentKey.BeginKeys()[columnInfo.KeyColumnIndex] = MakeKeyPart(pair.second, Lexer);
+            CurrentKey[columnInfo.KeyColumnIndex] = MakeKeyPart(pair.second, Lexer);
         }
     }
 

@@ -51,11 +51,6 @@ message TReqStartTransactionExt
         optional TReqStartTransactionExt create_transaction_ext = 101;
     }
 
-    extend NYT.NHive.NProto.TReqStartTransaction
-    {
-        optional TReqStartTransactionExt start_transaction_ext = 100;
-    }
-
     // Transaction timeout (in ms).
     optional int32 timeout = 1;
 

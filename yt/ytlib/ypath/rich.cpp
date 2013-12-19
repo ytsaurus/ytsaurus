@@ -263,6 +263,7 @@ void ParseRowLimit(
     }
 
     TUnversionedOwningRowBuilder rowBuilder;
+    bool hasKeyLimit = false;
     switch (tokenizer.GetCurrentType()) {
         case RowIndexMarkerToken:
             tokenizer.ParseNext();
@@ -272,6 +273,7 @@ void ParseRowLimit(
 
         case BeginTupleToken:
             tokenizer.ParseNext();
+            hasKeyLimit = true;
             while (tokenizer.GetCurrentType() != EndTupleToken) {
                 ParseKeyPart(tokenizer, &rowBuilder);
                 switch (tokenizer.GetCurrentType()) {
@@ -293,8 +295,8 @@ void ParseRowLimit(
             break;
     }
 
-    auto key = rowBuilder.Finish();
-    if (key.GetValueCount() > 0) {
+    if (hasKeyLimit) {
+        auto key = rowBuilder.Finish();
         limit->SetKey(key);
     }
 

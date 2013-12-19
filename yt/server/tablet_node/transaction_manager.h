@@ -38,6 +38,13 @@ public:
         TTabletSlot* slot,
         NCellNode::TBootstrap* bootstrap);
 
+    ~TTransactionManager();
+
+    TAsyncError StartTransaction(
+        const TTransactionId& transactionId,
+        TTimestamp startTimestamp,
+        const TNullable<TDuration>& timeout);
+
     //! Finds transaction by id, throws if nothing is found.
     TTransaction* GetTransactionOrThrow(const TTransactionId& id);
 
@@ -48,9 +55,6 @@ private:
     TIntrusivePtr<TImpl> Impl;
 
     /// ITransactionManager overrides.
-    virtual TTransactionId StartTransaction(
-        TTimestamp startTimestamp,
-        const NHive::NProto::TReqStartTransaction& request) override;
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
         bool persistent,

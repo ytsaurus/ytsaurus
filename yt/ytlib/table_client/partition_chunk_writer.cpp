@@ -68,7 +68,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     , BasicMetaSize(0)
 {
     int keyColumnCount = Options->KeyColumns.Get().size();
-    PartitionKey = TKey::Allocate(&Pool, keyColumnCount, keyColumnCount);
+    PartitionKey = TKey::Allocate(&Pool, keyColumnCount);
 
     for (int i = 0; i < keyColumnCount; ++i) {
         KeyColumnIndexes[options->KeyColumns.Get()[i]] = i;
@@ -134,7 +134,7 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
     for (const auto& pair : row) {
         auto it = KeyColumnIndexes.find(pair.first);
         if (it != KeyColumnIndexes.end()) {
-            PartitionKey.BeginKeys()[it->second] = MakeKeyPart(pair.second, Lexer);
+            PartitionKey[it->second] = MakeKeyPart(pair.second, Lexer);
         }
     }
 

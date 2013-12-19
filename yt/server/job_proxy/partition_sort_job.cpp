@@ -198,7 +198,7 @@ public:
                 TMemoryInput input;
                 TRow row;
                 TChunkedMemoryPool keyMemoryPool;
-                TKey key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
+                auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 bool isRowReady = false;
 
                 auto prepareRow = [&] () {

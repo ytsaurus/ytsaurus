@@ -5,20 +5,6 @@ import "yt/core/ytree/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartTransaction
-{
-    required int64 start_timestamp = 1;
-
-    extensions 100 to max;
-}
-
-message TRspStartTransaction
-{
-    optional NYT.NProto.TGuid transaction_id = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;

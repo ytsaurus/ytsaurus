@@ -204,7 +204,8 @@ class TProtocolReader::TImpl
 {
 public:
     explicit TImpl(const Stroka& data)
-        : CodedStream_(reinterpret_cast<const ui8*>(data.data()), data.length())
+        : Data_(data)
+        , CodedStream_(reinterpret_cast<const ui8*>(data.data()), data.length())
         , AlignedPool_(ReaderAlignedChunkSize)
         , UnalignedPool_(ReaderUnalignedChunkSize)
     {
@@ -251,6 +252,8 @@ public:
     }
 
 private:
+    Stroka Data_;
+
     google::protobuf::io::CodedInputStream CodedStream_;
 
     int ProtocolVersion_;
@@ -333,17 +336,14 @@ private:
 
     TUnversionedRow ReadRow()
     {
-        ui32 count = ReadUInt32();
-        if (count == 0) {
+        ui32 valueCount = ReadUInt32();
+        if (valueCount == 0) {
             return TUnversionedRow();
         }
+        --valueCount;
 
-        auto* header = reinterpret_cast<TUnversionedRowHeader*>(
-            AlignedPool_.Allocate(GetUnversionedRowDataSize(count - 1)));
-        header->ValueCount = count - 1;
-        header->KeyCount = 0;
-        auto row = TUnversionedRow(header);
-        for (int index = 0; index != count - 1; ++index) {
+        auto row = TUnversionedRow::Allocate(&AlignedPool_, valueCount);
+        for (int index = 0; index != valueCount; ++index) {
             ReadRowValue(&row[index]);
         }
         return row;

@@ -199,7 +199,7 @@ public:
             {
                 TRow row;
                 TChunkedMemoryPool keyMemoryPool;
-                TKey key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
+                auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
                     row.clear();
                     ResetRowValues(&key);

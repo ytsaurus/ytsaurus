@@ -17,12 +17,15 @@
 
 #include <server/hive/transaction_supervisor.h>
 
+#include <server/tablet_node/transaction_manager.pb.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NTransactionClient;
 using namespace NHydra;
 using namespace NCellNode;
+using namespace NTabletNode::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +70,25 @@ public:
             ESerializationPriority::Values,
             "TransactionManager.Values",
             BIND(&TImpl::SaveValues, MakeStrong(this)));
+
+        RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
+    }
+
+
+    TAsyncError StartTransaction(
+        const TTransactionId& transactionId,
+        TTimestamp startTimestamp,
+        const TNullable<TDuration>& timeout)
+    {
+        TReqStartTransaction hydraRequest;
+        ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+        hydraRequest.set_start_timestamp(startTimestamp);
+        hydraRequest.set_timeout(GetActualTimeout(timeout).MilliSeconds());
+        return CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), hydraRequest)
+            ->Commit()
+            .Apply(BIND([](TErrorOr<TMutationResponse> result) {
+                return TError(result);
+            }));
     }
 
 
@@ -83,45 +105,8 @@ public:
         return transaction;
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
-
 
     // ITransactionManager implementation.
-    TTransactionId StartTransaction(
-        TTimestamp startTimestamp,
-        const NHive::NProto::TReqStartTransaction& request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& requestExt = request.GetExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
-
-        auto transactionId = FromProto<TTransactionId>(requestExt.transaction_id());
-
-        auto timeout =
-            requestExt.has_timeout()
-            ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt.timeout()))
-            : Null;
-
-        auto* transaction = new TTransaction(transactionId);
-        TransactionMap_.Insert(transactionId, transaction);
-
-        auto actualTimeout = GetActualTimeout(timeout);
-        transaction->SetTimeout(actualTimeout);
-        transaction->SetStartTimestamp(startTimestamp);
-        transaction->SetState(ETransactionState::Active);
-
-        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64 ")",
-            ~ToString(transactionId),
-            startTimestamp,
-            actualTimeout.MilliSeconds());
-
-        if (IsLeader()) {
-            CreateLease(transaction, actualTimeout);
-        }
-
-        return transactionId;
-    }
-
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
         bool persistent,
@@ -232,6 +217,9 @@ public:
             timeout.MilliSeconds());
     }
 
+
+    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
+
 private:
     TTransactionManagerConfigPtr Config_;
 
@@ -298,6 +286,33 @@ private:
     {
         transaction->SetFinished();
         TransactionMap_.Remove(transaction->GetId());
+    }
+
+
+    // Hydra handlers.
+    void HydraStartTransaction(const TReqStartTransaction& request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto startTimestamp = TTimestamp(request.start_timestamp());
+        auto timeout = TDuration::MilliSeconds(request.timeout());
+
+        auto* transaction = new TTransaction(transactionId);
+        TransactionMap_.Insert(transactionId, transaction);
+
+        transaction->SetTimeout(timeout);
+        transaction->SetStartTimestamp(startTimestamp);
+        transaction->SetState(ETransactionState::Active);
+
+        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64 ")",
+            ~ToString(transactionId),
+            startTimestamp,
+            timeout.MilliSeconds());
+
+        if (IsLeader()) {
+            CreateLease(transaction, timeout);
+        }
     }
 
 
@@ -394,6 +409,20 @@ TTransactionManager::TTransactionManager(
         bootstrap))
 { }
 
+TTransactionManager::~TTransactionManager()
+{ }
+
+TAsyncError TTransactionManager::StartTransaction(
+    const TTransactionId& transactionId,
+    TTimestamp startTimestamp,
+    const TNullable<TDuration>& timeout)
+{
+    return Impl->StartTransaction(
+        transactionId,
+        startTimestamp,
+        timeout);
+}
+
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
 {
     return Impl->GetTransactionOrThrow(id);
@@ -408,13 +437,6 @@ void TTransactionManager::PrepareTransactionCommit(
         transactionId,
         persistent,
         prepareTimestamp);
-}
-
-TTransactionId TTransactionManager::StartTransaction(
-    TTimestamp startTimestamp,
-    const NHive::NProto::TReqStartTransaction& request)
-{
-    return Impl->StartTransaction(startTimestamp, request);
 }
 
 void TTransactionManager::CommitTransaction(

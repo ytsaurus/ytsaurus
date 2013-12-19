@@ -33,6 +33,19 @@ size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount)
         sizeof(TTimestamp) * timestampCount;
 }
 
+size_t GetHash(TVersionedRow row)
+{
+    size_t result = 0xdeadc0de;
+    int partCount = row.GetKeyCount() + row.GetValueCount();
+    for (int i = 0; i < row.GetKeyCount(); ++i) {
+        result = (result * 1000003) ^ GetHash(row.BeginKeys()[i]);
+    }
+    for (int i = 0; i < row.GetValueCount(); ++i) {
+        result = (result * 1000003) ^ GetHash(row.BeginValues()[i]);
+    }
+    return result ^ partCount;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
