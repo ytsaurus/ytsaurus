@@ -155,7 +155,9 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 
 IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
 {
-    return ChannelFactory->CreateChannel(GetPeerAddress(id));
+    return CreateRealmChannel(
+        ChannelFactory->CreateChannel(GetPeerAddress(id)),
+        Config->CellGuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
