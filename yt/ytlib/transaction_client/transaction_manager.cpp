@@ -437,6 +437,7 @@ private:
     {
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
         auto req = TMasterYPathProxy::CreateObjects();
+        req->set_type(EObjectType::Transaction);
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         if (!options.Attributes->List().empty()) {

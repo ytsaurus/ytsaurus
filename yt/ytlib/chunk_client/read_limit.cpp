@@ -237,7 +237,7 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
     } else if (auto child = mapNode->FindChild("key")) {
         TOwningKey key;
         Deserialize(key, child);
-        readLimit.SetKey(key);
+        readLimit.SetKey(std::move(key));
     }
 }
 
