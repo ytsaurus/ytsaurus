@@ -370,7 +370,7 @@ private:
         auto it = TabletToBuffer_.find(&tabletInfo);
         if (it == TabletToBuffer_.end()) {
             std::unique_ptr<TWriteBuffer> buffer(new TWriteBuffer());
-            it = TabletToBuffer_.emplace(&tabletInfo, std::move(buffer)).first;
+            it = TabletToBuffer_.insert(std::make_pair(&tabletInfo, std::move(buffer))).first;
         }
         return it->second.get();
     }
