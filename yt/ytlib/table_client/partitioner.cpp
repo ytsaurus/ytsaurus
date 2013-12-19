@@ -6,9 +6,7 @@
 namespace NYT {
 namespace NTableClient {
 
-using NVersionedTableClient::TKey;
-using NVersionedTableClient::TOwningKey;
-using NVersionedTableClient::TKeyComparer;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +25,7 @@ public:
 
     virtual int GetPartitionTag(const TKey& key) override
     {
-        auto it = std::upper_bound(Keys->begin(), Keys->end(), key, TKeyComparer());
+        auto it = std::upper_bound(Keys->begin(), Keys->end(), key);
         return std::distance(Keys->begin(), it);
     }
 

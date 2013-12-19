@@ -82,7 +82,7 @@ public:
             for (const auto& protoKey : PartitionJobSpecExt.partition_keys()) {
                 TOwningKey key;
                 FromProto(&key, protoKey);
-                PartitionKeys.push_back(key );
+                PartitionKeys.push_back(key);
             }
             Partitioner = CreateOrderedPartitioner(&PartitionKeys);
         } else {
