@@ -14,9 +14,6 @@ typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
 class TCellConfig;
 typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
 
-class TCellManager;
-typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TGuid TEpochId;
