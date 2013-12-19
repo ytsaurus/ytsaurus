@@ -21,9 +21,9 @@ Logging = {
                 'file_name' : "%(log_path)s",
                 'pattern' : "$(datetime) $(level) $(category) $(message)"
             },
-        'std_err' :
+        'stderr' :
             {
-                'type' : "std_err",
+                'type' : "stderr",
                 'pattern' : "$(datetime) $(level) $(category) $(message)"
             }
     },
@@ -36,7 +36,7 @@ Logging = {
         {
             'categories' : [ "*" ],
             'min_level' : "info",
-            'writers' : [ "std_err", "file" ]
+            'writers' : [ "stderr", "file" ]
         }
     ]
 }
