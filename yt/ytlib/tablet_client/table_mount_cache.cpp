@@ -132,7 +132,7 @@ private:
 
         auto& entry = it->second;
 
-        auto setResult = [&](TErrorOr<TTableMountInfoPtr> result) {
+        auto setResult = [&] (TErrorOr<TTableMountInfoPtr> result) {
             entry.Timestamp = TInstant::Now();
             if (entry.Promise.IsSet()) {
                 entry.Promise = MakePromise(result);
