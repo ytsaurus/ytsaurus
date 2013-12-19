@@ -26,7 +26,7 @@ def lock(path, mode=None, waitable=False, wait_for=None):
     if not lock_id:
         return None
     else:
-        return json_to_yson(json.loads(lock_id))
+        lock_id = json_to_yson(json.loads(lock_id))
 
     if waitable and wait_for is not None and lock_id != "0-0-0-0":
         now = datetime.now()
