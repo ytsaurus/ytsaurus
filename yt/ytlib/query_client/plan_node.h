@@ -21,7 +21,7 @@ namespace NQueryClient {
 
 const int TypicalUnionArity = 3;
 const int TypicalFunctionArity = 3;
-const int TypicalProjectionCount = 4;
+const int TypicalNamedExpressionsCount = 4;
 
 template <class TPlanNode, class EKind>
 class TPlanNodeBase

@@ -55,8 +55,6 @@ public:
         const TSourceLocation& sourceLocation)
         : TPlanNodeBase(context, kind)
         , SourceLocation_(sourceLocation)
-        , CachedType_(EValueType::Null)
-        , CachedName_()
     { }
 
     virtual TArrayRef<const TExpression*> Children() const override
@@ -68,42 +66,13 @@ public:
     Stroka GetSource() const;
 
     //! Piggy-backed method |InferType|.
-    EValueType GetType() const;
+    EValueType GetType(const TTableSchema& sourceSchema) const;
 
     //! Piggy-backed method |InferName|.
     Stroka GetName() const;
 
-    //! Returns cached expression type.
-    //! Null type must be interpreted as a cache miss.
-    EValueType GetCachedType() const
-    {
-        return CachedType_;
-    }
-
-    //! Caches an expression type.
-    void SetCachedType(EValueType type) const
-    {
-        CachedType_ = std::move(type);
-    }
-
-    //! Returns cached expression name.
-    //! Empty string must be interpreted as a cache miss.
-    Stroka GetCachedName() const
-    {
-        return CachedName_;
-    }
-
-    //! Caches an expression name.
-    void SetCachedName(Stroka name) const
-    {
-        CachedName_ = std::move(name);
-    }
-
 private:
     TSourceLocation SourceLocation_;
-    mutable EValueType CachedType_;
-    mutable Stroka CachedName_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,8 +134,8 @@ public:
         : TExpression(context, EExpressionKind::Reference, sourceLocation)
         , TableIndex_(tableIndex)
         , ColumnName_(columnName)
-        , IndexInRow_(-1)
-        , IndexInKey_(-1)
+        //, IndexInRow_(-1)
+        //, IndexInKey_(-1)
     { }
 
     static inline bool IsClassOf(const TExpression* expr)
@@ -176,9 +145,6 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, ColumnName);
-
-    DEFINE_BYVAL_RW_PROPERTY(int, IndexInRow);
-    DEFINE_BYVAL_RW_PROPERTY(int, IndexInKey);
 
 };
 
