@@ -86,8 +86,13 @@ public:
 
         auto this_ = MakeStrong(this);
         bool result = DecoratedAutomaton->AutomatonInvoker->Invoke(BIND([this, this_, action] () {
-            TCurrentInvokerGuard guard(this_);
-            action.Run();
+            try {
+                TCurrentInvokerGuard guard(this_);
+                action.Run();
+            } catch (...) {
+                DecoratedAutomaton->ReleaseSystemLock();
+                throw;
+            }
             DecoratedAutomaton->ReleaseSystemLock();
         }));
 
@@ -668,11 +673,15 @@ void TDecoratedAutomaton::AcquireSystemLock()
     while (AtomicGet(UserEnqueueLock) != 0) {
         SpinLockPause();
     }
+    LOG_DEBUG("System lock acquired (Lock: %" PRISZT ")",
+        SystemLock);
 }
 
 void TDecoratedAutomaton::ReleaseSystemLock()
 {
     AtomicDecrement(SystemLock);
+    LOG_DEBUG("System lock released (Lock: %" PRISZT ")",
+        SystemLock);
 }
 
 void TDecoratedAutomaton::Reset()
