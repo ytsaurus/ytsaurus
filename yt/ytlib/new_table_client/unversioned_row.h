@@ -98,6 +98,14 @@ Stroka ToString(const TUnversionedValue& value);
 //! Returns zero, positive or negative value depending on the outcome.
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
+//! Computes the value successor.
+void AdvanceToValueSuccessor(TUnversionedValue& value);
+
+//! Checks that two given values form a valid predecessor-successor pair.
+bool IsValueSuccessor(
+    const TUnversionedValue& value,
+    const TUnversionedValue& successor);
+
 //! Ternary comparison predicate for TUnversionedRow-s stripped to a given number of
 //! (leading) values.
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength = std::numeric_limits<int>::max());
@@ -228,6 +236,14 @@ TKey MinKey();
 
 //! Returns the  key with a single |Max| component.
 TKey MaxKey();
+
+//! Compares two keys, |a| and |b|, and returns a smaller one.
+//! Ties are broken in favour of the first argument.
+const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b);
+
+//! Compares two keys, |a| and |b|, and returns a bigger one.
+//! Ties are broken in favour of the first argument.
+const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b);
 
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);

@@ -229,6 +229,85 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     }
 }
 
+void AdvanceToValueSuccessor(TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Integer: {
+            auto& inner = value.Data.Integer;
+            constexpr const auto maximum = std::numeric_limits<i64>::max();
+            if (LIKELY(inner != maximum)) {
+                ++inner;
+            } else {
+                value.Type = EValueType::Max;
+            }
+            break;
+        }
+
+        case EValueType::Double: {
+            auto& inner = value.Data.Double;
+            constexpr const auto maximum = std::numeric_limits<double>::max();
+            if (LIKELY(inner != maximum)) {
+                inner = std::nextafter(inner, maximum);
+            } else {
+                value.Type = EValueType::Max;
+            }
+            break;
+        }
+
+        case EValueType::String:
+            // TODO(sandello): A proper way to get a successor is to append
+            // zero byte. However, it requires us to mess with underlying
+            // memory storage. I do not want to deal with it right now.
+            YUNIMPLEMENTED();
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+bool IsValueSuccessor(
+    const TUnversionedValue& value,
+    const TUnversionedValue& successor)
+{
+    switch (value.Type) {
+        case EValueType::Integer: {
+            const auto& inner = value.Data.Integer;
+            constexpr const auto maximum = std::numeric_limits<i64>::max();
+            if (LIKELY(inner != maximum)) {
+                return
+                    successor.Type == EValueType::Integer &&
+                    successor.Data.Integer == inner + 1;
+            } else {
+                return
+                    successor.Type == EValueType::Max;
+            }
+            break;
+        }
+
+        case EValueType::Double: {
+            const auto& inner = value.Data.Double;
+            constexpr const auto maximum = std::numeric_limits<double>::max();
+            if (LIKELY(inner != maximum)) {
+                return
+                    successor.Type == EValueType::Double &&
+                    successor.Data.Double == std::nextafter(inner, maximum);
+            } else {
+                return
+                    successor.Type == EValueType::Max;
+            }
+        }
+
+        case EValueType::String:
+            return
+                successor.Type == EValueType::String &&
+                successor.Length == value.Length + 1 &&
+                successor.Data.String[successor.Length - 1] == 0 &&
+                ::memcmp(successor.Data.String, value.Data.String, value.Length) == 0;
+        default:
+            YUNREACHABLE();
+    }
+}
+
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 {
     TKeyComparer comparer(prefixLength);
@@ -366,6 +445,18 @@ static TOwningKey CachedEmptyKey = MakeEmptyKey();
 TKey EmptyKey()
 {
     return CachedEmptyKey;
+}
+
+const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b)
+{
+    int result = CompareRows(a, b);
+    return result <= 0 ? a : b;
+}
+
+const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
+{
+    int result = CompareRows(a, b);
+    return result >= 0 ? a : b;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
