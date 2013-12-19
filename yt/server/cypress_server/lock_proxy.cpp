@@ -39,8 +39,8 @@ private:
         attributes->push_back("state");
         attributes->push_back("transaction_id");
         attributes->push_back("mode");
-        attributes->push_back(TAttributeInfo("child_key", lock->Request().ChildKey));
-        attributes->push_back(TAttributeInfo("attribute_key", lock->Request().AttributeKey));
+        attributes->push_back(TAttributeInfo("child_key", lock->Request().ChildKey.HasValue()));
+        attributes->push_back(TAttributeInfo("attribute_key", lock->Request().AttributeKey.HasValue()));
         TBase::ListSystemAttributes(attributes);
     }
 

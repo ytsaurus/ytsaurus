@@ -155,7 +155,7 @@ void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
         : Null;
 
     BuildYsonMapFluently(consumer)
-        .DoIf(path, [&] (TFluentMap fluent) {
+        .DoIf(path.HasValue(), [&] (TFluentMap fluent) {
             fluent.Item("path").Value(path.Get());
         })
         .Item("type").Value(TypeArg.getValue().ToString())

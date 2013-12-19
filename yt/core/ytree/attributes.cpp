@@ -55,7 +55,7 @@ void IAttributeDictionary::Clear()
 
 bool IAttributeDictionary::Contains(const Stroka& key) const
 {
-    return FindYson(key);
+    return FindYson(key).HasValue();
 }
 
 std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)

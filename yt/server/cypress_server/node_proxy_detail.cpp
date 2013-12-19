@@ -119,7 +119,7 @@ public:
             if (userAttributes) {
                 auto it = userAttributes->Attributes().find(key);
                 if (it != userAttributes->Attributes().end()) {
-                    contains = it->second;
+                    contains = it->second.HasValue();
                     if (contains) {
                         containingTransaction = transaction;
                     }
@@ -591,11 +591,11 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
                     .Item("state").Value(lock->GetState())
                     .Item("transaction_id").Value(lock->GetTransaction()->GetId())
                     .Item("mode").Value(lock->Request().Mode)
-                    .DoIf(lock->Request().ChildKey, [=] (TFluentMap fluent) {
+                    .DoIf(lock->Request().ChildKey.HasValue(), [=] (TFluentMap fluent) {
                         fluent
                             .Item("child_key").Value(*lock->Request().ChildKey);
                     })
-                    .DoIf(lock->Request().AttributeKey, [=] (TFluentMap fluent) {
+                    .DoIf(lock->Request().AttributeKey.HasValue(), [=] (TFluentMap fluent) {
                         fluent
                             .Item("attribute_key").Value(*lock->Request().AttributeKey);
                     })

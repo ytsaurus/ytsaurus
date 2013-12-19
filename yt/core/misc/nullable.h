@@ -25,7 +25,7 @@ class TNullable
 {
 public:
     static_assert(
-        !NMpl::TIsReference<T>::Value,
+        !std::is_reference<T>::value,
         "Cannot use TNullable<T> with reference types");
 
     typedef T TValueType;
@@ -65,7 +65,7 @@ public:
     template <class U>
     TNullable(
         const TNullable<U>& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
+        typename std::enable_if<std::is_constructible<T, U>::value, int>::type = 0)
         : HasValue_(false)
     {
         if (other.HasValue_) {
@@ -85,7 +85,7 @@ public:
     template <class U>
     TNullable(
         TNullable<U>&& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
+        typename std::enable_if<std::is_constructible<T, U>::value, int>::type = 0)
         : HasValue_(false)
     {
         if (other.HasValue_) {
@@ -108,6 +108,11 @@ public:
         if (condition) {
             Construct(std::move(value));
         }
+    }
+
+    ~TNullable()
+    {
+        Reset();
     }
 
     TNullable& operator=(TNull value)
@@ -137,7 +142,12 @@ public:
     template <class U>
     TNullable& operator=(const TNullable<U>& other)
     {
-        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
+        static_assert(
+            std::is_assignable<
+                typename std::add_lvalue_reference<T>::type,
+                typename std::add_lvalue_reference<U>::type
+            >::value,
+            "U& have to be assignable to T");
         Assign(other);
         return *this;
     }
@@ -151,9 +161,19 @@ public:
     template <class U>
     TNullable& operator=(TNullable<U>&& other)
     {
-        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
+        static_assert(
+            std::is_assignable<
+                typename std::add_lvalue_reference<T>::type,
+                typename std::add_rvalue_reference<U>::type
+            >::value,
+            "U&& have to be assignable to T");
         Assign(std::move(other));
         return *this;
+    }
+
+    explicit operator bool() const
+    {
+        return HasValue_;
     }
 
     void Assign(TNull)
@@ -182,8 +202,12 @@ public:
     template <class U>
     void Assign(const TNullable<U>& other)
     {
-        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
-
+        static_assert(
+            std::is_assignable<
+                typename std::add_lvalue_reference<T>::type,
+                typename std::add_lvalue_reference<U>::type
+            >::value,
+            "U& have to be assignable to T");
         if (other.HasValue_) {
             Assign(other.Get());
         } else {
@@ -194,8 +218,12 @@ public:
     template <class U>
     void Assign(TNullable<U>&& other)
     {
-        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
-
+        static_assert(
+            std::is_assignable<
+                typename std::add_lvalue_reference<T>::type,
+                typename std::add_rvalue_reference<U>::type
+            >::value,
+            "U&& have to be assignable to T");
         if (other.HasValue_) {
             Assign(std::move(other.Get()));
             other.Reset();
@@ -277,18 +305,6 @@ public:
         return GetPtr();
     }
 
-    // Implicit conversion to bool.
-    typedef bool TNullable::*TUnspecifiedBoolType;
-    operator TUnspecifiedBoolType() const
-    {
-        return HasValue_ ? &TNullable::HasValue_ : nullptr;
-    }
-    
-    ~TNullable()
-    {
-        Reset();
-    }
-
 private:
     template <class U>
     friend class TNullable;
@@ -300,7 +316,7 @@ private:
     void Construct(As&&... as)
     {
         YASSERT(!HasValue_);
-        // TODO(babenko): variadic forwarding does not work in VS2012 Nov CTP
+        // TODO(babenko): Variadic forwarding does not work in VS2012 Nov CTP
 #if defined(_MSC_VER) && _MSC_VER < 1800
         new (&Storage_) TValueType(as...);
 #else
@@ -357,23 +373,23 @@ struct TNullableTraits< TIntrusivePtr<T> >
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(T&& value)
+TNullable< typename std::decay<T>::type > MakeNullable(T&& value)
 {
-    return TNullable< typename NMpl::TDecay<T>::TType >(std::forward<T>(value));
+    return TNullable< typename std::decay<T>::type >(std::forward<T>(value));
 }
 
 template <class T>
-TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(bool condition, T&& value)
+TNullable< typename std::decay<T>::type > MakeNullable(bool condition, T&& value)
 {
-    return TNullable< typename NMpl::TDecay<T>::TType >(condition, std::forward<T>(value));
+    return TNullable< typename std::decay<T>::type >(condition, std::forward<T>(value));
 }
 
 template <class T>
-TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(const T* ptr)
+TNullable< typename std::decay<T>::type > MakeNullable(const T* ptr)
 {
     return ptr
-        ? TNullable< typename NMpl::TDecay<T>::TType >(*ptr)
-        : TNullable< typename NMpl::TDecay<T>::TType >(Null);
+        ? TNullable< typename std::decay<T>::type >(*ptr)
+        : TNullable< typename std::decay<T>::type >();
 }
 
 template <class T>

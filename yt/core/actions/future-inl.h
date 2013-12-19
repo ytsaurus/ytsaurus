@@ -82,7 +82,7 @@ public:
     {
         // Guard is typically redundant.
         TGuard<TSpinLock> guard(SpinLock_);
-        return Value_;
+        return Value_.HasValue();
     }
 
     bool IsCanceled() const

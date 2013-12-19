@@ -47,7 +47,7 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
         .Item("state").Value(FormatEnum(state))
         .Item("address").Value(job->GetNode()->GetAddress())
         .Item("start_time").Value(job->GetStartTime())
-        .DoIf(job->GetFinishTime(), [=] (TFluentMap fluent) {
+        .DoIf(job->GetFinishTime().HasValue(), [=] (TFluentMap fluent) {
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {

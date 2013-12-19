@@ -299,7 +299,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
     }
 
     BuildYsonMapFluently(consumer)
-        .DoIf(txId, [=] (TFluentMap fluent) {
+        .DoIf(txId.HasValue(), [=] (TFluentMap fluent) {
             fluent.Item("transaction_id").Value(txId.Get());
         })
         .Item("ping_ancestor_transactions").Value(PingAncestorTxsArg.getValue());

@@ -73,7 +73,7 @@ TEST(TErasureCodingTest, RandomText)
             auto recoveryIndices = codec->GetRepairIndices(erasedIndices);
             ASSERT_EQ(static_cast<bool>(recoveryIndices), codec->CanRepair(erasedIndices));
             if (erasedIndices.size() <= guaranteedRecoveryCount[codecId]) {
-                EXPECT_TRUE(recoveryIndices);
+                EXPECT_TRUE(recoveryIndices.HasValue());
             }
 
             if (recoveryIndices) {
