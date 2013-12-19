@@ -332,6 +332,25 @@ class TestTableCommands(YTEnvSetup):
         remove('//tmp/t2')
         assert get_chunks() == []
 
+    def test_copy_not_sorted(self):
+        create('table', '//tmp/t1')
+        assert get('//tmp/t1/@sorted') == 'false'
+        assert get('//tmp/t1/@key_columns') == []
+
+        copy('//tmp/t1', '//tmp/t2')
+        assert get('//tmp/t2/@sorted') == 'false'
+        assert get('//tmp/t2/@key_columns') == []
+
+    def test_copy_sorted(self):
+        create('table', '//tmp/t1')
+        sort(in_='//tmp/t1', out='//tmp/t1', sort_by='key')
+        assert get('//tmp/t1/@sorted') == 'true'
+        assert get('//tmp/t1/@key_columns') == ['key']
+
+        copy('//tmp/t1', '//tmp/t2')
+        assert get('//tmp/t2/@sorted') == 'true'
+        assert get('//tmp/t2/@key_columns') == ['key']
+
     def test_remove_create_under_transaction(self):
         create("table", "//tmp/table_xxx")
         tx = start_transaction()
