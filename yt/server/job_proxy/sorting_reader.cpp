@@ -164,8 +164,8 @@ private:
     TMemoryInput RowInput;
     TRow CurrentRow;
 
-    TKey CurrentKey;
     TChunkedMemoryPool KeyMemoryPool;
+    TKey CurrentKey;
 
     std::vector<TSmallKeyPart> KeyBuffer;
     std::vector<const char*> RowPtrBuffer;

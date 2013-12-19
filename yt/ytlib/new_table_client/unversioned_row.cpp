@@ -292,7 +292,7 @@ TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueTy
         builder.AddValue(key[index]);
     }
     builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
-    return builder.Finish();
+    return builder.Finish(prefixLength);
 }
 
 TOwningKey GetKeySuccessor(const TOwningKey& key)
@@ -462,7 +462,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
         }
     }
 
-    *row = rowBuilder.Finish();
+    *row = rowBuilder.Finish(protoKey.parts_size());
 }
 
 void Serialize(TKey key, IYsonConsumer* consumer)

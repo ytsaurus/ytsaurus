@@ -136,8 +136,8 @@ private:
     TChunkReaderOptionsPtr Options;
 
     TRow CurrentRow;
-    NVersionedTableClient::TKey CurrentKey;
     TChunkedMemoryPool KeyMemoryPool;
+    NVersionedTableClient::TKey CurrentKey;
 
     int TableIndex;
 
