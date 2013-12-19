@@ -109,7 +109,6 @@ public:
         , PingAncestors_(false)
         , State_(EState::Active)
         , Aborted_(NewPromise())
-        , StartAwaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
         , StartTimestamp_(NullTimestamp)
     { }
 
@@ -201,8 +200,42 @@ public:
             }
         }
 
-        return StartAwaiter_->Complete().Apply(
-            BIND(&TImpl::OnAllParticipantsStarted, MakeStrong(this), mutationId));
+        auto participantGuids = GetParticipantGuids();
+        if (participantGuids.empty()) {
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                if (State_ != EState::Committing)
+                    return MakeFuture(Error_);
+                State_ = EState::Committed;
+            }
+
+            LOG_INFO("Trivial transaction committed (TransactionId: %s)",
+                ~ToString(Id_));
+            return MakeFuture(TError());
+        }
+
+        auto coordinatorCellGuid = Type_ == ETransactionType::Master
+            ? Owner_->MasterCellGuid_
+            : *participantGuids.begin();
+
+        LOG_INFO("Committing transaction (TransactionId: %s, CoordinatorCellGuid: %s)",
+            ~ToString(Id_),
+            ~ToString(coordinatorCellGuid));
+
+        auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellGuid);
+        TTransactionSupervisorServiceProxy proxy(channel);
+
+        auto req = proxy.CommitTransaction();
+        ToProto(req->mutable_transaction_id(), Id_);
+        for (const auto& cellGuid : participantGuids) {
+            if (cellGuid != coordinatorCellGuid) {
+                ToProto(req->add_participant_cell_guids(), cellGuid);
+            }
+        }
+        SetOrGenerateMutationId(req, mutationId);
+
+        return req->Invoke().Apply(
+            BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellGuid));
     }
 
     TAsyncError AsyncAbort(const TMutationId& mutationId)
@@ -301,13 +334,7 @@ public:
             req->set_timeout(Timeout_->MilliSeconds());
         }
         
-        auto asyncRsp = req->Invoke();
-        StartAwaiter_->Await(asyncRsp);
-
-        // TODO(babenko): make async
-        asyncRsp.Get();
-
-        return asyncRsp.Apply(
+        return req->Invoke().Apply(
             BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellGuid));
     }
 
@@ -350,7 +377,6 @@ private:
     yhash_set<TCellGuid> ParticipantGuids_;
     TError Error_;
 
-    TParallelAwaiterPtr StartAwaiter_;
     TTimestamp StartTimestamp_;
     TTransactionId Id_;
 
@@ -408,9 +434,7 @@ private:
     }
 
 
-    TAsyncError OnGotStartTimestamp(
-        const TTransactionStartOptions& options,
-        TErrorOr<TTimestamp> timestampOrError)
+    TAsyncError OnGotStartTimestamp(const TTransactionStartOptions& options, TErrorOr<TTimestamp> timestampOrError)
     {
         if (!timestampOrError.IsOK()) {
             return MakeFuture(TError(timestampOrError));
@@ -507,7 +531,6 @@ private:
         return MakeFuture(TError());
     }
 
-
     TError OnTabletParticipantAdded(const TCellGuid& cellGuid, TTabletServiceProxy::TRspStartTransactionPtr rsp)
     {
         if (rsp->IsOK()) {
@@ -524,47 +547,6 @@ private:
                 << *rsp);
         }
         return rsp->GetError();
-    }
-
-
-    TAsyncError OnAllParticipantsStarted(const TMutationId& mutationId)
-    {
-        auto participantGuids = GetParticipantGuids();
-        if (participantGuids.empty()) {
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                if (State_ != EState::Committing)
-                    return MakeFuture(Error_);
-                State_ = EState::Committed;
-            }
-
-            LOG_INFO("Trivial transaction committed (TransactionId: %s)",
-                ~ToString(Id_));
-            return MakeFuture(TError());
-        }
-
-        auto coordinatorCellGuid = Type_ == ETransactionType::Master
-            ? Owner_->MasterCellGuid_
-            : *participantGuids.begin();
-
-        LOG_INFO("Committing transaction (TransactionId: %s, CoordinatorCellGuid: %s)",
-            ~ToString(Id_),
-            ~ToString(coordinatorCellGuid));
-
-        auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellGuid);
-        TTransactionSupervisorServiceProxy proxy(channel);
-
-        auto req = proxy.CommitTransaction();
-        ToProto(req->mutable_transaction_id(), Id_);
-        for (const auto& cellGuid : participantGuids) {
-            if (cellGuid != coordinatorCellGuid) {
-                ToProto(req->add_participant_cell_guids(), cellGuid);
-            }
-        }
-        SetOrGenerateMutationId(req, mutationId);
-
-        return req->Invoke().Apply(
-            BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellGuid));
     }
 
     TError OnTransactionCommitted(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspCommitTransactionPtr rsp)

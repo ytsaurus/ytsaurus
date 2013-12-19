@@ -200,6 +200,7 @@ public:
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
+        , TransactionStartCollector_(New<TParallelCollector<void>>())
     { }
 
 
@@ -243,6 +244,7 @@ public:
         std::vector<TUnversionedRow> rows) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
+            this,
             tablePath,
             std::move(rows))));
     }
@@ -262,6 +264,7 @@ public:
         std::vector<TKey> keys) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
+            this,
             tablePath,
             std::move(keys))));
     }
@@ -287,13 +290,17 @@ private:
         ~TRequestBase()
         { }
 
-        virtual void PopulateBuffers(TTransaction* transaction) = 0;
+        virtual void Run() = 0;
 
     protected:
-        explicit TRequestBase(const TYPath& tablePath)
-            : TablePath_(tablePath)
+        explicit TRequestBase(
+            TTransaction* transaction,
+            const TYPath& tablePath)
+            : Transaction_(transaction)
+            , TablePath_(tablePath)
         { }
 
+        TTransaction* Transaction_;
         TYPath TablePath_;
 
     };
@@ -303,21 +310,19 @@ private:
     {
     public:
         TWriteRequest(
+            TTransaction* transaction,
             const TYPath& tablePath,
             std::vector<TUnversionedRow> rows)
-            : TRequestBase(tablePath)
+            : TRequestBase(transaction, tablePath)
             , Rows_(std::move(rows))
         { }
 
-        virtual void PopulateBuffers(TTransaction* transaction) override
+        virtual void Run() override
         {
-            auto mountInfo = transaction->Client_->GetTableMountInfo(TablePath_);
+            const auto& mountInfo = Transaction_->Client_->GetTableMountInfo(TablePath_);
             for (auto row : Rows_) {
-                const auto& tabletInfo = transaction->Client_->GetTabletInfo(mountInfo, TablePath_, row);
-                
-                transaction->Transaction_->AddTabletParticipant(tabletInfo.CellId);
-                
-                auto* writer = transaction->GetWriter(tabletInfo);
+                const auto& tabletInfo = Transaction_->Client_->GetTabletInfo(mountInfo, TablePath_, row);
+                auto* writer = Transaction_->AddTabletParticipant(tabletInfo);
                 writer->WriteCommand(EProtocolCommand::WriteRow);
                 writer->WriteUnversionedRow(row);
             }
@@ -333,21 +338,19 @@ private:
     {
     public:
         TDeleteRequest(
+            TTransaction* transaction,
             const TYPath& tablePath,
             std::vector<TKey> keys)
-            : TRequestBase(tablePath)
+            : TRequestBase(transaction, tablePath)
             , Keys_(std::move(keys))
         { }
 
-        virtual void PopulateBuffers(TTransaction* transaction) override
+        virtual void Run() override
         {
-            auto mountInfo = transaction->Client_->GetTableMountInfo(TablePath_);
+            const auto& mountInfo = Transaction_->Client_->GetTableMountInfo(TablePath_);
             for (auto key : Keys_) {
-                const auto& tabletInfo = transaction->Client_->GetTabletInfo(mountInfo, TablePath_, key);
-
-                transaction->Transaction_->AddTabletParticipant(tabletInfo.CellId);
-
-                auto* writer = transaction->GetWriter(tabletInfo);
+                const auto& tabletInfo = Transaction_->Client_->GetTabletInfo(mountInfo, TablePath_, key);
+                auto* writer = Transaction_->AddTabletParticipant(tabletInfo);
                 writer->WriteCommand(EProtocolCommand::DeleteRow);
                 writer->WriteUnversionedRow(key);
             }
@@ -360,27 +363,30 @@ private:
 
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
 
-
     std::map<const TTabletInfo*, std::unique_ptr<TProtocolWriter>> TabletToWriter_;
+    TIntrusivePtr<TParallelCollector<void>> TransactionStartCollector_;
 
 
-    TProtocolWriter* GetWriter(const TTabletInfo& tabletInfo)
+    TProtocolWriter* AddTabletParticipant(const TTabletInfo& tabletInfo)
     {
         auto it = TabletToWriter_.find(&tabletInfo);
         if (it == TabletToWriter_.end()) {
+            TransactionStartCollector_->Collect(Transaction_->AddTabletParticipant(tabletInfo.CellId));
             std::unique_ptr<TProtocolWriter> buffer(new TProtocolWriter());
             it = TabletToWriter_.insert(std::make_pair(&tabletInfo, std::move(buffer))).first;
         }
         return it->second.get();
     }
 
-
     TError DoCommit()
     {
         try {
             for (const auto& request : Requests_) {
-                request->PopulateBuffers(this);
+                request->Run();
             }
+
+            auto startResult = WaitFor(TransactionStartCollector_->Complete());
+            THROW_ERROR_EXCEPTION_IF_FAILED(startResult);
 
             auto cellDirectory = Client_->Connection_->GetCellDirectory();
 
