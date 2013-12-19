@@ -178,8 +178,8 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         }
 
         case EValueType::Double: {
-            auto lhsValue = lhs.Data.Double;
-            auto rhsValue = lhs.Data.Double;
+            double lhsValue = lhs.Data.Double;
+            double rhsValue = rhs.Data.Double;
             if (lhsValue < rhsValue) {
                 return -1;
             } else if (lhsValue > rhsValue) {
@@ -418,9 +418,7 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 
 Stroka ToString(const TUnversionedRow& row)
 {
-    auto begin = &row[0];
-    auto* end = begin + row.GetValueCount();
-    return JoinToString(begin, end);
+    return JoinToString(row.BeginValues(), row.EndValues());
 }
 
 Stroka ToString(const TUnversionedOwningRow& row)

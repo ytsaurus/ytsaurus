@@ -292,6 +292,7 @@ void ParseRowLimit(
 
         default:
             ParseKeyPart(tokenizer, &rowBuilder);
+            hasKeyLimit = true;
             break;
     }
 
