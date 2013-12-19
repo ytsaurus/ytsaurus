@@ -498,8 +498,6 @@ private:
         auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
 
-        auto* reqExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
-
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");
         ToProto(req->mutable_object_attributes(), *attributes);
