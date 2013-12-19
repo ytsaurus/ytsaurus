@@ -865,7 +865,7 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler sync for operation %s",
                 ~ToString(operation->GetOperationId())));
-            ToProto(reqExt->mutable_attributes(), *attributes);
+            ToProto(req->mutable_object_attributes(), *attributes);
 
             GenerateMutationId(req);
             batchReq->AddRequest(req, "start_sync_tx");
@@ -917,7 +917,7 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler async for operation %s",
                 ~ToString(operationId)));
-            ToProto(reqExt->mutable_attributes(), *attributes);
+            ToProto(req->mutable_object_attributes(), *attributes);
 
             GenerateMutationId(req);
             batchReq->AddRequest(req, "start_async_tx");
@@ -969,7 +969,7 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler input for operation %s",
                 ~ToString(operation->GetOperationId())));
-            ToProto(reqExt->mutable_attributes(), *attributes);
+            ToProto(req->mutable_object_attributes(), *attributes);
 
             NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_in_tx");
@@ -987,7 +987,7 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler output for operation %s",
                 ~ToString(operationId)));
-            ToProto(reqExt->mutable_attributes(), *attributes);
+            ToProto(req->mutable_object_attributes(), *attributes);
 
             NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_out_tx");

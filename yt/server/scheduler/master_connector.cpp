@@ -472,7 +472,7 @@ private:
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddresss));
-                ToProto(reqExt->mutable_attributes(), *attributes);
+                ToProto(req->mutable_object_attributes(), *attributes);
 
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");
