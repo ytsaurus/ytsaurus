@@ -153,6 +153,17 @@ protected:
         TBase::DoMerge(originatingNode, branchedNode);
     }
 
+    virtual void DoClone(
+        TTableNode* sourceNode,
+        TTableNode* clonedNode,
+        NCypressServer::ICypressNodeFactoryPtr factory) override
+    {
+        TBase::DoClone(sourceNode, clonedNode, factory);
+
+        clonedNode->SetSorted(sourceNode->GetSorted());
+        clonedNode->KeyColumns() = sourceNode->KeyColumns();
+    }
+
 };
 
 INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
