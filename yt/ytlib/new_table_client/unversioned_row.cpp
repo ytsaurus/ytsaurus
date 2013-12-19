@@ -142,23 +142,17 @@ Stroka ToString(const TUnversionedValue& value)
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            return Sprintf("{Type: %s}", ~FormatEnum(EValueType(value.Type)));
+            return Sprintf("{%s}", ~EValueType(value.Type).ToString());
 
         case EValueType::Integer:
-           return Sprintf("{Type: %s, Value: %" PRId64 "}",
-                ~FormatEnum(EValueType(value.Type)),
-                value.Data.Integer);
+            return Sprintf("%" PRId64 "i", value.Data.Integer);
 
         case EValueType::Double:
-            return Sprintf("{Type: %s, Value: %f}",
-                ~FormatEnum(EValueType(value.Type)),
-                value.Data.Double);
+            return Sprintf("%lfd", value.Data.Double);
 
         case EValueType::String:
         case EValueType::Any:
-            return Sprintf("{Type: %s, Value: %s}",
-                ~FormatEnum(EValueType(value.Type)),
-                value.Data.String);
+            return Stroka(value.Data.String, value.Length).Quote();
 
         default:
             YUNREACHABLE();
@@ -520,7 +514,7 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 
 Stroka ToString(const TUnversionedRow& row)
 {
-    return JoinToString(row.Begin(), row.End());
+    return "[" + JoinToString(row.Begin(), row.End()) + "]";
 }
 
 Stroka ToString(const TUnversionedOwningRow& row)
