@@ -438,14 +438,12 @@ private:
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
         auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
+        ToProto(req->mutable_object_attributes(), *options.Attributes);
+        if (options.ParentId != NullTransactionId) {
+            ToProto(req->mutable_transaction_id(), options.ParentId);
+        }
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
-        if (!options.Attributes->List().empty()) {
-            ToProto(reqExt->mutable_attributes(), *options.Attributes);
-        }
-        if (options.ParentId != NullTransactionId) {
-            ToProto(reqExt->mutable_parent_transaction_id(), options.ParentId);
-        }
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
         if (options.Timeout) {

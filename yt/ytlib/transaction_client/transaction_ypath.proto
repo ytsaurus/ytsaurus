@@ -59,10 +59,6 @@ message TReqStartTransactionExt
 
     // Enable including staged resources into account resource usage.
     optional bool enable_staged_accounting = 3 [default = true];
-
-    optional NYT.NProto.TGuid parent_transaction_id = 4;
-
-    optional NYT.NYTree.NProto.TAttributes attributes = 5;
 }
 
 message TReqPingTransactionExt
