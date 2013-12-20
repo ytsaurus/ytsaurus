@@ -3,6 +3,8 @@
 namespace NYT {
 namespace NPipes {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TIODispatcher::TImpl::TImpl()
     : Thread(ThreadFunc, this)
     , Stopped(false)
@@ -79,5 +81,7 @@ void TIODispatcher::TImpl::ThreadMain()
     EventLoop.run(0);
 }
 
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPipes
+} // namespace NYT

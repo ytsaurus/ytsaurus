@@ -3,5 +3,5 @@
 namespace NYT {
 namespace NPipes {
 
-}
-}
+} // namespace NPipes
+} // namespace NYT

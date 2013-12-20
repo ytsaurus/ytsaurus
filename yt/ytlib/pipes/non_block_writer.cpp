@@ -8,6 +8,8 @@ namespace NDetail {
 
 static const size_t WriteBufferSize = 64 * 1024;
 
+////////////////////////////////////////////////////////////////////////////////
+
 TNonBlockWriter::TNonBlockWriter(int fd)
     : FD(fd)
     , BytesWrittenTotal(0)
@@ -19,8 +21,7 @@ TNonBlockWriter::TNonBlockWriter(int fd)
 }
 
 TNonBlockWriter::~TNonBlockWriter()
-{
-}
+{ }
 
 void TNonBlockWriter::TryWriteFromBuffer()
 {
@@ -82,9 +83,6 @@ size_t TNonBlockWriter::TryWrite(const char* data, size_t size)
         return 0;
     } else {
         size_t bytesWritten = errCode;
-        if (bytesWritten > 0) {
-            LOG_DEBUG("Wrote %" PRISZT " bytes", bytesWritten);
-        }
 
         YCHECK(bytesWritten <= size);
         return bytesWritten;
@@ -124,6 +122,8 @@ bool TNonBlockWriter::IsClosed() const
     return Closed;
 }
 
-}
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+} // namespace NPipes
+} // namespace NYT

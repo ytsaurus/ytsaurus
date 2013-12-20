@@ -6,5 +6,5 @@ namespace NPipes {
 NLog::TLogger WriterLogger("AsyncWriter");
 NLog::TLogger ReaderLogger("AsyncReader");
 
-}
-}
+} // namespace NPipes
+} // namespace NYT

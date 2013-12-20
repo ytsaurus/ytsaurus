@@ -9,6 +9,8 @@ namespace NPipes {
 
 static const size_t WriteBufferSize = 64 * 1024;
 
+////////////////////////////////////////////////////////////////////////////////
+
 TAsyncWriter::TAsyncWriter(int fd)
     : Writer(new NDetail::TNonBlockWriter(fd))
     , NeedToClose(false)
@@ -140,5 +142,7 @@ TAsyncError TAsyncWriter::GetReadyEvent()
     }
 }
 
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPipes
+} // namespace NYT

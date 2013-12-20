@@ -6,6 +6,8 @@
 namespace NYT {
 namespace NPipes {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TIODispatcher::TIODispatcher()
     : Impl(new TImpl())
 {}
@@ -28,5 +30,7 @@ void TIODispatcher::Shutdown()
     return Impl->Shutdown();
 }
 
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPipes
+} // namespace NYT

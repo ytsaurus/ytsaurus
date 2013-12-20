@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NPipes {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TAsyncReader::TAsyncReader(int fd)
     : Reader(new NDetail::TNonBlockReader(fd))
     , ReadyPromise()
@@ -186,6 +188,7 @@ bool TAsyncReader::IsRegistered() const
     return RegistrationError.IsSet() && RegistrationError.Get().IsOK();
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NPipes
+} // namespace NYT
