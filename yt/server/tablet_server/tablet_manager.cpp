@@ -417,22 +417,24 @@ public:
         auto& tablets = table->Tablets();
         int oldTabletCount = std::distance(tabletRange.first, tabletRange.second);
         int newTabletCount = static_cast<int>(pivotKeys.size());
-        
+
         const int MaxTabletCount = 1000;
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
                 MaxTabletCount);
         }
 
-        if (tabletRange.first == tablets.end()) {
-            if (CompareRows(pivotKeys[0], EmptyKey()) != 0) {
-                THROW_ERROR_EXCEPTION("First pivot key must be empty");
-            }
-        } else {
-            if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    "First pivot key must match that of the first tablet "
-                    "in the resharded range");
+        if (!pivotKeys.empty()) {
+            if (tabletRange.first == tablets.end()) {
+                if (CompareRows(pivotKeys[0], EmptyKey()) != 0) {
+                    THROW_ERROR_EXCEPTION("First pivot key must be empty");
+                }
+            } else {
+                if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
+                    THROW_ERROR_EXCEPTION(
+                        "First pivot key must match that of the first tablet "
+                        "in the resharded range");
+                }
             }
         }
 

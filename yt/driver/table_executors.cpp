@@ -138,7 +138,7 @@ Stroka TUnmountTableExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TReshardTableExecutor::TReshardTableExecutor()
-    : PivotKeysArg("pivot_keys", "pivot keys", true, "", "YSON_LIST_FRAGMENT")
+    : PivotKeysArg("pivot_keys", "pivot keys", false, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(PivotKeysArg);
 }
