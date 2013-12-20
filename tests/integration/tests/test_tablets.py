@@ -30,7 +30,7 @@ class TestTablets(YTEnvSetup):
                  'schema': [{'name': 'key', 'type': 'integer'}, {'name': 'value', 'type': 'string'}],
                  'key_columns': ['key']
                })
-            
+           
 
     def test_mount1(self):
         self._create_cells(1, 1)
@@ -50,6 +50,20 @@ class TestTablets(YTEnvSetup):
         self._create_cells(1, 1)
         self._create_table()
 
-        for _ in xrange(5):
-            mount_table('//tmp/t')
-            unmount_table('//tmp/t')
+        mount_table('//tmp/t')
+
+        tablets = get('//tmp/t/@tablets')
+        assert len(tablets) == 1
+
+        tablet = tablets[0]
+        assert tablet["pivot_key"] == []
+
+        print 'Waiting for table to become mounted...'
+        while get('//tmp/t/@tablets/0/state') != 'mounted':
+            sleep(0.1)
+
+        unmount_table('//tmp/t')
+
+        print 'Waiting for table to become unmounted...'
+        while get('//tmp/t/@tablets/0/state') != 'unmounted':
+            sleep(0.1)
