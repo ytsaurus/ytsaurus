@@ -289,14 +289,14 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
             for (const auto& column : VariableColumns) {
                 auto value = BlockReader->Read(column.IndexInBlock);
                 value.Id = column.IndexInNameTable;
-                row.SetValue(column.IndexInRow, value);
+                row[column.IndexInRow] = value;
             }
 
-            for (int index = FixedColumns.size() + VariableColumns.size(); index < row.GetValueCount(); ++index) {
+            for (int index = FixedColumns.size() + VariableColumns.size(); index < row.GetCount(); ++index) {
                 TUnversionedValue value;
                 YASSERT(variableIt.ParseNext(&value));
                 value.Id = ChunkIndexToOutputIndex[value.Id];
-                row.SetValue(index, value);
+                row[index] = value;
             }
         } else {
             rows->push_back(TUnversionedRow::Allocate(&MemoryPool, FixedColumns.size()));
@@ -306,7 +306,7 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
         for (const auto& column : FixedColumns) {
             auto value = BlockReader->Read(column.IndexInBlock);
             value.Id = column.IndexInNameTable;
-            row.SetValue(column.IndexInRow, value);
+            row[column.IndexInRow] = value;
         }
 
         BlockReader->NextRow();

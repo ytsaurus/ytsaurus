@@ -23,7 +23,7 @@ NVersionedTableClient::TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYs
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// XXX(psushin): some legacy staff, compat with old-style keys.
+// COMPAT(psushin): some legacy staff, compat with old-style keys.
 
 DECLARE_ENUM(EKeyPartType,
     // A special sentinel used by #GetKeySuccessor.
@@ -50,43 +50,9 @@ int CompareKeys(
     const NChunkClient::NProto::TKey& rhs, 
     int prefixLength = std::numeric_limits<int>::max());
 
-////////////////////////////////////////////////////////////////////////////////
-
-template<class TVersionedRow>
-void ToProto(NChunkClient::NProto::TKey* protoKey, const TVersionedRow& row)
-{
-    protoKey->clear_parts();
-    for (int i = 0; i < row.GetValueCount(); ++i) {
-        auto* keyPart = protoKey->add_parts();
-        switch (row[i].Type) {
-        case NVersionedTableClient::EValueType::Null:
-            keyPart->set_type(EKeyPartType::Null);
-            break;
-
-        case NVersionedTableClient::EValueType::Integer:
-            keyPart->set_type(EKeyPartType::Integer);
-            keyPart->set_int_value(row[i].Data.Integer);
-            break;
-
-        case NVersionedTableClient::EValueType::Double:
-            keyPart->set_type(EKeyPartType::Double);
-            keyPart->set_double_value(row[i].Data.Double);
-            break;
-
-        case NVersionedTableClient::EValueType::String:
-            keyPart->set_type(EKeyPartType::String);
-            keyPart->set_str_value(row[i].Data.String, row[i].Length);
-            break;
-
-        case NVersionedTableClient::EValueType::Any:
-            keyPart->set_type(EKeyPartType::Composite);
-            break;
-
-        default:
-            YUNREACHABLE();
-        }
-    }
-}
+void ToProto(
+    NChunkClient::NProto::TKey* protoKey,
+    NVersionedTableClient::TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

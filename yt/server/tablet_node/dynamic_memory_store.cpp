@@ -369,7 +369,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     };
 
     auto writeValues = [&] (TDynamicRow dynamicRow) {
-        for (int index = KeyCount_; index < row.GetValueCount(); ++index) {
+        for (int index = KeyCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
             if (value.Id < SchemaColumnCount_) {
                 writeFixedValue(dynamicRow, value);

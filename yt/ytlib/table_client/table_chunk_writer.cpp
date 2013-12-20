@@ -427,7 +427,7 @@ void TTableChunkWriter::EmitIndexEntry()
     ToProto(item->mutable_key(), LastKey);
     // RowCount is already increased
     item->set_row_index(RowCount - 1);
-    IndexSize += LastKey.GetValueCount();
+    IndexSize += LastKey.GetCount();
 }
 
 i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)

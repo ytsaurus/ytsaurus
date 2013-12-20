@@ -146,7 +146,7 @@ public:
 
         auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(TYsonString(*yson, EYsonType::MapFragment));
 
-        for (int index = 0; index < row.GetValueCount(); ++index) {
+        for (int index = 0; index < row.GetCount(); ++index) {
             const auto& value = row[index];
             const auto& name = NameTable->GetName(value.Id);
             auto it = expectedRowParts.find(name);

@@ -81,7 +81,7 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 //! Header which precedes row values in memory layout.
 struct TUnversionedRowHeader
 {
-    ui32 ValueCount;
+    ui32 Count;
     ui32 Padding;
 };
 
@@ -140,15 +140,17 @@ public:
         int valueCount)
     {
         auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->Allocate(GetUnversionedRowDataSize(valueCount)));
-        header->ValueCount = valueCount;
+        header->Count = valueCount;
         header->Padding = 0;
         return TUnversionedRow(header);
     }
+
 
     explicit operator bool()
     {
         return Header != nullptr;
     }
+
 
     TUnversionedRowHeader* GetHeader()
     {
@@ -160,49 +162,42 @@ public:
         return Header;
     }
 
-    const TUnversionedValue* BeginValues() const
+
+    const TUnversionedValue* Begin() const
     {
         return reinterpret_cast<const TUnversionedValue*>(Header + 1);
     }
 
-    TUnversionedValue* BeginValues()
+    TUnversionedValue* Begin()
     {
         return reinterpret_cast<TUnversionedValue*>(Header + 1);
     }
 
-    const TUnversionedValue* EndValues() const
+    const TUnversionedValue* End() const
     {
-        return BeginValues() + GetValueCount();
+        return Begin() + GetCount();
     }
 
-    TUnversionedValue* EndValues()
+    TUnversionedValue* End()
     {
-        return BeginValues() + GetValueCount();
+        return Begin() + GetCount();
     }
 
-    void SetValue(int index, const TUnversionedValue& value)
+
+    int GetCount() const
     {
-        BeginValues()[index] = value;
+        return Header->Count;
     }
 
-    const TUnversionedValue& GetValue(int index) const
-    {
-        return BeginValues()[index];
-    }
-
-    int GetValueCount() const
-    {
-        return Header->ValueCount;
-    }
 
     const TUnversionedValue& operator[] (int index) const
     {
-        return GetValue(index);
+        return Begin()[index];
     }
 
     TUnversionedValue& operator[] (int index)
     {
-        return BeginValues()[index];
+        return Begin()[index];
     }
 
 private:
@@ -270,12 +265,12 @@ public:
         if (!other)
             return;
 
-        size_t fixedSize = GetUnversionedRowDataSize(other.GetValueCount());
+        size_t fixedSize = GetUnversionedRowDataSize(other.GetCount());
         RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
         ::memcpy(RowData.Begin(), other.GetHeader(), fixedSize);
 
         size_t variableSize = 0;
-        for (int index = 0; index < other.GetValueCount(); ++index) {
+        for (int index = 0; index < other.GetCount(); ++index) {
             const auto& otherValue = other[index];
             if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
                 variableSize += otherValue.Length;
@@ -286,7 +281,7 @@ public:
             StringData.resize(variableSize);
             char* current = const_cast<char*>(StringData.data());
 
-            for (int index = 0; index < other.GetValueCount(); ++index) {
+            for (int index = 0; index < other.GetCount(); ++index) {
                 const auto& otherValue = other[index];
                 auto& value = reinterpret_cast<TUnversionedValue*>(GetHeader() + 1)[index];;
                 if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
@@ -314,53 +309,53 @@ public:
         return static_cast<bool>(RowData);
     }
 
-    int GetValueCount() const
+
+    int GetCount() const
     {
         const auto* header = GetHeader();
-        return header ? static_cast<int>(header->ValueCount) : 0;
+        return header ? static_cast<int>(header->Count) : 0;
     }
 
-    const TUnversionedValue* BeginValues() const
+
+    const TUnversionedValue* Begin() const
     {
         const auto* header = GetHeader();
         return header ? reinterpret_cast<const TUnversionedValue*>(header + 1) : nullptr;
     }
 
-    TUnversionedValue* BeginValues()
+    TUnversionedValue* Begin()
     {
         auto* header = GetHeader();
         return header ? reinterpret_cast<TUnversionedValue*>(header + 1) : nullptr;
     }
 
-    const TUnversionedValue* EndValues() const
+    const TUnversionedValue* End() const
     {
-        return BeginValues() + GetValueCount();
+        return Begin() + GetCount();
     }
 
-    TUnversionedValue* EndValues()
+    TUnversionedValue* End()
     {
-        return BeginValues() + GetValueCount();
+        return Begin() + GetCount();
     }
 
-    const TUnversionedValue& GetValue(int index) const
-    {
-        return BeginValues()[index];
-    }
 
     const TUnversionedValue& operator[] (int index) const
     {
-        return GetValue(index);
+        return Begin()[index];
     }
 
     TUnversionedValue& operator[] (int index)
     {
-        return BeginValues()[index];
+        return Begin()[index];
     }
+
 
     operator const TUnversionedRow() const
     {
         return TUnversionedRow(const_cast<TUnversionedRowHeader*>(GetHeader()));
     }
+
 
     friend void swap(TUnversionedOwningRow& lhs, TUnversionedOwningRow& rhs)
     {
@@ -374,6 +369,7 @@ public:
         swap(*this, other);
         return *this;
     }
+
 
     void Save(TStreamSaveContext& context) const
     {
@@ -430,19 +426,19 @@ public:
         RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
 
         auto* header = GetHeader();
-        header->ValueCount = 0;
+        header->Count = 0;
     }
 
     void AddValue(const TUnversionedValue& value)
     {
-        if (GetHeader()->ValueCount == ValueCapacity_) {
+        if (GetHeader()->Count == ValueCapacity_) {
             ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
             RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
         }
 
         auto* header = GetHeader();
-        *GetValue(header->ValueCount) = value;
-        ++header->ValueCount;
+        *GetValue(header->Count) = value;
+        ++header->Count;
     }
 
     TUnversionedRow GetRow()
@@ -482,13 +478,13 @@ public:
 
     void AddValue(const TUnversionedValue& value)
     {
-        if (GetHeader()->ValueCount == ValueCapacity_) {
+        if (GetHeader()->Count == ValueCapacity_) {
             ValueCapacity_ *= 2;
             RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
         }
 
         auto* header = GetHeader();
-        auto* newValue = GetValue(header->ValueCount);
+        auto* newValue = GetValue(header->Count);
         *newValue = value;
 
         if (value.Type == EValueType::String || value.Type == EValueType::Any) {
@@ -498,7 +494,7 @@ public:
                     StringData_.capacity() * 2,
                     StringData_.length() + value.Length));
                 char* newStringData = const_cast<char*>(StringData_.begin());
-                for (int index = 0; index < header->ValueCount; ++index) {
+                for (int index = 0; index < header->Count; ++index) {
                     auto* existingValue = GetValue(index);
                     if (existingValue->Type == EValueType::String || existingValue->Type == EValueType::Any) {
                         existingValue->Data.String = newStringData + (existingValue->Data.String - oldStringData);
@@ -509,7 +505,7 @@ public:
             StringData_.append(value.Data.String, value.Data.String + value.Length);
         }
 
-        ++header->ValueCount;
+        ++header->Count;
     }
 
     TUnversionedOwningRow Finish()
@@ -535,7 +531,7 @@ private:
         RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
 
         auto* header = GetHeader();
-        header->ValueCount = 0;
+        header->Count = 0;
     }
 
     TUnversionedRowHeader* GetHeader()

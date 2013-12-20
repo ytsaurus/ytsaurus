@@ -94,8 +94,8 @@ public:
     template <class TLhs, class TRhs>
     int operator () (TLhs lhs, TRhs rhs) const
     {
-        int lhsLength = std::min(static_cast<int>(lhs.GetValueCount()), PrefixLength_);
-        int rhsLength = std::min(static_cast<int>(rhs.GetValueCount()), PrefixLength_);
+        int lhsLength = std::min(static_cast<int>(lhs.GetCount()), PrefixLength_);
+        int rhsLength = std::min(static_cast<int>(rhs.GetCount()), PrefixLength_);
         int minLength = std::min(lhsLength, rhsLength);
         for (int index = 0; index < minLength; ++index) {
             int result = CompareRowValues(lhs[index], rhs[index]);
@@ -103,7 +103,6 @@ public:
                 return result;
             }
         }
-
         return lhsLength - rhsLength;
     }
 

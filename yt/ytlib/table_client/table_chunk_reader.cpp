@@ -186,7 +186,7 @@ public:
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
         HasRangeRequest = StartLimit.HasKey()||
-            (EndLimit.HasKey() && (EndLimit.GetKey().GetValueCount() > 0));
+            (EndLimit.HasKey() && (EndLimit.GetKey().GetCount() > 0));
 
         if (HasRangeRequest) {
             tags.push_back(TProtoExtensionTag<NProto::TIndexExt>::Value);

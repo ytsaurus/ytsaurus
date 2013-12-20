@@ -100,6 +100,41 @@ int CompareKeys(
     return lhsSize - rhsSize;
 }
 
+void ToProto(NChunkClient::NProto::TKey* protoKey, NVersionedTableClient::TUnversionedRow row)
+{
+    protoKey->clear_parts();
+    for (int i = 0; i < row.GetCount(); ++i) {
+        auto* keyPart = protoKey->add_parts();
+        switch (row[i].Type) {
+            case NVersionedTableClient::EValueType::Null:
+                keyPart->set_type(EKeyPartType::Null);
+                break;
+
+            case NVersionedTableClient::EValueType::Integer:
+                keyPart->set_type(EKeyPartType::Integer);
+                keyPart->set_int_value(row[i].Data.Integer);
+                break;
+
+            case NVersionedTableClient::EValueType::Double:
+                keyPart->set_type(EKeyPartType::Double);
+                keyPart->set_double_value(row[i].Data.Double);
+                break;
+
+            case NVersionedTableClient::EValueType::String:
+                keyPart->set_type(EKeyPartType::String);
+                keyPart->set_str_value(row[i].Data.String, row[i].Length);
+                break;
+
+            case NVersionedTableClient::EValueType::Any:
+                keyPart->set_type(EKeyPartType::Composite);
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

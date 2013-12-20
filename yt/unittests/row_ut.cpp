@@ -24,15 +24,7 @@ bool AreRowsEqual(TUnversionedRow lhs, TUnversionedRow rhs)
     if (!lhs && !rhs)
         return true;
 
-    if (lhs.GetValueCount() != rhs.GetValueCount())
-        return false;
-
-    for (int index = 0; index < lhs.GetValueCount(); ++index) {
-        if (CompareRowValues(lhs[index], rhs[index]) != 0)
-            return false;
-    }
-    
-    return true;
+    return CompareRows(lhs, rhs) == 0;
 }
 
 void CheckSerialize(TUnversionedRow row)

@@ -361,8 +361,8 @@ void TSelectCommand::DoExecute()
         for (auto row : rows) {
             consumer->OnListItem();
             consumer->OnBeginMap();
-            for (int i = 0; i < row.GetValueCount(); ++i) {
-                const auto& value = row.GetValue(i);
+            for (int i = 0; i < row.GetCount(); ++i) {
+                const auto& value = row[i];
                 if (value.Type == EValueType::Null)
                     continue;
                 consumer->OnKeyedItem(nameTable->GetName(value.Id));
@@ -434,8 +434,8 @@ void TLookupCommand::DoExecute()
         
         consumer->OnListItem();
         consumer->OnBeginMap();
-        for (int index = 0; index < row.GetValueCount(); ++index) {
-            const auto& value = row.GetValue(index);
+        for (int index = 0; index < row.GetCount(); ++index) {
+            const auto& value = row[index];
             if (value.Type == EValueType::Null)
                 continue;
             consumer->OnKeyedItem(nameTable->GetName(value.Id));

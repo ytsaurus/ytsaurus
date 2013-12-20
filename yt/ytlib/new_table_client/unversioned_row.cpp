@@ -256,7 +256,7 @@ bool operator > (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 
 void ResetRowValues(TUnversionedRow* row)
 {
-    for (int index = 0; index < row->GetValueCount(); ++index) {
+    for (int index = 0; index < row->GetCount(); ++index) {
         (*row)[index].Type = EValueType::Null;
     }
 }
@@ -281,8 +281,8 @@ size_t GetHash(const TUnversionedValue& value)
 size_t GetHash(TUnversionedRow row)
 {
     size_t result = 0xdeadc0de;
-    int partCount = row.GetValueCount();
-    for (int i = 0; i < row.GetValueCount(); ++i) {
+    int partCount = row.GetCount();
+    for (int i = 0; i < row.GetCount(); ++i) {
         result = (result * 1000003) ^ GetHash(row[i]);
     }
     return result ^ partCount;
@@ -309,13 +309,13 @@ TOwningKey GetKeySuccessor(const TOwningKey& key)
 {
     return GetKeySuccessorImpl(
         key,
-        key.GetValueCount(),
+        key.GetCount(),
         EValueType::Min);
 }
 
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
 {
-    YASSERT(prefixLength <= key.GetValueCount());
+    YASSERT(prefixLength <= key.GetCount());
     return GetKeySuccessorImpl(
         key,
         prefixLength,
@@ -362,7 +362,7 @@ TKey EmptyKey()
 Stroka SerializeToString(const TUnversionedRow& row)
 {
     int size = 2 * MaxVarUInt32Size; // header size
-    for (int i = 0; i < row.GetValueCount(); ++i) {
+    for (int i = 0; i < row.GetCount(); ++i) {
         size += GetByteSize(row[i]);
     }
 
@@ -371,9 +371,9 @@ Stroka SerializeToString(const TUnversionedRow& row)
 
     char* current = const_cast<char*>(buffer.data());
     current += WriteVarUInt32(current, 0); // format version
-    current += WriteVarUInt32(current, static_cast<ui32>(row.GetValueCount()));
+    current += WriteVarUInt32(current, static_cast<ui32>(row.GetCount()));
 
-    for (int i = 0; i < row.GetValueCount(); ++i) {
+    for (int i = 0; i < row.GetCount(); ++i) {
         current += WriteValue(current, row[i]);
     }
     buffer.resize(current - buffer.data());
@@ -395,7 +395,7 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
-    header->ValueCount = static_cast<i32>(valueCount);
+    header->Count = static_cast<i32>(valueCount);
 
     auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
     for (int index = 0; index < valueCount; ++index) {
@@ -418,7 +418,7 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 
 Stroka ToString(const TUnversionedRow& row)
 {
-    return JoinToString(row.BeginValues(), row.EndValues());
+    return JoinToString(row.Begin(), row.End());
 }
 
 Stroka ToString(const TUnversionedOwningRow& row)
@@ -471,7 +471,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
 void Serialize(TKey key, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    for (int index = 0; index < key.GetValueCount(); ++index) {
+    for (int index = 0; index < key.GetCount(); ++index) {
         consumer->OnListItem();
         const auto& value = key[index];
         auto type = EValueType(value.Type);

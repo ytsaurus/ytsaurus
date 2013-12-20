@@ -95,7 +95,7 @@ struct ISnapshotStore
         const TSnapshotCreateParams& params) = 0;
 
     //! Creates a writer for a given snapshot id.
-    //! Like #CreateRawReader, this method provides means to write the compressed snapshot image.
+    //! Like #TryCreateRawReader, this method provides means to write the compressed snapshot image.
     virtual ISnapshotWriterPtr CreateRawWriter(int snapshotId) = 0;
 
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist

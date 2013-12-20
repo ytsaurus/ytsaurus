@@ -755,8 +755,8 @@ void TBuildingTableConsumer::OnEndRow()
 {
     auto row = Builder.Finish();
     std::sort(
-        row.BeginValues(),
-        row.EndValues(),
+        row.Begin(),
+        row.End(),
         [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
             return lhs.Id < rhs.Id;
         });

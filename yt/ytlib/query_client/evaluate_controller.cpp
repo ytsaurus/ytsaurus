@@ -64,7 +64,7 @@ TError TEvaluateController::Run()
                 didOpenWriter = true;
             }
             for (auto row : rows) {
-               for (int i = 0; i < row.GetValueCount(); ++i) {
+               for (int i = 0; i < row.GetCount(); ++i) {
                     Writer_->WriteValue(row[i]);
                 }
                 if (!Writer_->EndRow()) {

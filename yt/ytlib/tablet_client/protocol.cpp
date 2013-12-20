@@ -148,8 +148,8 @@ private:
     void WriteRow(TUnversionedRow row)
     {
         if (row) {
-            WriteUInt32(row.GetValueCount() + 1);
-            for (int index = 0; index < row.GetValueCount(); ++index) {
+            WriteUInt32(row.GetCount() + 1);
+            for (int index = 0; index < row.GetCount(); ++index) {
                 WriteRowValue(row[index]);
             }
         } else {

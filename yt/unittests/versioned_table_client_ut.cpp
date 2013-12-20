@@ -160,16 +160,16 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
 
     EXPECT_EQ(0, nameTable->GetId("body"));
 
-    EXPECT_EQ(1, rows[0].GetValueCount());
+    EXPECT_EQ(1, rows[0].GetCount());
     EXPECT_EQ(0, rows[0][0].Id);
     EXPECT_EQ(EValueType::String, rows[0][0].Type);
     EXPECT_STREQ(~TheAnswer, ~ToStroka(rows[0][0]));
 
-    EXPECT_EQ(1, rows[1].GetValueCount());
+    EXPECT_EQ(1, rows[1].GetCount());
     EXPECT_EQ(0, rows[1][0].Id);
     EXPECT_EQ(EValueType::Null, rows[1][0].Type);
 
-    EXPECT_EQ(1, rows[2].GetValueCount());
+    EXPECT_EQ(1, rows[2].GetCount());
     EXPECT_EQ(0, rows[2][0].Id);
     EXPECT_EQ(EValueType::String, rows[2][0].Type);
     EXPECT_STREQ(~Advertisment, ~ToStroka(rows[2][0]));
@@ -200,9 +200,9 @@ TEST_F(TVersionedTableClientTest, SimpleReadAll)
     EXPECT_EQ(nameTable->GetId("body"), 0);
     EXPECT_EQ(nameTable->GetId("bid"), 1);
 
-    EXPECT_EQ(3, rows[0].GetValueCount());
-    EXPECT_EQ(4, rows[1].GetValueCount());
-    EXPECT_EQ(5, rows[2].GetValueCount());
+    EXPECT_EQ(3, rows[0].GetCount());
+    EXPECT_EQ(4, rows[1].GetCount());
+    EXPECT_EQ(5, rows[2].GetCount());
 
     rows.clear();
 
