@@ -131,8 +131,57 @@ size_t WritePodPadded(OutputStream& output, const T& obj)
     return WritePadded(output, objRef);
 }
 
-TSharedRef PackRefs(const std::vector<TSharedRef>& refs);
-void UnpackRefs(const TSharedRef& packedRef, std::vector<TSharedRef>* refs);
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TSharedRef PackRefs(const T& parts)
+{
+    i64 size = 0;
+
+    // Number of bytes to hold vector size.
+    size += sizeof(i32);
+    // Number of bytes to hold ref sizes.
+    size += sizeof(i64)* parts.size();
+    // Number of bytes to hold refs.
+    for (const auto& ref : parts) {
+        size += ref.Size();
+    }
+
+    struct TPackedRefsTag { };
+    auto result = TSharedRef::Allocate<TPackedRefsTag>(size, false);
+    TMemoryOutput output(result.Begin(), result.Size());
+
+    WritePod(output, static_cast<i32>(parts.size()));
+    for (const auto& ref : parts) {
+        WritePod(output, static_cast<i64>(ref.Size()));
+        Write(output, ref);
+    }
+
+    return result;
+}
+
+template <class T>
+void UnpackRefs(const TSharedRef& packedRef, T* parts)
+{
+    TMemoryInput input(packedRef.Begin(), packedRef.Size());
+
+    i32 size;
+    ReadPod(input, size);
+    YCHECK(size >= 0);
+
+    parts->clear();
+    parts->reserve(size);
+
+    for (int index = 0; index < size; ++index) {
+        i64 partSize;
+        ReadPod(input, partSize);
+
+        TRef partRef(const_cast<char*>(input.Buf()), static_cast<size_t>(partSize));
+        parts->push_back(packedRef.Slice(partRef));
+
+        input.Skip(partSize);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

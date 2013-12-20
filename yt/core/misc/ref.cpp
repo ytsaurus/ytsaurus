@@ -150,25 +150,7 @@ public:
 
     TSharedRef Pack() const
     {
-        i64 size = 0;
-
-        size += sizeof(i32);                // array size
-        size += sizeof(i64) * Parts.size(); // parts sizes
-        for (const auto& part : Parts) {    // part bodies
-            size += part.Size();
-        }
-
-        struct TPackedSharedRefArrayTag { };
-        auto result = TSharedRef::Allocate<TPackedSharedRefArrayTag>(size, false);
-        TMemoryOutput output(result.Begin(), result.Size());
-
-        WritePod(output, static_cast<i32>(Parts.size()));
-        for (const auto& part : Parts) {
-            WritePod(output, static_cast<i64>(part.Size()));
-            Write(output, part);
-        }
-
-        return result;
+        return PackRefs(Parts);
     }
 
     static TIntrusivePtr<TImpl> Unpack(const TSharedRef& packedRef)
@@ -177,25 +159,9 @@ public:
             return nullptr;
         }
 
-        TMemoryInput input(packedRef.Begin(), packedRef.Size());
-
-        i32 size;
-        ::Load(&input, size);
-        YCHECK(size >= 0);
-
-        auto impl = New<TImpl>(size);
-        for (int index = 0; index < size; ++index) {
-            i64 partSize;
-            ::Load(&input, partSize);
-            YCHECK(partSize >= 0);
-
-            TRef partRef(const_cast<char*>(input.Buf()), static_cast<size_t>(partSize));
-            impl->Parts[index] = packedRef.Slice(partRef);
-
-            input.Skip(partSize);
-        }
-
-        return impl;
+        std::vector<TSharedRef> parts;
+        UnpackRefs(packedRef, &parts);
+        return New<TImpl>(std::move(parts));
     }
 
 private:
