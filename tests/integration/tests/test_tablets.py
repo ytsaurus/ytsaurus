@@ -19,19 +19,22 @@ class TestTablets(YTEnvSetup):
         for _ in xrange(count):
             ids.append(create_tablet_cell(size))
 
-        print 'Wainting to tablet cells to become healthy...'
+        print 'Waiting for tablet cells to become healthy...'
         while any(get('//sys/tablet_cells/' + id + '/@health') != 'good' for
                   id in ids):
             sleep(0.1)
-            
 
-    def test_mount1(self):
-        self._create_cells(1, 1)
+    def _create_table(self):
         create('table', '//tmp/t',
                attributes = {
                  'schema': [{'name': 'key', 'type': 'integer'}, {'name': 'value', 'type': 'string'}],
                  'key_columns': ['key']
                })
+            
+
+    def test_mount1(self):
+        self._create_cells(1, 1)
+        self._create_table()
 
         mount_table('//tmp/t')
         tablets = get('//tmp/t/@tablets')
@@ -43,5 +46,10 @@ class TestTablets(YTEnvSetup):
         assert tablet_ids == [tablet_id]
 
 
+    def test_unmount1(self):
+        self._create_cells(1, 1)
+        self._create_table()
 
-
+        for _ in xrange(5):
+            mount_table('//tmp/t')
+            unmount_table('//tmp/t')
