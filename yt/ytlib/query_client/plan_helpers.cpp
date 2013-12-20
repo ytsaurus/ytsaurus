@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/name_table.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -20,6 +21,8 @@ const TDataSplit& GetHeaviestSplit(const TOperator* op)
             return GetHeaviestSplit(op->As<TFilterOperator>()->GetSource());
         case EOperatorKind::Project:
             return GetHeaviestSplit(op->As<TProjectOperator>()->GetSource());
+        case EOperatorKind::GroupBy:
+            return GetHeaviestSplit(op->As<TGroupByOperator>()->GetSource());
         default:
             YUNREACHABLE();
     }
@@ -35,10 +38,12 @@ TTableSchema InferTableSchema(const TOperator* op)
         case EOperatorKind::Project: {
             TTableSchema result;
             auto* typedOp = op->As<TProjectOperator>();
+
+            auto sourceSchema = InferTableSchema(typedOp->GetSource());
             for (const auto& projection : typedOp->Projections()) {
                 result.Columns().emplace_back(
-                    InferName(projection),
-                    InferType(projection));
+                    projection.second,
+                    InferType(projection.first, sourceSchema));
             }
             return result;
         }
@@ -56,6 +61,25 @@ TTableSchema InferTableSchema(const TOperator* op)
             }
             return result;
         }
+        case EOperatorKind::GroupBy: {
+            TTableSchema result;
+            auto* typedOp = op->As<TGroupByOperator>();
+
+            auto sourceSchema = InferTableSchema(typedOp->GetSource());
+            for (const auto& groupItem : typedOp->GroupItems()) {
+                result.Columns().emplace_back(
+                    groupItem.second,
+                    InferType(groupItem.first, sourceSchema));
+            }
+
+            for (const auto& aggregateItem : typedOp->AggregateItems()) {
+                result.Columns().emplace_back(
+                    aggregateItem.Name,
+                    InferType(aggregateItem.Expression, sourceSchema));
+            }
+
+            return result;
+        }
         default:
             YUNREACHABLE();
     }
@@ -70,6 +94,8 @@ TKeyColumns InferKeyColumns(const TOperator* op)
             return InferKeyColumns(op->As<TFilterOperator>()->GetSource());
         case EOperatorKind::Project:
             return TKeyColumns();
+        case EOperatorKind::GroupBy:
+            return TKeyColumns();
         case EOperatorKind::Union: {
             TKeyColumns result;
             bool didChooseKeyColumns = false;
@@ -83,23 +109,15 @@ TKeyColumns InferKeyColumns(const TOperator* op)
                 }
             }
             return result;
+        
         }
         default:
             YUNREACHABLE();
     }
 }
 
-EValueType InferType(const TExpression* expr, bool ignoreCached)
+EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
 {
-    if (!ignoreCached) {
-        auto cachedType = expr->GetCachedType();
-        if (cachedType != EValueType::Null) {
-            return cachedType;
-        }
-        cachedType = InferType(expr, true);
-        expr->SetCachedType(cachedType);
-        return cachedType;
-    }
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral:
             return EValueType::Integer;
@@ -107,13 +125,13 @@ EValueType InferType(const TExpression* expr, bool ignoreCached)
             return EValueType::Double;
         case EExpressionKind::Reference:
             // For reference expression, always trust cached type.
-            return expr->GetCachedType();
+            return sourceSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetName()).Type;
         case EExpressionKind::Function:
-            YUNIMPLEMENTED();
+            YUNREACHABLE();
         case EExpressionKind::BinaryOp: {
             auto* typedExpr = expr->As<TBinaryOpExpression>();
-            auto lhsType = InferType(typedExpr->GetLhs());
-            auto rhsType = InferType(typedExpr->GetRhs());
+            auto lhsType = InferType(typedExpr->GetLhs(), sourceSchema);
+            auto rhsType = InferType(typedExpr->GetRhs(), sourceSchema);
             if (lhsType != rhsType) {
                 THROW_ERROR_EXCEPTION(
                     "Type mismatch between left- and right-hand sides in expression %s",
@@ -166,17 +184,8 @@ EValueType InferType(const TExpression* expr, bool ignoreCached)
     }
 }
 
-Stroka InferName(const TExpression* expr, bool ignoreCached)
+Stroka InferName(const TExpression* expr)
 {
-    if (!ignoreCached) {
-        auto cachedName = expr->GetCachedName();
-        if (!cachedName.empty()) {
-            return cachedName;
-        }
-        cachedName = InferName(expr, true);
-        expr->SetCachedName(cachedName);
-        return cachedName;
-    }
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral:
             return ToString(expr->As<TIntegerLiteralExpression>()->GetValue());

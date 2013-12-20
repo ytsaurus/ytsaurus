@@ -33,7 +33,6 @@ TEvaluateController::TEvaluateController(
     : Callbacks_(callbacks)
     , Fragment_(fragment)
     , Writer_(std::move(writer))
-    , NameTable_(New<TNameTable>())
     , Logger(QueryClientLogger)
 {
     Logger.AddTag(Sprintf(
@@ -58,7 +57,7 @@ TError TEvaluateController::Run()
             if (UNLIKELY(!didOpenWriter)) {
                 LOG_DEBUG("Opening writer");
                 Writer_->Open(
-                    NameTable_,
+                    GetHead()->GetResultNames(),
                     GetHead()->GetTableSchema(),
                     GetHead()->GetKeyColumns());
                 didOpenWriter = true;
@@ -112,6 +111,10 @@ TEvaluateController::TProducer TEvaluateController::CreateProducer(const TOperat
             return TProducer(BIND(&TEvaluateController::ProjectRoutine,
                 Unretained(this),
                 op->As<TProjectOperator>()));
+        case EOperatorKind::GroupBy:
+            return TProducer(BIND(&TEvaluateController::GroupByRoutine,
+                Unretained(this),
+                op->As<TGroupByOperator>()));
     }
     YUNREACHABLE();
 }
@@ -131,7 +134,8 @@ void TEvaluateController::ScanRoutine(
     LOG_DEBUG("Opening reader");
 
     {
-        auto error = WaitFor(reader->Open(NameTable_, schema));
+        NVersionedTableClient::TNameTablePtr nameTable = New<TNameTable>();
+        auto error = WaitFor(reader->Open(nameTable, schema));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
@@ -180,13 +184,15 @@ void TEvaluateController::FilterRoutine(
 
     auto source = CreateProducer(op->GetSource());
 
+    auto sourceTableSchema = op->GetTableSchema();
+
     while (source.Run(rows)) {
         rows->erase(
             std::remove_if(
                 rows->begin(),
                 rows->end(),
                 [=] (const TRow row) -> bool {
-                    auto value = EvaluateExpression(op->GetPredicate(), row);
+                    auto value = EvaluateExpression(op->GetPredicate(), row, sourceTableSchema);
                     YCHECK(value.Type == EValueType::Integer);
                     return value.Data.Integer == 0;
                 }),
@@ -206,19 +212,20 @@ void TEvaluateController::ProjectRoutine(
     LOG_DEBUG("Creating producer for project operator (Op: %p)", op);
 
     auto source = CreateProducer(op->GetSource());
+    auto sourceTableSchema = op->GetSource()->GetTableSchema();
     TChunkedMemoryPool memoryPool;
 
+    auto nameTable = op->GetResultNames();
     while (source.Run(rows)) {
         std::transform(
             rows->begin(),
             rows->end(),
             rows->begin(),
-            [this, &op, &memoryPool] (const TRow row) -> TRow {
+            [this, &op, &memoryPool, &sourceTableSchema, &nameTable] (const TRow row) -> TRow {
                 auto result = TRow::Allocate(&memoryPool, op->GetProjectionCount());
                 for (int i = 0; i < op->GetProjectionCount(); ++i) {
-                    result[i] = EvaluateExpression(
-                        op->GetProjection(i),
-                        row);
+                    result[i] = EvaluateExpression(op->GetProjection(i).first, row, sourceTableSchema);
+                    result[i].Id = nameTable->GetId(op->GetProjection(i).second);
                 }
                 return result;
             });
@@ -229,37 +236,169 @@ void TEvaluateController::ProjectRoutine(
     LOG_DEBUG("Done producing for project operator (Op: %p)", op);
 }
 
+template <class T>
+size_t THashCombine(size_t seed, const T& value)
+{
+    std::hash<T> hasher;
+    return seed ^ (hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2)); 
+    // TODO(lukyan): Fix this function
+}
+
+struct TGroupByHasher
+{
+    int KeySize_;
+
+public:
+    explicit TGroupByHasher(int keySize) : KeySize_(keySize)
+    { }
+
+    size_t operator() (TRow key) const
+    {
+        size_t result = 0;
+        for (int i = 0; i < KeySize_; ++i) {
+            YCHECK(key[i].Type == EValueType::Integer);
+            result = THashCombine(result, key[i].Data.Integer);
+        }
+		return result;
+	}
+};
+
+class TGroupByComparer
+{
+    int KeySize_;
+
+public:
+    explicit TGroupByComparer(int keySize) : KeySize_(keySize)
+    { }
+
+    bool operator() (TRow lhs, TRow rhs) const
+    {
+        for (int i = 0; i < KeySize_; ++i) {
+            YCHECK(lhs[i].Type == EValueType::Integer);
+            YCHECK(rhs[i].Type == EValueType::Integer);
+
+            if (lhs[i].Data.Integer != rhs[i].Data.Integer) {
+                return false;
+            }            
+        }
+        return true;
+    }
+};
+
+void TEvaluateController::GroupByRoutine(
+    const TGroupByOperator* op,
+    TProducer& self,
+    std::vector<TRow>* rows)
+{
+    YASSERT(op);
+    LOG_DEBUG("Creating producer for group by operator (Op: %p)", op);
+
+    auto source = CreateProducer(op->GetSource());
+    auto sourceTableSchema = op->GetSource()->GetTableSchema();
+    TChunkedMemoryPool memoryPool;
+
+    auto nameTable = op->GetResultNames();
+    int keySize = op->GetGroupItemsCount();
+
+    std::vector<TRow> groupedRows;
+    std::unordered_set<TRow, TGroupByHasher, TGroupByComparer> keys(256, TGroupByHasher(keySize), TGroupByComparer(keySize));
+
+    std::vector<TRow> sourceRows;
+    sourceRows.reserve(1000);
+
+    while (source.Run(&sourceRows)) {
+        auto resultRow = TRow::Allocate(&memoryPool, keySize + op->AggregateItems().size());
+        for (auto row : sourceRows) {
+
+            for (int i = 0; i < keySize; ++i) {
+                resultRow[i] = EvaluateExpression(op->GetGroupItem(i).first, row, sourceTableSchema);
+                resultRow[i].Id = nameTable->GetId(op->GetGroupItem(i).second);
+            }
+
+            for (int i = 0; i < op->AggregateItems().size(); ++i) {
+                resultRow[keySize + i] = EvaluateExpression(op->AggregateItems()[i].Expression, row, sourceTableSchema);
+                resultRow[keySize + i].Id = nameTable->GetId(op->AggregateItems()[i].Name);
+            }
+
+            auto foundIterator = keys.find(resultRow);
+
+            if (foundIterator != keys.end()) {
+                auto aggregateRow = *foundIterator;
+                for (int i = 0; i < op->AggregateItems().size(); ++i) {
+                    YCHECK(aggregateRow[keySize + i].Type == EValueType::Integer);
+                    YCHECK(resultRow[keySize + i].Type == EValueType::Integer);
+                    
+                    auto& aggregateValue = aggregateRow[keySize + i].Data.Integer;
+                    auto resultValue = resultRow[keySize + i].Data.Integer;
+
+                    switch (op->AggregateItems()[i].AggregateFunction) {
+                        case EAggregateFunctions::Sum:
+                            aggregateValue += resultValue;
+                            break;
+                        case EAggregateFunctions::Min:
+                            aggregateValue = std::min(aggregateValue, resultValue);
+                            break;
+                        case EAggregateFunctions::Max:
+                            aggregateValue = std::max(aggregateValue, resultValue);
+                            break;
+                        default:
+                            YUNIMPLEMENTED();
+                    }
+                }
+            } else {
+                groupedRows.push_back(resultRow);
+                keys.insert(groupedRows.back());
+                resultRow = TRow::Allocate(&memoryPool, keySize + op->AggregateItems().size());
+            }            
+        }
+
+        sourceRows.clear();
+        sourceRows.reserve(1000);
+    }
+
+    rows->swap(groupedRows);
+    std::tie(rows) = self.Yield();
+    memoryPool.Clear();
+
+    LOG_DEBUG("Done producing for group by operator (Op: %p)", op);
+}
+
 TValue TEvaluateController::EvaluateExpression(
     const TExpression* expr,
-    const TRow row) const
+    const TRow row,
+    const TTableSchema& tableSchema) const
 {
     YASSERT(expr);
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral:
             return MakeIntegerValue<TValue>(
-                expr->As<TIntegerLiteralExpression>()->GetValue(),
-                NameTable_->GetIdOrRegisterName(expr->GetName()));
+                expr->As<TIntegerLiteralExpression>()->GetValue());
         case EExpressionKind::DoubleLiteral:
             return MakeDoubleValue<TValue>(
-                expr->As<TDoubleLiteralExpression>()->GetValue(),
-                NameTable_->GetIdOrRegisterName(expr->GetName()));
+                expr->As<TDoubleLiteralExpression>()->GetValue());
         case EExpressionKind::Reference:
-            return row[expr->As<TReferenceExpression>()->GetIndexInRow()];
+        {
+            int index = tableSchema.GetColumnIndex(tableSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetName()));
+            return row[index];
+        }
         case EExpressionKind::Function:
             return EvaluateFunctionExpression(
                 expr->As<TFunctionExpression>(),
-                row);
+                row,
+                tableSchema);
         case EExpressionKind::BinaryOp:
             return EvaluateBinaryOpExpression(
                 expr->As<TBinaryOpExpression>(),
-                row);
+                row,
+                tableSchema);
     }
     YUNREACHABLE();
 }
 
 TValue TEvaluateController::EvaluateFunctionExpression(
     const TFunctionExpression* expr,
-    const TRow row) const
+    const TRow row,
+    const TTableSchema& tableSchema) const
 {
     YASSERT(expr);
     YUNIMPLEMENTED();
@@ -267,24 +406,25 @@ TValue TEvaluateController::EvaluateFunctionExpression(
 
 TValue TEvaluateController::EvaluateBinaryOpExpression(
     const TBinaryOpExpression* expr,
-    const TRow row) const
+    const TRow row,
+    const TTableSchema& tableSchema) const
 {
     YASSERT(expr);
 
-    auto lhsValue = EvaluateExpression(expr->GetLhs(), row);
-    auto rhsValue = EvaluateExpression(expr->GetRhs(), row);
+    auto lhsValue = EvaluateExpression(expr->GetLhs(), row, tableSchema);
+    auto rhsValue = EvaluateExpression(expr->GetRhs(), row, tableSchema);
     auto name = expr->GetName();
 
     switch (expr->GetOpcode()) {
 #define XX_RETURN_INTEGER(value) \
-        return MakeIntegerValue<TValue>((value), NameTable_->GetIdOrRegisterName(expr->GetName()))
+        return MakeIntegerValue<TValue>((value))
 #define XX_RETURN_DOUBLE(value) \
-        return MakeDoubleValue<TValue>((value), NameTable_->GetIdOrRegisterName(expr->GetName()))
+        return MakeDoubleValue<TValue>((value))
 
         // Arithmetical operations.
 #define XX(opcode, optype) \
         case EBinaryOp::opcode: \
-            switch (expr->GetType()) { \
+            switch (expr->GetType(tableSchema)) { \
                 case EValueType::Integer: \
                     XX_RETURN_INTEGER( \
                         lhsValue.Data.Integer optype rhsValue.Data.Integer); \
@@ -304,7 +444,7 @@ TValue TEvaluateController::EvaluateBinaryOpExpression(
         // Integral and logical operations.
 #define XX(opcode, optype) \
         case EBinaryOp::opcode: \
-            switch (expr->GetType()) { \
+            switch (expr->GetType(tableSchema)) { \
                 case EValueType::Integer: \
                     XX_RETURN_INTEGER( \
                         lhsValue.Data.Integer optype rhsValue.Data.Integer); \
@@ -320,7 +460,7 @@ TValue TEvaluateController::EvaluateBinaryOpExpression(
         // Comparsion operations.
 #define XX(opcode, optype) \
         case EBinaryOp::opcode: \
-            switch (expr->GetType()) { \
+            switch (expr->GetType(tableSchema)) { \
                 case EValueType::Integer: \
                     XX_RETURN_INTEGER( \
                         lhsValue.Data.Integer optype rhsValue.Data.Integer \

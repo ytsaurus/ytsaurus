@@ -32,6 +32,7 @@ private:
     void GetInitialSplits();
     void CheckAndBindReferences();
     void TypecheckExpressions();
+    void MoveAggregateExpressions();
 
     IPrepareCallbacks* Callbacks_;
     const Stroka& Source_;

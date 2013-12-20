@@ -60,9 +60,9 @@ Stroka TExpression::GetSource() const
     }
 }
 
-EValueType TExpression::GetType() const
+EValueType TExpression::GetType(const TTableSchema& sourceSchema) const
 {
-    return InferType(this);
+    return InferType(this, sourceSchema);
 }
 
 Stroka TExpression::GetName() const
@@ -75,17 +75,6 @@ Stroka TExpression::GetName() const
 void ToProto(NProto::TExpression* serialized, const TExpression* original)
 {
     serialized->set_kind(original->GetKind());
-
-    auto&& cachedType = original->GetCachedType();
-    if (cachedType != EValueType::Null) {
-        serialized->set_cached_type(std::move(cachedType));
-    }
-
-    auto&& cachedName = original->GetCachedName();
-    if (!cachedName.empty()) {
-        serialized->set_cached_name(std::move(cachedName));
-    }
-
     switch (original->GetKind()) {
 
         case EExpressionKind::IntegerLiteral: {
@@ -107,8 +96,6 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
             auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
             proto->set_table_index(expr->GetTableIndex());
             proto->set_column_name(expr->GetColumnName());
-            proto->set_index_in_row(expr->GetIndexInRow());
-            proto->set_index_in_key(expr->GetIndexInKey());
             break;
         }
 
@@ -168,8 +155,6 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
                 NullSourceLocation,
                 data.table_index(),
                 data.column_name());
-            typedResult->SetIndexInRow(data.index_in_row());
-            typedResult->SetIndexInKey(data.index_in_key());
             YASSERT(!result);
             result = typedResult;
             break;
@@ -208,15 +193,6 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
     }
 
     YCHECK(result);
-
-    if (serialized.has_cached_type()) {
-        result->SetCachedType(EValueType(serialized.cached_type()));
-    }
-
-    if (serialized.has_cached_name()) {
-        result->SetCachedName(serialized.cached_name());
-    }
-
     return result;
 }
 

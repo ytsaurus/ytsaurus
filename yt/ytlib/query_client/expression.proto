@@ -5,8 +5,6 @@ package NYT.NQueryClient.NProto;
 message TExpression
 {
     required int32 kind = 1;
-    optional int32 cached_type = 2; // EValueType
-    optional string cached_name = 3;
 
     extensions 100 to max;
 }
