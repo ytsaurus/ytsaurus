@@ -390,7 +390,9 @@ public:
             std::make_pair(table->Tablets().begin(), table->Tablets().end()));
 
         for (auto* tablet : table->Tablets()) {
-            DoTabletUnmounted(tablet);
+            if (tablet->GetState() == ETabletState::Unmounting) {
+                DoTabletUnmounted(tablet);
+            }
         }
 
         table->Tablets().clear();
