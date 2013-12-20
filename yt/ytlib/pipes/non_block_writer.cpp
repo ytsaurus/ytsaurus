@@ -60,11 +60,9 @@ void TNonBlockWriter::WriteToBuffer(const char* data, size_t size)
     size_t bytesWritten = 0;
 
     if (WriteBuffer.Size() == 0) {
-        LOG_DEBUG("Internal buffer is empty. Trying to write %" PRISZT " bytes", size);
         bytesWritten = TryWrite(data, size);
     }
 
-    LOG_DEBUG("%" PRISZT " bytes has been added to internal write buffer", size - bytesWritten);
     WriteBuffer.Append(data + bytesWritten, size - bytesWritten);
 }
 

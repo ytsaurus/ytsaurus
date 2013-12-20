@@ -331,7 +331,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Reading has been finished");
+        LOG_DEBUG("Done processing job outputs");
 
         int status = 0;
         int waitpidResult = waitpid(ProcessId, &status, 0);
@@ -341,7 +341,7 @@ private:
             SetError(StatusToError(status));
         }
 
-        LOG_DEBUG("The child process has been finished");
+        LOG_DEBUG("Child process has finished");
 
         auto finishPipe = [&] (IDataPipePtr pipe) {
             try {
@@ -360,7 +360,7 @@ private:
             finishPipe(pipe);
         }
 
-        LOG_DEBUG("Pipes has been finished");
+        LOG_DEBUG("Finished pipes");
 
         for (auto& writer : Writers) {
             try {
@@ -370,7 +370,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Writers has been closed");
+        LOG_DEBUG("Closed writers");
 
         for (auto& asyncError : inputFinishEvents) {
             auto error = asyncError.Get();
@@ -379,7 +379,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Writing has been finished");
+        LOG_DEBUG("Done processing job inputs");
     }
 
     // Called from the forked process.

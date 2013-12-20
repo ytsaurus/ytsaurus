@@ -133,8 +133,6 @@ TAsyncError TAsyncReader::GetReadyEvent()
         return MakePromise(GetState());
     }
 
-    LOG_DEBUG("Returning a new future");
-
     YCHECK(!ReadyPromise);
     ReadyPromise = NewPromise<TError>();
     return ReadyPromise.ToFuture();

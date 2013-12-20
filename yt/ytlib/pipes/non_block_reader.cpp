@@ -47,8 +47,6 @@ void TNonBlockReader::ReadToBuffer()
                 LastSystemError_ = errno;
             }
         } else {
-            LOG_DEBUG("Read %" PRISZT " bytes", size);
-
             BytesInBuffer_ += size;
             if (size == 0) {
                 ReachedEOF_ = true;
@@ -64,16 +62,14 @@ void TNonBlockReader::Close()
     if (!Closed_) {
         int errCode = close(FD);
 
-        if (errCode == -1) {
+        if (errCode == -1 && errno != EAGAIN) {
             LOG_DEBUG(TError::FromSystem(), "Failed to close");
 
             // please, read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
             // http://rb.yandex-team.ru/arc/r/44030/
             // before editing
-            if (errno != EAGAIN) {
-                LastSystemError_ = errno;
-            }
+            LastSystemError_ = errno;
         }
         Closed_ = true;
     }
@@ -93,17 +89,17 @@ std::pair<TBlob, bool> TNonBlockReader::GetRead(TBlob&& buffer)
 
 bool TNonBlockReader::IsBufferFull() const
 {
-    return (BytesInBuffer_ == ReadBuffer_.Size());
+    return BytesInBuffer_ == ReadBuffer_.Size();
 }
 
 bool TNonBlockReader::IsBufferEmpty() const
 {
-    return (BytesInBuffer_ == 0);
+    return BytesInBuffer_ == 0;
 }
 
 bool TNonBlockReader::InFailedState() const
 {
-    return (LastSystemError_ != 0);
+    return LastSystemError_ != 0;
 }
 
 bool TNonBlockReader::IsClosed() const
