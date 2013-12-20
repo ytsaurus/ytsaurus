@@ -1,5 +1,4 @@
 XX(ScanOperator)
 XX(UnionOperator)
 XX(FilterOperator)
-XX(GroupByOperator)
 XX(ProjectOperator)

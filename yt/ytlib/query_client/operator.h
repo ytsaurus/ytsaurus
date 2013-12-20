@@ -13,15 +13,10 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::pair<const TExpression*, Stroka> TNamedExpression;
-
-typedef SmallVector<TNamedExpression, TypicalNamedExpressionsCount> TNamedExpressionList;
-
 DECLARE_ENUM(EOperatorKind,
     (Scan)
     (Union)
     (Filter)
-    (GroupBy)
     (Project)
 );
 
@@ -35,9 +30,6 @@ public:
 
     //! Piggy-backed method |InferTableSchema|.
     TTableSchema GetTableSchema() const;
-
-    //! Piggy-backed method |InferResultNames|.
-    NVersionedTableClient::TNameTablePtr GetResultNames() const;
 
     //! Piggy-backed method |InferKeyColumns|.
     TKeyColumns GetKeyColumns() const;
@@ -136,82 +128,12 @@ public:
 
 };
 
-DECLARE_ENUM(EAggregateFunctions,
-    (Sum)
-    (Min)
-    (Max)
-    (Average)
-    (Count)
-);
-
-class TAggregateItem
-{
-public:
-    TAggregateItem()
-    { }
-
-    TAggregateItem(const TExpression* expression, EAggregateFunctions aggregateFunction, Stroka name)
-        : Expression(expression), AggregateFunction(aggregateFunction), Name(name)
-    { }
-
-    const TExpression* Expression;
-    EAggregateFunctions AggregateFunction;
-    Stroka Name;
-};
-
-class TGroupByOperator
-    : public TOperator
-{
-public:
-    typedef SmallVector<TAggregateItem, 3> TAggregateItemList;
-
-    TGroupByOperator(TPlanContext* context, const TOperator* source)
-        : TOperator(context, EOperatorKind::GroupBy)
-        , Source_(source)
-    { }
-
-    static inline bool IsClassOf(const TOperator* op)
-    {
-        return op->GetKind() == EOperatorKind::GroupBy;
-    }
-
-    virtual TArrayRef<const TOperator*> Children() const override
-    {
-        return Source_;
-    }
-
-    TNamedExpressionList& GroupItems()
-    {
-        return GroupItems_;
-    }
-
-    const TNamedExpressionList& GroupItems() const
-    {
-        return GroupItems_;
-    }
-
-    int GetGroupItemsCount() const
-    {
-        return GroupItems_.size();
-    }
-
-    const TNamedExpression& GetGroupItem(int i) const
-    {
-        return GroupItems_[i];
-    }
-
-    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
-    DEFINE_BYREF_RW_PROPERTY(TAggregateItemList, AggregateItems);
-
-private:
-    TNamedExpressionList GroupItems_;
-
-};
-
 class TProjectOperator
     : public TOperator
 {
 public:
+    typedef SmallVector<const TExpression*, TypicalProjectionCount> TProjections;
+
     TProjectOperator(TPlanContext* context, const TOperator* source)
         : TOperator(context, EOperatorKind::Project)
         , Source_(source)
@@ -227,12 +149,12 @@ public:
         return Source_;
     }
 
-    TNamedExpressionList& Projections()
+    TProjections& Projections()
     {
         return Projections_;
     }
 
-    const TNamedExpressionList& Projections() const
+    const TProjections& Projections() const
     {
         return Projections_;
     }
@@ -242,7 +164,7 @@ public:
         return Projections_.size();
     }
 
-    const TNamedExpression& GetProjection(int i) const
+    const TExpression* GetProjection(int i) const
     {
         return Projections_[i];
     }
@@ -250,7 +172,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
 
 private:
-    TNamedExpressionList Projections_;
+    TProjections Projections_;
 
 };
 

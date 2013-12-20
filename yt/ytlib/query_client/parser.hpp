@@ -236,14 +236,15 @@ namespace NYT { namespace NQueryClient {
       // multiplicative-op
       char dummy1[sizeof(EBinaryOp)];
 
-      // expression
+      // projection
+      // atomic-expr
+      // function-expr-arg
       // or-op-expr
       // and-op-expr
       // equality-op-expr
       // relational-op-expr
       // additive-op-expr
       // multiplicative-op-expr
-      // atomic-expr
       char dummy2[sizeof(TExpression*)];
 
       // function-expr
@@ -252,29 +253,24 @@ namespace NYT { namespace NQueryClient {
       // function-expr-args
       char dummy4[sizeof(TFunctionExpression::TArguments)];
 
-      // named-expression
-      char dummy5[sizeof(TNamedExpression)];
-
-      // named-expression-list
-      char dummy6[sizeof(TNamedExpressionList)];
-
       // select-clause
+      // select-source
       // from-where-clause
       // from-clause
-      char dummy7[sizeof(TOperator*)];
+      char dummy5[sizeof(TOperator*)];
 
-      // name-expr
-      char dummy8[sizeof(TReferenceExpression*)];
+      // projections
+      char dummy6[sizeof(TProjectOperator::TProjections)];
 
       // "identifier"
       // "YPath literal"
-      char dummy9[sizeof(TStringBuf)];
+      char dummy7[sizeof(TStringBuf)];
 
       // "double literal"
-      char dummy10[sizeof(double)];
+      char dummy8[sizeof(double)];
 
       // "integer literal"
-      char dummy11[sizeof(i64)];
+      char dummy9[sizeof(i64)];
 };
 
     /// Symbol semantic values.
@@ -301,14 +297,12 @@ namespace NYT { namespace NQueryClient {
         Failure = 256,
         KwFrom = 259,
         KwWhere = 260,
-        KwGroupBy = 261,
-        KwAs = 262,
-        KwAnd = 263,
-        KwOr = 264,
-        Identifier = 265,
-        IntegerLiteral = 266,
-        DoubleLiteral = 267,
-        YPathLiteral = 268,
+        KwAnd = 261,
+        KwOr = 262,
+        Identifier = 263,
+        IntegerLiteral = 264,
+        DoubleLiteral = 265,
+        YPathLiteral = 266,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -318,11 +312,11 @@ namespace NYT { namespace NQueryClient {
         OpMinus = 45,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 269,
+        OpLessOrEqual = 267,
         OpEqual = 61,
-        OpNotEqual = 270,
+        OpNotEqual = 268,
         OpGreater = 62,
-        OpGreaterOrEqual = 271
+        OpGreaterOrEqual = 269
       };
     };
 
@@ -365,13 +359,9 @@ namespace NYT { namespace NQueryClient {
 
   basic_symbol (typename Base::kind_type t, const TFunctionExpression::TArguments v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
-
   basic_symbol (typename Base::kind_type t, const TOperator* v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TReferenceExpression* v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TProjectOperator::TProjections v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
@@ -452,14 +442,6 @@ namespace NYT { namespace NQueryClient {
     static inline
     symbol_type
     make_KwWhere (const location_type& l);
-
-    static inline
-    symbol_type
-    make_KwGroupBy (const location_type& l);
-
-    static inline
-    symbol_type
-    make_KwAs (const location_type& l);
 
     static inline
     symbol_type
@@ -624,7 +606,7 @@ namespace NYT { namespace NQueryClient {
   // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
   // positive, shift that token.  If negative, reduce the rule whose
   // number is the opposite.  If YYTABLE_NINF, syntax error.
-  static const signed char yytable_[];
+  static const unsigned char yytable_[];
 
   static const signed char yycheck_[];
 
@@ -741,13 +723,13 @@ namespace NYT { namespace NQueryClient {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 65,           //< Last index in yytable_.
+      yylast_ = 51,           //< Last index in yytable_.
       yynnts_ = 22,  //< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 22, //< Termination state number.
+      yyfinal_ = 20, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 28    //< Number of tokens.
+      yyntokens_ = 26    //< Number of tokens.
     };
 
 
@@ -760,7 +742,7 @@ namespace NYT { namespace NQueryClient {
 
 #line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 } } // NYT::NQueryClient
-#line 764 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 746 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 

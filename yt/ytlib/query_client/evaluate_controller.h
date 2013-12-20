@@ -4,8 +4,6 @@
 #include "callbacks.h"
 #include "plan_fragment.h"
 
-#include <ytlib/new_table_client/schema.h>
-
 #include <core/concurrency/coroutine.h>
 
 #include <core/logging/tagged_logger.h>
@@ -20,7 +18,6 @@ class TScanOperator;
 class TUnionOperator;
 class TFilterOperator;
 class TProjectOperator;
-class TGroupByOperator;
 
 class TIntegerLiteralExpression;
 class TDoubleLiteralExpression;
@@ -77,28 +74,34 @@ private:
         const TProjectOperator* op,
         TProducer& self,
         std::vector<TRow>* rows);
-    void GroupByRoutine(
-        const TGroupByOperator* op,
-        TProducer& self,
-        std::vector<TRow>* rows); 
 
     TValue EvaluateExpression(
         const TExpression* expr,
-        const TRow row,
-        const TTableSchema& tableSchema) const;
+        const TRow row) const;
     TValue EvaluateFunctionExpression(
         const TFunctionExpression* expr,
-        const TRow row,
-        const TTableSchema& tableSchema) const;
+        const TRow row) const;
     TValue EvaluateBinaryOpExpression(
         const TBinaryOpExpression* expr,
-        const TRow row,
-        const TTableSchema& tableSchema) const;
+        const TRow row) const;
+
+    void SetHead(const TOperator* head)
+    {
+        Fragment_.SetHead(head);
+    }
+
+    template <class TFunctor>
+    void Rewrite(const TFunctor& functor)
+    {
+        SetHead(Apply(GetContext(), GetHead(), functor));
+    }
 
 private:
     IEvaluateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
     IWriterPtr Writer_;
+
+    NVersionedTableClient::TNameTablePtr NameTable_;
 
     NLog::TTaggedLogger Logger;
 

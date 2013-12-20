@@ -40,11 +40,9 @@
 
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
-%token KwGroupBy "keyword `GROUP BY`"
-%token KwAs "keyword `AS`"
 
-%token KwAnd "keyword `AND`"
-%token KwOr "keyword `OR`"
+%token KwAnd "keyword `and`"
+%token KwOr "keyword `or`"
 
 %token <TStringBuf> Identifier "identifier"
 
@@ -71,24 +69,25 @@
 %token OpGreaterOrEqual "`>=`"
 
 %type <TOperator*> select-clause
+%type <TOperator*> select-source
 %type <TOperator*> from-where-clause
 %type <TOperator*> from-clause
 
-%type <TNamedExpressionList> named-expression-list
-%type <TNamedExpression> named-expression
+%type <TProjectOperator::TProjections> projections
+%type <TExpression*> projection
 
-%type <TExpression*> expression
+%type <TExpression*> atomic-expr
+
+%type <TFunctionExpression*> function-expr
+%type <TFunctionExpression::TArguments> function-expr-args
+%type <TExpression*> function-expr-arg
+
 %type <TExpression*> relational-op-expr
 %type <TExpression*> or-op-expr
 %type <TExpression*> and-op-expr
 %type <TExpression*> equality-op-expr
 %type <TExpression*> multiplicative-op-expr
 %type <TExpression*> additive-op-expr
-%type <TExpression*> atomic-expr
-%type <TFunctionExpression*> function-expr
-%type <TFunctionExpression::TArguments> function-expr-args
-
-%type <TReferenceExpression*> name-expr
 
 %type <EBinaryOp> equality-op
 %type <EBinaryOp> relational-op
@@ -107,12 +106,17 @@ head
 ;
 
 select-clause
-    : named-expression-list[projections] from-where-clause[source]
+    : projections select-source[source]
         {
             auto projectOp = new (context) TProjectOperator(context, $source);
             projectOp->Projections().assign($projections.begin(), $projections.end());
             $$ = projectOp;
         }
+;
+
+select-source
+    : from-where-clause
+        { $$ = $1; }
 ;
 
 from-where-clause
@@ -126,23 +130,6 @@ from-where-clause
             filterOp->SetPredicate($predicate);
             $$ = filterOp;
         }
-	| from-clause[source] KwWhere or-op-expr[predicate] KwGroupBy named-expression-list[exprs]
-        {
-            auto filterOp = new (context) TFilterOperator(context, $source);
-            filterOp->SetPredicate($predicate);
-
-			auto groupOp = new (context) TGroupByOperator(context, filterOp);
-			groupOp->GroupItems().assign($exprs.begin(), $exprs.end());
-
-            $$ = groupOp;
-        }
-	| from-clause[source] KwGroupBy named-expression-list[exprs]
-        {
-            auto groupOp = new (context) TGroupByOperator(context, $source);
-            groupOp->GroupItems().assign($exprs.begin(), $exprs.end());
-
-            $$ = groupOp;
-        }		
 ;
 
 from-clause
@@ -155,34 +142,73 @@ from-clause
         }
 ;
 
-named-expression-list
-    : named-expression-list[ps] Comma named-expression[p]
+projections
+    : projections[ps] Comma projection[p]
         {
             $$.swap($ps);
             $$.push_back($p);
         }
-    | named-expression[p]
+    | projection[p]
         {
             $$.push_back($p);
         }
 ;
 
-named-expression
-	: name-expr
-		{
-			$$.first = $1;
-			$$.second = $1->GetColumnName();
-		}
-	| expression[expr] KwAs Identifier[name]
-		{
-			$$.first = $expr;
-			$$.second = $name;
-		}
+projection
+    : atomic-expr
+        { $$ = $1; }
+    | function-expr
+        { $$ = $1; }
 ;
 
-expression
-	: or-op-expr
-		{ $$ = $1; }
+atomic-expr
+    : Identifier[name]
+        {
+            auto tableIndex = context->GetTableIndexByAlias("");
+            $$ = new (context) TReferenceExpression(
+                context,
+                @$,
+                tableIndex,
+                $name);
+        }
+    | IntegerLiteral[value]
+        {
+            $$ = new (context) TIntegerLiteralExpression(context, @$, $value);
+        }
+    | DoubleLiteral[value]
+        {
+            $$ = new (context) TDoubleLiteralExpression(context, @$, $value);
+        }
+    | LeftParenthesis or-op-expr[expr] RightParenthesis
+        { $$ = $expr; }
+;
+
+function-expr
+    : Identifier[name] LeftParenthesis function-expr-args[args] RightParenthesis
+        {
+            $$ = new (context) TFunctionExpression(
+                context,
+                @$,
+                $name);
+            $$->Arguments().assign($args.begin(), $args.end());
+        }
+;
+
+function-expr-args
+    : function-expr-args[as] Comma function-expr-arg[a]
+        {
+            $$.swap($as);
+            $$.push_back($a);
+        }
+    | function-expr-arg[a]
+        {
+            $$.push_back($a);
+        }
+;
+
+function-expr-arg
+    : atomic-expr
+        { $$ = $1; }
 ;
 
 or-op-expr
@@ -301,58 +327,6 @@ multiplicative-op
         { $$ = EBinaryOp::Divide; }
     | OpModulo
         { $$ = EBinaryOp::Modulo; }
-;
-
-atomic-expr
-    : name-expr
-		{ $$ = $1; }
-    | IntegerLiteral[value]
-        {
-            $$ = new (context) TIntegerLiteralExpression(context, @$, $value);
-        }
-    | DoubleLiteral[value]
-        {
-            $$ = new (context) TDoubleLiteralExpression(context, @$, $value);
-        }
-    | LeftParenthesis or-op-expr[expr] RightParenthesis
-        { $$ = $expr; }
-	| function-expr
-        { $$ = $1; }
-;
-
-function-expr
-	: Identifier[name] LeftParenthesis function-expr-args[args] RightParenthesis
-        {
-            $$ = new (context) TFunctionExpression(
-                context,
-                @$,
-                $name);
-            $$->Arguments().assign($args.begin(), $args.end());
-        }
-;
-
-name-expr
-	: Identifier[name]
-        {
-            auto tableIndex = context->GetTableIndexByAlias("");
-            $$ = new (context) TReferenceExpression(
-                context,
-                @$,
-                tableIndex,
-                $name);
-        }
-;
-
-function-expr-args
-    : function-expr-args[as] Comma expression[a]
-        {
-            $$.swap($as);
-            $$.push_back($a);
-        }
-    | expression[a]
-        {
-            $$.push_back($a);
-        }
 ;
 
 %%

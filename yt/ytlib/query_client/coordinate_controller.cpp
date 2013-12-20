@@ -67,7 +67,6 @@ TError TCoordinateController::Run()
 
         SplitFurther();
         PushdownFilters();
-        PushdownGroupBys();
         PushdownProjects();
         DistributeToPeers();
 
@@ -170,7 +169,7 @@ void TCoordinateController::PushdownProjects()
     LOG_DEBUG("Pushing down project operators");
     Rewrite(
     [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-        // Rewrite
+        // Rewrute
         //   P -> U -> { O1 ... Ok }
         // to
         //   U -> { P -> O1 ... P -> Ok }
@@ -186,50 +185,6 @@ void TCoordinateController::PushdownProjects()
                     newUnionOp->Sources().push_back(clonedProjectOp);
                 }
                 return newUnionOp;
-            }
-        }
-        return op;
-    });
-}
-
-void TCoordinateController::PushdownGroupBys()
-{
-    LOG_DEBUG("Pushing down group by operators");
-    Rewrite(
-    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-        // Rewrite
-        //   G -> U -> { O1 ... Ok }
-        // to
-        //   G -> U -> { G -> O1 ... G -> Ok }
-        if (auto* groupByOp = op->As<TGroupByOperator>()) {
-            if (auto* unionOp = groupByOp->GetSource()->As<TUnionOperator>()) {
-                auto* newUnionOp = new (context) TUnionOperator(context);
-                auto* newGroupByOp = new (context) TGroupByOperator(context, newUnionOp);
-                newUnionOp->Sources().reserve(unionOp->Sources().size());
-                for (const auto& source : unionOp->Sources()) {
-                    auto clonedGroupByOp = new (context) TGroupByOperator(
-                        context,
-                        source);
-                    clonedGroupByOp->GroupItems() = groupByOp->GroupItems();
-                    clonedGroupByOp->AggregateItems() = groupByOp->AggregateItems();
-                    newUnionOp->Sources().push_back(clonedGroupByOp);
-                }
-
-                TNamedExpressionList finalGroupItems;
-                for (const auto& groupItem : groupByOp->GroupItems()) {
-                    auto referenceExpression = new (context) TReferenceExpression(context, NullSourceLocation, context->GetTableIndexByAlias(""), groupItem.second);
-                    finalGroupItems.push_back(std::make_pair(referenceExpression, groupItem.second));
-                }
-                newGroupByOp->GroupItems().swap(finalGroupItems);
-
-                TGroupByOperator::TAggregateItemList finalAggregateItems;
-                for (const auto& aggregateItem : groupByOp->AggregateItems()) {
-                    auto referenceExpression = new (context) TReferenceExpression(context, NullSourceLocation, context->GetTableIndexByAlias(""), aggregateItem.Name);
-                    finalAggregateItems.push_back(TAggregateItem(referenceExpression, aggregateItem.AggregateFunction, aggregateItem.Name));
-                }
-                newGroupByOp->AggregateItems().swap(finalAggregateItems);
-
-                return newGroupByOp;
             }
         }
         return op;
@@ -254,43 +209,35 @@ void TCoordinateController::DistributeToPeers()
         return;
     }
 
-    Rewrite(
-    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-        // Rewrite
-        //   U -> { O1 ... Ok }
-        // to
-        //   U -> { S1 ... Sk } && S1 -> O1, ..., Sk -> Ok
-        if (auto* unionOp = op->As<TUnionOperator>()) {
-            auto* facadeUnionOp = new (GetContext()) TUnionOperator(GetContext());
+    // TODO(sandello): In general case, there could be some final aggregation.
+    YCHECK(GetHead()->IsA<TUnionOperator>());
+    auto* unionOp = GetHead()->As<TUnionOperator>();
+    auto* facadeUnionOp = new (GetContext()) TUnionOperator(GetContext());
 
-            for (const auto& source : unionOp->Sources()) {
-                auto fragment = TPlanFragment(GetContext(), source);
-                Peers_.emplace_back(fragment, nullptr);
+    for (const auto& source : unionOp->Sources()) {
+        auto fragment = TPlanFragment(GetContext(), source);
+        Peers_.emplace_back(fragment, nullptr);
 
-                LOG_DEBUG("Created subfragment %s", ~ToString(fragment.Guid()));
+        LOG_DEBUG("Created subfragment %s", ~ToString(fragment.Guid()));
 
-                auto* facadeScanOp = new (GetContext()) TScanOperator(
-                    GetContext(),
-                    GetContext()->GetFakeTableIndex());
+        auto* facadeScanOp = new (GetContext()) TScanOperator(
+            GetContext(),
+            GetContext()->GetFakeTableIndex());
 
-                SetObjectId(
-                    &facadeScanOp->DataSplit(),
-                    MakeId(EObjectType::QueryPlan, 0xBABE, Peers_.size() - 1, 0));
-                SetTableSchema(
-                    &facadeScanOp->DataSplit(),
-                    source->GetTableSchema());
-                SetKeyColumns(
-                    &facadeScanOp->DataSplit(),
-                    source->GetKeyColumns());
+        SetObjectId(
+            &facadeScanOp->DataSplit(),
+            MakeId(EObjectType::QueryPlan, 0xBABE, Peers_.size() - 1, 0));
+        SetTableSchema(
+            &facadeScanOp->DataSplit(),
+            source->GetTableSchema());
+        SetKeyColumns(
+            &facadeScanOp->DataSplit(),
+            source->GetKeyColumns());
 
-                facadeUnionOp->Sources().push_back(facadeScanOp);
-            }
+        facadeUnionOp->Sources().push_back(facadeScanOp);
+    }
 
-            return facadeUnionOp;
-        }
-
-        return op;
-    });
+    SetHead(facadeUnionOp);
 
     LOG_DEBUG("Distributed %" PRISZT " subfragments to peers", Peers_.size());
 }

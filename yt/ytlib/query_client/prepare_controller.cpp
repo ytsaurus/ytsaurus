@@ -57,7 +57,6 @@ public:
 
     virtual bool Visit(const TScanOperator* op) override
     {
-        currentSourceSchema_ = op->GetTableSchema();
         if (Mode_ != Check) {
             return true;
         }
@@ -95,49 +94,61 @@ public:
 
     virtual bool Visit(const TFilterOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
         Traverse(this, op->GetPredicate());
-        return true;
-    }
-
-    virtual bool Visit(const TGroupByOperator* op) override
-    {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
-        for (auto& groupItem : op->GroupItems()) {
-            Traverse(this, groupItem.first);
-        }
-
-        for (auto& aggregateItem : op->AggregateItems()) {
-            Traverse(this, aggregateItem.Expression);
-        }
         return true;
     }
 
     virtual bool Visit(const TProjectOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
         for (auto& projection : op->Projections()) {
-            Traverse(this, projection.first);
+            Traverse(this, projection);
         }
         return true;
     }
 
     virtual bool Visit(const TReferenceExpression* expr) override
     {
+        const auto& descriptor = Controller_->GetContext()
+            ->GetTableDescriptorByIndex(expr->GetTableIndex());
+        TScanOperator* op = reinterpret_cast<TScanOperator*>(descriptor.Opaque);
+        YCHECK(op);
+
         const auto name = expr->GetColumnName();
+
+        const auto keyColumns = GetKeyColumnsFromDataSplit(op->DataSplit());
+        const auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplit());
+
         switch (Mode_) {
             case Check: {
-                auto column = currentSourceSchema_.FindColumn(name);
+                auto column = tableSchema.FindColumn(name);
                 if (!column) {
                     THROW_ERROR_EXCEPTION(
-                        "Undefined reference %s",
+                        "Table %s does not have column %s in its schema",
+                        ~descriptor.Path,
                         ~name.Quote());
                 }
                 LiveColumns_[expr->GetTableIndex()].insert(name);
                 break;
             }
-            case Bind: 
-                YUNREACHABLE();
+            case Bind: {
+                auto* mutableExpr = expr->AsMutable<TReferenceExpression>();
+                const auto& column = tableSchema.GetColumnOrThrow(name);
+
+                mutableExpr->SetCachedType(column.Type);
+                mutableExpr->SetIndexInRow(tableSchema.GetColumnIndex(column));
+
+                auto it = std::find_if(
+                    keyColumns.begin(),
+                    keyColumns.end(),
+                    [&name] (const Stroka& keyColumnName) {
+                        return name == keyColumnName;
+                    });
+
+                if (it != keyColumns.end()) {
+                    mutableExpr->SetIndexInKey(
+                        std::distance(keyColumns.begin(), it));
+                }
+            }
         }
 
         return true;
@@ -146,7 +157,6 @@ public:
 private:
     TPrepareController* Controller_;
     std::vector<std::set<Stroka>> LiveColumns_;
-    TTableSchema currentSourceSchema_;
 
 };
 } // anonymous namespace
@@ -155,7 +165,6 @@ TPlanFragment TPrepareController::Run()
 {
     ParseSource();
     GetInitialSplits();
-    MoveAggregateExpressions();
     CheckAndBindReferences();
     TypecheckExpressions();
     return TPlanFragment(std::move(Context_), Head_);
@@ -201,7 +210,8 @@ void TPrepareController::CheckAndBindReferences()
     TCheckAndBindReferences visitor(this);
     visitor.Mode_ = TCheckAndBindReferences::Check;
     Traverse(&visitor, Head_);
-    //TODO(lukyan): remove bind mode from TCheckAndBindReferences
+    visitor.Mode_ = TCheckAndBindReferences::Bind;
+    Traverse(&visitor, Head_);
 }
 
 void TPrepareController::TypecheckExpressions()
@@ -209,7 +219,7 @@ void TPrepareController::TypecheckExpressions()
     Visit(Head_, [this] (const TOperator* op)
     {
         if (auto* typedOp = op->As<TFilterOperator>()) {
-            auto actualType = typedOp->GetPredicate()->GetType(typedOp->GetSource()->GetTableSchema());
+            auto actualType = typedOp->GetPredicate()->GetType();
             auto expectedType = EValueType(EValueType::Integer);
             if (actualType != expectedType) {
                 THROW_ERROR_EXCEPTION("WHERE-clause is not of valid type")
@@ -219,62 +229,9 @@ void TPrepareController::TypecheckExpressions()
         }
         if (auto* typedOp = op->As<TProjectOperator>()) {
             for (auto& projection : typedOp->Projections()) {
-                projection.first->GetType(typedOp->GetSource()->GetTableSchema()); // Force typechecking.
+                projection->GetType(); // Force typechecking.
             }
         }
-    });
-}
-
-void TPrepareController::MoveAggregateExpressions()
-{
-    TGroupByOperator::TAggregateItemList aggregateItems;
-
-    Head_ = Apply(GetContext(), Head_, [&] (TPlanContext* context, const TOperator* op) -> const TOperator*
-    {
-        if (auto* typedOp = op->As<TProjectOperator>()) {
-            auto* newProjectOp = new (context) TProjectOperator(context, typedOp->GetSource());
-            auto& newProjections = newProjectOp->Projections();
-
-            for (auto& projection : typedOp->Projections()) {
-                auto newExpr = Apply(context, projection.first, [&] (TPlanContext* context, const TExpression* expr) -> const TExpression*
-                {
-                    if (auto* functionExpr = expr->As<TFunctionExpression>()) {
-                        if (functionExpr->GetFunctionName() == "sum" && functionExpr->GetArgumentCount() == 1) {
-                            
-                            Stroka subexprName = EAggregateFunctions(EAggregateFunctions::Sum).ToString() 
-                                + " " + functionExpr->GetArgument(0)->GetName(); // TODO(lukyan): wrap into function
-                            auto referenceExpr = new (context) TReferenceExpression(
-                                context, 
-                                NullSourceLocation, 
-                                context->GetTableIndexByAlias(""), 
-                                subexprName);
-                            aggregateItems.push_back(TAggregateItem(functionExpr->GetArgument(0), EAggregateFunctions::Sum, subexprName));
-                            return referenceExpr;
-                        }
-                    }
-
-                    return expr;
-                });
-
-                newProjections.push_back(std::make_pair(newExpr, projection.second));
-            }
-
-            return newProjectOp;
-        }
-        return op;
-    });
-
-    Head_ = Apply(GetContext(), Head_, [&] (TPlanContext* context, const TOperator* op) -> const TOperator*
-    {
-        if (auto* typedOp = op->As<TGroupByOperator>()) {
-            auto* newGroupByOp = new (context) TGroupByOperator(context, typedOp->GetSource());
-
-            newGroupByOp->AggregateItems().swap(aggregateItems);
-            newGroupByOp->GroupItems() = typedOp->GroupItems();
-
-            return newGroupByOp;
-        }
-        return op;
     });
 }
 

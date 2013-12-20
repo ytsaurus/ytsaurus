@@ -5,19 +5,6 @@ import "yt/ytlib/query_client/expression.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TNamedExpression
-{
-	required TExpression expression = 1;
-    required string name = 2;
-}
-
-message TAggregateItem
-{
-	required TExpression expression = 1;
-    required int32 aggregate_function = 2; // EAggregateFunction
-    required string name = 3;
-}
-
 message TOperator
 {
     required int32 kind = 1;
@@ -51,23 +38,13 @@ message TFilterOperator
     required TExpression predicate = 2;
 }
 
-message TGroupByOperator
-{
-    extend TOperator {
-        optional TGroupByOperator group_by_operator = 104;
-    }
-    required TOperator source = 1;
-    repeated TNamedExpression group_items = 2;
-    repeated TAggregateItem aggregate_items = 3;
-}
-
 message TProjectOperator
 {
     extend TOperator {
-        optional TProjectOperator project_operator = 105;
+        optional TProjectOperator project_operator = 104;
     }
     required TOperator source = 1;
-    repeated TNamedExpression projections = 2;
+    repeated TExpression projections = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
