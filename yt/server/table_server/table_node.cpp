@@ -124,7 +124,7 @@ protected:
 
         if (table->IsTrunk()) {
             auto tabletManager = Bootstrap->GetTabletManager();
-            tabletManager->UnmountTable(table);
+            tabletManager->UnmountTable(table, true);
         }
     }
 

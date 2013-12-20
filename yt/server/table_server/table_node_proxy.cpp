@@ -331,10 +331,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
     auto* impl = LockThisTypedImpl();
 
     auto tabletManager = Bootstrap->GetTabletManager();
-    tabletManager->UnmountTable(
-        impl,
-        firstTabletIndex,
-        lastTabletIndex);
+    tabletManager->ForceUnmountTable(impl);
 
     context->Reply();
 }
