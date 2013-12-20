@@ -186,7 +186,7 @@ void TWriteCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMountCommand::DoExecute()
+void TMountTableCommand::DoExecute()
 {
     auto req = TTableYPathProxy::Mount(Request->Path.GetPath());
     if (Request->FirstTabletIndex) {
@@ -204,7 +204,7 @@ void TMountCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnmountCommand::DoExecute()
+void TUnmountTableCommand::DoExecute()
 {
     auto req = TTableYPathProxy::Unmount(Request->Path.GetPath());
     if (Request->FirstTabletIndex) {
@@ -222,7 +222,7 @@ void TUnmountCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReshardCommand::DoExecute()
+void TReshardTableCommand::DoExecute()
 {
     auto req = TTableYPathProxy::Reshard(Request->Path.GetPath());
     if (Request->FirstTabletIndex) {

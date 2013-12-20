@@ -107,43 +107,43 @@ void TTabletExecutor::BuildArgs(IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMountExecutor::TMountExecutor()
+TMountTableExecutor::TMountTableExecutor()
 { }
 
-void TMountExecutor::BuildArgs(IYsonConsumer* consumer)
+void TMountTableExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     TTabletExecutor::BuildArgs(consumer);
 }
 
-Stroka TMountExecutor::GetCommandName() const 
+Stroka TMountTableExecutor::GetCommandName() const 
 {
-    return "mount";
+    return "mount_table";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnmountExecutor::TUnmountExecutor()
+TUnmountTableExecutor::TUnmountTableExecutor()
 { }
 
-void TUnmountExecutor::BuildArgs(IYsonConsumer* consumer)
+void TUnmountTableExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     TTabletExecutor::BuildArgs(consumer);
 }
 
-Stroka TUnmountExecutor::GetCommandName() const 
+Stroka TUnmountTableExecutor::GetCommandName() const 
 {
-    return "unmount";
+    return "unmount_table";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReshardExecutor::TReshardExecutor()
+TReshardTableExecutor::TReshardTableExecutor()
     : PivotKeysArg("pivot_keys", "pivot keys", true, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(PivotKeysArg);
 }
 
-void TReshardExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReshardTableExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     TTabletExecutor::BuildArgs(consumer);
 
@@ -156,9 +156,9 @@ void TReshardExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("pivot_keys").Value(pivotKeys);
 }
 
-Stroka TReshardExecutor::GetCommandName() const 
+Stroka TReshardTableExecutor::GetCommandName() const 
 {
-    return "reshard";
+    return "reshard_table";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

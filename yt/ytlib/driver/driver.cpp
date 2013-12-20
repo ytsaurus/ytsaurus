@@ -116,13 +116,14 @@ public:
 
         REGISTER(TWriteCommand,             "write",             Tabular,    Null,       true,  true );
         REGISTER(TReadCommand,              "read",              Null,       Tabular,    false, true );
-        REGISTER(TMountCommand,             "mount",             Null,       Null,       true,  false);
-        REGISTER(TUnmountCommand,           "unmount",           Null,       Null,       true,  false);
-        REGISTER(TReshardCommand,           "reshard",           Null,       Null,       true,  false);
         REGISTER(TInsertCommand,            "insert",            Tabular,    Null,       true,  true );
         REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
         REGISTER(TLookupCommand,            "lookup",            Null,       Tabular,    false, true );
         REGISTER(TDeleteCommand,            "delete",            Null,       Null,       true,  true);
+
+        REGISTER(TMountTableCommand,        "mount_table",       Null,       Null,       true,  false);
+        REGISTER(TUnmountTableCommand,      "unmount_table",     Null,       Null,       true,  false);
+        REGISTER(TReshardTableCommand,      "reshard_table",     Null,       Null,       true,  false);
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
         REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);

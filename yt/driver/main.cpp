@@ -64,9 +64,9 @@ public:
 
         RegisterExecutor(New<TReadExecutor>());
         RegisterExecutor(New<TWriteExecutor>());
-        RegisterExecutor(New<TMountExecutor>());
-        RegisterExecutor(New<TUnmountExecutor>());
-        RegisterExecutor(New<TReshardExecutor>());
+        RegisterExecutor(New<TMountTableExecutor>());
+        RegisterExecutor(New<TUnmountTableExecutor>());
+        RegisterExecutor(New<TReshardTableExecutor>());
         RegisterExecutor(New<TInsertExecutor>());
         RegisterExecutor(New<TSelectExecutor>());
         RegisterExecutor(New<TLookupExecutor>());

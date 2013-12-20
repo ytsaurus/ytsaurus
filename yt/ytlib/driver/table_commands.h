@@ -63,14 +63,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMountRequest
+struct TMountTableRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
     TNullable<int> FirstTabletIndex;
     TNullable<int> LastTabletIndex;
 
-    TMountRequest()
+    TMountTableRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
@@ -80,8 +80,8 @@ struct TMountRequest
     }
 };
 
-class TMountCommand
-    : public TTypedCommand<TMountRequest>
+class TMountTableCommand
+    : public TTypedCommand<TMountTableRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -90,14 +90,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUnmountRequest
+struct TUnmountTableRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
     TNullable<int> FirstTabletIndex;
     TNullable<int> LastTabletIndex;
 
-    TUnmountRequest()
+    TUnmountTableRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
@@ -107,8 +107,8 @@ struct TUnmountRequest
     }
 };
 
-class TUnmountCommand
-    : public TTypedCommand<TUnmountRequest>
+class TUnmountTableCommand
+    : public TTypedCommand<TUnmountTableRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -117,7 +117,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReshardRequest
+struct TReshardTableRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
@@ -125,7 +125,7 @@ struct TReshardRequest
     TNullable<int> LastTabletIndex;
     std::vector<NVersionedTableClient::TOwningKey> PivotKeys;
 
-    TReshardRequest()
+    TReshardTableRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
@@ -136,8 +136,8 @@ struct TReshardRequest
     }
 };
 
-class TReshardCommand
-    : public TTypedCommand<TReshardRequest>
+class TReshardTableCommand
+    : public TTypedCommand<TReshardTableRequest>
 {
 private:
     virtual void DoExecute() override;

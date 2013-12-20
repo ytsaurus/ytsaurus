@@ -62,11 +62,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMountExecutor
+class TMountTableExecutor
     : public TTabletExecutor
 {
 public:
-    TMountExecutor();
+    TMountTableExecutor();
 
 private:
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
@@ -75,11 +75,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnmountExecutor
+class TUnmountTableExecutor
     : public TTabletExecutor
 {
 public:
-    TUnmountExecutor();
+    TUnmountTableExecutor();
 
 private:
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
@@ -88,11 +88,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReshardExecutor
+class TReshardTableExecutor
     : public TTabletExecutor
 {
 public:
-    TReshardExecutor();
+    TReshardTableExecutor();
 
 private:
     TCLAP::UnlabeledMultiArg<Stroka> PivotKeysArg;

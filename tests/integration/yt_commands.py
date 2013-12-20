@@ -173,6 +173,19 @@ def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
     return command('abort_tx', kwargs)
 
+def mount_table(path, **kwargs):
+    kwargs["path"] = path
+    return command('mount_table', kwargs)
+
+def unmount_table(path, **kwargs):
+    kwargs["path"] = path
+    return command('unmount_table', kwargs)
+
+def reshard_table(path, pivot_keys, **kwargs):
+    kwargs["path"] = path
+    kwargs["pivot_keys"] = pivot_keys
+    return command('reshard_table', kwargs)
+
 def upload(path, data, **kwargs):
     kwargs["path"] = path
     return command('upload', kwargs, input_stream=StringIO(data))
