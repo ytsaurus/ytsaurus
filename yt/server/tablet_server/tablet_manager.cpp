@@ -391,7 +391,9 @@ public:
 
         auto objectManager = Bootstrap->GetObjectManager();
         for (auto* tablet : table->Tablets()) {
-            DoTabletUnmounted(tablet);
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                DoTabletUnmounted(tablet);
+            }
             objectManager->UnrefObject(tablet);
         }
 
@@ -908,16 +910,14 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %s, TabletId: %s, CellId: %s)",
             ~ToString(table->GetId()),
             ~ToString(tablet->GetId()),
-            ~ToString(GetObjectId(cell)));
+            ~ToString(cell->GetId()));
 
         auto objectManager = Bootstrap->GetObjectManager();
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
 
-        if (cell) {
-            YCHECK(cell->Tablets().erase(tablet) == 1);
-            objectManager->UnrefObject(cell);
-        }
+        YCHECK(cell->Tablets().erase(tablet) == 1);
+        objectManager->UnrefObject(cell);
     }
 
 
