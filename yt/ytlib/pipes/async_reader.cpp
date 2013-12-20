@@ -10,6 +10,7 @@ namespace NPipes {
 TAsyncReader::TAsyncReader(int fd)
     : Reader(new NDetail::TNonBlockReader(fd))
     , ReadyPromise()
+    , IsAborted_(false)
     , Logger(ReaderLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
@@ -28,6 +29,11 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
 
     TGuard<TSpinLock> guard(ReadLock);
 
+    if (IsAborted()) {
+        // We should FAIL the registration process
+        throw std::runtime_error("Reader is already aborted.");
+    }
+
     StartWatcher.set(eventLoop);
     StartWatcher.set<TAsyncReader, &TAsyncReader::OnStart>(this);
     StartWatcher.start();
@@ -35,14 +41,19 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncReader, &TAsyncReader::OnRead>(this);
     FDWatcher.start();
+
+    LOG_DEBUG("Registered");
 }
 
 void TAsyncReader::OnStart(ev::async&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     YCHECK(eventType | ev::ASYNC == ev::ASYNC);
+    YCHECK(IsRegistered());
 
-    FDWatcher.start();
+    if (!IsAborted()) {
+        FDWatcher.start();
+    }
 }
 
 void TAsyncReader::OnRead(ev::io&, int eventType)
@@ -53,6 +64,14 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
     TGuard<TSpinLock> guard(ReadLock);
 
     YCHECK(!Reader->ReachedEOF());
+    YCHECK(IsRegistered());
+
+    if (IsAborted()) {
+        // The call to this method can be dispatched
+        // but we can get a lock after Abort
+        // So double check the status
+        return;
+    }
 
     if (!Reader->IsBufferFull()) {
         Reader->ReadToBuffer();
@@ -82,9 +101,15 @@ std::pair<TBlob, bool> TAsyncReader::Read(TBlob&& buffer)
 
     TGuard<TSpinLock> guard(ReadLock);
 
-    if (CanReadSomeMore()) {
-        // ev_io_start is not thread-safe
-        StartWatcher.send();
+    if (!IsRegistered()) {
+        return std::make_pair(TBlob(), false);
+    }
+
+    if (!IsAborted() && CanReadSomeMore()) {
+        // is it safe?
+        if (!FDWatcher.is_active()) {
+            StartWatcher.send();
+        }
     }
 
     return Reader->GetRead(std::move(buffer));
@@ -96,7 +121,11 @@ TAsyncError TAsyncReader::GetReadyEvent()
 
     TGuard<TSpinLock> guard(ReadLock);
 
-    if (!RegistrationError.IsSet() || !RegistrationError.Get().IsOK()) {
+    if (IsAborted()) {
+        return MakePromise(TError("The reader was aborted"));
+    }
+
+    if (!IsRegistered()) {
         return RegistrationError;
     }
 
@@ -111,13 +140,14 @@ TAsyncError TAsyncReader::GetReadyEvent()
     return ReadyPromise.ToFuture();
 }
 
-TError TAsyncReader::Close()
+TError TAsyncReader::Abort()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(ReadLock);
 
     Reader->Close();
+    IsAborted_ = true;
 
     if (ReadyPromise) {
         ReadyPromise.Set(TError("The reader was aborted"));
@@ -133,7 +163,7 @@ TError TAsyncReader::Close()
 
 bool TAsyncReader::CanReadSomeMore() const
 {
-    return (!Reader->InFailedState() && !Reader->ReachedEOF());
+    return !Reader->InFailedState() && !Reader->ReachedEOF();
 }
 
 TError TAsyncReader::GetState() const
@@ -146,6 +176,16 @@ TError TAsyncReader::GetState() const
         YCHECK(false);
         return TError();
     }
+}
+
+bool TAsyncReader::IsAborted() const
+{
+    return IsAborted_;
+}
+
+bool TAsyncReader::IsRegistered() const
+{
+    return RegistrationError.IsSet() && RegistrationError.Get().IsOK();
 }
 
 

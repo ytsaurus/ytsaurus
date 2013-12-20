@@ -257,7 +257,7 @@ TError TOutputPipe::ReadAll()
 
 TError TOutputPipe::Close()
 {
-    return Reader->Close();
+    return Reader->Abort();
 }
 
 void TOutputPipe::Finish()

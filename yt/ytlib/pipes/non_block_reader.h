@@ -25,6 +25,7 @@ public:
 
     bool InFailedState() const;
     bool ReachedEOF() const;
+    bool IsClosed() const;
 
     // Returns the last IO error encountered
     // in TryReadInBuffer and Close functions

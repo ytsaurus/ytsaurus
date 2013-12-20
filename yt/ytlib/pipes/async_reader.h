@@ -27,7 +27,7 @@ public:
     std::pair<TBlob, bool> Read(TBlob&& buffer);
     TAsyncError GetReadyEvent();
 
-    TError Close();
+    TError Abort();
 
 private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
@@ -39,13 +39,17 @@ private:
     TAsyncError RegistrationError;
     TAsyncErrorPromise ReadyPromise;
 
+    bool IsAborted_;
+
     TSpinLock ReadLock;
+
+    bool IsAborted() const;
+    bool IsRegistered() const;
 
     bool CanReadSomeMore() const;
     TError GetState() const;
 
     void OnRead(ev::io&, int);
-
     void OnStart(ev::async&, int);
 
     NLog::TTaggedLogger Logger;

@@ -63,9 +63,10 @@ void TNonBlockReader::Close()
 {
     if (!Closed_) {
         int errCode = close(FD);
-        LOG_DEBUG(TError::FromSystem(), "Failed to close");
 
         if (errCode == -1) {
+            LOG_DEBUG(TError::FromSystem(), "Failed to close");
+
             // please, read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
             // http://rb.yandex-team.ru/arc/r/44030/
@@ -103,6 +104,11 @@ bool TNonBlockReader::IsBufferEmpty() const
 bool TNonBlockReader::InFailedState() const
 {
     return (LastSystemError_ != 0);
+}
+
+bool TNonBlockReader::IsClosed() const
+{
+    return Closed_;
 }
 
 bool TNonBlockReader::ReachedEOF() const
