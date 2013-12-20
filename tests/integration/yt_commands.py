@@ -279,6 +279,7 @@ def map(**kwargs):
 
 def merge(**kwargs):
     flat(kwargs, "merge_by")
+
     for opt in ["combine_chunks", "merge_by", "mode"]:
         change(kwargs, opt, ["spec", opt])
     return start_op('merge', **kwargs)
@@ -333,6 +334,13 @@ def add_member(member, group):
 
 def remove_member(member, group):
     command('remove_member', {"member": member, "group": group})
+
+def create_tablet_cell(size):
+    return yson.loads(command('create', {'type': 'tablet_cell', 'attributes': {'size': size}}))
+
+def remove_tablet_cell(id):
+    remove('//sys/tablet_cells/' + id)
+    gc_collect()
 
 #########################################
 
