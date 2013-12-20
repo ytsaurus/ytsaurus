@@ -388,6 +388,12 @@ public:
         DoUnmountTable(
             table,
             std::make_pair(table->Tablets().begin(), table->Tablets().end()));
+
+        for (auto* tablet : table->Tablets()) {
+            DoTabletUnmounted(tablet);
+        }
+
+        table->Tablets().clear();
     }
 
     void ReshardTable(
@@ -889,6 +895,13 @@ private:
         if (!tablet || tablet->GetState() != ETabletState::Unmounting)
             return;
         
+        auto* table = tablet->GetTable();
+        auto* cell = tablet->GetCell();
+
+    }
+
+    void DoTabletUnmounted(TTablet* tablet)
+    {
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
