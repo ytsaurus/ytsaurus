@@ -10,75 +10,73 @@ static const size_t WriteBufferSize = 64 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNonBlockWriter::TNonBlockWriter(int fd)
-    : FD(fd)
-    , BytesWrittenTotal(0)
-    , Closed(false)
-    , LastSystemError(0)
+TNonblockingWriter::TNonblockingWriter(int fd)
+    : FD_(fd)
+    , BytesWrittenTotal_(0)
+    , Closed_(false)
+    , LastSystemError_(0)
     , Logger(WriterLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 }
 
-TNonBlockWriter::~TNonBlockWriter()
+TNonblockingWriter::~TNonblockingWriter()
 { }
 
-void TNonBlockWriter::TryWriteFromBuffer()
+void TNonblockingWriter::WriteFromBuffer()
 {
-    YCHECK(WriteBuffer.Size() >= BytesWrittenTotal);
-    const size_t size = WriteBuffer.Size() - BytesWrittenTotal;
-    const char* data = WriteBuffer.Begin() + BytesWrittenTotal;
+    YCHECK(WriteBuffer_.Size() >= BytesWrittenTotal_);
+    const size_t size = WriteBuffer_.Size() - BytesWrittenTotal_;
+    const char* data = WriteBuffer_.Begin() + BytesWrittenTotal_;
     const size_t bytesWritten = TryWrite(data, size);
 
-    if (LastSystemError == 0) {
-        BytesWrittenTotal += bytesWritten;
+    if (LastSystemError_ == 0) {
+        BytesWrittenTotal_ += bytesWritten;
         TryCleanBuffer();
     }
 }
 
-void TNonBlockWriter::Close()
+void TNonblockingWriter::Close()
 {
-    if (!Closed) {
-        int errCode = close(FD);
-        if (errCode == -1) {
+    if (!Closed_) {
+        int errCode = close(FD_);
+        if (errCode == -1 || errno != EAGAIN) {
             // please, read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
             // http://rb.yandex-team.ru/arc/r/44030/
             // before editing
-            if (errno != EAGAIN) {
-                LOG_DEBUG(TError::FromSystem(), "Error closing");
+            LOG_DEBUG(TError::FromSystem(), "Failed to close");
 
-                LastSystemError = errno;
-            }
+            LastSystemError_ = errno;
         }
 
-        Closed = true;
+        Closed_ = true;
     }
 }
 
-void TNonBlockWriter::WriteToBuffer(const char* data, size_t size)
+void TNonblockingWriter::WriteToBuffer(const char* data, size_t size)
 {
     size_t bytesWritten = 0;
 
-    if (WriteBuffer.Size() == 0) {
+    if (WriteBuffer_.Size() == 0) {
         bytesWritten = TryWrite(data, size);
     }
 
-    WriteBuffer.Append(data + bytesWritten, size - bytesWritten);
+    WriteBuffer_.Append(data + bytesWritten, size - bytesWritten);
 }
 
-size_t TNonBlockWriter::TryWrite(const char* data, size_t size)
+size_t TNonblockingWriter::TryWrite(const char* data, size_t size)
 {
     int errCode;
     do {
-        errCode = ::write(FD, data, size);
+        errCode = ::write(FD_, data, size);
     } while (errCode == -1 && errno == EINTR);
 
     if (errCode == -1) {
         if (errno != EWOULDBLOCK && errno != EAGAIN) {
-            LOG_DEBUG(TError::FromSystem(), "Error writing");
+            LOG_DEBUG(TError::FromSystem(), "Failed to write");
 
-            LastSystemError = errno;
+            LastSystemError_ = errno;
         }
         return 0;
     } else {
@@ -89,37 +87,37 @@ size_t TNonBlockWriter::TryWrite(const char* data, size_t size)
     }
 }
 
-void TNonBlockWriter::TryCleanBuffer()
+void TNonblockingWriter::TryCleanBuffer()
 {
-    if (BytesWrittenTotal == WriteBuffer.Size()) {
-        WriteBuffer.Clear();
-        BytesWrittenTotal = 0;
+    if (BytesWrittenTotal_ == WriteBuffer_.Size()) {
+        WriteBuffer_.Clear();
+        BytesWrittenTotal_ = 0;
     }
 }
 
-bool TNonBlockWriter::IsBufferFull() const
+bool TNonblockingWriter::IsBufferFull() const
 {
-    return (WriteBuffer.Size() >= WriteBufferSize);
+    return WriteBuffer_.Size() >= WriteBufferSize;
 }
 
-bool TNonBlockWriter::IsBufferEmpty() const
+bool TNonblockingWriter::IsBufferEmpty() const
 {
-    return (WriteBuffer.Size() == 0);
+    return WriteBuffer_.Size() == 0;
 }
 
-bool TNonBlockWriter::InFailedState() const
+bool TNonblockingWriter::IsFailed() const
 {
-    return (LastSystemError != 0);
+    return LastSystemError_ != 0;
 }
 
-int TNonBlockWriter::GetLastSystemError() const
+int TNonblockingWriter::GetLastSystemError() const
 {
-    return LastSystemError;
+    return LastSystemError_;
 }
 
-bool TNonBlockWriter::IsClosed() const
+bool TNonblockingWriter::IsClosed() const
 {
-    return Closed;
+    return Closed_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

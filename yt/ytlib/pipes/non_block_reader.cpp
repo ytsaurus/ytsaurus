@@ -13,8 +13,8 @@ static const size_t ReadBufferSize = 64 * 1024;
 
 namespace NDetail {
 
-TNonBlockReader::TNonBlockReader(int fd)
-    : FD(fd)
+TNonblockingReader::TNonblockingReader(int fd)
+    : FD_(fd)
     , ReadBuffer_(ReadBufferSize)
     , BytesInBuffer_(0)
     , ReachedEOF_(false)
@@ -25,19 +25,19 @@ TNonBlockReader::TNonBlockReader(int fd)
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 }
 
-TNonBlockReader::~TNonBlockReader()
+TNonblockingReader::~TNonblockingReader()
 {
     Close();
 }
 
-void TNonBlockReader::ReadToBuffer()
+void TNonblockingReader::ReadToBuffer()
 {
     YCHECK(ReadBuffer_.Size() >= BytesInBuffer_);
     const size_t count = ReadBuffer_.Size() - BytesInBuffer_;
     if (count > 0) {
         ssize_t size = -1;
         do {
-            size = ::read(FD, ReadBuffer_.Begin() + BytesInBuffer_, count);
+            size = ::read(FD_, ReadBuffer_.Begin() + BytesInBuffer_, count);
         } while (size == -1 && errno == EINTR);
 
         if (size == -1) {
@@ -57,10 +57,10 @@ void TNonBlockReader::ReadToBuffer()
     }
 }
 
-void TNonBlockReader::Close()
+void TNonblockingReader::Close()
 {
     if (!Closed_) {
-        int errCode = close(FD);
+        int errCode = close(FD_);
 
         if (errCode == -1 && errno != EAGAIN) {
             LOG_DEBUG(TError::FromSystem(), "Failed to close");
@@ -75,7 +75,7 @@ void TNonBlockReader::Close()
     }
 }
 
-std::pair<TBlob, bool> TNonBlockReader::GetRead(TBlob&& buffer)
+std::pair<TBlob, bool> TNonblockingReader::GetRead(TBlob&& buffer)
 {
     TBlob result(std::move(ReadBuffer_));
     result.Resize(BytesInBuffer_);
@@ -87,38 +87,38 @@ std::pair<TBlob, bool> TNonBlockReader::GetRead(TBlob&& buffer)
     return std::make_pair(std::move(result), ReachedEOF_);
 }
 
-bool TNonBlockReader::IsBufferFull() const
+bool TNonblockingReader::IsBufferFull() const
 {
     return BytesInBuffer_ == ReadBuffer_.Size();
 }
 
-bool TNonBlockReader::IsBufferEmpty() const
+bool TNonblockingReader::IsBufferEmpty() const
 {
     return BytesInBuffer_ == 0;
 }
 
-bool TNonBlockReader::InFailedState() const
+bool TNonblockingReader::InFailedState() const
 {
     return LastSystemError_ != 0;
 }
 
-bool TNonBlockReader::IsClosed() const
+bool TNonblockingReader::IsClosed() const
 {
     return Closed_;
 }
 
-bool TNonBlockReader::ReachedEOF() const
+bool TNonblockingReader::ReachedEOF() const
 {
     return ReachedEOF_;
 }
 
-int TNonBlockReader::GetLastSystemError() const
+int TNonblockingReader::GetLastSystemError() const
 {
     YCHECK(InFailedState());
     return LastSystemError_;
 }
 
-bool TNonBlockReader::IsReady() const
+bool TNonblockingReader::IsReady() const
 {
     return InFailedState() || ReachedEOF() || !IsBufferEmpty();
 }

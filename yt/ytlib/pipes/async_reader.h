@@ -14,7 +14,7 @@ namespace NYT {
 namespace NPipes {
 
 namespace NDetail {
-    class TNonBlockReader;
+    class TNonblockingReader;
 }
 
 class TAsyncReader
@@ -32,7 +32,7 @@ public:
 private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
 
-    std::unique_ptr<NDetail::TNonBlockReader> Reader;
+    std::unique_ptr<NDetail::TNonblockingReader> Reader;
     ev::io FDWatcher;
     ev::async StartWatcher;
 

@@ -8,12 +8,12 @@ namespace NPipes {
 namespace NDetail {
 
 // It is not thread-safe
-class TNonBlockReader
+class TNonblockingReader
 {
 public:
     // It own this fd
-    TNonBlockReader(int fd);
-    ~TNonBlockReader();
+    TNonblockingReader(int fd);
+    ~TNonblockingReader();
 
     void ReadToBuffer();
     void Close();
@@ -33,7 +33,7 @@ public:
 
     bool IsReady() const;
 private:
-    int FD;
+    int FD_;
 
     TBlob ReadBuffer_;
     size_t BytesInBuffer_;

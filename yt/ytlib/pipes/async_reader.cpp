@@ -10,7 +10,7 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAsyncReader::TAsyncReader(int fd)
-    : Reader(new NDetail::TNonBlockReader(fd))
+    : Reader(new NDetail::TNonblockingReader(fd))
     , ReadyPromise()
     , IsAborted_(false)
     , Logger(ReaderLogger)

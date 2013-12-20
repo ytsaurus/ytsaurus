@@ -14,7 +14,7 @@ namespace NYT {
 namespace NPipes {
 
 namespace NDetail {
-    class TNonBlockWriter;
+    class TNonblockingWriter;
 }
 
 class TAsyncWriter : public IFDWatcher
@@ -32,7 +32,7 @@ private:
 
     void Close();
 
-    std::unique_ptr<NDetail::TNonBlockWriter> Writer;
+    std::unique_ptr<NDetail::TNonblockingWriter> Writer;
     ev::io FDWatcher;
     ev::async StartWatcher;
 

@@ -12,7 +12,7 @@ static const size_t WriteBufferSize = 64 * 1024;
 ////////////////////////////////////////////////////////////////////////////////
 
 TAsyncWriter::TAsyncWriter(int fd)
-    : Writer(new NDetail::TNonBlockWriter(fd))
+    : Writer(new NDetail::TNonblockingWriter(fd))
     , NeedToClose(false)
     , Logger(WriterLogger)
 {
@@ -57,14 +57,14 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
     TGuard<TSpinLock> guard(WriteLock);
 
     if (!Writer->IsBufferEmpty() || NeedToClose) {
-        Writer->TryWriteFromBuffer();
+        Writer->WriteFromBuffer();
 
-        if (Writer->InFailedState() || (NeedToClose && Writer->IsBufferEmpty())) {
+        if (Writer->IsFailed() || (NeedToClose && Writer->IsBufferEmpty())) {
             Close();
         }
 
         if (ReadyPromise.HasValue()) {
-            if (!Writer->InFailedState()) {
+            if (!Writer->IsFailed()) {
                 ReadyPromise->Set(TError());
             } else {
                 ReadyPromise->Set(TError::FromSystem(Writer->GetLastSystemError()));
@@ -89,7 +89,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
     Writer->WriteToBuffer(static_cast<const char*>(data), size);
 
     // restart watcher
-    if (!Writer->InFailedState()) {
+    if (!Writer->IsFailed()) {
         if (!Writer->IsBufferEmpty() || NeedToClose) {
             StartWatcher.send();
         }
@@ -97,7 +97,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
         YCHECK(Writer->IsClosed());
     }
 
-    return (Writer->InFailedState() || Writer->IsBufferFull());
+    return (Writer->IsFailed() || Writer->IsBufferFull());
 }
 
 void TAsyncWriter::Close()
@@ -132,7 +132,7 @@ TAsyncError TAsyncWriter::GetReadyEvent()
         return RegistrationError;
     }
 
-    if (Writer->InFailedState()) {
+    if (Writer->IsFailed()) {
         return MakePromise<TError>(TError::FromSystem(Writer->GetLastSystemError()));
     } else if (!Writer->IsBufferFull()) {
         return MakePromise<TError>(TError());

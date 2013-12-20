@@ -7,13 +7,13 @@ namespace NYT {
 namespace NPipes {
 namespace NDetail {
 
-class TNonBlockWriter
+class TNonblockingWriter
 {
 public:
-    TNonBlockWriter(int fd);
-    ~TNonBlockWriter();
+    TNonblockingWriter(int fd);
+    ~TNonblockingWriter();
 
-    void TryWriteFromBuffer();
+    void WriteFromBuffer();
     void Close();
 
     void WriteToBuffer(const char* data, size_t size);
@@ -21,18 +21,18 @@ public:
     bool IsBufferEmpty() const;
     bool IsBufferFull() const;
 
-    bool InFailedState() const;
+    bool IsFailed() const;
     int GetLastSystemError() const;
 
     bool IsClosed() const;
 private:
-    int FD;
+    int FD_;
 
-    TBlob WriteBuffer;
-    size_t BytesWrittenTotal;
+    TBlob WriteBuffer_;
+    size_t BytesWrittenTotal_;
 
-    bool Closed;
-    int LastSystemError;
+    bool Closed_;
+    int LastSystemError_;
 
     NLog::TTaggedLogger Logger;
 
