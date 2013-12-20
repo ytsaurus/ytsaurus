@@ -895,9 +895,7 @@ private:
         if (!tablet || tablet->GetState() != ETabletState::Unmounting)
             return;
         
-        auto* table = tablet->GetTable();
-        auto* cell = tablet->GetCell();
-
+        DoTabletUnmounted(tablet);
     }
 
     void DoTabletUnmounted(TTablet* tablet)
