@@ -340,6 +340,7 @@ public:
 
             auto* cell = AllocateCell();
             tablet->SetCell(cell);
+            YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
@@ -896,10 +897,10 @@ private:
             ~ToString(tablet->GetId()),
             ~ToString(cell->GetId()));
 
+        auto objectManager = Bootstrap->GetObjectManager();
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
-
-        auto objectManager = Bootstrap->GetObjectManager();
+        YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
     }
 
