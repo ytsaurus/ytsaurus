@@ -389,10 +389,12 @@ public:
             table,
             std::make_pair(table->Tablets().begin(), table->Tablets().end()));
 
+        auto objectManager = Bootstrap->GetObjectManager();
         for (auto* tablet : table->Tablets()) {
             if (tablet->GetState() == ETabletState::Unmounting) {
                 DoTabletUnmounted(tablet);
             }
+            objectManager->UnrefObject(tablet);
         }
 
         table->Tablets().clear();
