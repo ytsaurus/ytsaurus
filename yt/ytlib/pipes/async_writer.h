@@ -43,11 +43,13 @@ private:
 
     TSpinLock WriteLock;
 
-    NLog::TTaggedLogger Logger;
+    bool IsRegistered() const;
+    bool HasJobToDo() const;
 
     void OnWrite(ev::io&, int);
-
     void OnStart(ev::async&, int);
+
+    NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 };

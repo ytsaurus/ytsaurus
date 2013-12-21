@@ -33,6 +33,8 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
 
     TGuard<TSpinLock> guard(WriteLock);
 
+    YCHECK(!Writer->IsClosed());
+
     StartWatcher.set(eventLoop);
     StartWatcher.set<TAsyncWriter, &TAsyncWriter::OnStart>(this);
     StartWatcher.start();
@@ -40,6 +42,8 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncWriter, &TAsyncWriter::OnWrite>(this);
     FDWatcher.start();
+
+    LOG_DEBUG("Registered");
 }
 
 void TAsyncWriter::OnStart(ev::async&, int eventType)
@@ -47,7 +51,11 @@ void TAsyncWriter::OnStart(ev::async&, int eventType)
     VERIFY_THREAD_AFFINITY(EventLoop);
     YCHECK(eventType | ev::ASYNC == ev::ASYNC);
 
-    FDWatcher.start();
+    YCHECK(IsRegistered());
+
+    if (!Writer->IsClosed()) {
+        FDWatcher.start();
+    }
 }
 
 void TAsyncWriter::OnWrite(ev::io&, int eventType)
@@ -57,7 +65,9 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(WriteLock);
 
-    if (!Writer->IsBufferEmpty() || NeedToClose) {
+    YCHECK(IsRegistered());
+
+    if (HasJobToDo()) {
         Writer->WriteFromBuffer();
 
         if (Writer->IsFailed() || (NeedToClose && Writer->IsBufferEmpty())) {
@@ -73,7 +83,7 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
             ReadyPromise.Reset();
         }
     } else {
-        // I stop because these is nothing to write
+        // I stop because these is nothing to do
         FDWatcher.stop();
     }
 }
@@ -91,14 +101,14 @@ bool TAsyncWriter::Write(const void* data, size_t size)
 
     // restart watcher
     if (!Writer->IsFailed()) {
-        if (!Writer->IsBufferEmpty() || NeedToClose) {
+        if (IsRegistered() && !FDWatcher.is_active() && HasJobToDo()) {
             StartWatcher.send();
         }
     } else {
         YCHECK(Writer->IsClosed());
     }
 
-    return (Writer->IsFailed() || Writer->IsBufferFull());
+    return Writer->IsFailed() || Writer->IsBufferFull();
 }
 
 void TAsyncWriter::Close()
@@ -117,7 +127,9 @@ TAsyncError TAsyncWriter::AsyncClose()
     NeedToClose = true;
     YCHECK(!ReadyPromise);
 
-    StartWatcher.send();
+    if (IsRegistered() && !FDWatcher.is_active()) {
+        StartWatcher.send();
+    }
 
     ReadyPromise = NewPromise<TError>();
     return ReadyPromise.ToFuture();
@@ -129,7 +141,7 @@ TAsyncError TAsyncWriter::GetReadyEvent()
 
     TGuard<TSpinLock> guard(WriteLock);
 
-    if (!RegistrationError.IsSet() || !RegistrationError.Get().IsOK()) {
+    if (!IsRegistered()) {
         return RegistrationError;
     }
 
@@ -141,6 +153,16 @@ TAsyncError TAsyncWriter::GetReadyEvent()
         ReadyPromise = NewPromise<TError>();
         return ReadyPromise.ToFuture();
     }
+}
+
+bool TAsyncWriter::IsRegistered() const
+{
+    return RegistrationError.IsSet() && RegistrationError.Get().IsOK();
+}
+
+bool TAsyncWriter::HasJobToDo() const
+{
+    return !Writer->IsBufferEmpty() || NeedToClose;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
