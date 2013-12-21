@@ -57,7 +57,7 @@ TError TEvaluateController::Run()
             if (UNLIKELY(!didOpenWriter)) {
                 LOG_DEBUG("Opening writer");
                 Writer_->Open(
-                    GetHead()->GetResultNames(),
+                    GetHead()->GetNameTable(),
                     GetHead()->GetTableSchema(),
                     GetHead()->GetKeyColumns());
                 didOpenWriter = true;
@@ -134,7 +134,7 @@ void TEvaluateController::ScanRoutine(
     LOG_DEBUG("Opening reader");
 
     {
-        NVersionedTableClient::TNameTablePtr nameTable = New<TNameTable>();
+        auto nameTable = New<TNameTable>();
         auto error = WaitFor(reader->Open(nameTable, schema));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
@@ -183,7 +183,6 @@ void TEvaluateController::FilterRoutine(
     LOG_DEBUG("Creating producer for filter operator (Op: %p)", op);
 
     auto source = CreateProducer(op->GetSource());
-
     auto sourceTableSchema = op->GetTableSchema();
 
     while (source.Run(rows)) {
@@ -215,17 +214,17 @@ void TEvaluateController::ProjectRoutine(
     auto sourceTableSchema = op->GetSource()->GetTableSchema();
     TChunkedMemoryPool memoryPool;
 
-    auto nameTable = op->GetResultNames();
+    auto nameTable = op->GetNameTable();
     while (source.Run(rows)) {
         std::transform(
             rows->begin(),
             rows->end(),
             rows->begin(),
-            [this, &op, &memoryPool, &sourceTableSchema, &nameTable] (const TRow row) -> TRow {
+            [&] (const TRow row) -> TRow {
                 auto result = TRow::Allocate(&memoryPool, op->GetProjectionCount());
                 for (int i = 0; i < op->GetProjectionCount(); ++i) {
-                    result[i] = EvaluateExpression(op->GetProjection(i).first, row, sourceTableSchema);
-                    result[i].Id = nameTable->GetId(op->GetProjection(i).second);
+                    result[i] = EvaluateExpression(op->GetProjection(i).Expression, row, sourceTableSchema);
+                    result[i].Id = nameTable->GetId(op->GetProjection(i).Name);
                 }
                 return result;
             });
@@ -244,12 +243,11 @@ size_t THashCombine(size_t seed, const T& value)
     // TODO(lukyan): Fix this function
 }
 
-struct TGroupByHasher
+class TGroupByHasher
 {
-    int KeySize_;
-
 public:
-    explicit TGroupByHasher(int keySize) : KeySize_(keySize)
+    explicit TGroupByHasher(int keySize)
+        : KeySize_(keySize)
     { }
 
     size_t operator() (TRow key) const
@@ -259,16 +257,19 @@ public:
             YCHECK(key[i].Type == EValueType::Integer);
             result = THashCombine(result, key[i].Data.Integer);
         }
-		return result;
-	}
+        return result;
+    }
+
+private:
+    int KeySize_;
+
 };
 
 class TGroupByComparer
 {
-    int KeySize_;
-
 public:
-    explicit TGroupByComparer(int keySize) : KeySize_(keySize)
+    explicit TGroupByComparer(int keySize)
+        : KeySize_(keySize)
     { }
 
     bool operator() (TRow lhs, TRow rhs) const
@@ -283,6 +284,10 @@ public:
         }
         return true;
     }
+
+private:
+    int KeySize_;
+
 };
 
 void TEvaluateController::GroupByRoutine(
@@ -297,7 +302,7 @@ void TEvaluateController::GroupByRoutine(
     auto sourceTableSchema = op->GetSource()->GetTableSchema();
     TChunkedMemoryPool memoryPool;
 
-    auto nameTable = op->GetResultNames();
+    auto nameTable = op->GetNameTable();
     int keySize = op->GetGroupItemsCount();
 
     std::vector<TRow> groupedRows;
@@ -311,8 +316,8 @@ void TEvaluateController::GroupByRoutine(
         for (auto row : sourceRows) {
 
             for (int i = 0; i < keySize; ++i) {
-                resultRow[i] = EvaluateExpression(op->GetGroupItem(i).first, row, sourceTableSchema);
-                resultRow[i].Id = nameTable->GetId(op->GetGroupItem(i).second);
+                resultRow[i] = EvaluateExpression(op->GetGroupItem(i).Expression, row, sourceTableSchema);
+                resultRow[i].Id = nameTable->GetId(op->GetGroupItem(i).Name);
             }
 
             for (int i = 0; i < op->AggregateItems().size(); ++i) {
@@ -378,7 +383,7 @@ TValue TEvaluateController::EvaluateExpression(
                 expr->As<TDoubleLiteralExpression>()->GetValue());
         case EExpressionKind::Reference:
         {
-            int index = tableSchema.GetColumnIndex(tableSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetName()));
+            int index = tableSchema.GetColumnIndexOrThrow(expr->As<TReferenceExpression>()->GetName());
             return row[index];
         }
         case EExpressionKind::Function:

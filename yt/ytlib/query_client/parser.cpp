@@ -1380,8 +1380,8 @@ namespace NYT { namespace NQueryClient {
   case 11:
 #line 172 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
-			yylhs.value.as< TNamedExpression > ().first = yystack_[0].value.as< TReferenceExpression* > ();
-			yylhs.value.as< TNamedExpression > ().second = yystack_[0].value.as< TReferenceExpression* > ()->GetColumnName();
+			yylhs.value.as< TNamedExpression > ().Expression = yystack_[0].value.as< TReferenceExpression* > ();
+			yylhs.value.as< TNamedExpression > ().Name = yystack_[0].value.as< TReferenceExpression* > ()->GetColumnName();
 		}
 #line 1387 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;
@@ -1389,8 +1389,8 @@ namespace NYT { namespace NQueryClient {
   case 12:
 #line 177 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
-			yylhs.value.as< TNamedExpression > ().first = yystack_[2].value.as< TExpression* > ();
-			yylhs.value.as< TNamedExpression > ().second = yystack_[0].value.as< TStringBuf > ();
+			yylhs.value.as< TNamedExpression > ().Expression = yystack_[2].value.as< TExpression* > ();
+			yylhs.value.as< TNamedExpression > ().Name = yystack_[0].value.as< TStringBuf > ();
 		}
 #line 1396 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
     break;

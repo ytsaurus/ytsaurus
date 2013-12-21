@@ -312,7 +312,7 @@ public:
 
     virtual bool Visit(const TScanOperator* op) override
     {
-        currentSourceSchema_ = op->GetTableSchema();
+        CurrentSourceSchema_ = op->GetTableSchema();
         using NObjectClient::TObjectId;
         using NObjectClient::TypeFromId;
         auto objectId = GetObjectIdFromDataSplit(op->DataSplit());
@@ -331,7 +331,7 @@ public:
 
     virtual bool Visit(const TUnionOperator* op) override
     {
-        currentSourceSchema_ = op->GetTableSchema();
+        CurrentSourceSchema_ = op->GetTableSchema();
         WriteNode(op, TLabel(op).Build());
         for (const auto& source : op->Sources()) {
             WriteEdge(op, source);
@@ -341,7 +341,7 @@ public:
 
     virtual bool Visit(const TFilterOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         WriteNode(
             op,
             TLabel(op)
@@ -356,19 +356,19 @@ public:
 
     virtual bool Visit(const TGroupByOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
 
         TLabel label(op);
         for (int i = 0; i < op->GetGroupItemsCount(); ++i) {
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetGroupItem(i).first->GetSource()));
+                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetGroupItem(i).Expression->GetSource()));
         }
         WriteNode(op, label.Build());
         WriteEdge(op, op->GetSource());
         for (int i = 0; i < op->GetGroupItemsCount(); ++i) {
-            WriteEdge(op, op->GetGroupItem(i).first, ToString(i));
-            Traverse(this, op->GetGroupItem(i).first);
+            WriteEdge(op, op->GetGroupItem(i).Expression, ToString(i));
+            Traverse(this, op->GetGroupItem(i).Expression);
         }
 
         // TODO(lukyan): Visit aggregate items
@@ -378,18 +378,18 @@ public:
 
     virtual bool Visit(const TProjectOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         TLabel label(op);
         for (int i = 0; i < op->GetProjectionCount(); ++i) {
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetProjection(i).first->GetSource()));
+                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetProjection(i).Expression->GetSource()));
         }
         WriteNode(op, label.Build());
         WriteEdge(op, op->GetSource());
         for (int i = 0; i < op->GetProjectionCount(); ++i) {
-            WriteEdge(op, op->GetProjection(i).first, ToString(i));
-            Traverse(this, op->GetProjection(i).first);
+            WriteEdge(op, op->GetProjection(i).Expression, ToString(i));
+            Traverse(this, op->GetProjection(i).Expression);
         }
         return true;
     }
@@ -398,7 +398,7 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr, currentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
+            TLabel(expr, CurrentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
@@ -406,7 +406,7 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr, currentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
+            TLabel(expr, CurrentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
@@ -414,7 +414,7 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr, currentSourceSchema_)
+            TLabel(expr, CurrentSourceSchema_)
                 .WithRow(
                     "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>" +
                     "ColumnName: " + expr->GetColumnName() + "<BR/>"
@@ -425,7 +425,7 @@ public:
 
     virtual bool Visit(const TFunctionExpression* expr) override
     {
-        TLabel label(expr, currentSourceSchema_);
+        TLabel label(expr, CurrentSourceSchema_);
         label.WithRow("FunctionName: " + expr->GetFunctionName());
         for (int i = 0; i < expr->GetArgumentCount(); ++i) {
             label.WithPortAndRow(
@@ -444,7 +444,7 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr, currentSourceSchema_)
+            TLabel(expr, CurrentSourceSchema_)
                 .WithRow("Opcode: " + expr->GetOpcode().ToString())
                 .Build());
         WriteEdge(expr, expr->GetLhs());
@@ -456,7 +456,7 @@ private:
     TOutputStream& Output_;
     std::unordered_set<const void*> VisitedNodes_;
     std::unordered_set<std::pair<const void*, const void*>> VisitedEdges_;
-    TTableSchema currentSourceSchema_;
+    TTableSchema CurrentSourceSchema_;
 
 };
 

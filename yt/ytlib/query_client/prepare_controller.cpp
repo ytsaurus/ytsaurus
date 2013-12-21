@@ -57,7 +57,7 @@ public:
 
     virtual bool Visit(const TScanOperator* op) override
     {
-        currentSourceSchema_ = op->GetTableSchema();
+        CurrentSourceSchema_ = op->GetTableSchema();
         if (Mode_ != Check) {
             return true;
         }
@@ -95,16 +95,16 @@ public:
 
     virtual bool Visit(const TFilterOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         Traverse(this, op->GetPredicate());
         return true;
     }
 
     virtual bool Visit(const TGroupByOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         for (auto& groupItem : op->GroupItems()) {
-            Traverse(this, groupItem.first);
+            Traverse(this, groupItem.Expression);
         }
 
         for (auto& aggregateItem : op->AggregateItems()) {
@@ -115,9 +115,9 @@ public:
 
     virtual bool Visit(const TProjectOperator* op) override
     {
-        currentSourceSchema_ = op->GetSource()->GetTableSchema();
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         for (auto& projection : op->Projections()) {
-            Traverse(this, projection.first);
+            Traverse(this, projection.Expression);
         }
         return true;
     }
@@ -127,7 +127,7 @@ public:
         const auto name = expr->GetColumnName();
         switch (Mode_) {
             case Check: {
-                auto column = currentSourceSchema_.FindColumn(name);
+                auto column = CurrentSourceSchema_.FindColumn(name);
                 if (!column) {
                     THROW_ERROR_EXCEPTION(
                         "Undefined reference %s",
@@ -146,7 +146,7 @@ public:
 private:
     TPrepareController* Controller_;
     std::vector<std::set<Stroka>> LiveColumns_;
-    TTableSchema currentSourceSchema_;
+    TTableSchema CurrentSourceSchema_;
 
 };
 } // anonymous namespace
@@ -219,7 +219,7 @@ void TPrepareController::TypecheckExpressions()
         }
         if (auto* typedOp = op->As<TProjectOperator>()) {
             for (auto& projection : typedOp->Projections()) {
-                projection.first->GetType(typedOp->GetSource()->GetTableSchema()); // Force typechecking.
+                projection.Expression->GetType(typedOp->GetSource()->GetTableSchema()); // Force typechecking.
             }
         }
     });
@@ -236,7 +236,10 @@ void TPrepareController::MoveAggregateExpressions()
             auto& newProjections = newProjectOp->Projections();
 
             for (auto& projection : typedOp->Projections()) {
-                auto newExpr = Apply(context, projection.first, [&] (TPlanContext* context, const TExpression* expr) -> const TExpression*
+                auto newExpr = Apply(
+                    context, 
+                    projection.Expression, 
+                    [&] (TPlanContext* context, const TExpression* expr) -> const TExpression*
                 {
                     if (auto* functionExpr = expr->As<TFunctionExpression>()) {
                         auto name = functionExpr->GetFunctionName();
@@ -259,19 +262,19 @@ void TPrepareController::MoveAggregateExpressions()
 
                         YCHECK(functionExpr->GetArgumentCount() == 1);
 
-                        Stroka subexprName = aggregateFunction.ToString() 
-                            + " " + functionExpr->GetArgument(0)->GetName();
+                        Stroka subexprName = functionExpr->GetName();
                         auto referenceExpr = new (context) TReferenceExpression(
                             context, 
                             NullSourceLocation, 
                             context->GetTableIndexByAlias(""), 
                             subexprName);
-                        aggregateItems.push_back(TAggregateItem(functionExpr->GetArgument(0), aggregateFunction, subexprName));
+                        aggregateItems.push_back(
+                            TAggregateItem(functionExpr->GetArgument(0), aggregateFunction, subexprName));
                         return referenceExpr;
                     }
                     return expr;
                 });
-                newProjections.push_back(std::make_pair(newExpr, projection.second));
+                newProjections.push_back(TNamedExpression(newExpr, projection.Name));
             }
             return newProjectOp;
         }

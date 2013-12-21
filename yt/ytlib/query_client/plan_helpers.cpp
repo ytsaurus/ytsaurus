@@ -42,8 +42,8 @@ TTableSchema InferTableSchema(const TOperator* op)
             auto sourceSchema = InferTableSchema(typedOp->GetSource());
             for (const auto& projection : typedOp->Projections()) {
                 result.Columns().emplace_back(
-                    projection.second,
-                    InferType(projection.first, sourceSchema));
+                    projection.Name,
+                    InferType(projection.Expression, sourceSchema));
             }
             return result;
         }
@@ -68,8 +68,8 @@ TTableSchema InferTableSchema(const TOperator* op)
             auto sourceSchema = InferTableSchema(typedOp->GetSource());
             for (const auto& groupItem : typedOp->GroupItems()) {
                 result.Columns().emplace_back(
-                    groupItem.second,
-                    InferType(groupItem.first, sourceSchema));
+                    groupItem.Name,
+                    InferType(groupItem.Expression, sourceSchema));
             }
 
             for (const auto& aggregateItem : typedOp->AggregateItems()) {

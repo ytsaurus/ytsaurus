@@ -7,13 +7,13 @@ import "yt/ytlib/query_client/expression.proto";
 
 message TNamedExpression
 {
-	required TExpression expression = 1;
+    required TExpression expression = 1;
     required string name = 2;
 }
 
 message TAggregateItem
 {
-	required TExpression expression = 1;
+    required TExpression expression = 1;
     required int32 aggregate_function = 2; // EAggregateFunction
     required string name = 3;
 }

@@ -64,7 +64,7 @@ TKeyColumns TOperator::GetKeyColumns() const
     return InferKeyColumns(this);
 }
 
-NVersionedTableClient::TNameTablePtr TOperator::GetResultNames() const
+NVersionedTableClient::TNameTablePtr TOperator::GetNameTable() const
 {
     return NVersionedTableClient::TNameTable::FromSchema(InferTableSchema(this));
 }
@@ -73,8 +73,8 @@ NVersionedTableClient::TNameTablePtr TOperator::GetResultNames() const
 
 void ToProto(NProto::TNamedExpression* serialized, const TNamedExpression& original)
 {
-    ToProto(serialized->mutable_expression(), original.first);
-    ToProto(serialized->mutable_name(), original.second);
+    ToProto(serialized->mutable_expression(), original.Expression);
+    ToProto(serialized->mutable_name(), original.Name);
 }
 
 void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
@@ -141,7 +141,10 @@ TNamedExpression FromProto(const NProto::TNamedExpression& serialized, TPlanCont
 
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized, TPlanContext* context)
 {
-    return TAggregateItem(FromProto(serialized.expression(), context), EAggregateFunctions(serialized.aggregate_function()), serialized.name());
+    return TAggregateItem(
+        FromProto(serialized.expression(), context), 
+        EAggregateFunctions(serialized.aggregate_function()), 
+        serialized.name());
 }
 
 const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* context)

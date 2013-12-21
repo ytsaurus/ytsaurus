@@ -13,7 +13,24 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::pair<const TExpression*, Stroka> TNamedExpression;
+//typedef std::pair<const TExpression*, Stroka> TNamedExpression;
+
+//typedef SmallVector<TNamedExpression, TypicalNamedExpressionsCount> TNamedExpressionList;
+
+class TNamedExpression
+{
+public:
+    TNamedExpression()
+    { }
+
+    TNamedExpression(const TExpression* expression, Stroka name)
+        : Expression(expression)
+        , Name(name)
+    { }
+
+    const TExpression* Expression;
+    Stroka Name;
+};
 
 typedef SmallVector<TNamedExpression, TypicalNamedExpressionsCount> TNamedExpressionList;
 
@@ -24,6 +41,31 @@ DECLARE_ENUM(EOperatorKind,
     (GroupBy)
     (Project)
 );
+
+DECLARE_ENUM(EAggregateFunctions,
+    (Sum)
+    (Min)
+    (Max)
+    (Average)
+    (Count)
+);
+
+class TAggregateItem
+{
+public:
+    TAggregateItem()
+    { }
+
+    TAggregateItem(const TExpression* expression, EAggregateFunctions aggregateFunction, Stroka name)
+        : Expression(expression)
+        , AggregateFunction(aggregateFunction)
+        , Name(name)
+    { }
+
+    const TExpression* Expression;
+    EAggregateFunctions AggregateFunction;
+    Stroka Name;
+};
 
 class TOperator
     : public TPlanNodeBase<TOperator, EOperatorKind>
@@ -38,8 +80,8 @@ public:
     //! Piggy-backed method |InferTableSchema|.
     TTableSchema GetTableSchema() const;
 
-    //! Piggy-backed method |InferResultNames|.
-    NVersionedTableClient::TNameTablePtr GetResultNames() const;
+    //! Piggy-backed method |InferNameTable|.
+    NVersionedTableClient::TNameTablePtr GetNameTable() const;
 
     //! Piggy-backed method |InferKeyColumns|.
     TKeyColumns GetKeyColumns() const;
@@ -154,29 +196,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(const TExpression*, Predicate);
 
-};
-
-DECLARE_ENUM(EAggregateFunctions,
-    (Sum)
-    (Min)
-    (Max)
-    (Average)
-    (Count)
-);
-
-class TAggregateItem
-{
-public:
-    TAggregateItem()
-    { }
-
-    TAggregateItem(const TExpression* expression, EAggregateFunctions aggregateFunction, Stroka name)
-        : Expression(expression), AggregateFunction(aggregateFunction), Name(name)
-    { }
-
-    const TExpression* Expression;
-    EAggregateFunctions AggregateFunction;
-    Stroka Name;
 };
 
 class TGroupByOperator

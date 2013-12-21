@@ -88,7 +88,7 @@
 %type <TFunctionExpression*> function-expr
 %type <TFunctionExpression::TArguments> function-expr-args
 
-%type <TReferenceExpression*> name-expr
+%type <TReferenceExpression*> reference-expr
 
 %type <EBinaryOp> equality-op
 %type <EBinaryOp> relational-op
@@ -168,15 +168,13 @@ named-expression-list
 ;
 
 named-expression
-    : name-expr
+    : reference-expr
         {
-            $$.first = $1;
-            $$.second = $1->GetColumnName();
+            $$ = TNamedExpression($1, $1->GetColumnName());
         }
     | expression[expr] KwAs Identifier[name]
         {
-            $$.first = $expr;
-            $$.second = $name;
+            $$ = TNamedExpression($expr, $name);
         }
 ;
 
@@ -304,7 +302,7 @@ multiplicative-op
 ;
 
 atomic-expr
-    : name-expr
+    : reference-expr
         { $$ = $1; }
     | IntegerLiteral[value]
         {
@@ -331,7 +329,7 @@ function-expr
         }
 ;
 
-name-expr
+reference-expr
     : Identifier[name]
         {
             auto tableIndex = context->GetTableIndexByAlias("");

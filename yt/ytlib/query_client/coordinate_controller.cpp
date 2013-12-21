@@ -215,19 +215,25 @@ void TCoordinateController::PushdownGroupBys()
                     newUnionOp->Sources().push_back(clonedGroupByOp);
                 }
 
-                TNamedExpressionList finalGroupItems;
+                TNamedExpressionList& finalGroupItems = newGroupByOp->GroupItems();
                 for (const auto& groupItem : groupByOp->GroupItems()) {
-                    auto referenceExpression = new (context) TReferenceExpression(context, NullSourceLocation, context->GetTableIndexByAlias(""), groupItem.second);
-                    finalGroupItems.push_back(std::make_pair(referenceExpression, groupItem.second));
+                    auto referenceExpr = new (context) TReferenceExpression(
+                        context, NullSourceLocation, 
+                        context->GetTableIndexByAlias(""), 
+                        groupItem.Name);
+                    finalGroupItems.push_back(TNamedExpression(referenceExpr, groupItem.Name));
                 }
-                newGroupByOp->GroupItems().swap(finalGroupItems);
 
-                TGroupByOperator::TAggregateItemList finalAggregateItems;
+                TGroupByOperator::TAggregateItemList& finalAggregateItems = newGroupByOp->AggregateItems();
                 for (const auto& aggregateItem : groupByOp->AggregateItems()) {
-                    auto referenceExpression = new (context) TReferenceExpression(context, NullSourceLocation, context->GetTableIndexByAlias(""), aggregateItem.Name);
-                    finalAggregateItems.push_back(TAggregateItem(referenceExpression, aggregateItem.AggregateFunction, aggregateItem.Name));
+                    auto referenceExpr = new (context) TReferenceExpression(
+                        context, 
+                        NullSourceLocation, 
+                        context->GetTableIndexByAlias(""), 
+                        aggregateItem.Name);
+                    finalAggregateItems.push_back(
+                        TAggregateItem(referenceExpr, aggregateItem.AggregateFunction, aggregateItem.Name));
                 }
-                newGroupByOp->AggregateItems().swap(finalAggregateItems);
 
                 return newGroupByOp;
             }
