@@ -141,7 +141,7 @@ def line_to_record(line, format=None):
 def extract_key(rec, fields, format=None):
     if format is None: format = config.format.TABULAR_DATA_FORMAT
 
-    if format.name() == "yamr":
+    if format.name() in ["yamr", "yamred_dsv"]:
         return rec.key
     elif format.name() in ["dsv", "yson"]:
         return dict((key, rec[key]) for key in fields if key in rec)
