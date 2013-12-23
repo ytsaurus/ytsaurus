@@ -137,7 +137,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write('//tmp/t1', {"foo": "bar"})
 
-        command = '''cat > /dev/null; echo stderr 1>&2; echo "{x=y}{v=};{a=b}"'''
+        command = '''echo "{x=y}{v=};{a=b}"; while echo xxx 2>/dev/null; do false; done; echo stderr 1>&2; cat > /dev/null;'''
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command)
         # if all jobs failed then operation is also failed

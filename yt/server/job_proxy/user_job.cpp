@@ -306,11 +306,9 @@ private:
             auto error = pipe->DoAll();
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Pipe has failed");
-                for (auto& pipe : OutputPipes) {
-                    auto closeError = pipe->Close();
-                    if (!closeError.IsOK()) {
-                        SetError(closeError);
-                    }
+                auto closeError = pipe->Close();
+                if (!closeError.IsOK()) {
+                    SetError(closeError);
                 }
             }
             return error;
