@@ -27,21 +27,25 @@ public:
     virtual void SetUp() override
     {
 #ifdef _unix_
-        const char* loggingLevelFromEnv = getenv("YT_LOG_LEVEL");
-        Stroka loggingLevel;
-        if (loggingLevelFromEnv) {
-            loggingLevel = loggingLevelFromEnv;
-            loggingLevel.to_lower(0, Stroka::npos);
-        } else {
-            loggingLevel = "fatal";
+        if (!getenv("YT_LOG_LEVEL") && !getenv("YT_LOG_CATEGORIES")) {
+            return;
         }
 
-        const char* loggingCategoriesFromEnv = getenv("YT_LOG_CATEGORIES");
-        VectorStrok loggingCategories;
-        if (loggingCategoriesFromEnv) {
-            SplitStroku(&loggingCategories, loggingLevelFromEnv, ",");
+        const char* logLevelFromEnv = getenv("YT_LOG_LEVEL");
+        Stroka logLevel;
+        if (logLevelFromEnv) {
+            logLevel = logLevelFromEnv;
+            logLevel.to_lower(0, Stroka::npos);
         } else {
-            loggingCategories.push_back("*");
+            logLevel = "fatal";
+        }
+
+        const char* logCategoriesFromEnv = getenv("YT_LOG_CATEGORIES");
+        VectorStrok logCategories;
+        if (logCategoriesFromEnv) {
+            SplitStroku(&logCategories, logLevelFromEnv, ",");
+        } else {
+            logCategories.push_back("*");
         }
 
         auto builder = CreateBuilderFromFactory(NYT::NYTree::GetEphemeralNodeFactory());
@@ -51,9 +55,9 @@ public:
                 .BeginList()
                     .Item()
                     .BeginMap()
-                        .Item("min_level").Value(loggingLevel)
+                        .Item("min_level").Value(logLevel)
                         .Item("writers").BeginList().Item().Value("stderr").EndList()
-                        .Item("categories").List(loggingCategories)
+                        .Item("categories").List(logCategories)
                     .EndMap()
                 .EndList()
                 .Item("writers")
