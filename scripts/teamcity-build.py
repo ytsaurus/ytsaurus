@@ -170,6 +170,7 @@ def run_unit_tests(options):
             "--args",
             "./bin/unittester",
             "--gtest_color=no",
+            "--gtest_death_test_style=threadsafe",
             "--gtest_output=xml:gtest_unittester.xml"],
             cwd=options.working_directory)
     except ChildHasNonZeroExitCode as err:
