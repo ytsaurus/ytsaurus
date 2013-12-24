@@ -55,8 +55,8 @@ bool Traverse(IPlanVisitor* visitor, const TOperator* root)
                 queue.push_back(typedItem->GetSource());
                 break;
             }
-            case EOperatorKind::GroupBy: {
-                auto* typedItem = item->As<TGroupByOperator>();
+            case EOperatorKind::Group: {
+                auto* typedItem = item->As<TGroupOperator>();
                 if (!visitor->Visit(typedItem)) { return false; }
                 queue.push_back(typedItem->GetSource());
                 break;

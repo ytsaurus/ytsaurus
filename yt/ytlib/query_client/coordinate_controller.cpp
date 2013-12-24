@@ -67,7 +67,7 @@ TError TCoordinateController::Run()
 
         SplitFurther();
         PushdownFilters();
-        PushdownGroupBys();
+        PushdownGroups();
         PushdownProjects();
         DistributeToPeers();
 
@@ -192,32 +192,32 @@ void TCoordinateController::PushdownProjects()
     });
 }
 
-void TCoordinateController::PushdownGroupBys()
+void TCoordinateController::PushdownGroups()
 {
-    LOG_DEBUG("Pushing down group by operators");
+    LOG_DEBUG("Pushing down group operators");
     Rewrite(
     [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         // Rewrite
         //   G -> U -> { O1 ... Ok }
         // to
         //   G -> U -> { G -> O1 ... G -> Ok }
-        if (auto* groupByOp = op->As<TGroupByOperator>()) {
-            if (auto* unionOp = groupByOp->GetSource()->As<TUnionOperator>()) {
+        if (auto* groupOp = op->As<TGroupOperator>()) {
+            if (auto* unionOp = groupOp->GetSource()->As<TUnionOperator>()) {
                 auto* newUnionOp = new (context) TUnionOperator(context);
                 newUnionOp->Sources().reserve(unionOp->Sources().size());
                 for (const auto& source : unionOp->Sources()) {
-                    auto clonedGroupByOp = new (context) TGroupByOperator(
+                    auto clonedGroupOp = new (context) TGroupOperator(
                         context,
                         source);
-                    clonedGroupByOp->GroupItems() = groupByOp->GroupItems();
-                    clonedGroupByOp->AggregateItems() = groupByOp->AggregateItems();
-                    newUnionOp->Sources().push_back(clonedGroupByOp);
+                    clonedGroupOp->GroupItems() = groupOp->GroupItems();
+                    clonedGroupOp->AggregateItems() = groupOp->AggregateItems();
+                    newUnionOp->Sources().push_back(clonedGroupOp);
                 }
 
-                auto* finalGroupByOp = new (context) TGroupByOperator(context, newUnionOp);
+                auto* finalGroupOp = new (context) TGroupOperator(context, newUnionOp);
 
-                auto& finalGroupItems = finalGroupByOp->GroupItems();
-                for (const auto& groupItem : groupByOp->GroupItems()) {
+                auto& finalGroupItems = finalGroupOp->GroupItems();
+                for (const auto& groupItem : groupOp->GroupItems()) {
                     auto referenceExpr = new (context) TReferenceExpression(
                         context, NullSourceLocation, 
                         context->GetTableIndexByAlias(""), 
@@ -227,8 +227,8 @@ void TCoordinateController::PushdownGroupBys()
                         groupItem.Name));
                 }
 
-                auto& finalAggregateItems = finalGroupByOp->AggregateItems();
-                for (const auto& aggregateItem : groupByOp->AggregateItems()) {
+                auto& finalAggregateItems = finalGroupOp->AggregateItems();
+                for (const auto& aggregateItem : groupOp->AggregateItems()) {
                     auto referenceExpr = new (context) TReferenceExpression(
                         context, 
                         NullSourceLocation, 
@@ -240,7 +240,7 @@ void TCoordinateController::PushdownGroupBys()
                         aggregateItem.Name));
                 }
 
-                return finalGroupByOp;
+                return finalGroupOp;
             }
         }
         return op;

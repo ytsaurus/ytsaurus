@@ -94,7 +94,7 @@ public:
         return true;
     }
 
-    virtual bool Visit(const TGroupByOperator* op) override
+    virtual bool Visit(const TGroupOperator* op) override
     {
         CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         for (auto& groupItem : op->GroupItems()) {
@@ -217,18 +217,18 @@ void TPrepareController::MoveAggregateExpressions()
         if (!projectOp) {
             return op;
         }
-        auto* groupByOp = projectOp->GetSource()->As<TGroupByOperator>();
-        if (!groupByOp) {
+        auto* groupOp = projectOp->GetSource()->As<TGroupOperator>();
+        if (!groupOp) {
             return op;
         }
 
-        auto* newGroupByOp = new (context) TGroupByOperator(context, groupByOp->GetSource());
-        auto* newProjectOp = new (context) TProjectOperator(context, newGroupByOp);
+        auto* newGroupOp = new (context) TGroupOperator(context, groupOp->GetSource());
+        auto* newProjectOp = new (context) TProjectOperator(context, newGroupOp);
 
-        newGroupByOp->GroupItems() = groupByOp->GroupItems();
+        newGroupOp->GroupItems() = groupOp->GroupItems();
 
         auto& newProjections = newProjectOp->Projections();
-        auto& newAggregateItems = newGroupByOp->AggregateItems();
+        auto& newAggregateItems = newGroupOp->AggregateItems();
 
         for (auto& projection : projectOp->Projections()) {
             auto newExpr = Apply(

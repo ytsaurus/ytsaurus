@@ -354,7 +354,7 @@ public:
         return true;
     }
 
-    virtual bool Visit(const TGroupByOperator* op) override
+    virtual bool Visit(const TGroupOperator* op) override
     {
         CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
 

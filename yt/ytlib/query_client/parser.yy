@@ -131,18 +131,18 @@ from-where-clause
             auto filterOp = new (context) TFilterOperator(context, $source);
             filterOp->SetPredicate($predicate);
 
-            auto groupOp = new (context) TGroupByOperator(context, filterOp);
+            auto groupOp = new (context) TGroupOperator(context, filterOp);
             groupOp->GroupItems().assign($exprs.begin(), $exprs.end());
 
             $$ = groupOp;
         }
     | from-clause[source] KwGroupBy named-expression-list[exprs]
         {
-            auto groupOp = new (context) TGroupByOperator(context, $source);
+            auto groupOp = new (context) TGroupOperator(context, $source);
             groupOp->GroupItems().assign($exprs.begin(), $exprs.end());
 
             $$ = groupOp;
-        }       
+        }
 ;
 
 from-clause

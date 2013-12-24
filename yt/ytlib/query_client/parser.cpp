@@ -1330,7 +1330,7 @@ namespace NYT { namespace NQueryClient {
             auto filterOp = new (context) TFilterOperator(context, yystack_[4].value.as< TOperator* > ());
             filterOp->SetPredicate(yystack_[2].value.as< TExpression* > ());
 
-            auto groupOp = new (context) TGroupByOperator(context, filterOp);
+            auto groupOp = new (context) TGroupOperator(context, filterOp);
             groupOp->GroupItems().assign(yystack_[0].value.as< TNamedExpressionList > ().begin(), yystack_[0].value.as< TNamedExpressionList > ().end());
 
             yylhs.value.as< TOperator* > () = groupOp;
@@ -1341,7 +1341,7 @@ namespace NYT { namespace NQueryClient {
   case 7:
 #line 140 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
-            auto groupOp = new (context) TGroupByOperator(context, yystack_[2].value.as< TOperator* > ());
+            auto groupOp = new (context) TGroupOperator(context, yystack_[2].value.as< TOperator* > ());
             groupOp->GroupItems().assign(yystack_[0].value.as< TNamedExpressionList > ().begin(), yystack_[0].value.as< TNamedExpressionList > ().end());
 
             yylhs.value.as< TOperator* > () = groupOp;

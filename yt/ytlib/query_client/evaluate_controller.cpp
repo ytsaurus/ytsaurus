@@ -111,10 +111,10 @@ TEvaluateController::TProducer TEvaluateController::CreateProducer(const TOperat
             return TProducer(BIND(&TEvaluateController::ProjectRoutine,
                 Unretained(this),
                 op->As<TProjectOperator>()));
-        case EOperatorKind::GroupBy:
-            return TProducer(BIND(&TEvaluateController::GroupByRoutine,
+        case EOperatorKind::Group:
+            return TProducer(BIND(&TEvaluateController::GroupRoutine,
                 Unretained(this),
-                op->As<TGroupByOperator>()));
+                op->As<TGroupOperator>()));
     }
     YUNREACHABLE();
 }
@@ -243,10 +243,10 @@ size_t THashCombine(size_t seed, const T& value)
     // TODO(lukyan): Fix this function
 }
 
-class TGroupByHasher
+class TGroupHasher
 {
 public:
-    explicit TGroupByHasher(int keySize)
+    explicit TGroupHasher(int keySize)
         : KeySize_(keySize)
     { }
 
@@ -265,10 +265,10 @@ private:
 
 };
 
-class TGroupByComparer
+class TGroupComparer
 {
 public:
-    explicit TGroupByComparer(int keySize)
+    explicit TGroupComparer(int keySize)
         : KeySize_(keySize)
     { }
 
@@ -290,13 +290,13 @@ private:
 
 };
 
-void TEvaluateController::GroupByRoutine(
-    const TGroupByOperator* op,
+void TEvaluateController::GroupRoutine(
+    const TGroupOperator* op,
     TProducer& self,
     std::vector<TRow>* rows)
 {
     YASSERT(op);
-    LOG_DEBUG("Creating producer for group by operator (Op: %p)", op);
+    LOG_DEBUG("Creating producer for group operator (Op: %p)", op);
 
     auto source = CreateProducer(op->GetSource());
     auto sourceTableSchema = op->GetSource()->GetTableSchema();
@@ -306,10 +306,10 @@ void TEvaluateController::GroupByRoutine(
     int keySize = op->GetGroupItemCount();
 
     std::vector<TRow> groupedRows;
-    std::unordered_set<TRow, TGroupByHasher, TGroupByComparer> keys(
+    std::unordered_set<TRow, TGroupHasher, TGroupComparer> keys(
         256,
-        TGroupByHasher(keySize),
-        TGroupByComparer(keySize));
+        TGroupHasher(keySize),
+        TGroupComparer(keySize));
 
     std::vector<TRow> sourceRows;
     sourceRows.reserve(1000);
@@ -368,7 +368,7 @@ void TEvaluateController::GroupByRoutine(
     std::tie(rows) = self.Yield();
     memoryPool.Clear();
 
-    LOG_DEBUG("Done producing for group by operator (Op: %p)", op);
+    LOG_DEBUG("Done producing for group operator (Op: %p)", op);
 }
 
 TValue TEvaluateController::EvaluateExpression(

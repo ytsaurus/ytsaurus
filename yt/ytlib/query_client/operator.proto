@@ -51,10 +51,10 @@ message TFilterOperator
     required TExpression predicate = 2;
 }
 
-message TGroupByOperator
+message TGroupOperator
 {
     extend TOperator {
-        optional TGroupByOperator group_by_operator = 104;
+        optional TGroupOperator group_operator = 104;
     }
     required TOperator source = 1;
     repeated TNamedExpression group_items = 2;

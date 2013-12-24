@@ -51,7 +51,7 @@ public:
 private:
     void SplitFurther();
     void PushdownFilters();
-    void PushdownGroupBys();
+    void PushdownGroups();
     void PushdownProjects();
     void DistributeToPeers();
 

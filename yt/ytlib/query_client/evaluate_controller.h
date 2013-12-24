@@ -20,7 +20,7 @@ class TScanOperator;
 class TUnionOperator;
 class TFilterOperator;
 class TProjectOperator;
-class TGroupByOperator;
+class TGroupOperator;
 
 class TIntegerLiteralExpression;
 class TDoubleLiteralExpression;
@@ -77,8 +77,8 @@ private:
         const TProjectOperator* op,
         TProducer& self,
         std::vector<TRow>* rows);
-    void GroupByRoutine(
-        const TGroupByOperator* op,
+    void GroupRoutine(
+        const TGroupOperator* op,
         TProducer& self,
         std::vector<TRow>* rows); 
 

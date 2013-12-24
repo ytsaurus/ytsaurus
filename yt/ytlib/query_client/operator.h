@@ -17,7 +17,7 @@ DECLARE_ENUM(EOperatorKind,
     (Scan)
     (Union)
     (Filter)
-    (GroupBy)
+    (Group)
     (Project)
 );
 
@@ -194,19 +194,19 @@ public:
 
 };
 
-class TGroupByOperator
+class TGroupOperator
     : public TOperator
 {
 public:
     typedef SmallVector<TAggregateItem, 3> TAggregateItemList;
 
-    TGroupByOperator(TPlanContext* context, const TOperator* source)
-        : TOperator(context, EOperatorKind::GroupBy)
+    TGroupOperator(TPlanContext* context, const TOperator* source)
+        : TOperator(context, EOperatorKind::Group)
         , Source_(source)
     { }
 
-    TGroupByOperator(TPlanContext* context, const TGroupByOperator& other)
-        : TOperator(context, EOperatorKind::GroupBy)
+    TGroupOperator(TPlanContext* context, const TGroupOperator& other)
+        : TOperator(context, EOperatorKind::Group)
         , Source_(other.Source_)
         , GroupItems_(other.GroupItems_)
         , AggregateItems_(other.AggregateItems_)
@@ -214,7 +214,7 @@ public:
 
     static inline bool IsClassOf(const TOperator* op)
     {
-        return op->GetKind() == EOperatorKind::GroupBy;
+        return op->GetKind() == EOperatorKind::Group;
     }
 
     virtual TArrayRef<const TOperator*> Children() const override

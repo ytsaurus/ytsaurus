@@ -44,8 +44,13 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
             result = new TFilterOperator(context, *this->As<TFilterOperator>());
             break;
 
+        case EOperatorKind::Group:
+            result = new TGroupOperator(context, *this->As<TGroupOperator>());
+            break;
+
         case EOperatorKind::Project:
             result = new TProjectOperator(context, *this->As<TProjectOperator>());
+            break;
 
         ENSURE_ALL_CASES
     }
@@ -113,9 +118,9 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
         break;
     }
 
-    case EOperatorKind::GroupBy: {
-        auto* op = original->As<TGroupByOperator>();
-        auto* proto = serialized->MutableExtension(NProto::TGroupByOperator::group_by_operator);
+    case EOperatorKind::Group: {
+        auto* op = original->As<TGroupOperator>();
+        auto* proto = serialized->MutableExtension(NProto::TGroupOperator::group_operator);
         ToProto(proto->mutable_source(), op->GetSource());
         ToProto(proto->mutable_group_items(), op->GroupItems());
         ToProto(proto->mutable_aggregate_items(), op->AggregateItems());
@@ -188,9 +193,9 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
         break;
     }
 
-    case EOperatorKind::GroupBy: {
-        auto data = serialized.GetExtension(NProto::TGroupByOperator::group_by_operator);
-        auto typedResult = new (context) TGroupByOperator(
+    case EOperatorKind::Group: {
+        auto data = serialized.GetExtension(NProto::TGroupOperator::group_operator);
+        auto typedResult = new (context) TGroupOperator(
             context,
             FromProto(data.source(), context));
         typedResult->GroupItems().reserve(data.group_items_size());

@@ -21,8 +21,8 @@ const TDataSplit& GetHeaviestSplit(const TOperator* op)
             return GetHeaviestSplit(op->As<TFilterOperator>()->GetSource());
         case EOperatorKind::Project:
             return GetHeaviestSplit(op->As<TProjectOperator>()->GetSource());
-        case EOperatorKind::GroupBy:
-            return GetHeaviestSplit(op->As<TGroupByOperator>()->GetSource());
+        case EOperatorKind::Group:
+            return GetHeaviestSplit(op->As<TGroupOperator>()->GetSource());
         default:
             YUNREACHABLE();
     }
@@ -61,9 +61,9 @@ TTableSchema InferTableSchema(const TOperator* op)
             }
             return result;
         }
-        case EOperatorKind::GroupBy: {
+        case EOperatorKind::Group: {
             TTableSchema result;
-            auto* typedOp = op->As<TGroupByOperator>();
+            auto* typedOp = op->As<TGroupOperator>();
 
             auto sourceSchema = InferTableSchema(typedOp->GetSource());
             for (const auto& groupItem : typedOp->GroupItems()) {
@@ -94,7 +94,7 @@ TKeyColumns InferKeyColumns(const TOperator* op)
             return InferKeyColumns(op->As<TFilterOperator>()->GetSource());
         case EOperatorKind::Project:
             return TKeyColumns();
-        case EOperatorKind::GroupBy:
+        case EOperatorKind::Group:
             return TKeyColumns();
         case EOperatorKind::Union: {
             TKeyColumns result;
