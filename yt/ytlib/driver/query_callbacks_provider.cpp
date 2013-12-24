@@ -194,12 +194,15 @@ public:
         const TPlanFragment& fragment,
         const TDataSplit& colocatedDataSplit) override
     {
-        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(colocatedDataSplit.replicas());
+        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(
+            colocatedDataSplit.replicas());
         auto replica = replicas[RandomNumber(replicas.size())];
 
         auto& descriptor = NodeDirectory_->GetDescriptor(replica);
 
-        LOG_DEBUG("Opening a channel to %s", ~descriptor.Address);
+        LOG_DEBUG("Delegating fragment %s to %s",
+            ~ToString(fragment.Guid()),
+            ~descriptor.Address);
         auto channel = ChannelFactory_->CreateChannel(descriptor.Address);
 
         // TODO(sandello): Send only relevant part of NodeDirectory_.

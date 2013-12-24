@@ -465,7 +465,7 @@ TValue TEvaluateController::EvaluateBinaryOpExpression(
         XX(Or, |);
 #undef XX
 
-        // Comparsion operations.
+        // Relational operations.
 #define XX(opcode, optype) \
         case EBinaryOp::opcode: \
             switch (expr->GetType(tableSchema)) { \

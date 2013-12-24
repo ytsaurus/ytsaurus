@@ -26,7 +26,7 @@ IExecutorPtr CreateEvaluator(
     IInvokerPtr invoker,
     IEvaluateCallbacks* callbacks);
 
-IExecutorPtr CreateCoordinatedEvaluator(
+IExecutorPtr CreateCoordinator(
     IInvokerPtr invoker,
     ICoordinateCallbacks* callbacks);
 

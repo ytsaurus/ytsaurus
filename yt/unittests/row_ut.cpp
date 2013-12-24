@@ -75,8 +75,6 @@ TEST(TUnversionedRowTest, Serialize4)
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedStringValue("string1"));
     builder.AddValue(MakeStringValue<TUnversionedValue>("string2"));
-    auto row = builder.GetRow();
-    Cout << ConvertToYsonString(row).Data() << Endl;
     //builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
     //builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
     CheckSerialize(builder.GetRow());

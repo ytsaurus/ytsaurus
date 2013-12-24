@@ -13,6 +13,8 @@
 
 #include <util/stream/str.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -57,8 +59,10 @@ int GetByteSize(const TUnversionedValue& value)
 int WriteValue(char* output, const TUnversionedValue& value)
 {
     char* current = output;
+
     current += WriteVarUInt32(current, value.Id);
     current += WriteVarUInt32(current, value.Type);
+
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:
@@ -85,12 +89,14 @@ int WriteValue(char* output, const TUnversionedValue& value)
         default:
             YUNREACHABLE();
     }
+
     return current - output;
 }
 
 int ReadValue(const char* input, TUnversionedValue* value)
 {
-    char* current = const_cast<char *>(input);
+    const char* current = input;
+
     ui32 id;
     current += ReadVarUInt32(current, &id);
     value->Id = static_cast<ui16>(id);
@@ -125,6 +131,7 @@ int ReadValue(const char* input, TUnversionedValue* value)
         default:
             YUNREACHABLE();
     }
+
     return current - input;
 }
 
@@ -135,23 +142,17 @@ Stroka ToString(const TUnversionedValue& value)
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            return Sprintf("{Type: %s}", ~FormatEnum(EValueType(value.Type)));
+            return Sprintf("{%s}", ~EValueType(value.Type).ToString());
 
         case EValueType::Integer:
-           return Sprintf("{Type: %s, Value: %" PRId64 "}",
-                ~FormatEnum(EValueType(value.Type)),
-                value.Data.Integer);
+            return Sprintf("%" PRId64 "i", value.Data.Integer);
 
         case EValueType::Double:
-            return Sprintf("{Type: %s, Value: %f}",
-                ~FormatEnum(EValueType(value.Type)),
-                value.Data.Double);
+            return Sprintf("%lfd", value.Data.Double);
 
         case EValueType::String:
         case EValueType::Any:
-            return Sprintf("{Type: %s, Value: %s}",
-                ~FormatEnum(EValueType(value.Type)),
-                value.Data.String);
+            return Stroka(value.Data.String, value.Length).Quote();
 
         default:
             YUNREACHABLE();
@@ -207,12 +208,95 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
         }
 
+        // NB: Cannot actually compare composite values.
         case EValueType::Any:
-            return 0; // NB: Cannot actually compare composite values.
-
-        case EValueType::Null:
             return 0;
 
+        // NB: All singleton types are equal.
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+            return 0;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+void AdvanceToValueSuccessor(TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Integer: {
+            auto& inner = value.Data.Integer;
+            constexpr const auto maximum = std::numeric_limits<i64>::max();
+            if (LIKELY(inner != maximum)) {
+                ++inner;
+            } else {
+                value.Type = EValueType::Max;
+            }
+            break;
+        }
+
+        case EValueType::Double: {
+            auto& inner = value.Data.Double;
+            constexpr const auto maximum = std::numeric_limits<double>::max();
+            if (LIKELY(inner != maximum)) {
+                inner = std::nextafter(inner, maximum);
+            } else {
+                value.Type = EValueType::Max;
+            }
+            break;
+        }
+
+        case EValueType::String:
+            // TODO(sandello): A proper way to get a successor is to append
+            // zero byte. However, it requires us to mess with underlying
+            // memory storage. I do not want to deal with it right now.
+            YUNIMPLEMENTED();
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+bool IsValueSuccessor(
+    const TUnversionedValue& value,
+    const TUnversionedValue& successor)
+{
+    switch (value.Type) {
+        case EValueType::Integer: {
+            const auto& inner = value.Data.Integer;
+            constexpr const auto maximum = std::numeric_limits<i64>::max();
+            if (LIKELY(inner != maximum)) {
+                return
+                    successor.Type == EValueType::Integer &&
+                    successor.Data.Integer == inner + 1;
+            } else {
+                return
+                    successor.Type == EValueType::Max;
+            }
+            break;
+        }
+
+        case EValueType::Double: {
+            const auto& inner = value.Data.Double;
+            constexpr const auto maximum = std::numeric_limits<double>::max();
+            if (LIKELY(inner != maximum)) {
+                return
+                    successor.Type == EValueType::Double &&
+                    successor.Data.Double == std::nextafter(inner, maximum);
+            } else {
+                return
+                    successor.Type == EValueType::Max;
+            }
+        }
+
+        case EValueType::String:
+            return
+                successor.Type == EValueType::String &&
+                successor.Length == value.Length + 1 &&
+                successor.Data.String[successor.Length - 1] == 0 &&
+                ::memcmp(successor.Data.String, value.Data.String, value.Length) == 0;
         default:
             YUNREACHABLE();
     }
@@ -357,6 +441,18 @@ TKey EmptyKey()
     return CachedEmptyKey;
 }
 
+const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b)
+{
+    int result = CompareRows(a, b);
+    return result <= 0 ? a : b;
+}
+
+const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
+{
+    int result = CompareRows(a, b);
+    return result >= 0 ? a : b;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka SerializeToString(const TUnversionedRow& row)
@@ -418,7 +514,7 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 
 Stroka ToString(const TUnversionedRow& row)
 {
-    return JoinToString(row.Begin(), row.End());
+    return "[" + JoinToString(row.Begin(), row.End()) + "]";
 }
 
 Stroka ToString(const TUnversionedOwningRow& row)

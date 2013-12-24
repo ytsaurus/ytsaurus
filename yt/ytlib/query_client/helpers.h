@@ -15,11 +15,23 @@ TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit);
 
 TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit);
 
+TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit);
+
+TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit);
+
+TKeyRange GetBothBoundsFromDataSplit(const TDataSplit& dataSplit);
+
 void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId);
 
 void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema);
 
 void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns);
+
+void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound);
+
+void SetUpperBound(TDataSplit* dataSplit, const TKey& upperBound);
+
+void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange);
 
 ////////////////////////////////////////////////////////////////////////////////
 

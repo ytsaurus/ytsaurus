@@ -3,11 +3,6 @@
 
 #include <yt/core/profiling/scoped_timer.h>
 
-#include <yt/server/tablet_node/public.h>
-#include <yt/server/tablet_node/config.h>
-#include <yt/server/tablet_node/tablet_manager.h>
-#include <yt/server/tablet_node/transaction.h>
-
 #include <util/random/random.h>
 
 namespace NYT {

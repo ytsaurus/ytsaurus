@@ -33,23 +33,23 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
     switch (GetKind()) {
 
         case EOperatorKind::Scan:
-            result = new TScanOperator(context, *this->As<TScanOperator>());
+            result = new (context) TScanOperator(context, *this->As<TScanOperator>());
             break;
 
         case EOperatorKind::Union:
-            result = new TUnionOperator(context, *this->As<TUnionOperator>());
+            result = new (context) TUnionOperator(context, *this->As<TUnionOperator>());
             break;
 
         case EOperatorKind::Filter:
-            result = new TFilterOperator(context, *this->As<TFilterOperator>());
+            result = new (context) TFilterOperator(context, *this->As<TFilterOperator>());
             break;
 
         case EOperatorKind::Group:
-            result = new TGroupOperator(context, *this->As<TGroupOperator>());
+            result = new (context) TGroupOperator(context, *this->As<TGroupOperator>());
             break;
 
         case EOperatorKind::Project:
-            result = new TProjectOperator(context, *this->As<TProjectOperator>());
+            result = new (context) TProjectOperator(context, *this->As<TProjectOperator>());
             break;
 
         ENSURE_ALL_CASES

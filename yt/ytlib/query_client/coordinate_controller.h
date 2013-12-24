@@ -22,16 +22,18 @@ public:
 
     ~TCoordinateController();
 
+    int GetPeerIndex(const TDataSplit& dataSplit);
     virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override;
 
+    //! Actually evaluates query.
+    //! NB: Does not throw.
     TError Run();
 
-    const TPlanFragment& GetCoordinatorSplit() const
-    {
-        return Fragment_;
-    }
+    //! Returns a plan fragment to be evaluated by the coordinator.
+    TPlanFragment GetCoordinatorFragment() const;
 
-    std::vector<TPlanFragment> GetPeerSplits() const;
+    //! Returns plan fragments to be evaluated by peers.
+    std::vector<TPlanFragment> GetPeerFragments() const;
 
     ICoordinateCallbacks* GetCallbacks()
     {
@@ -43,7 +45,7 @@ public:
         return Fragment_.GetContext().Get();
     }
 
-    const TOperator* GetHead() 
+    const TOperator* GetHead()
     {
         return Fragment_.GetHead();
     }
@@ -54,6 +56,7 @@ private:
     void PushdownGroups();
     void PushdownProjects();
     void DistributeToPeers();
+    void InitializeReaders();
 
     void SetHead(const TOperator* head)
     {
@@ -63,7 +66,7 @@ private:
     template <class TFunctor>
     void Rewrite(const TFunctor& functor)
     {
-        SetHead(Apply(GetContext(), GetHead(), functor));
+        Fragment_.Rewrite(functor);
     }
 
 private:

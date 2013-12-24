@@ -40,6 +40,9 @@ using NVersionedTableClient::TKeyColumns;
 typedef NVersionedTableClient::TUnversionedRow TRow;
 typedef NVersionedTableClient::TUnversionedValue TValue;
 
+typedef NVersionedTableClient::TOwningKey TKey;
+typedef std::pair<TKey, TKey> TKeyRange;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

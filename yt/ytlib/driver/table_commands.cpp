@@ -317,7 +317,7 @@ void TSelectCommand::DoExecute()
         Request->Query,
         Context->GetQueryCallbacksProvider()->GetPrepareCallbacks());
 
-    auto coordinator = CreateCoordinatedEvaluator(
+    auto coordinator = CreateCoordinator(
         GetCurrentInvoker(),
         Context->GetQueryCallbacksProvider()->GetCoordinateCallbacks());
 

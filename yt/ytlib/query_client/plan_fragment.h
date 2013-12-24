@@ -27,7 +27,14 @@ public:
     ~TPlanFragment();
 
     TPlanFragment& operator=(const TPlanFragment& other);
+
     TPlanFragment& operator=(TPlanFragment&& other);
+
+    template <class TFunctor>
+    void Rewrite(const TFunctor& functor)
+    {
+        SetHead(Apply(GetContext().Get(), GetHead(), functor));
+    }
 
     DEFINE_BYVAL_RO_PROPERTY(TPlanContextPtr, Context);
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Head);
