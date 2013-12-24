@@ -204,7 +204,6 @@ void TCoordinateController::PushdownGroupBys()
         if (auto* groupByOp = op->As<TGroupByOperator>()) {
             if (auto* unionOp = groupByOp->GetSource()->As<TUnionOperator>()) {
                 auto* newUnionOp = new (context) TUnionOperator(context);
-                auto* newGroupByOp = new (context) TGroupByOperator(context, newUnionOp);
                 newUnionOp->Sources().reserve(unionOp->Sources().size());
                 for (const auto& source : unionOp->Sources()) {
                     auto clonedGroupByOp = new (context) TGroupByOperator(
@@ -215,27 +214,33 @@ void TCoordinateController::PushdownGroupBys()
                     newUnionOp->Sources().push_back(clonedGroupByOp);
                 }
 
-                TNamedExpressionList& finalGroupItems = newGroupByOp->GroupItems();
+                auto* finalGroupByOp = new (context) TGroupByOperator(context, newUnionOp);
+
+                auto& finalGroupItems = finalGroupByOp->GroupItems();
                 for (const auto& groupItem : groupByOp->GroupItems()) {
                     auto referenceExpr = new (context) TReferenceExpression(
                         context, NullSourceLocation, 
                         context->GetTableIndexByAlias(""), 
                         groupItem.Name);
-                    finalGroupItems.push_back(TNamedExpression(referenceExpr, groupItem.Name));
+                    finalGroupItems.push_back(TNamedExpression(
+                        referenceExpr,
+                        groupItem.Name));
                 }
 
-                TGroupByOperator::TAggregateItemList& finalAggregateItems = newGroupByOp->AggregateItems();
+                auto& finalAggregateItems = finalGroupByOp->AggregateItems();
                 for (const auto& aggregateItem : groupByOp->AggregateItems()) {
                     auto referenceExpr = new (context) TReferenceExpression(
                         context, 
                         NullSourceLocation, 
                         context->GetTableIndexByAlias(""), 
                         aggregateItem.Name);
-                    finalAggregateItems.push_back(
-                        TAggregateItem(referenceExpr, aggregateItem.AggregateFunction, aggregateItem.Name));
+                    finalAggregateItems.push_back(TAggregateItem(
+                        referenceExpr,
+                        aggregateItem.AggregateFunction,
+                        aggregateItem.Name));
                 }
 
-                return newGroupByOp;
+                return finalGroupByOp;
             }
         }
         return op;

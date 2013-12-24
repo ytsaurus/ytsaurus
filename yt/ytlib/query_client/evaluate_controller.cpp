@@ -303,10 +303,13 @@ void TEvaluateController::GroupByRoutine(
     TChunkedMemoryPool memoryPool;
 
     auto nameTable = op->GetNameTable();
-    int keySize = op->GetGroupItemsCount();
+    int keySize = op->GetGroupItemCount();
 
     std::vector<TRow> groupedRows;
-    std::unordered_set<TRow, TGroupByHasher, TGroupByComparer> keys(256, TGroupByHasher(keySize), TGroupByComparer(keySize));
+    std::unordered_set<TRow, TGroupByHasher, TGroupByComparer> keys(
+        256,
+        TGroupByHasher(keySize),
+        TGroupByComparer(keySize));
 
     std::vector<TRow> sourceRows;
     sourceRows.reserve(1000);
@@ -332,7 +335,7 @@ void TEvaluateController::GroupByRoutine(
                 for (int i = 0; i < op->AggregateItems().size(); ++i) {
                     YCHECK(aggregateRow[keySize + i].Type == EValueType::Integer);
                     YCHECK(resultRow[keySize + i].Type == EValueType::Integer);
-                    
+
                     auto& aggregateValue = aggregateRow[keySize + i].Data.Integer;
                     auto resultValue = resultRow[keySize + i].Data.Integer;
 
@@ -354,7 +357,7 @@ void TEvaluateController::GroupByRoutine(
                 groupedRows.push_back(resultRow);
                 keys.insert(groupedRows.back());
                 resultRow = TRow::Allocate(&memoryPool, keySize + op->AggregateItems().size());
-            }            
+            }
         }
 
         sourceRows.clear();

@@ -174,7 +174,7 @@ named-expression
         }
     | expression[expr] KwAs Identifier[name]
         {
-            $$ = TNamedExpression($expr, $name);
+            $$ = TNamedExpression($expr, Stroka($name));
         }
 ;
 

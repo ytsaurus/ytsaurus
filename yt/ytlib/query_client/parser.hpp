@@ -31,16 +31,16 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp
+ ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
-#line 19 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 19 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 
     #include "plan_node.h"
 
@@ -52,7 +52,7 @@
         class TParser;
     } }
 
-#line 56 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 56 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 # include <vector>
@@ -81,9 +81,9 @@
 # endif /* ! defined YYDEBUG */
 #endif  /* ! defined YT_QL_YYDEBUG */
 
-#line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 namespace NYT { namespace NQueryClient {
-#line 87 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 87 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 
@@ -263,7 +263,7 @@ namespace NYT { namespace NQueryClient {
       // from-clause
       char dummy7[sizeof(TOperator*)];
 
-      // name-expr
+      // reference-expr
       char dummy8[sizeof(TReferenceExpression*)];
 
       // "identifier"
@@ -758,11 +758,11 @@ namespace NYT { namespace NQueryClient {
   };
 
 
-#line 5 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 } } // NYT::NQueryClient
-#line 764 "/home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 764 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 
 
-#endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

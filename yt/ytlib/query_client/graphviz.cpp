@@ -358,20 +358,41 @@ public:
     {
         CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
 
+        int i = 0;
+
         TLabel label(op);
-        for (int i = 0; i < op->GetGroupItemsCount(); ++i) {
+        for (int j = 0; j < op->GetGroupItemCount(); ++i, ++j) {
+            const auto& item = op->GetGroupItem(j);
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetGroupItem(i).Expression->GetSource()));
+                Sprintf("G_%d[%s]: ", j, item.Name.c_str()) +
+                    NDot::EscapeHtml(item.Expression->GetSource()));
+        }
+        for (int j = 0; j < op->GetAggregateItemCount(); ++i, ++j) {
+            const auto& item = op->GetAggregateItem(j);
+            label.WithPortAndRow(
+                ToString(i),
+                Sprintf("A_%d[%s]: ", j, item.Name.c_str()) +
+                    item.AggregateFunction.ToString() +
+                    "(" +
+                    NDot::EscapeHtml(item.Expression->GetSource()) +
+                    ")");
         }
         WriteNode(op, label.Build());
         WriteEdge(op, op->GetSource());
-        for (int i = 0; i < op->GetGroupItemsCount(); ++i) {
-            WriteEdge(op, op->GetGroupItem(i).Expression, ToString(i));
-            Traverse(this, op->GetGroupItem(i).Expression);
-        }
 
-        // TODO(lukyan): Visit aggregate items
+        i = 0;
+
+        for (int j = 0; j < op->GetGroupItemCount(); ++i, ++j) {
+            auto* expr = op->GetGroupItem(j).Expression;
+            WriteEdge(op, expr, ToString(i));
+            Traverse(this, expr);
+        }
+        for (int j = 0; j < op->GetAggregateItemCount(); ++i, ++j) {
+            auto* expr = op->GetAggregateItem(j).Expression;
+            WriteEdge(op, expr, ToString(i));
+            Traverse(this, expr);
+        }
 
         return true;
     }

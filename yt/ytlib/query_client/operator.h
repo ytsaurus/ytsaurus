@@ -13,9 +13,21 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//typedef std::pair<const TExpression*, Stroka> TNamedExpression;
+DECLARE_ENUM(EOperatorKind,
+    (Scan)
+    (Union)
+    (Filter)
+    (GroupBy)
+    (Project)
+);
 
-//typedef SmallVector<TNamedExpression, TypicalNamedExpressionsCount> TNamedExpressionList;
+DECLARE_ENUM(EAggregateFunctions,
+    (Sum)
+    (Min)
+    (Max)
+    (Average)
+    (Count)
+);
 
 class TNamedExpression
 {
@@ -33,22 +45,6 @@ public:
 };
 
 typedef SmallVector<TNamedExpression, TypicalNamedExpressionsCount> TNamedExpressionList;
-
-DECLARE_ENUM(EOperatorKind,
-    (Scan)
-    (Union)
-    (Filter)
-    (GroupBy)
-    (Project)
-);
-
-DECLARE_ENUM(EAggregateFunctions,
-    (Sum)
-    (Min)
-    (Max)
-    (Average)
-    (Count)
-);
 
 class TAggregateItem
 {
@@ -209,6 +205,13 @@ public:
         , Source_(source)
     { }
 
+    TGroupByOperator(TPlanContext* context, const TGroupByOperator& other)
+        : TOperator(context, EOperatorKind::GroupBy)
+        , Source_(other.Source_)
+        , GroupItems_(other.GroupItems_)
+        , AggregateItems_(other.AggregateItems_)
+    { }
+
     static inline bool IsClassOf(const TOperator* op)
     {
         return op->GetKind() == EOperatorKind::GroupBy;
@@ -219,17 +222,7 @@ public:
         return Source_;
     }
 
-    TNamedExpressionList& GroupItems()
-    {
-        return GroupItems_;
-    }
-
-    const TNamedExpressionList& GroupItems() const
-    {
-        return GroupItems_;
-    }
-
-    int GetGroupItemsCount() const
+    int GetGroupItemCount() const
     {
         return GroupItems_.size();
     }
@@ -239,11 +232,19 @@ public:
         return GroupItems_[i];
     }
 
-    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
-    DEFINE_BYREF_RW_PROPERTY(TAggregateItemList, AggregateItems);
+    int GetAggregateItemCount() const
+    {
+        return AggregateItems_.size();
+    }
 
-private:
-    TNamedExpressionList GroupItems_;
+    const TAggregateItem& GetAggregateItem(int i) const
+    {
+        return AggregateItems_[i];
+    }
+
+    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
+    DEFINE_BYREF_RW_PROPERTY(TNamedExpressionList, GroupItems);
+    DEFINE_BYREF_RW_PROPERTY(TAggregateItemList, AggregateItems);
 
 };
 

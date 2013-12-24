@@ -23,7 +23,7 @@ typedef TParser::token_type TToken;
 
     kw_from = 'from'i;
     kw_where = 'where'i;
-    kw_group_by = 'group by'i;
+    kw_group_by = 'group'i wss 'by'i;
     kw_as = 'as'i;
     kw_and = 'and'i;
     kw_or = 'or'i;
