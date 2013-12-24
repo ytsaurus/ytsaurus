@@ -30,8 +30,9 @@ public:
 private:
     void ParseSource();
     void GetInitialSplits();
-    void CheckAndBindReferences();
+    void CheckAndPruneReferences();
     void TypecheckExpressions();
+    void MoveAggregateExpressions();
 
     IPrepareCallbacks* Callbacks_;
     const Stroka& Source_;

@@ -123,6 +123,11 @@ int TTableSchema::GetColumnIndex(const TColumnSchema& column) const
     return &column - Columns().data();
 }
 
+int TTableSchema::GetColumnIndexOrThrow(const TStringBuf& name) const
+{
+    return GetColumnIndex(GetColumnOrThrow(name));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 

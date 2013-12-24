@@ -6,6 +6,7 @@
 #include <yt/ytlib/query_client/operator.pb.h>
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/name_table.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -43,8 +44,13 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
             result = new TFilterOperator(context, *this->As<TFilterOperator>());
             break;
 
+        case EOperatorKind::Group:
+            result = new TGroupOperator(context, *this->As<TGroupOperator>());
+            break;
+
         case EOperatorKind::Project:
             result = new TProjectOperator(context, *this->As<TProjectOperator>());
+            break;
 
         ENSURE_ALL_CASES
     }
@@ -63,7 +69,25 @@ TKeyColumns TOperator::GetKeyColumns() const
     return InferKeyColumns(this);
 }
 
+NVersionedTableClient::TNameTablePtr TOperator::GetNameTable() const
+{
+    return NVersionedTableClient::TNameTable::FromSchema(InferTableSchema(this));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TNamedExpression* serialized, const TNamedExpression& original)
+{
+    ToProto(serialized->mutable_expression(), original.Expression);
+    ToProto(serialized->mutable_name(), original.Name);
+}
+
+void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
+{
+    ToProto(serialized->mutable_expression(), original.Expression);
+    serialized->set_aggregate_function(original.AggregateFunction);
+    ToProto(serialized->mutable_name(), original.Name);
+}
 
 void ToProto(NProto::TOperator* serialized, const TOperator* original)
 {
@@ -94,6 +118,15 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
         break;
     }
 
+    case EOperatorKind::Group: {
+        auto* op = original->As<TGroupOperator>();
+        auto* proto = serialized->MutableExtension(NProto::TGroupOperator::group_operator);
+        ToProto(proto->mutable_source(), op->GetSource());
+        ToProto(proto->mutable_group_items(), op->GroupItems());
+        ToProto(proto->mutable_aggregate_items(), op->AggregateItems());
+        break;
+    }
+
     case EOperatorKind::Project: {
         auto* op = original->As<TProjectOperator>();
         auto* proto = serialized->MutableExtension(NProto::TProjectOperator::project_operator);
@@ -104,6 +137,19 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
 
     ENSURE_ALL_CASES
     }
+}
+
+TNamedExpression FromProto(const NProto::TNamedExpression& serialized, TPlanContext* context)
+{
+    return TNamedExpression(FromProto(serialized.expression(), context), serialized.name());
+}
+
+TAggregateItem FromProto(const NProto::TAggregateItem& serialized, TPlanContext* context)
+{
+    return TAggregateItem(
+        FromProto(serialized.expression(), context), 
+        EAggregateFunctions(serialized.aggregate_function()), 
+        serialized.name());
 }
 
 const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* context)
@@ -142,6 +188,26 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
             context,
             FromProto(data.source(), context));
         typedResult->SetPredicate(FromProto(data.predicate(), context));
+        YASSERT(!result);
+        result = typedResult;
+        break;
+    }
+
+    case EOperatorKind::Group: {
+        auto data = serialized.GetExtension(NProto::TGroupOperator::group_operator);
+        auto typedResult = new (context) TGroupOperator(
+            context,
+            FromProto(data.source(), context));
+        typedResult->GroupItems().reserve(data.group_items_size());
+        for (int i = 0; i < data.group_items_size(); ++i) {
+            typedResult->GroupItems().push_back(
+                FromProto(data.group_items(i), context));
+        }
+        typedResult->AggregateItems().reserve(data.aggregate_items_size());
+        for (int i = 0; i < data.aggregate_items_size(); ++i) {
+            typedResult->AggregateItems().push_back(
+                FromProto(data.aggregate_items(i), context));
+        }
         YASSERT(!result);
         result = typedResult;
         break;

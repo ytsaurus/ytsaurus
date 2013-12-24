@@ -13,6 +13,8 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/new_table_client/schema.h>
+
 #include <util/system/defaults.h>
 #include <util/system/file.h>
 #include <util/stream/file.h>
@@ -261,11 +263,11 @@ public:
             AddHeader(op);
         }
 
-        TLabel(const TExpression* expr)
+        TLabel(const TExpression* expr, const TTableSchema& sourceSchema)
         {
             AddHeader(expr);
             WithRow(
-                "Type: " + expr->GetType().ToString() + "<BR/>" +
+                "Type: " + expr->GetType(sourceSchema).ToString() + "<BR/>" +
                 "Name: " + expr->GetName());
         }
 
@@ -310,6 +312,7 @@ public:
 
     virtual bool Visit(const TScanOperator* op) override
     {
+        CurrentSourceSchema_ = op->GetTableSchema();
         using NObjectClient::TObjectId;
         using NObjectClient::TypeFromId;
         auto objectId = GetObjectIdFromDataSplit(op->DataSplit());
@@ -328,6 +331,7 @@ public:
 
     virtual bool Visit(const TUnionOperator* op) override
     {
+        CurrentSourceSchema_ = op->GetTableSchema();
         WriteNode(op, TLabel(op).Build());
         for (const auto& source : op->Sources()) {
             WriteEdge(op, source);
@@ -337,6 +341,7 @@ public:
 
     virtual bool Visit(const TFilterOperator* op) override
     {
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         WriteNode(
             op,
             TLabel(op)
@@ -349,19 +354,63 @@ public:
         return true;
     }
 
+    virtual bool Visit(const TGroupOperator* op) override
+    {
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
+
+        int i = 0;
+
+        TLabel label(op);
+        for (int j = 0; j < op->GetGroupItemCount(); ++i, ++j) {
+            const auto& item = op->GetGroupItem(j);
+            label.WithPortAndRow(
+                ToString(i),
+                Sprintf("G_%d[%s]: ", j, item.Name.c_str()) +
+                    NDot::EscapeHtml(item.Expression->GetSource()));
+        }
+        for (int j = 0; j < op->GetAggregateItemCount(); ++i, ++j) {
+            const auto& item = op->GetAggregateItem(j);
+            label.WithPortAndRow(
+                ToString(i),
+                Sprintf("A_%d[%s]: ", j, item.Name.c_str()) +
+                    item.AggregateFunction.ToString() +
+                    "(" +
+                    NDot::EscapeHtml(item.Expression->GetSource()) +
+                    ")");
+        }
+        WriteNode(op, label.Build());
+        WriteEdge(op, op->GetSource());
+
+        i = 0;
+
+        for (int j = 0; j < op->GetGroupItemCount(); ++i, ++j) {
+            auto* expr = op->GetGroupItem(j).Expression;
+            WriteEdge(op, expr, ToString(i));
+            Traverse(this, expr);
+        }
+        for (int j = 0; j < op->GetAggregateItemCount(); ++i, ++j) {
+            auto* expr = op->GetAggregateItem(j).Expression;
+            WriteEdge(op, expr, ToString(i));
+            Traverse(this, expr);
+        }
+
+        return true;
+    }
+
     virtual bool Visit(const TProjectOperator* op) override
     {
+        CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
         TLabel label(op);
         for (int i = 0; i < op->GetProjectionCount(); ++i) {
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetProjection(i)->GetSource()));
+                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetProjection(i).Expression->GetSource()));
         }
         WriteNode(op, label.Build());
         WriteEdge(op, op->GetSource());
         for (int i = 0; i < op->GetProjectionCount(); ++i) {
-            WriteEdge(op, op->GetProjection(i), ToString(i));
-            Traverse(this, op->GetProjection(i));
+            WriteEdge(op, op->GetProjection(i).Expression, ToString(i));
+            Traverse(this, op->GetProjection(i).Expression);
         }
         return true;
     }
@@ -370,7 +419,7 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr).WithRow(ToString(expr->GetValue())).Build());
+            TLabel(expr, CurrentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
@@ -378,7 +427,7 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr).WithRow(ToString(expr->GetValue())).Build());
+            TLabel(expr, CurrentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
@@ -386,19 +435,18 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr)
+            TLabel(expr, CurrentSourceSchema_)
                 .WithRow(
                     "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>" +
-                    "ColumnName: " + expr->GetColumnName() + "<BR/>" +
-                    "IndexInRow: " + ToString(expr->GetIndexInRow()) + "<BR/>" +
-                    "IndexInKey: " + ToString(expr->GetIndexInKey()) + "<BR/>")
+                    "ColumnName: " + expr->GetColumnName() + "<BR/>"
+                    )
                 .Build());
         return true;
     }
 
     virtual bool Visit(const TFunctionExpression* expr) override
     {
-        TLabel label(expr);
+        TLabel label(expr, CurrentSourceSchema_);
         label.WithRow("FunctionName: " + expr->GetFunctionName());
         for (int i = 0; i < expr->GetArgumentCount(); ++i) {
             label.WithPortAndRow(
@@ -417,7 +465,7 @@ public:
     {
         WriteNode(
             expr,
-            TLabel(expr)
+            TLabel(expr, CurrentSourceSchema_)
                 .WithRow("Opcode: " + expr->GetOpcode().ToString())
                 .Build());
         WriteEdge(expr, expr->GetLhs());
@@ -429,6 +477,7 @@ private:
     TOutputStream& Output_;
     std::unordered_set<const void*> VisitedNodes_;
     std::unordered_set<std::pair<const void*, const void*>> VisitedEdges_;
+    TTableSchema CurrentSourceSchema_;
 
 };
 

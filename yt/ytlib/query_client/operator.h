@@ -17,8 +17,51 @@ DECLARE_ENUM(EOperatorKind,
     (Scan)
     (Union)
     (Filter)
+    (Group)
     (Project)
 );
+
+DECLARE_ENUM(EAggregateFunctions,
+    (Sum)
+    (Min)
+    (Max)
+    (Average)
+    (Count)
+);
+
+class TNamedExpression
+{
+public:
+    TNamedExpression()
+    { }
+
+    TNamedExpression(const TExpression* expression, Stroka name)
+        : Expression(expression)
+        , Name(name)
+    { }
+
+    const TExpression* Expression;
+    Stroka Name;
+};
+
+typedef SmallVector<TNamedExpression, TypicalNamedExpressionsCount> TNamedExpressionList;
+
+class TAggregateItem
+{
+public:
+    TAggregateItem()
+    { }
+
+    TAggregateItem(const TExpression* expression, EAggregateFunctions aggregateFunction, Stroka name)
+        : Expression(expression)
+        , AggregateFunction(aggregateFunction)
+        , Name(name)
+    { }
+
+    const TExpression* Expression;
+    EAggregateFunctions AggregateFunction;
+    Stroka Name;
+};
 
 class TOperator
     : public TPlanNodeBase<TOperator, EOperatorKind>
@@ -32,6 +75,9 @@ public:
 
     //! Piggy-backed method |InferTableSchema|.
     TTableSchema GetTableSchema() const;
+
+    //! Piggy-backed method |InferNameTable|.
+    NVersionedTableClient::TNameTablePtr GetNameTable() const;
 
     //! Piggy-backed method |InferKeyColumns|.
     TKeyColumns GetKeyColumns() const;
@@ -148,12 +194,64 @@ public:
 
 };
 
+class TGroupOperator
+    : public TOperator
+{
+public:
+    typedef SmallVector<TAggregateItem, 3> TAggregateItemList;
+
+    TGroupOperator(TPlanContext* context, const TOperator* source)
+        : TOperator(context, EOperatorKind::Group)
+        , Source_(source)
+    { }
+
+    TGroupOperator(TPlanContext* context, const TGroupOperator& other)
+        : TOperator(context, EOperatorKind::Group)
+        , Source_(other.Source_)
+        , GroupItems_(other.GroupItems_)
+        , AggregateItems_(other.AggregateItems_)
+    { }
+
+    static inline bool IsClassOf(const TOperator* op)
+    {
+        return op->GetKind() == EOperatorKind::Group;
+    }
+
+    virtual TArrayRef<const TOperator*> Children() const override
+    {
+        return Source_;
+    }
+
+    int GetGroupItemCount() const
+    {
+        return GroupItems_.size();
+    }
+
+    const TNamedExpression& GetGroupItem(int i) const
+    {
+        return GroupItems_[i];
+    }
+
+    int GetAggregateItemCount() const
+    {
+        return AggregateItems_.size();
+    }
+
+    const TAggregateItem& GetAggregateItem(int i) const
+    {
+        return AggregateItems_[i];
+    }
+
+    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
+    DEFINE_BYREF_RW_PROPERTY(TNamedExpressionList, GroupItems);
+    DEFINE_BYREF_RW_PROPERTY(TAggregateItemList, AggregateItems);
+
+};
+
 class TProjectOperator
     : public TOperator
 {
 public:
-    typedef SmallVector<const TExpression*, TypicalProjectionCount> TProjections;
-
     TProjectOperator(TPlanContext* context, const TOperator* source)
         : TOperator(context, EOperatorKind::Project)
         , Source_(source)
@@ -175,12 +273,12 @@ public:
         return Source_;
     }
 
-    TProjections& Projections()
+    TNamedExpressionList& Projections()
     {
         return Projections_;
     }
 
-    const TProjections& Projections() const
+    const TNamedExpressionList& Projections() const
     {
         return Projections_;
     }
@@ -190,7 +288,7 @@ public:
         return Projections_.size();
     }
 
-    const TExpression* GetProjection(int i) const
+    const TNamedExpression& GetProjection(int i) const
     {
         return Projections_[i];
     }
@@ -198,7 +296,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
 
 private:
-    TProjections Projections_;
+    TNamedExpressionList Projections_;
 
 };
 

@@ -170,7 +170,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 
     ExpectPrepareThrowsWithDiagnostics(
         "foo from [//t]",
-        HasSubstr("Table //t does not have column \"foo\" in its schema"));
+        HasSubstr("Undefined reference \"foo\""));
 }
 
 TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
@@ -180,7 +180,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where bar = 1",
-        HasSubstr("Table //t does not have column \"bar\" in its schema"));
+        HasSubstr("Undefined reference \"bar\""));
 }
 
 TEST_F(TQueryPrepareTest, BadTypecheck)

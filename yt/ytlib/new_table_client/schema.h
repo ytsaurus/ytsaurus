@@ -54,7 +54,7 @@ public:
     const TColumnSchema& GetColumnOrThrow(const TStringBuf& name) const;
 
     int GetColumnIndex(const TColumnSchema& column) const;
-
+    int GetColumnIndexOrThrow(const TStringBuf& name) const;
 };
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
