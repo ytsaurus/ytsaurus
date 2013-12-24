@@ -25,6 +25,13 @@ int ReadValue(const char* input, TVersionedValue* value)
     return result;
 }
 
+Stroka ToString(const TVersionedValue& value)
+{
+    return Sprintf("%s@%" PRIu64,
+        ~ToString(static_cast<TUnversionedValue>(value)),
+        value.Timestamp);
+}
+
 size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount)
 {
     return sizeof(TVersionedRowHeader) +

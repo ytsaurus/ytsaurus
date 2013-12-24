@@ -73,7 +73,9 @@ struct TVersionedRowHeader
     ui16 TimestampCount;
 };
 
-static_assert(sizeof(TVersionedRowHeader) == 8, "TVersionedRowHeader has to be exactly 8 bytes.");
+static_assert(
+    sizeof(TVersionedRowHeader) == 8,
+    "TVersionedRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +83,8 @@ int GetByteSize(const TVersionedValue& value);
 
 int WriteValue(char* output, const TVersionedValue& value);
 int ReadValue(const char* input, TVersionedValue* value);
+
+Stroka ToString(const TVersionedValue& value);
 
 size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount = 1);
 

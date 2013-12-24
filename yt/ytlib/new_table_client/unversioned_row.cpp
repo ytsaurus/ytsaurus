@@ -13,6 +13,8 @@
 
 #include <util/stream/str.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -57,8 +59,10 @@ int GetByteSize(const TUnversionedValue& value)
 int WriteValue(char* output, const TUnversionedValue& value)
 {
     char* current = output;
+
     current += WriteVarUInt32(current, value.Id);
     current += WriteVarUInt32(current, value.Type);
+
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:
@@ -85,12 +89,14 @@ int WriteValue(char* output, const TUnversionedValue& value)
         default:
             YUNREACHABLE();
     }
+
     return current - output;
 }
 
 int ReadValue(const char* input, TUnversionedValue* value)
 {
-    char* current = const_cast<char *>(input);
+    const char* current = input;
+
     ui32 id;
     current += ReadVarUInt32(current, &id);
     value->Id = static_cast<ui16>(id);
@@ -125,6 +131,7 @@ int ReadValue(const char* input, TUnversionedValue* value)
         default:
             YUNREACHABLE();
     }
+
     return current - input;
 }
 
@@ -207,10 +214,14 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
         }
 
+        // NB: Cannot actually compare composite values.
         case EValueType::Any:
-            return 0; // NB: Cannot actually compare composite values.
+            return 0;
 
+        // NB: All singleton types are equal.
         case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
             return 0;
 
         default:
