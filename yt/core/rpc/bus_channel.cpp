@@ -294,7 +294,7 @@ private:
                 }
 
                 activeRequest = it->second;
-                Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
+                Profiler.TimingCheckpoint(activeRequest.Timer, STRINGBUF("reply"));
 
                 UnregisterRequest(it);
             }
@@ -366,7 +366,7 @@ private:
             // NB: Make copies, the instance will die soon.
             auto activeRequest = it->second;
 
-            Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
+            Profiler.TimingCheckpoint(activeRequest.Timer, STRINGBUF("ack"));
 
             if (error.IsOK()) {
                 if (activeRequest.ClientRequest->IsOneWay()) {
@@ -403,7 +403,7 @@ private:
                 }
 
                 activeRequest = it->second;
-                Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
+                Profiler.TimingCheckpoint(activeRequest.Timer, STRINGBUF("timeout"));
 
                 UnregisterRequest(it);
             }
@@ -414,7 +414,7 @@ private:
         void FinalizeRequest(TActiveRequest& request)
         {
             TDelayedExecutor::CancelAndClear(request.TimeoutCookie);
-            Profiler.TimingStop(request.Timer, "total");
+            Profiler.TimingStop(request.Timer, STRINGBUF("total"));
         }
 
         void UnregisterRequest(TRequestMap::iterator it)
