@@ -46,9 +46,6 @@ class TCheckAndPruneReferences
     : public TPlanVisitor
 {
 public:
-    explicit TCheckAndPruneReferences()
-    { }
-
     virtual bool Visit(const TScanOperator* op) override
     {
         CurrentSourceSchema_ = op->GetTableSchema();
