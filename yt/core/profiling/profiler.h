@@ -205,7 +205,7 @@ public:
      *  If #timer is in Simple mode then it is automatically
      *  switched to Sequential mode.
      */
-    TDuration TimingCheckpoint(TTimer& timer, const Stroka& key);
+    TDuration TimingCheckpoint(TTimer& timer, const TStringBuf& key);
 
     //! Same as above but uses tags instead of keys.
     TDuration TimingCheckpoint(TTimer& timer, const TTagIdList& checkpointTagIds);
@@ -213,7 +213,7 @@ public:
 
     //! Stops time measurement and enqueues the "total" sample.
     //! Returns the total duration.
-    TDuration TimingStop(TTimer& timer, const Stroka& key);
+    TDuration TimingStop(TTimer& timer, const TStringBuf& key);
 
     //! Same as above but uses tags instead of keys.
     TDuration TimingStop(TTimer& timer, const TTagIdList& totalTagIds);
@@ -248,12 +248,12 @@ private:
 
     TDuration DoTimingCheckpoint(
         TTimer& timer,
-        const TNullable<Stroka>& key,
+        const TNullable<TStringBuf>& key,
         const TNullable<TTagIdList>& checkpointTagIds);
 
     TDuration DoTimingStop(
         TTimer& timer,
-        const TNullable<Stroka>& key,
+        const TNullable<TStringBuf>& key,
         const TNullable<TTagIdList>& totalTagIds);
 
 };
@@ -286,7 +286,7 @@ public:
         }
     }
 
-    void Checkpoint(const Stroka& key)
+    void Checkpoint(const TStringBuf& key)
     {
         Profiler->TimingCheckpoint(Timer, key);
     }

@@ -130,7 +130,7 @@ TTimer TProfiler::TimingStart(
 
 TDuration TProfiler::TimingStop(
     TTimer& timer,
-    const Stroka& key)
+    const TStringBuf& key)
 {
     return DoTimingStop(timer, key, Null);
 }
@@ -150,7 +150,7 @@ TDuration TProfiler::TimingStop(
 
 TDuration TProfiler::DoTimingStop(
     TTimer& timer,
-    const TNullable<Stroka>& key,
+    const TNullable<TStringBuf>& key,
     const TNullable<TTagIdList>& totalTagIds)
 {
     // Failure here means that the timer was not started or already stopped.
@@ -172,7 +172,7 @@ TDuration TProfiler::DoTimingStop(
 
 TDuration TProfiler::TimingCheckpoint(
     TTimer& timer,
-    const Stroka& key)
+    const TStringBuf& key)
 {
     return DoTimingCheckpoint(timer, key, Null);
 }
@@ -186,7 +186,7 @@ TDuration TProfiler::TimingCheckpoint(
 
 TDuration TProfiler::DoTimingCheckpoint(
     TTimer& timer,
-    const TNullable<Stroka>& key,
+    const TNullable<TStringBuf>& key,
     const TNullable<TTagIdList>& checkpointTagIds)
 {
     // Failure here means that the timer was not started or already stopped.
