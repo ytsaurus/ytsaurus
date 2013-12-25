@@ -7,10 +7,10 @@
 
 #include <core/misc/ref.h>
 #include <core/misc/protobuf_helpers.h>
-
-#include <core/concurrency/action_queue.h>
-
 #include <core/misc/object_pool.h>
+
+#include <core/concurrency/rw_spinlock.h>
+#include <core/concurrency/action_queue.h>
 
 #include <core/compression/codec.h>
 
@@ -474,9 +474,10 @@ private:
     NProfiling::TTagId ServiceTagId;
     NProfiling::TRateCounter RequestCounter;
 
-    //! Protects the following data members.
-    TSpinLock SpinLock;
-    yhash_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
+    NConcurrency::TReaderWriterSpinlock MethodMapLock;
+    yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap;
+
+    TSpinLock ActiveRequestsLock;
     yhash_set<TActiveRequestPtr> ActiveRequests;
 
     void Init(

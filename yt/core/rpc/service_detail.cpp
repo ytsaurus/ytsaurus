@@ -214,12 +214,8 @@ void TServiceBase::OnRequest(
     bool oneWay = header.one_way();
     auto requestId = FromProto<TRequestId>(header.request_id());
 
-    TGuard<TSpinLock> guard(SpinLock);
-
     auto runtimeInfo = FindMethodInfo(verb);
     if (!runtimeInfo) {
-        guard.Release();
-
         auto error = TError(
             EErrorCode::NoSuchVerb,
             "Unknown verb %s:%s",
@@ -231,13 +227,10 @@ void TServiceBase::OnRequest(
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage);
         }
-
         return;
     }
 
     if (runtimeInfo->Descriptor.OneWay != oneWay) {
-        guard.Release();
-
         auto error = TError(
             EErrorCode::ProtocolError,
             "One-way flag mismatch for verb %s:%s: expected %s, actual %s",
@@ -251,14 +244,11 @@ void TServiceBase::OnRequest(
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage);
         }
-
         return;
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
     if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
-        guard.Release();
-
         auto error = TError(
             EErrorCode::Unavailable,
             "Request queue limit %d reached",
@@ -269,7 +259,6 @@ void TServiceBase::OnRequest(
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage);
         }
-
         return;
     }
 
@@ -303,11 +292,12 @@ void TServiceBase::OnRequest(
         LoggingCategory);
 
     if (!oneWay) {
-        YCHECK(ActiveRequests.insert(activeRequest).second);
+        {
+            TGuard<TSpinLock> guard(ActiveRequestsLock);
+            YCHECK(ActiveRequests.insert(activeRequest).second);
+        }
         Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
     }
-
-    guard.Release();
 
     auto handler = runtimeInfo->Descriptor.Handler;
     const auto& options = runtimeInfo->Descriptor.Options;
@@ -323,8 +313,6 @@ void TServiceBase::OnRequest(
                 context));
     } else {
         auto preparedHandler = handler.Run(context, options);
-        if (!preparedHandler)
-            return;
         OnInvocationPrepared(
             std::move(activeRequest),
             std::move(context),
@@ -337,8 +325,11 @@ void TServiceBase::OnInvocationPrepared(
     IServiceContextPtr context,
     TClosure handler)
 {
-    if (!handler)
+    if (!handler) {
+        TGuard<TSpinLock> guard(ActiveRequestsLock);
+        ActiveRequests.erase(activeRequest);
         return;
+    }
 
     auto wrappedHandler = BIND([=] () {
         const auto& runtimeInfo = activeRequest->RuntimeInfo;
@@ -399,8 +390,7 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray m
     
     bool active;
     {
-        TGuard<TSpinLock> guard(SpinLock);
-
+        TGuard<TSpinLock> guard(ActiveRequestsLock);
         active = ActiveRequests.erase(activeRequest) == 1;
     }
 
@@ -437,14 +427,15 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray m
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(0);
     tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", descriptor.Verb));
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
+
+    TWriterGuard guard(MethodMapLock);
     // Failure here means that such verb is already registered.
-    YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
+    YCHECK(MethodMap.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
+
     return runtimeInfo;
 }
 
@@ -487,7 +478,7 @@ void TServiceBase::CancelActiveRequests(const TError& error)
 {
     yhash_set<TActiveRequestPtr> requestsToCancel;
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(ActiveRequestsLock);
         requestsToCancel.swap(ActiveRequests);
     }
 
@@ -501,8 +492,10 @@ void TServiceBase::CancelActiveRequests(const TError& error)
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& method)
 {
-    auto it = RuntimeMethodInfos.find(method);
-    return it == RuntimeMethodInfos.end() ? NULL : it->second;
+    TReaderGuard guard(MethodMapLock);
+
+    auto it = MethodMap.find(method);
+    return it == MethodMap.end() ? nullptr : it->second;
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& method)
