@@ -904,10 +904,6 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(sandello): Test these cases:
-//   - key is selecting a single point but restriction is sparse (k1 = 1; or
-//     k1 = 1 & k2 = 1; or k2 = 2; (noop) k3 = 2; (noop))
-
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,

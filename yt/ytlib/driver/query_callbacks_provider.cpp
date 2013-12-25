@@ -270,14 +270,17 @@ private:
         NodeDirectory_->MergeFrom(rsp->node_directory());
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
+        typedef NTableClient::NProto::TBoundaryKeysExt TProtoBoundaryKeys;
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
         typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
+
         auto originalKeyColumns = GetProtoExtension<TProtoKeyColumns>(dataSplit.chunk_meta().extensions());
         auto originalTableSchema = GetProtoExtension<TProtoTableSchema>(dataSplit.chunk_meta().extensions());
 
         for (auto& chunkSpec : chunkSpecs) {
             auto keyColumns = FindProtoExtension<TProtoKeyColumns>(chunkSpec.chunk_meta().extensions());
             auto tableSchema = FindProtoExtension<TProtoTableSchema>(chunkSpec.chunk_meta().extensions());
+
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
             YCHECK(!keyColumns);
@@ -285,6 +288,16 @@ private:
 
             SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), originalKeyColumns);
             SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), originalTableSchema);
+
+            auto boundaryKeys = FindProtoExtension<TProtoBoundaryKeys>(chunkSpec.chunk_meta().extensions());
+            if (boundaryKeys) {
+                auto lower = NYT::FromProto<TUnversionedOwningRow>(boundaryKeys->start());
+                auto upper = NYT::FromProto<TUnversionedOwningRow>(boundaryKeys->end());
+                // Boundary keys are exact, so advance right bound to its successor.
+                upper = GetKeySuccessor(upper);
+                SetLowerBound(&chunkSpec, lower);
+                SetUpperBound(&chunkSpec, upper);
+            }
         }
 
         return chunkSpecs;

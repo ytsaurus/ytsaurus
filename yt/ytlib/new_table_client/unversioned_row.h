@@ -235,6 +235,8 @@ static_assert(
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 // by appending a |EValueType::Min| sentinel.
+//
+// TODO(sandello): Alter this function to use AdvanceToValueSuccessor().
 TOwningKey GetKeySuccessor(const TOwningKey& key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key

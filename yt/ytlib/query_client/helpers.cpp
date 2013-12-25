@@ -21,6 +21,7 @@ using NVersionedTableClient::MaxKey;
 
 typedef NChunkClient::NProto::TMiscExt TMiscProto;
 typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchemaProto;
+typedef NTableClient::NProto::TBoundaryKeysExt TBoundaryKeysProto;
 typedef NTableClient::NProto::TKeyColumnsExt TKeyColumnsProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +104,10 @@ void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns)
 
 void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound)
 {
+    if (lowerBound == MinKey()) {
+        dataSplit->clear_start_limit();
+        return;
+    }
     TReadLimit readLimit;
     readLimit.SetKey(lowerBound);
     ToProto(dataSplit->mutable_start_limit(), readLimit);
@@ -110,6 +115,10 @@ void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound)
 
 void SetUpperBound(TDataSplit* dataSplit, const TKey& upperBound)
 {
+    if (upperBound == MaxKey()) {
+        dataSplit->clear_end_limit();
+        return;
+    }
     TReadLimit readLimit;
     readLimit.SetKey(upperBound);
     ToProto(dataSplit->mutable_end_limit(), readLimit);
