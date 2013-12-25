@@ -263,12 +263,25 @@ public:
   }
 };
 
+/// NextPowerOf2 - Returns the next power of two (in 64-bits)
+/// that is strictly greater than A.  Returns zero on overflow.
+inline uint64_t NextPowerOf2(uint64_t A) {
+  A |= (A >> 1);
+  A |= (A >> 2);
+  A |= (A >> 4);
+  A |= (A >> 8);
+  A |= (A >> 16);
+  A |= (A >> 32);
+  return A + 1;
+}
+
 // Define this out-of-line to dissuade the C++ compiler from inlining it.
 template <typename T, bool IsPod>
 void SmallVectorTemplateBase<T, IsPod>::grow(size_t MinSize) {
   size_t CurCapacity = this->capacity();
   size_t CurSize = this->size();
-  size_t NewCapacity = 2*CurCapacity + 1; // Always grow, even from zero.
+  // Always grow, even from zero.  
+  size_t NewCapacity = size_t(NextPowerOf2(CurCapacity+2));
   if (NewCapacity < MinSize)
     NewCapacity = MinSize;
   T *NewElts = static_cast<T*>(malloc(NewCapacity*sizeof(T)));
