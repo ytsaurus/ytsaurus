@@ -73,7 +73,7 @@ void TServiceContextBase::Reply(const TError& error)
         YCHECK(!error.IsOK());
     } else {
         auto responseMessage = CreateResponseMessage(this);
-        DoReply(responseMessage);
+        DoReply(std::move(responseMessage));
     }
 
     LogResponse(error);
@@ -107,7 +107,7 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 
     Replied = true;
 
-    DoReply(responseMessage);
+    DoReply(std::move(responseMessage));
     
     LogResponse(Error);
 }
