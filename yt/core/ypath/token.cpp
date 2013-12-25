@@ -39,7 +39,7 @@ int ParseListIndex(const TStringBuf& token)
     }
 }
 
-Stroka ToYPathLiteral(const Stroka& value)
+Stroka ToYPathLiteral(const TStringBuf& value)
 {
     static const char* HexChars = "0123456789abcdef";
     Stroka result;
