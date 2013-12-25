@@ -24,6 +24,7 @@
 #include <iterator>
 #include <memory>
 
+#define LLVM_ATTRIBUTE_UNUSED_RESULT
 #define LLVM_HAS_RVALUE_REFERENCES 1
 
 namespace NYT {
@@ -53,7 +54,7 @@ public:
     return size_t((char*)CapacityX - (char*)BeginX);
   }
 
-  bool empty() const { return BeginX == EndX; }
+  bool LLVM_ATTRIBUTE_UNUSED_RESULT empty() const { return BeginX == EndX; }
 };
 
 template <typename T, unsigned N> struct SmallVectorStorage;
@@ -439,7 +440,7 @@ public:
       this->grow(N);
   }
 
-  T pop_back_val() {
+  T LLVM_ATTRIBUTE_UNUSED_RESULT pop_back_val() {
 #if LLVM_HAS_RVALUE_REFERENCES
     T Result = ::std::move(this->back());
 #else
