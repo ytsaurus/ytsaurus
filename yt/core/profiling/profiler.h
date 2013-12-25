@@ -145,7 +145,7 @@ struct TAggregateCounter
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(100));
 
-    void ResetAggregation();
+    void Reset();
 
     EAggregateMode Mode;
     TValue Current;

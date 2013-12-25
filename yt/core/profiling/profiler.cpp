@@ -81,10 +81,10 @@ TAggregateCounter::TAggregateCounter(
     , Mode(mode)
     , Current(0)
 {
-    ResetAggregation();
+    Reset();
 }
 
-void TAggregateCounter::ResetAggregation()
+void TAggregateCounter::Reset()
 {
     Min = std::numeric_limits<TValue>::max();
     Max = std::numeric_limits<TValue>::min();
@@ -228,7 +228,7 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
 {
 	YASSERT(delta >= 0);
 
-    if (counter.Path.empty()) {
+    if (!Enabled_ || counter.Path.empty()) {
         return counter.Value;
     }
    
@@ -253,7 +253,7 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
 
 void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
 {
-    if (counter.Path.empty())
+    if (!Enabled_ || counter.Path.empty())
         return;
 
     auto now = GetCpuInstant();
@@ -264,7 +264,7 @@ void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
 
 TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta /* = 1*/)
 {
-    if (counter.Path.empty()) {
+    if (!Enabled_ || counter.Path.empty()) {
         return counter.Current;
     }
 
@@ -290,33 +290,31 @@ void TProfiler::DoAggregate(
         auto min = counter.Min;
         auto max = counter.Max;
         auto avg = counter.Sum / counter.SampleCount;
-        counter.ResetAggregation();
+        counter.Reset();
         counter.Deadline = now + counter.Interval;
         guard.Release();
-        if (!counter.Path.empty()) {
-	        switch (counter.Mode) {
-    	        case EAggregateMode::All:
-        	        Enqueue(counter.Path + "/min", min, counter.TagIds);
-            	    Enqueue(counter.Path + "/max", max, counter.TagIds);
-                	Enqueue(counter.Path + "/avg", avg, counter.TagIds);
-                	break;
+	    switch (counter.Mode) {
+    	    case EAggregateMode::All:
+        	    Enqueue(counter.Path + "/min", min, counter.TagIds);
+            	Enqueue(counter.Path + "/max", max, counter.TagIds);
+                Enqueue(counter.Path + "/avg", avg, counter.TagIds);
+                break;
 
-            	case EAggregateMode::Min:
-	                Enqueue(counter.Path, min, counter.TagIds);
-    	            break;
+            case EAggregateMode::Min:
+	            Enqueue(counter.Path, min, counter.TagIds);
+    	        break;
 
-        	    case EAggregateMode::Max:
-            	    Enqueue(counter.Path, max, counter.TagIds);
-                	break;
+        	case EAggregateMode::Max:
+            	Enqueue(counter.Path, max, counter.TagIds);
+                break;
 
-	            case EAggregateMode::Avg:
-    	            Enqueue(counter.Path, avg, counter.TagIds);
-        	        break;
+	        case EAggregateMode::Avg:
+    	        Enqueue(counter.Path, avg, counter.TagIds);
+        	    break;
 
-            	default:
-	                YUNREACHABLE();
-	     	}
-        }
+            default:
+	            YUNREACHABLE();
+	    }
     }
 }
 
