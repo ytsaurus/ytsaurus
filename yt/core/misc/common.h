@@ -103,6 +103,20 @@
     #define TLS_STATIC __declspec(thread)
 #endif
 
+#ifdef __GNUC__
+
+namespace std {
+
+template <typename T, typename ...Args>
+std::unique_ptr<T> make_unique(Args&& ...args)
+{
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+} // namespace std
+
+#endif
+
 #include "enum.h"
 #include "assert.h"
 #include "intrusive_ptr.h"
