@@ -96,8 +96,8 @@ void GetStatistics(
 TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec)
 {
     auto result = New<TRefCountedChunkSpec>(*chunkSpec);
-    result->clear_start_limit();
-    result->clear_end_limit();
+    result->clear_upper_limit();
+    result->clear_lower_limit();
 
     RemoveProtoExtension<TSizeOverrideExt>(result->mutable_chunk_meta()->mutable_extensions());
 

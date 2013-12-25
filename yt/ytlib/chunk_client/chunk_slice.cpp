@@ -146,12 +146,12 @@ TChunkSlicePtr CreateChunkSlice(
     result->SizeOverrideExt.set_row_count(rowCount);
     result->PartIndex = DefaultPartIndex;
 
-    if (chunkSpec->has_start_limit()) {
-        result->StartLimit = chunkSpec->start_limit();
+    if (chunkSpec->has_upper_limit()) {
+        result->StartLimit = chunkSpec->upper_limit();
     }
 
-    if (chunkSpec->has_end_limit()) {
-        result->EndLimit = chunkSpec->end_limit();
+    if (chunkSpec->has_lower_limit()) {
+        result->EndLimit = chunkSpec->lower_limit();
     }
 
     if (startKey && (!result->StartLimit.HasKey() || result->StartLimit.GetKey() < *startKey)) {
@@ -201,11 +201,11 @@ void ToProto(TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
     chunkSpec->CopyFrom(*chunkSlice.ChunkSpec);
 
     if (IsNontrivial(chunkSlice.StartLimit)) {
-        ToProto(chunkSpec->mutable_start_limit(), chunkSlice.StartLimit);
+        ToProto(chunkSpec->mutable_upper_limit(), chunkSlice.StartLimit);
     }
 
     if (IsNontrivial(chunkSlice.EndLimit)) {
-        ToProto(chunkSpec->mutable_end_limit(), chunkSlice.EndLimit);
+        ToProto(chunkSpec->mutable_lower_limit(), chunkSlice.EndLimit);
     }
 
     SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), chunkSlice.SizeOverrideExt);

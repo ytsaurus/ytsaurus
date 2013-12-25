@@ -8,8 +8,12 @@ set( SRCS
   ${BASE}/name_table.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
-  ${BASE}/versioned_row.cpp
   ${BASE}/unversioned_row.cpp
+  ${BASE}/versioned_block_reader.cpp
+  ${BASE}/versioned_block_writer.cpp
+  ${BASE}/versioned_chunk_reader.cpp
+  ${BASE}/versioned_chunk_writer.cpp
+  ${BASE}/versioned_row.cpp
 )
 
 set( HDRS
@@ -24,12 +28,17 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/row_base.h
   ${BASE}/reader.h
-  ${BASE}/writer.h
   ${BASE}/schema.h
-  ${BASE}/versioned_row.h
   ${BASE}/unversioned_row.h
+  ${BASE}/versioned_block_writer.h
+  ${BASE}/versioned_block_reader.h
+  ${BASE}/versioned_chunk_reader.h
+  ${BASE}/versioned_chunk_writer.h
   ${BASE}/versioned_reader.h
+  ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h
+
+  ${BASE}/writer.h
 )
 
 list(APPEND YT_SOURCE_FILES

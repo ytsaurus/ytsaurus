@@ -6,6 +6,7 @@
 
 #include <core/yson/public.h>
 
+#include <core/misc/error.h>
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 
@@ -65,6 +66,10 @@ void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 
 bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs);
 bool operator==(const TTableSchema& lhs, const TTableSchema& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError ValidateKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

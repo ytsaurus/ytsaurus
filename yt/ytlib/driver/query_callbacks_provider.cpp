@@ -291,8 +291,8 @@ private:
 
             auto boundaryKeys = FindProtoExtension<TProtoBoundaryKeys>(chunkSpec.chunk_meta().extensions());
             if (boundaryKeys) {
-                auto lower = NYT::FromProto<TUnversionedOwningRow>(boundaryKeys->start());
-                auto upper = NYT::FromProto<TUnversionedOwningRow>(boundaryKeys->end());
+                auto lower = NYT::FromProto<TOwningKey>(boundaryKeys->start());
+                auto upper = NYT::FromProto<TOwningKey>(boundaryKeys->end());
                 // Boundary keys are exact, so advance right bound to its successor.
                 upper = GetKeySuccessor(upper.Get());
                 SetLowerBound(&chunkSpec, lower);

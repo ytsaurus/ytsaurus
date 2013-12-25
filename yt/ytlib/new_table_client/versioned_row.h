@@ -132,14 +132,34 @@ public:
         return Header;
     }
 
+    const TTimestamp* BeginTimestamps() const
+    {
+        return reinterpret_cast<const TTimestamp*>(Header + 1);
+    }
+
+    TTimestamp* BeginTimestamps()
+    {
+        return reinterpret_cast<TTimestamp*>(Header + 1);
+    }
+
+    const TTimestamp* EndTimestamps() const
+    {
+        return BeginTimestamps() + GetTimestampCount();
+    }
+
+    TTimestamp* EndTimestamps()
+    {
+        return BeginTimestamps() + GetTimestampCount();
+    }
+
     const TUnversionedValue* BeginKeys() const
     {
-        return reinterpret_cast<const TUnversionedValue*>(Header + 1);
+        return reinterpret_cast<const TUnversionedValue*>(EndTimestamps());
     }
 
     TUnversionedValue* BeginKeys()
     {
-        return reinterpret_cast<TUnversionedValue*>(Header + 1);
+        return reinterpret_cast<TUnversionedValue*>(EndTimestamps());
     }
 
     const TUnversionedValue* EndKeys() const
@@ -170,27 +190,6 @@ public:
     TVersionedValue* EndValues()
     {
         return BeginValues() + GetValueCount();
-    }
-
-
-    const TTimestamp* BeginTimestamps() const
-    {
-        return reinterpret_cast<const TTimestamp*>(EndValues());
-    }
-
-    TTimestamp* BeginTimestamps()
-    {
-        return reinterpret_cast<TTimestamp*>(EndValues());
-    }
-
-    const TTimestamp* EndTimestamps() const
-    {
-        return BeginTimestamps() + GetTimestampCount();
-    }
-
-    TTimestamp* EndTimestamps()
-    {
-        return BeginTimestamps() + GetTimestampCount();
     }
 
     int GetKeyCount() const

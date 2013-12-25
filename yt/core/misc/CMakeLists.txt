@@ -47,6 +47,7 @@ set( HDRS
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
+  ${BASE}/bitmap.h
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h

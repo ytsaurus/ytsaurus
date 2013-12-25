@@ -6,6 +6,7 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/table_client/public.h>
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -16,6 +17,7 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::MinTimestamp;
 using NTransactionClient::MaxTimestamp;
+using NTransactionClient::AllCommittedTimestamp;
 
 using NTableClient::TKeyColumns;
 
@@ -35,6 +37,11 @@ DECLARE_ENUM(EValueType,
     ((String)      (5))
     ((Any)         (6))
     ((Max)        (64))
+);
+
+DECLARE_ENUM(ETableChunkFormat,
+    ((Old)                (0))
+    ((SimpleVersioned)    (1))
 );
 
 static const int TypicalColumnCount = 64;
@@ -85,8 +92,14 @@ typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
 struct IVersionedWriter;
 typedef TIntrusivePtr<IVersionedWriter> IVersionedWriterPtr;
 
+struct IVersionedReader;
+typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
+
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
+
+typedef NChunkClient::TEncodingWriterOptions TChunkWriterOptions;
+typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
 
 class TChunkReaderConfig;
 typedef TIntrusivePtr<TChunkReaderConfig> TChunkReaderConfigPtr;

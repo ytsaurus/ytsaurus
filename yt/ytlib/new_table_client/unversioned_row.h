@@ -108,20 +108,19 @@ bool IsValueSuccessor(
     const TUnversionedValue& value,
     const TUnversionedValue& successor);
 
-//! Ternary comparison predicate for TUnversionedRow-s stripped to a given number of
-//! (leading) values.
-int CompareRows(
-    TUnversionedRow lhs,
-    TUnversionedRow rhs,
-    int prefixLength = std::numeric_limits<int>::max());
 
-//! Another version of comparison function, now iterator-based.
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
     const TUnversionedValue* rhsBegin,
     const TUnversionedValue* rhsEnd);
 
+//! Ternary comparison predicate for TUnversionedRow-s stripped to a given number of
+//! (leading) values.
+int CompareRows(
+    TUnversionedRow lhs,
+    TUnversionedRow rhs,
+    int prefixLength = std::numeric_limits<int>::max());
 
 bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
@@ -217,7 +216,7 @@ public:
 
     int GetCount() const
     {
-        return Header ? Header->Count : 0;
+        return Header->Count;
     }
 
     const TUnversionedValue& operator[] (int index) const
@@ -271,6 +270,10 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b);
 
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
+void ToProto(
+    TProtoStringType* protoRow,
+    const TUnversionedValue* beginKey,
+    const TUnversionedValue* endKey);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
@@ -301,37 +304,17 @@ public:
     TUnversionedOwningRow()
     { }
 
+    TUnversionedOwningRow(const TUnversionedValue* begin, const TUnversionedValue* end)
+    {
+        Init(begin, end);
+    }
+
     explicit TUnversionedOwningRow(TUnversionedRow other)
     {
         if (!other)
             return;
 
-        size_t fixedSize = GetUnversionedRowDataSize(other.GetCount());
-        RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
-        ::memcpy(RowData.Begin(), other.GetHeader(), fixedSize);
-
-        size_t variableSize = 0;
-        for (int index = 0; index < other.GetCount(); ++index) {
-            const auto& otherValue = other[index];
-            if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
-                variableSize += otherValue.Length;
-            }
-        }
-
-        if (variableSize != 0) {
-            StringData.resize(variableSize);
-            char* current = const_cast<char*>(StringData.data());
-
-            for (int index = 0; index < other.GetCount(); ++index) {
-                const auto& otherValue = other[index];
-                auto& value = reinterpret_cast<TUnversionedValue*>(GetHeader() + 1)[index];;
-                if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
-                    ::memcpy(current, otherValue.Data.String, otherValue.Length);
-                    value.Data.String = current;
-                    current += otherValue.Length;
-                }
-            }
-        }
+        Init(other.Begin(), other.End());
     }
 
     TUnversionedOwningRow(const TUnversionedOwningRow& other)
@@ -450,6 +433,42 @@ private:
         return reinterpret_cast<const TUnversionedRowHeader*>(RowData.Begin());
     }
 
+    void Init(const TUnversionedValue* begin, const TUnversionedValue* end)
+    {
+        int count = std::distance(begin, end);
+
+        size_t fixedSize = GetUnversionedRowDataSize(count);
+        RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+        auto* header = GetHeader();
+
+        header->Count = count;
+        header->Padding = 0;
+        ::memcpy(header + 1, begin, reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(begin));
+
+        size_t variableSize = 0;
+        for (auto it = begin; it != end; ++it) {
+            const auto& otherValue = *it;
+            if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
+                variableSize += otherValue.Length;
+            }
+        }
+
+        if (variableSize != 0) {
+            StringData.resize(variableSize);
+            char* current = const_cast<char*>(StringData.data());
+
+            for (int index = 0; index < count; ++index) {
+                const auto& otherValue = begin[index];
+                auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];;
+                if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
+                    ::memcpy(current, otherValue.Data.String, otherValue.Length);
+                    value.Data.String = current;
+                    current += otherValue.Length;
+                }
+            }
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -460,9 +479,7 @@ class TUnversionedRowBuilder
 {
 public:
     explicit TUnversionedRowBuilder(int initialValueCapacity = 16);
-
     void AddValue(const TUnversionedValue& value);
-
     TUnversionedRow GetRow();
 
 private:
@@ -484,7 +501,6 @@ public:
     explicit TUnversionedOwningRowBuilder(int initialValueCapacity = 16);
 
     void AddValue(const TUnversionedValue& value);
-
     TUnversionedOwningRow Finish();
 
 private:

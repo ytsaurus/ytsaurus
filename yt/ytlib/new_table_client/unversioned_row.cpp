@@ -302,15 +302,6 @@ bool IsValueSuccessor(
     }
 }
 
-int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
-{
-    return CompareRows(
-        lhs.Begin(),
-        lhs.Begin() + std::min(lhs.GetCount(), prefixLength),
-        rhs.Begin(),
-        rhs.Begin() + std::min(rhs.GetCount(), prefixLength));
-}
-
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
@@ -326,6 +317,15 @@ int CompareRows(
         }
     }
     return (lhsEnd - lhsBegin) - (rhsEnd - rhsBegin);
+}
+
+int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
+{
+    return CompareRows(
+        lhs.Begin(),
+        lhs.Begin() + std::min(lhs.GetCount(), prefixLength),
+        rhs.Begin(),
+        rhs.Begin() + std::min(rhs.GetCount(), prefixLength));
 }
 
 bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
@@ -510,11 +510,11 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka SerializeToString(TUnversionedRow row)
+Stroka SerializeToString(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
 {
     int size = 2 * MaxVarUInt32Size; // header size
-    for (int i = 0; i < row.GetCount(); ++i) {
-        size += GetByteSize(row[i]);
+    for (auto it = beginKey; it != endKey; ++it) {
+        size += GetByteSize(*it);
     }
 
     Stroka buffer;
@@ -522,15 +522,20 @@ Stroka SerializeToString(TUnversionedRow row)
 
     char* current = const_cast<char*>(buffer.data());
     current += WriteVarUInt32(current, 0); // format version
-    current += WriteVarUInt32(current, static_cast<ui32>(row.GetCount()));
+    current += WriteVarUInt32(current, static_cast<ui32>(std::distance(beginKey, endKey)));
 
-    for (int i = 0; i < row.GetCount(); ++i) {
-        current += WriteValue(current, row[i]);
+    for (auto it = beginKey; it != endKey; ++it) {
+        current += WriteValue(current, *it);
     }
 
     buffer.resize(current - buffer.data());
 
     return buffer;
+}
+
+Stroka SerializeToString(TUnversionedRow row)
+{
+    return SerializeToString(row.Begin(), row.End());
 }
 
 TUnversionedOwningRow DeserializeFromString(const Stroka& data)
@@ -567,6 +572,14 @@ void ToProto(TProtoStringType* protoRow, TUnversionedRow row)
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
 {
     ToProto(protoRow, row.Get());
+}
+
+void ToProto(
+    TProtoStringType* protoRow,
+    const TUnversionedValue* beginKey,
+    const TUnversionedValue* endKey)
+{
+    *protoRow = SerializeToString(beginKey, endKey);
 }
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)

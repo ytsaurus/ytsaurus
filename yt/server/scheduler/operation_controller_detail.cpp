@@ -2803,8 +2803,8 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         int oldSize = result.size();
 
         bool hasNontrivialLimits =
-            (chunkSpec->has_start_limit() && IsNontrivial(chunkSpec->start_limit())) ||
-            (chunkSpec->has_end_limit() && IsNontrivial(chunkSpec->end_limit()));
+            (chunkSpec->has_upper_limit() && IsNontrivial(chunkSpec->upper_limit())) ||
+            (chunkSpec->has_lower_limit() && IsNontrivial(chunkSpec->lower_limit()));
 
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {

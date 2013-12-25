@@ -25,31 +25,31 @@ message TBlockMeta
 {
     required int32 row_count = 1;
     required int32 block_size = 2;
+    required int64 chunk_row_count = 3;
 
     // ToDo: move to extension
-    repeated int32 fixed_column_sizes = 3;
-    optional int32 variable_buffer_offset = 4;
-    optional int32 end_of_key_flags_offset = 5;
+    repeated int32 fixed_column_sizes = 4;
+    optional int32 variable_buffer_offset = 5;
+    optional int32 end_of_key_flags_offset = 6;
 
 
     extensions 100 to max;
 }
 
-message TVersionedBlockMeta
+message TSimpleVersionedBlockMeta
 {
     extend TBlockMeta
     {
-        optional TVersionedBlockMeta versioned_block_meta_ext = 100;
+        optional TSimpleVersionedBlockMeta block_meta_ext = 100;
     }
 
-    required int32 index_row_count = 1;
-    required int32 value_count = 2;
-    required int32 string_data_offset = 3;
+    required int32 value_count = 1;
+    required int32 timestamp_count = 2;
 }
 
 message TBlockMetaExt
 {
-    repeated TBlockMeta items = 1;
+    repeated TBlockMeta entries = 1;
 }
 
 // For each column in block, stores corresponding index in name table.

@@ -479,7 +479,7 @@ protected:
     //! Such chunks are always pooled.
     static bool IsCompleteChunk(const TChunkSpec& chunkSpec)
     {
-        return IsTrivial(chunkSpec.start_limit()) && IsTrivial(chunkSpec.end_limit());
+        return IsTrivial(chunkSpec.upper_limit()) && IsTrivial(chunkSpec.lower_limit());
     }
 
     virtual bool IsSingleStripeInput() const
@@ -513,8 +513,8 @@ protected:
 
     bool IsLargeChunk(const TChunkSpec& chunkSpec)
     {
-        YCHECK(!IsNontrivial(chunkSpec.start_limit()));
-        YCHECK(!IsNontrivial(chunkSpec.end_limit()));
+        YCHECK(!IsNontrivial(chunkSpec.upper_limit()));
+        YCHECK(!IsNontrivial(chunkSpec.lower_limit()));
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
@@ -1098,7 +1098,7 @@ private:
 
             if (currentPartitionTag != DefaultPartitionTag) {
                 if (chunkSpec->partition_tag() == currentPartitionTag) {
-                    if (endpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->end_limit())) {
+                    if (endpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->lower_limit())) {
                         currentPartitionTag = DefaultPartitionTag;
                         auto completeChunk = CreateCompleteChunk(chunkSpec);
 
@@ -1122,7 +1122,7 @@ private:
             }
 
             // No current Teleport candidate.
-            if (endpoint.Type == EEndpointType::Left && IsTrivial(chunkSpec->start_limit())) {
+            if (endpoint.Type == EEndpointType::Left && IsTrivial(chunkSpec->upper_limit())) {
                 currentPartitionTag = chunkSpec->partition_tag();
                 startTeleportIndex = i;
             }
@@ -1207,9 +1207,9 @@ private:
                 }
 
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
-                //LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
-                //    globalOpenedSlices.size(),
-                //    ~ToString(nextBreakpoint));
+                LOG_TRACE("Finish current task, flushing %" PRISZT " chunks at key %s",
+                    globalOpenedSlices.size(),
+                    ~ToString(nextBreakpoint));
 
                 for (const auto& chunkSpec : globalOpenedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(
@@ -1467,7 +1467,7 @@ private:
             if (currentPartitionTag != DefaultPartitionTag) {
                 auto& previousEndpoint = Endpoints[i - 1];
                 auto& chunkSpec = previousEndpoint.ChunkSpec;
-                if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->end_limit())) {
+                if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->lower_limit())) {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;
                     }
@@ -1480,7 +1480,7 @@ private:
             // No current Teleport candidate.
             auto& chunkSpec = endpoint.ChunkSpec;
             if (endpoint.Type == EEndpointType::Left &&
-                IsTrivial(chunkSpec->start_limit()) &&
+                IsTrivial(chunkSpec->upper_limit()) &&
                 IsTeleportInputTable(chunkSpec->table_index()) &&
                 openedSlicesCount == 1)
             {
@@ -1494,7 +1494,7 @@ private:
             auto& previousEndpoint = Endpoints.back();
             auto& chunkSpec = previousEndpoint.ChunkSpec;
             YCHECK(previousEndpoint.Type == EEndpointType::Right);
-            if (IsTrivial(chunkSpec->end_limit())) {
+            if (IsTrivial(chunkSpec->lower_limit())) {
                 for (int j = startTeleportIndex; j < Endpoints.size(); ++j) {
                     Endpoints[j].IsTeleport = true;
                 }

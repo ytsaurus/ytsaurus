@@ -47,8 +47,8 @@ TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
 
 TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 {
-    if (dataSplit.has_start_limit()) {
-        auto readLimit = FromProto<TReadLimit>(dataSplit.start_limit());
+    if (dataSplit.has_upper_limit()) {
+        auto readLimit = FromProto<TReadLimit>(dataSplit.upper_limit());
         return readLimit.GetKey();
     } else {
         return MinKey();
@@ -57,8 +57,8 @@ TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 
 TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
 {
-    if (dataSplit.has_end_limit()) {
-        auto readLimit = FromProto<TReadLimit>(dataSplit.end_limit());
+    if (dataSplit.has_lower_limit()) {
+        auto readLimit = FromProto<TReadLimit>(dataSplit.lower_limit());
         return readLimit.GetKey();
     } else {
         return MaxKey();
@@ -109,23 +109,23 @@ void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns)
 void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound)
 {
     if (lowerBound == MinKey()) {
-        dataSplit->clear_start_limit();
+        dataSplit->clear_upper_limit();
         return;
     }
     TReadLimit readLimit;
     readLimit.SetKey(lowerBound);
-    ToProto(dataSplit->mutable_start_limit(), readLimit);
+    ToProto(dataSplit->mutable_upper_limit(), readLimit);
 }
 
 void SetUpperBound(TDataSplit* dataSplit, const TKey& upperBound)
 {
     if (upperBound == MaxKey()) {
-        dataSplit->clear_end_limit();
+        dataSplit->clear_lower_limit();
         return;
     }
     TReadLimit readLimit;
     readLimit.SetKey(upperBound);
-    ToProto(dataSplit->mutable_end_limit(), readLimit);
+    ToProto(dataSplit->mutable_lower_limit(), readLimit);
 }
 
 void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange)

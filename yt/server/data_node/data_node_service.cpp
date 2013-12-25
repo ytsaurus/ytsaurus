@@ -844,7 +844,7 @@ void TDataNodeService::MakeChunkSplits(
     auto beginIt = std::lower_bound(
         indexExt.items().begin(),
         indexExt.items().end(),
-        TReadLimit(chunkSpec->start_limit()),
+        TReadLimit(chunkSpec->upper_limit()),
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
              const TReadLimit& limit)
         {
@@ -854,7 +854,7 @@ void TDataNodeService::MakeChunkSplits(
     auto endIt = std::upper_bound(
         beginIt,
         indexExt.items().end(),
-        TReadLimit(chunkSpec->end_limit()),
+        TReadLimit(chunkSpec->lower_limit()),
         [&] (const TReadLimit& limit,
              const NTableClient::NProto::TIndexRow& indexRow)
         {
@@ -912,11 +912,11 @@ void TDataNodeService::MakeChunkSplits(
             TOwningKey limitKey;
             FromProto(&limitKey, key);
 
-            ToProto(currentSplit->mutable_end_limit()->mutable_key(), limitKey);
+            ToProto(currentSplit->mutable_lower_limit()->mutable_key(), limitKey);
 
             createNewSplit();
             *boundaryKeysExt.mutable_start() = key;
-            ToProto(currentSplit->mutable_start_limit()->mutable_key(), limitKey);
+            ToProto(currentSplit->mutable_upper_limit()->mutable_key(), limitKey);
         }
     }
 

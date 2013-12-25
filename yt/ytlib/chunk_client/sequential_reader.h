@@ -37,6 +37,11 @@ public:
         int Index;
         int Size;
 
+        TBlockInfo()
+            : Index(-1)
+            , Size(0)
+        { }
+
         TBlockInfo(int index, int size)
             : Index(index)
             , Size(size)

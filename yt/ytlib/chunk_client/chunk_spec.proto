@@ -13,10 +13,10 @@ message TChunkSpec
     required NYT.NProto.TGuid chunk_id = 1;
 
     // Lower boundary, inclusive.
-    optional TReadLimit start_limit = 2;
+    optional TReadLimit upper_limit = 2;
 
     // Upper boundary, exclusive.
-    optional TReadLimit end_limit = 3;
+    optional TReadLimit lower_limit = 3;
 
     // Initial seed addresses. The reader may ask the master for additional ones.
     repeated fixed32 replicas = 4;
