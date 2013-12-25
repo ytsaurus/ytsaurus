@@ -14,6 +14,7 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <util/system/defaults.h>
 #include <util/system/file.h>
@@ -261,6 +262,12 @@ public:
         TLabel(const TOperator* op)
         {
             AddHeader(op);
+            auto keyColumns = op->GetKeyColumns();
+            auto keyRange = op->GetKeyRange();
+            WithRow(
+                "KeyColumns: " + NDot::EscapeHtml(JoinToString(keyColumns)) + "<BR />" +
+                "KeyRange: " + NDot::EscapeHtml(ToString(keyRange.first)) +
+                    " ... " + NDot::EscapeHtml(ToString(keyRange.second)));
         }
 
         TLabel(const TExpression* expr, const TTableSchema& sourceSchema)
@@ -268,7 +275,7 @@ public:
             AddHeader(expr);
             WithRow(
                 "Type: " + expr->GetType(sourceSchema).ToString() + "<BR/>" +
-                "Name: " + expr->GetName());
+                "Name: " + NDot::EscapeHtml(expr->GetName()));
         }
 
         template <class TNode>

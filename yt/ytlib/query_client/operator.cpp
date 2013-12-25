@@ -7,6 +7,7 @@
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -67,6 +68,11 @@ TTableSchema TOperator::GetTableSchema() const
 TKeyColumns TOperator::GetKeyColumns() const
 {
     return InferKeyColumns(this);
+}
+
+TKeyRange TOperator::GetKeyRange() const
+{
+    return InferKeyRange(this);
 }
 
 NVersionedTableClient::TNameTablePtr TOperator::GetNameTable() const

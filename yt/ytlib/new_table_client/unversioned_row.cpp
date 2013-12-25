@@ -460,7 +460,7 @@ TOwningKey MinKey()
 
 TOwningKey MaxKey()
 {
-    return CachedMinKey;
+    return CachedMaxKey;
 }
 
 static TOwningKey MakeEmptyKey()

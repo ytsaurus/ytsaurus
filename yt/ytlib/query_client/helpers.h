@@ -21,6 +21,8 @@ TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit);
 
 TKeyRange GetBothBoundsFromDataSplit(const TDataSplit& dataSplit);
 
+bool IsSorted(const TDataSplit& dataSplit);
+
 void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId);
 
 void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema);

@@ -265,7 +265,7 @@ void TCoordinateController::DistributeToPeers()
     });
 
     LOG_DEBUG("Got %d scan operators in plan fragment", numberOfScanOperators);
-    if (numberOfScanOperators <= 1) {
+    if (numberOfScanOperators == 0) {
         LOG_DEBUG("Nothing to distribute");
         return;
     }
@@ -300,15 +300,20 @@ void TCoordinateController::DistributeToPeers()
 
             fragment.Rewrite(
             [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-                if (auto* scanOp = op->As<TScanOperator>()) {
-                    auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-                    auto* clonedDataSplit = &clonedScanOp->DataSplit();
-                    SetBothBounds(clonedDataSplit, Intersect(
-                        GetBothBoundsFromDataSplit(*clonedDataSplit),
-                        inferredKeyRange));
-                    return clonedScanOp;
+                auto* scanOp = op->As<TScanOperator>();
+                if (!scanOp) {
+                    return op;
                 }
-                return op;
+                if (!IsSorted(scanOp->DataSplit())) {
+                    return op;
+                }
+
+                auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                auto* clonedDataSplit = &clonedScanOp->DataSplit();
+                SetBothBounds(clonedDataSplit, Intersect(
+                    GetBothBoundsFromDataSplit(*clonedDataSplit),
+                    inferredKeyRange));
+                return clonedScanOp;
             });
 
             Peers_.emplace_back(fragment, nullptr);

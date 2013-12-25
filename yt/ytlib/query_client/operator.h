@@ -76,12 +76,14 @@ public:
     //! Piggy-backed method |InferTableSchema|.
     TTableSchema GetTableSchema() const;
 
-    //! Piggy-backed method |InferNameTable|.
-    NVersionedTableClient::TNameTablePtr GetNameTable() const;
-
     //! Piggy-backed method |InferKeyColumns|.
     TKeyColumns GetKeyColumns() const;
 
+    //! Piggy-backed method |InferKeyRange|.
+    TKeyRange GetKeyRange() const;
+
+    //! Constructs a name table filled with operator's schema.
+    NVersionedTableClient::TNameTablePtr GetNameTable() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

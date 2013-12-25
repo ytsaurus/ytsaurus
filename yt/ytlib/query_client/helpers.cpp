@@ -8,6 +8,7 @@
 
 #include <core/misc/protobuf_helpers.h>
 
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
@@ -18,6 +19,7 @@ using NChunkClient::TReadLimit;
 using NVersionedTableClient::MinKey;
 using NVersionedTableClient::MaxKey;
 
+typedef NChunkClient::NProto::TMiscExt TMiscProto;
 typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchemaProto;
 typedef NTableClient::NProto::TKeyColumnsExt TKeyColumnsProto;
 
@@ -48,7 +50,7 @@ TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
         auto readLimit = FromProto<TReadLimit>(dataSplit.start_limit());
         return readLimit.GetKey();
     } else {
-        return TKey(MinKey());
+        return MinKey();
     }
 }
 
@@ -58,7 +60,7 @@ TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
         auto readLimit = FromProto<TReadLimit>(dataSplit.end_limit());
         return readLimit.GetKey();
     } else {
-        return TKey(MaxKey());
+        return MaxKey();
     }
 }
 
@@ -67,6 +69,13 @@ TKeyRange GetBothBoundsFromDataSplit(const TDataSplit& dataSplit)
     return std::make_pair(
         GetLowerBoundFromDataSplit(dataSplit),
         GetUpperBoundFromDataSplit(dataSplit));
+}
+
+bool IsSorted(const TDataSplit& dataSplit)
+{
+    auto miscProto = GetProtoExtension<TMiscProto>(
+        dataSplit.chunk_meta().extensions());
+    return miscProto.sorted();
 }
 
 void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId)

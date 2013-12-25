@@ -22,6 +22,9 @@
 
 #include "versioned_table_client_ut.h"
 
+#define _MIN_ "<\"type\"=\"min\">#"
+#define _MAX_ "<\"type\"=\"max\">#"
+
 namespace NYT {
 
 namespace NVersionedTableClient {
@@ -345,8 +348,15 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
         .WillOnce(Return(WrapInFuture(singleSplit)));
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(1)))
         .WillOnce(Return(false));
+    EXPECT_CALL(CoordinateMock_, Delegate(_, AllOf(
+            HasCounter(1),
+            HasLowerBound(_MIN_),
+            HasUpperBound(_MAX_))))
+        .WillOnce(Return(nullptr));
 
-    EXPECT_NO_THROW({ Coordinate("k from [//t]"); });
+    EXPECT_NO_THROW({
+        Coordinate("k from [//t]");
+    });
 }
 
 TEST(TKeyRangeTest, Unite)
@@ -510,9 +520,6 @@ TEST_P(TRefineKeyRangeTest, Basic)
         EXPECT_EQ(testCase.GetResultingRightBound(), result.second);
     }
 }
-
-#define _MIN_ "<\"type\"=\"min\">#"
-#define _MAX_ "<\"type\"=\"max\">#"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Here is a guideline on how to read this cases table.
@@ -1021,9 +1028,6 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
     EXPECT_EQ(BuildKey("50;" _MIN_ ";" _MIN_), result.first);
     EXPECT_EQ(BuildKey("50;" _MAX_ ";" _MAX_), result.second);
 }
-
-#undef _MIN_
-#undef _MAX_
 
 ////////////////////////////////////////////////////////////////////////////////
 
