@@ -105,8 +105,11 @@ private:
 
     virtual void LogRequest() override
     {
+        if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
+            return;
+
         Stroka str;
-        str.reserve(1024); // should be enough for typical request message
+        str.reserve(1024); // should be enough for a typical request message
 
         if (RequestId != NullRequestId) {
             AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
@@ -130,6 +133,9 @@ private:
 
     virtual void LogResponse(const TError& error) override
     {
+        if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
+            return;
+
         Stroka str;
         str.reserve(1024); // should be enough for typical response message
 
