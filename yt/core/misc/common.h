@@ -51,16 +51,16 @@
 
     // This define enables logging with TRACE level.
     #define ENABLE_TRACE_LOGGING
-#endif
 
-// This define enables tracking of bind location
-#define ENABLE_BIND_LOCATION_TRACKING
+    // This define enables tracking of bind location
+    #define ENABLE_BIND_LOCATION_TRACKING
+#endif
 
 // Configure SSE usage.
 #ifdef __SSE4_2__
     #define YT_USE_SSE42
     #ifndef __APPLE__
-    	#define YT_USE_CRC_PCLMUL
+        #define YT_USE_CRC_PCLMUL
     #endif
 #endif
 
