@@ -46,8 +46,7 @@ class TCheckAndPruneReferences
     : public TPlanVisitor
 {
 public:
-    explicit TCheckAndPruneReferences(TPrepareController* controller)
-        : Controller_(controller)
+    explicit TCheckAndPruneReferences()
     { }
 
     virtual bool Visit(const TScanOperator* op) override
@@ -94,7 +93,10 @@ public:
 
     virtual bool Visit(const TGroupOperator* op) override
     {
+        // TODO(lukyan): Prune not live aggregate items
+
         CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
+        LiveColumns_.clear();
         for (auto& groupItem : op->GroupItems()) {
             Traverse(this, groupItem.Expression);
         }
@@ -107,6 +109,7 @@ public:
     virtual bool Visit(const TProjectOperator* op) override
     {
         CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
+        LiveColumns_.clear();
         for (auto& projection : op->Projections()) {
             Traverse(this, projection.Expression);
         }
@@ -125,7 +128,6 @@ public:
     }
 
 private:
-    TPrepareController* Controller_;
     std::set<Stroka> LiveColumns_;
     TTableSchema CurrentSourceSchema_;
 
@@ -178,7 +180,7 @@ void TPrepareController::GetInitialSplits()
 
 void TPrepareController::CheckAndPruneReferences()
 {
-    TCheckAndPruneReferences visitor(this);
+    TCheckAndPruneReferences visitor;
     Traverse(&visitor, Head_);
 }
 
