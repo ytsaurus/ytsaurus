@@ -39,7 +39,7 @@ DECLARE_ENUM(ETimerMode,
 /*!
  *  Keeps the timing start time and the last checkpoint time.
  *
- *  Thread affinity: single-threaded
+ *  \note Not thread-safe.
  */
 struct TTimer
 {
@@ -92,7 +92,7 @@ struct TCounterBase
  *  certain fixed intervals of time. E.g. if the interval is 1 second then
  *  this counter will actually be sampling RPS.
  *
- *  \note Thread safety: single
+ *  \note Thread-safe.
  */
 struct TRateCounter
     : public TCounterBase
@@ -134,7 +134,7 @@ DECLARE_ENUM(EAggregateMode,
  *  Used to measure aggregates (min, max, avg) of a rapidly changing value.
  *  The values are aggregated over the time periods specified in the constructor.
  *
- *  \note Thread safety: single
+ *  \note Thread-safe.
  */
 struct TAggregateCounter
     : public TCounterBase
