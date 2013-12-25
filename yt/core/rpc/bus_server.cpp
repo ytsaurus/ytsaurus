@@ -111,7 +111,7 @@ private:
             return;
         }
 
-        service->OnRequest(header, message, replyBus);
+        service->OnRequest(header, std::move(message), std::move(replyBus));
     }
 
 };
