@@ -87,7 +87,6 @@
 #if defined(_MSC_VER)
     // VS does not support alignof natively yet.
     #define alignof __alignof
-    #define noexcept
 #endif
 
 // Used to mark Logger and Profiler static variables as probably unused
