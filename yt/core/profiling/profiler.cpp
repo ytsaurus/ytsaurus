@@ -253,6 +253,9 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
 
 void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
 {
+    if (counter.Path.empty())
+        return;
+
     auto now = GetCpuInstant();
 
     TGuard<TSpinLock> guard(counter.SpinLock);
