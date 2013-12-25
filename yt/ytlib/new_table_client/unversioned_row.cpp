@@ -228,7 +228,7 @@ void AdvanceToValueSuccessor(TUnversionedValue& value)
     switch (value.Type) {
         case EValueType::Integer: {
             auto& inner = value.Data.Integer;
-            constexpr const auto maximum = std::numeric_limits<i64>::max();
+            const auto maximum = std::numeric_limits<i64>::max();
             if (LIKELY(inner != maximum)) {
                 ++inner;
             } else {
@@ -239,7 +239,7 @@ void AdvanceToValueSuccessor(TUnversionedValue& value)
 
         case EValueType::Double: {
             auto& inner = value.Data.Double;
-            constexpr const auto maximum = std::numeric_limits<double>::max();
+            const auto maximum = std::numeric_limits<double>::max();
             if (LIKELY(inner != maximum)) {
                 inner = std::nextafter(inner, maximum);
             } else {
@@ -266,7 +266,7 @@ bool IsValueSuccessor(
     switch (value.Type) {
         case EValueType::Integer: {
             const auto& inner = value.Data.Integer;
-            constexpr const auto maximum = std::numeric_limits<i64>::max();
+            const auto maximum = std::numeric_limits<i64>::max();
             if (LIKELY(inner != maximum)) {
                 return
                     successor.Type == EValueType::Integer &&
@@ -280,7 +280,7 @@ bool IsValueSuccessor(
 
         case EValueType::Double: {
             const auto& inner = value.Data.Double;
-            constexpr const auto maximum = std::numeric_limits<double>::max();
+            const auto maximum = std::numeric_limits<double>::max();
             if (LIKELY(inner != maximum)) {
                 return
                     successor.Type == EValueType::Double &&
