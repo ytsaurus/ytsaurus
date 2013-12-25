@@ -347,6 +347,7 @@ public:
 
     TUnversionedValue* Begin()
     {
+        RowData.EnsureNonShared<TOwningRowTag>();
         auto* header = GetHeader();
         return header ? reinterpret_cast<TUnversionedValue*>(header + 1) : nullptr;
     }
@@ -358,6 +359,7 @@ public:
 
     TUnversionedValue* End()
     {
+        RowData.EnsureNonShared<TOwningRowTag>();
         return Begin() + GetCount();
     }
 
@@ -374,6 +376,7 @@ public:
 
     TUnversionedValue& operator[] (int index)
     {
+        RowData.EnsureNonShared<TOwningRowTag>();
         return Begin()[index];
     }
 
@@ -384,6 +387,7 @@ public:
 
     TUnversionedRow Get()
     {
+        RowData.EnsureNonShared<TOwningRowTag>();
         return TUnversionedRow(GetHeader());
     }
 
@@ -548,7 +552,6 @@ private:
 
     TBlob RowData_;
     Stroka StringData_;
-
 
     void Init()
     {

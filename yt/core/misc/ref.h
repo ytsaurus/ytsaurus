@@ -255,7 +255,6 @@ public:
         return Ref ? &TSharedRef::Ref : nullptr;
     }
 
-
     friend void swap(TSharedRef& lhs, TSharedRef& rhs)
     {
         using std::swap;
@@ -267,6 +266,16 @@ public:
     {
         swap(*this, other);
         return *this;
+    }
+
+    template <class TTag>
+    void EnsureNonShared()
+    {
+        if (Holder->GetRefCount() > 1) {
+            auto other = Allocate<TTag>(Size(), false);
+            memcpy(other.Begin(), Begin(), Size());
+            swap(*this, other);
+        }
     }
 
 private:
