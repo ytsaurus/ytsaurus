@@ -32,61 +32,6 @@ const TDataSplit& GetHeaviestSplit(const TOperator* op)
     YUNREACHABLE();
 }
 
-TTableSchema InferTableSchema(const TOperator* op)
-{
-    switch (op->GetKind()) {
-        case EOperatorKind::Scan: {
-            return GetTableSchemaFromDataSplit(
-                op->As<TScanOperator>()->DataSplit());
-        }
-        case EOperatorKind::Union: {
-            TTableSchema result;
-            auto* unionOp = op->As<TUnionOperator>();
-            bool didChooseTableSchema = false;
-            for (const auto& sourceOp : unionOp->Sources()) {
-                if (!didChooseTableSchema) {
-                    result = InferTableSchema(sourceOp);
-                    didChooseTableSchema = true;
-                } else {
-                    YCHECK(result == InferTableSchema(sourceOp));
-                }
-            }
-            return result;
-        }
-        case EOperatorKind::Filter: {
-            return InferTableSchema(op->As<TFilterOperator>()->GetSource());
-        }
-        case EOperatorKind::Group: {
-            TTableSchema result;
-            auto* groupOp = op->As<TGroupOperator>();
-            auto sourceSchema = InferTableSchema(groupOp->GetSource());
-            for (const auto& groupItem : groupOp->GroupItems()) {
-                result.Columns().emplace_back(
-                    groupItem.Name,
-                    InferType(groupItem.Expression, sourceSchema));
-            }
-            for (const auto& aggregateItem : groupOp->AggregateItems()) {
-                result.Columns().emplace_back(
-                    aggregateItem.Name,
-                    InferType(aggregateItem.Expression, sourceSchema));
-            }
-            return result;
-        }
-        case EOperatorKind::Project: {
-            TTableSchema result;
-            auto* projectOp = op->As<TProjectOperator>();
-            auto sourceSchema = InferTableSchema(projectOp->GetSource());
-            for (const auto& projection : projectOp->Projections()) {
-                result.Columns().emplace_back(
-                    InferName(projection.Expression),
-                    InferType(projection.Expression, sourceSchema));
-            }
-            return result;
-        }
-    }
-    YUNREACHABLE();
-}
-
 TKeyColumns InferKeyColumns(const TOperator* op)
 {
     switch (op->GetKind()) {

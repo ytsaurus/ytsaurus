@@ -77,6 +77,7 @@ public:
 
         auto* mutableOp = op->AsMutable<TScanOperator>();
         SetTableSchema(&mutableOp->DataSplit(), tableSchema);
+        op->GetTableSchema(true);
 
         return true;
     }

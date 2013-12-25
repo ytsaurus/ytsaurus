@@ -8,6 +8,8 @@
 #endif
 #endif
 
+#include <ytlib/new_table_client/schema.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -73,8 +75,8 @@ public:
 
     TOperator* CloneImpl(TPlanContext* context) const;
 
-    //! Piggy-backed method |InferTableSchema|.
-    TTableSchema GetTableSchema() const;
+    //! Infers table schema of the query result.
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const = 0;
 
     //! Piggy-backed method |InferKeyColumns|.
     TKeyColumns GetKeyColumns() const;
@@ -111,7 +113,12 @@ public:
         return Null;
     }
 
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
+
     DEFINE_BYREF_RW_PROPERTY(TDataSplit, DataSplit);
+
+private:
+    mutable std::unique_ptr<TTableSchema> TableSchema_;
 
 };
 
@@ -140,6 +147,8 @@ public:
         return Sources_;
     }
 
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
+
     TSources& Sources()
     {
         return Sources_;
@@ -157,6 +166,7 @@ public:
 
 private:
     TSources Sources_;
+    mutable std::unique_ptr<TTableSchema> TableSchema_;
 
 };
 
@@ -185,8 +195,9 @@ public:
         return Source_;
     }
 
-    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
+    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
     DEFINE_BYVAL_RW_PROPERTY(const TExpression*, Predicate);
 
 };
@@ -219,6 +230,8 @@ public:
         return Source_;
     }
 
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
+
     int GetGroupItemCount() const
     {
         return GroupItems_.size();
@@ -242,6 +255,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
     DEFINE_BYREF_RW_PROPERTY(TNamedExpressionList, GroupItems);
     DEFINE_BYREF_RW_PROPERTY(TAggregateItemList, AggregateItems);
+
+private:
+    mutable std::unique_ptr<TTableSchema> TableSchema_;
 
 };
 
@@ -270,6 +286,8 @@ public:
         return Source_;
     }
 
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
+
     TNamedExpressionList& Projections()
     {
         return Projections_;
@@ -294,7 +312,7 @@ public:
 
 private:
     TNamedExpressionList Projections_;
-
+    mutable std::unique_ptr<TTableSchema> TableSchema_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

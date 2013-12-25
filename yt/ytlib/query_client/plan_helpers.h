@@ -12,9 +12,6 @@ namespace NQueryClient {
 //! for that data split.
 const TDataSplit& GetHeaviestSplit(const TOperator* op);
 
-//! Infers table schema of the query result.
-TTableSchema InferTableSchema(const TOperator* op);
-
 //! Infers key columns of the query result.
 //! XXX(sandello): Right now it just computes key columns for the data source.
 TKeyColumns InferKeyColumns(const TOperator* op);
