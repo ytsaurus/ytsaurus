@@ -93,9 +93,9 @@ public:
         , Pivot(pivot)
     { }
 
-    bool IsValid(const NVersionedTableClient::TOwningKey& key)
+    bool IsValid(const NVersionedTableClient::TKey& key)
     {
-        int result = CompareRows(key, Pivot);
+        int result = CompareRows(key, Pivot.Get());
         return LeftBoundary ? result >= 0 : result < 0;
     }
 
@@ -140,7 +140,9 @@ struct TBlockInfo
 template <template <typename T> class TComparator>
 struct TIndexComparator
 {
-    bool operator()(const NVersionedTableClient::TKey& key, const NProto::TIndexRow& row)
+    inline bool operator()(
+        const NVersionedTableClient::TOwningKey& key,
+        const NProto::TIndexRow& row) const
     {
         NVersionedTableClient::TOwningKey indexKey;
         FromProto(&indexKey, row.key());
@@ -321,9 +323,7 @@ private:
                     TIndexComparator<std::less>());
 
                 if (it != indexExt.items().end()) {
-                    chunkReader->EndRowIndex = std::min(
-                        it->row_index(),
-                        chunkReader->EndRowIndex);
+                    chunkReader->EndRowIndex = std::min(it->row_index(), chunkReader->EndRowIndex);
                 }
             }
         }

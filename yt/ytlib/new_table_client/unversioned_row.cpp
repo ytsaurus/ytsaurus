@@ -310,12 +310,12 @@ int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 
 bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
-    return !CompareRows(lhs, rhs);
+    return CompareRows(lhs, rhs) == 0;
 }
 
 bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 {
-    return CompareRows(lhs, rhs);
+    return CompareRows(lhs, rhs) != 0;
 }
 
 bool operator <= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
@@ -334,6 +334,41 @@ bool operator >= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
 }
 
 bool operator > (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+{
+    return CompareRows(lhs, rhs) > 0;
+}
+
+int CompareRows(const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs, int prefixLength)
+{
+    return CompareRows(lhs.Get(), rhs.Get(), prefixLength);
+}
+
+bool operator == (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs) == 0;
+}
+
+bool operator != (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs) != 0;
+}
+
+bool operator <= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs) <= 0;
+}
+
+bool operator < (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs) < 0;
+}
+
+bool operator >= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs) >= 0;
+}
+
+bool operator > (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs)
 {
     return CompareRows(lhs, rhs) > 0;
 }
@@ -418,12 +453,12 @@ static TOwningKey MakeSentinelKey(EValueType type)
 static TOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
 static TOwningKey CachedMaxKey = MakeSentinelKey(EValueType::Max);
 
-TKey MinKey()
+TOwningKey MinKey()
 {
     return CachedMinKey;
 }
 
-TKey MaxKey()
+TOwningKey MaxKey()
 {
     return CachedMinKey;
 }
@@ -436,7 +471,7 @@ static TOwningKey MakeEmptyKey()
 
 static TOwningKey CachedEmptyKey = MakeEmptyKey();
 
-TKey EmptyKey()
+TOwningKey EmptyKey()
 {
     return CachedEmptyKey;
 }
@@ -455,7 +490,7 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka SerializeToString(const TUnversionedRow& row)
+Stroka SerializeToString(TUnversionedRow row)
 {
     int size = 2 * MaxVarUInt32Size; // header size
     for (int i = 0; i < row.GetCount(); ++i) {
@@ -472,7 +507,9 @@ Stroka SerializeToString(const TUnversionedRow& row)
     for (int i = 0; i < row.GetCount(); ++i) {
         current += WriteValue(current, row[i]);
     }
+
     buffer.resize(current - buffer.data());
+
     return buffer;
 }
 
@@ -502,9 +539,14 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     return TUnversionedOwningRow(std::move(rowData), data);
 }
 
-void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
+void ToProto(TProtoStringType* protoRow, TUnversionedRow row)
 {
     *protoRow = SerializeToString(row);
+}
+
+void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
+{
+    ToProto(protoRow, row.Get());
 }
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
@@ -512,14 +554,14 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
     *row = DeserializeFromString(protoRow);
 }
 
-Stroka ToString(const TUnversionedRow& row)
+Stroka ToString(TUnversionedRow row)
 {
     return "[" + JoinToString(row.Begin(), row.End()) + "]";
 }
 
 Stroka ToString(const TUnversionedOwningRow& row)
 {
-    return ToString(TUnversionedRow(row));
+    return ToString(row.Get());
 }
 
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
@@ -564,7 +606,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
     *row = rowBuilder.Finish();
 }
 
-void Serialize(TKey key, IYsonConsumer* consumer)
+void Serialize(const TKey& key, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     for (int index = 0; index < key.GetCount(); ++index) {
@@ -598,6 +640,11 @@ void Serialize(TKey key, IYsonConsumer* consumer)
         }
     }
     consumer->OnEndList();
+}
+
+void Serialize(const TOwningKey& key, IYsonConsumer* consumer)
+{
+    return Serialize(key.Get(), consumer);
 }
 
 void Deserialize(TOwningKey& key, INodePtr node)
@@ -635,6 +682,18 @@ void Deserialize(TOwningKey& key, INodePtr node)
         ++id;
     }
     key = builder.Finish();
+}
+
+void TUnversionedOwningRow::Save(TStreamSaveContext& context) const
+{
+    ::NYT::Save(context, SerializeToString(Get()));
+}
+
+void TUnversionedOwningRow::Load(TStreamLoadContext& context)
+{
+    Stroka data;
+    ::NYT::Load(context, data);
+    *this = DeserializeFromString(data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

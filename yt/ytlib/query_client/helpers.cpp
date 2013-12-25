@@ -48,7 +48,7 @@ TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
         auto readLimit = FromProto<TReadLimit>(dataSplit.start_limit());
         return readLimit.GetKey();
     } else {
-        return MinKey();
+        return TKey(MinKey());
     }
 }
 
@@ -58,7 +58,7 @@ TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
         auto readLimit = FromProto<TReadLimit>(dataSplit.end_limit());
         return readLimit.GetKey();
     } else {
-        return MaxKey();
+        return TKey(MaxKey());
     }
 }
 

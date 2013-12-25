@@ -142,10 +142,10 @@ TStaticMemoryStorePtr TMemoryCompactor::Run(
         &builder);
 
     auto dynamicScanner = dynamicStore->CreateScanner();
-    auto dynamicResult = dynamicScanner->BeginScan(EmptyKey(), LastCommittedTimestamp);
+    auto dynamicResult = dynamicScanner->BeginScan(EmptyKey().Get(), LastCommittedTimestamp);
 
     auto staticScanner = staticStore->CreateScanner();
-    auto staticResult = staticScanner->BeginScan(EmptyKey(), LastCommittedTimestamp);
+    auto staticResult = staticScanner->BeginScan(EmptyKey().Get(), LastCommittedTimestamp);
 
     while (dynamicResult != NullTimestamp || staticResult != NullTimestamp) {
         int compareResult;

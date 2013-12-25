@@ -41,20 +41,15 @@ protected:
         Store->AbortRow(row);
     }
 
-
     TDynamicRow WriteRow(
         TTransaction* transaction,
-        TUnversionedRow row,
+        const TUnversionedOwningRow& row,
         bool prewrite)
     {
-        return Store->WriteRow(
-            NameTable,
-            transaction,
-            row,
-            prewrite);
+        return Store->WriteRow(NameTable, transaction, row.Get(), prewrite);
     }
 
-    TTimestamp WriteRow(TUnversionedRow row)
+    TTimestamp WriteRow(const TUnversionedOwningRow& row)
     {
         auto transaction = StartTransaction();
         auto dynamicRow = WriteRow(transaction.get(), row, false);
@@ -65,19 +60,15 @@ protected:
         return transaction->GetCommitTimestamp();
     }
 
-
     TDynamicRow DeleteRow(
         TTransaction* transaction,
-        NVersionedTableClient::TKey key,
+        const TOwningKey& key,
         bool prewrite)
     {
-        return Store->DeleteRow(
-            transaction,
-            key,
-            prewrite);
+        return Store->DeleteRow(transaction, key.Get(), prewrite);
     }
 
-    TTimestamp DeleteRow(NVersionedTableClient::TKey key)
+    TTimestamp DeleteRow(const TOwningKey& key)
     {
         auto transaction = StartTransaction();
         auto row = DeleteRow(transaction.get(), key, false);
@@ -89,12 +80,10 @@ protected:
     }
 
 
-    TUnversionedOwningRow LookupRow(
-        NVersionedTableClient::TKey key,
-        TTimestamp timestamp)
+    TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
     {
         auto scanner = Store->CreateScanner();
-        auto scannerTimestamp = scanner->Find(key, timestamp);
+        auto scannerTimestamp = scanner->Find(key.Get(), timestamp);
 
         if (scannerTimestamp == NullTimestamp) {
             return TUnversionedOwningRow();
@@ -127,7 +116,7 @@ protected:
         return builder.Finish();
     }
 
-    void CompareRows(TUnversionedRow row, const TNullable<Stroka>& yson)
+    void CompareRows(const TUnversionedOwningRow& row, const TNullable<Stroka>& yson)
     {
         if (!row && !yson)
             return;

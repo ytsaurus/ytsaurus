@@ -40,7 +40,7 @@ const TTabletInfo& TTableMountInfo::GetTablet(TUnversionedRow row)
         Tablets.end(),
         row,
         [&] (TUnversionedRow lhs, const TTabletInfo& rhs) {
-            return CompareRows(lhs, rhs.PivotKey, KeyColumns.size()) < 0;
+            return CompareRows(lhs, rhs.PivotKey.Get(), KeyColumns.size()) < 0;
         });
     return *(it - 1);
 }

@@ -257,7 +257,6 @@ void TInsertCommand::DoExecute()
     const auto& mountInfo = mountInfoOrError.GetValue();
 
     // Parse input data.
-
     TBuildingTableConsumer consumer(
         mountInfo->Schema,
         mountInfo->KeyColumns);
@@ -296,8 +295,8 @@ void TInsertCommand::DoExecute()
 
     // Convert to non-owning.
     std::vector<TUnversionedRow> rows;
-    for (const auto& row : consumer.GetRows()) {
-        rows.push_back(row);
+    for (const auto& row : consumer.Rows()) {
+        rows.emplace_back(row.Get());
     }
 
     transaction->WriteRows(Request->Path.GetPath(), std::move(rows));
@@ -414,7 +413,7 @@ void TLookupCommand::DoExecute()
     options.ColumnFilter = Request->Columns ? TColumnFilter(*Request->Columns) : TColumnFilter();
     auto lookupResult = WaitFor(Client->Lookup(
         Request->Path.GetPath(),
-        Request->Key,
+        Request->Key.Get(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
     auto rowset = lookupResult.GetValue();
@@ -478,7 +477,7 @@ void TDeleteCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
-    transaction->DeleteRow(Request->Path.GetPath(), Request->Key);
+    transaction->DeleteRow(Request->Path.GetPath(), Request->Key.Get());
 
     auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);

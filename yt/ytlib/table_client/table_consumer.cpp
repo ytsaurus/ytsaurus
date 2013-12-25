@@ -722,9 +722,9 @@ TBuildingTableConsumer::TBuildingTableConsumer(
     , RowIndex_(0)
 { }
 
-const std::vector<TUnversionedOwningRow> TBuildingTableConsumer::GetRows() const
+const std::vector<TUnversionedOwningRow>& TBuildingTableConsumer::Rows() const
 {
-    return Rows;
+    return Rows_;
 }
 
 bool TBuildingTableConsumer::GetTreatMissingAsNull() const
@@ -739,8 +739,7 @@ void TBuildingTableConsumer::SetTreatMissingAsNull(bool value)
 
 TError TBuildingTableConsumer::AttachLocationAttributes(TError error)
 {
-    return error
-        << TErrorAttribute("row_index", RowIndex_);
+    return error << TErrorAttribute("row_index", RowIndex_);
 }
 
 void TBuildingTableConsumer::OnBeginRow()
@@ -748,19 +747,19 @@ void TBuildingTableConsumer::OnBeginRow()
 
 void TBuildingTableConsumer::OnValue(const TUnversionedValue& value)
 {
-    Builder.AddValue(value);
+    Builder_.AddValue(value);
 }
 
 void TBuildingTableConsumer::OnEndRow()
 {
-    auto row = Builder.Finish();
+    auto row = Builder_.Finish();
     std::sort(
         row.Begin(),
         row.End(),
         [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
             return lhs.Id < rhs.Id;
         });
-    Rows.push_back(row);
+    Rows_.emplace_back(std::move(row));
     ++RowIndex_;
 }
 

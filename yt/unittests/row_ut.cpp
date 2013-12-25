@@ -8,35 +8,23 @@
 
 namespace NYT {
 namespace NVersionedTableClient {
+namespace {
 
 using namespace NYTree;
 
-namespace {
-
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AreRowsEqual(TUnversionedRow lhs, TUnversionedRow rhs)
+void CheckSerialize(TUnversionedRow original)
 {
-    if (!lhs && rhs)
-        return false;
-    if (lhs && !rhs)
-        return false;
-    if (!lhs && !rhs)
-        return true;
-
-    return CompareRows(lhs, rhs) == 0;
-}
-
-void CheckSerialize(TUnversionedRow row)
-{
-    TUnversionedOwningRow original(row);
-
-    ASSERT_TRUE(AreRowsEqual(row, original));
-
     auto serialized = NYT::ToProto<Stroka>(original);
     auto deserialized =  NYT::FromProto<TUnversionedOwningRow>(serialized);
 
-    ASSERT_TRUE(AreRowsEqual(original, deserialized));
+    ASSERT_EQ(original, deserialized.Get());
+}
+
+void CheckSerialize(const TUnversionedOwningRow& original)
+{
+    CheckSerialize(original.Get());
 }
 
 TEST(TUnversionedRowTest, Serialize1)

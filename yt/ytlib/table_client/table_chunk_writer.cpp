@@ -279,16 +279,16 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     FinalizeRow(row);
 
     if (Options->KeyColumns) {
-        if (CompareRows(LastKey, CurrentKey) > 0) {
+        if (LastKey.Get() > CurrentKey) {
             State.Fail(TError(
                 EErrorCode::SortOrderViolation,
                 "Sort order violation (PreviousKey: %s, CurrentKey: %s)",
-                ~ToString(LastKey),
+                ~ToString(LastKey.Get()),
                 ~ToString(CurrentKey)));
             return;
         }
 
-        LastKey = CurrentKey;
+        LastKey = TOwningKey(CurrentKey);
         ProcessKey();
     }
 }
@@ -320,7 +320,7 @@ void TTableChunkWriter::WriteRowUnsafe(const TRow& row)
 void TTableChunkWriter::ProcessKey()
 {
     if (RowCount == 1) {
-        ToProto(BoundaryKeysExt.mutable_start(), LastKey);
+        ToProto(BoundaryKeysExt.mutable_start(), LastKey.Get());
     }
 
     if (IndexSize < Config->IndexRate * DataWeight * EncodingWriter->GetCompressionRatio()) {
@@ -398,12 +398,12 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
 
     if (Options->KeyColumns) {
-        ToProto(BoundaryKeysExt.mutable_end(), LastKey);
+        ToProto(BoundaryKeysExt.mutable_end(), LastKey.Get());
 
         const auto lastIndexRow = --IndexExt.items().end();
         if (RowCount > lastIndexRow->row_index() + 1) {
             auto* item = IndexExt.add_items();
-            ToProto(item->mutable_key(), LastKey);
+            ToProto(item->mutable_key(), LastKey.Get());
             item->set_row_index(RowCount - 1);
         }
 
@@ -424,7 +424,7 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
 void TTableChunkWriter::EmitIndexEntry()
 {
     auto* item = IndexExt.add_items();
-    ToProto(item->mutable_key(), LastKey);
+    ToProto(item->mutable_key(), LastKey.Get());
     // RowCount is already increased
     item->set_row_index(RowCount - 1);
     IndexSize += LastKey.GetCount();
@@ -562,7 +562,7 @@ void TTableChunkWriterProvider::OnChunkFinished()
             const auto& boundaryKeys = CurrentWriter->GetBoundaryKeys();
             *BoundaryKeysExt.mutable_start() = boundaryKeys.start();
         }
-        ToProto(BoundaryKeysExt.mutable_end(), CurrentWriter->GetLastKey());
+        ToProto(BoundaryKeysExt.mutable_end(), CurrentWriter->GetLastKey().Get());
     }
     CurrentWriter.Reset();
 }

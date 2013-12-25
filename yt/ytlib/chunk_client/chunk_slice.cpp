@@ -154,11 +154,11 @@ TChunkSlicePtr CreateChunkSlice(
         result->EndLimit = chunkSpec->end_limit();
     }
 
-    if (startKey && (!result->StartLimit.HasKey() || CompareRows(result->StartLimit.GetKey(), *startKey) < 0)) {
+    if (startKey && (!result->StartLimit.HasKey() || result->StartLimit.GetKey() < *startKey)) {
         result->StartLimit.SetKey(*startKey);
     }
 
-    if (endKey && (!result->EndLimit.HasKey() || CompareRows(result->EndLimit.GetKey(), *endKey) < 0)) {
+    if (endKey && (!result->EndLimit.HasKey() || result->EndLimit.GetKey() < *endKey)) {
         result->EndLimit.SetKey(*endKey);
     }
 

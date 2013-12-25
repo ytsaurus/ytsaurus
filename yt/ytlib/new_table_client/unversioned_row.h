@@ -85,7 +85,9 @@ struct TUnversionedRowHeader
     ui32 Padding;
 };
 
-static_assert(sizeof(TUnversionedRowHeader) == 8, "TUnversionedRowHeader has to be exactly 8 bytes.");
+static_assert(
+    sizeof(TUnversionedRowHeader) == 8,
+    "TUnversionedRowHeader has to be exactly 8 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +110,10 @@ bool IsValueSuccessor(
 
 //! Ternary comparison predicate for TUnversionedRow-s stripped to a given number of
 //! (leading) values.
-int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength = std::numeric_limits<int>::max());
+int CompareRows(
+    TUnversionedRow lhs,
+    TUnversionedRow rhs,
+    int prefixLength = std::numeric_limits<int>::max());
 
 bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
@@ -116,6 +121,20 @@ bool operator <= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 bool operator <  (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 bool operator >= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 bool operator >  (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+
+//! Ternary comparison predicate for TUnversionedOwningRow-s stripped to a given number of
+//! (leading) values.
+int CompareRows(
+    const TUnversionedOwningRow& lhs,
+    const TUnversionedOwningRow& rhs,
+    int prefixLength = std::numeric_limits<int>::max());
+
+bool operator == (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
+bool operator != (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
+bool operator <= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
+bool operator <  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
+bool operator >= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
+bool operator >  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
 
 //! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
 void ResetRowValues(TUnversionedRow* row);
@@ -153,16 +172,9 @@ public:
         return TUnversionedRow(header);
     }
 
-
-    explicit operator bool()
+    explicit operator bool() const
     {
         return Header != nullptr;
-    }
-
-
-    TUnversionedRowHeader* GetHeader()
-    {
-        return Header;
     }
 
     const TUnversionedRowHeader* GetHeader() const
@@ -170,6 +182,10 @@ public:
         return Header;
     }
 
+    TUnversionedRowHeader* GetHeader()
+    {
+        return Header;
+    }
 
     const TUnversionedValue* Begin() const
     {
@@ -191,12 +207,10 @@ public:
         return Begin() + GetCount();
     }
 
-
     int GetCount() const
     {
         return Header->Count;
     }
-
 
     const TUnversionedValue& operator[] (int index) const
     {
@@ -229,13 +243,13 @@ TOwningKey GetKeySuccessor(const TOwningKey& key);
 TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
 
 //! Returns the key with no components.
-TKey EmptyKey();
+TOwningKey EmptyKey();
 
 //! Returns the key with a single |Min| component.
-TKey MinKey();
+TOwningKey MinKey();
 
-//! Returns the  key with a single |Max| component.
-TKey MaxKey();
+//! Returns the key with a single |Max| component.
+TOwningKey MaxKey();
 
 //! Compares two keys, |a| and |b|, and returns a smaller one.
 //! Ties are broken in favour of the first argument.
@@ -245,22 +259,23 @@ const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b);
 //! Ties are broken in favour of the first argument.
 const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b);
 
+void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
+
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
 
-void Serialize(TKey key, NYson::IYsonConsumer* consumer);
+void Serialize(const TKey& key, NYson::IYsonConsumer* consumer);
+void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
+
 void Deserialize(TOwningKey& key, NYTree::INodePtr node);
 
+Stroka ToString(TUnversionedRow row);
 Stroka ToString(const TUnversionedOwningRow& row);
-Stroka ToString(const TUnversionedRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOwningRowTag { };
-
-Stroka SerializeToString(const TUnversionedRow& row);
-TUnversionedOwningRow DeserializeFromString(const Stroka& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,7 +291,7 @@ public:
     TUnversionedOwningRow()
     { }
 
-    TUnversionedOwningRow(TUnversionedRow other)
+    explicit TUnversionedOwningRow(TUnversionedRow other)
     {
         if (!other)
             return;
@@ -319,19 +334,10 @@ public:
         , StringData(std::move(other.StringData))
     { }
 
-
-    explicit operator bool()
+    explicit operator bool() const
     {
         return static_cast<bool>(RowData);
     }
-
-
-    int GetCount() const
-    {
-        const auto* header = GetHeader();
-        return header ? static_cast<int>(header->Count) : 0;
-    }
-
 
     const TUnversionedValue* Begin() const
     {
@@ -355,6 +361,11 @@ public:
         return Begin() + GetCount();
     }
 
+    int GetCount() const
+    {
+        const auto* header = GetHeader();
+        return header ? static_cast<int>(header->Count) : 0;
+    }
 
     const TUnversionedValue& operator[] (int index) const
     {
@@ -366,12 +377,15 @@ public:
         return Begin()[index];
     }
 
-
-    operator const TUnversionedRow() const
+    const TUnversionedRow Get() const
     {
         return TUnversionedRow(const_cast<TUnversionedRowHeader*>(GetHeader()));
     }
 
+    TUnversionedRow Get()
+    {
+        return TUnversionedRow(GetHeader());
+    }
 
     friend void swap(TUnversionedOwningRow& lhs, TUnversionedOwningRow& rhs)
     {
@@ -380,26 +394,22 @@ public:
         swap(lhs.StringData, rhs.StringData);
     }
 
-    TUnversionedOwningRow& operator = (TUnversionedOwningRow other)
+    TUnversionedOwningRow& operator=(const TUnversionedOwningRow& other)
     {
-        swap(*this, other);
+        RowData = other.RowData;
+        StringData = other.StringData;
         return *this;
     }
 
-
-    void Save(TStreamSaveContext& context) const
+    TUnversionedOwningRow& operator=(TUnversionedOwningRow&& other)
     {
-        using NYT::Save;
-        Save(context, SerializeToString(*this));
+        RowData = std::move(other.RowData);
+        StringData = std::move(other.StringData);
+        return *this;
     }
 
-    void Load(TStreamLoadContext& context)
-    {
-        using NYT::Load;
-        Stroka data;
-        Load(context, data);
-        *this = DeserializeFromString(data);
-    }
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
 private:
     friend void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
@@ -410,7 +420,6 @@ private:
 
     TSharedRef RowData; // TRowHeader plus TValue-s
     Stroka StringData;  // Holds string data
-
 
     TUnversionedOwningRow(TSharedRef rowData, Stroka stringData)
         : RowData(std::move(rowData))

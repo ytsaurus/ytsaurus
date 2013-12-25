@@ -40,7 +40,7 @@ public:
             auto key = builder.Finish();
 
             auto scanner = DynamicStore->CreateScanner();
-            scanner->Find(key, LastCommittedTimestamp);
+            scanner->Find(key.Get(), LastCommittedTimestamp);
         };
 
         auto executeWrite = [&] () {
@@ -56,7 +56,7 @@ public:
             auto dynamicRow = DynamicStore->WriteRow(
                 NameTable,
                 transaction.get(),
-                row,
+                row.Get(),
                 false);
 
             PrepareTransaction(transaction.get());

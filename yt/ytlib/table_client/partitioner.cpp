@@ -25,7 +25,13 @@ public:
 
     virtual int GetPartitionTag(const TKey& key) override
     {
-        auto it = std::upper_bound(Keys->begin(), Keys->end(), key);
+        auto it = std::upper_bound(
+            Keys->begin(),
+            Keys->end(),
+            key,
+            [] (const TKey& value, const TOwningKey& element) {
+                return value < element.Get();
+            });
         return std::distance(Keys->begin(), it);
     }
 

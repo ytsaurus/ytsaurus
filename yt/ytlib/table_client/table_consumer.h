@@ -217,7 +217,7 @@ public:
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns);
 
-    const std::vector<NVersionedTableClient::TUnversionedOwningRow> GetRows() const;
+    const std::vector<NVersionedTableClient::TUnversionedOwningRow>& Rows() const;
 
     bool GetTreatMissingAsNull() const;
     void SetTreatMissingAsNull(bool value);
@@ -229,10 +229,9 @@ private:
     virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
     virtual void OnEndRow() override;
 
-    
     int RowIndex_;
-    NVersionedTableClient::TUnversionedOwningRowBuilder Builder;
-    std::vector<NVersionedTableClient::TUnversionedOwningRow> Rows;
+    NVersionedTableClient::TUnversionedOwningRowBuilder Builder_;
+    std::vector<NVersionedTableClient::TUnversionedOwningRow> Rows_;
 
 };
 

@@ -97,12 +97,6 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
     }
 }
 
-bool LessComparer(const TOwningKey& key, const TChunkTree* chunkTree)
-{
-    auto maxKey = GetMaxKey(chunkTree);
-    return CompareRows(key, maxKey) > 0;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTreeTraverser
@@ -351,7 +345,9 @@ protected:
                 rbegin,
                 rend,
                 lowerBound.GetKey(),
-                LessComparer);
+                [] (const TOwningKey& key, const TChunkTree* chunkTree) {
+                    return key > GetMaxKey(chunkTree);
+                });
             index = std::max(index, childIndex);
             YCHECK(index <= chunkList->Children().size());
         }

@@ -376,25 +376,27 @@ TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second)
     const TKeyRange* leftmost = &first;
     const TKeyRange* rightmost = &second;
 
-    if (CompareRows(leftmost->first, rightmost->first) > 0) {
+    if (leftmost->first > rightmost->first) {
         std::swap(leftmost, rightmost);
     }
 
-    if (CompareRows(rightmost->first, leftmost->second) > 0) {
+    if (rightmost->first > leftmost->second) {
         // Empty intersection.
         return std::make_pair(rightmost->first, rightmost->first);
     }
 
-    if (CompareRows(rightmost->second, leftmost->second) > 0) {
+    if (rightmost->second > leftmost->second) {
         return std::make_pair(rightmost->first, leftmost->second);
     } else {
         return std::make_pair(rightmost->first, rightmost->second);
     }
+
+    YUNREACHABLE();
 }
 
 bool IsEmpty(const TKeyRange& keyRange)
 {
-    return CompareRows(keyRange.first, keyRange.second) >= 0;
+    return keyRange.first >= keyRange.second;
 }
 
 EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)

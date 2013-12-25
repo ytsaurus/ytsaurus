@@ -28,7 +28,7 @@ namespace NVersionedTableClient {
 
 void PrintTo(const TOwningKey& key, ::std::ostream* os)
 {
-    *os << KeyToYson(key);
+    *os << KeyToYson(key.Get());
 }
 
 void PrintTo(const TKey& key, ::std::ostream* os)
