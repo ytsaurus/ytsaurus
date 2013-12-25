@@ -48,9 +48,7 @@ class TCheckAndPruneReferences
 public:
     explicit TCheckAndPruneReferences(TPrepareController* controller)
         : Controller_(controller)
-    {
-        LiveColumns_.resize(Controller_->GetContext()->GetTableCount());
-    }
+    { }
 
     virtual bool Visit(const TScanOperator* op) override
     {
@@ -60,7 +58,7 @@ public:
         // because they are leaf nodes.
         auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplit());
         auto& columnSchemas = tableSchema.Columns();
-        auto& liveColumns = LiveColumns_[op->GetTableIndex()];
+        auto& liveColumns = LiveColumns_;
 
         columnSchemas.erase(
             std::remove_if(
@@ -122,13 +120,13 @@ public:
         if (!column) {
             THROW_ERROR_EXCEPTION("Undefined reference %s", ~name.Quote());
         }
-        LiveColumns_[expr->GetTableIndex()].insert(name);
+        LiveColumns_.insert(name);
         return true;
     }
 
 private:
     TPrepareController* Controller_;
-    std::vector<std::set<Stroka>> LiveColumns_;
+    std::set<Stroka> LiveColumns_;
     TTableSchema CurrentSourceSchema_;
 
 };
@@ -163,8 +161,7 @@ void TPrepareController::GetInitialSplits()
     Visit(Head_, [this] (const TOperator* op)
     {
         if (auto* scanOp = op->AsMutable<TScanOperator>()) {
-            auto tableIndex = scanOp->GetTableIndex();
-            auto& tableDescriptor = GetContext()->GetTableDescriptorByIndex(tableIndex);
+            auto& tableDescriptor = GetContext()->GetTableDescriptor();
             LOG_DEBUG("Getting initial data split for %s", ~tableDescriptor.Path);
             // XXX(sandello): We have just one table at the moment.
             // Will put TParallelAwaiter here in case of multiple tables.
@@ -238,19 +235,17 @@ void TPrepareController::MoveAggregateExpressions()
             {
                 if (auto* functionExpr = expr->As<TFunctionExpression>()) {
                     auto name = functionExpr->GetFunctionName();
-                    name.to_lower(0, Stroka::npos);
-
                     EAggregateFunctions aggregateFunction;
 
-                    if (name == "sum") {
+                    if (name == "SUM") {
                         aggregateFunction = EAggregateFunctions::Sum;
-                    } else if (name == "min") {
+                    } else if (name == "MIN") {
                         aggregateFunction = EAggregateFunctions::Min;
-                    } else if (name == "max") {
+                    } else if (name == "MAX") {
                         aggregateFunction = EAggregateFunctions::Max;
-                    } else if (name == "avg") {
+                    } else if (name == "AVG") {
                         aggregateFunction = EAggregateFunctions::Average;
-                    } else if (name == "count") {
+                    } else if (name == "COUNT") {
                         aggregateFunction = EAggregateFunctions::Count;
                     } else {
                         return expr;
@@ -267,7 +262,6 @@ void TPrepareController::MoveAggregateExpressions()
                     auto referenceExpr = new (context) TReferenceExpression(
                         context,
                         NullSourceLocation,
-                        context->GetTableIndexByAlias(""),
                         subexprName);
                     newAggregateItems.push_back(TAggregateItem(
                         functionExpr->GetArgument(0),

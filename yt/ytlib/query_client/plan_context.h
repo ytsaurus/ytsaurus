@@ -74,18 +74,14 @@ public:
     void SetDebugInformation(TDebugInformation&& debugInformation);
     const TDebugInformation* GetDebugInformation() const;
 
-    int GetTableIndexByAlias(const TStringBuf& alias);
-    int GetFakeTableIndex();
-    TTableDescriptor& GetTableDescriptorByIndex(int tableIndex);
-    void BindToTableIndex(int tableIndex, const TStringBuf& path, void* opaque);
-    int GetTableCount() const;
+    TTableDescriptor& GetTableDescriptor();
 
 private:
     TMemoryPool MemoryPool_;
     TNullable<TDebugInformation> DebugInformation_;
 
     std::unordered_set<TTrackedObject*> TrackedObjects_;
-    std::vector<TTableDescriptor> TableDescriptors_;
+    TTableDescriptor TableDescriptor_;
 
 };
 

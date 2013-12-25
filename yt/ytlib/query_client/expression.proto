@@ -30,10 +30,7 @@ message TReferenceExpression
     extend TExpression {
         optional TReferenceExpression reference_expression = 103;
     }
-    required int32 table_index = 1;
-    required string column_name = 2;
-    required int32 index_in_row = 3;
-    required int32 index_in_key = 4;
+    required string column_name = 1;
 }
 
 message TFunctionExpression

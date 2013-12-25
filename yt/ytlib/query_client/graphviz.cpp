@@ -326,11 +326,11 @@ public:
         WriteNode(
             op,
             TLabel(op)
-                .WithRow(
-                    "TableIndex: " + ToString(op->GetTableIndex()) +
-                    "<BR/>Split: {" +
+                .WithRow(Stroka() +
+                    "Split: {" +
                     "<BR/>Id: " + ToString(objectId) +
                     "<BR/>Type: " + TypeFromId(objectId).ToString() +
+                    "<BR/>Sorted: " + (IsSorted(op->DataSplit()) ? "true" : "false") +
                     "<BR/>}")
                 .Build());
         return true;
@@ -443,10 +443,7 @@ public:
         WriteNode(
             expr,
             TLabel(expr, CurrentSourceSchema_)
-                .WithRow(
-                    "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>" +
-                    "ColumnName: " + expr->GetColumnName() + "<BR/>"
-                    )
+                .WithRow("ColumnName: " + expr->GetColumnName() + "<BR/>")
                 .Build());
         return true;
     }

@@ -143,10 +143,8 @@ public:
     TReferenceExpression(
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
-        int tableIndex,
         const TStringBuf& columnName)
         : TExpression(context, EExpressionKind::Reference, sourceLocation)
-        , TableIndex_(tableIndex)
         , ColumnName_(columnName)
     { }
 
@@ -155,7 +153,6 @@ public:
         return expr->GetKind() == EExpressionKind::Reference;
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, ColumnName);
 
 };
@@ -173,7 +170,9 @@ public:
         const TStringBuf& functionName)
         : TExpression(context, EExpressionKind::Function, sourceLocation)
         , FunctionName_(functionName)
-    { }
+    {
+        FunctionName_.to_upper(0, Stroka::npos);
+    }
 
     static inline bool IsClassOf(const TExpression* expr)
     {
@@ -205,10 +204,20 @@ public:
         return Arguments_[i];
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, FunctionName);
+    Stroka GetFunctionName() const
+    {
+        return FunctionName_;
+    }
+
+    void SetFunctionName(const Stroka& functionName)
+    {
+        FunctionName_ = functionName;
+        FunctionName_.to_upper(0, Stroka::npos);
+    }
 
 private:
     TArguments Arguments_;
+    Stroka FunctionName_;
 
 };
 

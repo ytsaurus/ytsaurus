@@ -124,6 +124,7 @@ from-where-clause
         {
             auto filterOp = new (context) TFilterOperator(context, $source);
             filterOp->SetPredicate($predicate);
+
             $$ = filterOp;
         }
     | from-clause[source] KwWhere or-op-expr[predicate] KwGroupBy named-expression-list[exprs]
@@ -148,9 +149,10 @@ from-where-clause
 from-clause
     : KwFrom YPathLiteral[path]
         {
-            auto tableIndex = context->GetTableIndexByAlias("");
-            auto scanOp = new (context) TScanOperator(context, tableIndex);
-            context->BindToTableIndex(tableIndex, $path, scanOp);
+            context->GetTableDescriptor().Path = $path;
+
+            auto scanOp = new (context) TScanOperator(context);
+
             $$ = scanOp;
         }
 ;
@@ -332,11 +334,9 @@ function-expr
 reference-expr
     : Identifier[name]
         {
-            auto tableIndex = context->GetTableIndexByAlias("");
             $$ = new (context) TReferenceExpression(
                 context,
                 @$,
-                tableIndex,
                 $name);
         }
 ;

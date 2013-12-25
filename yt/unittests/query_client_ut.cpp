@@ -510,7 +510,7 @@ TEST_P(TRefineKeyRangeTest, Basic)
             testCase.GetInitialLeftBound(),
             testCase.GetInitialRightBound()),
         Make<TBinaryOpExpression>(testCase.ConstraintOpcode,
-            Make<TReferenceExpression>(0, testCase.ConstraintColumnName),
+            Make<TReferenceExpression>(testCase.ConstraintColumnName),
             Make<TIntegerLiteralExpression>(testCase.ConstraintValue)));
 
     if (testCase.ResultIsEmpty) {
@@ -907,10 +907,10 @@ INSTANTIATE_TEST_CASE_P(
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(90));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(10));
 
     auto result = RefineKeyRange(
@@ -924,10 +924,10 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 TEST_F(TRefineKeyRangeTest, Lookup1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(50));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "l"),
+        Make<TReferenceExpression>("l"),
         Make<TIntegerLiteralExpression>(50));
 
     auto result = RefineKeyRange(
@@ -942,13 +942,13 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 TEST_F(TRefineKeyRangeTest, Lookup2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(50));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "l"),
+        Make<TReferenceExpression>("l"),
         Make<TIntegerLiteralExpression>(50));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "m"),
+        Make<TReferenceExpression>("m"),
         Make<TIntegerLiteralExpression>(50));
 
     auto result = RefineKeyRange(
@@ -965,10 +965,10 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(10));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(90));
 
     auto result = RefineKeyRange(
@@ -983,16 +983,16 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(50));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-        Make<TReferenceExpression>(0, "l"),
+        Make<TReferenceExpression>("l"),
         Make<TIntegerLiteralExpression>(10));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>(0, "l"),
+        Make<TReferenceExpression>("l"),
         Make<TIntegerLiteralExpression>(90));
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "m"),
+        Make<TReferenceExpression>("m"),
         Make<TIntegerLiteralExpression>(50));
 
     auto result = RefineKeyRange(
@@ -1010,10 +1010,10 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "k"),
+        Make<TReferenceExpression>("k"),
         Make<TIntegerLiteralExpression>(50));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>(0, "m"),
+        Make<TReferenceExpression>("m"),
         Make<TIntegerLiteralExpression>(50));
 
     auto result = RefineKeyRange(
@@ -1032,14 +1032,17 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
     std::vector<TDataSplit> splits;
 
     splits.emplace_back(MakeSimpleSplit("//t", 1));
+    SetSorted(&splits.back(), true);
     SetLowerBound(&splits.back(), BuildKey("0;0;0"));
     SetUpperBound(&splits.back(), BuildKey("1;0;0"));
 
     splits.emplace_back(MakeSimpleSplit("//t", 2));
+    SetSorted(&splits.back(), true);
     SetLowerBound(&splits.back(), BuildKey("1;0;0"));
     SetUpperBound(&splits.back(), BuildKey("2;0;0"));
 
     splits.emplace_back(MakeSimpleSplit("//t", 3));
+    SetSorted(&splits.back(), true);
     SetLowerBound(&splits.back(), BuildKey("2;0;0"));
     SetUpperBound(&splits.back(), BuildKey("3;0;0"));
 

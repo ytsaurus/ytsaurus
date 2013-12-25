@@ -104,7 +104,6 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
     case EOperatorKind::Scan: {
         auto* op = original->As<TScanOperator>();
         auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
-        proto->set_table_index(op->GetTableIndex());
         ToProto(proto->mutable_data_split(), op->DataSplit());
         break;
     }
@@ -166,9 +165,7 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
 
     case EOperatorKind::Scan: {
         auto data = serialized.GetExtension(NProto::TScanOperator::scan_operator);
-        auto typedResult = new (context) TScanOperator(
-            context,
-            data.table_index());
+        auto typedResult = new (context) TScanOperator(context);
         FromProto(&typedResult->DataSplit(), data.data_split());
         YASSERT(!result);
         result = typedResult;

@@ -80,54 +80,9 @@ const TDebugInformation* TPlanContext::GetDebugInformation() const
     return DebugInformation_.GetPtr();
 }
 
-int TPlanContext::GetTableIndexByAlias(const TStringBuf& alias)
+TTableDescriptor& TPlanContext::GetTableDescriptor()
 {
-    auto begin = TableDescriptors_.begin();
-    auto end = TableDescriptors_.end();
-
-    auto it = std::find_if(
-        begin,
-        end,
-        [&alias] (const TTableDescriptor& descriptor) {
-            return descriptor.Alias == alias;
-        });
-
-    if (it == end) {
-        it = TableDescriptors_.emplace(it);
-        it->Alias = alias;
-        it->Opaque = nullptr;
-
-        begin = TableDescriptors_.begin();
-        end = TableDescriptors_.end();
-    }
-
-    return std::distance(begin, it);
-}
-
-int TPlanContext::GetFakeTableIndex()
-{
-    return FakeTableIndex;
-}
-
-TTableDescriptor& TPlanContext::GetTableDescriptorByIndex(int tableIndex)
-{
-    YASSERT(tableIndex != FakeTableIndex);
-    return TableDescriptors_[tableIndex];
-}
-
-void TPlanContext::BindToTableIndex(int tableIndex, const TStringBuf& path, void* opaque)
-{
-    auto& descriptor = GetTableDescriptorByIndex(tableIndex);
-
-    YASSERT(descriptor.Path.empty());
-    YASSERT(descriptor.Opaque == nullptr);
-    descriptor.Path = path;
-    descriptor.Opaque = opaque;
-}
-
-int TPlanContext::GetTableCount() const
-{
-    return TableDescriptors_.size();
+    return TableDescriptor_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

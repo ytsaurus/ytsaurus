@@ -92,17 +92,14 @@ class TScanOperator
     : public TOperator
 {
 public:
-    TScanOperator(TPlanContext* context, int tableIndex)
+    TScanOperator(TPlanContext* context)
         : TOperator(context, EOperatorKind::Scan)
-        , TableIndex_(tableIndex)
     { }
 
     TScanOperator(TPlanContext* context, const TScanOperator& other)
         : TOperator(context, EOperatorKind::Scan)
-        , TableIndex_(other.TableIndex_)
-    {
-        DataSplit_ = other.DataSplit_;
-    }
+        , DataSplit_(other.DataSplit_)
+    { }
 
     static inline bool IsClassOf(const TOperator* op)
     {
@@ -113,8 +110,6 @@ public:
     {
         return Null;
     }
-
-    DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
 
     DEFINE_BYREF_RW_PROPERTY(TDataSplit, DataSplit);
 

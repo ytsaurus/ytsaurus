@@ -131,7 +131,6 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
         case EExpressionKind::Reference: {
             auto* expr = original->As<TReferenceExpression>();
             auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
-            proto->set_table_index(expr->GetTableIndex());
             proto->set_column_name(expr->GetColumnName());
             break;
         }
@@ -190,7 +189,6 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
             auto typedResult = new (context) TReferenceExpression(
                 context,
                 NullSourceLocation,
-                data.table_index(),
                 data.column_name());
             YASSERT(!result);
             result = typedResult;

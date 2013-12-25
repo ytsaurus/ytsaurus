@@ -74,9 +74,13 @@ TKeyRange GetBothBoundsFromDataSplit(const TDataSplit& dataSplit)
 
 bool IsSorted(const TDataSplit& dataSplit)
 {
-    auto miscProto = GetProtoExtension<TMiscProto>(
+    auto miscProto = FindProtoExtension<TMiscProto>(
         dataSplit.chunk_meta().extensions());
-    return miscProto.sorted();
+    if (miscProto) {
+        return miscProto->sorted();
+    } else {
+        return false;
+    }
 }
 
 void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId)
@@ -129,6 +133,20 @@ void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange)
     SetLowerBound(dataSplit, keyRange.first);
     SetUpperBound(dataSplit, keyRange.second);
 }
+
+void SetSorted(TDataSplit* dataSplit, bool isSorted)
+{
+    auto miscProto = FindProtoExtension<TMiscProto>(
+        dataSplit->chunk_meta().extensions());
+    if (!miscProto) {
+        miscProto = TMiscProto();
+    }
+    miscProto->set_sorted(isSorted);
+    SetProtoExtension<TMiscProto>(
+        dataSplit->mutable_chunk_meta()->mutable_extensions(),
+        *miscProto);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

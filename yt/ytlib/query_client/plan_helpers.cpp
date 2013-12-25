@@ -477,14 +477,13 @@ Stroka InferName(const TExpression* expr)
             return expr->As<TReferenceExpression>()->GetColumnName();
         case EExpressionKind::Function: {
             auto* typedExpr = expr->As<TFunctionExpression>();
-            Stroka result;
-            result += typedExpr->GetFunctionName();
+            Stroka result = typedExpr->GetFunctionName();
             result += "(";
-            for (const auto& argument : typedExpr->Arguments()) {
-                if (!result.empty()) {
+            for (int i = 0; i < typedExpr->GetArgumentCount(); ++i) {
+                if (i) {
                     result += ", ";
                 }
-                result += InferName(argument);
+                result += InferName(typedExpr->GetArgument(i));
             }
             result += ")";
             return result;

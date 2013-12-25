@@ -35,6 +35,9 @@ void SetUpperBound(TDataSplit* dataSplit, const TKey& upperBound);
 
 void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange);
 
+// XXX(sandello): For testing purposes only.
+void SetSorted(TDataSplit* dataSplit, bool isSorted);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

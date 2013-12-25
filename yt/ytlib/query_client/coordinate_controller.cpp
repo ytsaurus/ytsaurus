@@ -134,9 +134,7 @@ void TCoordinateController::SplitFurther()
             } else {
                 auto* unionOp = new (context) TUnionOperator(context);
                 for (const auto& dataSplit : dataSplits) {
-                    auto* splittedScanOp = new (context) TScanOperator(
-                        context,
-                        scanOp->GetTableIndex());
+                    auto* splittedScanOp = new (context) TScanOperator(context);
                     splittedScanOp->DataSplit() = dataSplit;
                     unionOp->Sources().push_back(splittedScanOp);
                 }
@@ -224,8 +222,8 @@ void TCoordinateController::PushdownGroups()
                 auto& finalGroupItems = finalGroupOp->GroupItems();
                 for (const auto& groupItem : groupOp->GroupItems()) {
                     auto referenceExpr = new (context) TReferenceExpression(
-                        context, NullSourceLocation, 
-                        context->GetTableIndexByAlias(""), 
+                        context,
+                        NullSourceLocation,
                         groupItem.Name);
                     finalGroupItems.push_back(TNamedExpression(
                         referenceExpr,
@@ -237,7 +235,6 @@ void TCoordinateController::PushdownGroups()
                     auto referenceExpr = new (context) TReferenceExpression(
                         context, 
                         NullSourceLocation, 
-                        context->GetTableIndexByAlias(""), 
                         aggregateItem.Name);
                     finalAggregateItems.push_back(TAggregateItem(
                         referenceExpr,
@@ -309,18 +306,16 @@ void TCoordinateController::DistributeToPeers()
                 }
 
                 auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-                auto* clonedDataSplit = &clonedScanOp->DataSplit();
-                SetBothBounds(clonedDataSplit, Intersect(
-                    GetBothBoundsFromDataSplit(*clonedDataSplit),
+                auto& clonedDataSplit = clonedScanOp->DataSplit();
+                SetBothBounds(&clonedDataSplit, Intersect(
+                    GetBothBoundsFromDataSplit(clonedDataSplit),
                     inferredKeyRange));
                 return clonedScanOp;
             });
 
             Peers_.emplace_back(fragment, nullptr);
 
-            auto* facadeScanOp = new (GetContext()) TScanOperator(
-                GetContext(),
-                GetContext()->GetFakeTableIndex());
+            auto* facadeScanOp = new (GetContext()) TScanOperator(GetContext());
             auto* facadeDataSplit = &facadeScanOp->DataSplit();
 
             SetObjectId(
