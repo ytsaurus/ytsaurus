@@ -165,9 +165,9 @@ public:
   }
 };
 
-/// SmallVectorTemplateBase<NMpl::TIsPod = false> - This is where we put method
+/// SmallVectorTemplateBase<isPodLike = false> - This is where we put method
 /// implementations that are designed to work with non-POD-like T's.
-template <typename T, bool IsPod>
+template <typename T, bool isPodLike>
 class SmallVectorTemplateBase : public SmallVectorTemplateCommon<T> {
 protected:
   SmallVectorTemplateBase(size_t Size) : SmallVectorTemplateCommon<T>(Size) {}
@@ -222,7 +222,7 @@ protected:
 
   /// uninitialized_copy - Copy the range [I, E) onto the uninitialized
   /// memory starting with "Dest", constructing elements as needed.
-  template <typename It1, typename It2>
+  template<typename It1, typename It2>
   static void uninitialized_copy(It1 I, It1 E, It2 Dest) {
     std::uninitialized_copy(I, E, Dest);
   }
@@ -250,12 +250,12 @@ public:
     if (this->EndX < this->CapacityX) {
     Retry:
       ::new ((void*) this->end()) T(::std::move(Elt));
-       this->setEnd(this->end()+1);
-       return;
-     }
-     this->grow();
-     goto Retry;
-   }
+      this->setEnd(this->end()+1);
+      return;
+    }
+    this->grow();
+    goto Retry;
+  }
 #endif
 
   void pop_back() {
@@ -277,8 +277,8 @@ inline uint64_t NextPowerOf2(uint64_t A) {
 }
 
 // Define this out-of-line to dissuade the C++ compiler from inlining it.
-template <typename T, bool IsPod>
-void SmallVectorTemplateBase<T, IsPod>::grow(size_t MinSize) {
+template <typename T, bool isPodLike>
+void SmallVectorTemplateBase<T, isPodLike>::grow(size_t MinSize) {
   size_t CurCapacity = this->capacity();
   size_t CurSize = this->size();
   // Always grow, even from zero.  
@@ -303,7 +303,7 @@ void SmallVectorTemplateBase<T, IsPod>::grow(size_t MinSize) {
 }
 
 
-/// SmallVectorTemplateBase<NMpl::TIsPod = true> - This is where we put method
+/// SmallVectorTemplateBase<Nmpl::TIsPod = true> - This is where we put method
 /// implementations that are designed to work with POD-like T's.
 template <typename T>
 class SmallVectorTemplateBase<T, true> : public SmallVectorTemplateCommon<T> {
@@ -338,7 +338,7 @@ protected:
 
   /// uninitialized_copy - Copy the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
-  template <typename It1, typename It2>
+  template<typename It1, typename It2>
   static void uninitialized_copy(It1 I, It1 E, It2 Dest) {
     // Arbitrary iterator types; just use the basic implementation.
     std::uninitialized_copy(I, E, Dest);
@@ -346,7 +346,7 @@ protected:
 
   /// uninitialized_copy - Copy the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
-  template <typename T1, typename T2>
+  template<typename T1, typename T2>
   static void uninitialized_copy(T1 *I, T1 *E, T2 *Dest) {
     // Use memcpy for PODs iterated by pointers (which includes SmallVector
     // iterators): std::uninitialized_copy optimizes to memmove, but we can
@@ -454,7 +454,7 @@ public:
 
   /// append - Add the specified range to the end of the SmallVector.
   ///
-  template <typename in_iter>
+  template<typename in_iter>
   void append(in_iter in_start, in_iter in_end) {
     size_type NumInputs = std::distance(in_start, in_end);
     // Grow allocated space if needed.
@@ -638,7 +638,7 @@ public:
     return I;
   }
 
-  template <typename ItTy>
+  template<typename ItTy>
   iterator insert(iterator I, ItTy From, ItTy To) {
     // Convert iterator to elt# to avoid invalidating iterator when we reserve()
     size_t InsertElt = I - this->begin();
@@ -912,7 +912,7 @@ public:
     this->assign(Size, Value);
   }
 
-  template <typename ItTy>
+  template<typename ItTy>
   SmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(N) {
     this->append(S, E);
   }
@@ -941,7 +941,7 @@ public:
 
 };
 
-template <typename T, unsigned N>
+template<typename T, unsigned N>
 static inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {
   return X.capacity_in_bytes();
 }
@@ -950,7 +950,7 @@ static inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {
 
 namespace std {
 
-/// Implement std::swap in terms of SmallVector swap.
+  /// Implement std::swap in terms of SmallVector swap.
 template <typename T>
 inline void swap(NYT::SmallVectorImpl<T> &LHS, NYT::SmallVectorImpl<T> &RHS) {
     LHS.swap(RHS);
@@ -965,3 +965,4 @@ inline void swap(NYT::SmallVector<T, N> &LHS, NYT::SmallVector<T, N> &RHS) {
 } // namespace std
 
 #undef LLVM_HAS_RVALUE_REFERENCES
+#undef LLVM_ATTRIBUTE_UNUSED_RESULT
