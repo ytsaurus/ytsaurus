@@ -539,7 +539,7 @@ private:
 #define DECLARE_ONE_WAY_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TOneWayTypedServiceContext<ns::TReq##method> TCtx##method; \
     typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
-    typedef TCtx##method::TTypedRequest  TReq##method; \
+    typedef TCtx##method::TTypedRequest TReq##method; \
     \
     TClosure method##Thunk( \
         ::NYT::NRpc::IServiceContextPtr context, \

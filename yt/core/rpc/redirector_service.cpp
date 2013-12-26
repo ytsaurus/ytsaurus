@@ -155,7 +155,7 @@ public:
     virtual void OnRequest(
         const NProto::TRequestHeader& header,
         TSharedRefArray message,
-        NBus::IBusPtr replyBus) override
+        IBusPtr replyBus) override
     {
         auto request = New<TRedirectedRequest>(header, message);
 
