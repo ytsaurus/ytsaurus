@@ -107,14 +107,14 @@ TEvaluateController::TProducer TEvaluateController::CreateProducer(const TOperat
             return TProducer(BIND(&TEvaluateController::FilterRoutine,
                 Unretained(this),
                 op->As<TFilterOperator>()));
-        case EOperatorKind::Project:
-            return TProducer(BIND(&TEvaluateController::ProjectRoutine,
-                Unretained(this),
-                op->As<TProjectOperator>()));
         case EOperatorKind::Group:
             return TProducer(BIND(&TEvaluateController::GroupRoutine,
                 Unretained(this),
                 op->As<TGroupOperator>()));
+        case EOperatorKind::Project:
+            return TProducer(BIND(&TEvaluateController::ProjectRoutine,
+                Unretained(this),
+                op->As<TProjectOperator>()));
     }
     YUNREACHABLE();
 }
@@ -202,39 +202,6 @@ void TEvaluateController::FilterRoutine(
     LOG_DEBUG("Done producing for filter operator (Op: %p)", op);
 }
 
-void TEvaluateController::ProjectRoutine(
-    const TProjectOperator* op,
-    TProducer& self,
-    std::vector<TRow>* rows)
-{
-    YASSERT(op);
-    LOG_DEBUG("Creating producer for project operator (Op: %p)", op);
-
-    auto source = CreateProducer(op->GetSource());
-    auto sourceTableSchema = op->GetSource()->GetTableSchema();
-    TChunkedMemoryPool memoryPool;
-
-    auto nameTable = op->GetNameTable();
-    while (source.Run(rows)) {
-        std::transform(
-            rows->begin(),
-            rows->end(),
-            rows->begin(),
-            [&] (const TRow row) -> TRow {
-                auto result = TRow::Allocate(&memoryPool, op->GetProjectionCount());
-                for (int i = 0; i < op->GetProjectionCount(); ++i) {
-                    result[i] = EvaluateExpression(op->GetProjection(i).Expression, row, sourceTableSchema);
-                    result[i].Id = nameTable->GetId(op->GetProjection(i).Name);
-                }
-                return result;
-            });
-        std::tie(rows) = self.Yield();
-        memoryPool.Clear();
-    }
-
-    LOG_DEBUG("Done producing for project operator (Op: %p)", op);
-}
-
 template <class T>
 size_t THashCombine(size_t seed, const T& value)
 {
@@ -280,7 +247,7 @@ public:
 
             if (lhs[i].Data.Integer != rhs[i].Data.Integer) {
                 return false;
-            }            
+            }
         }
         return true;
     }
@@ -314,10 +281,10 @@ void TEvaluateController::GroupRoutine(
     std::vector<TRow> sourceRows;
     sourceRows.reserve(1000);
 
-    while (source.Run(&sourceRows)) {
-        auto resultRow = TRow::Allocate(&memoryPool, keySize + op->AggregateItems().size());
-        for (auto row : sourceRows) {
+    auto resultRow = TRow::Allocate(&memoryPool, keySize + op->AggregateItems().size());
 
+    while (source.Run(&sourceRows)) {
+        for (auto row : sourceRows) {
             for (int i = 0; i < keySize; ++i) {
                 resultRow[i] = EvaluateExpression(op->GetGroupItem(i).Expression, row, sourceTableSchema);
                 resultRow[i].Id = nameTable->GetId(op->GetGroupItem(i).Name);
@@ -328,10 +295,11 @@ void TEvaluateController::GroupRoutine(
                 resultRow[keySize + i].Id = nameTable->GetId(op->AggregateItems()[i].Name);
             }
 
-            auto foundIterator = keys.find(resultRow);
+            auto keysIt = keys.find(resultRow);
+            auto keysJt = keys.end();
 
-            if (foundIterator != keys.end()) {
-                auto aggregateRow = *foundIterator;
+            if (keysIt != keysJt) {
+                auto aggregateRow = *keysIt;
                 for (int i = 0; i < op->AggregateItems().size(); ++i) {
                     YCHECK(aggregateRow[keySize + i].Type == EValueType::Integer);
                     YCHECK(resultRow[keySize + i].Type == EValueType::Integer);
@@ -369,6 +337,39 @@ void TEvaluateController::GroupRoutine(
     memoryPool.Clear();
 
     LOG_DEBUG("Done producing for group operator (Op: %p)", op);
+}
+
+void TEvaluateController::ProjectRoutine(
+    const TProjectOperator* op,
+    TProducer& self,
+    std::vector<TRow>* rows)
+{
+    YASSERT(op);
+    LOG_DEBUG("Creating producer for project operator (Op: %p)", op);
+
+    auto source = CreateProducer(op->GetSource());
+    auto sourceTableSchema = op->GetSource()->GetTableSchema();
+    TChunkedMemoryPool memoryPool;
+
+    auto nameTable = op->GetNameTable();
+    while (source.Run(rows)) {
+        std::transform(
+            rows->begin(),
+            rows->end(),
+            rows->begin(),
+            [&] (const TRow row) -> TRow {
+                auto result = TRow::Allocate(&memoryPool, op->GetProjectionCount());
+                for (int i = 0; i < op->GetProjectionCount(); ++i) {
+                    result[i] = EvaluateExpression(op->GetProjection(i).Expression, row, sourceTableSchema);
+                    result[i].Id = nameTable->GetId(op->GetProjection(i).Name);
+                }
+                return result;
+            });
+        std::tie(rows) = self.Yield();
+        memoryPool.Clear();
+    }
+
+    LOG_DEBUG("Done producing for project operator (Op: %p)", op);
 }
 
 TValue TEvaluateController::EvaluateExpression(
