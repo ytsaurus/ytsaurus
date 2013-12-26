@@ -150,17 +150,13 @@ void TCoordinateController::SplitFurther()
                 dataSplits.size(),
                 ~ToString(objectId));
 
-            if (dataSplits.size() == 0) {
-                THROW_ERROR_EXCEPTION("Input %s is empty", ~ToString(objectId));
-            } else {
-                auto* unionOp = new (context) TUnionOperator(context);
-                for (const auto& dataSplit : dataSplits) {
-                    auto* splittedScanOp = new (context) TScanOperator(context);
-                    splittedScanOp->DataSplit() = dataSplit;
-                    unionOp->Sources().push_back(splittedScanOp);
-                }
-                return unionOp;
+            auto* unionOp = new (context) TUnionOperator(context);
+            for (const auto& dataSplit : dataSplits) {
+                auto* splittedScanOp = new (context) TScanOperator(context);
+                splittedScanOp->DataSplit() = dataSplit;
+                unionOp->Sources().push_back(splittedScanOp);
             }
+            return unionOp;
         }
         return op;
     });

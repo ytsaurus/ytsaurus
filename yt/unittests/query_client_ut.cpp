@@ -332,9 +332,9 @@ TEST_F(TQueryCoordinateTest, EmptySplit)
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0)))
         .WillOnce(Return(WrapInFuture(emptySplit)));
 
-    EXPECT_THROW_THAT(
-        [&] { Coordinate("k from [//t]"); },
-        ContainsRegex("Input [0-9a-f\\-]* is empty"));
+    EXPECT_NO_THROW({
+        Coordinate("k from [//t]");
+    });
 }
 
 TEST_F(TQueryCoordinateTest, SingleSplit)

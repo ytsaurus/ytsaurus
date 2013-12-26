@@ -49,19 +49,16 @@ TError TEvaluateController::Run()
         LOG_DEBUG("Evaluating plan fragment");
 
         auto producer = CreateProducer(GetHead());
-        bool didOpenWriter = false;
+
+        LOG_DEBUG("Opening writer");
+        Writer_->Open(
+            GetHead()->GetNameTable(),
+            GetHead()->GetTableSchema(),
+            GetHead()->GetKeyColumns());
 
         std::vector<TRow> rows;
         rows.reserve(1000);
         while (producer.Run(&rows)) {
-            if (UNLIKELY(!didOpenWriter)) {
-                LOG_DEBUG("Opening writer");
-                Writer_->Open(
-                    GetHead()->GetNameTable(),
-                    GetHead()->GetTableSchema(),
-                    GetHead()->GetKeyColumns());
-                didOpenWriter = true;
-            }
             for (auto row : rows) {
                for (int i = 0; i < row.GetCount(); ++i) {
                     Writer_->WriteValue(row[i]);
@@ -74,13 +71,11 @@ TError TEvaluateController::Run()
             rows.clear();
         }
 
-        if (didOpenWriter) {
-            LOG_DEBUG("Closing writer");
-            auto error = WaitFor(Writer_->AsyncClose());
-            if (!error.IsOK()) {
-                LOG_ERROR(error);
-                return error;
-            }
+        LOG_DEBUG("Closing writer");
+        auto error = WaitFor(Writer_->AsyncClose());
+        if (!error.IsOK()) {
+            LOG_ERROR(error);
+            return error;
         }
 
         LOG_DEBUG("Finished evaluating plan fragment");
