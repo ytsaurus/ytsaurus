@@ -198,8 +198,6 @@ void TMountTableCommand::DoExecute()
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-    Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,8 +214,6 @@ void TUnmountTableCommand::DoExecute()
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-    Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,8 +231,6 @@ void TReshardTableCommand::DoExecute()
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-    Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,8 +394,6 @@ void TSelectCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
     buffer.Clear();
-
-    Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -463,8 +455,6 @@ void TLookupCommand::DoExecute()
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
-
-    Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -481,8 +471,6 @@ void TDeleteCommand::DoExecute()
 
     auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
-
-    Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
