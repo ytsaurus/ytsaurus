@@ -57,10 +57,10 @@ TKeyColumns InferKeyColumns(const TOperator* op)
             return InferKeyColumns(op->As<TFilterOperator>()->GetSource());
         }
         case EOperatorKind::Group: {
-            return InferKeyColumns(op->As<TGroupOperator>()->GetSource());
+            return TKeyColumns();
         }
         case EOperatorKind::Project: {
-            return InferKeyColumns(op->As<TProjectOperator>()->GetSource());
+            return TKeyColumns();
         }
     }
     YUNREACHABLE();
