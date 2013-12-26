@@ -244,14 +244,14 @@ def run_python_tests(options, suite_name, suite_path):
     finally:
         shutil.rmtree(sandbox_current)
 
+
 def kill_by_name(name):
     # Cannot use check_output because of python2.6 on Lucid
-    proc = subprocess.Popen(["pgrep", "-f", name], stdout=subprocess.PIPE)
-    stdout, _ = proc.communicate()
-    for pid in stdout.strip().split("\n"):
+    pids = run_captured(["pgrep", "-f", name])
+    for pid in pids.split("\n"):
         if not pid:
             continue
-        os.kill(int(pid), signal.SIGTERM)
+        os.kill(int(pid), signal.SIGKILL)
 
 
 @yt_register_build_step
