@@ -1426,7 +1426,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
     auto* childImpl = LockImpl(trunkChildImpl);
 
     if (beforeIndex < 0) {
-        YCHECK(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, list.size())).second);
+        YCHECK(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, static_cast<int>(list.size()))).second);
         list.push_back(trunkChildImpl);
     } else {
         // Update indices.
