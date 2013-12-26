@@ -74,11 +74,32 @@ TError TCoordinateController::Run()
     try {
         LOG_DEBUG("Coordinating plan fragment");
 
+#ifndef NDEBUG
+        bool viewPlans = getenv("YT_DEBUG") != nullptr;
+        if (viewPlans) {
+            ViewPlanFragment(Fragment_, "Before Splitting");
+        }
+#endif
         SplitFurther();
         PushdownFilters();
         PushdownGroups();
         PushdownProjects();
+#ifndef NDEBUG
+        if (viewPlans) {
+            ViewPlanFragment(Fragment_, "Before Distributing");
+        }
+#endif
         DistributeToPeers();
+#ifndef NDEBUG
+        if (viewPlans) {
+            ViewPlanFragment(Fragment_, "Coordinator Plan");
+            for (int i = 0; i < Peers_.size(); ++i) {
+                ViewPlanFragment(
+                    std::get<0>(Peers_[i]),
+                    Sprintf("Peer %d Plan", i));
+            }
+        }
+#endif
         InitializeReaders();
 
         return TError();
