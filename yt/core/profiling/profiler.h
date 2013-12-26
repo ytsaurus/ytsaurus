@@ -7,6 +7,8 @@
 
 #include <core/ypath/public.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NProfiling {
 
@@ -103,7 +105,7 @@ struct TRateCounter
         TDuration interval = TDuration::MilliSeconds(1000));
 
     //! The current counter's value.
-    TValue Value;
+    std::atomic<TValue> Value;
 
     //! The counter's value at the moment of the last sampling.
     TValue LastValue;
