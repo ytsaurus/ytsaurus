@@ -104,6 +104,11 @@ struct TRateCounter
         const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(1000));
 
+    // NB: Need to write these by hand because of std::atomic.
+    TRateCounter(const TRateCounter& other);
+    TRateCounter& operator = (const TRateCounter& other);
+
+
     //! The current counter's value.
     std::atomic<TValue> Value;
 

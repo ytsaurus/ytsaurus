@@ -70,6 +70,21 @@ TRateCounter::TRateCounter(
     , LastTime(0)
 { }
 
+TRateCounter::TRateCounter(const TRateCounter& other)
+    : TCounterBase(other)
+{
+    *this = other;
+}
+
+TRateCounter& TRateCounter::operator=(const TRateCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = other;
+    Value.store(other.Value);
+    LastValue = other.LastValue;
+    LastTime = other.LastTime;
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAggregateCounter::TAggregateCounter(
