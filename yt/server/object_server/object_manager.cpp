@@ -855,16 +855,20 @@ void TObjectManager::MergeAttributes(
 
 TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& request)
 {
-    return Bootstrap
-        ->GetMetaStateFacade()
-        ->CreateMutation(this, request, &TThis::HydraExecute);
+    return CreateMutation(
+        Bootstrap->GetMetaStateFacade()->GetManager(),
+        request,
+        this,
+        &TThis::HydraExecute);
 }
 
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
 {
-    return Bootstrap
-        ->GetMetaStateFacade()
-        ->CreateMutation(this, request, &TThis::HydraDestroyObjects);
+    return CreateMutation(
+        Bootstrap->GetMetaStateFacade()->GetManager(),
+        request,
+        this,
+        &TThis::HydraDestroyObjects);
 }
 
 TFuture<void> TObjectManager::GCCollect()

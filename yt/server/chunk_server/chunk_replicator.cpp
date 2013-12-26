@@ -1174,7 +1174,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         ->CreateUpdateChunkPropertiesMutation(request)
         ->OnSuccess(BIND(&TChunkReplicator::OnPropertiesUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
         ->OnError(BIND(&TChunkReplicator::OnPropertiesUpdateCommitFailed, MakeWeak(this)).Via(invoker))
-        ->PostCommit();
+        ->Commit();
 }
 
 void TChunkReplicator::OnPropertiesUpdateCommitSucceeded()

@@ -138,7 +138,7 @@ void TTabletTracker::ScheduleStateChange(TTabletCell* cell)
     Bootstrap
         ->GetTabletManager()
         ->CreateSetCellStateMutation(request)
-        ->PostCommit();
+        ->Commit();
 }
 
 void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
@@ -176,7 +176,7 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         Bootstrap
             ->GetTabletManager()
             ->CreateStartSlotsMutation(request)
-            ->PostCommit();
+            ->Commit();
     }
 }
 
@@ -198,7 +198,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
             Bootstrap
                 ->GetTabletManager()
                 ->CreateRevokePeerMutation(request)
-                ->PostCommit();
+                ->Commit();
         }
     }
 }

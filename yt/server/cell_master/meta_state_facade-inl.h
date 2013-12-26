@@ -8,21 +8,6 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TTarget, class TRequest, class TResponse>
-NHydra::TMutationPtr TMetaStateFacade::CreateMutation(
-    TTarget* target,
-    const TRequest& request,
-    TResponse (TTarget::* method)(const TRequest&),
-    EAutomatonThreadQueue queue)
-{
-    return NHydra::CreateMutation<TTarget, TRequest, TResponse>(
-        GetManager(),
-        GetGuardedInvoker(queue),
-        request,
-        target,
-        method);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellMaster

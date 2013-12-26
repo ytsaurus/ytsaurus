@@ -271,9 +271,11 @@ public:
     TMutationPtr CreateUpdateChunkPropertiesMutation(
         const NProto::TReqUpdateChunkProperties& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::UpdateChunkProperties);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request,
+            this,
+            &TImpl::UpdateChunkProperties);
     }
 
 

@@ -171,7 +171,7 @@ public:
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_commands_succeded(commandsSucceded);
         hydraRequest.set_encoded_request(encodedRequest);
-        CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), hydraRequest)
+        CreateMutation(Slot_->GetHydraManager(), hydraRequest)
             ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
 

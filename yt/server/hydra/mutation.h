@@ -15,20 +15,13 @@ class TMutation
     : public TIntrinsicRefCounted
 {
 public:
-    TMutation(
-        IHydraManagerPtr hydraManager,
-        IInvokerPtr automatonInvoker);
+    explicit TMutation(IHydraManagerPtr hydraManager);
 
     TFuture<TErrorOr<TMutationResponse>> Commit();
 
-    // TODO(babenko): do we need this?
-    bool PostCommit();
-
-    TMutationPtr SetType(Stroka type);
-
     TMutationPtr SetId(const TMutationId& id);
 
-    TMutationPtr SetRequestData(TSharedRef data);
+    TMutationPtr SetRequestData(TSharedRef data, Stroka type);
     template <class TRequest>
     TMutationPtr SetRequestData(const TRequest& request);
 
@@ -43,7 +36,6 @@ public:
 
 private:
     IHydraManagerPtr HydraManager;
-    IInvokerPtr AutomatonInvoker;
 
     TMutationRequest Request;
     TCallback<void(const TMutationResponse&)> OnSuccess_;
@@ -56,19 +48,16 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutationPtr CreateMutation(
-    IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker);
+    IHydraManagerPtr hydraManager);
 
 template <class TRequest>
 TMutationPtr CreateMutation(
     IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker,
     const TRequest& request);
 
 template <class TTarget, class TRequest, class TResponse>
 TMutationPtr CreateMutation(
     IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker,
     const TRequest& request,
     TTarget* target,
     TResponse (TTarget::* method)(const TRequest& request));

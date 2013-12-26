@@ -324,9 +324,11 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
 NHydra::TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
     const NProto::TReqUpdateAccessStatistics& request)
 {
-   return Bootstrap
-        ->GetMetaStateFacade()
-        ->CreateMutation(this, request, &TThis::UpdateAccessStatistics);
+   return CreateMutation(
+        Bootstrap->GetMetaStateFacade()->GetManager(),
+        request,
+        this,
+        &TThis::UpdateAccessStatistics);
 }
 
 TCypressNodeBase* TCypressManager::CreateNode(

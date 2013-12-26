@@ -456,7 +456,6 @@ private:
     {
         return CreateMutation(
             HydraManager,
-            AutomatonInvoker,
             req,
             this,
             &TImpl::HydraAcknowledgeMessages);
@@ -464,9 +463,8 @@ private:
 
     TMutationPtr CreateReceiveMessagesMutation(TCtxSendPtr context)
     {
-        return CreateMutation(HydraManager, AutomatonInvoker)
-            ->SetRequestData(context->GetRequestBody())
-            ->SetType(context->Request().GetTypeName())
+        return CreateMutation(HydraManager)
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(&TImpl::HydraReceiveMessages, MakeStrong(this), context, ConstRef(context->Request())));
     }
 

@@ -134,7 +134,7 @@ void TAccessTracker::OnFlush()
         ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest)
         ->OnSuccess(BIND(&TAccessTracker::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
         ->OnError(BIND(&TAccessTracker::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->PostCommit();
+        ->Commit();
 
     Reset();
 }

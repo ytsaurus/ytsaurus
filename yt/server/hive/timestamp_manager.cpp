@@ -143,15 +143,14 @@ private:
 
         // Prevent more attempts to start commit.
         WatermarkTimestamp = PersistentTimestamp.load();
+        Committing = true;
 
         TReqCommitTimestamp hydraRequest;
         hydraRequest.set_timestamp(PersistentTimestamp.load() + Config->BatchSize);
-        CreateMutation(HydraManager, AutomatonInvoker, hydraRequest)
+        CreateMutation(HydraManager, hydraRequest)
             ->OnSuccess(BIND(&TImpl::OnCommitSuccess, MakeStrong(this)))
             ->OnError(BIND(&TImpl::OnCommitFailure, MakeStrong(this)))
-            ->PostCommit();
-
-        Committing = true;
+            ->Commit();
     }
 
     std::vector<TCtxGetTimestampPtr> FinishCommit()

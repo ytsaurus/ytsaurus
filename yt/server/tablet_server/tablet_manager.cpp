@@ -186,23 +186,29 @@ public:
 
     TMutationPtr CreateStartSlotsMutation(const TReqStartSlots& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TImpl::StartSlots);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request,
+            this,
+            &TImpl::StartSlots);
     }
 
     TMutationPtr CreateSetCellStateMutation(const TReqSetCellState& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TImpl::SetCellState);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request,
+            this,
+            &TImpl::SetCellState);
     }
 
     TMutationPtr CreateRevokePeerMutation(const TReqRevokePeer& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TImpl::RevokePeer);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request,
+            this,
+            &TImpl::RevokePeer);
     }
 
 

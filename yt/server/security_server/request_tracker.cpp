@@ -105,7 +105,7 @@ void TRequestTracker::OnFlush()
         ->CreateUpdateRequestStatisticsMutation(UpdateRequestStatisticsRequest)
         ->OnSuccess(BIND(&TRequestTracker::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
         ->OnError(BIND(&TRequestTracker::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->PostCommit();
+        ->Commit();
 
     Reset();
 }

@@ -203,7 +203,7 @@ void TGarbageCollector::OnSweep()
         ->CreateDestroyObjectsMutation(request)
         ->OnSuccess(BIND(&TGarbageCollector::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
         ->OnError(BIND(&TGarbageCollector::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->PostCommit();
+        ->Commit();
 }
 
 void TGarbageCollector::OnCommitSucceeded()

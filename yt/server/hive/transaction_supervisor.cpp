@@ -119,14 +119,9 @@ public:
     }
 
 
-    TMutationPtr CreateCommitTransactionMutation(const TReqCommitTransaction& request)
-    {
-        return CreateMutation(HydraManager, AutomatonInvoker, request);
-    }
-
     TMutationPtr CreateAbortTransactionMutation(const TReqAbortTransaction& request)
     {
-        return CreateMutation(HydraManager, AutomatonInvoker, request);
+        return CreateMutation(HydraManager, request);
     }
 
 private:
@@ -195,7 +190,7 @@ private:
             startCommitRequest.mutable_transaction_id()->Swap(request->mutable_transaction_id());
             startCommitRequest.mutable_participant_cell_guids()->Swap(request->mutable_participant_cell_guids());
             startCommitRequest.set_prepare_timestamp(prepareTimestamp);
-            CreateMutation(HydraManager, AutomatonInvoker, startCommitRequest)
+            CreateMutation(HydraManager, startCommitRequest)
                 ->SetAction(BIND(&TImpl::HydraStartDistributedCommit, MakeStrong(this), context, startCommitRequest))
                 ->Commit();
         }
@@ -205,7 +200,7 @@ private:
     {
         ValidateActiveLeader();
 
-        CreateMutation(HydraManager, AutomatonInvoker, *request)
+        CreateMutation(HydraManager, *request)
             ->SetAction(BIND(&TImpl::HydraAbortTransaction, MakeStrong(this), context, ConstRef(*request)))
             ->Commit();
     }
@@ -468,7 +463,7 @@ private:
             RemoveCommit(commit);
         } else {
             YCHECK(commit->ParticipantCellGuids().empty());
-            CreateMutation(HydraManager, AutomatonInvoker, abortFailedRequest)
+            CreateMutation(HydraManager, abortFailedRequest)
                 ->Commit();
         }
     }
@@ -557,14 +552,14 @@ private:
             TReqFinalizeDistributedCommit finalizeRequest;
             ToProto(finalizeRequest.mutable_transaction_id(), transactionId);
             finalizeRequest.set_commit_timestamp(timestamp);
-            CreateMutation(HydraManager, AutomatonInvoker, finalizeRequest)
+            CreateMutation(HydraManager, finalizeRequest)
                 ->Commit();
         } else {
             TReqCommitPreparedTransaction commitRequest;
             ToProto(commitRequest.mutable_transaction_id(), transactionId);
             commitRequest.set_commit_timestamp(timestamp);
             commitRequest.set_is_distributed(false);
-            CreateMutation(HydraManager, AutomatonInvoker, commitRequest)
+            CreateMutation(HydraManager, commitRequest)
                 ->Commit();
         }
     }
@@ -736,11 +731,6 @@ void TTransactionSupervisor::Start()
 void TTransactionSupervisor::Stop()
 {
     Impl->Stop();
-}
-
-TMutationPtr TTransactionSupervisor::CreateCommitTransactionMutation(const TReqCommitTransaction& request)
-{
-    return Impl->CreateCommitTransactionMutation(request);
 }
 
 TMutationPtr TTransactionSupervisor::CreateAbortTransactionMutation(const TReqAbortTransaction& request)

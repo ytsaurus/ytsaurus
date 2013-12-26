@@ -48,15 +48,6 @@ public:
     IInvokerPtr GetEpochInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
-    template <class TTarget, class TRequest, class TResponse>
-    NHydra::TMutationPtr CreateMutation(
-        TTarget* target,
-        const TRequest& request,
-        TResponse (TTarget::* method)(const TRequest&),
-        EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
-
-    NHydra::TMutationPtr CreateMutation(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
-
     //! Same as #IsActiveLeader but throws on failure.
     void ValidateActiveLeader();
 

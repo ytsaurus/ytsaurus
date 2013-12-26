@@ -286,9 +286,11 @@ public:
     TMutationPtr CreateUpdateRequestStatisticsMutation(
         const NProto::TReqUpdateRequestStatistics& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TImpl::UpdateRequestStatistics);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request,
+            this,
+            &TImpl::UpdateRequestStatistics);
     }
 
 

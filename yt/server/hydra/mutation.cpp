@@ -8,29 +8,14 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutation::TMutation(
-    IHydraManagerPtr hydraManager,
-    IInvokerPtr stateInvoker)
+TMutation::TMutation(IHydraManagerPtr hydraManager)
     : HydraManager(std::move(hydraManager))
-    , AutomatonInvoker(std::move(stateInvoker))
 { }
-
-bool TMutation::PostCommit()
-{
-    return AutomatonInvoker->Invoke(
-        BIND(IgnoreResult(&TMutation::Commit), MakeStrong(this)));
-}
 
 TFuture<TErrorOr<TMutationResponse>>  TMutation::Commit()
 {
     return HydraManager->CommitMutation(Request).Apply(
         BIND(&TMutation::OnCommitted, MakeStrong(this)));
-}
-
-TMutationPtr TMutation::SetType(Stroka type)
-{
-    Request.Type = std::move(type);
-    return this;
 }
 
 TMutationPtr TMutation::SetId(const TMutationId& id)
@@ -39,9 +24,10 @@ TMutationPtr TMutation::SetId(const TMutationId& id)
     return this;
 }
 
-TMutationPtr TMutation::SetRequestData(TSharedRef data)
+TMutationPtr TMutation::SetRequestData(TSharedRef data, Stroka type)
 {
     Request.Data = std::move(data);
+    Request.Type = std::move(type);
     return this;
 }
 
@@ -91,12 +77,10 @@ TErrorOr<TMutationResponse> TMutation::OnCommitted(TErrorOr<TMutationResponse> r
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutationPtr CreateMutation(
-    IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker)
+    IHydraManagerPtr hydraManager)
 {
     return New<TMutation>(
-        std::move(hydraManager),
-        std::move(automatonInvoker));
+        std::move(hydraManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

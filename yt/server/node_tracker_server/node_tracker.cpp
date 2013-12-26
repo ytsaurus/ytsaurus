@@ -102,38 +102,32 @@ public:
     TMutationPtr CreateRegisterNodeMutation(
         const TReqRegisterNode& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::RegisterNode);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request);
     }
 
     TMutationPtr CreateUnregisterNodeMutation(
         const TReqUnregisterNode& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::UnregisterNode);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request);
     }
 
     TMutationPtr CreateFullHeartbeatMutation(
         TCtxFullHeartbeatPtr context)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(EAutomatonThreadQueue::Heartbeat)
-            ->SetRequestData(context->GetRequestBody())
-            ->SetType(context->Request().GetTypeName())
+        return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(&TThis::RpcFullHeartbeat, MakeStrong(this), context));
     }
 
     TMutationPtr CreateIncrementalHeartbeatMutation(
         TCtxIncrementalHeartbeatPtr context)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation()
-            ->SetRequestData(context->GetRequestBody())
-            ->SetType(context->Request().GetTypeName())
+        return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(&TThis::RpcIncrementalHeartbeat, MakeStrong(this), context));
     }
 
@@ -758,7 +752,7 @@ private:
         CreateUnregisterNodeMutation(message)
             ->OnSuccess(BIND(&TThis::OnUnregisterCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
             ->OnError(BIND(&TThis::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker))
-            ->PostCommit();
+            ->Commit();
     }
 
     void OnUnregisterCommitSucceeded(TNodeId nodeId)

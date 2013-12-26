@@ -28,7 +28,7 @@ TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
     TSharedRef requestData;
     YCHECK(SerializeToProtoWithEnvelope(request, &requestData));
-    SetRequestData(requestData);
+    Request.Data = std::move(requestData);
     Request.Type = request.GetTypeName();
     return this;
 }
@@ -39,13 +39,12 @@ struct TMutationFactory
     template <class TTarget, class TRequest>
     static TMutationPtr Create(
         IHydraManagerPtr hydraManager,
-        IInvokerPtr automatonInvoker,
         const TRequest& request,
         TTarget* target,
         TResponse (TTarget::* method)(const TRequest& request))
     {
         return
-            New<TMutation>(std::move(hydraManager), std::move(automatonInvoker))
+            New<TMutation>(std::move(hydraManager))
             ->SetRequestData(request)
             ->SetAction(BIND([=] () {
                 TResponse response((target->*method)(request));
@@ -67,13 +66,11 @@ struct TMutationFactory<void>
     template <class TTarget, class TRequest>
     static TMutationPtr Create(
         IHydraManagerPtr hydraManager,
-        IInvokerPtr automatonInvoker,
         const TRequest& request,
         TTarget* target,
         void (TTarget::* method)(const TRequest& request))
     {
-        return
-            New<TMutation>(std::move(hydraManager), std::move(automatonInvoker))
+        return New<TMutation>(std::move(hydraManager))
             ->SetRequestData(request)
             ->SetAction(BIND(method, Unretained(target), request));
     }
@@ -82,14 +79,12 @@ struct TMutationFactory<void>
 template <class TTarget, class TRequest, class TResponse>
 TMutationPtr CreateMutation(
     IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker,
     const TRequest& request,
     TTarget* target,
     TResponse (TTarget::* method)(const TRequest& request))
 {
     return TMutationFactory<TResponse>::Create(
         std::move(hydraManager),
-        std::move(automatonInvoker),
         request,
         target,
         method);
@@ -98,11 +93,9 @@ TMutationPtr CreateMutation(
 template <class TRequest>
 TMutationPtr CreateMutation(
     IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker,
     const TRequest& request)
 {
-    return
-        New<TMutation>(std::move(hydraManager), std::move(automatonInvoker))
+    return New<TMutation>(std::move(hydraManager))
         ->SetRequestData(request);
 }
 

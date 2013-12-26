@@ -574,13 +574,6 @@ void TMetaStateFacade::Start()
     Impl->Start();
 }
 
-TMutationPtr TMetaStateFacade::CreateMutation(EAutomatonThreadQueue queue)
-{
-    return New<TMutation>(
-        GetManager(),
-        GetGuardedInvoker(queue));
-}
-
 void TMetaStateFacade::ValidateActiveLeader()
 {
     return Impl->ValidateActiveLeader();

@@ -84,7 +84,7 @@ public:
         ToProto(hydraRequest.mutable_transaction_id(), transactionId);
         hydraRequest.set_start_timestamp(startTimestamp);
         hydraRequest.set_timeout(GetActualTimeout(timeout).MilliSeconds());
-        return CreateMutation(Slot_->GetHydraManager(), Slot_->GetAutomatonInvoker(), hydraRequest)
+        return CreateMutation(Slot_->GetHydraManager(), hydraRequest)
             ->Commit()
             .Apply(BIND([](TErrorOr<TMutationResponse> result) {
                 return TError(result);
