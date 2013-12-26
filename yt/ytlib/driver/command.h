@@ -148,9 +148,9 @@ protected:
 
     virtual void Prepare();
 
-    void ReplyError(const TError& error);
-    void ReplySuccess(const NYTree::TYsonString& yson);
-    void ReplySuccess();
+    void Reply(const TError& error);
+    void Reply(const NYTree::TYsonString& yson);
+    void Reply();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,10 +172,10 @@ public:
 
             // Assume empty successful reply by default.
             if (!Replied) {
-                ReplySuccess();
+                Reply();
             }
         } catch (const std::exception& ex) {
-            ReplyError(ex);
+            Reply(ex);
         }
     }
 

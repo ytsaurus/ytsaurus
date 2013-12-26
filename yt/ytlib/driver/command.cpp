@@ -24,7 +24,7 @@ void TCommandBase::Prepare()
     SchedulerProxy.reset(new TSchedulerServiceProxy(Context->GetSchedulerChannel()));
 }
 
-void TCommandBase::ReplyError(const TError& error)
+void TCommandBase::Reply(const TError& error)
 {
     YCHECK(!Replied);
     YCHECK(!error.IsOK());
@@ -33,7 +33,7 @@ void TCommandBase::ReplyError(const TError& error)
     Replied = true;
 }
 
-void TCommandBase::ReplySuccess()
+void TCommandBase::Reply()
 {
     YCHECK(!Replied);
 
@@ -41,7 +41,7 @@ void TCommandBase::ReplySuccess()
     Replied = true;
 }
 
-void TCommandBase::ReplySuccess(const TYsonString& yson)
+void TCommandBase::Reply(const TYsonString& yson)
 {
     YCHECK(!Replied);
 

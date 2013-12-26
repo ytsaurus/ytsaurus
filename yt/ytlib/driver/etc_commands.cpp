@@ -67,7 +67,7 @@ void TRemoveMemberCommand::DoExecute()
 void TParseYPathCommand::DoExecute()
 {
     auto richPath = TRichYPath::Parse(Request->Path);
-    ReplySuccess(ConvertToYsonString(richPath));
+    Reply(ConvertToYsonString(richPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +82,7 @@ void TCheckPersmissionCommand::DoExecute()
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    ReplySuccess(BuildYsonStringFluently()
+    Reply(BuildYsonStringFluently()
         .BeginMap()
             .Item("action").Value(ESecurityAction(rsp->action()))
             .DoIf(rsp->has_object_id(), [&] (TFluentMap fluent) {

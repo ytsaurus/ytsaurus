@@ -36,7 +36,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     auto operationId = FromProto<TOperationId>(rsp->operation_id());
-    ReplySuccess(BuildYsonStringFluently().Value(operationId));
+    Reply(BuildYsonStringFluently().Value(operationId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

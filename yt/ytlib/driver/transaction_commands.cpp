@@ -44,7 +44,7 @@ void TStartTransactionCommand::DoExecute()
     auto transaction = transactionOrError.GetValueOrThrow();
     transaction->Detach();
 
-    ReplySuccess(BuildYsonStringFluently()
+    Reply(BuildYsonStringFluently()
         .Value(transaction->GetId()));
 }
 
