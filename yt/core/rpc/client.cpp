@@ -4,8 +4,6 @@
 #include "message.h"
 #include "dispatcher.h"
 
-#include <core/ytree/attribute_helpers.h>
-
 #include <iterator>
 
 namespace NYT {
@@ -38,7 +36,6 @@ TClientRequest::TClientRequest(
     : RequestHeavy_(false)
     , ResponseHeavy_(false)
     , Channel(channel)
-    , Attributes_(CreateEphemeralAttributes())
 {
     YCHECK(channel);
 
@@ -53,7 +50,6 @@ TSharedRefArray TClientRequest::Serialize() const
 {
     auto header = Header_;
     header.set_retry_start_time(TInstant::Now().MicroSeconds());
-    ToProto(header.mutable_attributes(), *Attributes_);
 
     auto bodyData = SerializeBody();
 
@@ -108,16 +104,6 @@ void TClientRequest::SetStartTime(TInstant value)
     Header_.set_request_start_time(value.MicroSeconds());
 }
 
-const NYTree::IAttributeDictionary& TClientRequest::Attributes() const
-{
-    return *Attributes_;
-}
-
-NYTree::IAttributeDictionary* TClientRequest::MutableAttributes()
-{
-    return Attributes_.get();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientResponseBase::TClientResponseBase(const TRequestId& requestId)
@@ -156,7 +142,6 @@ void TClientResponseBase::OnError(const TError& error)
 
 TClientResponse::TClientResponse(const TRequestId& requestId)
     : TClientResponseBase(requestId)
-    , Attributes_(CreateEphemeralAttributes())
 { }
 
 TSharedRefArray TClientResponse::GetResponseMessage() const
@@ -184,10 +169,6 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
     NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(ResponseMessage, &responseHeader));
-
-    if (responseHeader.has_attributes()) {
-        Attributes_ = FromProto(responseHeader.attributes());
-    }
 }
 
 void TClientResponse::OnAcknowledgement()
@@ -208,16 +189,6 @@ void TClientResponse::OnResponse(TSharedRefArray message)
 
     Deserialize(message);
     FireCompleted();
-}
-
-IAttributeDictionary& TClientResponse::Attributes()
-{
-    return *Attributes_;
-}
-
-const IAttributeDictionary& TClientResponse::Attributes() const
-{
-    return *Attributes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,6 +38,7 @@ void TGetCommand::DoExecute()
     if (Request->MaxSize) {
         req->set_max_size(*Request->MaxSize);
     }
+    ToProto(req->mutable_options(), *IAttributeDictionary::FromMap(Request->GetOptions()));
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -69,7 +70,6 @@ void TRemoveCommand::DoExecute()
     GenerateMutationId(req);
     req->set_recursive(Request->Recursive);
     req->set_force(Request->Force);
-    req->MutableAttributes()->MergeFrom(Request->GetOptions());
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

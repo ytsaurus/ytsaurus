@@ -5,8 +5,6 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <core/ytree/attribute_helpers.h>
-
 #include <core/rpc/rpc.pb.h>
 
 namespace NYT {
@@ -67,7 +65,6 @@ TSharedRefArray CreateResponseMessage(IServiceContextPtr context)
     NProto::TResponseHeader header;
     ToProto(header.mutable_request_id(), context->GetRequestId());
     ToProto(header.mutable_error(), context->GetError());
-    ToProto(header.mutable_attributes(), context->ResponseAttributes());
 
     return
         context->GetError().IsOK()

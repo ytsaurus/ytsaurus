@@ -16,9 +16,6 @@
 
 #include <core/actions/future.h>
 
-#include <core/ytree/attributes.h>
-#include <core/ytree/attribute_owner.h>
-
 #include <core/logging/log.h>
 
 namespace NYT {
@@ -49,7 +46,6 @@ protected:
 
 struct IClientRequest
     : public virtual TRefCounted
-    , public NYTree::IAttributeOwner
 {
     virtual TSharedRefArray Serialize() const = 0;
 
@@ -93,13 +89,8 @@ public:
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
 
-    virtual const NYTree::IAttributeDictionary& Attributes() const override;
-    virtual NYTree::IAttributeDictionary* MutableAttributes();
-
 protected:
     IChannelPtr Channel;
-
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
         IChannelPtr channel,
@@ -247,9 +238,6 @@ class TClientResponse
 public:
     TSharedRefArray GetResponseMessage() const;
 
-    NYTree::IAttributeDictionary& Attributes();
-    const NYTree::IAttributeDictionary& Attributes() const;
-
 protected:
     explicit TClientResponse(const TRequestId& requestId);
 
@@ -258,7 +246,6 @@ protected:
 private:
     // Protected by #SpinLock.
     TSharedRefArray ResponseMessage;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;

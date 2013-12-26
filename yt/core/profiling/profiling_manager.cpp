@@ -225,7 +225,8 @@ private:
             TGuard<TSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
             context->SetRequestInfo("");
-            auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
+            auto options = FromProto(request->options());
+            auto fromTime = ParseInstant(options->Find<i64>("from_time"));
             auto range = GetSamples(fromTime);
             response->set_value(BuildYsonStringFluently()
                 .DoListFor(range.first, range.second, [&] (TFluentList fluent, const TSamplesIterator& it) {

@@ -89,16 +89,6 @@ public:
         return Header_;
     }
 
-    virtual const NYTree::IAttributeDictionary& Attributes() const override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual NYTree::IAttributeDictionary* MutableAttributes() override
-    {
-        YUNREACHABLE();
-    }
-
 private:
     NProto::TRequestHeader Header_;
     TSharedRefArray Message;

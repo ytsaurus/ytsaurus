@@ -48,11 +48,6 @@ public:
         return Context->RequestAttachments();
     }
 
-    NYTree::IAttributeDictionary& Attributes() const
-    {
-        return Context->RequestAttributes();
-    }
-
 private:
     template <class TRequestMessage_>
     friend class TTypedServiceContextBase;
@@ -77,11 +72,6 @@ public:
     std::vector<TSharedRef>& Attachments()
     {
         return Context->ResponseAttachments();
-    }
-
-    NYTree::IAttributeDictionary& Attributes()
-    {
-        return Context->ResponseAttributes();
     }
 
 private:

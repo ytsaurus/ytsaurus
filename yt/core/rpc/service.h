@@ -77,14 +77,8 @@ struct IServiceContext
     //! Returns a vector of request attachments.
     virtual std::vector<TSharedRef>& RequestAttachments() = 0;
 
-    //! Returns request attributes.
-    virtual NYTree::IAttributeDictionary& RequestAttributes() = 0;
-
     //! Returns a vector of response attachments.
     virtual std::vector<TSharedRef>& ResponseAttachments() = 0;
-
-    //! Returns response attributes.
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() = 0;
 
     //! Returns immutable request header.
     virtual const NProto::TRequestHeader& RequestHeader() const = 0;

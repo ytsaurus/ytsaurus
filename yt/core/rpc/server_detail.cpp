@@ -4,8 +4,6 @@
 #include "message.h"
 #include "config.h"
 
-#include <core/ytree/attribute_helpers.h>
-
 namespace NYT {
 namespace NRpc {
 
@@ -54,11 +52,6 @@ void TServiceContextBase::Initialize()
     RequestAttachments_ = std::vector<TSharedRef>(
         RequestMessage.Begin() + 2,
         RequestMessage.End());
-
-    RequestAttributes_ = RequestHeader_.has_attributes()
-        ? FromProto(RequestHeader_.attributes())
-        : CreateEphemeralAttributes();
-    ResponseAttributes_ = CreateEphemeralAttributes();
 }
 
 void TServiceContextBase::Reply(const TError& error)
@@ -139,11 +132,6 @@ std::vector<TSharedRef>& TServiceContextBase::RequestAttachments()
     return RequestAttachments_;
 }
 
-IAttributeDictionary& TServiceContextBase::RequestAttributes()
-{
-    return *RequestAttributes_;
-}
-
 TSharedRef TServiceContextBase::GetResponseBody()
 {
     return ResponseBody;
@@ -162,11 +150,6 @@ std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
     YASSERT(!IsOneWay());
 
     return ResponseAttachments_;
-}
-
-IAttributeDictionary& TServiceContextBase::ResponseAttributes()
-{
-    return *ResponseAttributes_;
 }
 
 TSharedRefArray TServiceContextBase::GetRequestMessage() const
@@ -356,16 +339,6 @@ std::vector<TSharedRef>& TServiceContextWrapper::RequestAttachments()
 std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
 {
     return UnderlyingContext->ResponseAttachments();
-}
-
-IAttributeDictionary& TServiceContextWrapper::RequestAttributes()
-{
-    return UnderlyingContext->RequestAttributes();
-}
-
-IAttributeDictionary& TServiceContextWrapper::ResponseAttributes()
-{
-    return UnderlyingContext->ResponseAttributes();
 }
 
 const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const 

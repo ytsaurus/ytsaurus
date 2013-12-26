@@ -4,6 +4,7 @@
 #include <core/misc/url.h>
 
 #include <core/ytree/ypath_proxy.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <core/yson/parser.h>
 
@@ -82,7 +83,9 @@ TFuture<Stroka> HandleRequest(IYPathServicePtr service, const Stroka& url)
             path = unescapedUrl;
         } else {
             path = unescapedUrl.substr(0, queryIndex);
-            ParseQuery(req->MutableAttributes(), unescapedUrl.substr(queryIndex + 1));
+            auto options = CreateEphemeralAttributes();
+            ParseQuery(options.get(), unescapedUrl.substr(queryIndex + 1));
+            ToProto(req->mutable_options(), *options);
         }
         req->SetPath(path);
         return ExecuteVerb(service, req).Apply(BIND(&OnResponse));

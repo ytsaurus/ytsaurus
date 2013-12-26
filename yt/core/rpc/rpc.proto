@@ -1,6 +1,5 @@
 package NYT.NRpc.NProto;
 
-import "yt/core/ytree/attributes.proto";
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 
@@ -14,7 +13,6 @@ message TRequestHeader
     optional NYT.NProto.TGuid realm_id = 8;
 
     optional bool one_way = 4;
-    optional NYT.NYTree.NProto.TAttributes attributes = 5;
     optional int64 request_start_time = 6;
     optional int64 retry_start_time = 7;
 
@@ -36,7 +34,6 @@ message TResponseHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
     required NYT.NProto.TError error = 2;
-    optional NYT.NYTree.NProto.TAttributes attributes = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

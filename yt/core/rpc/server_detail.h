@@ -45,9 +45,6 @@ public:
     virtual std::vector<TSharedRef>& RequestAttachments() override;
     virtual std::vector<TSharedRef>& ResponseAttachments() override;
 
-    virtual NYTree::IAttributeDictionary& RequestAttributes() override;
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
-
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
@@ -73,13 +70,11 @@ protected:
 
     TSharedRef RequestBody;
     std::vector<TSharedRef> RequestAttachments_;
-    std::unique_ptr<NYTree::IAttributeDictionary> RequestAttributes_;
     bool Replied;
     TError Error;
 
     TSharedRef ResponseBody;
     std::vector<TSharedRef> ResponseAttachments_;
-    std::unique_ptr<NYTree::IAttributeDictionary> ResponseAttributes_;
 
     Stroka RequestInfo;
     Stroka ResponseInfo;
@@ -132,9 +127,6 @@ public:
 
     virtual std::vector<TSharedRef>& RequestAttachments() override;
     virtual std::vector<TSharedRef>& ResponseAttachments() override;
-
-    virtual NYTree::IAttributeDictionary& RequestAttributes() override;
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
 
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;

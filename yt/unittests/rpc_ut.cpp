@@ -40,7 +40,6 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttributes);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
@@ -103,7 +102,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttributes));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplyingCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
@@ -119,7 +117,6 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttributes);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
@@ -130,6 +127,7 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegisteredCall);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, NotRegistredOneWay);
+
 private:
     // To signal for one-way rpc requests when processed the request
     Event* Event_;
@@ -318,41 +316,6 @@ TEST_F(TRpcTest, Attachments)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttributes)
-{
-    const auto& attributes = request->Attributes();
-    EXPECT_EQ(NYTree::TYsonString("stroka1"), attributes.GetYson("value1"));
-    EXPECT_EQ(NYTree::TYsonString("stroka2"), attributes.GetYson("value2"));
-    EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
-
-    auto& new_attributes = response->Attributes();
-    new_attributes.MergeFrom(attributes);
-    new_attributes.Remove("value1");
-    new_attributes.SetYson("value2", NYTree::TYsonString("another_stroka"));
-
-    context->Reply();
-}
-
-TEST_F(TRpcTest, Attributes)
-{
-    TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.ModifyAttributes();
-
-    request->MutableAttributes()->SetYson("value1", NYTree::TYsonString("stroka1"));
-    request->MutableAttributes()->SetYson("value2", NYTree::TYsonString("stroka2"));
-    request->MutableAttributes()->SetYson("value3", NYTree::TYsonString("stroka3"));
-
-    auto response = request->Invoke().Get();
-    const auto& attributes = response->Attributes();
-
-    EXPECT_FALSE(attributes.Contains("value1"));
-    EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
-    EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
 {
@@ -425,15 +388,6 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
     EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
 
-    auto& attributes = request->Attributes();
-    EXPECT_EQ(NYTree::TYsonString("world"), attributes.GetYson("hello"));
-    EXPECT_EQ(NYTree::TYsonString("42"), attributes.GetYson("value"));
-
-    EXPECT_EQ("world", attributes.Get<Stroka>("hello"));
-    EXPECT_EQ(42, attributes.Get<i64>("value"));
-
-    EXPECT_FALSE(attributes.FindYson("another_value").HasValue());
-
     Event_->Signal();
 }
 
@@ -448,9 +402,6 @@ TEST_F(TRpcTest, OneWaySend)
     request->Attachments().push_back(SharedRefFromString("Attachments"));
     request->Attachments().push_back(SharedRefFromString("are"));
     request->Attachments().push_back(SharedRefFromString("ok"));
-
-    request->MutableAttributes()->SetYson("hello", NYTree::TYsonString("world"));
-    request->MutableAttributes()->SetYson("value", NYTree::TYsonString("42"));
 
     auto response = request->Invoke().Get();
     EXPECT_EQ(TError::OK, response->GetError().GetCode());

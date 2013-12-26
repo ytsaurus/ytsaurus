@@ -2,8 +2,6 @@
 
 #include "public.h"
 #include "ypath_service.h"
-#include "ephemeral_attribute_owner.h"
-#include "attribute_provider.h"
 
 #include <core/misc/ref.h>
 #include <core/misc/property.h>
@@ -18,8 +16,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathRequest
-    : public TEphemeralAttributeOwner
-    , public NRpc::IClientRequest
+   : public NRpc::IClientRequest
 {
 public:
     explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
@@ -42,9 +39,6 @@ public:
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
     
-    virtual const NYTree::IAttributeDictionary& Attributes() const override;
-    virtual NYTree::IAttributeDictionary* MutableAttributes() override;
-
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
@@ -101,7 +95,6 @@ protected:
 
 class TYPathResponse
     : public TRefCounted
-    , public TEphemeralAttributeOwner
 {
     DEFINE_BYVAL_RW_PROPERTY(TError, Error);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);

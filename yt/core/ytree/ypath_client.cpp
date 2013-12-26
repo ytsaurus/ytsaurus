@@ -98,16 +98,6 @@ void TYPathRequest::SetStartTime(TInstant /*value*/)
     YUNREACHABLE();
 }
 
-const IAttributeDictionary& TYPathRequest::Attributes() const
-{
-    return TEphemeralAttributeOwner::Attributes();
-}
-
-IAttributeDictionary* TYPathRequest::MutableAttributes()
-{
-    return TEphemeralAttributeOwner::MutableAttributes();
-}
-
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const 
 {
     return Header_;
@@ -121,14 +111,8 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
 TSharedRefArray TYPathRequest::Serialize() const
 {
     auto bodyData = SerializeBody();
-
-    auto header = Header_;
-    if (HasAttributes()) {
-        ToProto(header.mutable_attributes(), Attributes());
-    }
-
     return CreateRequestMessage(
-        header,
+        Header_,
         std::move(bodyData),
         Attachments_);
 }
@@ -146,9 +130,6 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
     }
 
     Error_ = NYT::FromProto(header.error());
-    if (header.has_attributes()) {
-        SetAttributes(FromProto(header.attributes()));
-    }
 
     if (Error_.IsOK()) {
         // Deserialize body.
