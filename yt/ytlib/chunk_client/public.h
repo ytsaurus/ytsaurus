@@ -111,6 +111,9 @@ typedef TIntrusivePtr<TMultiChunkReaderConfig> TMultiChunkReaderConfigPtr;
 class TEncodingWriter;
 typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;
 
+class TEncodingChunkWriter;
+typedef TIntrusivePtr<TEncodingChunkWriter> TEncodingChunkWriterPtr;
+
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 
@@ -148,15 +151,6 @@ template <class TChunkWriter>
 class TMultiChunkSequentialWriter;
 
 ///////////////////////////////////////////////////////////////////////////////
-
-template <class TBuffer>
-class TKey;
-
-//template <class TStrType>
-//class TKeyPart;
-
-//typedef TKey<TBlobOutput> TOwningKey;
-typedef TKey<TFakeStringBufStore> TNonOwningKey;
 
 struct TRefCountedChunkSpec;
 typedef TIntrusivePtr<TRefCountedChunkSpec> TRefCountedChunkSpecPtr;

@@ -9,6 +9,7 @@ set( SRCS
   ${BASE}/client_block_cache.cpp
   ${BASE}/data_statistics.cpp
   ${BASE}/dispatcher.cpp
+  ${BASE}/encoding_chunk_writer.cpp
   ${BASE}/encoding_writer.cpp
   ${BASE}/erasure_reader.cpp
   ${BASE}/erasure_writer.cpp
@@ -42,6 +43,7 @@ set( HDRS
   ${BASE}/data_node_service_proxy.h
   ${BASE}/data_statistics.h
   ${BASE}/dispatcher.h
+  ${BASE}/encoding_chunk_writer.h
   ${BASE}/encoding_writer.h
   ${BASE}/erasure_reader.h
   ${BASE}/erasure_writer.h

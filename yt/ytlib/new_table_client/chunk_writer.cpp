@@ -197,6 +197,7 @@ bool TChunkWriter::EndRow()
     if (PreviousBlock) {
         FlushPreviousBlock();
 
+        /*
         if (!KeyIds.empty()) {
             auto* key = IndexExt.add_keys();
             for (const auto& id : KeyIds) {
@@ -219,7 +220,7 @@ bool TChunkWriter::EndRow()
                         YUNREACHABLE();
                 }
             }
-        }
+        }*/
     }
 
     if (CurrentBlock->GetSize() > Config->BlockSize) {
@@ -289,7 +290,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     } else {
         miscExt.set_sorted(true);
 
-        SetProtoExtension(Meta.mutable_extensions(), IndexExt);
+//        SetProtoExtension(Meta.mutable_extensions(), IndexExt);
         NTableClient::NProto::TKeyColumnsExt keyColumnsExt;
         for (int id : KeyIds) {
             keyColumnsExt.add_names(InputNameTable->GetName(id));

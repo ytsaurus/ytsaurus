@@ -25,9 +25,26 @@ message TBlockMeta
 {
     required int32 row_count = 1;
     required int32 block_size = 2;
+
+    // ToDo: move to extension
     repeated int32 fixed_column_sizes = 3;
     optional int32 variable_buffer_offset = 4;
     optional int32 end_of_key_flags_offset = 5;
+
+
+    extensions 100 to max;
+}
+
+message TVersionedBlockMeta
+{
+    extend TBlockMeta
+    {
+        optional TVersionedBlockMeta versioned_block_meta_ext = 100;
+    }
+
+    required int32 index_row_count = 1;
+    required int32 value_count = 2;
+    required int32 string_data_offset = 3;
 }
 
 message TBlockMetaExt
@@ -41,10 +58,10 @@ message TBlockIndexesExt
     repeated int32 index_in_name_table = 1;
 }
 
-// Chunk meta extension.
-message TIndexExt
+message TBlockIndexExt
 {
-    repeated NChunkClient.NProto.TKey keys = 1;
+    // Number of entries equals to block count.
+    repeated bytes entries = 1;
 }
 
 // Chunk meta extension.
@@ -53,10 +70,10 @@ message TKeyColumnsExt
     repeated string names = 1;
 }
 
-message TBoundaryKeys
+message TBoundaryKeysExt
 {
-    required bytes start = 1;
-    required bytes end = 2;
+    required bytes first = 1;
+    required bytes last = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

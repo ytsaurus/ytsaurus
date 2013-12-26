@@ -99,7 +99,6 @@ private:
     NChunkClient::NProto::TChunkMeta Meta;
     NProto::TBlockMetaExt BlockMetaExt;
     TTableSchema Schema;
-    NProto::TIndexExt IndexExt;
 
     void DoClose(TAsyncErrorPromise result);
     void FlushPreviousBlock();
