@@ -166,6 +166,37 @@ TEST_F(TElectionTest, JoinActiveQuorum)
     RunElections();
 }
 
+TEST_F(TElectionTest, Madness)
+{
+    Configure(3, 0);
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(0));
+
+    for (int id = 1; id < 3; id++) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+                response->set_state(EPeerState::Following);
+                response->set_vote_id(id);
+                ToProto(response->mutable_vote_epoch_id(), TEpochId());
+                response->set_priority(id);
+                response->set_self_id(id);
+                context->Reply();
+            }));
+    }
+
+    EXPECT_CALL(*CallbacksMock, OnStartLeading())
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopLeading())
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStartFollowing())
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopFollowing())
+        .Times(0);
+
+    RunElections();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
