@@ -255,7 +255,7 @@ class TServiceBase
 {
 protected:
     //! Describes a handler for a service method.
-    typedef TCallback<TClosure(IServiceContextPtr, const THandlerInvocationOptions&)> THandler;
+    typedef TCallback<TClosure(const IServiceContextPtr&, const THandlerInvocationOptions&)> THandler;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
@@ -500,10 +500,10 @@ private:
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
     TClosure method##Thunk( \
-        ::NYT::NRpc::IServiceContextPtr context, \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
         if (!typedContext->DeserializeRequest()) { \
             return TClosure(); \
         } \
@@ -521,13 +521,13 @@ private:
     void method( \
         TReq##method* request, \
         TRsp##method* response, \
-        TCtx##method##Ptr context)
+        const TCtx##method##Ptr& context)
 
 #define DEFINE_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
         TReq##method* request, \
         TRsp##method* response, \
-        TCtx##method##Ptr context)
+        const TCtx##method##Ptr& context)
 
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
@@ -542,7 +542,7 @@ private:
     typedef TCtx##method::TTypedRequest TReq##method; \
     \
     TClosure method##Thunk( \
-        ::NYT::NRpc::IServiceContextPtr context, \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
@@ -558,12 +558,12 @@ private:
     \
     void method( \
         TReq##method* request, \
-        TCtx##method##Ptr context)
+        const TCtx##method##Ptr& context)
 
 #define DEFINE_ONE_WAY_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
         TReq##method* request, \
-        TCtx##method##Ptr context)
+        const TCtx##method##Ptr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 

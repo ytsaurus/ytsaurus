@@ -31,10 +31,10 @@ namespace NYTree {
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
     void method##Thunk( \
-        ::NYT::NRpc::IServiceContextPtr context, \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
         if (!typedContext->DeserializeRequest()) \
             return; \
         this->method( \
@@ -46,13 +46,13 @@ namespace NYTree {
     void method( \
         TReq##method* request, \
         TRsp##method* response, \
-        TCtx##method##Ptr context)
+        const TCtx##method##Ptr& context)
 
 #define DEFINE_YPATH_SERVICE_METHOD(type, method) \
     void type::method( \
         TReq##method* request, \
         TRsp##method* response, \
-        TCtx##method##Ptr context)
+        const TCtx##method##Ptr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
