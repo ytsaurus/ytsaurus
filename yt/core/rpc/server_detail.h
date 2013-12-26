@@ -193,7 +193,7 @@ public:
 protected:
     volatile bool Started_;
 
-    NConcurrency::TReaderWriterSpinlock ServicesLock_;
+    NConcurrency::TReaderWriterSpinLock ServicesLock_;
     yhash_map<TServiceId, IServicePtr> ServiceMap_;
 
     virtual void DoStart();

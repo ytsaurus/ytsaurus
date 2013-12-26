@@ -474,7 +474,7 @@ private:
     NProfiling::TTagId ServiceTagId;
     NProfiling::TRateCounter RequestCounter;
 
-    NConcurrency::TReaderWriterSpinlock MethodMapLock;
+    NConcurrency::TReaderWriterSpinLock MethodMapLock;
     yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap;
 
     TSpinLock ActiveRequestsLock;

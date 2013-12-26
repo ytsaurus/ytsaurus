@@ -10,10 +10,10 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Single-writer multiple-readers spin lock.
-class TReaderWriterSpinlock
+class TReaderWriterSpinLock
 {
 public:
-    TReaderWriterSpinlock()
+    TReaderWriterSpinLock()
         : Value_(0)
     { }
 
@@ -67,12 +67,12 @@ private:
 
 struct TReaderSpinlockTraits
 {
-    static void Acquire(TReaderWriterSpinlock* spinlock)
+    static void Acquire(TReaderWriterSpinLock* spinlock)
     {
         spinlock->AcquireReader();
     }
 
-    static void Release(TReaderWriterSpinlock* spinlock)
+    static void Release(TReaderWriterSpinLock* spinlock)
     {
         spinlock->ReleaseReader();
     }
@@ -80,19 +80,19 @@ struct TReaderSpinlockTraits
 
 struct TWriterSpinlockTraits
 {
-    static inline void Acquire(TReaderWriterSpinlock* spinlock)
+    static inline void Acquire(TReaderWriterSpinLock* spinlock)
     {
         spinlock->AcquireWriter();
     }
 
-    static inline void Release(TReaderWriterSpinlock* spinlock)
+    static inline void Release(TReaderWriterSpinLock* spinlock)
     {
         spinlock->ReleaseWriter();
     }
 };
 
-typedef TGuard<TReaderWriterSpinlock, TReaderSpinlockTraits> TReaderGuard;
-typedef TGuard<TReaderWriterSpinlock, TWriterSpinlockTraits> TWriterGuard;
+typedef TGuard<TReaderWriterSpinLock, TReaderSpinlockTraits> TReaderGuard;
+typedef TGuard<TReaderWriterSpinLock, TWriterSpinlockTraits> TWriterGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
