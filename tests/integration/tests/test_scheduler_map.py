@@ -51,7 +51,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = 'cat'
         map(in_='//tmp/t1', out='//tmp/t2', command=command)
 
-        new_data = read('//tmp/t2')
+        new_data = read('//tmp/t2', verbose=False)
         assert new_data == original_data
 
     def test_two_inputs_at_the_same_time(self):
