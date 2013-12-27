@@ -28,6 +28,8 @@ set( HDRS
   ${BASE}/schema.h
   ${BASE}/versioned_row.h
   ${BASE}/unversioned_row.h
+  ${BASE}/versioned_reader.h
+  ${BASE}/versioned_writer.h
 )
 
 list(APPEND YT_SOURCE_FILES
