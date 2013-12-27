@@ -616,6 +616,9 @@ public:
 
     virtual TFuture<void> Seal(int recordCount) override
     {
+        YCHECK(recordCount <= RecordCount);
+        AtomicSet(RecordCount, recordCount);
+
         return TChangelogDispatcher::Get()->Seal(
             SyncChangelog,
             recordCount);
