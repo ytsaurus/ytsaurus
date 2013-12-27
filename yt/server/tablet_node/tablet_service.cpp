@@ -11,7 +11,10 @@
 
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 
+#include <ytlib/hydra/rpc_helpers.h>
+
 #include <server/hydra/hydra_manager.h>
+#include <server/hydra/mutation.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -22,6 +25,7 @@ using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NVersionedTableClient;
+using namespace NHydra;
 using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,17 +69,20 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, StartTransaction)
     auto startTimestamp = TTimestamp(request->start_timestamp());
     auto timeout = request->has_timeout() ? MakeNullable(TDuration::MilliSeconds(request->timeout())) : Null;
 
-    context->SetRequestInfo("TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %s",
+    auto transactionManager = Slot_->GetTransactionManager();
+    auto actualTimeout = transactionManager->GetActualTimeout(timeout);
+    request->set_timeout(actualTimeout.MilliSeconds());
+
+    context->SetRequestInfo("TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64,
         ~ToString(transactionId),
         startTimestamp,
-        timeout ? ~ToString(timeout->MilliSeconds()) : "<Null>");
+        timeout->MilliSeconds());
 
-    auto transactionManager = Slot_->GetTransactionManager();
     transactionManager
-        ->StartTransaction(transactionId, startTimestamp, timeout)
-        .Subscribe(BIND([=] (TError error) {
-            context->Reply(error);
-        }));
+        ->CreateStartTransactionMutation(*request)
+        ->OnSuccess(CreateRpcSuccessHandler(context))
+        ->OnError(CreateRpcErrorHandler(context))
+        ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTabletService, Read)

@@ -4,6 +4,8 @@
 
 #include <core/actions/signal.h>
 
+#include <ytlib/tablet_client/tablet_service.pb.h>
+
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/entity_map.h>
 
@@ -40,10 +42,10 @@ public:
 
     ~TTransactionManager();
 
-    TAsyncError StartTransaction(
-        const TTransactionId& transactionId,
-        TTimestamp startTimestamp,
-        const TNullable<TDuration>& timeout);
+    TDuration GetActualTimeout(TNullable<TDuration> timeout);
+
+    NHydra::TMutationPtr CreateStartTransactionMutation(
+        const NTabletClient::NProto::TReqStartTransaction& request);
 
     //! Finds transaction by id, throws if nothing is found.
     TTransaction* GetTransactionOrThrow(const TTransactionId& id);
@@ -52,7 +54,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
     /// ITransactionManager overrides.
     virtual void PrepareTransactionCommit(

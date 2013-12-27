@@ -10,8 +10,6 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/tablet_client/tablet_service.pb.h>
-
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 
@@ -25,7 +23,7 @@ namespace NTabletNode {
 using namespace NTransactionClient;
 using namespace NHydra;
 using namespace NCellNode;
-using namespace NTabletNode::NProto;
+using namespace NTabletClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,20 +73,21 @@ public:
     }
 
 
-    TAsyncError StartTransaction(
-        const TTransactionId& transactionId,
-        TTimestamp startTimestamp,
-        const TNullable<TDuration>& timeout)
+    TDuration GetActualTimeout(TNullable<TDuration> timeout)
     {
-        TReqStartTransaction hydraRequest;
-        ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-        hydraRequest.set_start_timestamp(startTimestamp);
-        hydraRequest.set_timeout(GetActualTimeout(timeout).MilliSeconds());
-        return CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-            ->Commit()
-            .Apply(BIND([](TErrorOr<TMutationResponse> result) {
-                return TError(result);
-            }));
+        return std::min(
+            timeout.Get(Config_->DefaultTransactionTimeout),
+            Config_->MaxTransactionTimeout);
+    }
+
+    TMutationPtr CreateStartTransactionMutation(
+        TReqStartTransaction request)
+    {
+        return CreateMutation(
+            Slot_->GetHydraManager(),
+            request,
+            this,
+            &TImpl::HydraStartTransaction);
     }
 
 
@@ -228,13 +227,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
-    TDuration GetActualTimeout(TNullable<TDuration> timeout)
-    {
-        return std::min(
-            timeout.Get(Config_->DefaultTransactionTimeout),
-            Config_->MaxTransactionTimeout);
-    }
     
     void CreateLease(const TTransaction* transaction, TDuration timeout)
     {
@@ -403,7 +395,7 @@ TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     TTabletSlot* slot,
     TBootstrap* bootstrap)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         config,
         slot,
         bootstrap))
@@ -412,20 +404,20 @@ TTransactionManager::TTransactionManager(
 TTransactionManager::~TTransactionManager()
 { }
 
-TAsyncError TTransactionManager::StartTransaction(
-    const TTransactionId& transactionId,
-    TTimestamp startTimestamp,
-    const TNullable<TDuration>& timeout)
+TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
 {
-    return Impl->StartTransaction(
-        transactionId,
-        startTimestamp,
-        timeout);
+    return Impl_->GetActualTimeout(timeout);
+}
+
+TMutationPtr TTransactionManager::CreateStartTransactionMutation(
+    const TReqStartTransaction& request)
+{
+    return Impl_->CreateStartTransactionMutation(request);
 }
 
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
 {
-    return Impl->GetTransactionOrThrow(id);
+    return Impl_->GetTransactionOrThrow(id);
 }
 
 void TTransactionManager::PrepareTransactionCommit(
@@ -433,7 +425,7 @@ void TTransactionManager::PrepareTransactionCommit(
     bool persistent,
     TTimestamp prepareTimestamp)
 {
-    Impl->PrepareTransactionCommit(
+    Impl_->PrepareTransactionCommit(
         transactionId,
         persistent,
         prepareTimestamp);
@@ -443,26 +435,26 @@ void TTransactionManager::CommitTransaction(
     const TTransactionId& transactionId,
     TTimestamp commitTimestamp)
 {
-    Impl->CommitTransaction(transactionId, commitTimestamp);
+    Impl_->CommitTransaction(transactionId, commitTimestamp);
 }
 
 void TTransactionManager::AbortTransaction(const TTransactionId& transactionId)
 {
-    Impl->AbortTransaction(transactionId);
+    Impl_->AbortTransaction(transactionId);
 }
 
 void TTransactionManager::PingTransaction(
     const TTransactionId& transactionId,
     const NHive::NProto::TReqPingTransaction& request)
 {
-    Impl->PingTransaction(transactionId, request);
+    Impl_->PingTransaction(transactionId, request);
 }
 
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl);
-DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, *Impl);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
