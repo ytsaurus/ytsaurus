@@ -41,7 +41,7 @@ TOwningKey GetMaxKey(const TChunk* chunk)
         chunk->ChunkMeta().extensions());
     TOwningKey key;
     FromProto(&key, boundaryKeysExt.end());
-    return GetKeySuccessor(key);
+    return GetKeySuccessor(key.Get());
 }
 
 TOwningKey GetMaxKey(const TChunkList* chunkList)

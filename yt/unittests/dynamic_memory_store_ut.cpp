@@ -1,12 +1,17 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
+#include <ytlib/api/transaction.h>
+
+#include <ytlib/new_table_client/versioned_reader.h>
+
 namespace NYT {
 namespace NTabletNode {
 namespace {
 
 using namespace NTransactionClient;
 using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,14 +87,34 @@ protected:
 
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
     {
-        auto scanner = Store->CreateScanner();
-        auto scannerTimestamp = scanner->Find(key.Get(), timestamp);
+        auto keySuccessor = GetKeySuccessor(key.Get());
+        auto reader = Store->CreateReader(
+            key.Get(),
+            keySuccessor.Get(),
+            timestamp,
+            TColumnFilter());
 
-        if (scannerTimestamp == NullTimestamp) {
+        if (!reader) {
             return TUnversionedOwningRow();
         }
 
-        if (scannerTimestamp & TombstoneTimestampMask) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(reader->Open().Get());
+
+        std::vector<TVersionedRow> rows;
+        if (!reader->Read(&rows)) {
+            return TUnversionedOwningRow();
+        }
+
+        EXPECT_LE(rows.size(), 1);
+        if (rows.empty()) {
+            return TUnversionedOwningRow();
+        }
+
+        auto row = rows[0];
+
+        EXPECT_EQ(row.GetTimestampCount(), 1);
+        auto rowTimestamp = row.BeginTimestamps()[0];
+        if (rowTimestamp & TombstoneTimestampMask) {
             return TUnversionedOwningRow();
         }
 
@@ -99,18 +124,19 @@ protected:
         int schemaColumnCount = static_cast<int>(Tablet->Schema().Columns().size());
 
         // Keys
-        const auto* keys = scanner->GetKeys();
-        for (int index = 0; index < keyCount; ++index) {
-            builder.AddValue(keys[index]);
+        const auto* keys = row.BeginKeys();
+        for (int id = 0; id < keyCount; ++id) {
+            builder.AddValue(keys[id]);
         }
 
         // Fixed values
-        for (int index = 0; index < schemaColumnCount - keyCount; ++index) {
-            const auto* value = scanner->GetFixedValue(index);
-            builder.AddValue(
-                value
-                ? *static_cast<const TUnversionedValue*>(value)
-                : MakeUnversionedSentinelValue(EValueType::Null, index + keyCount));
+        int versionedIndex = 0;
+        for (int id = keyCount; id < schemaColumnCount; ++id) {
+            if (versionedIndex < row.GetValueCount() && row.BeginValues()[versionedIndex].Id == id) {
+                builder.AddValue(row.BeginValues()[versionedIndex++]);
+            } else {
+                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+            }
         }
 
         return builder.Finish();
@@ -133,18 +159,21 @@ protected:
             auto it = expectedRowParts.find(name);
             switch (value.Type) {
                 case EValueType::Integer:
+                    ASSERT_TRUE(it != expectedRowParts.end());
                     ASSERT_EQ(
                         it->second->GetValue<i64>(),
                         value.Data.Integer);
                     break;
 
                 case EValueType::Double:
+                    ASSERT_TRUE(it != expectedRowParts.end());
                     ASSERT_EQ(
                         it->second->GetValue<double>(),
                         value.Data.Double);
                     break;
 
                 case EValueType::String:
+                    ASSERT_TRUE(it != expectedRowParts.end());
                     ASSERT_EQ(
                         it->second->GetValue<Stroka>(),
                         Stroka(value.Data.String, value.Length));

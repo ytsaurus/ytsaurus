@@ -304,8 +304,28 @@ bool IsValueSuccessor(
 
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 {
-    TKeyComparer comparer(prefixLength);
-    return comparer(lhs, rhs);
+    return CompareRows(
+        lhs.Begin(),
+        lhs.Begin() + std::min(lhs.GetCount(), prefixLength),
+        rhs.Begin(),
+        rhs.Begin() + std::min(rhs.GetCount(), prefixLength));
+}
+
+int CompareRows(
+    const TUnversionedValue* lhsBegin,
+    const TUnversionedValue* lhsEnd,
+    const TUnversionedValue* rhsBegin,
+    const TUnversionedValue* rhsEnd)
+{
+    auto* lhsCurrent = lhsBegin;
+    auto* rhsCurrent = rhsBegin;
+    while (lhsCurrent != lhsEnd && rhsCurrent != rhsEnd) {
+        int result = CompareRowValues(*lhsCurrent++, *rhsCurrent++);
+        if (result != 0) {
+            return result;
+        }
+    }
+    return (lhsEnd - lhsBegin) - (rhsEnd - rhsBegin);
 }
 
 bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
@@ -414,9 +434,9 @@ size_t GetUnversionedRowDataSize(int valueCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType)
+TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType)
 {
-    TUnversionedOwningRowBuilder builder;
+    TUnversionedOwningRowBuilder builder(key.GetCount() + 1);
     for (int index = 0; index < prefixLength; ++index) {
         builder.AddValue(key[index]);
     }
@@ -424,7 +444,7 @@ TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueTy
     return builder.Finish();
 }
 
-TOwningKey GetKeySuccessor(const TOwningKey& key)
+TOwningKey GetKeySuccessor(TKey key)
 {
     return GetKeySuccessorImpl(
         key,
@@ -432,7 +452,7 @@ TOwningKey GetKeySuccessor(const TOwningKey& key)
         EValueType::Min);
 }
 
-TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength)
+TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
 {
     YASSERT(prefixLength <= key.GetCount());
     return GetKeySuccessorImpl(
@@ -694,6 +714,112 @@ void TUnversionedOwningRow::Load(TStreamLoadContext& context)
     Stroka data;
     ::NYT::Load(context, data);
     *this = DeserializeFromString(data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/)
+{
+    ValueCapacity_ = initialValueCapacity;
+    RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+
+    auto* header = GetHeader();
+    header->Count = 0;
+}
+
+void TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
+{
+    if (GetHeader()->Count == ValueCapacity_) {
+        ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
+        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+    }
+
+    auto* header = GetHeader();
+    *GetValue(header->Count) = value;
+    ++header->Count;
+}
+
+NYT::NVersionedTableClient::TUnversionedRow TUnversionedRowBuilder::GetRow()
+{
+    return TUnversionedRow(GetHeader());
+}
+
+TUnversionedRowHeader* TUnversionedRowBuilder::GetHeader()
+{
+    return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
+}
+
+TUnversionedValue* TUnversionedRowBuilder::GetValue(int index)
+{
+    return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapacity /*= 16*/)
+    : InitialValueCapacity_(initialValueCapacity)
+{
+    Init();
+}
+
+void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
+{
+    if (GetHeader()->Count == ValueCapacity_) {
+        ValueCapacity_ *= 2;
+        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+    }
+
+    auto* header = GetHeader();
+    auto* newValue = GetValue(header->Count);
+    *newValue = value;
+
+    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+        if (StringData_.length() + value.Length > StringData_.capacity()) {
+            char* oldStringData = const_cast<char*>(StringData_.begin());
+            StringData_.reserve(std::max(
+                StringData_.capacity() * 2,
+                StringData_.length() + value.Length));
+            char* newStringData = const_cast<char*>(StringData_.begin());
+            for (int index = 0; index < header->Count; ++index) {
+                auto* existingValue = GetValue(index);
+                if (existingValue->Type == EValueType::String || existingValue->Type == EValueType::Any) {
+                    existingValue->Data.String = newStringData + (existingValue->Data.String - oldStringData);
+                }
+            }
+        }
+        newValue->Data.String = const_cast<char*>(StringData_.end());
+        StringData_.append(value.Data.String, value.Data.String + value.Length);
+    }
+
+    ++header->Count;
+}
+
+NYT::NVersionedTableClient::TUnversionedOwningRow TUnversionedOwningRowBuilder::Finish()
+{
+    auto row = TUnversionedOwningRow(
+        TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
+        std::move(StringData_));
+    Init();
+    return row;
+}
+
+void TUnversionedOwningRowBuilder::Init()
+{
+    ValueCapacity_ = InitialValueCapacity_;
+    RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+
+    auto* header = GetHeader();
+    header->Count = 0;
+}
+
+TUnversionedRowHeader* TUnversionedOwningRowBuilder::GetHeader()
+{
+    return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
+}
+
+TUnversionedValue* TUnversionedOwningRowBuilder::GetValue(int index)
+{
+    return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

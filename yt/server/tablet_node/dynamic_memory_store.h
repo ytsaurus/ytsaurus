@@ -43,7 +43,12 @@ public:
         bool prewrite);
 
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
-
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        NVersionedTableClient::TKey lowerKey,
+        NVersionedTableClient::TKey upperKey,
+        TTimestamp timestamp,
+        const NApi::TColumnFilter& columnFilter) override;
+        
     void CheckLockAndMaybeMigrateRow(
         NVersionedTableClient::TKey key,
         TTransaction* transaction,
@@ -63,6 +68,7 @@ public:
     
 private:
     class TScanner;
+    class TReader;
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;

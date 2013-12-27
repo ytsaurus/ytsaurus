@@ -71,11 +71,19 @@ class TBlockWriter;
 class TChunkWriter;
 typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
 
+// TODO(babenko): deprecated, remove
 struct IReader;
 typedef TIntrusivePtr<IReader> IReaderPtr;
 
+// TODO(babenko): deprecated, remove
 struct IWriter;
 typedef TIntrusivePtr<IWriter> IWriterPtr;
+
+struct IVersionedReader;
+typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
+
+struct IVersionedWriter;
+typedef TIntrusivePtr<IVersionedWriter> IVersionedWriterPtr;
 
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;

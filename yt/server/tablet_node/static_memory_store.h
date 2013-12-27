@@ -79,6 +79,14 @@ public:
     ~TStaticMemoryStore();
 
     virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        NVersionedTableClient::TKey lowerKey,
+        NVersionedTableClient::TKey upperKey,
+        TTimestamp timestamp,
+        const NApi::TColumnFilter& columnFilter) override
+    {
+        YUNREACHABLE();
+    }
 
 private:
     class TScanner;

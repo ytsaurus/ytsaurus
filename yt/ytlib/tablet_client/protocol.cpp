@@ -233,6 +233,7 @@ public:
             for (int index = 0; index < count - 1; ++index) {
                 filter.Indexes.push_back(ReadUInt32());
             }
+            std::sort(filter.Indexes.begin(), filter.Indexes.end());
         }
         return filter;
     }

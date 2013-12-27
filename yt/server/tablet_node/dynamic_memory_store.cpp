@@ -11,8 +11,11 @@
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/versioned_row.h>
+#include <ytlib/new_table_client/versioned_reader.h>
 
 #include <ytlib/tablet_client/config.h>
+
+#include <ytlib/api/transaction.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -22,6 +25,7 @@ using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,6 +298,157 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicMemoryStore::TReader
+    : public IVersionedReader
+{
+public:
+    TReader(
+        TDynamicMemoryStorePtr store,
+        NVersionedTableClient::TKey lowerKey,
+        NVersionedTableClient::TKey upperKey,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter)
+        : Store_(store)
+        , LowerKey_(lowerKey)
+        , UpperKey_(upperKey)
+        , Timestamp_(timestamp)
+        , ColumnFilter_(columnFilter)
+        , KeyCount_(Store_->Tablet_->KeyColumns().size())
+        , SchemaValueCount_(Store_->Tablet_->Schema().Columns().size())
+        , TreeScanner_(Store_->Tree_.get())
+        , Pool_(1024)
+        , Finished_(false)
+    { }
+
+    virtual TAsyncError Open() override
+    {
+        TreeScanner_->BeginScan(LowerKey_);
+        static auto result = MakeFuture(TError());
+        return result;
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        if (Finished_) {
+            return false;
+        }
+
+        rows->clear();
+
+        TKeyPrefixComparer keyComparer(KeyCount_);
+
+        while (TreeScanner_->IsValid() && rows->size() < MaxRowsPerRead) {
+            const auto* rowKeys = TreeScanner_->GetCurrent().GetKeys();
+            if (CompareRows(rowKeys, rowKeys + KeyCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
+                break;
+
+            auto row = TryProduceRow();
+            if (row) {
+                rows->push_back(row);
+            }
+
+            TreeScanner_->Advance();
+        }
+
+        if (rows->empty()) {
+            Finished_ = true;
+            return false;
+        }
+
+        return true;
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        YUNREACHABLE();
+    }
+
+private:
+    TDynamicMemoryStorePtr Store_;
+    NVersionedTableClient::TKey LowerKey_;
+    NVersionedTableClient::TKey UpperKey_;
+    TTimestamp Timestamp_;
+    TColumnFilter ColumnFilter_;
+
+    int KeyCount_;
+    int SchemaValueCount_;
+
+    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> TreeScanner_;
+
+    TChunkedMemoryPool Pool_;
+    
+    bool Finished_;
+
+    static const size_t MaxRowsPerRead = 1024;
+
+
+    TVersionedRow TryProduceRow()
+    {
+        auto dynamicRow = TreeScanner_->GetCurrent();
+
+        if (Timestamp_ != LastCommittedTimestamp && dynamicRow.GetPrepareTimestamp() < Timestamp_) {
+            WaitFor(dynamicRow.GetTransaction()->GetFinished());
+        }
+
+        auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
+        const auto* minTimestampPtr = std::get<0>(FindVersionedValue(
+            timestampList,
+            Timestamp_,
+            [] (TTimestamp value) {
+                return value & TimestampValueMask;
+            }));
+
+        if (!minTimestampPtr) {
+            return TVersionedRow();
+        }
+
+        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyCount_, SchemaValueCount_ - KeyCount_, 1);
+        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyCount_ * sizeof (TUnversionedValue));
+
+        auto minTimestamp = *minTimestampPtr;
+        if (minTimestamp & TombstoneTimestampMask) {
+            versionedRow.GetHeader()->ValueCount = 0;
+            versionedRow.BeginTimestamps()[0] = minTimestamp;
+            return versionedRow;
+        }
+
+        auto* currentRowValue = versionedRow.BeginValues();
+        auto fillValue = [&] (int index) {
+            auto list = dynamicRow.GetFixedValueList(index, KeyCount_);
+            auto* value = std::get<0>(FindVersionedValue(
+                list,
+                Timestamp_,
+                [] (const TVersionedValue& value) {
+                    return value.Timestamp;
+                }));
+            if (value && value->Timestamp >= minTimestamp) {
+                *currentRowValue++ = *value;
+            }
+        };
+
+        if (ColumnFilter_.All) {
+            for (int index = 0; index < SchemaValueCount_ - KeyCount_; ++index) {
+                fillValue(index);
+            }
+        } else {
+            for (int index : ColumnFilter_.Indexes) {
+                fillValue(index - KeyCount_);
+            }
+        }
+
+        versionedRow.GetHeader()->ValueCount = currentRowValue - versionedRow.BeginValues();
+
+        versionedRow.BeginTimestamps()[0] =
+            minTimestamp |
+            (minTimestampPtr == timestampList.Begin() ? IncrementalTimestampMask : 0);
+
+        return versionedRow;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDynamicMemoryStore::TDynamicMemoryStore(
     TTabletManagerConfigPtr config,
     TTablet* tablet)
@@ -520,6 +675,20 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 std::unique_ptr<IStoreScanner> TDynamicMemoryStore::CreateScanner()
 {
     return std::unique_ptr<IStoreScanner>(new TScanner(this));
+}
+
+IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
+    NVersionedTableClient::TKey lowerKey,
+    NVersionedTableClient::TKey upperKey,
+    TTimestamp timestamp,
+    const NApi::TColumnFilter& columnFilter)
+{
+    return New<TReader>(
+        this,
+        lowerKey,
+        upperKey,
+        timestamp,
+        columnFilter);
 }
 
 void TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(

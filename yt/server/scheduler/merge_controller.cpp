@@ -1206,7 +1206,7 @@ private:
                     return;
                 }
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
                 //LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
                 //    globalOpenedSlices.size(),
                 //    ~ToString(nextBreakpoint));
@@ -1443,7 +1443,7 @@ private:
 
         int openedSlicesCount = 0;
         TOwningKey previousKey;
-        previousKey = GetKeySuccessor(previousKey);
+        previousKey = GetKeySuccessor(previousKey.Get());
 
         for (int i = 0; i < Endpoints.size(); ++i) {
             auto& endpoint = Endpoints[i];
@@ -1560,7 +1560,7 @@ private:
             if (HasLargeActiveTask()) {
                 YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
                 //LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
                 //    openedSlices.size(),
                 //    ~ToString(nextBreakpoint));

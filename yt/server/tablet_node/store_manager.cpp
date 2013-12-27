@@ -6,12 +6,17 @@
 #include "compaction.h"
 #include "config.h"
 
+#include <core/misc/small_vector.h>
+
 #include <core/concurrency/fiber.h>
+#include <core/concurrency/parallel_collector.h>
 
 #include <ytlib/tablet_client/protocol.h>
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/versioned_row.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/versioned_reader.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -86,51 +91,90 @@ void TStoreManager::LookupRow(
         }
     }
 
-    // TODO(babenko): replace with small vector once it supports move semantics
-    std::vector<std::unique_ptr<IStoreScanner>> scanners;
+    SmallVector<IVersionedReaderPtr, 16> rowReaders;
 
-    scanners.push_back(ActiveDynamicMemoryStore_->CreateScanner());
-    if (PassiveDynamicMemoryStore_) {
-        scanners.push_back(PassiveDynamicMemoryStore_->CreateScanner());
+    auto addReaderIfNotNull = [&] (IVersionedReaderPtr reader) {
+        if (reader) {
+            rowReaders.push_back(std::move(reader));
+        }
+    };
+
+    // TODO(babenko): handle all stores
+    auto keySuccessor = GetKeySuccessor(key);
+    auto rowReader = ActiveDynamicMemoryStore_->CreateReader(
+        key,
+        keySuccessor.Get(),
+        timestamp,
+        columnFilter);
+    if (rowReader) {
+        rowReaders.push_back(std::move(rowReader));
     }
-    if (StaticMemoryStore_) {
-        scanners.push_back(StaticMemoryStore_->CreateScanner());
+
+    // Open readers.
+    TIntrusivePtr<TParallelCollector<void>> openCollector;
+    for (const auto& reader : rowReaders) {
+        auto asyncResult = reader->Open();
+        if (asyncResult.IsSet()) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
+        } else {
+            if (!openCollector) {
+                openCollector = New<TParallelCollector<void>>();
+            }
+            openCollector->Collect(asyncResult);
+        }
     }
 
-    bool keysWritten = false;
+    if (openCollector) {
+        auto result = WaitFor(openCollector->Complete());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
 
+    // Merge values.
     TUnversionedRowBuilder builder;
-
-    for (const auto& scanner : scanners) {
-        auto scannerTimestamp = scanner->Find(key, timestamp);
-            
-        if (scannerTimestamp == NullTimestamp)
+    bool keysWritten = false;
+    std::vector<TVersionedRow> rows;
+    TKeyPrefixComparer keyComparer(keyColumnCount);
+    
+    for (const auto& reader : rowReaders) {
+        if (!reader->Read(&rows))
             continue;
-            
-        if (scannerTimestamp & TombstoneTimestampMask)
+
+        YASSERT(!rows.empty());
+        auto row = rows[0];
+
+        YASSERT(row.GetKeyCount() == keyColumnCount);
+        const auto* rowKeys = row.BeginKeys();
+
+        if (keyComparer(key.Begin(), row.BeginKeys()) != 0)
+            continue;
+
+        YASSERT(row.GetTimestampCount() == 1);
+        auto rowTimestamp = row.BeginTimestamps()[0];
+
+        if (rowTimestamp & TombstoneTimestampMask)
             break;
 
         if (!keysWritten) {
-            const auto* keys = scanner->GetKeys();
             for (int id = 0; id < keyColumnCount; ++id) {
                 if (columnFilterFlags[id]) {
-                    builder.AddValue(keys[id]);
+                    builder.AddValue(rowKeys[id]);
+                    columnFilterFlags[id] = false;
                 }
             }
             keysWritten = true;
         }
 
-        for (int id = keyColumnCount; id < schemaColumnCount; ++id) {
+        const auto* rowValues = row.BeginValues();
+        for (int index = 0; index < row.GetValueCount(); ++index) {
+            const auto& value = rowValues[index];
+            int id = value.Id;
             if (columnFilterFlags[id]) {
-                const auto* value = scanner->GetFixedValue(id - keyColumnCount);
-                if (value) {
-                    builder.AddValue(*value);
-                    columnFilterFlags[id] = false;
-                }
+                builder.AddValue(value);
+                columnFilterFlags[id] = false;
             }
         }
 
-        if (!(scannerTimestamp & IncrementalTimestampMask))
+        if (!(rowTimestamp & IncrementalTimestampMask))
             break;
     }
 

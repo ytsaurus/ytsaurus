@@ -1852,7 +1852,7 @@ private:
                 lastPartition->Maniac = true;
                 YCHECK(skippedCount >= 1);
 
-                auto successorKey = GetKeySuccessor(*sampleKey);
+                auto successorKey = GetKeySuccessor(sampleKey->Get());
                 AddPartition(successorKey);
             }
         }

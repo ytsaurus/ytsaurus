@@ -4,6 +4,8 @@
 
 #include <ytlib/new_table_client/public.h>
 
+#include <ytlib/api/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -13,6 +15,19 @@ struct IStore
     : public TRefCounted
 {
     virtual std::unique_ptr<IStoreScanner> CreateScanner() = 0;
+
+    //! Returns a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
+    /*!
+    *  If no matching row is found then |nullptr| might be returned.
+    *
+    *  The reader will be providing values filtered by |timestamp| and columns
+    *  filtered by |columnFilter|.
+    */
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        NVersionedTableClient::TKey lowerKey,
+        NVersionedTableClient::TKey upperKey,
+        TTimestamp timestamp,
+        const NApi::TColumnFilter& columnFilter) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,13 +40,6 @@ struct IStoreScanner
     //! Positions the scanner at a row with a given |key| filtering by a given |timestamp|.
     /*!
      *  If no row is found then |NullTimestamp| is returned.
-     *
-     *  If the row is found and is known to be deleted then the deletion
-     *  timestamp combined with |TombstoneTimestampMask| is returned.
-     * 
-     *  If the row is found and is known to exist then the earliest modification
-     *  timestamp is returned. If the store has no row deletion marker for |key|
-     *  (up to |timestamp|) then the latter is combined with |IncrementalTimestampMask|.
      */
     virtual TTimestamp Find(NVersionedTableClient::TKey key, TTimestamp timestamp) = 0;
 

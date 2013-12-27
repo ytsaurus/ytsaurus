@@ -294,7 +294,7 @@ private:
                 auto lower = NYT::FromProto<TUnversionedOwningRow>(boundaryKeys->start());
                 auto upper = NYT::FromProto<TUnversionedOwningRow>(boundaryKeys->end());
                 // Boundary keys are exact, so advance right bound to its successor.
-                upper = GetKeySuccessor(upper);
+                upper = GetKeySuccessor(upper.Get());
                 SetLowerBound(&chunkSpec, lower);
                 SetUpperBound(&chunkSpec, upper);
             }

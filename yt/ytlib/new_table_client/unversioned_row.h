@@ -115,6 +115,14 @@ int CompareRows(
     TUnversionedRow rhs,
     int prefixLength = std::numeric_limits<int>::max());
 
+//! Another version of comparison function, now iterator-based.
+int CompareRows(
+    const TUnversionedValue* lhsBegin,
+    const TUnversionedValue* lhsEnd,
+    const TUnversionedValue* rhsBegin,
+    const TUnversionedValue* rhsEnd);
+
+
 bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
 bool operator <= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
@@ -237,12 +245,12 @@ static_assert(
 // by appending a |EValueType::Min| sentinel.
 //
 // TODO(sandello): Alter this function to use AdvanceToValueSuccessor().
-TOwningKey GetKeySuccessor(const TOwningKey& key);
+TOwningKey GetKeySuccessor(TKey key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by triming |key| to |prefixLength| and appending
 //! a |EValueType::Max| sentinel.
-TOwningKey GetKeyPrefixSuccessor(const TOwningKey& key, int prefixLength);
+TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
 
 //! Returns the key with no components.
 TOwningKey EmptyKey();
@@ -451,46 +459,18 @@ private:
 class TUnversionedRowBuilder
 {
 public:
-    explicit TUnversionedRowBuilder(int initialValueCapacity = 16)
-    {
-        ValueCapacity_ = initialValueCapacity;
-        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+    explicit TUnversionedRowBuilder(int initialValueCapacity = 16);
 
-        auto* header = GetHeader();
-        header->Count = 0;
-    }
+    void AddValue(const TUnversionedValue& value);
 
-    void AddValue(const TUnversionedValue& value)
-    {
-        if (GetHeader()->Count == ValueCapacity_) {
-            ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
-            RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
-        }
-
-        auto* header = GetHeader();
-        *GetValue(header->Count) = value;
-        ++header->Count;
-    }
-
-    TUnversionedRow GetRow()
-    {
-        return TUnversionedRow(GetHeader());
-    }
+    TUnversionedRow GetRow();
 
 private:
     int ValueCapacity_;
     TBlob RowData_;
 
-
-    TUnversionedRowHeader* GetHeader()
-    {
-        return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
-    }
-
-    TUnversionedValue* GetValue(int index)
-    {
-        return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
-    }
+    TUnversionedRowHeader* GetHeader();
+    TUnversionedValue* GetValue(int index);
 
 };
 
@@ -501,52 +481,11 @@ private:
 class TUnversionedOwningRowBuilder
 {
 public:
-    explicit TUnversionedOwningRowBuilder(int initialValueCapacity = 16)
-        : InitialValueCapacity_(initialValueCapacity)
-    {
-        Init();
-    }
+    explicit TUnversionedOwningRowBuilder(int initialValueCapacity = 16);
 
-    void AddValue(const TUnversionedValue& value)
-    {
-        if (GetHeader()->Count == ValueCapacity_) {
-            ValueCapacity_ *= 2;
-            RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
-        }
+    void AddValue(const TUnversionedValue& value);
 
-        auto* header = GetHeader();
-        auto* newValue = GetValue(header->Count);
-        *newValue = value;
-
-        if (value.Type == EValueType::String || value.Type == EValueType::Any) {
-            if (StringData_.length() + value.Length > StringData_.capacity()) {
-                char* oldStringData = const_cast<char*>(StringData_.begin());
-                StringData_.reserve(std::max(
-                    StringData_.capacity() * 2,
-                    StringData_.length() + value.Length));
-                char* newStringData = const_cast<char*>(StringData_.begin());
-                for (int index = 0; index < header->Count; ++index) {
-                    auto* existingValue = GetValue(index);
-                    if (existingValue->Type == EValueType::String || existingValue->Type == EValueType::Any) {
-                        existingValue->Data.String = newStringData + (existingValue->Data.String - oldStringData);
-                    }
-                }
-            }
-            newValue->Data.String = const_cast<char*>(StringData_.end());
-            StringData_.append(value.Data.String, value.Data.String + value.Length);
-        }
-
-        ++header->Count;
-    }
-
-    TUnversionedOwningRow Finish()
-    {
-        auto row = TUnversionedOwningRow(
-            TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
-            std::move(StringData_));
-        Init();
-        return row;
-    }
+    TUnversionedOwningRow Finish();
 
 private:
     int InitialValueCapacity_;
@@ -555,24 +494,9 @@ private:
     TBlob RowData_;
     Stroka StringData_;
 
-    void Init()
-    {
-        ValueCapacity_ = InitialValueCapacity_;
-        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
-
-        auto* header = GetHeader();
-        header->Count = 0;
-    }
-
-    TUnversionedRowHeader* GetHeader()
-    {
-        return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
-    }
-
-    TUnversionedValue* GetValue(int index)
-    {
-        return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
-    }
+    void Init();
+    TUnversionedRowHeader* GetHeader();
+    TUnversionedValue* GetValue(int index);
 
 };
 
