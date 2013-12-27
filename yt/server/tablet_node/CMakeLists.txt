@@ -12,9 +12,9 @@ set( SRCS
   ${BASE}/transaction_manager.cpp
   ${BASE}/tablet_service.cpp
   ${BASE}/dynamic_memory_store.cpp
-  ${BASE}/static_memory_store.cpp
+#  ${BASE}/static_memory_store.cpp
   ${BASE}/store_manager.cpp
-  ${BASE}/compaction.cpp
+#  ${BASE}/compaction.cpp
   ${BASE}/dynamic_memory_store_bits.cpp
 )
 set( HDRS
@@ -33,10 +33,10 @@ set( HDRS
   ${BASE}/store.h
   ${BASE}/dynamic_memory_store.h
   ${BASE}/dynamic_memory_store_bits.h
-  ${BASE}/static_memory_store.h
-  ${BASE}/static_memory_store_bits.h
+#  ${BASE}/static_memory_store.h
+#  ${BASE}/static_memory_store_bits.h
   ${BASE}/store_manager.h
-  ${BASE}/compaction.h
+#  ${BASE}/compaction.h
 )
 
 list(APPEND YT_SOURCE_FILES

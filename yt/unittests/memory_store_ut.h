@@ -27,7 +27,6 @@
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_manager.h>
 #include <yt/server/tablet_node/transaction.h>
-#include <yt/server/tablet_node/static_memory_store.h>
 #include <yt/server/tablet_node/dynamic_memory_store.h>
 
 #include "versioned_table_client_ut.h"

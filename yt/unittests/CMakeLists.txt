@@ -71,9 +71,9 @@ set( SRCS
   ${BASE}/query_client_ut.cpp
   ${BASE}/row_ut.cpp
   ${BASE}/memory_store_ut.h
-  ${BASE}/static_memory_store_ut.cpp
+#  ${BASE}/static_memory_store_ut.cpp
   ${BASE}/dynamic_memory_store_ut.cpp
-  ${BASE}/memory_store_pt.cpp
+#  ${BASE}/memory_store_pt.cpp
   ${BASE}/fls_ut.cpp
   ${BASE}/election_ut.cpp
   ${BASE}/framework.h

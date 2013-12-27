@@ -49,10 +49,12 @@ public:
     void CommitRow(const TDynamicRowRef& rowRef);
     void AbortRow(const TDynamicRowRef& rowRef);
 
-    const TDynamicMemoryStorePtr& GetActiveDynamicMemoryStore() const;
+    const TDynamicMemoryStorePtr& GetActiveStore() const;
 
-    bool IsMemoryCompactionNeeded() const;
-    void RunMemoryCompaction();
+    bool IsRotationNeeded() const;
+    void SetRotationScheduled();
+    void ResetRotationSñheduled();
+    void Rotate();
 
 private:
     TTabletManagerConfigPtr Config_;
@@ -60,25 +62,18 @@ private:
     IInvokerPtr AutomatonInvoker_;
     IInvokerPtr CompactionInvoker_;
 
-    TDynamicMemoryStorePtr ActiveDynamicMemoryStore_;
-    TDynamicMemoryStorePtr PassiveDynamicMemoryStore_;
-    TStaticMemoryStorePtr StaticMemoryStore_;
+    bool RotationScheduled_;
+    TDynamicMemoryStorePtr ActiveStore_;
+    std::vector<IStorePtr> PassiveStores_;
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 
     std::vector<NVersionedTableClient::TUnversionedRow> PooledRowset_;
 
-    std::unique_ptr<TMemoryCompactor> MemoryCompactor_;
-    bool MemoryCompactionInProgress_;
-
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-    DECLARE_THREAD_AFFINITY_SLOT(CompactionThread);
 
     
     TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);
-
-    void DoMemoryCompaction();
 
 };
 

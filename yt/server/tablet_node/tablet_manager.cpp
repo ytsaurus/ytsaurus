@@ -86,6 +86,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
     }
 
 
@@ -134,7 +135,7 @@ public:
         const Stroka& encodedRequest)
     {
         const auto& storeManager = tablet->GetStoreManager();
-        const auto& store = storeManager->GetActiveDynamicMemoryStore();
+        const auto& store = storeManager->GetActiveStore();
 
         TProtocolReader reader(encodedRequest);
 
@@ -175,7 +176,7 @@ public:
             ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
             ->Commit();
 
-        CheckForMemoryCompaction(storeManager);
+        CheckForRotation(storeManager);
     }
 
 
@@ -244,13 +245,16 @@ private:
 
     virtual void OnStopLeading()
     {
-        LOG_DEBUG("Started aborting prewritten locks");
         while (!PrewrittenRows_.empty()) {
             auto rowRef = PrewrittenRows_.front();
             PrewrittenRows_.pop();
             rowRef.Store->AbortRow(rowRef.Row);
         }
-        LOG_DEBUG("Finished aborting prewritten locks");
+
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            tablet->GetStoreManager()->ResetRotationSñheduled();
+        }
     }
 
 
@@ -354,6 +358,17 @@ private:
             ~ToString(transaction->GetId()),
             ~ToString(tablet->GetId()),
             commandsSucceded);
+    }
+
+
+    void HydraRotateStore(const TReqRotateStore& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        tablet->GetStoreManager()->Rotate();
     }
 
 
@@ -469,15 +484,21 @@ private:
         return true;
     }
 
-    void CheckForMemoryCompaction(const TStoreManagerPtr& storeManager)
+
+    void CheckForRotation(const TStoreManagerPtr& storeManager)
     {
         if (!IsLeader())
             return;
 
-        if (!storeManager->IsMemoryCompactionNeeded())
+        if (!storeManager->IsRotationNeeded())
             return;
 
-        storeManager->RunMemoryCompaction();
+        storeManager->SetRotationScheduled();
+
+        TReqRotateStore request;
+        ToProto(request.mutable_tablet_id(), storeManager->GetTablet()->GetId());
+        CreateMutation(Slot_->GetHydraManager(), request)
+            ->Commit();
     }
 
 };

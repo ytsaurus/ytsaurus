@@ -73,10 +73,10 @@ struct IStoreScanner;
 class TDynamicMemoryStore;
 typedef TIntrusivePtr<TDynamicMemoryStore> TDynamicMemoryStorePtr;
 
-class TStaticMemoryStoreBuilder;
+//class TStaticMemoryStoreBuilder;
 
-class TStaticMemoryStore;
-typedef TIntrusivePtr<TStaticMemoryStore> TStaticMemoryStorePtr;
+//class TStaticMemoryStore;
+//typedef TIntrusivePtr<TStaticMemoryStore> TStaticMemoryStorePtr;
 
 class TStoreManager;
 typedef TIntrusivePtr<TStoreManager> TStoreManagerPtr;
@@ -91,10 +91,10 @@ class TEditList;
 typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
 typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
-struct TStaticRowHeader;
-class TStaticRow;
+//struct TStaticRowHeader;
+//class TStaticRow;
 
-class TMemoryCompactor;
+//class TMemoryCompactor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

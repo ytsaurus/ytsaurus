@@ -2,9 +2,8 @@
 #include "store_manager.h"
 #include "tablet.h"
 #include "dynamic_memory_store.h"
-#include "static_memory_store.h"
-#include "compaction.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/misc/small_vector.h>
 
@@ -34,6 +33,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStoreManager::TStoreManager(
     TTabletManagerConfigPtr config,
     TTablet* Tablet_,
@@ -43,18 +46,16 @@ TStoreManager::TStoreManager(
     , Tablet_(Tablet_)
     , AutomatonInvoker_(automatonInvoker)
     , CompactionInvoker_(compactionInvoker)
-    , ActiveDynamicMemoryStore_(New<TDynamicMemoryStore>(
+    , ActiveStore_(New<TDynamicMemoryStore>(
         Config_,
         Tablet_))
-    , MemoryCompactor_(new TMemoryCompactor(Config_, Tablet_))
-    , MemoryCompactionInProgress_(false)
+    , RotationScheduled_(false)
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
     YCHECK(AutomatonInvoker_);
     YCHECK(CompactionInvoker_);
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
-    VERIFY_INVOKER_AFFINITY(CompactionInvoker_, CompactionThread);
 }
 
 TStoreManager::~TStoreManager()
@@ -91,23 +92,22 @@ void TStoreManager::LookupRow(
         }
     }
 
+    auto keySuccessor = GetKeySuccessor(key);
     SmallVector<IVersionedReaderPtr, 16> rowReaders;
-
-    auto addReaderIfNotNull = [&] (IVersionedReaderPtr reader) {
-        if (reader) {
-            rowReaders.push_back(std::move(reader));
+    auto tryAddStore = [&](const IStorePtr& store) {
+        auto rowReader = store->CreateReader(
+            key,
+            keySuccessor.Get(),
+            timestamp,
+            columnFilter);
+        if (rowReader) {
+            rowReaders.push_back(std::move(rowReader));
         }
     };
 
-    // TODO(babenko): handle all stores
-    auto keySuccessor = GetKeySuccessor(key);
-    auto rowReader = ActiveDynamicMemoryStore_->CreateReader(
-        key,
-        keySuccessor.Get(),
-        timestamp,
-        columnFilter);
-    if (rowReader) {
-        rowReaders.push_back(std::move(rowReader));
+    tryAddStore(ActiveStore_);
+    for (auto it = PassiveStores_.rbegin(); it != PassiveStores_.rend(); ++it) {
+        tryAddStore(*it);
     }
 
     // Open readers.
@@ -192,15 +192,15 @@ void TStoreManager::WriteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    if (PassiveDynamicMemoryStore_) {
-        PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
-            row,
-            transaction,
-            ERowLockMode::Write,
-            ActiveDynamicMemoryStore_);
-    }
+    //if (PassiveDynamicMemoryStore_) {
+    //    PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
+    //        row,
+    //        transaction,
+    //        ERowLockMode::Write,
+    //        ActiveStore_);
+    //}
 
-    auto dynamicRow = ActiveDynamicMemoryStore_->WriteRow(
+    auto dynamicRow = ActiveStore_->WriteRow(
         NameTable_,
         transaction,
         row,
@@ -216,15 +216,15 @@ void TStoreManager::DeleteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    if (PassiveDynamicMemoryStore_) {
-        PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
-            key,
-            transaction,
-            ERowLockMode::Delete,
-            ActiveDynamicMemoryStore_);
-    }
+    //if (PassiveDynamicMemoryStore_) {
+    //    PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
+    //        key,
+    //        transaction,
+    //        ERowLockMode::Delete,
+    //        ActiveStore_);
+    //}
 
-    auto dynamicRow = ActiveDynamicMemoryStore_->DeleteRow(
+    auto dynamicRow = ActiveStore_->DeleteRow(
         transaction,
         key,
         prewrite);
@@ -236,99 +236,93 @@ void TStoreManager::DeleteRow(
 void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
 {
     auto row = MigrateRowIfNeeded(rowRef);
-    ActiveDynamicMemoryStore_->ConfirmRow(row);
+    ActiveStore_->ConfirmRow(row);
 }
 
 void TStoreManager::PrepareRow(const TDynamicRowRef& rowRef)
 {
     auto row = MigrateRowIfNeeded(rowRef);
-    ActiveDynamicMemoryStore_->PrepareRow(row);
+    ActiveStore_->PrepareRow(row);
 }
 
 void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
 {
     auto row = MigrateRowIfNeeded(rowRef);
-    ActiveDynamicMemoryStore_->CommitRow(row);
+    ActiveStore_->CommitRow(row);
 }
 
 void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
 {
     // NB: Even passive store can handle it.
-    YASSERT(rowRef.Store == ActiveDynamicMemoryStore_ ||
-            rowRef.Store == PassiveDynamicMemoryStore_);
     rowRef.Store->AbortRow(rowRef.Row);
 }
 
-const TDynamicMemoryStorePtr& TStoreManager::GetActiveDynamicMemoryStore() const
+const TDynamicMemoryStorePtr& TStoreManager::GetActiveStore() const
 {
-    return ActiveDynamicMemoryStore_;
+    return ActiveStore_;
 }
 
 TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
 {
-    if (rowRef.Store == ActiveDynamicMemoryStore_) {
+    if (rowRef.Store == ActiveStore_) {
         return rowRef.Row;
     }
 
-    YASSERT(rowRef.Store == PassiveDynamicMemoryStore_);
-    return PassiveDynamicMemoryStore_->MigrateRow(
+    return rowRef.Store->MigrateRow(
         rowRef.Row,
-        ActiveDynamicMemoryStore_);
+        ActiveStore_);
 }
 
-bool TStoreManager::IsMemoryCompactionNeeded() const
+bool TStoreManager::IsRotationNeeded() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    
-    if (MemoryCompactionInProgress_) {
-        return false;
-    }
 
     const auto& config = Tablet_->GetConfig();
-    if (ActiveDynamicMemoryStore_->GetAllocatedValueCount() >= config->ValueCountMemoryCompactionThreshold) {
+    if (ActiveStore_->GetAllocatedValueCount() >= config->ValueCountRotationThreshold) {
         return true;
     }
-    if (ActiveDynamicMemoryStore_->GetAllocatedStringSpace() >= config->StringSpaceMemoryCompactionThreshold) {
+    if (ActiveStore_->GetAllocatedStringSpace() >= config->StringSpaceRotationThreshold) {
         return true;
     }
 
     return false;
 }
 
-void TStoreManager::RunMemoryCompaction()
+void TStoreManager::SetRotationScheduled()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!MemoryCompactionInProgress_);
-    
-    MemoryCompactionInProgress_ = true;
-    
-    YCHECK(PassiveDynamicMemoryStore_);
-    PassiveDynamicMemoryStore_ = ActiveDynamicMemoryStore_;
-    PassiveDynamicMemoryStore_->MakePassive();
 
-    ActiveDynamicMemoryStore_ = New<TDynamicMemoryStore>(Config_, Tablet_);
+    RotationScheduled_ = true;
 
-    CompactionInvoker_->Invoke(
-        BIND(&TStoreManager::DoMemoryCompaction, MakeStrong(this)));
+    LOG_INFO("Tablet store rotation scheduled (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
 }
 
-void TStoreManager::DoMemoryCompaction()
+void TStoreManager::ResetRotationSñheduled()
 {
-    VERIFY_THREAD_AFFINITY(CompactionThread);
-    YCHECK(MemoryCompactionInProgress_);
-
-    auto compactedStore = MemoryCompactor_->Run(
-        PassiveDynamicMemoryStore_,
-        StaticMemoryStore_);
-
-    SwitchTo(AutomatonInvoker_);
-
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(MemoryCompactionInProgress_);
 
-    MemoryCompactionInProgress_ = false;
-    StaticMemoryStore_ = compactedStore;
-    PassiveDynamicMemoryStore_.Reset();
+    if (RotationScheduled_) {
+        RotationScheduled_ = false;
+        LOG_INFO("Tablet store rotation canceled (TabletId: %s)",
+            ~ToString(Tablet_->GetId()));
+    }
+}
+
+void TStoreManager::Rotate()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(RotationScheduled_);
+
+    PassiveStores_.push_back(ActiveStore_);
+    ActiveStore_ = New<TDynamicMemoryStore>(
+        Config_,
+        Tablet_);
+
+    RotationScheduled_ = false;
+
+    LOG_INFO("Tablet store rotated (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

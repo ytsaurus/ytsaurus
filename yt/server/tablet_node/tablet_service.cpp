@@ -69,6 +69,7 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, StartTransaction)
     auto startTimestamp = TTimestamp(request->start_timestamp());
     auto timeout = request->has_timeout() ? MakeNullable(TDuration::MilliSeconds(request->timeout())) : Null;
 
+    // Compute actual timeout and update request.
     auto transactionManager = Slot_->GetTransactionManager();
     auto actualTimeout = transactionManager->GetActualTimeout(timeout);
     request->set_timeout(actualTimeout.MilliSeconds());
@@ -76,7 +77,7 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, StartTransaction)
     context->SetRequestInfo("TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64,
         ~ToString(transactionId),
         startTimestamp,
-        timeout->MilliSeconds());
+        actualTimeout.MilliSeconds());
 
     transactionManager
         ->CreateStartTransactionMutation(*request)

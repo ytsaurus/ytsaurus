@@ -15,8 +15,8 @@ class TTableMountConfig
 public:
     int MaxVersions;
 
-    int ValueCountMemoryCompactionThreshold;
-    i64 StringSpaceMemoryCompactionThreshold;
+    int ValueCountRotationThreshold;
+    i64 StringSpaceRotationThreshold;
 
     TTableMountConfig()
     {
@@ -25,10 +25,10 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(65535);
 
-        RegisterParameter("value_count_memory_compaction_threshold", ValueCountMemoryCompactionThreshold)
+        RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
             .GreaterThan(0)
             .Default(1000000);
-        RegisterParameter("string_space_memory_compaction_threshold", StringSpaceMemoryCompactionThreshold)
+        RegisterParameter("string_space_rotation_threshold", StringSpaceRotationThreshold)
             .GreaterThan(0)
             .Default((i64) 100 * 1024 * 1024);
     }

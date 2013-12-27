@@ -26,5 +26,10 @@ message TReqExecuteWrite
     required bytes encoded_request = 4;
 }
 
+message TReqRotateStore
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
