@@ -749,10 +749,10 @@ private:
         message.set_node_id(nodeId);
 
         auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
-        CreateUnregisterNodeMutation(message)
+        auto mutation = CreateUnregisterNodeMutation(message)
             ->OnSuccess(BIND(&TThis::OnUnregisterCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
-            ->OnError(BIND(&TThis::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker))
-            ->Commit();
+            ->OnError(BIND(&TThis::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker));
+        invoker->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
     }
 
     void OnUnregisterCommitSucceeded(TNodeId nodeId)
