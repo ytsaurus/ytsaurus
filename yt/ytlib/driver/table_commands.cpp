@@ -400,21 +400,28 @@ void TSelectCommand::DoExecute()
 
 void TLookupCommand::DoExecute()
 {
+    auto tableMountCache = Context->GetTableMountCache();
+    auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
+    const auto& mountInfo = mountInfoOrError.GetValue();
+    auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
+
     TLookupOptions options;
     options.Timestamp = Request->Timestamp;
-    options.ColumnFilter = Request->Columns ? TColumnFilter(*Request->Columns) : TColumnFilter();
+    if (Request->Columns) {
+        options.ColumnFilter.All = false;
+        for (const auto& name : *Request->Columns) {
+            int index = mountInfo->Schema.GetColumnIndexOrThrow(name);
+            options.ColumnFilter.Indexes.push_back(index);
+        }
+    }
+
     auto lookupResult = WaitFor(Client->Lookup(
         Request->Path.GetPath(),
         Request->Key.Get(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
     auto rowset = lookupResult.GetValue();
-
-    auto tableMountCache = Context->GetTableMountCache();
-    auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
-    const auto& mountInfo = mountInfoOrError.GetValue();
-    auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
 
     if (!rowset->Rows().empty()) {
         YCHECK(rowset->Rows().size() <= 1);

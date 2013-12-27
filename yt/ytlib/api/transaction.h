@@ -21,11 +21,9 @@ namespace NApi {
 struct TColumnFilter
 {
     TColumnFilter();
-    TColumnFilter(const std::vector<Stroka>& columns);
-    TColumnFilter(const TColumnFilter& other);
 
     bool All;
-    SmallVector<Stroka, NVersionedTableClient::TypicalColumnCount> Columns;
+    SmallVector<int, NVersionedTableClient::TypicalColumnCount> Indexes;
 };
 
 struct TLookupOptions

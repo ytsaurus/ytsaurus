@@ -43,11 +43,12 @@ public:
 
     void WriteColumnFilter(const TColumnFilter& filter)
     {
-        WriteUInt32(filter.All);
-        if (!filter.All) {
-            WriteUInt32(filter.Columns.size());
-            for (const auto& name : filter.Columns) {
-                WriteString(name);
+        if (filter.All) {
+            WriteUInt32(0);
+        } else {
+            WriteUInt32(filter.Indexes.size() + 1);
+            for (int index : filter.Indexes) {
+                WriteUInt32(index);
             }
         }
     }
@@ -226,11 +227,11 @@ public:
     TColumnFilter ReadColumnFilter()
     {
         TColumnFilter filter;
-        filter.All = ReadUInt32();
-        if (!filter.All) {
-            ui32 count = ReadUInt32();
-            for (int index = 0; index < count; ++index) {
-                filter.Columns.push_back(ReadString());
+        ui32 count = ReadUInt32();
+        if (count != 0) {
+            filter.All = false;
+            for (int index = 0; index < count - 1; ++index) {
+                filter.Indexes.push_back(ReadUInt32());
             }
         }
         return filter;

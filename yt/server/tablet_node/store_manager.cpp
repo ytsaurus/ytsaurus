@@ -77,11 +77,12 @@ void TStoreManager::LookupRow(
             columnFilterFlags[id] = true;
         }
     } else {
-        for (const auto& name : columnFilter.Columns) {
-            auto id = NameTable_->FindId(name);
-            if (id) {
-                columnFilterFlags[*id] = true;
+        for (int index : columnFilter.Indexes) {
+            if (index < 0 || index >= schemaColumnCount) {
+                THROW_ERROR_EXCEPTION("Invalid index %d in column filter",
+                    index);
             }
+            columnFilterFlags[index] = true;
         }
     }
 
