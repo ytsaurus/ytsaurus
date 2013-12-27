@@ -136,6 +136,7 @@ private:
 
     void StartCommit()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
 
         if (Committing)
@@ -147,14 +148,18 @@ private:
 
         TReqCommitTimestamp hydraRequest;
         hydraRequest.set_timestamp(PersistentTimestamp.load() + Config->BatchSize);
-        CreateMutation(HydraManager, hydraRequest)
+        auto mutation = CreateMutation(HydraManager, hydraRequest)
             ->OnSuccess(BIND(&TImpl::OnCommitSuccess, MakeStrong(this)))
-            ->OnError(BIND(&TImpl::OnCommitFailure, MakeStrong(this)))
-            ->Commit();
+            ->OnError(BIND(&TImpl::OnCommitFailure, MakeStrong(this)));
+
+        // NB: We're currently in an arbitrary thread.
+        AutomatonInvoker->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
     }
 
     std::vector<TCtxGetTimestampPtr> FinishCommit()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         std::vector<TCtxGetTimestampPtr> pendingContexts;
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -166,6 +171,8 @@ private:
 
     void OnCommitSuccess()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto pendingContexts = FinishCommit();
         for (auto context : pendingContexts) {
             GetTimestampImpl(std::move(context));
@@ -174,6 +181,8 @@ private:
 
     void OnCommitFailure(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto pendingContexts = FinishCommit();
         for (auto context : pendingContexts) {
             context->Reply(error);
