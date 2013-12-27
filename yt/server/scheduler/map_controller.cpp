@@ -27,6 +27,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
 using namespace NJobProxy;
@@ -56,6 +57,18 @@ public:
         , StartRowIndex(0)
     { }
 
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) override
+    {
+        TOperationControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("mapper").BeginMap()
+                        .Item("command").Value(Spec->Mapper->Command)
+                    .EndMap();
+            });
+    }
+    
     // Persistence.
 
     virtual void Persist(TPersistenceContext& context) override

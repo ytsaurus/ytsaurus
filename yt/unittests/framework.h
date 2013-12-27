@@ -1,6 +1,8 @@
 #pragma once
 
 // Include Google Test and Google Mock headers.
+#define GTEST_DONT_DEFINE_FAIL 1
+
 #include <contrib/testing/gtest.h>
 #include <contrib/testing/gmock.h>
 

@@ -350,8 +350,9 @@ describe("YtCommand - command parameters", function() {
             rsp.should.be.http2xx;
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Print().should.eql('{"hello"="world";"output_format"="json";"input_format"="json"}');
-        }, done).end('{"&aGVsbG8=":"&d29ybGQ="}');
+            stub.firstCall.args[6].Print().should.eql('{"output_format"="json";"input_format"="json";"\\x80"="\\xFF"}');
+
+        }, done).end('{"\\u0080":"\\u00FF"}');
     });
 });
 

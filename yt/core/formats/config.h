@@ -211,6 +211,16 @@ public:
 
     std::vector<Stroka> Columns;
 
+    DECLARE_ENUM(EMissingValueMode,
+        (SkipRow)
+        (Fail)
+        (PrintSentinel)
+    );
+
+    EMissingValueMode MissingValueMode;
+    Stroka MissingValueSentinel;
+
+
     TSchemedDsvFormatConfig()
     {
         RegisterParameter("record_separator", RecordSeparator)
@@ -228,6 +238,12 @@ public:
 
         RegisterParameter("columns", Columns)
             .Default();
+
+        RegisterParameter("missing_value_mode", MissingValueMode)
+            .Default(EMissingValueMode::SkipRow);
+
+        RegisterParameter("missing_value_sentinel", MissingValueSentinel)
+            .Default("");
 
         RegisterValidator([&] () {
             yhash_set<Stroka> names;

@@ -185,6 +185,14 @@ else()
   add_definitions(-DNDEBUG)
 endif()
 
+# Explicitly request C99 format macroses.
+if (UNIX)
+  add_definitions(-D_GNU_SOURCE)
+  add_definitions(-D__STDC_CONSTANT_MACROS)
+  add_definitions(-D__STDC_FORMAT_MACROS)
+  add_definitions(-D__STDC_LIMIT_MACROS)
+endif()
+
 #if (YT_WITH_VISIBILITY)
 #  add_definitions(-fvisibility=hidden)
 #  add_definitions(-fvisibility-inlines-hidden)

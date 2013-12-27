@@ -474,25 +474,30 @@ protected:
     void ComputeFairShare()
     {
         // Compute min shares.
-        {
-            double sum = 0.0;
+        // Compute min weight.
+        double minShareSum = 0.0;
+        double minWeight = 1.0;
+        for (const auto& child : Children) {
+            auto& childAttributes = child->Attributes();
+            double result = child->GetMinShareRatio();
+            // Never give more than demanded.
+            result = std::min(result, childAttributes.DemandRatio);
+            // Never give more than max share allows.
+            result = std::min(result, childAttributes.MaxShareRatio);
+            childAttributes.AdjustedMinShareRatio = result;
+            minShareSum += result;
+
+            if (child->GetWeight() > RatioComparisonPrecision) {
+                minWeight = std::min(minWeight, child->GetWeight());
+            }
+        }
+
+        // Normalize min shares, if needed.
+        if (minShareSum > Attributes_.AdjustedMinShareRatio) {
+            double fitFactor = Attributes_.AdjustedMinShareRatio / minShareSum;
             for (const auto& child : Children) {
                 auto& childAttributes = child->Attributes();
-                double result = child->GetMinShareRatio();
-                // Never give more than demanded.
-                result = std::min(result, childAttributes.DemandRatio);
-                // Never give more than max share allows.
-                result = std::min(result, childAttributes.MaxShareRatio);
-                childAttributes.AdjustedMinShareRatio = result;
-                sum += result;
-            }
-            // Normalize if needed.
-            if (sum > Attributes_.AdjustedMinShareRatio) {
-                double fitFactor = Attributes_.AdjustedMinShareRatio / sum;
-                for (const auto& child : Children) {
-                    auto& childAttributes = child->Attributes();
-                    childAttributes.AdjustedMinShareRatio *= fitFactor;
-                }
+                childAttributes.AdjustedMinShareRatio *= fitFactor;
             }
         }
 
@@ -500,7 +505,7 @@ protected:
         ComputeByFitting(
             [&] (double fitFactor, const ISchedulableElementPtr& child) -> double {
                 const auto& childAttributes = child->Attributes();
-                double result = fitFactor * child->GetWeight();
+                double result = fitFactor * child->GetWeight() / minWeight;
                 // Never give less than promised by min share.
                 result = std::max(result, childAttributes.AdjustedMinShareRatio);               
                 // Never give more than demanded.
@@ -509,7 +514,7 @@ protected:
                 result = std::min(result, childAttributes.MaxShareRatio);
                 return result;
             },
-            [&] (ISchedulableElementPtr child, double value) {
+            [&] (const ISchedulableElementPtr& child, double value) {
                 auto& attributes = child->Attributes();
                 attributes.FairShareRatio = value;
             },
@@ -885,7 +890,7 @@ public:
     }
 
 
-    virtual void BuildOperationProgressYson(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
     {
         auto element = GetOperationElement(operation);
         auto pool = element->GetPool();
@@ -896,6 +901,16 @@ public:
             .Item("starving").Value(element->GetStarving())
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
+    }
+
+    virtual void BuildBriefOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
+    {
+        auto element = GetOperationElement(operation);
+        auto pool = element->GetPool();
+        const auto& attributes = element->Attributes();
+        BuildYsonMapFluently(consumer)
+            .Item("pool").Value(pool->GetId())
+            .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
     virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) override
@@ -920,7 +935,7 @@ public:
             element->PreemptableJobs().size());
     }
 
-    virtual void BuildOrchidYson(IYsonConsumer* consumer) override
+    virtual void BuildOrchid(IYsonConsumer* consumer) override
     {
         BuildYsonMapFluently(consumer)
             .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
@@ -937,6 +952,13 @@ public:
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
+    }
+
+    virtual void BuildBriefSpec(TOperationPtr operation, IYsonConsumer* consumer) override
+    {
+        auto element = GetOperationElement(operation);
+        BuildYsonMapFluently(consumer)
+            .Item("pool").Value(element->GetPool()->GetId());
     }
 
 private:
@@ -1394,8 +1416,6 @@ private:
             return limit == 0 ? 1.0 : (double) usage / limit;
         };
 
-        int oldNonpreemptableListSize = static_cast<int>(nonpreemptableJobs.size());
-
         // Remove nonpreemptable jobs exceeding the fair share.
         while (!nonpreemptableJobs.empty()) {
             if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= attributes.FairShareRatio)
@@ -1429,15 +1449,6 @@ private:
             job->SetPreemptable(false);
             job->SetJobListIterator(--nonpreemptableJobs.end());
         }
-
-        int newNonpreemptableListSize = static_cast<int>(nonpreemptableJobs.size());
-
-        LOG_DEBUG_IF(
-            oldNonpreemptableListSize != newNonpreemptableListSize,
-            "Nonpreemptable jobs changed: %d -> %d (OperationId: %s)",
-            oldNonpreemptableListSize,
-            newNonpreemptableListSize,
-            ~ToString(element->GetOperation()->GetOperationId()));
     }
 
 

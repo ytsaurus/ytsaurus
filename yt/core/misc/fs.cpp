@@ -40,7 +40,7 @@ static NLog::TLogger Logger("FS");
 bool Remove(const Stroka& name)
 {
 #ifdef _win_
-    return DeleteFile(~name);
+    return DeleteFileA(~name);
 #else
     struct stat sb;
 

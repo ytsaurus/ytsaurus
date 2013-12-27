@@ -2,6 +2,9 @@
 #include "delayed_executor.h"
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/thread.h>
+
+#include <util/datetime/base.h>
 
 namespace NYT {
 namespace NConcurrency {

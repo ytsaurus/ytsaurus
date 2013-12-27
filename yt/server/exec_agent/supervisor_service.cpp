@@ -28,6 +28,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
 {
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(GetJobSpec)
+        .SetResponseCodec(NCompression::ECodec::Lz4)
         .SetResponseHeavy(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress)

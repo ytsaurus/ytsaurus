@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <library/lfalloc/helpers.h>
+
 namespace NYT {
 namespace NLFAlloc {
 

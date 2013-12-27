@@ -43,8 +43,6 @@
 
 #include <ytlib/meta_state/master_channel.h>
 
-#include <util/private/lfalloc/helpers.h>
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -111,7 +109,8 @@ void TJobProxy::RetrieveJobSpec()
     auto req = SupervisorProxy->GetJobSpec();
     ToProto(req->mutable_job_id(), JobId);
 
-    auto rsp = req->Invoke().Get();
+    auto asyncRsp = req->Invoke();
+    auto rsp = asyncRsp.Get();
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to get job spec");
         NLog::TLogManager::Get()->Shutdown();
@@ -281,7 +280,8 @@ void TJobProxy::ReportResult(const TJobResult& result)
     ToProto(req->mutable_job_id(), JobId);
     *req->mutable_result() = result;
 
-    auto rsp = req->Invoke().Get();
+    auto asyncRsp = req->Invoke();
+    auto rsp = asyncRsp.Get();
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to report job result");
         NLog::TLogManager::Get()->Shutdown();

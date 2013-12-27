@@ -26,6 +26,8 @@ static const i64 LFAllocBufferSize = (i64) 64 * 1024 * 1024;
 //! thus no scheduling attempts will be made.
 static const i64 LowWatermarkMemorySize = (i64) 256 * 1024 * 1024;
 
+static const i64 ChunkSpecOverhead = (i64) 1000;
+
 ////////////////////////////////////////////////////////////////////
 
 TNodeResources GetMinSpareResources()
@@ -89,7 +91,7 @@ i64 GetInputIOMemorySize(
 
     i64 maxBufferSize = std::max(ioConfig->TableReader->MaxBufferSize, 2 * stat.MaxBlockSize);
 
-    return std::min(bufferSize, maxBufferSize);
+    return std::min(bufferSize, maxBufferSize) + stat.ChunkCount * ChunkSpecOverhead;
 }
 
 i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
@@ -97,7 +99,7 @@ i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
     if (stat.ChunkCount == 0)
         return 0;
 
-    return stat.DataSize + stat.ChunkCount * ChunkReaderMemorySize;
+    return stat.DataSize + stat.ChunkCount * (ChunkReaderMemorySize + ChunkSpecOverhead);
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -33,6 +33,8 @@ public:
 
     void Initialize();
 
+    ISchedulerStrategy* GetStrategy();
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     std::vector<TOperationPtr> GetOperations();

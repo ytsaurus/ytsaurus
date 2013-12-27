@@ -29,24 +29,12 @@ add_msvc_precompiled_header(
 )
 
 add_library( ytlib STATIC
-    ${YT_SOURCE_FILES}
+  ${YT_SOURCE_FILES}
 )
+
 target_link_libraries ( ytlib
   ytcore
 )
-
-if (HAVE_LIBUNWIND)
-  target_link_libraries( ytlib unwind )
-endif()
-
-if (YT_BUILD_ENABLE_PYTHON)
-  add_library( ytlib-without-lfalloc STATIC
-      ${YT_SOURCE_FILES}
-  )
-  target_link_libraries ( ytlib-without-lfalloc
-    ytcore-without-lfalloc
-  )
-endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
@@ -56,3 +44,4 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include
   .
 )
+

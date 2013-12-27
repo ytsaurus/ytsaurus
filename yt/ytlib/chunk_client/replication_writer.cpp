@@ -1017,8 +1017,10 @@ TAsyncError TReplicationWriter::GetReadyEvent()
     if (!WindowSlots.IsReady()) {
         State.StartOperation();
 
-        auto this_ = MakeStrong(this);
-        WindowSlots.GetReadyEvent().Subscribe(BIND([this, this_] () {
+        // No need to capture #this by strong reference, because
+        // WindowSlots are always released when Writer is alive,
+        // and callcack is called synchronously.
+        WindowSlots.GetReadyEvent().Subscribe(BIND([ = ] () {
             State.FinishOperation(TError());
         }));
     }

@@ -1,370 +1,270 @@
-set( BASE ${CMAKE_SOURCE_DIR}/util/string )
-
-set( SRCS
-  ${BASE}/base64.cpp
-  ${BASE}/cast.cpp
-  ${BASE}/escape.cpp
-  ${BASE}/util.cpp
-  ${BASE}/vector.cpp
-  ${BASE}/split_iterator.cpp
-  ${BASE}/split.cpp
-  ${BASE}/url.cpp
-  ${BASE}/kmp.cpp
-  ${BASE}/http.cpp
-  ${BASE}/ascii.cpp
-  ${BASE}/printf.cpp
-  ${BASE}/type.cpp
-  ${BASE}/strip.cpp
-  ${BASE}/pcdata.cpp
-
-  ${BASE}/cat.h
-  ${BASE}/hex.h
-  ${BASE}/scan.h
-  ${BASE}/subst.h
-  ${BASE}/traits.h
+set( STRING_BASE ${CMAKE_SOURCE_DIR}/util/string )
+set( STRING_SRCS
+  ${STRING_BASE}/ascii.cpp
+  ${STRING_BASE}/base64.cpp
+  ${STRING_BASE}/cast.cc
+ #${STRING_BASE}/cgiparam.cpp (uses charset/)
+ #${STRING_BASE}/dtoa.cpp (included in cast.cc)
+ #${STRING_BASE}/dtoa_impl.cpp (included in cast.cc)
+ #${STRING_BASE}/encodexml.cpp (uses charset/)
+  ${STRING_BASE}/escape.cpp
+ #${STRING_BASE}/htmlentity.cpp (uses charset/)
+  ${STRING_BASE}/http.cpp
+  ${STRING_BASE}/kmp.cpp
+ #${STRING_BASE}/pcdata.cpp (uses charset/)
+  ${STRING_BASE}/printf.cpp
+ #${STRING_BASE}/quote.cpp (uses charset/)
+  ${STRING_BASE}/split.cpp
+  ${STRING_BASE}/split_iterator.cpp
+  ${STRING_BASE}/strip.cpp
+  ${STRING_BASE}/type.cpp
+  ${STRING_BASE}/url.cpp
+  ${STRING_BASE}/util.cpp
+  ${STRING_BASE}/vector.cpp
 )
 
-set( G_BASE ${CMAKE_SOURCE_DIR}/util/generic )
-
-set( G_SRCS
-  ${G_BASE}/buffer.cpp
-  ${G_BASE}/ptr.cpp
-  ${G_BASE}/stroka.cpp
-  ${G_BASE}/stroka_io.cpp
-  ${G_BASE}/stroka_stdio.cpp
-  ${G_BASE}/strfcpy.cpp
-  ${G_BASE}/strbuf.cpp
-  ${G_BASE}/yexception.cpp
-  ${G_BASE}/ymath.cpp
-  ${G_BASE}/chartraits.cpp
-
-  ${G_BASE}/array.h
-  ${G_BASE}/avltree.h
-  ${G_BASE}/bitmap.h
-  ${G_BASE}/cast.h
-  ${G_BASE}/char_buf.h
-  ${G_BASE}/chartraits.h
-  ${G_BASE}/deque.h
-  ${G_BASE}/fwd.h
-  ${G_BASE}/hash.h
-  ${G_BASE}/hash_set.h
-  ${G_BASE}/hide.h
-  ${G_BASE}/intrlist.h
-  ${G_BASE}/iterator.h
-  ${G_BASE}/list.h
-  ${G_BASE}/map.h
-  ${G_BASE}/noncopyable.h
-  ${G_BASE}/pair.h
-  ${G_BASE}/rbtree.h
-  ${G_BASE}/refcount.h
-  ${G_BASE}/set.h
-  ${G_BASE}/singleton.h
-  ${G_BASE}/stack.h
-  ${G_BASE}/static_assert.h
-  ${G_BASE}/stlfwd.h
-  ${G_BASE}/typehelpers.h
-  ${G_BASE}/typelist.h
-  ${G_BASE}/typetraits.h
-  ${G_BASE}/utility.h
-  ${G_BASE}/vector.h
-  ${G_BASE}/ylimits.h
+set( GENERIC_BASE ${CMAKE_SOURCE_DIR}/util/generic )
+set( GENERIC_SRCS
+  ${GENERIC_BASE}/buffer.cpp
+  ${GENERIC_BASE}/chartraits.cpp
+  ${GENERIC_BASE}/guid.cpp
+  ${GENERIC_BASE}/ptr.cpp
+  ${GENERIC_BASE}/singleton.cpp
+  ${GENERIC_BASE}/strbuf.cpp
+  ${GENERIC_BASE}/strfcpy.cpp
+  ${GENERIC_BASE}/stroka.cpp
+  ${GENERIC_BASE}/stroka_io.cpp
+  ${GENERIC_BASE}/stroka_stdio.cpp
+  ${GENERIC_BASE}/yexception.cpp
+  ${GENERIC_BASE}/ymath.cpp
 )
 
-set( D_BASE ${CMAKE_SOURCE_DIR}/util/digest )
-
-set( D_SRCS
-  ${D_BASE}/crc.cpp
-  ${D_BASE}/city.cpp
-  ${D_BASE}/md5.cpp
-
-  ${D_BASE}/fnv.h
-  ${D_BASE}/iterator.h
-  ${D_BASE}/murmur.h
-  ${D_BASE}/numeric.h
-  ${D_BASE}/sfh.h
+set( DIGEST_BASE ${CMAKE_SOURCE_DIR}/util/digest )
+set( DIGEST_SRCS
+  ${DIGEST_BASE}/city.cpp
+  ${DIGEST_BASE}/crc.cpp
+  ${DIGEST_BASE}/md5.cpp
+  ${DIGEST_BASE}/murmur.cpp
 )
 
-set( S_BASE ${CMAKE_SOURCE_DIR}/util/system )
-
-set( S_SRCS
-  ${S_BASE}/align.h
-  ${S_BASE}/atexit.cpp
-  ${S_BASE}/atomic.h
-  ${S_BASE}/atomic_fake.h
-  ${S_BASE}/atomic_gcc.h
-  ${S_BASE}/atomic_win.h
-  ${S_BASE}/atomic_x86.h
-  ${S_BASE}/byteorder.h
-  ${S_BASE}/backtrace.cpp
-  ${S_BASE}/compat.cpp
-  ${S_BASE}/condvar.cpp
-  ${S_BASE}/context.cpp
-  ${S_BASE}/daemon.cpp
-  ${S_BASE}/datetime.cpp
-  ${S_BASE}/dynlib.cpp
-  ${S_BASE}/err.cpp
-  ${S_BASE}/error.cpp
-  ${S_BASE}/event.cpp
-  ${S_BASE}/execpath.cpp
-  ${S_BASE}/file.cpp
-  ${S_BASE}/filemap.cpp
-  ${S_BASE}/flock.cpp
-  ${S_BASE}/guard.h
-  ${S_BASE}/hostname.cpp
-  ${S_BASE}/info.cpp
-  ${S_BASE}/mutex.cpp
-  ${S_BASE}/oldfile.cpp
-  ${S_BASE}/rusage.cpp
-  ${S_BASE}/rwlock.cpp
-  ${S_BASE}/sem.cpp
-  ${S_BASE}/spinlock.cpp
-  ${S_BASE}/strlcpy.c
-  ${S_BASE}/fstat.cpp
-  ${S_BASE}/tempfile.h
-  ${S_BASE}/thread.cpp
-  ${S_BASE}/tls.cpp
-  ${S_BASE}/yield.cpp
-  ${S_BASE}/yassert.cpp
-  ${S_BASE}/pipe.cpp
-  ${S_BASE}/demangle.cpp
-  ${S_BASE}/progname.cpp
-  ${S_BASE}/fs.cpp
-  ${S_BASE}/mktemp.cpp
-  ${S_BASE}/user.cpp
-
-  ${S_BASE}/defaults.h
-  ${S_BASE}/platform.h
-  ${S_BASE}/sigset.h
-  ${S_BASE}/maxlen.h
-)
-
-if (LINUX)
-  set( S_SRCS "${S_SRCS} ${S_BASE}/valgrind.h" )
-endif()
-
-if (LINUX OR SUN OR CYGWIN OR WIN32)
-  set( S_SRCS ${S_SRCS} ${S_BASE}/freeBSD_mktemp.cpp )
-endif()
-
-set( M_BASE ${CMAKE_SOURCE_DIR}/util/memory )
-
-set( M_SRCS
-  ${M_BASE}/profile.cpp
-  ${M_BASE}/tempbuf.cpp
-  ${M_BASE}/blob.cpp
-  ${M_BASE}/mmapalloc.cpp
-  ${M_BASE}/alloc.cpp
-  ${M_BASE}/pool.cpp
-
-  ${M_BASE}/addstorage.h
-  ${M_BASE}/gc.h
-  ${M_BASE}/segmented_string_pool.h
-  ${M_BASE}/segpool_alloc.h
-  ${M_BASE}/smallobj.h
-)
-
-set( ST_BASE ${CMAKE_SOURCE_DIR}/util/stream )
-
-set( ST_SRCS
-  ${ST_BASE}/buffer.cpp
-  ${ST_BASE}/buffered.cpp
-  ${ST_BASE}/chunk.cpp
-  ${ST_BASE}/debug.cpp
-  ${ST_BASE}/file.cpp
-  ${ST_BASE}/helpers.cpp
-  ${ST_BASE}/http.cpp
-  ${ST_BASE}/input.cpp
-  ${ST_BASE}/mem.cpp
-  ${ST_BASE}/multi.cpp
-  ${ST_BASE}/null.cpp
-  ${ST_BASE}/output.cpp
-  ${ST_BASE}/pipe.cpp
-  ${ST_BASE}/str.cpp
-  ${ST_BASE}/tee.cpp
-  ${ST_BASE}/zerocopy.cpp
-  ${ST_BASE}/zlib.cpp
-  ${ST_BASE}/printf.cpp
-  ${ST_BASE}/format.cpp
-  ${ST_BASE}/lz.cpp
-  ${ST_BASE}/lzop.cpp
-
-  ${ST_BASE}/aligned.h
-  ${ST_BASE}/base.h
-  ${ST_BASE}/ios.h
-  ${ST_BASE}/length.h
-  ${ST_BASE}/tempbuf.h
-  ${ST_BASE}/tokenizer.h
-  ${ST_BASE}/walk.h
-)
-
-set( CF_BASE ${CMAKE_SOURCE_DIR}/util/config )
-
-set( CF_SRCS
-  ${CF_BASE}/last_getopt.cpp
-  ${CF_BASE}/last_getopt_support.h
-  ${CF_BASE}/opt.cpp
-  ${CF_BASE}/opt2.cpp
-  ${CF_BASE}/posix_getopt.cpp
-  ${CF_BASE}/ygetopt.cpp
-)
-
-set( NW_BASE ${CMAKE_SOURCE_DIR}/util/network )
-
-set( NW_SRCS
-  ${NW_BASE}/hostip.cpp
-  ${NW_BASE}/init.cpp
-  ${NW_BASE}/poller.cpp
-  ${NW_BASE}/socket.cpp
-  ${NW_BASE}/address.cpp
-  ${NW_BASE}/pair.cpp
-
-  ${NW_BASE}/ip.h
-  ${NW_BASE}/pollerimpl.h
-  ${NW_BASE}/sock.h
-)
-
-set( FR_BASE ${CMAKE_SOURCE_DIR}/util/folder )
-
-set( FR_SRCS
-  ${FR_BASE}/iterator.h
-  ${FR_BASE}/fts.cpp
-  ${FR_BASE}/filelist.cpp
-  ${FR_BASE}/dirut.cpp
+set( SYSTEM_BASE ${CMAKE_SOURCE_DIR}/util/system )
+set( SYSTEM_SRCS
+  ${SYSTEM_BASE}/atexit.cpp
+  ${SYSTEM_BASE}/backtrace.cpp
+  ${SYSTEM_BASE}/compat.cpp
+  ${SYSTEM_BASE}/condvar.cpp
+  ${SYSTEM_BASE}/context.cpp
+  ${SYSTEM_BASE}/daemon.cpp
+  ${SYSTEM_BASE}/datetime.cpp
+  ${SYSTEM_BASE}/demangle.cpp
+  ${SYSTEM_BASE}/dynlib.cpp
+  ${SYSTEM_BASE}/err.cpp
+  ${SYSTEM_BASE}/error.cpp
+  ${SYSTEM_BASE}/event.cpp
+  ${SYSTEM_BASE}/execpath.cpp
+  ${SYSTEM_BASE}/fasttime.cpp
+  ${SYSTEM_BASE}/file.cpp
+  ${SYSTEM_BASE}/filemap.cpp
+  ${SYSTEM_BASE}/flock.cpp
+  ${SYSTEM_BASE}/freeBSD_mktemp.cpp
+  ${SYSTEM_BASE}/fs.cpp
+  ${SYSTEM_BASE}/fstat.cpp
+  ${SYSTEM_BASE}/hostname.cpp
+  ${SYSTEM_BASE}/hp_timer.cpp
+  ${SYSTEM_BASE}/info.cpp
+  ${SYSTEM_BASE}/mktemp.cpp
+  ${SYSTEM_BASE}/mlock.cpp
+  ${SYSTEM_BASE}/mutex.cpp
+  ${SYSTEM_BASE}/oldfile.cpp
+  ${SYSTEM_BASE}/pipe.cpp
+  ${SYSTEM_BASE}/progname.cpp
+  ${SYSTEM_BASE}/protect.cpp
+  ${SYSTEM_BASE}/rusage.cpp
+  ${SYSTEM_BASE}/rwlock.cpp
+  ${SYSTEM_BASE}/sem.cpp
+  ${SYSTEM_BASE}/shellcommand.cpp
+  ${SYSTEM_BASE}/shmat.cpp
+  ${SYSTEM_BASE}/spinlock.cpp
+  ${SYSTEM_BASE}/strlcpy.c
+  ${SYSTEM_BASE}/sysstat.cpp
+  ${SYSTEM_BASE}/thread.cpp
+  ${SYSTEM_BASE}/tls.cpp
+  ${SYSTEM_BASE}/user.cpp
+  ${SYSTEM_BASE}/yassert.cpp
+  ${SYSTEM_BASE}/yield.cpp
 )
 
 if (WIN32)
-  set( FR_SRCS ${FR_SRCS}
-       ${FR_BASE}/lstat_win.c
-       ${FR_BASE}/dirent_win.c
+  set( SYSTEM_SRCS ${SYSTEM_SRCS}
+    ${SYSTEM_BASE}/fs_win.cpp
   )
 endif()
 
-set( DT_BASE ${CMAKE_SOURCE_DIR}/util/datetime )
+set( MEMORY_BASE ${CMAKE_SOURCE_DIR}/util/memory )
+set( MEMORY_SRCS
+  ${MEMORY_BASE}/alloc.cpp
+  ${MEMORY_BASE}/blob.cpp
+  ${MEMORY_BASE}/mmapalloc.cpp
+  ${MEMORY_BASE}/pool.cpp
+  ${MEMORY_BASE}/profile.cpp
+  ${MEMORY_BASE}/tempbuf.cpp
+)
 
-set( DT_SRCS
-  ${DT_BASE}/base.cpp
-  ${DT_BASE}/parser.cpp
-  ${DT_BASE}/constants.h
-  ${DT_BASE}/cputimer.cpp
-  ${DT_BASE}/systime.cpp
+set( STREAM_BASE ${CMAKE_SOURCE_DIR}/util/stream )
+set( STREAM_SRCS
+  ${STREAM_BASE}/buffer.cpp
+  ${STREAM_BASE}/buffered.cpp
+ #${STREAM_BASE}/bzip2.cpp (uses contrib/libbz2)
+  ${STREAM_BASE}/chunk.cpp
+  ${STREAM_BASE}/debug.cpp
+  ${STREAM_BASE}/factory.cpp
+  ${STREAM_BASE}/file.cpp
+  ${STREAM_BASE}/format.cpp
+  ${STREAM_BASE}/helpers.cpp
+  ${STREAM_BASE}/http.cpp
+  ${STREAM_BASE}/input.cpp
+  ${STREAM_BASE}/lz.cpp
+ #${STREAM_BASE}/lzma.cpp (uses contrib/lzmasdk)
+  ${STREAM_BASE}/mem.cpp
+  ${STREAM_BASE}/multi.cpp
+  ${STREAM_BASE}/null.cpp
+  ${STREAM_BASE}/output.cpp
+  ${STREAM_BASE}/pipe.cpp
+  ${STREAM_BASE}/printf.cpp
+  ${STREAM_BASE}/stack_file.cpp
+  ${STREAM_BASE}/str.cpp
+  ${STREAM_BASE}/tee.cpp
+  ${STREAM_BASE}/zerocopy.cpp
+  ${STREAM_BASE}/zlib.cpp
+)
+
+set( CONFIG_BASE ${CMAKE_SOURCE_DIR}/util/config )
+set( CONFIG_SRCS
+  ${CONFIG_BASE}/last_getopt.cpp
+  ${CONFIG_BASE}/opt2.cpp
+  ${CONFIG_BASE}/opt.cpp
+  ${CONFIG_BASE}/posix_getopt.cpp
+  ${CONFIG_BASE}/ygetopt.cpp
+)
+
+set( NETWORK_BASE ${CMAKE_SOURCE_DIR}/util/network )
+set( NETWORK_SRCS
+  ${NETWORK_BASE}/address.cpp
+  ${NETWORK_BASE}/endpoint.cpp
+  ${NETWORK_BASE}/hostip.cpp
+  ${NETWORK_BASE}/init.cpp
+  ${NETWORK_BASE}/interface.cpp
+  ${NETWORK_BASE}/pair.cpp
+  ${NETWORK_BASE}/poller.cpp
+  ${NETWORK_BASE}/socket.cpp
+)
+
+set( FOLDER_BASE ${CMAKE_SOURCE_DIR}/util/folder )
+set( FOLDER_SRCS
+  ${FOLDER_BASE}/dirut.cpp
+  ${FOLDER_BASE}/filelist.cpp
+  ${FOLDER_BASE}/fts.cpp
+  ${FOLDER_BASE}/iterator.cpp
+  ${FOLDER_BASE}/path.cpp
+  ${FOLDER_BASE}/tempdir.cpp
+)
+
+if(WIN32)
+  set( FOLDER_SRCS ${FOLDER_SRCS}
+    ${FOLDER_BASE}/dirent_win.cpp
+    ${FOLDER_BASE}/lstat_win.cpp
+  )
+endif()
+
+set( DATETIME_BASE ${CMAKE_SOURCE_DIR}/util/datetime )
+set( DATETIME_SRCS
+  ${DATETIME_BASE}/base.cpp
+  ${DATETIME_BASE}/cputimer.cpp
+  ${DATETIME_BASE}/parser.cpp
+  ${DATETIME_BASE}/strptime.cpp
+  ${DATETIME_BASE}/systime.cpp
 )
 
 if (WIN32)
-  set( DT_SRCS ${DT_SRCS}
-    ${DT_BASE}/strptime.cpp
+  set( DATETIME_SRCS ${DATETIME_SRCS}
+    ${DATETIME_BASE}/strptime.cpp
   )
 endif()
 
-set( TR_BASE ${CMAKE_SOURCE_DIR}/util/thread )
-
-set( TR_SRCS
-  ${TR_BASE}/lfqueue.h
-  ${TR_BASE}/lfstack.h
-  ${TR_BASE}/pool.cpp
-  ${TR_BASE}/queue.cpp
-  ${TR_BASE}/tasks.cpp
-  ${TR_BASE}/threadable.h
+set( THREAD_BASE ${CMAKE_SOURCE_DIR}/util/thread )
+set( THREAD_SRCS
+  ${THREAD_BASE}/pool.cpp
+  ${THREAD_BASE}/queue.cpp
+  ${THREAD_BASE}/tasks.cpp
 )
 
-set( SR_BASE ${CMAKE_SOURCE_DIR}/util/sorter )
-
-set( SR_SRCS
-  ${SR_BASE}/buffile.h
-  ${SR_BASE}/filesort.h
-  ${SR_BASE}/filesortst.h
-  ${SR_BASE}/sorter.cpp
-  ${SR_BASE}/sorttree.h
+set( GREEN_BASE ${CMAKE_SOURCE_DIR}/util/green )
+set( GREEN_SRCS
+  ${GREEN_BASE}/impl.cpp
+  ${GREEN_BASE}/listen.cpp
+  ${GREEN_BASE}/poller.cpp
+  ${GREEN_BASE}/sockpool.cpp
+  ${GREEN_BASE}/stack.cpp
 )
 
-set( GR_BASE ${CMAKE_SOURCE_DIR}/util/green )
-
-set( GR_SRCS
-  ${GR_BASE}/impl.cpp
+set( RANDOM_BASE ${CMAKE_SOURCE_DIR}/util/random )
+set( RANDOM_SRCS
+  ${RANDOM_BASE}/entropy.cpp
+  ${RANDOM_BASE}/mersenne.cpp
+  ${RANDOM_BASE}/randcpp.cpp
+  ${RANDOM_BASE}/random.cpp
+  ${RANDOM_BASE}/rc4.cpp
 )
 
-set( RN_BASE ${CMAKE_SOURCE_DIR}/util/random )
-
-set( RN_SRCS
-  ${RN_BASE}/randcpp.cpp
-  ${RN_BASE}/random.cpp
-  ${RN_BASE}/entropy.cpp
-  ${RN_BASE}/rc4.cpp
-
-  ${RN_BASE}/mersenne.h
-  ${RN_BASE}/mersenne32.h
-  ${RN_BASE}/mersenne64.h
-  ${RN_BASE}/shuffle.h
+set( DRAFT_BASE ${CMAKE_SOURCE_DIR}/util/draft )
+set( DRAFT_SRCS
+ #${DRAFT_BASE}/autozero.cpp
+ #${DRAFT_BASE}/backtrace_exception.cpp
+ #${DRAFT_BASE}/bitutils.cpp
+ #${DRAFT_BASE}/datafile.cpp
+ #${DRAFT_BASE}/date.cpp
+ #${DRAFT_BASE}/datetime.cpp
+ #${DRAFT_BASE}/delim_file_iter.cpp
+ #${DRAFT_BASE}/env.cpp
+ #${DRAFT_BASE}/file_io.cpp
+ #${DRAFT_BASE}/file_poller.cpp
+ #${DRAFT_BASE}/file_utils.cpp
+ #${DRAFT_BASE}/free_thread_queue.cpp
+ #${DRAFT_BASE}/modchooser.cpp
+  ${DRAFT_BASE}/netloss.cpp
+ #${DRAFT_BASE}/parse_utils.cpp
+ #${DRAFT_BASE}/prob_distr.cpp
+ #${DRAFT_BASE}/prog_options.cpp
 )
 
-set( SV_BASE ${CMAKE_SOURCE_DIR}/util/server )
-
-set( SV_SRCS
-  ${SV_BASE}/http.cpp
-  ${SV_BASE}/listen.cpp
-  ${SV_BASE}/options.cpp
+set( ROOT_BASE ${CMAKE_SOURCE_DIR}/util )
+set( ROOT_SRCS
+  ${ROOT_BASE}/ffb.cpp
+  ${ROOT_BASE}/fileptr.cpp
+  ${ROOT_BASE}/httpcodes.cpp
+  ${ROOT_BASE}/httpdate.cpp
+  ${ROOT_BASE}/mbitmap.cpp
+  ${ROOT_BASE}/str_hash.cpp
+  ${ROOT_BASE}/ysafeptr.cpp
+  ${ROOT_BASE}/ysaveload.cpp
 )
-
-set( UT_BASE ${CMAKE_SOURCE_DIR}/util )
-
-set( UT_SRCS
-  ${UT_BASE}/fileptr.cpp
-  ${UT_BASE}/str_hash.cpp
-  ${UT_BASE}/mbitmap.cpp
-  ${UT_BASE}/ysafeptr.cpp
-  ${UT_BASE}/yarchive.cpp
-  ${UT_BASE}/ysaveload.cpp
-  ${UT_BASE}/array2d.h
-  ${UT_BASE}/array2d_writer.h
-  ${UT_BASE}/atomizer.h
-  ${UT_BASE}/autoarray.h
-  ${UT_BASE}/cont_init.h
-  ${UT_BASE}/fgood.h
-  ${UT_BASE}/fput.h
-  ${UT_BASE}/save_stl.h
-  ${UT_BASE}/spars_ar.h
-  ${UT_BASE}/static_hash.h
-  ${UT_BASE}/static_hash_map.h
-  ${UT_BASE}/str_map.h
-  ${UT_BASE}/str_stl.h
-  ${UT_BASE}/httpdate.cpp
-  ${UT_BASE}/httpdate.h
-)
-
-if (UNIX AND NOT APPLE)
-  # not important for Win, may be useful only for Unixes
-  set( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp )
-else()
-  set( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64_fake.cpp)
-endif()
-
-add_library( ytext-lfalloc STATIC
-  ${LFA_SRC}
-)
-
-add_library( ytext-lfalloc-fake STATIC
-  ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64_fake.cpp
-)
-
 
 add_library( ytext-arcadia-util STATIC
-  ${SRCS}
-  ${G_SRCS}
-  ${D_SRCS}
-  ${S_SRCS}
-  ${M_SRCS}
-  ${ST_SRCS}
-  ${CF_SRCS}
-  ${DU_SRCS}
-  ${DJ_SRCS}
-  ${NW_SRCS}
-  ${FR_SRCS}
-  ${DT_SRCS}
-  ${TR_SRCS}
-  ${SR_SRCS}
-  ${GR_SRCS}
-  ${RN_SRCS}
-  ${SV_SRCS}
-  ${UT_SRCS}
+  ${STRING_SRCS}
+  ${GENERIC_SRCS}
+  ${DIGEST_SRCS}
+  ${SYSTEM_SRCS}
+  ${MEMORY_SRCS}
+  ${STREAM_SRCS}
+  ${CONFIG_SRCS}
+  ${NETWORK_SRCS}
+  ${FOLDER_SRCS}
+  ${DATETIME_SRCS}
+  ${THREAD_SRCS}
+  ${GREEN_SRCS}
+  ${RANDOM_SRCS}
+  ${DRAFT_SRCS}
+  ${ROOT_SRCS}
 )
 
 target_link_libraries ( ytext-arcadia-util
@@ -377,9 +277,9 @@ target_link_libraries ( ytext-arcadia-util
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
-  target_link_libraries ( ytext-arcadia-util -ldl )
+  target_link_libraries( ytext-arcadia-util -ldl )
   if (NOT APPLE)
-    target_link_libraries ( ytext-arcadia-util -lrt )
+    target_link_libraries( ytext-arcadia-util -lrt )
   endif()
 endif()
 

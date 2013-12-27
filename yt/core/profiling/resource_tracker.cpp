@@ -15,7 +15,7 @@
 #include <util/stream/file.h>
 #include <util/string/vector.h>
 
-#include <util/private/lfalloc/helpers.h>
+#include <core/misc/lfalloc_helpers.h>
 
 #ifdef RESOURCE_TRACKER_ENABLED
     #include <unistd.h>

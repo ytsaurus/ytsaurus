@@ -242,7 +242,7 @@ TError StatusToError(int status)
         return TError(EExitStatus::SignalBase + signalNumber, "Process stopped by signal %d", signalNumber);
     } else if (WIFEXITED(status)) {
         int exitCode = WEXITSTATUS(status);
-        return TError(EExitStatus::ExitCodeBase + exitCode, "Process exited with value %d", exitCode);
+        return TError(EExitStatus::ExitCodeBase + exitCode, "Process exited with code %d", exitCode);
     } else {
         return TError("Unknown status %d", status);
     }

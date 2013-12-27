@@ -137,21 +137,38 @@ void TSchemedDsvWriter::OnEndMap()
 
 void TSchemedDsvWriter::WriteRow()
 {
-    if (ValueCount_ == Keys_.size()) {
+    typedef TSchemedDsvFormatConfig::EMissingValueMode EMissingValueMode;
+
+    if (ValueCount_ != Keys_.size() && Config_->MissingValueMode == EMissingValueMode::Fail) {
+        THROW_ERROR_EXCEPTION("Some column is missing in row");
+    }
+
+    if (ValueCount_ == Keys_.size() || Config_->MissingValueMode == EMissingValueMode::PrintSentinel) {
         if (Config_->EnableTableIndex) {
             Stream_->Write(ToString(TableIndex_));
             Stream_->Write(Config_->FieldSeparator);
         }
         for (int i = 0; i < Keys_.size(); ++i) {
             auto key = Config_->Columns[i];
-            EscapeAndWrite(Values_[key]);
+            TStringBuf value = Values_[key];
+            if (!value.IsInited()) {
+                value = Config_->MissingValueSentinel;
+            }
+            EscapeAndWrite(value);
             Stream_->Write(
                 i + 1 < Keys_.size()
                 ? Config_->FieldSeparator
                 : Config_->RecordSeparator);
         }
     }
+
+	// Clear row
     ValueCount_ = 0;
+    if (Config_->MissingValueMode == EMissingValueMode::PrintSentinel) {
+        for (const auto& key: Keys_) {
+            Values_[key] = TStringBuf();
+        }
+    }
 }
 
 void TSchemedDsvWriter::EscapeAndWrite(const TStringBuf& value) const

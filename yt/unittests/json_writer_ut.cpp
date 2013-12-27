@@ -54,6 +54,26 @@ TEST(TJsonWriterTest, Map)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, DoubleMap)
+{
+    TStringStream outputStream;
+    auto writer = CreateJsonConsumer(&outputStream, NYson::EYsonType::ListFragment);
+
+    writer->OnListItem();
+    writer->OnBeginMap();
+        writer->OnKeyedItem("hello");
+        writer->OnStringScalar("world");
+    writer->OnEndMap();
+    writer->OnListItem();
+    writer->OnBeginMap();
+        writer->OnKeyedItem("foo");
+        writer->OnStringScalar("bar");
+    writer->OnEndMap();
+
+    Stroka output = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TJsonWriterTest, Entity)
 {
     TStringStream outputStream;
@@ -76,28 +96,28 @@ TEST(TJsonWriterTest, EmptyString)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-
-TEST(TJsonWriterTest, ValidUtf8String)
+TEST(TJsonWriterTest, AsciiString)
 {
     TStringStream outputStream;
     auto writer = CreateJsonConsumer(&outputStream);
 
-    Stroka s = Stroka("\xCF\x8F", 2); // (110)0 1111 (10)00 1111 -- valid code points
+    Stroka s = Stroka("\x7F\x32", 2);
     writer->OnStringScalar(s);
 
     Stroka output = SurroundWithQuotes(s);
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, NotValidUtf8String)
+
+TEST(TJsonWriterTest, NonAsciiString)
 {
     TStringStream outputStream;
     auto writer = CreateJsonConsumer(&outputStream);
 
-    Stroka s = Stroka("\x80\x01", 2); // second codepoint doesn't start with 10..
+    Stroka s = Stroka("\xFF\x00\x80", 3);
     writer->OnStringScalar(s);
 
-    Stroka output = SurroundWithQuotes("&" + Base64Encode(s));
+    Stroka output = SurroundWithQuotes("\xC3\xBF\\u0000\xC2\x80");
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -109,23 +129,7 @@ TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
     Stroka s = "&some_string";
     writer->OnStringScalar(s);
 
-    Stroka output = SurroundWithQuotes("&" + Base64Encode(s));
-    EXPECT_EQ(output, outputStream.Str());
-}
-
-TEST(TJsonWriterTest, StringStartingWithSpecialSymbolAsKeyInMap)
-{
-    TStringStream outputStream;
-    auto writer = CreateJsonConsumer(&outputStream);
-
-    Stroka s = "&hello";
-    writer->OnBeginMap();
-        writer->OnKeyedItem(s);
-        writer->OnStringScalar("world");
-    writer->OnEndMap();
-
-    Stroka expectedS = SurroundWithQuotes("&" + Base64Encode(s));
-    Stroka output = Sprintf("{%s:\"world\"}", ~expectedS);
+    Stroka output = SurroundWithQuotes(s);
     EXPECT_EQ(output, outputStream.Str());
 }
 

@@ -570,7 +570,7 @@ TError TCypressManager::ValidateLock(
     }   
 
     // Check pending locks.
-    if (checkPending && !trunkNode->PendingLocks().empty()) {
+    if (request.Mode != ELockMode::Snapshot && checkPending && !trunkNode->PendingLocks().empty()) {
         return TError(
             NCypressClient::EErrorCode::PendingLockConflict,
             "Cannot take %s lock for node %s since there are %d pending lock(s) for this node",

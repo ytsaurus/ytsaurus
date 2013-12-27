@@ -5,7 +5,6 @@
 #include <core/misc/preprocessor.h>
 
 #include <core/actions/invoker_util.h>
-
 #include <util/system/thread.h>
 
 #include <atomic>
@@ -35,6 +34,11 @@ namespace NConcurrency {
  * Please refer to the unit test for an actual usage example
  * (unittests/thread_affinity_ut.cpp).
  */
+
+// Check that the cast NThread::TThreadId -> TAtomic is safe.
+// NB: TAtomic is volatile intptr_t.
+static_assert(sizeof(NConcurrency::TThreadId) == sizeof(intptr_t),
+    "Current implementation assumes that TThread::TId can be atomically swapped.");
 
 class TThreadAffinitySlot
 {

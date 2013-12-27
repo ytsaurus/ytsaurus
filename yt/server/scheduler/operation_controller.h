@@ -196,13 +196,20 @@ struct IOperationController
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
 
     //! Called to construct a YSON representing the current progress.
-    virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildProgress(NYson::IYsonConsumer* consumer) = 0;
+
+    //! Similar to #BuildProgress but constructs a reduced version to used by UI.
+    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) = 0;
 
     //! Provides a string describing operation status and statistics.
     virtual Stroka GetLoggingProgress() = 0;
 
     //! Called for finished operations to construct a YSON representing the result.
-    virtual void BuildResultYson(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildResult(NYson::IYsonConsumer* consumer) = 0;
+
+    //! Called for a just initialized operation to construct its brief spec
+    //! to be used by UI.
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) = 0;
 
 };
 

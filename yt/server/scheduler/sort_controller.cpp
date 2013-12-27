@@ -2109,9 +2109,9 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) override
     {
-        TSortControllerBase::BuildProgressYson(consumer);
+        TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
             .Item("partition_jobs").Value(PartitionJobCounter)
@@ -2156,6 +2156,30 @@ public:
         , MapStartRowIndex(0)
         , ReduceStartRowIndex(0)
     { }
+
+    void BuildBriefSpec(IYsonConsumer* consumer) override
+    {
+        TSortControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("mapper").BeginMap()
+                      .Item("command").Value(Spec->Mapper->Command)
+                    .EndMap();
+            })
+            .DoIf(Spec->Reducer, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reducer").BeginMap()
+                        .Item("command").Value(Spec->Reducer->Command)
+                    .EndMap();
+            })
+            .DoIf(Spec->ReduceCombiner, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reduce_combiner").BeginMap()
+                        .Item("command").Value(Spec->ReduceCombiner->Command)
+                    .EndMap();
+            });
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceController, 0xca7286bd);
@@ -2627,9 +2651,9 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) override
     {
-        TSortControllerBase::BuildProgressYson(consumer);
+        TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
             .Item(Spec->Mapper ? "partition_jobs" : "map_jobs").Value(PartitionJobCounter)

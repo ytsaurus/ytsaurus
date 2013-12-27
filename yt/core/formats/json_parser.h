@@ -22,7 +22,8 @@ class TJsonParser
 public:
     TJsonParser(
         NYson::IYsonConsumer* consumer,
-        TJsonFormatConfigPtr config = NULL);
+        TJsonFormatConfigPtr config = NULL,
+        NYson::EYsonType type = NYson::EYsonType::Node);
 
     virtual void Read(const TStringBuf& data);
     virtual void Finish();
@@ -32,6 +33,7 @@ public:
 private:
     NYson::IYsonConsumer* Consumer;
     TJsonFormatConfigPtr Config;
+    NYson::EYsonType Type;
 
     TStringStream Stream;
 
@@ -42,7 +44,7 @@ private:
 
     void VisitArray(const NJson::TJsonValue::TArray& array);
 
-    Stroka DecodeString(const Stroka& value);
+    void ParseNode(TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +52,8 @@ private:
 void ParseJson(
     TInputStream* input,
     NYson::IYsonConsumer* consumer,
-    TJsonFormatConfigPtr config = NULL);
+    TJsonFormatConfigPtr config = NULL,
+    NYson::EYsonType type = NYson::EYsonType::Node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

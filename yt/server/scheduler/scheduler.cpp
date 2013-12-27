@@ -145,9 +145,16 @@ public:
     }
 
 
+    ISchedulerStrategy* GetStrategy()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Strategy.get();
+    }
+
     IYPathServicePtr GetOrchidService()
     {
-        auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
+        auto producer = BIND(&TThis::BuildOrchid, MakeStrong(this));
         return IYPathService::FromProducer(producer);
     }
 
@@ -1638,7 +1645,7 @@ private:
     }
 
 
-    void BuildOrchidYson(IYsonConsumer* consumer)
+    void BuildOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1655,7 +1662,7 @@ private:
                 .Item("nodes").DoMapFor(AddressToNode, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
-                .DoIf(Strategy != nullptr, BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
+                .DoIf(Strategy != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, ~Strategy))
             .EndMap();
     }
 
@@ -1665,10 +1672,15 @@ private:
         bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetOperationId())).BeginMap()
-                .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
+                // Include the complete list of attributes.
+                .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasProgress, BIND(&IOperationController::BuildProgressYson, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, ~Strategy, operation))
+                    .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, ~Strategy, operation))
+                .EndMap()
+                .Item("brief_progress").BeginMap()
+                    .DoIf(hasProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, ~Strategy, operation))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
@@ -1941,6 +1953,11 @@ TScheduler::~TScheduler()
 void TScheduler::Initialize()
 {
     Impl->Initialize();
+}
+
+ISchedulerStrategy* TScheduler::GetStrategy()
+{
+    return Impl->GetStrategy();
 }
 
 IYPathServicePtr TScheduler::GetOrchidService()
