@@ -43,6 +43,8 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////////////////////////////////////////////////////////
+
 using namespace NFormats;
 using namespace NDriver;
 using namespace NYson;
@@ -233,6 +235,8 @@ public:
     driver_module()
         : Py::ExtensionModule<driver_module>("driver")
     {
+        PyEval_InitThreads();
+
         RegisterShutdown();
 
         TDriver::InitType();
@@ -274,6 +278,6 @@ extern "C" EXPORT_SYMBOL void initdriver_lib()
 // symbol required for the debug version
 extern "C" EXPORT_SYMBOL void initdriver_lib_d()
 {
-	initdriver_lib();
+    initdriver_lib();
 }
 
