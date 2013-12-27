@@ -77,6 +77,7 @@ EResourceType GetDominantResource(
             }
         }
     };
+    update(demand.user_slots(), limits.user_slots(), EResourceType::UserSlots);    
     update(demand.cpu(), limits.cpu(), EResourceType::Cpu);
     update(demand.memory(), limits.memory(), EResourceType::Memory);
     update(demand.network(), limits.network(), EResourceType::Network);
