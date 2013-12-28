@@ -23,7 +23,16 @@ TAsyncReader::TAsyncReader(int fd)
 }
 
 TAsyncReader::~TAsyncReader()
-{ }
+{
+    if (IsRegistered()) {
+        LOG_DEBUG("Start unregistering");
+
+        auto error = TIODispatcher::Get()->Unregister(*this);
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Failed to unregister");
+        }
+    }
+}
 
 void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
 {
@@ -45,6 +54,14 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.start();
 
     LOG_DEBUG("Registered");
+}
+
+void TAsyncReader::Stop()
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    FDWatcher.stop();
+    StartWatcher.stop();
 }
 
 void TAsyncReader::OnStart(ev::async&, int eventType)

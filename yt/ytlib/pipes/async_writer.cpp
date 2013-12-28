@@ -26,7 +26,15 @@ TAsyncWriter::TAsyncWriter(int fd)
 
 TAsyncWriter::~TAsyncWriter()
 {
-    Close();
+    Writer->Close();
+    if (IsRegistered()) {
+        LOG_DEBUG("Start unregistering");
+
+        auto error = TIODispatcher::Get()->Unregister(*this);
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Failed to unregister");
+        }
+    }
 }
 
 void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
@@ -46,6 +54,14 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.start();
 
     LOG_DEBUG("Registered");
+}
+
+void TAsyncWriter::Stop()
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    FDWatcher.stop();
+    StartWatcher.stop();
 }
 
 void TAsyncWriter::OnStart(ev::async&, int eventType)
@@ -103,7 +119,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
 
     // restart watcher
     if (!Writer->IsFailed()) {
-        if (IsRegistered() && !FDWatcher.is_active() && HasJobToDo()) {
+        if (IsRegistered() && !Writer->IsClosed() && !FDWatcher.is_active() && HasJobToDo()) {
             StartWatcher.send();
         }
     } else {

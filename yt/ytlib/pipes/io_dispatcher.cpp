@@ -25,6 +25,11 @@ TAsyncError TIODispatcher::AsyncRegister(IFDWatcherPtr watcher)
     return Impl->AsyncRegister(watcher);
 }
 
+TError TIODispatcher::Unregister(IFDWatcher& watcher)
+{
+    return Impl->Unregister(watcher);
+}
+
 void TIODispatcher::Shutdown()
 {
     return Impl->Shutdown();

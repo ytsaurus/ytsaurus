@@ -31,6 +31,7 @@ public:
 
 private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
+    virtual void Stop() override;
 
     std::unique_ptr<NDetail::TNonblockingReader> Reader;
     ev::io FDWatcher;

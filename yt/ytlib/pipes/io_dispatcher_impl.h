@@ -25,6 +25,7 @@ public:
     void Shutdown();
 
     TAsyncError AsyncRegister(IFDWatcherPtr watcher);
+    TError Unregister(IFDWatcher& watcher);
 
 private:
     TThread Thread;
@@ -33,12 +34,12 @@ private:
     bool Stopped;
     ev::async StopWatcher;
 
-    struct TRegisterEntry
+    struct TRegistryEntry
     {
-        TRegisterEntry()
+        TRegistryEntry()
         { }
 
-        explicit TRegisterEntry(IFDWatcherPtr watcher)
+        explicit TRegistryEntry(IFDWatcherPtr&& watcher)
             : Watcher(std::move(watcher))
             , Promise(NewPromise<TError>())
         { }
@@ -47,10 +48,28 @@ private:
         TPromise<TError> Promise;
     };
 
-    TLockFreeQueue<TRegisterEntry> RegisterQueue;
+    TLockFreeQueue<TRegistryEntry> RegisterQueue;
     ev::async RegisterWatcher;
 
+    struct TUnregistryEntry
+    {
+        TUnregistryEntry()
+        { }
+
+        explicit TUnregistryEntry(IFDWatcher* watcher)
+            : Watcher(watcher)
+            , Promise(NewPromise<TError>())
+        { }
+
+        IFDWatcher* Watcher;
+        TPromise<TError> Promise;
+    };
+
+    TLockFreeQueue<TUnregistryEntry> UnregisterQueue;
+    ev::async UnregisterWatcher;
+
     void OnRegister(ev::async&, int);
+    void OnUnregister(ev::async&, int);
     void OnStop(ev::async&, int);
 
     static void* ThreadFunc(void* param);

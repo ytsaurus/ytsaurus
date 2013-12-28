@@ -29,6 +29,7 @@ public:
 
 private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
+    virtual void Stop() override;
 
     void Close();
 

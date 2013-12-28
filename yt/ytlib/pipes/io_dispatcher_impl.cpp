@@ -10,12 +10,15 @@ TIODispatcher::TImpl::TImpl()
     , Stopped(false)
     , StopWatcher(EventLoop)
     , RegisterWatcher(EventLoop)
+    , UnregisterWatcher(EventLoop)
 {
     StopWatcher.set<TImpl, &TImpl::OnStop>(this);
     RegisterWatcher.set<TImpl, &TImpl::OnRegister>(this);
+    UnregisterWatcher.set<TImpl, &TImpl::OnUnregister>(this);
 
     StopWatcher.start();
     RegisterWatcher.start();
+    UnregisterWatcher.start();
 
     Thread.Start();
 }
@@ -37,11 +40,26 @@ TAsyncError TIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TRegisterEntry entry(std::move(watcher));
+    TRegistryEntry entry(std::move(watcher));
     RegisterQueue.Enqueue(entry);
+
+    YCHECK(RegisterWatcher.is_active());
     RegisterWatcher.send();
 
     return entry.Promise;
+}
+
+TError TIODispatcher::TImpl::Unregister(IFDWatcher& watcher)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TUnregistryEntry entry(&watcher);
+    UnregisterQueue.Enqueue(entry);
+
+    YCHECK(UnregisterWatcher.is_active());
+    UnregisterWatcher.send();
+
+    return entry.Promise.ToFuture().Get();
 }
 
 void TIODispatcher::TImpl::OnStop(ev::async&, int)
@@ -55,10 +73,25 @@ void TIODispatcher::TImpl::OnRegister(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TRegisterEntry entry;
+    TRegistryEntry entry;
     while (RegisterQueue.Dequeue(&entry)) {
         try {
             entry.Watcher->Start(EventLoop);
+            entry.Promise.Set(TError());
+        } catch (const std::exception& ex) {
+            entry.Promise.Set(ex);
+        }
+    }
+}
+
+void TIODispatcher::TImpl::OnUnregister(ev::async&, int)
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    TUnregistryEntry entry;
+    while (UnregisterQueue.Dequeue(&entry)) {
+        try {
+            entry.Watcher->Stop();
             entry.Promise.Set(TError());
         } catch (const std::exception& ex) {
             entry.Promise.Set(ex);
