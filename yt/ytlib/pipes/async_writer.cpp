@@ -17,6 +17,8 @@ TAsyncWriter::TAsyncWriter(int fd)
     , NeedToClose(false)
     , Logger(WriterLogger)
 {
+    Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
+
     FDWatcher.set(fd, ev::WRITE);
 
     RegistrationError = TIODispatcher::Get()->AsyncRegister(this);
@@ -116,6 +118,7 @@ void TAsyncWriter::Close()
     Writer->Close();
     NeedToClose = false;
     FDWatcher.stop();
+    StartWatcher.stop();
 }
 
 TAsyncError TAsyncWriter::AsyncClose()

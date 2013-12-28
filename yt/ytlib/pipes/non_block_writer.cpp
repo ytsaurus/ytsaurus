@@ -40,7 +40,7 @@ void TNonblockingWriter::Close()
 {
     if (!Closed_) {
         int errCode = close(FD_);
-        if (errCode == -1 || errno != EAGAIN) {
+        if (errCode == -1 && errno != EAGAIN) {
             // please, read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
             // http://rb.yandex-team.ru/arc/r/44030/
