@@ -298,7 +298,7 @@ void TStoreManager::SetRotationScheduled()
         ~ToString(Tablet_->GetId()));
 }
 
-void TStoreManager::ResetRotationSñheduled()
+void TStoreManager::ResetRotationScheduled()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

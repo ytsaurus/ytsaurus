@@ -253,7 +253,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            tablet->GetStoreManager()->ResetRotationSñheduled();
+            tablet->GetStoreManager()->ResetRotationScheduled();
         }
     }
 

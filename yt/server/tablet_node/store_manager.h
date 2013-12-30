@@ -53,7 +53,7 @@ public:
 
     bool IsRotationNeeded() const;
     void SetRotationScheduled();
-    void ResetRotationSñheduled();
+    void ResetRotationScheduled();
     void Rotate();
 
 private:
