@@ -394,10 +394,15 @@ class YTEnv(object):
         self._wait_for(scheduler_ready, name = "scheduler")
 
     def _prepare_driver(self):
+        path = os.path.join(self.path_to_run, "driver")
+        os.mkdir(path)
+
         config = configs.get_driver_config()
         config['masters']['addresses'] = self._master_addresses
         config['timestamp_provider']['addresses'] = self._master_addresses
-        config_path = os.path.join(self.path_to_run, 'driver_config.yson')
+        init_logging(config['logging'], path, 'driver')
+
+        config_path = os.path.join(path, 'driver_config.yson')
         write_config(config, config_path)
         os.environ['YT_CONFIG'] = config_path
 
