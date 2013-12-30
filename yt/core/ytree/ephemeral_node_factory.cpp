@@ -363,7 +363,7 @@ public:
         YASSERT(child);
 
         if (beforeIndex < 0) {
-            YCHECK(ChildToIndex.insert(std::make_pair(child, IndexToChild.size())).second);
+            YCHECK(ChildToIndex.insert(std::make_pair(child, static_cast<int>(IndexToChild.size()))).second);
             IndexToChild.push_back(child);
         } else {
             for (auto it = IndexToChild.begin() + beforeIndex; it != IndexToChild.end(); ++it) {
