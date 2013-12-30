@@ -2,14 +2,21 @@
 
 import yt.logger as logger
 import yt.wrapper as yt
+from yt.wrapper.common import die
 
 import argparse
+import sys
+import traceback
 
 def main():
     parser = argparse.ArgumentParser(description='Add user.')
     parser.add_argument('dir')
     parser.add_argument('account')
+    parser.add_argument('--proxy')
     args = parser.parse_args()
+
+    if args.proxy is not None:
+        yt.config.set_proxy(args.proxy)
 
     for obj in yt.search(args.dir, attributes=["account"]):
         if obj.attributes["account"] != args.account:
@@ -24,5 +31,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except yt.YtError as error:
+        die(str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()
 

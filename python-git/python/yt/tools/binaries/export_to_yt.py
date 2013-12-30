@@ -2,6 +2,7 @@
 
 from yt.tools.atomic import process_tasks_from_list
 from yt.tools.common import update_args
+from yt.wrapper.common import die
 
 from yt.wrapper.table_commands import get_sorted_by
 
@@ -92,7 +93,7 @@ def main():
     parser.add_argument("--src")
     parser.add_argument("--dst")
 
-    parser.add_argument("--yt-proxy")
+    parser.add_argument("--yt-proxy", "Proxy of destination cluster. Source cluster should be specified through YT_PROXY")
     parser.add_argument("--yt-token")
     parser.add_argument("--yt-pool", default="export_restricted")
 
@@ -113,5 +114,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except yt.YtError as error:
+        die(str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()
 

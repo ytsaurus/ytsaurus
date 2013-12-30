@@ -3,6 +3,7 @@
 from yt.tools.atomic import process_tasks_from_list
 from yt.tools.common import update_args
 from yt.tools.mr import Mr
+from yt.wrapper.common import die
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -11,6 +12,8 @@ import os
 import copy
 import uuid
 import subprocess
+import sys
+import traceback
 from argparse import ArgumentParser
 from urllib import quote_plus
 
@@ -272,12 +275,16 @@ def main():
     parser.add_argument("--yt-binary")
     parser.add_argument("--yt-token")
     parser.add_argument("--yt-pool")
+    parser.add_argument("--yt-proxy")
 
     parser.add_argument("--push-mapper-opts", default="")
     parser.add_argument("--push-mapper-spec", default="{}")
     parser.add_argument("--use-default-mapreduce-yt", action="store_true", default=False)
 
     args = parser.parse_args()
+
+    if args.yt_proxy is not None:
+        yt.config.set_proxy(args.yt_proxy)
 
     if args.tables_queue is not None:
         assert args.src is None and args.dst is None
@@ -290,4 +297,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except yt.YtError as error:
+        die(str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()
