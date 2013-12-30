@@ -2,8 +2,10 @@
 
 import yt.logger as logger
 import yt.wrapper as yt
+from yt.wrapper.common import die
 
 import sys
+import traceback
 from argparse import ArgumentParser
 
 def get_compression_ratio(table, codec):
@@ -35,8 +37,12 @@ def main():
     parser.add_argument("--erasure-codec", required=True)
     parser.add_argument("--compression-codec")
     parser.add_argument("--desired-chunk-size", type=int, default=2 * 1024 ** 3)
+    parser.add_argument('--proxy')
     args = parser.parse_args()
         
+    if args.proxy is not None:
+        yt.config.set_proxy(args.proxy)
+
     if args.dst is None:
         args.dst = args.src
     
@@ -68,4 +74,10 @@ def main():
     yt.run_merge(args.src, args.dst, mode, spec=spec)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except yt.YtError as error:
+        die(str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()
