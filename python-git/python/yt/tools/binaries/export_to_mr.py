@@ -3,12 +3,15 @@
 from yt.tools.atomic import process_tasks_from_list
 from yt.tools.common import update_args
 from yt.tools.mr import Mr
+from yt.wrapper.common import die
 
 import yt.logger as logger
 import yt.wrapper as yt
 
 import os
 import copy
+import sys
+import traceback
 
 from argparse import ArgumentParser
 
@@ -104,11 +107,15 @@ def main():
                         help="do not return empty source tables back to queue")
     parser.add_argument("--fastbone", action="store_true", default=False)
 
+    parser.add_argument("--yt-proxy")
     parser.add_argument("--yt-pool", default="export_restricted")
 
     parser.add_argument("--opts", default="")
 
     args = parser.parse_args()
+
+    if args.yt_proxy is not None:
+        yt.config.set_proxy(args.yt_proxy)
 
     if args.tables_queue is not None:
         assert args.src is None and args.dst is None
@@ -120,4 +127,10 @@ def main():
         export_table({"src": args.src, "dst": args.dst}, args)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except yt.YtError as error:
+        die(str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()
