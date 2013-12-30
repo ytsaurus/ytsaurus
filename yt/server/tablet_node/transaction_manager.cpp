@@ -15,8 +15,6 @@
 
 #include <server/hive/transaction_supervisor.h>
 
-#include <server/tablet_node/transaction_manager.pb.h>
-
 namespace NYT {
 namespace NTabletNode {
 
