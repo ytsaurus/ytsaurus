@@ -249,21 +249,28 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
    
     auto now = GetCpuInstant();
 
-    TGuard<TSpinLock> guard(counter.SpinLock);
-    counter.Value += delta;
+    auto result = (counter.Value += delta);
     if (now > counter.Deadline) {
-        if (counter.LastTime != 0) {
-            auto counterDelta = counter.Value - counter.LastValue;
-            auto timeDelta = now - counter.LastTime;
-            auto sampleValue = counterDelta * counter.Interval / timeDelta;
-            guard.Release();
+        TValue sampleValue = -1;
+        {
+            TGuard<TSpinLock> guard(counter.SpinLock);
+            if (now > counter.Deadline) {
+                if (counter.LastTime != 0) {
+                    auto counterDelta = counter.Value - counter.LastValue;
+                    auto timeDelta = now - counter.LastTime;
+                    sampleValue = counterDelta * counter.Interval / timeDelta;
+                }
+                counter.LastTime = now;
+                counter.LastValue = counter.Value;
+                counter.Deadline = now + counter.Interval;
+            }
+        }
+        if (sampleValue >= 0) {
             Enqueue(counter.Path, sampleValue, counter.TagIds);
         }
-        counter.LastTime = now;
-        counter.LastValue = counter.Value;
-        counter.Deadline = now + counter.Interval;
     }
-    return counter.Value;
+
+    return result;
 }
 
 void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
