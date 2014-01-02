@@ -100,7 +100,7 @@
 #ifdef _unix_
     #define TLS_STATIC static __thread
 #else
-    #define TLS_STATIC __declspec(thread)
+    #define TLS_STATIC static __declspec(thread)
 #endif
 
 #ifdef __GNUC__
