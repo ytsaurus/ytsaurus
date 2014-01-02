@@ -217,7 +217,7 @@ public:
 
     int GetCount() const
     {
-        return Header->Count;
+        return Header ? Header->Count : 0;
     }
 
     const TUnversionedValue& operator[] (int index) const
