@@ -26,7 +26,6 @@ class TYTEnvironment
 public:
     virtual void SetUp() override
     {
-#ifdef _unix_
         if (!getenv("YT_LOG_LEVEL") && !getenv("YT_LOG_CATEGORIES")) {
             return;
         }
@@ -70,7 +69,6 @@ public:
                 .EndMap()
             .EndMap();
         NYT::NLog::TLogManager::Get()->Configure(builder->EndTree());
-#endif
     }
 
     virtual void TearDown() override
