@@ -89,9 +89,9 @@ public:
         , ReplyBus(std::move(replyBus))
         , Logger(loggingCategory)
     {
-        YCHECK(RequestMessage);
-        YCHECK(ReplyBus);
-        YCHECK(Service);
+        YASSERT(RequestMessage);
+        YASSERT(ReplyBus);
+        YASSERT(Service);
     }
 
 private:
@@ -338,9 +338,9 @@ void TServiceBase::OnInvocationPrepared(
 
         // No need for a lock here.
         activeRequest->RunningSync = true;
-        activeRequest->SyncStartTime = GetCpuInstant();
 
-        {
+        if (Profiler.GetEnabled()) {
+            activeRequest->SyncStartTime = GetCpuInstant();
             auto value = CpuDurationToValue(activeRequest->SyncStartTime - activeRequest->ArrivalTime);
             Profiler.Aggregate(runtimeInfo->LocalWaitTimeCounter, value);
         }
@@ -355,18 +355,20 @@ void TServiceBase::OnInvocationPrepared(
         {
             TGuard<TSpinLock> guard(activeRequest->SpinLock);
 
-            YCHECK(activeRequest->RunningSync);
+            YASSERT(activeRequest->RunningSync);
             activeRequest->RunningSync = false;
 
-            if (!activeRequest->Completed) {
-                activeRequest->SyncStopTime = GetCpuInstant();
-                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
-                Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
-            }
+            if (Profiler.GetEnabled()) {
+                if (!activeRequest->Completed) {
+                    activeRequest->SyncStopTime = GetCpuInstant();
+                    auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
+                    Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
+                }
 
-            if (runtimeInfo->Descriptor.OneWay) {
-                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->ArrivalTime);
-                Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
+                if (runtimeInfo->Descriptor.OneWay) {
+                    auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->ArrivalTime);
+                    Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
+                }
             }
         }
     });
@@ -399,30 +401,34 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray m
     {
         TGuard<TSpinLock> guard(activeRequest->SpinLock);
 
-        YCHECK(!activeRequest->Completed);
+        YASSERT(!activeRequest->Completed);
         activeRequest->Completed = true;
 
         if (active) {
-            Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
             activeRequest->ReplyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
+            // NB: This counter is also used to track queue size limit so
+            // it must be maintained even if the profiler is OFF.
+            Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
         }
 
-        auto now = GetCpuInstant();
+        if (Profiler.GetEnabled()) {
+            auto now = GetCpuInstant();
 
-        if (activeRequest->RunningSync) {
-            activeRequest->SyncStopTime = now;
-            auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
-            Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
-        }
+            if (activeRequest->RunningSync) {
+                activeRequest->SyncStopTime = now;
+                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
+                Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
+            }
 
-        {
-            auto value = CpuDurationToValue(now - activeRequest->SyncStopTime);
-            Profiler.Aggregate(runtimeInfo->AsyncTimeCounter, value);
-        }
+            {
+                auto value = CpuDurationToValue(now - activeRequest->SyncStopTime);
+                Profiler.Aggregate(runtimeInfo->AsyncTimeCounter, value);
+            }
 
-        {
-            auto value = CpuDurationToValue(now - activeRequest->ArrivalTime);
-            Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
+            {
+                auto value = CpuDurationToValue(now - activeRequest->ArrivalTime);
+                Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
+            }
         }
     }
 }
