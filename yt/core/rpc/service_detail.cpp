@@ -312,7 +312,7 @@ void TServiceBase::OnRequest(
                 &TServiceBase::OnInvocationPrepared,
                 MakeStrong(this),
                 std::move(activeRequest),
-                std::move(context)));
+                context));
     } else {
         OnInvocationPrepared(
             std::move(activeRequest),
