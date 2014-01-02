@@ -27,11 +27,11 @@ class TRedirectedRequest
 {
 public:
     TRedirectedRequest(
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message)
-        : Header_(header)
-        , Message(message)
-        , RequestId(FromProto<TRequestId>(Header_.request_id()))
+        : Header_(std::move(header))
+        , Message(std::move(message))
+        , RequestId(FromProto<TRequestId>(Header_->request_id()))
     { }
 
     virtual TSharedRefArray Serialize() const override
@@ -41,7 +41,7 @@ public:
 
     virtual bool IsOneWay() const override
     {
-        return Header_.one_way();
+        return Header_->one_way();
     }
 
     virtual bool IsRequestHeavy() const override
@@ -61,12 +61,12 @@ public:
 
     virtual const Stroka& GetService() const override
     {
-        return Header_.service();
+        return Header_->service();
     }
 
     virtual const Stroka& GetVerb() const override
     {
-        return Header_.verb();
+        return Header_->verb();
     }
 
     virtual TInstant GetStartTime() const override
@@ -81,16 +81,16 @@ public:
 
     virtual const NProto::TRequestHeader& Header() const override
     {
-        return Header_;
+        return *Header_;
     }
 
     virtual NProto::TRequestHeader& Header() override
     {
-        return Header_;
+        return *Header_;
     }
 
 private:
-    NProto::TRequestHeader Header_;
+    std::unique_ptr<NProto::TRequestHeader> Header_;
     TSharedRefArray Message;
 
     TRequestId RequestId;
@@ -153,11 +153,13 @@ public:
     { }
 
     virtual void OnRequest(
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         IBusPtr replyBus) override
     {
-        auto request = New<TRedirectedRequest>(header, message);
+        auto request = New<TRedirectedRequest>(
+            std::move(header),
+            std::move(message));
 
         LOG_DEBUG("Redirecting request (RequestId: %s, Service: %s, Verb: %s)",
             ~ToString(request->GetRequestId()),

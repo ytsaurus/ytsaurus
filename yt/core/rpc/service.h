@@ -138,7 +138,7 @@ struct IService
 
     //! Handles incoming request.
     virtual void OnRequest(
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NBus::IBusPtr replyBus) = 0;
 };

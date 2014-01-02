@@ -19,9 +19,9 @@ static auto& Logger = RpcServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextBase::TServiceContextBase(
-    const TRequestHeader& header,
+    std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage)
-    : RequestHeader_(header)
+    : RequestHeader_(std::move(header))
     , RequestMessage(std::move(requestMessage))
 {
     Initialize();
@@ -29,20 +29,21 @@ TServiceContextBase::TServiceContextBase(
 
 TServiceContextBase::TServiceContextBase(
     TSharedRefArray requestMessage)
-    : RequestMessage(std::move(requestMessage))
+    : RequestHeader_(new TRequestHeader())
+    , RequestMessage(std::move(requestMessage))
 {
-    YCHECK(ParseRequestHeader(RequestMessage, &RequestHeader_));
+    YCHECK(ParseRequestHeader(RequestMessage, RequestHeader_.get()));
     Initialize();
 }
 
 void TServiceContextBase::Initialize()
 {
-    RequestId = RequestHeader_.has_request_id()
-        ? FromProto<TRequestId>(RequestHeader_.request_id())
+    RequestId = RequestHeader_->has_request_id()
+        ? FromProto<TRequestId>(RequestHeader_->request_id())
         : NullRequestId;
 
-    RealmId = RequestHeader_.has_realm_id()
-        ? FromProto<TRealmId>(RequestHeader_.realm_id())
+    RealmId = RequestHeader_->has_realm_id()
+        ? FromProto<TRealmId>(RequestHeader_->realm_id())
         : NullRealmId;
 
     Replied = false;
@@ -107,7 +108,7 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 
 bool TServiceContextBase::IsOneWay() const
 {
-    return RequestHeader_.one_way();
+    return RequestHeader_->one_way();
 }
 
 bool TServiceContextBase::IsReplied() const
@@ -165,35 +166,35 @@ TRequestId TServiceContextBase::GetRequestId() const
 TNullable<TInstant> TServiceContextBase::GetRequestStartTime() const
 {
     return
-        RequestHeader_.has_request_start_time()
-        ? TNullable<TInstant>(TInstant(RequestHeader_.request_start_time()))
+        RequestHeader_->has_request_start_time()
+        ? TNullable<TInstant>(TInstant(RequestHeader_->request_start_time()))
         : Null;
 }
 
 TNullable<TInstant> TServiceContextBase::GetRetryStartTime() const
 {
     return
-        RequestHeader_.has_retry_start_time()
-        ? TNullable<TInstant>(TInstant(RequestHeader_.retry_start_time()))
+        RequestHeader_->has_retry_start_time()
+        ? TNullable<TInstant>(TInstant(RequestHeader_->retry_start_time()))
         : Null;
 }
 
 i64 TServiceContextBase::GetPriority() const
 {
     return
-        RequestHeader_.has_request_start_time()
-        ? -RequestHeader_.request_start_time()
+        RequestHeader_->has_request_start_time()
+        ? -RequestHeader_->request_start_time()
         : 0;
 }
 
 const Stroka& TServiceContextBase::GetService() const
 {
-    return RequestHeader_.service();
+    return RequestHeader_->service();
 }
 
 const Stroka& TServiceContextBase::GetVerb() const
 {
-    return RequestHeader_.verb();
+    return RequestHeader_->verb();
 }
 
 const TRealmId& TServiceContextBase::GetRealmId() const
@@ -203,12 +204,12 @@ const TRealmId& TServiceContextBase::GetRealmId() const
 
 const TRequestHeader& TServiceContextBase::RequestHeader() const
 {
-    return RequestHeader_;
+    return *RequestHeader_;
 }
 
 TRequestHeader& TServiceContextBase::RequestHeader()
 {
-    return RequestHeader_;
+    return *RequestHeader_;
 }
 
 void TServiceContextBase::SetRequestInfo(const Stroka& info)

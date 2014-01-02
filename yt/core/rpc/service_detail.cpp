@@ -77,11 +77,13 @@ public:
     TServiceContext(
         TServiceBasePtr service,
         TActiveRequestPtr activeRequest,
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
         IBusPtr replyBus,
         const Stroka& loggingCategory)
-        : TServiceContextBase(header, requestMessage)
+        : TServiceContextBase(
+            std::move(header),
+            std::move(requestMessage))
         , Service(std::move(service))
         , ActiveRequest(std::move(activeRequest))
         , ReplyBus(std::move(replyBus))
@@ -119,7 +121,7 @@ private:
             AppendInfo(str, Sprintf("RealmId: %s", ~ToString(RealmId)));
         }
 
-        auto user = FindAuthenticatedUser(RequestHeader_);
+        auto user = FindAuthenticatedUser(*RequestHeader_);
         if (user) {
             AppendInfo(str, Sprintf("User: %s", ~*user));
         }
@@ -204,15 +206,15 @@ TServiceId TServiceBase::GetServiceId() const
 }
 
 void TServiceBase::OnRequest(
-    const TRequestHeader& header,
+    std::unique_ptr<NProto::TRequestHeader> header,
     TSharedRefArray message,
     IBusPtr replyBus)
 {
     Profiler.Increment(RequestCounter);
 
-    const auto& verb = header.verb();
-    bool oneWay = header.one_way();
-    auto requestId = FromProto<TRequestId>(header.request_id());
+    const auto& verb = header->verb();
+    bool oneWay = header->one_way();
+    auto requestId = FromProto<TRequestId>(header->request_id());
 
     auto runtimeInfo = FindMethodInfo(verb);
     if (!runtimeInfo) {
@@ -240,7 +242,7 @@ void TServiceBase::OnRequest(
             ~FormatBool(oneWay))
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
-        if (!header.one_way()) {
+        if (!header->one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage);
         }
@@ -255,7 +257,7 @@ void TServiceBase::OnRequest(
             runtimeInfo->Descriptor.MaxQueueSize)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
-        if (!header.one_way()) {
+        if (!header->one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage);
         }
@@ -264,10 +266,10 @@ void TServiceBase::OnRequest(
 
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
 
-    if (header.has_request_start_time() && header.has_retry_start_time()) {
+    if (header->has_request_start_time() && header->has_retry_start_time()) {
         // Decode timing information.
-        auto requestStart = TInstant(header.request_start_time());
-        auto retryStart = TInstant(header.retry_start_time());
+        auto requestStart = TInstant(header->request_start_time());
+        auto retryStart = TInstant(header->retry_start_time());
         auto now = CpuInstantToInstant(GetCpuInstant());
 
         // Make sanity adjustments to account for possible clock skew.
@@ -286,7 +288,7 @@ void TServiceBase::OnRequest(
     auto context = New<TServiceContext>(
         this,
         activeRequest,
-        header,
+        std::move(header),
         message,
         replyBus,
         LoggingCategory);

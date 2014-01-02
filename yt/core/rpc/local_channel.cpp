@@ -65,7 +65,7 @@ public:
             actualTimeout);
 
         service->OnRequest(
-            header,
+            std::unique_ptr<NProto::TRequestHeader>(new NProto::TRequestHeader(header)),
             std::move(serializedRequest),
             std::move(session));
     }

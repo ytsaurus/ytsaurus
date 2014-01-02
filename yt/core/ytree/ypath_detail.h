@@ -445,7 +445,7 @@ NRpc::IServiceContextPtr CreateYPathContext(
     TYPathResponseHandler responseHandler);
 
 NRpc::IServiceContextPtr CreateYPathContext(
-    const NRpc::NProto::TRequestHeader& requestHeader,
+    std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler);

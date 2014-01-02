@@ -478,7 +478,7 @@ private:
     virtual TServiceId GetServiceId() const override;
 
     virtual void OnRequest(
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NBus::IBusPtr replyBus) override;
 

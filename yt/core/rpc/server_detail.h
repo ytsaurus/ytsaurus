@@ -56,13 +56,13 @@ public:
 
 protected:
     TServiceContextBase(
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage);
 
     explicit TServiceContextBase(
         TSharedRefArray requestMessage);
 
-    NProto::TRequestHeader RequestHeader_;
+    std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
     TSharedRefArray RequestMessage;
 
     TRequestId RequestId;

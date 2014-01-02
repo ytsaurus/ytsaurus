@@ -927,11 +927,13 @@ public:
     { }
 
     TYPathServiceContext(
-        const TRequestHeader& requestHeader,
+        std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
         TYPathResponseHandler responseHandler,
         const Stroka& loggingCategory)
-        : TServiceContextBase(requestHeader, std::move(requestMessage))
+        : TServiceContextBase(
+            std::move(requestHeader),
+            std::move(requestMessage))
         , ResponseHandler(std::move(responseHandler))
         , Logger(loggingCategory)
     { }
@@ -986,7 +988,7 @@ IServiceContextPtr CreateYPathContext(
 }
 
 IServiceContextPtr CreateYPathContext(
-    const TRequestHeader& requestHeader,
+    std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler)
@@ -994,7 +996,7 @@ IServiceContextPtr CreateYPathContext(
     YASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
-        requestHeader,
+        std::move(requestHeader),
         std::move(requestMessage),
         std::move(responseHandler),
         loggingCategory);
