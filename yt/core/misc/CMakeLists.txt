@@ -113,6 +113,8 @@ set( HDRS
   ${BASE}/zigzag.h
   ${BASE}/collection_helpers.h
   ${BASE}/collection_helpers-inl.h
+  ${BASE}/lock_free.h
+  ${BASE}/lock_free-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES
