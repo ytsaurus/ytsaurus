@@ -42,7 +42,6 @@ public:
         NVersionedTableClient::TKey key,
         bool prewrite);
 
-    virtual std::unique_ptr<IStoreScanner> CreateScanner() override;
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TKey lowerKey,
         NVersionedTableClient::TKey upperKey,
@@ -67,7 +66,6 @@ public:
     int GetAllocatedValueCount() const;
     
 private:
-    class TScanner;
     class TReader;
 
     TTabletManagerConfigPtr Config_;

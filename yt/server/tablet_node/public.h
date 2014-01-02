@@ -68,8 +68,6 @@ class TTransaction;
 struct IStore;
 typedef TIntrusivePtr<IStore> IStorePtr;
 
-struct IStoreScanner;
-
 class TDynamicMemoryStore;
 typedef TIntrusivePtr<TDynamicMemoryStore> TDynamicMemoryStorePtr;
 
