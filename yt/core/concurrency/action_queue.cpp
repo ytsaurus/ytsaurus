@@ -44,19 +44,22 @@ class TActionQueue::TImpl
     : public TRefCounted
 {
 public:
-    explicit TImpl(const Stroka& threadName)
+    explicit TImpl(
+        const Stroka& threadName,
+        bool enableLogging,
+        bool enableProfiling)
         : Queue(New<TInvokerQueue>(
             &EventCount,
             GetThreadTagIds(threadName),
-            true,
-            true))
+            enableLogging,
+            enableProfiling))
         , Thread(New<TSingleQueueExecutorThread>(
             Queue,
             &EventCount,
             threadName,
             GetThreadTagIds(threadName),
-            true,
-            true))
+            enableLogging,
+            enableProfiling))
     {
         Thread->Start();
         Queue->SetThreadId(Thread->GetId());
@@ -85,8 +88,14 @@ private:
 
 };
 
-TActionQueue::TActionQueue(const Stroka& threadName)
-    : Impl(New<TImpl>(threadName))
+TActionQueue::TActionQueue(
+    const Stroka& threadName,
+    bool enableLogging,
+    bool enableProfiling)
+    : Impl(New<TImpl>(
+        threadName,
+        enableLogging,
+        enableProfiling))
 { }
 
 TActionQueue::~TActionQueue()

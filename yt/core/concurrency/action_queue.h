@@ -14,7 +14,10 @@ class TActionQueue
     : public TRefCounted
 {
 public:
-    explicit TActionQueue(const Stroka& threadName = "<ActionQueue>");
+    explicit TActionQueue(
+        const Stroka& threadName = "<ActionQueue>",
+        bool enableLogging = true,
+        bool enableProfiling = true);
     virtual ~TActionQueue();
 
     void Shutdown();
