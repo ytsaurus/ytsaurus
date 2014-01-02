@@ -15,7 +15,7 @@ namespace NRpc {
 
 //! Represents an RPC request at server-side.
 struct IServiceContext
-    : public virtual TRefCounted
+    : public virtual TIntrinsicRefCounted
 {
     //! Returns the message that contains the request being handled.
     virtual TSharedRefArray GetRequestMessage() const = 0;
