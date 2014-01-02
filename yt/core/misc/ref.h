@@ -271,7 +271,7 @@ public:
     template <class TTag>
     void EnsureNonShared()
     {
-        if (Holder->GetRefCount() > 1) {
+        if (Holder && Holder->GetRefCount() > 1) {
             auto other = Allocate<TTag>(Size(), false);
             memcpy(other.Begin(), Begin(), Size());
             swap(*this, other);
