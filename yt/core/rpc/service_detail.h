@@ -254,13 +254,16 @@ class TServiceBase
     : public IService
 {
 protected:
-    //! Describes a handler for a service method.
-    typedef TCallback<TClosure(const IServiceContextPtr&, const THandlerInvocationOptions&)> THandler;
+    typedef TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)> TLiteHandler;
+    typedef TCallback<TLiteHandler(const IServiceContextPtr&, const THandlerInvocationOptions&)> THeavyHandler;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
     {
-        TMethodDescriptor(const Stroka& verb, THandler handler);
+        TMethodDescriptor(
+            const Stroka& verb,
+            TLiteHandler liteHandler,
+            THeavyHandler heavyHandler);
 
         //! Invoker used to executing the handler.
         //! If |nullptr| then the default one is used.
@@ -269,8 +272,11 @@ protected:
         //! Service method name.
         Stroka Verb;
 
-        //! A handler that will serve the requests.
-        THandler Handler;
+        //! A handler that will serve lite requests.
+        TLiteHandler LiteHandler;
+
+        //! A handler that will serve heavy requests.
+        THeavyHandler HeavyHandler;
 
         //! Is the method one-way?
         bool OneWay;
@@ -485,7 +491,7 @@ private:
     void OnInvocationPrepared(
         TActiveRequestPtr activeRequest,
         IServiceContextPtr context,
-        TClosure handler);
+        TLiteHandler handler);
 
     void OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message);
 
@@ -499,21 +505,36 @@ private:
     typedef TCtx##method::TTypedRequest  TReq##method; \
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
-    TClosure method##Thunk( \
+    void method##LiteThunk( \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
+        if (!typedContext->DeserializeRequest()) \
+            return; \
+        auto* request = &typedContext->Request(); \
+        auto* response = &typedContext->Response(); \
+        this->method(request, response, typedContext); \
+    } \
+    \
+    ::NYT::NRpc::TServiceBase::TLiteHandler method##HeavyThunk( \
         const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = ::NYT::New<TCtx##method>(context, options); \
         if (!typedContext->DeserializeRequest()) { \
-            return TClosure(); \
+            return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
         } \
-        return BIND([=] () { \
-            this->method( \
-                &typedContext->Request(), \
-                &typedContext->Response(), \
-                typedContext); \
-        }); \
-    } \
+        return \
+            BIND([=] ( \
+                const ::NYT::NRpc::IServiceContextPtr&, \
+                const ::NYT::NRpc::THandlerInvocationOptions&) \
+            { \
+                auto* request = &typedContext->Request(); \
+                auto* response = &typedContext->Response(); \
+                this->method(request, response, typedContext); \
+            }); \
+    }
 
 #define DECLARE_RPC_SERVICE_METHOD(ns, method) \
     DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
@@ -532,7 +553,8 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        BIND(&std::remove_reference<decltype(*this)>::type::method##Thunk, ::NYT::Unretained(this)))
+        BIND(&std::remove_reference<decltype(*this)>::type::method##LiteThunk, ::NYT::Unretained(this)), \
+        BIND(&std::remove_reference<decltype(*this)>::type::method##HeavyThunk, ::NYT::Unretained(this)))
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -541,19 +563,33 @@ private:
     typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest TReq##method; \
     \
-    TClosure method##Thunk( \
+    void method##LiteThunk( \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        if (!typedContext->DeserializeRequest()) \
+            return; \
+        auto* request = &typedContext->Request(); \
+        this->method(request, typedContext); \
+    } \
+    \
+    ::NYT::NRpc::TServiceBase::TLiteHandler method##HeavyThunk( \
         const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
         if (!typedContext->DeserializeRequest()) { \
-            return TClosure(); \
+            return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
         } \
-        return BIND([=] () { \
-            this->method( \
-                &typedContext->Request(), \
-                typedContext); \
-        }); \
+        return \
+            BIND([=] ( \
+                const ::NYT::NRpc::IServiceContextPtr&, \
+                const ::NYT::NRpc::THandlerInvocationOptions&) \
+            { \
+                auto* request = &typedContext->Request(); \
+                this->method(request, typedContext); \
+            }); \
     } \
     \
     void method( \

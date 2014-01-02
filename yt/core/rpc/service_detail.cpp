@@ -33,9 +33,11 @@ static auto& Profiler = RpcServerProfiler;
 
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
     const Stroka& verb,
-    THandler handler)
+    TLiteHandler liteHandler,
+    THeavyHandler heavyHandler)
     : Verb(verb)
-    , Handler(std::move(handler))
+    , LiteHandler(std::move(liteHandler))
+    , HeavyHandler(std::move(heavyHandler))
     , OneWay(false)
     , MaxQueueSize(100000)
     , EnableReorder(false)
@@ -301,31 +303,28 @@ void TServiceBase::OnRequest(
         Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
     }
 
-    auto handler = runtimeInfo->Descriptor.Handler;
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.HeavyRequest) {
-        auto invoker = TDispatcher::Get()->GetPoolInvoker();
-        handler
-            .AsyncVia(std::move(invoker))
+        runtimeInfo->Descriptor.HeavyHandler
+            .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
             .Run(context, options)
             .Subscribe(BIND(
                 &TServiceBase::OnInvocationPrepared,
                 MakeStrong(this),
                 std::move(activeRequest),
-                context));
+                std::move(context)));
     } else {
-        auto preparedHandler = handler.Run(context, options);
         OnInvocationPrepared(
             std::move(activeRequest),
             std::move(context),
-            std::move(preparedHandler));
+            runtimeInfo->Descriptor.LiteHandler);
     }
 }
 
 void TServiceBase::OnInvocationPrepared(
     TActiveRequestPtr activeRequest,
     IServiceContextPtr context,
-    TClosure handler)
+    TLiteHandler handler)
 {
     if (!handler) {
         TGuard<TSpinLock> guard(ActiveRequestsLock);
@@ -347,7 +346,7 @@ void TServiceBase::OnInvocationPrepared(
 
         try {
             BeforeInvoke();
-            handler.Run();
+            handler.Run(context, runtimeInfo->Descriptor.Options);
         } catch (const std::exception& ex) {
             context->Reply(ex);
         }
