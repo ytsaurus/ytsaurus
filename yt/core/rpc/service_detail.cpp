@@ -227,7 +227,7 @@ void TServiceBase::OnRequest(
         LOG_WARNING(error);
         if (!oneWay) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage);
+            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
         return;
     }
@@ -244,7 +244,7 @@ void TServiceBase::OnRequest(
         LOG_WARNING(error);
         if (!header->one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage);
+            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
         return;
     }
@@ -259,7 +259,7 @@ void TServiceBase::OnRequest(
         LOG_WARNING(error);
         if (!header->one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage);
+            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
         return;
     }
@@ -404,7 +404,7 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray m
 
         if (active) {
             Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
-            activeRequest->ReplyBus->Send(std::move(message));
+            activeRequest->ReplyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
         }
 
         auto now = GetCpuInstant();
@@ -488,7 +488,7 @@ void TServiceBase::CancelActiveRequests(const TError& error)
         Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
 
         auto errorMessage = CreateErrorResponseMessage(activeRequest->Id, error);
-        activeRequest->ReplyBus->Send(errorMessage);
+        activeRequest->ReplyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
     }
 }
 

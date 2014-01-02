@@ -92,7 +92,8 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -102,7 +103,11 @@ public:
             return;
         }
 
-        sessionOrError.GetValue()->Send(request, responseHandler, timeout);
+        sessionOrError.GetValue()->Send(
+            request,
+            responseHandler,
+            timeout,
+            requestAck);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -201,7 +206,8 @@ private:
         void Send(
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
-            TNullable<TDuration> timeout)
+            TNullable<TDuration> timeout,
+            bool requestAck)
         {
             YCHECK(request);
             YCHECK(responseHandler);
@@ -255,10 +261,16 @@ private:
                         MakeStrong(this),
                         bus,
                         request,
-                        timeout));
+                        timeout,
+                        requestAck));
             } else {
                 auto requestMessage = request->Serialize();
-                OnRequestSerialized(bus, request, timeout, requestMessage);
+                OnRequestSerialized(
+                    bus,
+                    request,
+                    timeout,
+                    requestAck,
+                    requestMessage);
             }
         }
 
@@ -312,6 +324,7 @@ private:
 
     private:
         IBusPtr Bus;
+
         TNullable<TDuration> DefaultTimeout;
 
         struct TActiveRequest
@@ -333,11 +346,16 @@ private:
             IBusPtr bus,
             IClientRequestPtr request,
             TNullable<TDuration> timeout,
+            bool requestAck,
             TSharedRefArray requestMessage)
         {
             const auto& requestId = request->GetRequestId();
 
-            bus->Send(requestMessage).Subscribe(BIND(
+            EDeliveryTrackingLevel level = requestAck
+                ? EDeliveryTrackingLevel::Full
+                : EDeliveryTrackingLevel::ErrorOnly;
+
+            bus->Send(requestMessage, level).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 requestId));

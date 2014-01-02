@@ -84,10 +84,10 @@ public:
         DispatcherThread->AsyncRegister(Connection);
     }
 
-    virtual TAsyncError Send(TSharedRefArray message) override
+    virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection->Send(std::move(message));
+        return Connection->Send(std::move(message), level);
     }
 
     virtual void Terminate(const TError& error) override

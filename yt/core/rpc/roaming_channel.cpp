@@ -33,7 +33,8 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         YASSERT(request);
         YASSERT(responseHandler);
@@ -65,7 +66,8 @@ public:
             MakeStrong(this),
             request,
             responseHandler,
-            timeout));
+            timeout,
+            requestAck));
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -156,6 +158,7 @@ private:
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
+        bool requestAck,
         TErrorOr<IChannelPtr> result)
     {
         if (!result.IsOK()) {
@@ -165,7 +168,11 @@ private:
             auto responseHandlerWrapper = New<TResponseHandler>(
                 responseHandler,
                 BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
-            channel->Send(request, responseHandlerWrapper, timeout);
+            channel->Send(
+                request,
+                responseHandlerWrapper,
+                timeout,
+                requestAck);
         }
     }
 

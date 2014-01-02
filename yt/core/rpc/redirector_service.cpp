@@ -119,7 +119,7 @@ public:
         LOG_DEBUG("Response for redirected request received (RequestId: %s)",
             ~ToString(Request->GetRequestId()));
 
-        ReplyBus->Send(message);
+        ReplyBus->Send(message, EDeliveryTrackingLevel::None);
     }
 
     virtual void OnError(const TError& error) override
@@ -128,7 +128,7 @@ public:
             ~ToString(Request->GetRequestId()));
 
         auto message = CreateErrorResponseMessage(Request->GetRequestId(), error);
-        ReplyBus->Send(message);
+        ReplyBus->Send(message, EDeliveryTrackingLevel::None);
     }
 
 private:
@@ -167,7 +167,11 @@ public:
             ~request->GetVerb());
 
         auto responseHandler = New<TRedirectedResponseHandler>(request, replyBus);
-        SinkChannel->Send(request, responseHandler, Null);
+        SinkChannel->Send(
+            request,
+            responseHandler,
+            Null,
+            true);
     }
 
     virtual TServiceId GetServiceId() const override

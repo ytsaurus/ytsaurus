@@ -35,7 +35,8 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override;
+        TNullable<TDuration> timeout,
+        bool requestAck) override;
 
     virtual TFuture<void> Terminate(const TError& error) override;
 
@@ -63,13 +64,15 @@ public:
         IChannelPtr underlyingChannel,
         IClientRequestPtr request,
         IClientResponseHandlerPtr originalHandler,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout,
+        bool requestAck)
         : Config(std::move(config))
         , UnderlyingChannel(std::move(underlyingChannel))
         , CurrentAttempt(1)
         , Request(std::move(request))
         , OriginalHandler(std::move(originalHandler))
         , Timeout(timeout)
+        , RequestAck(requestAck)
     {
         YASSERT(Config);
         YASSERT(UnderlyingChannel);
@@ -99,7 +102,11 @@ public:
         }
 
         auto timeout = ComputeAttemptTimeout(now);
-        UnderlyingChannel->Send(Request, this, timeout);
+        UnderlyingChannel->Send(
+            Request,
+            this,
+            timeout,
+            RequestAck);
     }
 
 private:
@@ -111,6 +118,7 @@ private:
     IClientRequestPtr Request;
     IClientResponseHandlerPtr OriginalHandler;
     TNullable<TDuration> Timeout;
+    bool RequestAck;
     TInstant Deadline;
     std::vector<TError> InnerErrors;
 
@@ -195,7 +203,8 @@ TRetryingChannel::TRetryingChannel(
 void TRetryingChannel::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout)
+    TNullable<TDuration> timeout,
+    bool requestAck)
 {
     YASSERT(request);
     YASSERT(responseHandler);
@@ -205,7 +214,8 @@ void TRetryingChannel::Send(
         UnderlyingChannel,
         request,
         responseHandler,
-        timeout)
+        timeout,
+        requestAck)
     ->Send();
 }
 

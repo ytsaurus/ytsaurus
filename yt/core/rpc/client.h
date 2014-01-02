@@ -36,6 +36,7 @@ protected:
     TProxyBase(IChannelPtr channel, const Stroka& serviceName);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
 
     Stroka ServiceName;
     IChannelPtr Channel;
@@ -73,6 +74,7 @@ class TClientRequest
     DEFINE_BYREF_RW_PROPERTY(NProto::TRequestHeader, Header);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestHeavy);
     DEFINE_BYVAL_RW_PROPERTY(bool, ResponseHeavy);
 
@@ -137,6 +139,12 @@ public:
     TIntrusivePtr<TTypedClientRequest> SetTimeout(TNullable<TDuration> timeout)
     {
         TClientRequest::SetTimeout(timeout);
+        return this;
+    }
+
+    TIntrusivePtr<TTypedClientRequest> SetRequestAck(bool value)
+    {
+        TClientRequest::SetRequestAck(value);
         return this;
     }
 
@@ -327,9 +335,9 @@ private:
     \
     TReq##method##Ptr method() \
     { \
-        return \
-            ::NYT::New<TReq##method>(Channel, ServiceName, #method, false) \
-            ->SetTimeout(DefaultTimeout_); \
+        return ::NYT::New<TReq##method>(Channel, ServiceName, #method, false) \
+            ->SetTimeout(DefaultTimeout_) \
+            ->SetRequestAck(DefaultRequestAck_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -345,9 +353,9 @@ private:
     \
     TReq##method##Ptr method() \
     { \
-        return \
-            ::NYT::New<TReq##method>(Channel, ServiceName, #method, true) \
-            ->SetTimeout(DefaultTimeout_); \
+        return ::NYT::New<TReq##method>(Channel, ServiceName, #method, true) \
+            ->SetTimeout(DefaultTimeout_) \
+            ->SetRequestAck(DefaultRequestAck_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

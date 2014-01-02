@@ -40,7 +40,8 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool /*requestAck*/) override
     {
         auto actualTimeout = timeout ? timeout : DefaultTimeout_;
 
@@ -96,7 +97,7 @@ private:
             }
         }
 
-        virtual TAsyncError Send(TSharedRefArray message) override
+        virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
         {
             if (AcquireLock()) {
                 Handler_->OnResponse(std::move(message));

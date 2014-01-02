@@ -20,6 +20,7 @@ static auto& Logger = RpcClientLogger;
 
 TProxyBase::TProxyBase(IChannelPtr channel, const Stroka& serviceName)
     : DefaultTimeout_(channel->GetDefaultTimeout())
+    , DefaultRequestAck_(true)
     , ServiceName(serviceName)
     , Channel(channel)
 {
@@ -33,7 +34,8 @@ TClientRequest::TClientRequest(
     const Stroka& service,
     const Stroka& verb,
     bool oneWay)
-    : RequestHeavy_(false)
+    : RequestAck_(true)
+    , RequestHeavy_(false)
     , ResponseHeavy_(false)
     , Channel(channel)
 {
@@ -61,7 +63,11 @@ TSharedRefArray TClientRequest::Serialize() const
 
 void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
 {
-    Channel->Send(this, responseHandler, Timeout_);
+    Channel->Send(
+        this,
+        responseHandler,
+        Timeout_,
+        RequestAck_);
 }
 
 const Stroka& TClientRequest::GetService() const

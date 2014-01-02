@@ -21,7 +21,8 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override;
+        TNullable<TDuration> timeout,
+        bool requestAck) override;
 
     virtual TFuture<void> Terminate(const TError& error) override;
 
@@ -94,7 +95,8 @@ void TScopedChannel::SetDefaultTimeout(const TNullable<TDuration>& timeout)
 void TScopedChannel::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout)
+    TNullable<TDuration> timeout,
+    bool requestAck)
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -106,7 +108,11 @@ void TScopedChannel::Send(
         ++OutstandingRequestCount;
     }
     auto scopedHandler = New<TScopedResponseHandler>(std::move(responseHandler), this);
-    UnderlyingChannel->Send(request, std::move(scopedHandler), timeout);
+    UnderlyingChannel->Send(
+        std::move(request),
+        std::move(scopedHandler),
+        timeout,
+        requestAck);
 }
 
 TFuture<void> TScopedChannel::Terminate(const TError& error)

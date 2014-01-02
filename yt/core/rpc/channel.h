@@ -35,7 +35,8 @@ struct IChannel
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) = 0;
+        TNullable<TDuration> timeout,
+        bool requestAck) = 0;
 
     //! Shuts down the channel.
     /*!

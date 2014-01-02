@@ -21,7 +21,8 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override;
+        TNullable<TDuration> timeout,
+        bool requestAck) override;
 
     virtual TFuture<void> Terminate(const TError& error) override;
 
@@ -33,15 +34,21 @@ private:
     struct TEntry
         : public TIntrinsicRefCounted
     {
-        TEntry(IClientRequestPtr request, IClientResponseHandlerPtr handler, TNullable<TDuration> timeout)
+        TEntry(
+            IClientRequestPtr request,
+            IClientResponseHandlerPtr handler,
+            TNullable<TDuration> timeout,
+            bool requestAck)
             : Request(std::move(request))
             , Handler(std::move(handler))
             , Timeout(timeout)
+            , RequestAck(requestAck)
         { }
 
         IClientRequestPtr Request;
         IClientResponseHandlerPtr Handler;
         TNullable<TDuration> Timeout;
+        bool RequestAck;
     };
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
@@ -117,9 +124,14 @@ void TSerializedChannel::SetDefaultTimeout(const TNullable<TDuration>& timeout)
 void TSerializedChannel::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout)
+    TNullable<TDuration> timeout,
+    bool requestAck)
 {
-    auto entry = New<TEntry>(request, responseHandler, timeout);
+    auto entry = New<TEntry>(
+        request,
+        responseHandler,
+        timeout,
+        requestAck);
 
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -145,7 +157,11 @@ void TSerializedChannel::TrySendQueuedRequests()
         guard.Release();
 
         auto serializedHandler = New<TSerializedResponseHandler>(entry->Handler, this);
-        UnderlyingChannel->Send(entry->Request, serializedHandler, entry->Timeout);
+        UnderlyingChannel->Send(
+            entry->Request,
+            serializedHandler,
+            entry->Timeout,
+            entry->RequestAck);
         entry->Request.Reset();
         entry->Handler.Reset();
     }

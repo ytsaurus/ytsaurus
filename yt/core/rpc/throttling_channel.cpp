@@ -40,14 +40,16 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         Throttler->Throttle(1).Subscribe(BIND(
             &IChannel::Send,
             UnderlyingChannel,
             std::move(request),
             std::move(responseHandler),
-            timeout));
+            timeout,
+            requestAck));
     }
 
     virtual TFuture<void> Terminate(const TError& error) override

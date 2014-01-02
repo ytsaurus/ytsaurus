@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <core/misc/error.h>
+#include <core/misc/enum.h>
 
 #include <core/actions/signal.h>
 #include <core/actions/future.h>
@@ -11,6 +12,12 @@ namespace NYT {
 namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EDeliveryTrackingLevel,
+    (None)
+    (ErrorOnly)
+    (Full)
+);
 
 //! A bus, i.e. something capable of transmitting messages.
 struct IBus
@@ -24,7 +31,7 @@ struct IBus
      *
      *  \note Thread affinity: any
      */
-    virtual TAsyncError Send(TSharedRefArray message) = 0;
+    virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) = 0;
 
     //! Terminates the bus.
     /*!

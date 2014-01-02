@@ -66,10 +66,15 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         SetAuthenticatedUser(request, User);
-        UnderlyingChannel->Send(request, responseHandler, timeout);
+        UnderlyingChannel->Send(
+            request,
+            responseHandler,
+            timeout,
+            requestAck);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -114,10 +119,15 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         ToProto(request->Header().mutable_realm_id(), RealmId);
-        UnderlyingChannel->Send(request, responseHandler, timeout);
+        UnderlyingChannel->Send(
+            request,
+            responseHandler,
+            timeout,
+            requestAck);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override

@@ -88,7 +88,8 @@ private:
             LOG_DEBUG(error);
 
             if (!oneWay) {
-                replyBus->Send(CreateErrorResponseMessage(requestId, error));
+                auto response = CreateErrorResponseMessage(requestId, error);
+                replyBus->Send(response, EDeliveryTrackingLevel::None);
             }
             return;
         }
@@ -107,7 +108,7 @@ private:
 
             if (!oneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(response);
+                replyBus->Send(response, EDeliveryTrackingLevel::None);
             }
             return;
         }

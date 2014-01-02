@@ -77,7 +77,7 @@ public:
     {
         EXPECT_EQ(NumPartsExpecting, message.Size());
         auto replyMessage = Serialize("42");
-        replyBus->Send(replyMessage);
+        replyBus->Send(replyMessage, EDeliveryTrackingLevel::None);
     }
 private:
     int NumPartsExpecting;
@@ -122,7 +122,7 @@ void TestReplies(int numRequests, int numParts)
 
     TAsyncError result;
     for (int i = 0; i < numRequests; ++i) {
-        result = bus->Send(message);
+        result = bus->Send(message, EDeliveryTrackingLevel::Full);
     }
 
     result.Get();
@@ -141,7 +141,7 @@ TEST(TBusTest, OK)
     auto client = CreateTcpBusClient(New<TTcpBusClientConfig>("localhost:2000"));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
-    auto result = bus->Send(message).Get();
+    auto result = bus->Send(message, EDeliveryTrackingLevel::Full).Get();
     EXPECT_TRUE(result.IsOK());
     server->Stop();
 }
@@ -151,7 +151,7 @@ TEST(TBusTest, Failed)
     auto client = CreateTcpBusClient(New<TTcpBusClientConfig>("localhost:2000"));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
-    auto result = bus->Send(message).Get();
+    auto result = bus->Send(message, EDeliveryTrackingLevel::Full).Get();
     EXPECT_FALSE(result.IsOK());
 }
 

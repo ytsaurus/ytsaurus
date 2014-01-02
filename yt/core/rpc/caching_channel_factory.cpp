@@ -29,12 +29,14 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         UnderlyingChannel_->Send(
             std::move(request),
             std::move(responseHandler),
-            timeout ? timeout : DefaultTimeout_);
+            timeout ? timeout : DefaultTimeout_,
+            requestAck);
     }
 
     virtual TFuture<void> Terminate(const TError& /*error*/) override
