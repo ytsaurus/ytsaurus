@@ -163,8 +163,9 @@ public:
             rowCount,
             commandsSucceded);
 
+        store->Lock(static_cast<int>(PooledRows_.size()));
         for (auto row : PooledRows_) {
-            PrewrittenRows_.push(TDynamicRowRef(store, row));
+            PrewrittenRows_.push(TDynamicRowRef(store.Get(), row));
         }
 
         TReqExecuteWrite hydraRequest;
@@ -173,7 +174,7 @@ public:
         hydraRequest.set_commands_succeded(commandsSucceded);
         hydraRequest.set_encoded_request(encodedRequest);
         CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-            ->SetAction(BIND(&TImpl::HydraLeaderConfirmRows, MakeStrong(this), rowCount))
+            ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
             ->Commit();
 
         CheckForRotation(storeManager);
@@ -240,7 +241,7 @@ private:
 
     virtual void OnStartLeading()
     {
-        PrewrittenRows_.clear();
+        YCHECK(PrewrittenRows_.empty());
     }
 
     virtual void OnStopLeading()
@@ -248,7 +249,7 @@ private:
         while (!PrewrittenRows_.empty()) {
             auto rowRef = PrewrittenRows_.front();
             PrewrittenRows_.pop();
-            rowRef.Store->AbortRow(rowRef.Row);
+            rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
         }
 
         for (const auto& pair : TabletMap_) {
@@ -271,11 +272,7 @@ private:
             New<TTableMountConfig>());
         TabletMap_.Insert(id, tablet);
 
-        auto storeManager = New<TStoreManager>(
-            Config_,
-            tablet,
-            Slot_->GetAutomatonInvoker(),
-            Bootstrap_->GetTabletCellController()->GetCompactionInvoker());
+        auto storeManager = New<TStoreManager>(Config_, tablet);
         tablet->SetStoreManager(std::move(storeManager));
 
         auto hiveManager = Slot_->GetHiveManager();
@@ -315,7 +312,7 @@ private:
     }
 
 
-    void HydraLeaderConfirmRows(int rowCount)
+    void HydraLeaderExecuteWrite(int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
             YASSERT(!PrewrittenRows_.empty());

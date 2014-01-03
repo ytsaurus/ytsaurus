@@ -9,9 +9,11 @@
 #include <yt/ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
+namespace NVersionedTableClient {
 namespace {
 
-using namespace NVersionedTableClient;
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NYTree;
 using namespace NYson;
 
@@ -54,6 +56,9 @@ inline Stroka KeyToYson(TKey key)
     return ConvertToYsonString(key, EYsonFormat::Text).Data();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
+} // namespace NVersionedTableClient
 } // namespace NYT
 

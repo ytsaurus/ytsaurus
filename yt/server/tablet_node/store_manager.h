@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-
-#include <core/concurrency/thread_affinity.h>
+#include "dynamic_memory_store_bits.h"
 
 #include <ytlib/tablet_client/public.h>
 
@@ -19,9 +18,7 @@ class TStoreManager
 public:
     TStoreManager(
         TTabletManagerConfigPtr config,
-        TTablet* tablet,
-        IInvokerPtr automatonInvoker,
-        IInvokerPtr compactionInvoker);
+        TTablet* tablet);
 
     ~TStoreManager();
 
@@ -59,21 +56,25 @@ public:
 private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
-    IInvokerPtr AutomatonInvoker_;
-    IInvokerPtr CompactionInvoker_;
 
     bool RotationScheduled_;
     TDynamicMemoryStorePtr ActiveStore_;
+    yhash_set<TDynamicMemoryStorePtr> LockedStores_;
     std::vector<IStorePtr> PassiveStores_;
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 
     std::vector<NVersionedTableClient::TUnversionedRow> PooledRowset_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
     
-    TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);
+    TDynamicRow MaybeMigrateRow(const TDynamicRowRef& rowRef);
+
+    void CheckLockAndMaybeMigrateRow(
+        TTransaction* transaction,
+        NVersionedTableClient::TUnversionedRow key,
+        ERowLockMode mode);
+
+    void CheckForUnlockedStore(const TDynamicMemoryStorePtr& store);
 
 };
 

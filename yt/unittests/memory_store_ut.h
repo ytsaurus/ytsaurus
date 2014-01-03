@@ -1,5 +1,8 @@
+#pragma once
+
 #include "stdafx.h"
 #include "framework.h"
+#include "versioned_table_client_ut.h"
 
 #include <yt/core/misc/nullable.h>
 
@@ -14,6 +17,7 @@
 #include <yt/ytlib/new_table_client/chunk_writer.h>
 #include <yt/ytlib/new_table_client/versioned_row.h>
 #include <yt/ytlib/new_table_client/unversioned_row.h>
+#include <yt/ytlib/new_table_client/versioned_reader.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
@@ -29,7 +33,7 @@
 #include <yt/server/tablet_node/transaction.h>
 #include <yt/server/tablet_node/dynamic_memory_store.h>
 
-#include "versioned_table_client_ut.h"
+#include <ytlib/api/transaction.h>
 
 namespace NYT {
 namespace {
@@ -37,6 +41,7 @@ namespace {
 using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NVersionedTableClient;
+using namespace NApi;
 using namespace NYson;
 using namespace NYTree;
 
@@ -154,6 +159,111 @@ protected:
     void AbortTransaction(TTransaction* transaction)
     {
         transaction->SetState(ETransactionState::Aborted);
+    }
+
+
+    void CompareRows(const TUnversionedOwningRow& row, const TNullable<Stroka>& yson)
+    {
+        if (!row && !yson)
+            return;
+
+        ASSERT_TRUE(static_cast<bool>(row));
+        ASSERT_TRUE(yson.HasValue());
+
+        auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
+            TYsonString(*yson, EYsonType::MapFragment));
+
+        for (int index = 0; index < row.GetCount(); ++index) {
+            const auto& value = row[index];
+            const auto& name = NameTable->GetName(value.Id);
+            auto it = expectedRowParts.find(name);
+            switch (value.Type) {
+                case EValueType::Integer:
+                    ASSERT_TRUE(it != expectedRowParts.end());
+                    ASSERT_EQ(
+                        it->second->GetValue<i64>(),
+                        value.Data.Integer);
+                    break;
+
+                case EValueType::Double:
+                    ASSERT_TRUE(it != expectedRowParts.end());
+                    ASSERT_EQ(
+                        it->second->GetValue<double>(),
+                        value.Data.Double);
+                    break;
+
+                case EValueType::String:
+                    ASSERT_TRUE(it != expectedRowParts.end());
+                    ASSERT_EQ(
+                        it->second->GetValue<Stroka>(),
+                        Stroka(value.Data.String, value.Length));
+                    break;
+
+                case EValueType::Null:
+                    ASSERT_TRUE(it == expectedRowParts.end());
+                    break;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
+    }
+
+    TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
+    {
+        auto keySuccessor = GetKeySuccessor(key.Get());
+        auto reader = store->CreateReader(
+            key.Get(),
+            keySuccessor.Get(),
+            timestamp,
+            TColumnFilter());
+
+        if (!reader) {
+            return TUnversionedOwningRow();
+        }
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(reader->Open().Get());
+
+        std::vector<TVersionedRow> rows;
+        if (!reader->Read(&rows)) {
+            return TUnversionedOwningRow();
+        }
+
+        EXPECT_LE(rows.size(), 1);
+        if (rows.empty()) {
+            return TUnversionedOwningRow();
+        }
+
+        auto row = rows[0];
+
+        EXPECT_EQ(row.GetTimestampCount(), 1);
+        auto rowTimestamp = row.BeginTimestamps()[0];
+        if (rowTimestamp & NTransactionClient::TombstoneTimestampMask) {
+            return TUnversionedOwningRow();
+        }
+
+        TUnversionedOwningRowBuilder builder;
+        
+        int keyCount = static_cast<int>(Tablet->KeyColumns().size());
+        int schemaColumnCount = static_cast<int>(Tablet->Schema().Columns().size());
+
+        // Keys
+        const auto* keys = row.BeginKeys();
+        for (int id = 0; id < keyCount; ++id) {
+            builder.AddValue(keys[id]);
+        }
+
+        // Fixed values
+        int versionedIndex = 0;
+        for (int id = keyCount; id < schemaColumnCount; ++id) {
+            if (versionedIndex < row.GetValueCount() && row.BeginValues()[versionedIndex].Id == id) {
+                builder.AddValue(row.BeginValues()[versionedIndex++]);
+            } else {
+                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+            }
+        }
+
+        return builder.Finish();
     }
 
 

@@ -29,6 +29,10 @@ public:
 
     TTablet* GetTablet() const;
 
+    int GetLockCount() const;
+    int Lock(int delta = 1);
+    int Unlock(int delta = 1);
+
     void MakePassive();
 
     TDynamicRow WriteRow(
@@ -48,13 +52,13 @@ public:
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
         
-    void CheckLockAndMaybeMigrateRow(
+    TDynamicRow MigrateRow(
+        TDynamicRow row,
+        const TDynamicMemoryStorePtr& migrateTo);
+    TDynamicRow CheckLockAndMaybeMigrateRow(
         NVersionedTableClient::TKey key,
         TTransaction* transaction,
         ERowLockMode mode,
-        const TDynamicMemoryStorePtr& migrateTo);
-    TDynamicRow MigrateRow(
-        TDynamicRow row,
         const TDynamicMemoryStorePtr& migrateTo);
 
     void ConfirmRow(TDynamicRow row);
@@ -70,6 +74,8 @@ private:
 
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
+
+    int LockCount_;
 
     bool Active_;
 

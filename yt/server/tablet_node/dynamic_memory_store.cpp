@@ -268,6 +268,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     TTablet* tablet)
     : Config_(config)
     , Tablet_(tablet)
+    , LockCount_(0)
     , Active_(true)
     , KeyCount_(static_cast<int>(Tablet_->KeyColumns().size()))
     , SchemaColumnCount_(static_cast<int>(Tablet_->Schema().Columns().size()))
@@ -293,6 +294,21 @@ TDynamicMemoryStore::~TDynamicMemoryStore()
 TTablet* TDynamicMemoryStore::GetTablet() const
 {
     return Tablet_;
+}
+
+int TDynamicMemoryStore::GetLockCount() const
+{
+    return LockCount_;
+}
+
+int TDynamicMemoryStore::Lock(int delta)
+{
+    return LockCount_ += delta;
+}
+
+int TDynamicMemoryStore::Unlock(int delta)
+{
+    return LockCount_ -= delta;
 }
 
 void TDynamicMemoryStore::MakePassive()
@@ -340,11 +356,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     auto writeValues = [&] (TDynamicRow dynamicRow) {
         for (int index = KeyCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
-            if (value.Id < SchemaColumnCount_) {
-                writeFixedValue(dynamicRow, value);
-            } else {
-                // TODO(babenko): variable values
-            }
+            writeFixedValue(dynamicRow, value);
         }
     };
 
@@ -384,9 +396,9 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
         // Copy keys.
         for (int id = 0; id < KeyCount_; ++id) {
-            auto& internedValue = dynamicRow.GetKeys()[id];
-            CopyValue(&internedValue, row[id]);
-            internedValue.Id = id;
+            auto& dstValue = dynamicRow.GetKeys()[id];
+            CopyValue(&dstValue, row[id]);
+            dstValue.Id = id;
         }
 
         // Copy values.
@@ -500,25 +512,6 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         columnFilter);
 }
 
-void TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(
-    NVersionedTableClient::TKey key,
-    TTransaction* transaction,
-    ERowLockMode mode,
-    const TDynamicMemoryStorePtr& migrateTo)
-{
-    TDynamicRow row;
-    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> scanner(Tree_.get());
-    if (!scanner->Find(key, &row)) {
-        return;
-    }
-
-    CheckRowLock(row, transaction, mode);
-
-    if (row.GetLockMode() != ERowLockMode::None) {
-        MigrateRow(row, migrateTo);
-    }
-}
-
 TDynamicRow TDynamicMemoryStore::MigrateRow(
     TDynamicRow row,
     const TDynamicMemoryStorePtr& migrateTo)
@@ -529,15 +522,38 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         migratedRow = migrateTo->AllocateRow();
 
         // Migrate lock.
+        migrateTo->Lock();
         auto* transaction = row.GetTransaction();
         int lockIndex = row.GetLockIndex();
         migratedRow.Lock(transaction, lockIndex, row.GetLockMode());
         migratedRow.SetPrepareTimestamp(row.GetPrepareTimestamp());
         if (lockIndex != -1) {
-            transaction->LockedRows()[lockIndex] = TDynamicRowRef(migrateTo, migratedRow);
+            transaction->LockedRows()[lockIndex] = TDynamicRowRef(migrateTo.Get(), migratedRow);
         }
 
-        // Migrate timestamp.
+        // Migrate keys.
+        const auto* srcKeys = row.GetKeys();
+        auto* dstKeys = migratedRow.GetKeys();
+        for (int index = 0; index < KeyCount_; ++index) {
+            CopyValue(&dstKeys[index], srcKeys[index]);
+        }
+
+        // Migrate fixed values.
+        for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
+            auto list = row.GetFixedValueList(index, KeyCount_);
+            if (list) {
+                const auto& srcValue = list.Back();
+                if ((srcValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
+                    auto migratedList = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
+                    migratedRow.SetFixedValueList(index, migratedList, KeyCount_);
+                    migratedList.Push([&] (TVersionedValue* dstValue) {
+                        CopyValue(dstValue, srcValue);
+                    });
+                }
+            }
+        }
+
+        // Migrate timestamps.
         auto timestampList = row.GetTimestampList(KeyCount_);
         if (timestampList) {
             auto timestamp = timestampList.Back();
@@ -548,22 +564,8 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
             }
         }
 
-        // Migrate fixed values.
-        for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
-            auto list = row.GetFixedValueList(index, KeyCount_);
-            if (list) {
-                const auto& value = list.Back();
-                if ((value.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                    auto migratedList = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
-                    migratedRow.SetFixedValueList(index, migratedList, KeyCount_);
-                    migratedList.Push(value);
-                }
-            }
-        }
-
-        // TODO(babenko): variable values
-
-        AbortRow(row);
+        Unlock();
+        row.Unlock();
 
         return migratedRow;
     };
@@ -578,6 +580,27 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         existingKeyConsumer);
 
     return migratedRow;
+}
+
+TDynamicRow TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(
+    NVersionedTableClient::TKey key,
+    TTransaction* transaction,
+    ERowLockMode mode,
+    const TDynamicMemoryStorePtr& migrateTo)
+{
+    TDynamicRow row;
+    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> scanner(Tree_.get());
+    if (!scanner->Find(key, &row)) {
+        return TDynamicRow();
+    }
+
+    CheckRowLock(row, transaction, mode);
+
+    if (row.GetLockMode() == ERowLockMode::None) {
+        return TDynamicRow();
+    }
+
+    return MigrateRow(row, migrateTo);
 }
 
 void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
@@ -629,9 +652,7 @@ void TDynamicMemoryStore::CommitRow(TDynamicRow row)
         }
     }
 
-    // Variable values.
-    // TODO(babenko)
-
+    Unlock();
     row.Unlock();
     row.SetLastCommitTimestamp(transaction->GetCommitTimestamp());
 }
@@ -662,11 +683,9 @@ void TDynamicMemoryStore::AbortRow(TDynamicRow row)
                 }
             }
         }
-
-        // Variable values.
-        // TODO(babenko)
     }
 
+    Unlock();
     row.Unlock();
 }
 
@@ -721,6 +740,8 @@ bool TDynamicMemoryStore::LockRow(
         lockIndex = static_cast<int>(transaction->LockedRows().size());
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }
+    
+    Lock();
     row.Lock(transaction, lockIndex, mode);
 
     return true;

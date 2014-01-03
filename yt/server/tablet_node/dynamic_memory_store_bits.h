@@ -367,24 +367,37 @@ private:
 
 };
 
-static_assert(sizeof (TDynamicRow) == sizeof (intptr_t), "TRow size must match that of a pointer.");
+static_assert(sizeof (TDynamicRow) == sizeof (intptr_t), "TDynamicRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDynamicRowRef
 {
-    TDynamicRowRef();
-    TDynamicRowRef(const TDynamicRowRef& other);
-    TDynamicRowRef(TDynamicRowRef&& other);
-    TDynamicRowRef(TDynamicMemoryStorePtr store, TDynamicRow row);
+    TDynamicRowRef()
+        : Store(nullptr)
+        , Row()
+    { }
 
-    ~TDynamicRowRef();
+    TDynamicRowRef(const TDynamicRowRef& other) = default;
+    
+    TDynamicRowRef(TDynamicMemoryStore* store, TDynamicRow row)
+        : Store(store)
+        , Row(row)
+    { }
 
-    friend void swap(TDynamicRowRef& lhs, TDynamicRowRef& rhs);
-    TDynamicRowRef& operator = (TDynamicRowRef other);
+
+    bool operator == (const TDynamicRowRef& other) const
+    {
+        return Store == other.Store && Row == other.Row;
+    }
+
+    bool operator != (const TDynamicRowRef& other) const
+    {
+        return !(*this == other);
+    }
 
 
-    TDynamicMemoryStorePtr Store;
+    TDynamicMemoryStore* Store;
     TDynamicRow Row;
 };
 

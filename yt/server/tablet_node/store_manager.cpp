@@ -39,23 +39,16 @@ auto& Logger = TabletNodeLogger;
 
 TStoreManager::TStoreManager(
     TTabletManagerConfigPtr config,
-    TTablet* Tablet_,
-    IInvokerPtr automatonInvoker,
-    IInvokerPtr compactionInvoker)
+    TTablet* Tablet_)
     : Config_(config)
     , Tablet_(Tablet_)
-    , AutomatonInvoker_(automatonInvoker)
-    , CompactionInvoker_(compactionInvoker)
+    , RotationScheduled_(false)
     , ActiveStore_(New<TDynamicMemoryStore>(
         Config_,
         Tablet_))
-    , RotationScheduled_(false)
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
-    YCHECK(AutomatonInvoker_);
-    YCHECK(CompactionInvoker_);
-    VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
 }
 
 TStoreManager::~TStoreManager()
@@ -94,7 +87,7 @@ void TStoreManager::LookupRow(
 
     auto keySuccessor = GetKeySuccessor(key);
     SmallVector<IVersionedReaderPtr, 16> rowReaders;
-    auto tryAddStore = [&](const IStorePtr& store) {
+    auto tryAddStore = [&] (const IStorePtr& store) {
         auto rowReader = store->CreateReader(
             key,
             keySuccessor.Get(),
@@ -192,19 +185,17 @@ void TStoreManager::WriteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    //if (PassiveDynamicMemoryStore_) {
-    //    PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
-    //        row,
-    //        transaction,
-    //        ERowLockMode::Write,
-    //        ActiveStore_);
-    //}
+    CheckLockAndMaybeMigrateRow(
+        transaction,
+        row,
+        ERowLockMode::Write);
 
     auto dynamicRow = ActiveStore_->WriteRow(
         NameTable_,
         transaction,
         row,
         prewrite);
+
     if (lockedRows && dynamicRow) {
         lockedRows->push_back(dynamicRow);
     }
@@ -216,18 +207,16 @@ void TStoreManager::DeleteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    //if (PassiveDynamicMemoryStore_) {
-    //    PassiveDynamicMemoryStore_->CheckLockAndMaybeMigrateRow(
-    //        key,
-    //        transaction,
-    //        ERowLockMode::Delete,
-    //        ActiveStore_);
-    //}
+    CheckLockAndMaybeMigrateRow(
+        transaction,
+        key,
+        ERowLockMode::Delete);
 
     auto dynamicRow = ActiveStore_->DeleteRow(
         transaction,
         key,
         prewrite);
+
     if (lockedRows && dynamicRow) {
         lockedRows->push_back(dynamicRow);
     }
@@ -235,19 +224,19 @@ void TStoreManager::DeleteRow(
 
 void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
 {
-    auto row = MigrateRowIfNeeded(rowRef);
+    auto row = MaybeMigrateRow(rowRef);
     ActiveStore_->ConfirmRow(row);
 }
 
 void TStoreManager::PrepareRow(const TDynamicRowRef& rowRef)
 {
-    auto row = MigrateRowIfNeeded(rowRef);
+    auto row = MaybeMigrateRow(rowRef);
     ActiveStore_->PrepareRow(row);
 }
 
 void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
 {
-    auto row = MigrateRowIfNeeded(rowRef);
+    auto row = MaybeMigrateRow(rowRef);
     ActiveStore_->CommitRow(row);
 }
 
@@ -255,6 +244,7 @@ void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
 {
     // NB: Even passive store can handle it.
     rowRef.Store->AbortRow(rowRef.Row);
+    CheckForUnlockedStore(rowRef.Store);
 }
 
 const TDynamicMemoryStorePtr& TStoreManager::GetActiveStore() const
@@ -262,21 +252,53 @@ const TDynamicMemoryStorePtr& TStoreManager::GetActiveStore() const
     return ActiveStore_;
 }
 
-TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
+TDynamicRow TStoreManager::MaybeMigrateRow(const TDynamicRowRef& rowRef)
 {
     if (rowRef.Store == ActiveStore_) {
         return rowRef.Row;
     }
 
-    return rowRef.Store->MigrateRow(
+    auto migratedRow = rowRef.Store->MigrateRow(
         rowRef.Row,
         ActiveStore_);
+
+    CheckForUnlockedStore(rowRef.Store);
+
+    return migratedRow;
+}
+
+void TStoreManager::CheckLockAndMaybeMigrateRow(
+    TTransaction* transaction,
+    TUnversionedRow key,
+    ERowLockMode mode)
+{
+    for (const auto& store : LockedStores_) {
+        if (store->CheckLockAndMaybeMigrateRow(
+            key,
+            transaction,
+            ERowLockMode::Write,
+            ActiveStore_))
+        {
+            CheckForUnlockedStore(store);
+            break;
+        }
+    }
+
+    // TODO(babenko): check passive stores for write timestamps
+}
+
+void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
+{
+    if (store == ActiveStore_ || store->GetLockCount() > 0)
+        return;
+
+    LOG_INFO("Store unlocked and will be dropped (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
+    YCHECK(LockedStores_.erase(store) == 1);
 }
 
 bool TStoreManager::IsRotationNeeded() const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
     const auto& config = Tablet_->GetConfig();
     if (ActiveStore_->GetAllocatedValueCount() >= config->ValueCountRotationThreshold) {
         return true;
@@ -290,8 +312,6 @@ bool TStoreManager::IsRotationNeeded() const
 
 void TStoreManager::SetRotationScheduled()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
     RotationScheduled_ = true;
 
     LOG_INFO("Tablet store rotation scheduled (TabletId: %s)",
@@ -300,8 +320,6 @@ void TStoreManager::SetRotationScheduled()
 
 void TStoreManager::ResetRotationScheduled()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
     if (RotationScheduled_) {
         RotationScheduled_ = false;
         LOG_INFO("Tablet store rotation canceled (TabletId: %s)",
@@ -311,18 +329,25 @@ void TStoreManager::ResetRotationScheduled()
 
 void TStoreManager::Rotate()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(RotationScheduled_);
 
+    LOG_INFO("Rotating tablet stores (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
+
     PassiveStores_.push_back(ActiveStore_);
+
+    if (ActiveStore_->GetLockCount() > 0) {
+        LOG_INFO("Current store is locked and will be kept (TabletId: %s, LockCount: %d)",
+            ~ToString(Tablet_->GetId()),
+            ActiveStore_->GetLockCount());
+        YCHECK(LockedStores_.insert(ActiveStore_).second);
+    }
+
     ActiveStore_ = New<TDynamicMemoryStore>(
         Config_,
         Tablet_);
 
     RotationScheduled_ = false;
-
-    LOG_INFO("Tablet store rotated (TabletId: %s)",
-        ~ToString(Tablet_->GetId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
