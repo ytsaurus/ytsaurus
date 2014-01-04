@@ -225,7 +225,7 @@ void TReshardTableCommand::DoExecute()
         req->set_first_tablet_index(*Request->FirstTabletIndex);
     }
     if (Request->LastTabletIndex) {
-        req->set_first_tablet_index(*Request->LastTabletIndex);
+        req->set_last_tablet_index(*Request->LastTabletIndex);
     }
     ToProto(req->mutable_pivot_keys(), Request->PivotKeys);
 
