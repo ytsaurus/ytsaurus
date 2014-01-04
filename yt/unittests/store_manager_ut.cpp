@@ -1,11 +1,15 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
+#include <ytlib/tablet_client/protocol.h>
+
 #include <server/tablet_node/store_manager.h>
 
 namespace NYT {
 namespace NTabletNode {
 namespace {
+
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +29,67 @@ protected:
         StoreManager->SetRotationScheduled();
         StoreManager->Rotate();
     }
+
+    void WriteRow(const TUnversionedOwningRow& row)
+    {
+        auto transaction = StartTransaction();
+
+        StoreManager->WriteRow(transaction.get(), row.Get(), false, nullptr);
+
+        EXPECT_EQ(1, transaction->LockedRows().size());
+        const auto& rowRef = transaction->LockedRows()[0];
+
+        StoreManager->PrepareRow(rowRef);
+        PrepareTransaction(transaction.get());
+
+        StoreManager->CommitRow(rowRef);
+        CommitTransaction(transaction.get());
+    }
+
+    void DeleteRow(const TOwningKey& key)
+    {
+        auto transaction = StartTransaction();
+
+        StoreManager->DeleteRow(transaction.get(), key.Get(), false, nullptr);
+
+        EXPECT_EQ(1, transaction->LockedRows().size());
+        const auto& rowRef = transaction->LockedRows()[0];
+
+        StoreManager->PrepareRow(rowRef);
+        PrepareTransaction(transaction.get());
+
+        StoreManager->CommitRow(rowRef);
+        CommitTransaction(transaction.get());
+    }
+
+    using TMemoryStoreTestBase::LookupRow;
+    
+    TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
+    {
+        Stroka request;
+        {
+            TProtocolWriter writer;
+            writer.WriteUnversionedRow(key.Get());
+            writer.WriteColumnFilter(TColumnFilter());
+            request = writer.Finish();
+        }
+        
+        Stroka response;
+        {
+            TProtocolReader reader(request);
+            TProtocolWriter writer;
+            StoreManager->LookupRow(timestamp, &reader, &writer);
+            response = writer.Finish();
+        }
+
+        {
+            TProtocolReader reader(response);
+            std::vector<TUnversionedRow> rows;
+            reader.ReadUnversionedRowset(&rows);
+            return rows.empty() ? TUnversionedOwningRow() : TUnversionedOwningRow(rows[0]);
+        }
+    }
+
 
     TStoreManagerPtr StoreManager;
 
@@ -327,6 +392,43 @@ TEST_F(TStoreManagerTest, DontMigrateRowOnAbort)
     auto key = BuildKey("1");
     CompareRows(LookupRow(store1, key, LastCommittedTimestamp), Null);
     CompareRows(LookupRow(store2, key, LastCommittedTimestamp), Null);
+}
+
+TEST_F(TStoreManagerTest, LookupRow1)
+{
+    WriteRow(BuildRow("key=1;a=100", false));
+    Rotate();
+    WriteRow(BuildRow("key=1;b=3.14", false));
+    CompareRows(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;a=100;b=3.14"));
+}
+
+TEST_F(TStoreManagerTest, LookupRow2)
+{
+    WriteRow(BuildRow("key=1;a=100", false));
+    DeleteRow(BuildKey("1"));
+    Rotate();
+    WriteRow(BuildRow("key=1;b=3.14", false));
+    CompareRows(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;b=3.14"));
+}
+
+TEST_F(TStoreManagerTest, LookupRow3)
+{
+    WriteRow(BuildRow("key=1;a=100", false));
+    Rotate();
+    DeleteRow(BuildKey("1"));
+    WriteRow(BuildRow("key=1;b=3.14", false));
+    CompareRows(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;b=3.14"));
+}
+
+TEST_F(TStoreManagerTest, LookupRow4)
+{
+    WriteRow(BuildRow("key=1;a=100", false));
+    Rotate();
+    WriteRow(BuildRow("key=1;b=3.14", false));
+    Rotate();
+    WriteRow(BuildRow("key=1;a=200;c=test", false));
+    Rotate();
+    CompareRows(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;a=200;b=3.14;c=test"));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
