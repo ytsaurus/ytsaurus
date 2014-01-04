@@ -30,6 +30,10 @@ class TestTablets(YTEnvSetup):
                  'schema': [{'name': 'key', 'type': 'integer'}, {'name': 'value', 'type': 'string'}],
                  'key_columns': ['key']
                })
+
+    def _get_pivot_keys(self, path):
+        tablets = get(path + '/@tablets')
+        return [tablet['pivot_key'] for tablet in tablets]
            
 
     def test_mount1(self):
@@ -67,3 +71,25 @@ class TestTablets(YTEnvSetup):
         print 'Waiting for table to become unmounted...'
         while get('//tmp/t/@tablets/0/state') != 'unmounted':
             sleep(0.1)
+
+    def test_reshard_unmounted(self):
+        self._create_cells(1, 1)
+        self._create_table()
+
+        reshard_table('//tmp/t', [[]])
+        assert self._get_pivot_keys('//tmp/t') == [[]]
+
+        reshard_table('//tmp/t', [[], [100]])
+        assert self._get_pivot_keys('//tmp/t') == [[], [100]]
+
+        with pytest.raises(YtError): reshard_table('//tmp/t', [[], []])
+        assert self._get_pivot_keys('//tmp/t') == [[], [100]]
+
+        reshard_table('//tmp/t', [[100], [200]], first_tablet_index=1, last_tablet_index=1)
+        assert self._get_pivot_keys('//tmp/t') == [[], [100], [200]]
+
+        with pytest.raises(YtError): reshard_table('//tmp/t', [[101]], first_tablet_index=1, last_tablet_index=1)
+        assert self._get_pivot_keys('//tmp/t') == [[], [100], [200]]
+
+        with pytest.raises(YtError): reshard_table('//tmp/t', [[300]], first_tablet_index=3, last_tablet_index=3)
+        assert self._get_pivot_keys('//tmp/t') == [[], [100], [200]]
