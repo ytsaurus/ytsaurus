@@ -37,6 +37,9 @@ class TTabletCell
         NNodeTrackerServer::TNode* Node;
         int SlotIndex;
         TInstant LastSeenTime;
+
+        void Persist(NCellMaster::TPersistenceContext& context);
+
     };
 
     typedef SmallVector<TPeer, TypicalCellSize> TPeerList;

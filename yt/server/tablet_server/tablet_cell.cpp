@@ -12,6 +12,17 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Address);
+    Persist(context, Node);
+    Persist(context, SlotIndex);
+    Persist(context, LastSeenTime);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTabletCell::TTabletCell(const TTabletCellId& id)
     : TNonversionedObjectBase(id)
     , State_(ETabletCellState::Starting)
@@ -26,10 +37,11 @@ void TTabletCell::Save(TSaveContext& context) const
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
-    // TODO(babenko): persist
     Save(context, State_);
     Save(context, Size_);
-    //Save(context, Peers_);
+    Save(context, Peers_);
+    Save(context, Config_);
+    Save(context, Tablets_);
 }
 
 void TTabletCell::Load(TLoadContext& context)
@@ -37,10 +49,11 @@ void TTabletCell::Load(TLoadContext& context)
     TNonversionedObjectBase::Load(context);
 
     using NYT::Load;
-    // TODO(babenko): persist
     Load(context, State_);
     Load(context, Size_);
-    //Load(context, Peers_);
+    Load(context, Peers_);
+    Load(context, Config_);
+    Load(context, Tablets_);
 }
 
 TPeerId TTabletCell::FindPeerId(const Stroka& address) const

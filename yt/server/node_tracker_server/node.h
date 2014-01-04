@@ -85,6 +85,8 @@ class TNode
         NHydra::EPeerState PeerState;
         int PeerId;
 
+        void Persist(NCellMaster::TPersistenceContext& context);
+
     };
 
     typedef SmallVector<TTabletSlot, NTabletServer::TypicalCellSize> TTabletSlotList;

@@ -21,6 +21,16 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Cell);
+    Persist(context, PeerState);
+    Persist(context, PeerId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNode::TNode(
     TNodeId id,
     const TNodeDescriptor& descriptor,
@@ -79,7 +89,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
     Save(context, UnapprovedReplicas_);
-    // TODO(babenko): tablet
+    Save(context, TabletSlots_);
+    Save(context, TabletCellCreateQueue_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -96,7 +107,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
     Load(context, UnapprovedReplicas_);
-    // TODO(babenko): tablet
+    Load(context, TabletSlots_);
+    Load(context, TabletCellCreateQueue_);
 }
 
 void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
