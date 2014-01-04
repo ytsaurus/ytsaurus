@@ -344,7 +344,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Reshard)
     DeclareMutating();
 
     int firstTabletIndex = request->first_tablet_index();
-    int lastTabletIndex = request->first_tablet_index();
+    int lastTabletIndex = request->last_tablet_index();
     auto pivotKeys = FromProto<NVersionedTableClient::TOwningKey>(request->pivot_keys());
     context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d, PivotKeyCount: %d",
         firstTabletIndex,
