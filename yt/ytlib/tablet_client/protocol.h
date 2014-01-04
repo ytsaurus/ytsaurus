@@ -29,7 +29,7 @@ DECLARE_ENUM(EProtocolCommand,
     //   * Column filter
     //
     // Output:
-    //   * Versioned rowset containing 0 or 1 rows
+    //   * Unversioned rowset containing 0 or 1 rows
 
     // Write commands:
 
