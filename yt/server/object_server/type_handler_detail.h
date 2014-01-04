@@ -152,10 +152,8 @@ private:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
-    virtual void DoDestroy(TObject* object)
-    {
-        UNUSED(object);
-    }
+    virtual void DoDestroy(TObject* /*object*/)
+    { }
 
 };
 
