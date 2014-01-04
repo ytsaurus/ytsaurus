@@ -128,11 +128,13 @@ public:
         , Timestamp_(timestamp)
         , ColumnFilter_(columnFilter)
         , KeyCount_(Store_->Tablet_->KeyColumns().size())
-        , SchemaValueCount_(Store_->Tablet_->Schema().Columns().size())
+        , SchemaColumnCount_(Store_->Tablet_->Schema().Columns().size())
         , TreeScanner_(Store_->Tree_.get())
         , Pool_(1024)
         , Finished_(false)
-    { }
+    {
+        YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
+    }
 
     virtual TAsyncError Open() override
     {
@@ -157,7 +159,7 @@ public:
             if (CompareRows(rowKeys, rowKeys + KeyCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
                 break;
 
-            auto row = TryProduceRow();
+            auto row = ProduceRow();
             if (row) {
                 rows->push_back(row);
             }
@@ -186,7 +188,7 @@ private:
     TColumnFilter ColumnFilter_;
 
     int KeyCount_;
-    int SchemaValueCount_;
+    int SchemaColumnCount_;
 
     TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> TreeScanner_;
 
@@ -197,7 +199,7 @@ private:
     static const size_t MaxRowsPerRead = 1024;
 
 
-    TVersionedRow TryProduceRow()
+    TVersionedRow ProduceRow()
     {
         auto dynamicRow = TreeScanner_->GetCurrent();
 
@@ -205,6 +207,14 @@ private:
             WaitFor(dynamicRow.GetTransaction()->GetFinished());
         }
 
+        return
+            Timestamp_ == AllCommittedTimestamp
+            ? ProduceAllRowVersions(dynamicRow)
+            : ProduceSingleRowVersion(dynamicRow);
+    }
+
+    TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
+    {
         auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
         const auto* minTimestampPtr = std::get<0>(FindVersionedValue(
             timestampList,
@@ -217,7 +227,7 @@ private:
             return TVersionedRow();
         }
 
-        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyCount_, SchemaValueCount_ - KeyCount_, 1);
+        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyCount_, SchemaColumnCount_ - KeyCount_, 1);
         memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyCount_ * sizeof (TUnversionedValue));
 
         auto minTimestamp = *minTimestampPtr;
@@ -242,7 +252,7 @@ private:
         };
 
         if (ColumnFilter_.All) {
-            for (int index = 0; index < SchemaValueCount_ - KeyCount_; ++index) {
+            for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
                 fillValue(index);
             }
         } else {
@@ -256,6 +266,71 @@ private:
         versionedRow.BeginTimestamps()[0] =
             minTimestamp |
             (minTimestampPtr == timestampList.Begin() ? IncrementalTimestampMask : 0);
+
+        return versionedRow;
+    }
+
+    TVersionedRow ProduceAllRowVersions(TDynamicRow dynamicRow)
+    {
+        auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
+        if (!timestampList) {
+            return TVersionedRow();
+        }
+
+        int timestampCount = timestampList.GetSize() + timestampList.GetSuccessorsSize();
+        if (timestampList.Back() & UncommittedTimestamp) {
+            --timestampCount;
+        }
+
+        if (timestampCount == 0) {
+            return TVersionedRow();
+        }
+
+        int valueCount = 0;
+        for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
+            auto list = dynamicRow.GetFixedValueList(index, KeyCount_);
+            if (list) {
+                valueCount += list.GetSize() + list.GetSuccessorsSize();
+                if (list.Back().Timestamp & UncommittedTimestamp) {
+                    --valueCount;
+                }
+            }
+        }
+
+        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyCount_, valueCount, timestampCount);
+
+        // Keys.
+        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyCount_ * sizeof (TUnversionedValue));
+
+        // Fixed values.
+        auto* currentValue = versionedRow.BeginValues();
+        for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
+            auto currentList = dynamicRow.GetFixedValueList(index, KeyCount_);
+            while (currentList) {
+                for (const auto* it = &currentList.Back(); it >= &currentList.Front(); --it) {
+                    const auto& value = *it;
+                    if (!(value.Timestamp & UncommittedTimestamp)) {
+                        *currentValue++ = value;
+                    }
+                }
+                currentList = currentList.GetNext();
+            }
+        }
+        YASSERT(currentValue == versionedRow.EndValues());
+
+        // Timestamps.
+        auto currentTimestampList = timestampList;
+        auto* currentTimestamp = versionedRow.BeginTimestamps();
+        while (currentTimestampList) {
+            for (const auto* it = &currentTimestampList.Back(); it >= &currentTimestampList.Front(); --it) {
+                auto timestamp = *it;
+                if (!(timestamp & UncommittedTimestamp)) {
+                    *currentTimestamp++ = timestamp;
+                }
+            }
+            currentTimestampList = currentTimestampList.GetNext();
+        }
+        YASSERT(currentTimestamp == versionedRow.EndTimestamps());
 
         return versionedRow;
     }

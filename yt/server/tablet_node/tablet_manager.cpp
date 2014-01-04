@@ -116,6 +116,8 @@ public:
         const Stroka& encodedRequest,
         Stroka* encodedResponse)
     {
+        ValidateReadTimestamp(timestamp);
+
         TProtocolReader reader(encodedRequest);
         TProtocolWriter writer;
 
@@ -193,6 +195,16 @@ private:
 
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+
+    void ValidateReadTimestamp(TTimestamp timestamp)
+    {
+        if (timestamp != LastCommittedTimestamp &&
+            (timestamp < MinTimestamp || timestamp > MaxTimestamp))
+        {
+            THROW_ERROR_EXCEPTION("Invalid timestamp %" PRIu64, timestamp);
+        }
+    }
 
     
     void SaveKeys(TSaveContext& context) const

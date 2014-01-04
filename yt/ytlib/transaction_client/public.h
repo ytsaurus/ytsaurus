@@ -41,6 +41,7 @@ const TTimestamp MaxTimestamp = 0x0fffffffffffffffULL;
 // Sentinels.
 const TTimestamp LastCommittedTimestamp = 0x1000000000000000ULL;
 const TTimestamp UncommittedTimestamp   = 0x1000000000000001ULL;
+const TTimestamp AllCommittedTimestamp  = 0x1000000000000002ULL;
 
 // Masks.
 const TTimestamp TimestampValueMask       = 0x3fffffffffffffffULL;

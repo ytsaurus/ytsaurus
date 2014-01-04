@@ -29,6 +29,7 @@ using NTransactionClient::NullTransactionId;
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::LastCommittedTimestamp;
+using NTransactionClient::AllCommittedTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
     

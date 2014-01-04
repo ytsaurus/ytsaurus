@@ -183,12 +183,12 @@ public:
         return reinterpret_cast<TTimestamp*>(EndValues());
     }
 
-    const TTimestamp* EndTimestamp() const
+    const TTimestamp* EndTimestamps() const
     {
         return BeginTimestamps() + GetTimestampCount();
     }
 
-    TTimestamp* EndTimestamp()
+    TTimestamp* EndTimestamps()
     {
         return BeginTimestamps() + GetTimestampCount();
     }
