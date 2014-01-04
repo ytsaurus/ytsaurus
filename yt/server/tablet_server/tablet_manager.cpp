@@ -634,15 +634,15 @@ private:
         auto* mutationContext = hydraManager->GetMutationContext();
 
         // Our expectations.
-        yhash_map<TTabletCell*, TNode::TTabletSlot*> expectedCellToSlot;
+        yhash_set<TTabletCell*> expectedCells;
         for (auto& slot : node->TabletSlots()) {
-            if (slot.Cell) {
-                YCHECK(expectedCellToSlot.insert(std::make_pair(slot.Cell, &slot)).second);
+            if (IsObjectAlive(slot.Cell)) {
+                YCHECK(expectedCells.insert(slot.Cell).second);
             }
         }
 
         // Figure out and analyze the reality.
-        yhash_map<TTabletCell*, int> actualCellToIndex;
+        yhash_set<TTabletCell*> actualCells;
         for (int slotIndex = 0; slotIndex < request.tablet_slots_size(); ++slotIndex) {
             auto& slot = node->TabletSlots()[slotIndex];
             const auto& slotInfo = request.tablet_slots(slotIndex);
@@ -688,8 +688,8 @@ private:
                 continue;
             }
 
-            auto expectedIt = expectedCellToSlot.find(cell);
-            if (expectedIt == expectedCellToSlot.end()) {
+            auto expectedIt = expectedCells.find(cell);
+            if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId, slotIndex);
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet peer online (Address: %s, CellId: %s, PeerId: %d)",
                     ~node->GetAddress(),
@@ -698,7 +698,7 @@ private:
             }
 
             cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
-            YCHECK(actualCellToIndex.insert(std::make_pair(cell, slotIndex)).second);
+            YCHECK(actualCells.insert(cell).second);
 
             // Populate slot.
             slot.Cell = cell;
@@ -722,16 +722,13 @@ private:
         }
 
         // Check for expected slots that are missing.
-        for (const auto& pair : expectedCellToSlot) {
-            const auto* slot = pair.second;
-            auto* cell = slot->Cell;
-            if (actualCellToIndex.find(cell) == actualCellToIndex.end() &&
+        for (auto* cell : expectedCells) {
+            if (actualCells.find(cell) == actualCells.end() &&
                 node->TabletCellCreateQueue().find(cell) == node->TabletCellCreateQueue().end())
             {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet peer offline: slot is missing (CellId: %s, Address: %s, PeerId: %d)",
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet peer offline: slot is missing (CellId: %s, Address: %s)",
                     ~ToString(cell->GetId()),
-                    ~node->GetAddress(),
-                    slot->PeerId);
+                    ~node->GetAddress());
                 cell->DetachPeer(node);
             }
         }
@@ -744,7 +741,7 @@ private:
 
             // Skip cells whose instances were already found on the node.
             // Only makes sense to protect from asking to create a slot that is already initializing.
-            if (actualCellToIndex.find(cell) == actualCellToIndex.end()) {
+            if (actualCells.find(cell) == actualCells.end()) {
                 requestCreateSlot(cell);
                 --availableSlots;
             }
