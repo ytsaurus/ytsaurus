@@ -218,7 +218,7 @@ class YTEnv(object):
             config['masters']['addresses'] = self._master_addresses
             config['timestamp_provider']['addresses'] = self._master_addresses
             config['changelogs']['path'] = \
-                os.path.join(current, 'logs')
+                os.path.join(current, 'changelogs')
             config['snapshots']['path'] = \
                     os.path.join(current, 'snapshots')
             init_logging(config['logging'], current, 'master-' + str(i))
