@@ -67,7 +67,3 @@ private:
 
 } // namespace NCellMaster
 } // namespace NYT
-
-#define META_STATE_FACADE_INL_H_
-#include "meta_state_facade-inl.h"
-#undef META_STATE_FACADE_INL_H_

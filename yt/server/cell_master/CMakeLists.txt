@@ -11,7 +11,6 @@ set( HDRS
   ${BASE}/bootstrap.h
   ${BASE}/automaton.h
   ${BASE}/config.h
-  ${BASE}/meta_state_facade-inl.h
   ${BASE}/meta_state_facade.h
   ${BASE}/hydra_service.h
   ${BASE}/public.h
