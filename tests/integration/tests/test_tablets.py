@@ -99,3 +99,6 @@ class TestTablets(YTEnvSetup):
 
         reshard_table('//tmp/t', [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2)
         assert self._get_pivot_keys('//tmp/t') == [[], [100], [150], [200]]
+
+        with pytest.raises(YtError): reshard_table('//tmp/t', [[100], [100]], first_tablet_index=1, last_tablet_index=1)
+        assert self._get_pivot_keys('//tmp/t') == [[], [100], [150], [200]]
