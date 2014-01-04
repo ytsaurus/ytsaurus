@@ -5,6 +5,7 @@
 #include "assert.h"
 #include "mpl.h"
 #include "property.h"
+#include "nullable.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -487,6 +488,33 @@ struct TStrokaSerializer
         size_t size = TSizeSerializer::Load(context);
         value.resize(size);
         TRangeSerializer::Load(context, TRef::FromString(value));
+    }
+};
+
+struct TNullableSerializer
+{
+    template <class T, class C>
+    static void Save(C& context, const T& nullable)
+    {
+        using NYT::Save;
+        Save(context, nullable.HasValue());
+        if (nullable) {
+            Save(context, *nullable);
+        }
+    }
+
+    template <class T, class C>
+    static void Load(C& context, T& nullable)
+    {
+        using NYT::Load;
+        bool hasValue = Load<bool>(context);
+        if (hasValue) {
+            typename T::TValueType temp;
+            Load(context, temp);
+            nullable.Assign(std::move(temp));
+        } else {
+            nullable.Reset();
+        }
     }
 };
 
@@ -1005,6 +1033,12 @@ struct TSerializerTraits<Stroka, C, void>
 {
     typedef TStrokaSerializer TSerializer;
     typedef TValueBoundComparer TComparer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<TNullable<T>, C, void>
+{
+    typedef TNullableSerializer TSerializer;
 };
 
 template <class T, class C>

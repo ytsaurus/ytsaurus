@@ -1,7 +1,6 @@
 #pragma once
 
 #include "mpl.h"
-#include "serialize.h"
 
 namespace NYT {
 
@@ -434,43 +433,6 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 {
     return !(lhs == rhs);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(sandello): Remove this from ADT header.
-
-struct TNullableSerializer
-{
-    template <class T, class C>
-    static void Save(C& context, const T& nullable)
-    {
-        using NYT::Save;
-        Save(context, nullable.HasValue());
-        if (nullable) {
-            Save(context, *nullable);
-        }
-    }
-
-    template <class T, class C>
-    static void Load(C& context, T& nullable)
-    {
-        using NYT::Load;
-        bool hasValue = Load<bool>(context);
-        if (hasValue) {
-            typename T::TValueType temp;
-            Load(context, temp);
-            nullable.Assign(std::move(temp));
-        } else {
-            nullable.Reset();
-        }
-    }
-};
-
-template <class T, class C>
-struct TSerializerTraits<TNullable<T>, C, void>
-{
-    typedef TNullableSerializer TSerializer;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

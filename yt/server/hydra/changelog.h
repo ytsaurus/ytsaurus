@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/ref.h>
+
 #include <core/actions/future.h>
 
 namespace NYT {
