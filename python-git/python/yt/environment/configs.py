@@ -61,6 +61,11 @@ def get_master_config():
         gc_sweep_period = 10;
     };
 
+    hive_manager = {
+        ping_period = 1000;
+        rpc_timeout = 100;
+    };
+
     logging = {
         rules = [
             {
