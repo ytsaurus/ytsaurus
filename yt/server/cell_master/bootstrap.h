@@ -52,6 +52,7 @@ public:
     NHive::TTransactionSupervisorPtr GetTransactionSupervisor() const;
     NCypressServer::TCypressManagerPtr GetCypressManager() const;
     TMetaStateFacadePtr GetMetaStateFacade() const;
+    TWorldInitializerPtr GetWorldInitializer() const;
     NObjectServer::TObjectManagerPtr GetObjectManager() const;
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
     NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
@@ -75,6 +76,7 @@ private:
     NHive::TTransactionSupervisorPtr TransactionSupervisor;
     NCypressServer::TCypressManagerPtr CypressManager;
     TMetaStateFacadePtr MetaStateFacade;
+    TWorldInitializerPtr WorldInitializer;
     NObjectServer::TObjectManagerPtr ObjectManager;
     NChunkServer::TChunkManagerPtr ChunkManager;
     NSecurityServer::TSecurityManagerPtr SecurityManager;

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "bootstrap.h"
 #include "meta_state_facade.h"
+#include "world_initializer.h"
 #include "config.h"
 
 #include <core/misc/ref_counted_tracker.h>
@@ -182,6 +183,11 @@ TMetaStateFacadePtr TBootstrap::GetMetaStateFacade() const
     return MetaStateFacade;
 }
 
+TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
+{
+    return WorldInitializer;
+}
+
 TObjectManagerPtr TBootstrap::GetObjectManager() const
 {
     return ObjectManager;
@@ -266,6 +272,8 @@ void TBootstrap::Run()
         Config->Snapshots);
 
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
+
+    WorldInitializer = New<TWorldInitializer>(Config, this);
     
     CellRegistry = New<TCellDirectory>(
         Config->CellDirectory,

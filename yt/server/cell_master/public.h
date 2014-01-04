@@ -21,6 +21,9 @@ class TMasterAutomatonPart;
 class TMetaStateFacade;
 typedef TIntrusivePtr<TMetaStateFacade> TMetaStateFacadePtr;
 
+class TWorldInitializer;
+typedef TIntrusivePtr<TWorldInitializer> TWorldInitializerPtr;
+
 class TBootstrap;
 
 class TLoadContext;

@@ -51,12 +51,6 @@ public:
     //! Same as #IsActiveLeader but throws on failure.
     void ValidateActiveLeader();
 
-    //! Checks if the cell is initialized.
-    bool IsInitialized();
-
-    //! Same as #IsInitialized but throws on failure.
-    void ValidateInitialized();
-
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;

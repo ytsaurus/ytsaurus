@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "hydra_service.h"
 #include "meta_state_facade.h"
+#include "world_initializer.h"
 #include "bootstrap.h"
 
 namespace NYT {
@@ -24,7 +25,7 @@ THydraServiceBase::THydraServiceBase(
 
 void THydraServiceBase::BeforeInvoke()
 {
-    Bootstrap->GetMetaStateFacade()->ValidateInitialized();
+    Bootstrap->GetWorldInitializer()->ValidateInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

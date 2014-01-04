@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/bootstrap.cpp
   ${BASE}/automaton.cpp
   ${BASE}/meta_state_facade.cpp
+  ${BASE}/world_initializer.cpp
   ${BASE}/hydra_service.cpp
   ${BASE}/serialize.cpp
 )
@@ -12,6 +13,7 @@ set( HDRS
   ${BASE}/automaton.h
   ${BASE}/config.h
   ${BASE}/meta_state_facade.h
+  ${BASE}/world_initializer.h
   ${BASE}/hydra_service.h
   ${BASE}/public.h
   ${BASE}/serialize-inl.h
