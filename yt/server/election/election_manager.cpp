@@ -509,6 +509,7 @@ private:
             Owner->StartVoteFor(candidateStatus.VoteId, candidateStatus.VoteEpochId);
         }
         else {
+            Owner->Reset();
             Owner->StartVoteForSelf();
         }
     }
