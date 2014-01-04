@@ -105,12 +105,7 @@ template <class T, class... As>
 inline TIntrusivePtr<T> New(As&&... args)
 {
     REF_COUNTED_NEW_PROLOGUE();
-    // TODO(babenko): variadic forwarding does not work in VS2012 Nov CTP
-#if defined(_MSC_VER) && _MSC_VER < 1800
-    TIntrusivePtr<T> result(new T(args...), false);
-#else
     TIntrusivePtr<T> result(new T(std::forward<As>(args)...), false);
-#endif
     REF_COUNTED_NEW_EPILOGUE();
     return result;
 }
