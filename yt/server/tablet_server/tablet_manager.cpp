@@ -448,7 +448,7 @@ public:
         }
 
         if (tabletRange.second != tablets.end()) {
-            if (CompareRows(pivotKeys.back(), (*tabletRange.second)->PivotKey()) >= 0) {
+            if (CompareRows(pivotKeys.back(), (*(tabletRange.second + 1))->PivotKey()) >= 0) {
                 THROW_ERROR_EXCEPTION(
                     "Last pivot key must be strictly less than that of the tablet "
                     "which follows the resharded range");
