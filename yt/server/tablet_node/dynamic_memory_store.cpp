@@ -148,6 +148,7 @@ public:
         }
 
         rows->clear();
+        Pool_.Clear();
 
         TKeyPrefixComparer keyComparer(KeyCount_);
 
