@@ -34,12 +34,12 @@ namespace NTableClient {
  *  After this call the writer is no longer usable.
  */
 IAsyncWriterPtr CreateAsyncTableWriter(
-        TTableWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        NTransactionClient::TTransactionPtr transaction,
-        NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath,
-        const TNullable<TKeyColumns>& keyColumns);
+    TTableWriterConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    NTransactionClient::TTransactionPtr transaction,
+    NTransactionClient::TTransactionManagerPtr transactionManager,
+    const NYPath::TRichYPath& richPath,
+    const TNullable<TKeyColumns>& keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 
