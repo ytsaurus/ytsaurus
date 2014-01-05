@@ -28,7 +28,7 @@ struct IVersionedReader
 
     //! Tries to read more rows from the reader.
     /*!
-     *  Depending on implementation, rows may come in two different flavours.
+     *  Depending on implementation, rows may come in two different flavors.
      *  (A) Rows containing no more than one versioned value for each cell, 
      *      and exactly one timestamp, either tombstone or last committed (for merging).
      *  (B) Rows containing all available versions and a list of timestamps (for compactions).
@@ -38,8 +38,8 @@ struct IVersionedReader
      *
      *  If |false| is returned then the end of the rowset is reached.
      *  If |true| is returned but |rows| is empty then no more data is available at the moment.
-     *  The caller must wait for asynchronous flag provided by #GetReadyEvent to become set.
-     *  The latter may indicate an error occured while fetching more data.
+     *  The caller must wait for the asynchronous flag provided by #GetReadyEvent to become set.
+     *  The latter may indicate an error occurred while fetching more data.
      *
      *  In Case A above row timestamps have the following meaning:
      *  1. If the row is found and is known to be deleted then the deletion
