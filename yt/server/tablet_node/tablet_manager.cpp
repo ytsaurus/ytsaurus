@@ -276,11 +276,13 @@ private:
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<Stroka>(request.key_columns().names());
+        auto chunkListId = FromProto<TChunkListId>(request.chunk_list_id());
 
         auto* tablet = new TTablet(
             id,
             schema,
             keyColumns,
+            chunkListId,
             New<TTableMountConfig>());
         TabletMap_.Insert(id, tablet);
 
@@ -295,8 +297,9 @@ private:
             hiveManager->PostMessage(Slot_->GetMasterMailbox(), req);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s)",
-            ~ToString(id));
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkListId: %s)",
+            ~ToString(id),
+            ~ToString(chunkListId));
     }
 
     void HydraUnmountTablet(const TReqUnmountTablet& request)

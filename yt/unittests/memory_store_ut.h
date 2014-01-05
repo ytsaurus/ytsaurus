@@ -36,10 +36,10 @@
 #include <ytlib/api/transaction.h>
 
 namespace NYT {
+namespace NTabletNode {
 namespace {
 
 using namespace NTabletClient;
-using namespace NTabletNode;
 using namespace NVersionedTableClient;
 using namespace NApi;
 using namespace NYson;
@@ -73,6 +73,7 @@ protected:
             NullTabletId,
             schema,
             keyColumns,
+            NChunkClient::TChunkListId(),
             New<TTableMountConfig>()));
     }
 
@@ -276,5 +277,6 @@ protected:
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+} // namespace NTabletNode
 } // namespace NYT
 

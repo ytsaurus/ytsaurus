@@ -29,6 +29,7 @@
 #include <server/hive/hive_manager.h>
 
 #include <server/chunk_server/chunk_list.h>
+#include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -318,29 +319,46 @@ public:
             THROW_ERROR_EXCEPTION("Table has no key columns");
         }
 
-        auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
         ValidateHasHealthyCells(); // may throw
 
-        if (table->Tablets().empty()) {
-            auto* tablet = CreateTablet(table);
-            tablet->PivotKey() = EmptyKey();
-            table->Tablets().push_back(tablet);
-            tabletRange = std::make_pair(table->Tablets().begin(), table->Tablets().end());
-        }
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto chunkManager = Bootstrap->GetChunkManager();
 
-        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
-            auto* tablet = *it;
+        const auto& tablets = table->Tablets();
+        const auto& chunkLists = table->GetChunkList()->Children();
+        YCHECK(tablets.size() == chunkLists.size());
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            const auto* tablet = tablets[index];
             if (tablet->GetState() == ETabletState::Unmounting) {
                 THROW_ERROR_EXCEPTION("Tablet %s is currently unmounting",
                     ~ToString(tablet->GetId()));
             }
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        // When mounting a table with no tablets, create the tablet automatically.
+        if (table->Tablets().empty()) {
+            auto* tablet = CreateTablet(table);
+            tablet->PivotKey() = EmptyKey();
+            table->Tablets().push_back(tablet);
+            firstTabletIndex = 0;
+            lastTabletIndex = 0;
 
-        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
-            auto* tablet = *it;
+            // TODO(babenko): save data when creating the very first tablet
+            auto* oldRootChunkList = table->GetChunkList();
+            auto* newRootChunkList = chunkManager->CreateChunkList();
+            table->SetChunkList(newRootChunkList);
+            objectManager->RefObject(newRootChunkList);
+            objectManager->UnrefObject(oldRootChunkList);
+
+            auto* tabletChunkList = chunkManager->CreateChunkList();
+            chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+        }
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = tablets[index];
             if (tablet->GetCell())
                 continue;
 
@@ -356,6 +374,7 @@ public:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
+            ToProto(req.mutable_chunk_list_id(), chunkLists[index]->GetId());
             
             auto hiveManager = Bootstrap->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
@@ -376,24 +395,25 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
-        auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
-            auto* tablet = *it;
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
             if (tablet->GetState() == ETabletState::Mounting) {
                 THROW_ERROR_EXCEPTION("Tablet %s is currently mounting",
                     ~ToString(tablet->GetId()));
             }
         }
 
-        DoUnmountTable(table, tabletRange);
+        DoUnmountTable(table, firstTabletIndex, lastTabletIndex);
     }
 
     void ForceUnmountTable(TTableNode* table)
     {
         DoUnmountTable(
             table,
-            std::make_pair(table->Tablets().begin(), table->Tablets().end()));
+            0,
+            static_cast<int>(table->Tablets().size()) - 1);
 
         auto objectManager = Bootstrap->GetObjectManager();
         for (auto* tablet : table->Tablets()) {
@@ -415,25 +435,30 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
-        auto tabletRange = ParseTabletRange(table, firstTabletIndex, lastTabletIndex); // may throw
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto chunkManager = Bootstrap->GetChunkManager();
+
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         auto& tablets = table->Tablets();
-        int oldTabletCount = std::distance(tabletRange.first, tabletRange.second);
+        auto& chunkLists = table->GetChunkList()->Children();
+        YCHECK(tablets.size() == chunkLists.size());
+
+        int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
         int newTabletCount = static_cast<int>(pivotKeys.size());
 
-        const int MaxTabletCount = 1000;
-        if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
+        if (tablets.size() - oldTabletCount + newTabletCount > TTableNode::MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
-                MaxTabletCount);
+                TTableNode::MaxTabletCount);
         }
 
         if (!pivotKeys.empty()) {
-            if (tabletRange.first == tablets.end()) {
+            if (lastTabletIndex == tablets.size() - 1) {
                 if (CompareRows(pivotKeys[0], EmptyKey()) != 0) {
                     THROW_ERROR_EXCEPTION("First pivot key must be empty");
                 }
             } else {
-                if (CompareRows(pivotKeys[0], (*tabletRange.first)->PivotKey()) != 0) {
+                if (CompareRows(pivotKeys[0], tablets[firstTabletIndex]->PivotKey()) != 0) {
                     THROW_ERROR_EXCEPTION(
                         "First pivot key must match that of the first tablet "
                         "in the resharded range");
@@ -447,8 +472,8 @@ public:
             }
         }
 
-        if (tabletRange.second != tablets.end()) {
-            if (CompareRows(pivotKeys.back(), (*tabletRange.second)->PivotKey()) >= 0) {
+        if (lastTabletIndex != tablets.size() - 1) {
+            if (CompareRows(pivotKeys.back(), tablets[lastTabletIndex + 1]->PivotKey()) >= 0) {
                 THROW_ERROR_EXCEPTION(
                     "Last pivot key must be strictly less than that of the tablet "
                     "which follows the resharded range");
@@ -456,8 +481,8 @@ public:
         }
 
         // Validate that all tablets are unmounted.
-        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
-            auto* tablet = *it;
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
             if (tablet->GetState() != ETabletState::Unmounted) {
                 THROW_ERROR_EXCEPTION("Cannot reshard table: tablet %s is in %s state",
                     ~ToString(tablet->GetId()),
@@ -465,13 +490,13 @@ public:
             }
         }
 
-        // Perform resharding.
-        auto objectManager = Bootstrap->GetObjectManager();
-        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
-            auto* tablet = *it;
+        // Drop old tablets.
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
             objectManager->UnrefObject(tablet);
         }
 
+        // Create new tablets.
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
             auto* tablet = CreateTablet(table);
@@ -479,9 +504,29 @@ public:
             newTablets.push_back(tablet);
         }
 
-        int actualFirstTabletIndex = std::distance(tablets.begin(), tabletRange.first);
-        tablets.erase(tabletRange.first, tabletRange.second);
-        tablets.insert(tablets.begin() + actualFirstTabletIndex, newTablets.begin(), newTablets.end());
+        tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + lastTabletIndex + 1);
+        tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
+
+        // Update chunk lists.
+        // TODO(babenko): save data
+        auto* oldRootChunkList = table->GetChunkList();
+        auto* newRootChunkList = chunkManager->CreateChunkList();
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            chunkLists.data(),
+            chunkLists.data() + firstTabletIndex);
+        for (int index = 0; index < newTabletCount; ++index) {
+            auto* tabletChunkList = chunkManager->CreateChunkList();
+            chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+        }
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            chunkLists.data() + lastTabletIndex + 1,
+            chunkLists.data() + oldTabletCount);
+
+        table->SetChunkList(newRootChunkList);
+        objectManager->RefObject(newRootChunkList);
+        objectManager->UnrefObject(oldRootChunkList);
     }
 
 
@@ -1017,14 +1062,13 @@ private:
     }
 
 
-    typedef std::pair<TTableNode::TTabletList::iterator, TTableNode::TTabletList::iterator> TTabletListRange;
-
     void DoUnmountTable(
         TTableNode* table,
-        const TTabletListRange& tabletRange)
+        int firstTableIndex,
+        int lastTabletIndex)
     {
-        for (auto it = tabletRange.first; it != tabletRange.second; ++it) {
-            auto* tablet = *it;
+        for (int index = firstTableIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
             if (tablet->GetState() != ETabletState::Mounted)
                 continue;
@@ -1048,34 +1092,34 @@ private:
     }
 
 
-    static TTabletListRange ParseTabletRange(
+    static void ParseTabletRange(
         TTableNode* table,
-        int first,
-        int last)
+        int* first,
+        int* last)
     {
         auto& tablets = table->Tablets();
-        if (first == -1 && last == -1) {
-            return std::make_pair(tablets.begin(), tablets.end());
+        if (*first == -1 && *last == -1) {
+            *first = 0;
+            *last = static_cast<int>(tablets.size() - 1);
         } else {
             if (tablets.empty()) {
                 THROW_ERROR_EXCEPTION("Table has no tablets");
             }
-            if (first < 0 || first >= tablets.size()) {
+            if (*first < 0 || *first >= tablets.size()) {
                 THROW_ERROR_EXCEPTION("First tablet index %d is out of range [%d, %d]",
-                    first,
+                    *first,
                     0,
                     static_cast<int>(tablets.size()) - 1);
             }
-            if (last < 0 || last >= tablets.size()) {
+            if (*last < 0 || *last >= tablets.size()) {
                 THROW_ERROR_EXCEPTION("Last tablet index %d is out of range [%d, %d]",
-                    last,
+                    *last,
                     0,
                     static_cast<int>(tablets.size()) - 1);
             }
-            if (first > last) {
+            if (*first > *last) {
                 THROW_ERROR_EXCEPTION("First tablet index is greater than last tablet index");
             }
-            return std::make_pair(tablets.begin() + first, tablets.begin() + last + 1);
         }
     }
 

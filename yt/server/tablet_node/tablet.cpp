@@ -18,6 +18,7 @@ namespace NTabletNode {
 using namespace NHydra;
 using namespace NVersionedTableClient;
 using namespace NTabletClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,10 +30,12 @@ TTablet::TTablet(
     const TTabletId& id,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
+    const TChunkListId& chunkListId,
     NTabletClient::TTableMountConfigPtr config)
     : Id_(id)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
+    , ChunkListId_(chunkListId)
     , Config_(config)
     , NameTable_(TNameTable::FromSchema(Schema_))
 { }
@@ -75,6 +78,11 @@ const TTableSchema& TTablet::Schema() const
 const TKeyColumns& TTablet::KeyColumns() const
 {
     return KeyColumns_;
+}
+
+const TChunkListId& TTablet::GetChunkListId() const
+{
+    return ChunkListId_;
 }
 
 const TTableMountConfigPtr& TTablet::GetConfig() const

@@ -8,6 +8,8 @@
 
 #include <ytlib/tablet_client/public.h>
 
+#include <ytlib/chunk_client/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -22,6 +24,7 @@ public:
         const TTabletId& id,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
+        const NChunkClient::TChunkListId& chunkListId,
         NTabletClient::TTableMountConfigPtr config);
 
     ~TTablet();
@@ -29,6 +32,7 @@ public:
     const TTabletId& GetId() const;
     const NVersionedTableClient::TTableSchema& Schema() const;
     const NVersionedTableClient::TKeyColumns& KeyColumns() const;
+    const NChunkClient::TChunkListId& GetChunkListId() const;
     const NTabletClient::TTableMountConfigPtr& GetConfig() const;
     
     const NVersionedTableClient::TNameTablePtr& GetNameTable() const;
@@ -43,6 +47,7 @@ private:
     TTabletId Id_;
     NVersionedTableClient::TTableSchema Schema_;
     NVersionedTableClient::TKeyColumns KeyColumns_;
+    NChunkClient::TChunkListId ChunkListId_;
     NTabletClient::TTableMountConfigPtr Config_;
     
     NVersionedTableClient::TNameTablePtr NameTable_;
