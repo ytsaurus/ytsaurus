@@ -708,13 +708,13 @@ private:
                 ~node->GetAddress());
 
             auto* transaction = node->GetTransaction();
+            UnregisterLeaseTransaction(node);
+            
             if (transaction && transaction->GetState() == ETransactionState::Active) {
                 auto transactionManager = Bootstrap->GetTransactionManager();
                 transactionManager->AbortTransaction(transaction);
             }
 
-            UnregisterLeaseTransaction(node);
-            
             const auto& address = node->GetAddress();
             YCHECK(AddressToNodeMap.erase(address) == 1);
             {
