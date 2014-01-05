@@ -271,12 +271,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* table = tablet->GetTable();
-
         YCHECK(!tablet->GetCell());
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet destroyed (TableId: %s, TabletId: %s)",
-            ~ToString(table->GetId()),
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet destroyed (TabletId: %s)",
             ~ToString(tablet->GetId()));
     }
 
@@ -327,8 +324,6 @@ public:
         auto chunkManager = Bootstrap->GetChunkManager();
 
         const auto& tablets = table->Tablets();
-        const auto& chunkLists = table->GetChunkList()->Children();
-        YCHECK(tablets.size() == chunkLists.size());
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = tablets[index];
@@ -350,12 +345,17 @@ public:
             auto* oldRootChunkList = table->GetChunkList();
             auto* newRootChunkList = chunkManager->CreateChunkList();
             table->SetChunkList(newRootChunkList);
+            YCHECK(newRootChunkList->OwningNodes().insert(table).second);
             objectManager->RefObject(newRootChunkList);
+            YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
             objectManager->UnrefObject(oldRootChunkList);
 
             auto* tabletChunkList = chunkManager->CreateChunkList();
             chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
         }
+
+        const auto& chunkLists = table->GetChunkList()->Children();
+        YCHECK(tablets.size() == chunkLists.size());
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index];
@@ -525,7 +525,9 @@ public:
             chunkLists.data() + oldTabletCount);
 
         table->SetChunkList(newRootChunkList);
+        YCHECK(newRootChunkList->OwningNodes().insert(table).second);
         objectManager->RefObject(newRootChunkList);
+        YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
         objectManager->UnrefObject(oldRootChunkList);
     }
 
