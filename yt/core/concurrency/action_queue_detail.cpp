@@ -64,13 +64,14 @@ bool TInvokerQueue::Invoke(const TClosure& callback)
     AtomicIncrement(QueueSize);
     Profiler.Increment(EnqueueCounter);
 
-    TEnqueuedAction action;
-    action.EnqueuedAt = GetCpuInstant();
-    action.Callback = callback;
-    Queue.Enqueue(action);
-
     LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
         callback.GetHandle());
+
+    TEnqueuedAction action;
+    action.Finished = false;
+    action.EnqueuedAt = GetCpuInstant();
+    action.Callback = std::move(callback);
+    Queue.Enqueue(action);
 
     EventCount->Notify();
 
@@ -89,7 +90,7 @@ void TInvokerQueue::Shutdown()
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
-    YASSERT(!action->Callback);
+    YASSERT(action->Finished);
 
     if (!Queue.Dequeue(action)) {
         return EBeginExecuteResult::QueueEmpty;
@@ -106,8 +107,10 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     TCurrentInvokerGuard guard(this);
 
+    // Move callback to the stack frame to ensure that we hold it as hold as it runs.
+    auto callback = std::move(action->Callback);
     try {
-        action->Callback.Run();
+        callback.Run();
     } catch (const TFiberCanceledException&) {
         // Still consider this a success.
         // This caller is responsible for terminating the current fiber.
@@ -118,7 +121,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
-    if (!action->Callback)
+    if (action->Finished)
         return;
 
     auto size = AtomicDecrement(QueueSize);
@@ -132,7 +135,7 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
         TotalTimeCounter,
         CpuDurationToValue(endedAt - action->EnqueuedAt));
 
-    action->Callback.Reset();
+    action->Finished = true;
 }
 
 int TInvokerQueue::GetSize() const
