@@ -95,6 +95,9 @@ typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
 //class TMemoryCompactor;
 
+class TPersistentStore;
+typedef TIntrusivePtr<TPersistentStore> TPersistentStorePtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

@@ -1,0 +1,33 @@
+#include "stdafx.h"
+#include "persistent_store.h"
+
+#include <ytlib/new_table_client/versioned_reader.h>
+
+namespace NYT {
+namespace NTabletNode {
+
+using namespace NVersionedTableClient;
+using namespace NApi;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPersistentStore::TPersistentStore()
+{ }
+
+TPersistentStore::~TPersistentStore()
+{ }
+
+IVersionedReaderPtr TPersistentStore::CreateReader(
+    TKey lowerKey,
+    TKey upperKey,
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTabletNode
+} // namespace NYT
+
