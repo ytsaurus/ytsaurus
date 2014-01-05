@@ -47,14 +47,20 @@ public:
         if (!DecoratedAutomaton->AcquireUserEnqueueLock()) {
             return false;
         }
+
         if (DecoratedAutomaton->GetState() != EPeerState::Leading &&
             DecoratedAutomaton->GetState() != EPeerState::Following)
         {
             DecoratedAutomaton->ReleaseUserEnqueueLock();
             return false;
         }
-        TCurrentInvokerGuard guard(this);
-        bool result = UnderlyingInvoker->Invoke(action);
+
+        auto this_ = MakeStrong(this);
+        bool result = UnderlyingInvoker->Invoke(BIND([this_, action] () {
+            TCurrentInvokerGuard guard(this_);
+            action.Run();
+        }));
+
         DecoratedAutomaton->ReleaseUserEnqueueLock();
         return result;
     }
