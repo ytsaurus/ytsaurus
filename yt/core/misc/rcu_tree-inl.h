@@ -46,15 +46,11 @@ TRcuTree<TKey, TComparer>::TRcuTree(
     , FirstGCNode_(nullptr)
     , LastGCNode_(nullptr)
     , FirstFreeNode_(nullptr)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-}
+{ }
 
 template <class TKey, class TComparer>
 TRcuTree<TKey, TComparer>::~TRcuTree()
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
     DestroyScannerList(FirstActiveScanner_);
     DestroyScannerList(FirstInactiveScanner_);
 }
@@ -62,8 +58,6 @@ TRcuTree<TKey, TComparer>::~TRcuTree()
 template <class TKey, class TComparer>
 int TRcuTree<TKey, TComparer>::Size() const
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
     return Size_;
 }
 
@@ -74,8 +68,6 @@ void TRcuTree<TKey, TComparer>::Insert(
     TNewKeyProvider newKeyProvider,
     TExistingKeyConsumer existingKeyConsumer)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
     ++Timestamp_;
     MaybeGCCollect();
 
@@ -129,8 +121,6 @@ void TRcuTree<TKey, TComparer>::Insert(
 template <class TKey, class TComparer>
 bool TRcuTree<TKey, TComparer>::Insert(TKey key)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
     bool result = true;
     Insert(
         key,
@@ -325,8 +315,6 @@ void TRcuTree<TKey, TComparer>::ReplaceChild(TNode* x, TNode* y)
 template <class TKey, class TComparer>
 typename TRcuTree<TKey, TComparer>::TScanner* TRcuTree<TKey, TComparer>::AllocateScanner()
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
     TScanner* scanner;
     if (FirstInactiveScanner_) {
         // Take from pool.
@@ -352,8 +340,6 @@ typename TRcuTree<TKey, TComparer>::TScanner* TRcuTree<TKey, TComparer>::Allocat
 template <class TKey, class TComparer>
 void TRcuTree<TKey, TComparer>::FreeScanner(TScanner* scanner)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
     // Remove from active list.
     if (scanner->NextScanner_) {
         scanner->NextScanner_->PrevScanner_ = scanner->PrevScanner_;

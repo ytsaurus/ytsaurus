@@ -3,8 +3,6 @@
 #include "common.h"
 #include "chunked_memory_pool.h"
 
-#include <core/concurrency/thread_affinity.h>
-
 #include <atomic>
 #include <array>
 
@@ -92,8 +90,6 @@ private:
     void ReplaceChild(TNode* x, TNode* y);
 
     void DestroyScannerList(TScanner* first);
-
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
 };
 
