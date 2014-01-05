@@ -143,6 +143,11 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
             TChangelogCreateParams params;
             params.PrevRecordCount = expectedPrevRecordCount;
             changelog = ChangelogStore->CreateChangelog(segmentId, params);
+
+            TVersion newLoggedVersion(segmentId, 0);
+            // NB: Equality is only possible when segmentId == 0.
+            YCHECK(DecoratedAutomaton->GetLoggedVersion() <= newLoggedVersion);
+            DecoratedAutomaton->SetLoggedVersion(newLoggedVersion);
         }
 
         LOG_FATAL_IF(
