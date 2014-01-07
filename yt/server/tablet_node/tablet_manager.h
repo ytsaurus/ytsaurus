@@ -36,6 +36,7 @@ public:
     void Initialize();
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
+    void ValidateTabletMounted(TTablet* tablet);
 
     void Read(
         TTablet* tablet,

@@ -60,6 +60,29 @@ TTablet* TStoreManager::GetTablet() const
     return Tablet_;
 }
 
+bool TStoreManager::HasActiveLocks() const
+{
+    if (Tablet_->GetActiveStore()->GetLockCount() > 0) {
+        return true;
+    }
+   
+    if (!LockedStores_.empty()) {
+        return true;
+    }
+
+    return false;
+}
+
+bool TStoreManager::HasUnflushedStores() const
+{
+    for (const auto& store : Tablet_->PassiveStores()) {
+        if (!store->IsPersistent()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void TStoreManager::LookupRow(
     TTimestamp timestamp,
     NTabletClient::TProtocolReader* reader,

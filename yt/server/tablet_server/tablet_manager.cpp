@@ -24,6 +24,7 @@
 
 #include <server/table_server/table_node.h>
 
+#include <server/tablet_node/public.h>
 #include <server/tablet_node/tablet_manager.pb.h>
 
 #include <server/hive/hive_manager.h>
@@ -1080,8 +1081,9 @@ private:
             auto hiveManager = Bootstrap->GetHiveManager();
 
             {
-                TReqUnmountTablet req;
+                TReqSetTabletState req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
+                req.set_state(NTabletNode::ETabletState::Unmounting);
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
                 hiveManager->PostMessage(mailbox, req);
             }

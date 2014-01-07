@@ -14,9 +14,10 @@ message TReqMountTablet
     required NYT.NProto.TGuid chunk_list_id = 4;
 }
 
-message TReqUnmountTablet
+message TReqSetTabletState
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int32 state = 2;
 }
 
 message TReqExecuteWrite

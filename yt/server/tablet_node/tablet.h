@@ -42,6 +42,9 @@ public:
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr manager);
 
+    ETabletState GetState() const;
+    void SetState(ETabletState state);
+
     const TDynamicMemoryStorePtr& GetActiveStore() const;
     void SetActiveStore(TDynamicMemoryStorePtr store);
 
@@ -59,7 +62,10 @@ private:
     NTabletClient::TTableMountConfigPtr Config_;
     
     NVersionedTableClient::TNameTablePtr NameTable_;
+    
     TStoreManagerPtr StoreManager_;
+    
+    ETabletState State_;
     
     TDynamicMemoryStorePtr ActiveStore_;
     std::vector<IStorePtr> PassiveStores_;

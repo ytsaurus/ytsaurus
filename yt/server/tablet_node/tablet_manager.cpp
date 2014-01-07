@@ -86,7 +86,7 @@ public:
             BIND(&TImpl::SaveValues, MakeStrong(this)));
 
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetPersistentStore, Unretained(this)));
@@ -112,6 +112,14 @@ public:
         return tablet;
     }
 
+    void ValidateTabletMounted(TTablet* tablet)
+    {
+        if (tablet->GetState() != ETabletState::Mounted) {
+            THROW_ERROR_EXCEPTION("Tablet %s is not in \"mounted\" state",
+                ~ToString(tablet->GetId()));
+        }
+    }
+
 
     void Read(
         TTablet* tablet,
@@ -119,6 +127,7 @@ public:
         const Stroka& encodedRequest,
         Stroka* encodedResponse)
     {
+        ValidateTabletMounted(tablet);
         ValidateReadTimestamp(timestamp);
 
         TProtocolReader reader(encodedRequest);
@@ -139,6 +148,8 @@ public:
         TTransaction* transaction,
         const Stroka& encodedRequest)
     {
+        ValidateTabletMounted(tablet);
+
         const auto& store = tablet->GetActiveStore();
 
         TProtocolReader reader(encodedRequest);
@@ -180,7 +191,9 @@ public:
             ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
             ->Commit();
 
-        CheckForRotation(tablet);
+        if (IsLeader()) {
+            CheckIfRotationNeeded(tablet);
+        }
     }
 
 
@@ -190,6 +203,7 @@ private:
     TTabletManagerConfigPtr Config_;
 
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
+    yhash_set<TTablet*> UnmountingTablets_;
 
     std::vector<TDynamicRow> PooledRows_;
     TRingQueue<TDynamicRowRef> PrewrittenRows_;
@@ -239,6 +253,16 @@ private:
         DoClear();
     }
 
+    virtual void OnAfterSnapshotLoaded() override
+    {
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            if (tablet->GetState() >= ETabletState::Unmounting) {
+                YCHECK(UnmountingTablets_.insert(tablet).second);
+            }
+        }
+    }
+
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -249,6 +273,7 @@ private:
     void DoClear()
     {
         TabletMap_.Clear();
+        UnmountingTablets_.clear();
     }
 
 
@@ -258,12 +283,9 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            for (int storeIndex = 0; storeIndex < static_cast<int>(tablet->PassiveStores().size()); ++storeIndex) {
-                auto store = tablet->PassiveStores()[storeIndex];
-                if (!store->IsPersistent()) {
-                    FlushStore(tablet, storeIndex);
-                }
-            }
+            FlushAllStores(tablet);
+            CheckIfFullyUnlocked(tablet);
+            CheckIfAllStoresFlushed(tablet);
         }
     }
 
@@ -296,17 +318,16 @@ private:
             keyColumns,
             chunkListId,
             New<TTableMountConfig>());
+        tablet->SetState(ETabletState::Mounted);
         TabletMap_.Insert(id, tablet);
 
         auto storeManager = New<TStoreManager>(Config_, tablet);
         tablet->SetStoreManager(std::move(storeManager));
 
-        auto hiveManager = Slot_->GetHiveManager();
-
         {
-            TReqOnTabletMounted req;
-            ToProto(req.mutable_tablet_id(), id);
-            hiveManager->PostMessage(Slot_->GetMasterMailbox(), req);
+            TReqOnTabletMounted response;
+            ToProto(response.mutable_tablet_id(), id);
+            PostMasterMutation(response);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkListId: %s)",
@@ -314,30 +335,83 @@ private:
             ~ToString(chunkListId));
     }
 
-    void HydraUnmountTablet(const TReqUnmountTablet& request)
+    void HydraSetTabletState(const TReqSetTabletState& request)
     {
-        auto id = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = FindTablet(id);
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
         if (!tablet)
             return;
-        
-        // TODO(babenko): flush data
-        // TODO(babenko): purge prewritten locks
 
-        TabletMap_.Remove(id);
+        auto requestedState = ETabletState(request.state());
 
-        auto hiveManager = Slot_->GetHiveManager();
+        switch (requestedState) {
+            case ETabletState::Unmounting: {
+                if (tablet->GetState() != ETabletState::Mounted) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %s state, ignored (TabletId: %s)",
+                        ~FormatEnum(tablet->GetState()).Quote(),
+                        ~ToString(tabletId));
+                    return;
+                }
 
-        {
-            TReqOnTabletUnmounted req;
-            ToProto(req.mutable_tablet_id(), id);
-            hiveManager->PostMessage(Slot_->GetMasterMailbox(), req);
+                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TabletId: %s)",
+                    ~ToString(tabletId));
+                // Just a formality.
+                YCHECK(tablet->GetState() == ETabletState::Mounted);
+                tablet->SetState(ETabletState::Unmounting);
+                YCHECK(UnmountingTablets_.insert(tablet).second);
+
+                LOG_INFO_UNLESS(IsRecovery(), "Waiting for all tablet locks to be released (TabletId: %s)",
+                    ~ToString(tabletId));
+                YCHECK(tablet->GetState() == ETabletState::Unmounting);
+                tablet->SetState(ETabletState::WaitingForLocks);
+
+                if (IsLeader()) {
+                    CheckIfFullyUnlocked(tablet);
+                }
+                break;
+            }
+
+            case ETabletState::RotatingStore: {
+                // Just a formality.
+                YCHECK(tablet->GetState() == ETabletState::WaitingForLocks);
+                tablet->SetState(ETabletState::RotatingStore);
+                // NB: Flush requests for all other stores must already be on their way.
+                RotateStore(tablet);
+
+                YCHECK(tablet->GetState() == ETabletState::RotatingStore);
+                tablet->SetState(ETabletState::FlushingStores);
+
+                LOG_INFO_UNLESS(IsRecovery(), "Waiting for all tablet stores to be flushed (TabletId: %s)",
+                    ~ToString(tabletId));
+
+                if (IsLeader()) {
+                    CheckIfAllStoresFlushed(tablet);
+                }
+                break;
+            }
+
+            case ETabletState::Unmounted: {
+                // Not really necessary, just for fun.
+                YCHECK(tablet->GetState() == ETabletState::FlushingStores);
+                tablet->SetState(ETabletState::Unmounted);
+
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %s)",
+                    ~ToString(tabletId));
+                TabletMap_.Remove(tabletId);
+                YCHECK(UnmountingTablets_.erase(tablet) == 1);
+
+                {
+                    TReqOnTabletUnmounted response;
+                    ToProto(response.mutable_tablet_id(), tabletId);
+                    PostMasterMutation(response);
+                }
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
         }
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %s)",
-            ~ToString(id));
     }
-
 
     void HydraLeaderExecuteWrite(int rowCount)
     {
@@ -384,7 +458,6 @@ private:
             commandsSucceded);
     }
 
-
     void HydraRotateStore(const TReqRotateStore& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
@@ -392,14 +465,8 @@ private:
         if (!tablet)
             return;
 
-        auto storeManager = tablet->GetStoreManager();
-        storeManager->Rotate();
-
-        if (IsLeader()) {
-            FlushStore(tablet, static_cast<int>(tablet->PassiveStores().size()) - 1);
-        }
+        RotateStore(tablet);
     }
-
 
     void HydraSetPersistentStore(const TReqSetPersistentStore& request)
     {
@@ -417,10 +484,14 @@ private:
         auto newStore = New<TPersistentStore>(chunkId);
         stores[storeIndex] = newStore;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Switched to persistent store (TabletId: %s, StoreIndex: %d, ChunkId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Switched to a persistent store (TabletId: %s, StoreIndex: %d, ChunkId: %s)",
             ~ToString(tabletId),
             storeIndex,
             ~ToString(chunkId));
+
+        if (IsLeader()) {
+            CheckIfAllStoresFlushed(tablet);
+        }
     }
 
 
@@ -439,27 +510,42 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        if (!transaction->LockedRows().empty()) {
-            for (const auto& rowRef : transaction->LockedRows()) {
-                rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
-            }
+        if (transaction->LockedRows().empty())
+            return;
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
-                ~ToString(transaction->GetId()),
-                transaction->LockedRows().size());
+        for (const auto& rowRef : transaction->LockedRows()) {
+            rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
         }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
+            ~ToString(transaction->GetId()),
+            transaction->LockedRows().size());
+
+        OnTransactionFinished(transaction);
     }
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        if (!transaction->LockedRows().empty()) {
-            for (const auto& rowRef : transaction->LockedRows()) {
-                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
-            }
+        if (transaction->LockedRows().empty())
+            return;
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",
-                ~ToString(transaction->GetId()),
-                transaction->LockedRows().size());
+        for (const auto& rowRef : transaction->LockedRows()) {
+            rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",
+            ~ToString(transaction->GetId()),
+            transaction->LockedRows().size());
+
+        OnTransactionFinished(transaction);
+    }
+
+    void OnTransactionFinished(TTransaction* /*transaction*/)
+    {
+        if (IsLeader()) {
+            for (auto* tablet : UnmountingTablets_) {
+                CheckIfFullyUnlocked(tablet);
+            }
         }
     }
 
@@ -537,11 +623,8 @@ private:
     }
 
 
-    void CheckForRotation(TTablet* tablet)
+    void CheckIfRotationNeeded(TTablet* tablet)
     {
-        if (!IsLeader())
-            return;
-
         const auto& storeManager = tablet->GetStoreManager();
         if (!storeManager->IsRotationNeeded())
             return;
@@ -550,10 +633,53 @@ private:
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), storeManager->GetTablet()->GetId());
-        CreateMutation(Slot_->GetHydraManager(), request)
-            ->Commit();
+        PostTabletMutation(request);
     }
 
+    void CheckIfFullyUnlocked(TTablet* tablet)
+    {
+        if (tablet->GetState() != ETabletState::WaitingForLocks)
+            return;
+
+        if (tablet->GetStoreManager()->HasActiveLocks())
+            return;
+
+        LOG_INFO("All tablet locks released (TabletId: %s)",
+            ~ToString(tablet->GetId()));
+
+        TReqSetTabletState request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        request.set_state(ETabletState::RotatingStore);
+        PostTabletMutation(request);
+    }
+
+    void CheckIfAllStoresFlushed(TTablet* tablet)
+    {
+        if (tablet->GetState() != ETabletState::FlushingStores)
+            return;
+
+        if (tablet->GetStoreManager()->HasUnflushedStores())
+            return;
+
+        LOG_INFO("All tablet stores are flushed (TabletId: %s)",
+            ~ToString(tablet->GetId()));
+
+        TReqSetTabletState request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        request.set_state(ETabletState::Unmounted);
+        PostTabletMutation(request);
+    }
+
+
+    void RotateStore(TTablet* tablet)
+    {
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->Rotate();
+
+        if (IsLeader()) {
+            FlushStore(tablet, static_cast<int>(tablet->PassiveStores().size()) - 1);
+        }
+    }
 
     void FlushStore(TTablet* tablet, int storeIndex)
     {
@@ -568,12 +694,40 @@ private:
         int storeIndex,
         TChunkId chunkId)
     {
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
         TReqSetPersistentStore request;
         ToProto(request.mutable_tablet_id(), tabletId);
         request.set_store_index(storeIndex);
         ToProto(request.mutable_chunk_id(), chunkId);
-        CreateMutation(Slot_->GetHydraManager(), request)
-            ->Commit();
+        PostTabletMutation(request);
+    }
+
+    void FlushAllStores(TTablet* tablet)
+    {
+        for (int storeIndex = 0; storeIndex < static_cast<int>(tablet->PassiveStores().size()); ++storeIndex) {
+            auto store = tablet->PassiveStores()[storeIndex];
+            if (!store->IsPersistent()) {
+                FlushStore(tablet, storeIndex);
+            }
+        }
+    }
+
+
+    void PostTabletMutation(const ::google::protobuf::MessageLite& message)
+    {
+        auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
+        Slot_->GetEpochAutomatonInvoker()->Invoke(BIND(
+            IgnoreResult(&TMutation::Commit),
+            mutation));
+    }
+
+    void PostMasterMutation(const ::google::protobuf::MessageLite& message)
+    {
+        auto hiveManager = Slot_->GetHiveManager();
+        hiveManager->PostMessage(Slot_->GetMasterMailbox(), message);
     }
 
 };
@@ -598,6 +752,11 @@ TTabletManager::~TTabletManager()
 TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 {
     return Impl_->GetTabletOrThrow(id);
+}
+
+void TTabletManager::ValidateTabletMounted(TTablet* tablet)
+{
+    Impl_->ValidateTabletMounted(tablet);
 }
 
 void TTabletManager::Initialize()

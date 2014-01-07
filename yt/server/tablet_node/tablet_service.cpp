@@ -123,6 +123,7 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, Write)
 
     auto tabletManager = Slot_->GetTabletManager();
     auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
+
     tabletManager->Write(
         tablet,
         transaction,

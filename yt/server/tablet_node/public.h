@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/common.h>
+#include <core/misc/enum.h>
 
 #include <ytlib/election/public.h>
 
@@ -33,6 +34,20 @@ using NTransactionClient::AllCommittedTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
     
+DECLARE_ENUM(ETabletState,
+    // The only good state admitting read and write requests.
+    (Mounted)
+
+    // NB: All states below are for unmounting workflow only!
+    (Unmounting)       // ephemeral, requested by master, immediately becomes WaitingForLock
+    (WaitingForLocks)
+    (RotatingStore)    // ephemeral, immediately becomes FlushingStores
+    (FlushingStores)
+    (Unmounted)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 

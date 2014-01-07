@@ -24,6 +24,9 @@ public:
 
     TTablet* GetTablet() const;
 
+    bool HasActiveLocks() const;
+    bool HasUnflushedStores() const;
+
     void LookupRow(
         TTimestamp timestamp,
         NTabletClient::TProtocolReader* reader,

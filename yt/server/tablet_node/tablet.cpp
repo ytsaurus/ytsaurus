@@ -41,6 +41,7 @@ TTablet::TTablet(
     , ChunkListId_(chunkListId)
     , Config_(config)
     , NameTable_(TNameTable::FromSchema(Schema_))
+    , State_(ETabletState::Mounted)
 { }
 
 TTablet::~TTablet()
@@ -111,6 +112,16 @@ const TStoreManagerPtr& TTablet::GetStoreManager() const
 void TTablet::SetStoreManager(TStoreManagerPtr manager)
 {
     StoreManager_ = manager;
+}
+
+ETabletState TTablet::GetState() const
+{
+    return State_;
+}
+
+void TTablet::SetState(ETabletState state)
+{
+    State_ = state;
 }
 
 const TDynamicMemoryStorePtr& TTablet::GetActiveStore() const
