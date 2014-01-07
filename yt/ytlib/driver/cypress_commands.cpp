@@ -42,7 +42,7 @@ void TGetCommand::DoExecute()
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    ReplySuccess(TYsonString(rsp->value()));
+    Reply(TYsonString(rsp->value()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +92,7 @@ void TListCommand::DoExecute()
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    ReplySuccess(TYsonString(rsp->keys()));
+    Reply(TYsonString(rsp->keys()));
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +120,7 @@ void TCreateCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         auto nodeId = FromProto<TNodeId>(rsp->node_id());
-        ReplySuccess(BuildYsonStringFluently().Value(nodeId));
+        Reply(BuildYsonStringFluently().Value(nodeId));
     } else {
         if (Request->Path) {
             THROW_ERROR_EXCEPTION("Object type is nonversioned, Cypress path is not required");
@@ -142,7 +142,7 @@ void TCreateCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         auto objectId = FromProto<TObjectId>(rsp->object_ids(0));
-        ReplySuccess(BuildYsonStringFluently().Value(objectId));
+        Reply(BuildYsonStringFluently().Value(objectId));
     }
 }
 
@@ -160,7 +160,7 @@ void TLockCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(*lockRsp);
 
     auto lockId = FromProto<TLockId>(lockRsp->lock_id());
-    ReplySuccess(BuildYsonStringFluently().Value(lockId));
+    Reply(BuildYsonStringFluently().Value(lockId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +177,7 @@ void TCopyCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     auto nodeId = FromProto<TNodeId>(rsp->object_id());
-    ReplySuccess(BuildYsonStringFluently().Value(nodeId));
+    Reply(BuildYsonStringFluently().Value(nodeId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +205,7 @@ void TExistsCommand::DoExecute()
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    ReplySuccess(BuildYsonStringFluently().Value(rsp->value()));
+    Reply(BuildYsonStringFluently().Value(rsp->value()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,7 +227,7 @@ void TLinkCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     auto linkId = FromProto<TNodeId>(rsp->node_id());
-    ReplySuccess(BuildYsonStringFluently().Value(linkId));
+    Reply(BuildYsonStringFluently().Value(linkId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
