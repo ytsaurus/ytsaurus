@@ -153,6 +153,9 @@ public:
 
     void PostMessage(TMailbox* mailbox, const TMessage& message)
     {
+        // A typical mistake is to try sending a Hive message outside of a mutation.
+        YCHECK(HydraManager->IsMutating());
+
         int messageId =
             mailbox->GetFirstPendingMessageId() +
             static_cast<int>(mailbox->PendingMessages().size());
@@ -496,12 +499,8 @@ private:
                 messageId);
 
             auto request = DeserializeMessage(req.messages(index));
-            TMutationContext context(
-                HydraManager->GetMutationContext(),
-                request);
-
-            auto* automaton = static_cast<IAutomaton*>(Automaton);
-            automaton->ApplyMutation(&context);
+	        TMutationContext context(HydraManager->GetMutationContext(), request);
+    	    static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
         }
     }
 
