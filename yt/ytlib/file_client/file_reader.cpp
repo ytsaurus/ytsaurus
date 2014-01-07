@@ -108,13 +108,15 @@ TAsyncError TAsyncReader::AsyncOpen()
 TAsyncError TAsyncReader::OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     if (!batchRsp->IsOK()) {
-        return MakeFuture(TError("Error fetching file info"));
+        return MakeFuture(TError("Error fetching file info")
+        	<< *batchRsp);
     }
 
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
         if (!rsp->IsOK()) {
-            return MakeFuture(TError("Error getting object type"));
+            return MakeFuture(TError("Error getting object type")
+            	<< *rsp);
         }
 
         auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
