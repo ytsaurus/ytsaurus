@@ -417,7 +417,7 @@ private:
         auto newStore = New<TPersistentStore>(chunkId);
         stores[storeIndex] = newStore;
 
-        LOG_INFO("Switched to persistent store (TabletId: %s, StoreIndex: %d, ChunkId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Switched to persistent store (TabletId: %s, StoreIndex: %d, ChunkId: %s)",
             ~ToString(tabletId),
             storeIndex,
             ~ToString(chunkId));
