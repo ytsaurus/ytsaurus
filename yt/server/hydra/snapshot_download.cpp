@@ -110,7 +110,8 @@ private:
             }
 
             writer->Close();
-            writer->Confirm();
+
+            SnapshotStore->ConfirmSnapshot(snapshotId);
 
             LOG_INFO("Snapshot downloaded successfully");
 

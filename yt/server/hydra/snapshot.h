@@ -31,17 +31,8 @@ struct ISnapshotWriter
     //! Closes the snapshot.
     /*!
      *  The snapshot does not get registered in the store after this call.
-     *  #Close is typically called from the forked child process to close the temporary file.
      */
     virtual void Close() = 0;
-
-    //! Confirms an earlier written and closed snapshot.
-    /*!
-     *  This call actually places the snapshot into the store.
-     *  #Confirm is typically called from the parent process to give the temporary file
-     *  its final name and update the store.
-     */
-    virtual void Confirm() = 0;
 
 };
 
@@ -101,6 +92,12 @@ struct ISnapshotStore
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist
     //! in the store or #NonexistingSnapshotId if no such snapshot is present.
     virtual int GetLatestSnapshotId(int maxSnapshotId = std::numeric_limits<i32>::max()) = 0;
+
+    //! Confirms an earlier written and closed snapshot.
+    /*!
+     *  This call actually places the snapshot into the store.
+     */
+    virtual void ConfirmSnapshot(int snapshotId) = 0;
 
 
     // Extension methods.

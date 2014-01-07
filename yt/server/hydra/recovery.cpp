@@ -97,7 +97,7 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
             }
         }
 
-        DecoratedAutomaton->Load(snapshotId, reader->GetStream());
+        DecoratedAutomaton->LoadSnapshot(snapshotId, reader->GetStream());
 
         auto snapshotParams = SnapshotStore->TryGetSnapshotParams(snapshotId);
         if (!snapshotParams) {

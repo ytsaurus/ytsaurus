@@ -106,7 +106,7 @@ public:
                 auto name = NFS::GetFileNameWithoutExtension(fileName);
                 try {
                     int snapshotId = FromString<int>(name);
-                    OnSnapshotAdded(snapshotId);
+                    RegisterSnapshot(snapshotId);
                 } catch (const std::exception&) {
                     LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
                 }
@@ -196,6 +196,17 @@ public:
         int snapshotId = (--it)->first;
         YCHECK(snapshotId <= maxSnapshotId);
         return snapshotId;
+    }
+
+    virtual void ConfirmSnapshot(int snapshotId) override
+    {
+        auto path = GetSnapshotPath(snapshotId);
+        if (!Rename(path + TempFileSuffix, path)) {
+            LOG_FATAL("Error renaming snapshot %s",
+                ~path.Quote());
+        }
+
+        RegisterSnapshot(snapshotId);
     }
 
 private:
@@ -391,21 +402,6 @@ private:
             DoClose();
         }
 
-        virtual void Confirm() override
-        {
-            DoClose();
-
-            auto path = Store->GetSnapshotPath(SnapshotId);
-            if (!Rename(path + TempFileSuffix, path)) {
-                LOG_FATAL("Error renaming snapshot %s",
-                    ~path.Quote());
-            }
-
-            LOG_INFO("Snapshot writer closed and confirmed");
-
-            Store->OnSnapshotAdded(SnapshotId);
-        }
-
     private:
         TFileSnapshotStorePtr Store;
         int SnapshotId;
@@ -498,7 +494,7 @@ private:
         return false;
     }
 
-    void OnSnapshotAdded(int snapshotId)
+    void RegisterSnapshot(int snapshotId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
     

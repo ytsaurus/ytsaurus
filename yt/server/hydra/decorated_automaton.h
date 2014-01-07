@@ -55,8 +55,7 @@ public:
     IAutomatonPtr GetAutomaton();
 
     void Clear();
-    void Save(TOutputStream* output);
-    void Load(int snapshotId, TInputStream* input);
+    void LoadSnapshot(int snapshotId, TInputStream* input);
 
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
     void RotateChangelogDuringRecovery();
@@ -86,32 +85,32 @@ private:
     class TSystemInvoker;
     class TSnapshotBuilder;
 
-    TDistributedHydraManagerConfigPtr Config;
-    NElection::TCellManagerPtr CellManager;
-    IAutomatonPtr Automaton;
+    TDistributedHydraManagerConfigPtr Config_;
+    NElection::TCellManagerPtr CellManager_;
+    IAutomatonPtr Automaton_;
 
-    IInvokerPtr AutomatonInvoker;
-    IInvokerPtr ControlInvoker;
+    IInvokerPtr AutomatonInvoker_;
+    IInvokerPtr ControlInvoker_;
 
-    TAtomic UserEnqueueLock;
-    TAtomic SystemLock;
-    IInvokerPtr SystemInvoker;
+    TAtomic UserEnqueueLock_;
+    TAtomic SystemLock_;
+    IInvokerPtr SystemInvoker_;
 
-    ISnapshotStorePtr SnapshotStore;
-    IChangelogStorePtr ChangelogStore;
+    ISnapshotStorePtr SnapshotStore_;
+    IChangelogStorePtr ChangelogStore_;
 
-    TResponseKeeperPtr ResponseKeeper;
+    TResponseKeeperPtr ResponseKeeper_;
 
-    TEpochId Epoch;
-    TMutationContext* MutationContext;
-    IChangelogPtr CurrentChangelog;
+    TEpochId Epoch_;
+    TMutationContext* MutationContext_;
+    IChangelogPtr CurrentChangelog_;
 
-    TSpinLock VersionSpinLock;
-    TVersion LoggedVersion;
-    TVersion AutomatonVersion;
+    TSpinLock VersionSpinLock_;
+    TVersion LoggedVersion_;
+    TVersion AutomatonVersion_;
 
-    TVersion SnapshotVersion;
-    TPromise<TErrorOr<TSnapshotInfo>> SnapshotInfoPromise;
+    TVersion SnapshotVersion_;
+    TPromise<TErrorOr<TSnapshotInfo>> SnapshotInfoPromise_;
 
     struct TPendingMutation
     {
@@ -122,10 +121,10 @@ private:
         TPromise<TErrorOr<TMutationResponse>> CommitPromise;
     };
 
-    NProto::TMutationHeader MutationHeader; // pooled instance
-    TRingQueue<TPendingMutation> PendingMutations;
+    NProto::TMutationHeader MutationHeader_; // pooled instance
+    TRingQueue<TPendingMutation> PendingMutations_;
 
-    NProfiling::TAggregateCounter BatchCommitTimeCounter;
+    NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
     NLog::TTaggedLogger Logger;
 
@@ -144,6 +143,7 @@ private:
 
     void DoRotateChangelog(IChangelogPtr changelog);
 
+    void SaveSnapshot(TOutputStream* output);
     void MaybeStartSnapshotBuilder();
 
 
