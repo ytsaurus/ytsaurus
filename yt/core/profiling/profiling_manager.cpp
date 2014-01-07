@@ -37,7 +37,8 @@ class TProfilingManager::TImpl
 {
 public:
     TImpl()
-        : Queue(New<TInvokerQueue>(
+        : WasShutdown(false)
+        , Queue(New<TInvokerQueue>(
             &EventCount,
             EmptyTagIds,
             true,
