@@ -77,17 +77,13 @@ TFuture<Stroka> HandleRequest(IYPathServicePtr service, const Stroka& url)
         // TODO(babenko): rewrite using some standard URL parser
         auto unescapedUrl = UnescapeUrl(url);
         auto queryIndex = unescapedUrl.find_first_of('?');
-        auto req = TYPathProxy::Get();
-        TYPath path;
-        if (queryIndex == Stroka::npos) {
-            path = unescapedUrl;
-        } else {
-            path = unescapedUrl.substr(0, queryIndex);
+        auto path = queryIndex == Stroka::npos ? unescapedUrl : unescapedUrl.substr(0, queryIndex);
+        auto req = TYPathProxy::Get(path);
+        if (queryIndex != Stroka::npos) {
             auto options = CreateEphemeralAttributes();
             ParseQuery(options.get(), unescapedUrl.substr(queryIndex + 1));
             ToProto(req->mutable_options(), *options);
         }
-        req->SetPath(path);
         return ExecuteVerb(service, req).Apply(BIND(&OnResponse));
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.

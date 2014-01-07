@@ -80,12 +80,8 @@ const Stroka& TYPathRequest::GetService() const
 
 const Stroka& TYPathRequest::GetPath() const
 {
-    return Header_.service();
-}
-
-void TYPathRequest::SetPath(const Stroka& path)
-{
-    Header_.set_service(path);
+    const auto& headerExt = Header_.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return headerExt.path();
 }
 
 TInstant TYPathRequest::GetStartTime() const
