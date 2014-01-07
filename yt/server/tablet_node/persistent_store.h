@@ -17,11 +17,14 @@ public:
     explicit TPersistentStore(const NChunkClient::TChunkId& chunkId);
     ~TPersistentStore();
 
+    // IStore implementation.
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TKey lowerKey,
         NVersionedTableClient::TKey upperKey,
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
+
+    virtual bool IsPersistent() const override;
 
 private:
 

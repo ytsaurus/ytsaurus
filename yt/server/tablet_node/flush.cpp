@@ -61,9 +61,9 @@ public:
         , ThreadPool_(New<TThreadPool>(Config_->PoolSize, "StoreFlush"))
     { }
 
-    TFuture<TChunkId> Enqueue(TDynamicMemoryStorePtr store, int storeIndex)
+    TFuture<TChunkId> Enqueue(TTablet* tablet, int storeIndex)
     {
-        return New<TSession>(this, store, storeIndex)->Run();
+        return New<TSession>(this, tablet, storeIndex)->Run();
     }
 
 private:
@@ -79,16 +79,15 @@ private:
     public:
         explicit TSession(
             TIntrusivePtr<TImpl> owner,
-            TDynamicMemoryStorePtr store,
+            TTablet* tablet,
             int storeIndex)
             : Owner_(owner)
-            , Store_(store)
             , StoreIndex_(storeIndex)
             , Promise_(NewPromise<TChunkId>())
             , Logger(TabletNodeLogger)
         {
-            auto* tablet = store->GetTablet();
             TabletId_ = tablet->GetId();
+            Store_ = tablet->PassiveStores()[StoreIndex_];
 
             auto* slot = tablet->GetSlot();
 
@@ -113,7 +112,7 @@ private:
 
     private:
         TIntrusivePtr<TImpl> Owner_;
-        TDynamicMemoryStorePtr Store_;
+        IStorePtr Store_;
         int StoreIndex_;
 
         TTabletManagerPtr TabletManager_;
@@ -250,9 +249,9 @@ TStoreFlusher::TStoreFlusher(
 TStoreFlusher::~TStoreFlusher()
 { }
 
-TFuture<TChunkId> TStoreFlusher::Enqueue(TDynamicMemoryStorePtr store, int storeIndex)
+TFuture<TChunkId> TStoreFlusher::Enqueue(TTablet* tablet, int storeIndex)
 {
-    return Impl_->Enqueue(store, storeIndex);
+    return Impl_->Enqueue(tablet, storeIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

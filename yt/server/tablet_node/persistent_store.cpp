@@ -27,6 +27,11 @@ IVersionedReaderPtr TPersistentStore::CreateReader(
     return nullptr;
 }
 
+bool TPersistentStore::IsPersistent() const
+{
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

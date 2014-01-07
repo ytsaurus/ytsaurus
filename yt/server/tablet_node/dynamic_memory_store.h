@@ -47,12 +47,6 @@ public:
         NVersionedTableClient::TKey key,
         bool prewrite);
 
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        NVersionedTableClient::TKey lowerKey,
-        NVersionedTableClient::TKey upperKey,
-        TTimestamp timestamp,
-        const NApi::TColumnFilter& columnFilter) override;
-        
     TDynamicRow MigrateRow(
         TDynamicRow row,
         const TDynamicMemoryStorePtr& migrateTo);
@@ -69,7 +63,16 @@ public:
 
     i64 GetAllocatedStringSpace() const;
     int GetAllocatedValueCount() const;
-    
+
+    // IStore implementaion.
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        NVersionedTableClient::TKey lowerKey,
+        NVersionedTableClient::TKey upperKey,
+        TTimestamp timestamp,
+        const NApi::TColumnFilter& columnFilter) override;
+        
+    virtual bool IsPersistent() const override;
+
 private:
     class TReader;
 

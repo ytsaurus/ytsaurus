@@ -255,6 +255,16 @@ private:
     virtual void OnStartLeading()
     {
         YCHECK(PrewrittenRows_.empty());
+
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            for (int storeIndex = 0; storeIndex < static_cast<int>(tablet->PassiveStores().size()); ++storeIndex) {
+                auto store = tablet->PassiveStores()[storeIndex];
+                if (!store->IsPersistent()) {
+                    FlushStore(tablet, storeIndex);
+                }
+            }
+        }
     }
 
     virtual void OnStopLeading()
@@ -382,13 +392,11 @@ private:
         if (!tablet)
             return;
 
-        auto store = tablet->GetActiveStore();
-
         auto storeManager = tablet->GetStoreManager();
         storeManager->Rotate();
 
         if (IsLeader()) {
-            FlushStore(store);
+            FlushStore(tablet, static_cast<int>(tablet->PassiveStores().size()) - 1);
         }
     }
 
@@ -547,12 +555,10 @@ private:
     }
 
 
-    void FlushStore(TDynamicMemoryStorePtr store)
+    void FlushStore(TTablet* tablet, int storeIndex)
     {
-        auto* tablet = store->GetTablet();
         auto storeFlusher = Bootstrap_->GetStoreFlusher();
-        int storeIndex = static_cast<int>(tablet->PassiveStores().size()) - 1;
-        storeFlusher->Enqueue(store, storeIndex).Subscribe(
+        storeFlusher->Enqueue(tablet, storeIndex).Subscribe(
             BIND(&TImpl::OnStoreFlushed, MakeStrong(this), tablet->GetId(), storeIndex)
                 .Via(Slot_->GetEpochAutomatonInvoker()));
     }

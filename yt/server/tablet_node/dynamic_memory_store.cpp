@@ -578,20 +578,6 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     return result;
 }
 
-IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
-    NVersionedTableClient::TKey lowerKey,
-    NVersionedTableClient::TKey upperKey,
-    TTimestamp timestamp,
-    const NApi::TColumnFilter& columnFilter)
-{
-    return New<TReader>(
-        this,
-        lowerKey,
-        upperKey,
-        timestamp,
-        columnFilter);
-}
-
 TDynamicRow TDynamicMemoryStore::MigrateRow(
     TDynamicRow row,
     const TDynamicMemoryStorePtr& migrateTo)
@@ -845,6 +831,25 @@ i64 TDynamicMemoryStore::GetAllocatedStringSpace() const
 int TDynamicMemoryStore::GetAllocatedValueCount() const
 {
     return AllocatedValueCount_;
+}
+
+IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
+    NVersionedTableClient::TKey lowerKey,
+    NVersionedTableClient::TKey upperKey,
+    TTimestamp timestamp,
+    const NApi::TColumnFilter& columnFilter)
+{
+    return New<TReader>(
+        this,
+        lowerKey,
+        upperKey,
+        timestamp,
+        columnFilter);
+}
+
+bool TDynamicMemoryStore::IsPersistent() const
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

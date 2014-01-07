@@ -26,6 +26,11 @@ struct IStore
         NVersionedTableClient::TKey upperKey,
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) = 0;
+
+
+    //! Returns |true| if this store is persistent, i.e. flushed into a chunk.
+    virtual bool IsPersistent() const = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

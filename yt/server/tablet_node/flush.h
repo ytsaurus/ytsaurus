@@ -22,7 +22,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TStoreFlusher();
 
-    TFuture<NChunkClient::TChunkId> Enqueue(TDynamicMemoryStorePtr store, int storeIndex);
+    TFuture<NChunkClient::TChunkId> Enqueue(TTablet* tablet, int storeIndex);
 
 private:
     class TImpl;
