@@ -13,6 +13,8 @@
 
 #include <core/ypath/token.h>
 
+#include <core/profiling/profiling_manager.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <server/hydra/entity_map.h>
@@ -1315,6 +1317,7 @@ private:
 
     void UpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
     {
+        auto* profilingManager = NProfiling::TProfilingManager::Get();
         auto now = TInstant::Now();
         for (const auto& update : request.updates()) {
             auto userId = FromProto<TUserId>(update.user_id());
@@ -1329,8 +1332,10 @@ private:
                 // Update request counter.
                 i64 requestCounter = user->GetRequestCounter() + update.request_counter_delta();
                 user->SetRequestCounter(requestCounter);
-                // TODO(babenko): use tags in master
-                Profiler.Enqueue("/user_request_counter/" + ToYPathLiteral(user->GetName()), requestCounter);
+
+                NProfiling::TTagIdList tags;
+                tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
+                Profiler.Enqueue("/user_request_counter", requestCounter, tags);
 
                 // Recompute request rate.
                 if (now > user->GetCheckpointTime() + Config->RequestRateSmoothingPeriod) {
