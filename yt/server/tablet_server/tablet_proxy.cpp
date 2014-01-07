@@ -35,9 +35,10 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
+        const auto* tablet = GetThisTypedImpl();
         attributes->push_back("state");
         attributes->push_back("table_id");
-        attributes->push_back("cell_id");
+        attributes->push_back(TAttributeInfo("cell_id", tablet->GetCell()));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -57,10 +58,12 @@ private:
             return true;
         }
 
-        if (key == "cell_id") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetCell()->GetId());
-            return true;
+        if (tablet->GetCell()) {
+            if (key == "cell_id") {
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetCell()->GetId());
+                return true;
+            }
         }
 
         return TBase::GetSystemAttribute(key, consumer);
