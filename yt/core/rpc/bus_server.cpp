@@ -121,7 +121,7 @@ private:
 
 };
 
-IRpcServerPtr CreateBusServer(NBus::IBusServerPtr busServer)
+IServerPtr CreateBusServer(NBus::IBusServerPtr busServer)
 {
     return New<TRpcServer>(busServer);
 }

@@ -51,7 +51,7 @@ public:
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellRegistry,
         IInvokerPtr automatonInvoker,
-        NRpc::IRpcServerPtr rpcServer,
+        NRpc::IServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : THydraServiceBase(
@@ -182,7 +182,7 @@ private:
     TCellGuid SelfCellGuid;
     THiveManagerConfigPtr Config;
     TCellDirectoryPtr CellDirectory;
-    IRpcServerPtr RpcServer;
+    IServerPtr RpcServer;
 
     TEntityMap<TCellGuid, TMailbox> MailboxMap;
     
@@ -593,7 +593,7 @@ THiveManager::THiveManager(
     THiveManagerConfigPtr config,
     TCellDirectoryPtr cellRegistry,
     IInvokerPtr automatonInvoker,
-    IRpcServerPtr rpcServer,
+    IServerPtr rpcServer,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton)
     : Impl(New<TImpl>(

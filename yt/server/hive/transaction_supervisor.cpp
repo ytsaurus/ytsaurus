@@ -51,7 +51,7 @@ public:
     TImpl(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
-        IRpcServerPtr rpcServer,
+        IServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         THiveManagerPtr hiveManager,
@@ -128,7 +128,7 @@ private:
     typedef TImpl TThis;
     
     TTransactionSupervisorConfigPtr Config;
-    IRpcServerPtr RpcServer;
+    IServerPtr RpcServer;
     THiveManagerPtr HiveManager;
     ITransactionManagerPtr TransactionManager;
     ITimestampProviderPtr TimestampProvider;
@@ -703,7 +703,7 @@ private:
 TTransactionSupervisor::TTransactionSupervisor(
     TTransactionSupervisorConfigPtr config,
     IInvokerPtr automatonInvoker,
-    IRpcServerPtr rpcServer,
+    IServerPtr rpcServer,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     THiveManagerPtr hiveManager,

@@ -381,7 +381,7 @@ IChannelPtr TBootstrap::GetSchedulerChannel() const
     return SchedulerChannel;
 }
 
-IRpcServerPtr TBootstrap::GetRpcServer() const
+IServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer;
 }

@@ -27,7 +27,7 @@ public:
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellRegistry,
         IInvokerPtr automatonInvoker,
-        NRpc::IRpcServerPtr rpcServer,
+        NRpc::IServerPtr rpcServer,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
 

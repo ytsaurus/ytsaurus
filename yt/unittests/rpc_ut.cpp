@@ -196,7 +196,7 @@ class TRpcTest
     // need to remember
     TActionQueuePtr Queue;
 public:
-    IRpcServerPtr RpcServer;
+    IServerPtr RpcServer;
 
     virtual void SetUp()
     {

@@ -40,7 +40,7 @@ public:
     TImpl(
         TTimestampManagerConfigPtr config,
         IInvokerPtr automatonInvoker,
-        IRpcServerPtr rpcServer,
+        IServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : TServiceBase(
@@ -239,7 +239,7 @@ private:
 TTimestampManager::TTimestampManager(
     TTimestampManagerConfigPtr config,
     IInvokerPtr automatonInvoker,
-    IRpcServerPtr rpcServer,
+    IServerPtr rpcServer,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton)
     : Impl(New<TImpl>(

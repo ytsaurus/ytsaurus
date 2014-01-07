@@ -36,8 +36,8 @@ typedef TIntrusivePtr<TRetryingChannelConfig> TRetryingChannelConfigPtr;
 class TThrottlingChannelConfig;
 typedef TIntrusivePtr<TThrottlingChannelConfig> TThrottlingChannelConfigPtr;
 
-struct IRpcServer;
-typedef TIntrusivePtr<IRpcServer> IRpcServerPtr;
+struct IServer;
+typedef TIntrusivePtr<IServer> IServerPtr;
 
 struct TServiceId;
 

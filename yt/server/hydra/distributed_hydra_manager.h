@@ -16,7 +16,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     IInvokerPtr controlInvoker,
     IInvokerPtr automatonInvoker,
     IAutomatonPtr automaton,
-    NRpc::IRpcServerPtr rpcServer,
+    NRpc::IServerPtr rpcServer,
     NElection::TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore);

@@ -9,7 +9,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IRpcServer
+struct IServer
     : public virtual TRefCounted
 {
     virtual void RegisterService(IServicePtr service) = 0;
@@ -23,7 +23,7 @@ struct IRpcServer
     virtual void Stop() = 0;
 };
 
-IRpcServerPtr CreateBusServer(NBus::IBusServerPtr busServer);
+IServerPtr CreateBusServer(NBus::IBusServerPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

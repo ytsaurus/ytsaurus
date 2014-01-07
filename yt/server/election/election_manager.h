@@ -50,7 +50,7 @@ public:
         TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
         IElectionCallbacksPtr electionCallbacks,
-        NRpc::IRpcServerPtr rpcServer);
+        NRpc::IServerPtr rpcServer);
 
     ~TElectionManager();
 

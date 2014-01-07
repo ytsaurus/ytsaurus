@@ -22,7 +22,7 @@ public:
     TTransactionSupervisor(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
-        NRpc::IRpcServerPtr rpcServer,
+        NRpc::IServerPtr rpcServer,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
         THiveManagerPtr hiveManager,

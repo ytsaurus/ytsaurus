@@ -92,7 +92,7 @@ public:
 protected:
     TActionQueuePtr ActionQueue;
     TIntrusivePtr<TElectionCallbacksMock> CallbacksMock;
-    IRpcServerPtr RpcServer;
+    IServerPtr RpcServer;
     TStaticChannelFactoryPtr ChannelFactory;
     TElectionManagerPtr ElectionManager;
     std::vector<TIntrusivePtr<TElectionServiceMock>> PeerMocks;

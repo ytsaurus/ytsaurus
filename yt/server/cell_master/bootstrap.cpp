@@ -138,7 +138,7 @@ TCellMasterConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IRpcServerPtr TBootstrap::GetRpcServer() const
+IServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer;
 }

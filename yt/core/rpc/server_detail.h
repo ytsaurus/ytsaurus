@@ -167,7 +167,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerBase
-    : public IRpcServer
+    : public IServer
 {
 public:
     TServerBase();

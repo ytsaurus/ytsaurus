@@ -43,7 +43,7 @@ public:
     const NElection::TCellGuid& GetCellGuid() const;
     ui16 GetCellId() const;
     TCellMasterConfigPtr GetConfig() const;
-    NRpc::IRpcServerPtr GetRpcServer() const;
+    NRpc::IServerPtr GetRpcServer() const;
     NElection::TCellManagerPtr GetCellManager() const;
     NHydra::IChangelogStorePtr GetChangelogStore() const;
     NHydra::ISnapshotStorePtr GetSnapshotStore() const;
@@ -67,7 +67,7 @@ private:
     Stroka ConfigFileName;
     TCellMasterConfigPtr Config;
 
-    NRpc::IRpcServerPtr RpcServer;
+    NRpc::IServerPtr RpcServer;
     NElection::TCellManagerPtr CellManager;
     NHydra::IChangelogStorePtr ChangelogStore;
     NHydra::ISnapshotStorePtr SnapshotStore;

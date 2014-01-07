@@ -11,7 +11,7 @@ class TLocalServer
     : public TServerBase
 { };
 
-IRpcServerPtr CreateLocalServer()
+IServerPtr CreateLocalServer()
 {
     return New<TLocalServer>();
 }

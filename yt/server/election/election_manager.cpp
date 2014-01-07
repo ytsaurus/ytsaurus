@@ -47,7 +47,7 @@ public:
         TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
         IElectionCallbacksPtr electionCallbacks,
-        NRpc::IRpcServerPtr rpcServer);
+        NRpc::IServerPtr rpcServer);
 
     void Start();
     void Stop();
@@ -71,7 +71,7 @@ private:
     TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
     IElectionCallbacksPtr ElectionCallbacks;
-    NRpc::IRpcServerPtr RpcServer;
+    NRpc::IServerPtr RpcServer;
 
     EPeerState State;
 
@@ -523,7 +523,7 @@ TElectionManager::TImpl::TImpl(
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
     IElectionCallbacksPtr electionCallbacks,
-    NRpc::IRpcServerPtr rpcServer)
+    NRpc::IServerPtr rpcServer)
     : TServiceBase(
         controlInvoker,
         NRpc::TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellGuid()),
@@ -972,7 +972,7 @@ TElectionManager::TElectionManager(
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
     IElectionCallbacksPtr electionCallbacks,
-    NRpc::IRpcServerPtr rpcServer)
+    NRpc::IServerPtr rpcServer)
     : Impl(New<TImpl>(
         config,
         cellManager,

@@ -23,7 +23,7 @@ class TLocalChannel
     : public IChannel
 {
 public:
-    explicit TLocalChannel(IRpcServerPtr server)
+    explicit TLocalChannel(IServerPtr server)
         : Server_(std::move(server))
     { }
 
@@ -77,7 +77,7 @@ public:
     }
 
 private:
-    IRpcServerPtr Server_;
+    IServerPtr Server_;
 
     TNullable<TDuration> DefaultTimeout_;
 
@@ -134,7 +134,7 @@ private:
 
 };
 
-IChannelPtr CreateLocalChannel(IRpcServerPtr server)
+IChannelPtr CreateLocalChannel(IServerPtr server)
 {
     return New<TLocalChannel>(server);
 }

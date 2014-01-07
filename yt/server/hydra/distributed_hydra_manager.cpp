@@ -126,7 +126,7 @@ public:
         IInvokerPtr controlInvoker,
         IInvokerPtr automatonInvoker,
         IAutomatonPtr automaton,
-        IRpcServerPtr rpcServer,
+        IServerPtr rpcServer,
         TCellManagerPtr cellManager,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore)
@@ -351,7 +351,7 @@ public:
     typedef TDistributedHydraManager TThis;
 
     TDistributedHydraManagerConfigPtr Config_;
-    NRpc::IRpcServerPtr RpcServer;
+    NRpc::IServerPtr RpcServer;
     TCellManagerPtr CellManager_;
     IInvokerPtr ControlInvoker_;
     IInvokerPtr AutomatonInvoker_;
@@ -1191,7 +1191,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     IInvokerPtr controlInvoker,
     IInvokerPtr automatonInvoker,
     IAutomatonPtr automaton,
-    IRpcServerPtr rpcServer,
+    IServerPtr rpcServer,
     TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore)

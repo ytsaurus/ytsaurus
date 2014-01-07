@@ -53,7 +53,7 @@ public:
     IInvokerPtr GetControlInvoker() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
-    NRpc::IRpcServerPtr GetRpcServer() const;
+    NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
@@ -99,7 +99,7 @@ private:
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;
-    NRpc::IRpcServerPtr RpcServer;
+    NRpc::IServerPtr RpcServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobTrackerPtr JobController;
