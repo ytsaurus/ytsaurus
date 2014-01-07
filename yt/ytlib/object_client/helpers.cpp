@@ -5,7 +5,16 @@
 namespace NYT {
 namespace NObjectClient {
 
+using namespace NYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TStringBuf ObjectIdPathPrefix("#");
+
+TYPath FromObjectId(const TObjectId& id)
+{
+    return Stroka(ObjectIdPathPrefix) + ToString(id);
+}
 
 bool IsVersionedType(EObjectType type)
 {

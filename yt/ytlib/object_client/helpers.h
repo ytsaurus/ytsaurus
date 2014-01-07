@@ -11,6 +11,12 @@ namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! |#|-prefix.
+extern TStringBuf ObjectIdPathPrefix;
+
+//! Creates the YPath pointing to an object with a given id.
+NYPath::TYPath FromObjectId(const TObjectId& id);
+
 //! Checks if the given type is versioned, i.e. represents a Cypress node.
 bool IsVersionedType(EObjectType type);
 

@@ -21,6 +21,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
@@ -363,7 +365,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
     auto batchReq = objectProxy.ExecuteBatch();
     {
         auto req = TChunkYPathProxy::Confirm(
-            NCypressClient::FromObjectId(currentSession.ChunkId));
+            NObjectClient::FromObjectId(currentSession.ChunkId));
         NHydra::GenerateMutationId(req);
         *req->mutable_chunk_info() = asyncWriter->GetChunkInfo();
         NYT::ToProto(req->mutable_replicas(), replicas);
@@ -457,7 +459,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::AttachChunks()
 
     for (const auto& chunkSpec : WrittenChunks) {
         auto req = TChunkListYPathProxy::Attach(
-            NCypressClient::FromObjectId(ParentChunkListId));
+            NObjectClient::FromObjectId(ParentChunkListId));
         *req->add_children_ids() = chunkSpec.chunk_id();
         NHydra::GenerateMutationId(req);
         batchReq->AddRequest(req);

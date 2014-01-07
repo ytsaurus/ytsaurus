@@ -5,6 +5,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 

@@ -11,14 +11,6 @@ namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! |#|-prefix.
-extern TStringBuf ObjectIdPathPrefix;
-
-//! Creates the YPath pointing to an object with a given id.
-NYPath::TYPath FromObjectId(const TObjectId& id);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TCypressYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {

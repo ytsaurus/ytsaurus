@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress_client )
 set( SRCS
-  ${BASE}/cypress_ypath_proxy.cpp
   ${BASE}/public.cpp
   ${BASE}/rpc_helpers.cpp
 )

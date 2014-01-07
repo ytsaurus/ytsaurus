@@ -15,13 +15,12 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/replication_writer.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 
@@ -31,7 +30,6 @@ namespace NFileClient {
 using namespace NYTree;
 using namespace NChunkClient;
 using namespace NObjectClient;
-using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient::NProto;
 
