@@ -39,6 +39,9 @@ typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 class TTabletManagerConfig;
 typedef TIntrusivePtr<TTabletManagerConfig> TTabletManagerConfigPtr;
 
+class TStoreFlusherConfig;
+typedef TIntrusivePtr<TStoreFlusherConfig> TStoreFlusherConfigPtr;
+
 class TTabletNodeConfig;
 typedef TIntrusivePtr<TTabletNodeConfig> TTabletNodeConfigPtr;
 
@@ -97,6 +100,9 @@ typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
 class TPersistentStore;
 typedef TIntrusivePtr<TPersistentStore> TPersistentStorePtr;
+
+class TStoreFlusher;
+typedef TIntrusivePtr<TStoreFlusher> TStoreFlusherPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

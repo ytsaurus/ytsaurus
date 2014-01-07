@@ -46,6 +46,8 @@
 #include <ytlib/hive/timestamp_provider.h>
 #include <ytlib/hive/remote_timestamp_provider.h>
 
+#include <ytlib/transaction_client/transaction_manager.h>
+
 #include <server/misc/build_attributes.h>
 
 #include <server/data_node/config.h>
@@ -78,6 +80,7 @@
 #include <server/exec_agent/job.h>
 
 #include <server/tablet_node/tablet_cell_controller.h>
+#include <server/tablet_node/flush.h>
 
 #include <server/query_agent/query_manager.h>
 #include <server/query_agent/query_service.h>
@@ -289,9 +292,18 @@ void TBootstrap::Run()
         Config->TimestampProvider,
         GetBusChannelFactory());
 
+    TransactionManager = New<NTransactionClient::TTransactionManager>(
+        Config->TransactionManager,
+        Config->Masters->CellGuid,
+        MasterChannel,
+        TimestampProvider,
+        CellDirectory);
+
     TabletCellController = New<TTabletCellController>(Config, this);
 
     QueryManager = New<TQueryManager>(Config->QueryAgent, this);
+
+    StoreFlusher = New<TStoreFlusher>(Config->TabletNode->StoreFlusher, this);
 
     RpcServer->RegisterService(New<TQueryService>(this));
 
@@ -464,9 +476,19 @@ ITimestampProviderPtr TBootstrap::GetTimestampProvider() const
     return TimestampProvider;
 }
 
+NTransactionClient::TTransactionManagerPtr TBootstrap::GetTransactionManager() const
+{
+    return TransactionManager;
+}
+
 TQueryManagerPtr TBootstrap::GetQueryManager() const
 {
     return QueryManager;
+}
+
+TStoreFlusherPtr TBootstrap::GetStoreFlusher() const
+{
+    return StoreFlusher;
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const

@@ -2,6 +2,7 @@
 #include "tablet.h"
 #include "automaton.h"
 #include "store_manager.h"
+#include "dynamic_memory_store.h"
 
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
@@ -28,11 +29,13 @@ TTablet::TTablet(const TTabletId& id)
 
 TTablet::TTablet(
     const TTabletId& id,
+    TTabletSlot* slot,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const TChunkListId& chunkListId,
     NTabletClient::TTableMountConfigPtr config)
     : Id_(id)
+    , Slot_(slot)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , ChunkListId_(chunkListId)
@@ -70,6 +73,11 @@ const TTabletId& TTablet::GetId() const
     return Id_;
 }
 
+TTabletSlot* TTablet::GetSlot() const
+{
+    return Slot_;
+}
+
 const TTableSchema& TTablet::Schema() const
 {
     return Schema_;
@@ -103,6 +111,21 @@ const TStoreManagerPtr& TTablet::GetStoreManager() const
 void TTablet::SetStoreManager(TStoreManagerPtr manager)
 {
     StoreManager_ = manager;
+}
+
+const TDynamicMemoryStorePtr& TTablet::GetActiveStore() const
+{
+    return ActiveStore_;
+}
+
+void TTablet::SetActiveStore(TDynamicMemoryStorePtr store)
+{
+    ActiveStore_ = std::move(store);
+}
+
+std::vector<IStorePtr>& TTablet::PassiveStores()
+{
+    return PassiveStores_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

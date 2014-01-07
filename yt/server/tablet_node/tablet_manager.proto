@@ -32,5 +32,12 @@ message TReqRotateStore
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
+message TReqSetPersistentStore
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int32 store_index = 2;
+    required NYT.NProto.TGuid chunk_id = 3;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

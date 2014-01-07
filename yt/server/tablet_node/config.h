@@ -41,6 +41,9 @@ public:
     size_t UnalignedPoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
+    int ValueCountRotationThreshold;
+    i64 StringSpaceRotationThreshold;
+
     TTabletManagerConfig()
     {
         RegisterParameter("aligned_pool_chunk_size", AlignedPoolChunkSize)
@@ -52,6 +55,32 @@ public:
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
             .InRange(0.0, 1.0)
             .Default(0.25);
+
+        RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
+            .GreaterThan(0)
+            .Default(1000000);
+        RegisterParameter("string_space_rotation_threshold", StringSpaceRotationThreshold)
+            .GreaterThan(0)
+            .Default((i64) 100 * 1024 * 1024);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStoreFlusherConfig
+    : public TYsonSerializable
+{
+public:
+    int PoolSize;
+    TDuration ErrorBackoffTime;
+
+    TStoreFlusherConfig()
+    {
+        RegisterParameter("pool_size", PoolSize)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("error_backoff_time", ErrorBackoffTime)
+            .Default(TDuration::Minutes(1));
     }
 };
 
@@ -80,6 +109,7 @@ public:
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
     TTabletManagerConfigPtr TabletManager;
+    TStoreFlusherConfigPtr StoreFlusher;
 
     TTabletNodeConfig()
     {
@@ -97,6 +127,8 @@ public:
         RegisterParameter("transaction_supervisor", TransactionSupervisor)
             .DefaultNew();
         RegisterParameter("tablet_manager", TabletManager)
+            .DefaultNew();
+        RegisterParameter("store_flusher", StoreFlusher)
             .DefaultNew();
     }
 };

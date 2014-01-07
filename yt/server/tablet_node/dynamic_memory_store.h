@@ -30,9 +30,10 @@ public:
     TTablet* GetTablet() const;
 
     int GetLockCount() const;
-    int Lock(int delta = 1);
-    int Unlock(int delta = 1);
+    int Lock();
+    int Unlock();
 
+    bool IsActive() const;
     void MakePassive();
 
     TDynamicRow WriteRow(

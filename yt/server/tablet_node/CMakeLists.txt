@@ -15,6 +15,7 @@ set( SRCS
 #  ${BASE}/static_memory_store.cpp
   ${BASE}/store_manager.cpp
   ${BASE}/persistent_store.cpp
+  ${BASE}/flush.cpp
 #  ${BASE}/compaction.cpp
   ${BASE}/dynamic_memory_store_bits.cpp
 )
@@ -38,6 +39,7 @@ set( HDRS
 #  ${BASE}/static_memory_store_bits.h
   ${BASE}/persistent_store.h
   ${BASE}/store_manager.h
+  ${BASE}/flush.h
 #  ${BASE}/compaction.h
 )
 

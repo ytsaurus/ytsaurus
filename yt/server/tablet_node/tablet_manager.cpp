@@ -9,6 +9,8 @@
 #include "store_manager.h"
 #include "tablet_cell_controller.h"
 #include "dynamic_memory_store.h"
+#include "persistent_store.h"
+#include "flush.h"
 #include "private.h"
 
 #include <core/misc/ring_queue.h>
@@ -87,6 +89,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetPersistentStore, Unretained(this)));
     }
 
 
@@ -136,8 +139,7 @@ public:
         TTransaction* transaction,
         const Stroka& encodedRequest)
     {
-        const auto& storeManager = tablet->GetStoreManager();
-        const auto& store = storeManager->GetActiveStore();
+        const auto& store = tablet->GetActiveStore();
 
         TProtocolReader reader(encodedRequest);
 
@@ -165,7 +167,6 @@ public:
             rowCount,
             commandsSucceded);
 
-        store->Lock(static_cast<int>(PooledRows_.size()));
         for (auto row : PooledRows_) {
             PrewrittenRows_.push(TDynamicRowRef(store.Get(), row));
         }
@@ -179,7 +180,7 @@ public:
             ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
             ->Commit();
 
-        CheckForRotation(storeManager);
+        CheckForRotation(tablet);
     }
 
 
@@ -280,6 +281,7 @@ private:
 
         auto* tablet = new TTablet(
             id,
+            Slot_,
             schema,
             keyColumns,
             chunkListId,
@@ -380,7 +382,37 @@ private:
         if (!tablet)
             return;
 
-        tablet->GetStoreManager()->Rotate();
+        auto store = tablet->GetActiveStore();
+
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->Rotate();
+
+        if (IsLeader()) {
+            FlushStore(store);
+        }
+    }
+
+
+    void HydraSetPersistentStore(const TReqSetPersistentStore& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        auto& stores = tablet->PassiveStores();
+        int storeIndex = request.store_index();
+        YCHECK(storeIndex >= 0 && storeIndex < stores.size());
+        
+        auto chunkId = FromProto<TChunkId>(request.chunk_id());
+
+        auto newStore = New<TPersistentStore>(chunkId);
+        stores[storeIndex] = newStore;
+
+        LOG_INFO("Switched to persistent store (TabletId: %s, StoreIndex: %d, ChunkId: %s)",
+            ~ToString(tabletId),
+            storeIndex,
+            ~ToString(chunkId));
     }
 
 
@@ -497,11 +529,12 @@ private:
     }
 
 
-    void CheckForRotation(const TStoreManagerPtr& storeManager)
+    void CheckForRotation(TTablet* tablet)
     {
         if (!IsLeader())
             return;
 
+        const auto& storeManager = tablet->GetStoreManager();
         if (!storeManager->IsRotationNeeded())
             return;
 
@@ -509,6 +542,30 @@ private:
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), storeManager->GetTablet()->GetId());
+        CreateMutation(Slot_->GetHydraManager(), request)
+            ->Commit();
+    }
+
+
+    void FlushStore(TDynamicMemoryStorePtr store)
+    {
+        auto* tablet = store->GetTablet();
+        auto storeFlusher = Bootstrap_->GetStoreFlusher();
+        int storeIndex = static_cast<int>(tablet->PassiveStores().size()) - 1;
+        storeFlusher->Enqueue(store, storeIndex).Subscribe(
+            BIND(&TImpl::OnStoreFlushed, MakeStrong(this), tablet->GetId(), storeIndex)
+                .Via(Slot_->GetEpochAutomatonInvoker()));
+    }
+
+    void OnStoreFlushed(
+        const TTabletId& tabletId,
+        int storeIndex,
+        TChunkId chunkId)
+    {
+        TReqSetPersistentStore request;
+        ToProto(request.mutable_tablet_id(), tabletId);
+        request.set_store_index(storeIndex);
+        ToProto(request.mutable_chunk_id(), chunkId);
         CreateMutation(Slot_->GetHydraManager(), request)
             ->Commit();
     }
@@ -523,7 +580,7 @@ TTabletManager::TTabletManager(
     TTabletManagerConfigPtr config,
     TTabletSlot* slot,
     TBootstrap* bootstrap)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         config,
         slot,
         bootstrap))
@@ -534,12 +591,12 @@ TTabletManager::~TTabletManager()
 
 TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 {
-    return Impl->GetTabletOrThrow(id);
+    return Impl_->GetTabletOrThrow(id);
 }
 
 void TTabletManager::Initialize()
 {
-    Impl->Initialize();
+    Impl_->Initialize();
 }
 
 void TTabletManager::Read(
@@ -548,7 +605,7 @@ void TTabletManager::Read(
     const Stroka& encodedRequest,
     Stroka* encodedResponse)
 {
-    Impl->Read(
+    Impl_->Read(
         tablet,
         timestamp,
         encodedRequest,
@@ -560,13 +617,13 @@ void TTabletManager::Write(
     TTransaction* transaction,
     const Stroka& encodedRequest)
 {
-    Impl->Write(
+    Impl_->Write(
         tablet,
         transaction,
         encodedRequest);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -48,11 +48,12 @@ public:
         TTransaction* transaction,
         const Stroka& encodedRequest);
 
+
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 

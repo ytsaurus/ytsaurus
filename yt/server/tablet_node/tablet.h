@@ -22,6 +22,7 @@ public:
     explicit TTablet(const TTabletId& id);
     TTablet(
         const TTabletId& id,
+        TTabletSlot* slot,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
         const NChunkClient::TChunkListId& chunkListId,
@@ -30,6 +31,7 @@ public:
     ~TTablet();
 
     const TTabletId& GetId() const;
+    TTabletSlot* GetSlot() const;
     const NVersionedTableClient::TTableSchema& Schema() const;
     const NVersionedTableClient::TKeyColumns& KeyColumns() const;
     const NChunkClient::TChunkListId& GetChunkListId() const;
@@ -40,11 +42,17 @@ public:
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr manager);
 
+    const TDynamicMemoryStorePtr& GetActiveStore() const;
+    void SetActiveStore(TDynamicMemoryStorePtr store);
+
+    std::vector<IStorePtr>& PassiveStores();
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
 private:
     TTabletId Id_;
+    TTabletSlot* Slot_;
     NVersionedTableClient::TTableSchema Schema_;
     NVersionedTableClient::TKeyColumns KeyColumns_;
     NChunkClient::TChunkListId ChunkListId_;
@@ -53,6 +61,9 @@ private:
     NVersionedTableClient::TNameTablePtr NameTable_;
     TStoreManagerPtr StoreManager_;
     
+    TDynamicMemoryStorePtr ActiveStore_;
+    std::vector<IStorePtr> PassiveStores_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -46,8 +46,6 @@ public:
     void CommitRow(const TDynamicRowRef& rowRef);
     void AbortRow(const TDynamicRowRef& rowRef);
 
-    const TDynamicMemoryStorePtr& GetActiveStore() const;
-
     bool IsRotationNeeded() const;
     void SetRotationScheduled();
     void ResetRotationScheduled();
@@ -58,9 +56,7 @@ private:
     TTablet* Tablet_;
 
     bool RotationScheduled_;
-    TDynamicMemoryStorePtr ActiveStore_;
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
-    std::vector<IStorePtr> PassiveStores_;
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 

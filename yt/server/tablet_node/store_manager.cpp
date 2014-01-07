@@ -43,12 +43,13 @@ TStoreManager::TStoreManager(
     : Config_(config)
     , Tablet_(Tablet_)
     , RotationScheduled_(false)
-    , ActiveStore_(New<TDynamicMemoryStore>(
-        Config_,
-        Tablet_))
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
+
+    Tablet_->SetActiveStore(New<TDynamicMemoryStore>(
+        Config_,
+        Tablet_));
 }
 
 TStoreManager::~TStoreManager()
@@ -98,8 +99,10 @@ void TStoreManager::LookupRow(
         }
     };
 
-    tryAddStore(ActiveStore_);
-    for (auto it = PassiveStores_.rbegin(); it != PassiveStores_.rend(); ++it) {
+    tryAddStore(Tablet_->GetActiveStore());
+
+    const auto& passiveStores = Tablet_->PassiveStores();
+    for (auto it = passiveStores.rbegin(); it != passiveStores.rend(); ++it) {
         tryAddStore(*it);
     }
 
@@ -190,7 +193,7 @@ void TStoreManager::WriteRow(
         row,
         ERowLockMode::Write);
 
-    auto dynamicRow = ActiveStore_->WriteRow(
+    auto dynamicRow = Tablet_->GetActiveStore()->WriteRow(
         NameTable_,
         transaction,
         row,
@@ -212,7 +215,7 @@ void TStoreManager::DeleteRow(
         key,
         ERowLockMode::Delete);
 
-    auto dynamicRow = ActiveStore_->DeleteRow(
+    auto dynamicRow = Tablet_->GetActiveStore()->DeleteRow(
         transaction,
         key,
         prewrite);
@@ -225,19 +228,19 @@ void TStoreManager::DeleteRow(
 void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
 {
     auto row = MaybeMigrateRow(rowRef);
-    ActiveStore_->ConfirmRow(row);
+    Tablet_->GetActiveStore()->ConfirmRow(row);
 }
 
 void TStoreManager::PrepareRow(const TDynamicRowRef& rowRef)
 {
     auto row = MaybeMigrateRow(rowRef);
-    ActiveStore_->PrepareRow(row);
+    Tablet_->GetActiveStore()->PrepareRow(row);
 }
 
 void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
 {
     auto row = MaybeMigrateRow(rowRef);
-    ActiveStore_->CommitRow(row);
+    Tablet_->GetActiveStore()->CommitRow(row);
 }
 
 void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
@@ -247,22 +250,17 @@ void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
     CheckForUnlockedStore(rowRef.Store);
 }
 
-const TDynamicMemoryStorePtr& TStoreManager::GetActiveStore() const
-{
-    return ActiveStore_;
-}
-
 TDynamicRow TStoreManager::MaybeMigrateRow(const TDynamicRowRef& rowRef)
 {
-    if (rowRef.Store == ActiveStore_) {
+    if (rowRef.Store->IsActive()) {
         return rowRef.Row;
     }
 
-    auto migratedRow = rowRef.Store->MigrateRow(
-        rowRef.Row,
-        ActiveStore_);
+    auto migrateFrom = rowRef.Store;
+    const auto& migrateTo = Tablet_->GetActiveStore();
+    auto migratedRow = migrateFrom->MigrateRow(rowRef.Row, migrateTo);
 
-    CheckForUnlockedStore(rowRef.Store);
+    CheckForUnlockedStore(migrateFrom);
 
     return migratedRow;
 }
@@ -277,7 +275,7 @@ void TStoreManager::CheckLockAndMaybeMigrateRow(
             key,
             transaction,
             ERowLockMode::Write,
-            ActiveStore_))
+            Tablet_->GetActiveStore()))
         {
             CheckForUnlockedStore(store);
             break;
@@ -289,7 +287,7 @@ void TStoreManager::CheckLockAndMaybeMigrateRow(
 
 void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
 {
-    if (store == ActiveStore_ || store->GetLockCount() > 0)
+    if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;
 
     LOG_INFO("Store unlocked and will be dropped (TabletId: %s)",
@@ -299,11 +297,11 @@ void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
 
 bool TStoreManager::IsRotationNeeded() const
 {
-    const auto& config = Tablet_->GetConfig();
-    if (ActiveStore_->GetAllocatedValueCount() >= config->ValueCountRotationThreshold) {
+    const auto& store = Tablet_->GetActiveStore();
+    if (store->GetAllocatedValueCount() >= Config_->ValueCountRotationThreshold) {
         return true;
     }
-    if (ActiveStore_->GetAllocatedStringSpace() >= config->StringSpaceRotationThreshold) {
+    if (store->GetAllocatedStringSpace() >= Config_->StringSpaceRotationThreshold) {
         return true;
     }
 
@@ -329,23 +327,24 @@ void TStoreManager::ResetRotationScheduled()
 
 void TStoreManager::Rotate()
 {
-    YCHECK(RotationScheduled_);
+    auto activeStore = Tablet_->GetActiveStore();
+    Tablet_->PassiveStores().push_back(activeStore);
+    activeStore->MakePassive();
 
-    LOG_INFO("Rotating tablet stores (TabletId: %s)",
-        ~ToString(Tablet_->GetId()));
+    LOG_INFO("Tablet stores rotated (TabletId: %s, StoreCount: %d)",
+        ~ToString(Tablet_->GetId()),
+        static_cast<int>(Tablet_->PassiveStores().size()));
 
-    PassiveStores_.push_back(ActiveStore_);
-
-    if (ActiveStore_->GetLockCount() > 0) {
+    if (activeStore->GetLockCount() > 0) {
         LOG_INFO("Current store is locked and will be kept (TabletId: %s, LockCount: %d)",
             ~ToString(Tablet_->GetId()),
-            ActiveStore_->GetLockCount());
-        YCHECK(LockedStores_.insert(ActiveStore_).second);
+            activeStore->GetLockCount());
+        YCHECK(LockedStores_.insert(activeStore).second);
     }
 
-    ActiveStore_ = New<TDynamicMemoryStore>(
+    Tablet_->SetActiveStore(New<TDynamicMemoryStore>(
         Config_,
-        Tablet_);
+        Tablet_));
 
     RotationScheduled_ = false;
 }

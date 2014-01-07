@@ -202,11 +202,6 @@ private:
     TVersionedRow ProduceRow()
     {
         auto dynamicRow = TreeScanner_->GetCurrent();
-
-        if (Timestamp_ != LastCommittedTimestamp && dynamicRow.GetPrepareTimestamp() < Timestamp_) {
-            WaitFor(dynamicRow.GetTransaction()->GetFinished());
-        }
-
         return
             Timestamp_ == AllCommittedTimestamp
             ? ProduceAllRowVersions(dynamicRow)
@@ -215,6 +210,10 @@ private:
 
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
+        if (Timestamp_ != LastCommittedTimestamp && dynamicRow.GetPrepareTimestamp() < Timestamp_) {
+            WaitFor(dynamicRow.GetTransaction()->GetFinished());
+        }
+
         auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
         const auto* minTimestampPtr = std::get<0>(FindVersionedValue(
             timestampList,
@@ -377,14 +376,19 @@ int TDynamicMemoryStore::GetLockCount() const
     return LockCount_;
 }
 
-int TDynamicMemoryStore::Lock(int delta)
+int TDynamicMemoryStore::Lock()
 {
-    return LockCount_ += delta;
+    return ++LockCount_;
 }
 
-int TDynamicMemoryStore::Unlock(int delta)
+int TDynamicMemoryStore::Unlock()
 {
-    return LockCount_ -= delta;
+    return --LockCount_;
+}
+
+bool TDynamicMemoryStore::IsActive() const
+{
+    return Active_;
 }
 
 void TDynamicMemoryStore::MakePassive()
@@ -611,7 +615,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         const auto* srcKeys = row.GetKeys();
         auto* dstKeys = migratedRow.GetKeys();
         for (int index = 0; index < KeyCount_; ++index) {
-            CopyValue(&dstKeys[index], srcKeys[index]);
+            migrateTo->CopyValue(&dstKeys[index], srcKeys[index]);
         }
 
         // Migrate fixed values.
@@ -620,10 +624,10 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
             if (list) {
                 const auto& srcValue = list.Back();
                 if ((srcValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                    auto migratedList = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
+                    auto migratedList = TValueList::Allocate(&migrateTo->AlignedPool_, InitialEditListCapacity);
                     migratedRow.SetFixedValueList(index, migratedList, KeyCount_);
                     migratedList.Push([&] (TVersionedValue* dstValue) {
-                        CopyValue(dstValue, srcValue);
+                        migrateTo->CopyValue(dstValue, srcValue);
                     });
                 }
             }
@@ -634,7 +638,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         if (timestampList) {
             auto timestamp = timestampList.Back();
             if ((timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                auto migratedTimestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
+                auto migratedTimestampList = TTimestampList::Allocate(&migrateTo->AlignedPool_, InitialEditListCapacity);
                 migratedRow.SetTimestampList(migratedTimestampList, KeyCount_);
                 migratedTimestampList.Push(timestamp);
             }

@@ -99,7 +99,7 @@ protected:
 
 TEST_F(TStoreManagerTest, PrewriteRow)
 {
-    auto* store = StoreManager->GetActiveStore().Get();
+    auto* store = Tablet->GetActiveStore().Get();
     EXPECT_EQ(0, store->GetLockCount());
 
     auto transaction = StartTransaction();
@@ -121,7 +121,7 @@ TEST_F(TStoreManagerTest, PrewriteRow)
 
 TEST_F(TStoreManagerTest, AbortRow)
 {
-    auto* store = StoreManager->GetActiveStore().Get();
+    auto* store = Tablet->GetActiveStore().Get();
     EXPECT_EQ(0, store->GetLockCount());
 
     auto transaction = StartTransaction();
@@ -141,7 +141,7 @@ TEST_F(TStoreManagerTest, AbortRow)
 
 TEST_F(TStoreManagerTest, CommitRow)
 {
-    auto* store = StoreManager->GetActiveStore().Get();
+    auto* store = Tablet->GetActiveStore().Get();
     EXPECT_EQ(0, store->GetLockCount());
 
     auto transaction = StartTransaction();
@@ -165,7 +165,7 @@ TEST_F(TStoreManagerTest, CommitRow)
 
 TEST_F(TStoreManagerTest, MigrateRowOnConfirm)
 {
-    auto store1 = StoreManager->GetActiveStore();
+    auto store1 = Tablet->GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -175,7 +175,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnConfirm)
     EXPECT_EQ(0, transaction->LockedRows().size());
 
     Rotate();
-    auto store2 = StoreManager->GetActiveStore();
+    auto store2 = Tablet->GetActiveStore();
 
     EXPECT_TRUE(store1 != store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -206,7 +206,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnConfirm)
 
 TEST_F(TStoreManagerTest, MigrateRowOnPrepare)
 {
-    auto store1 = StoreManager->GetActiveStore();
+    auto store1 = Tablet->GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -214,7 +214,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnPrepare)
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     Rotate();
-    auto store2 = StoreManager->GetActiveStore();
+    auto store2 = Tablet->GetActiveStore();
 
     EXPECT_TRUE(store1 != store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -243,7 +243,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnPrepare)
 
 TEST_F(TStoreManagerTest, MigrateRowOnCommit)
 {
-    auto store1 = StoreManager->GetActiveStore();
+    auto store1 = Tablet->GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -257,7 +257,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnCommit)
     PrepareTransaction(transaction.get());
 
     Rotate();
-    auto store2 = StoreManager->GetActiveStore();
+    auto store2 = Tablet->GetActiveStore();
 
     EXPECT_TRUE(store1 != store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -276,7 +276,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnCommit)
 
 TEST_F(TStoreManagerTest, MigrateRowOnOverwrite)
 {
-    auto store1 = StoreManager->GetActiveStore();
+    auto store1 = Tablet->GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -287,7 +287,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnOverwrite)
     EXPECT_TRUE(rowRef.Store == store1);
 
     Rotate();
-    auto store2 = StoreManager->GetActiveStore();
+    auto store2 = Tablet->GetActiveStore();
 
     EXPECT_TRUE(store1 != store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -366,7 +366,7 @@ TEST_F(TStoreManagerTest, DISABLED_WriteWriteConflictWithRotation2)
 
 TEST_F(TStoreManagerTest, DontMigrateRowOnAbort)
 {
-    auto store1 = StoreManager->GetActiveStore();
+    auto store1 = Tablet->GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -374,7 +374,7 @@ TEST_F(TStoreManagerTest, DontMigrateRowOnAbort)
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     Rotate();
-    auto store2 = StoreManager->GetActiveStore();
+    auto store2 = Tablet->GetActiveStore();
 
     EXPECT_TRUE(store1 != store2);
     EXPECT_EQ(1, store1->GetLockCount());

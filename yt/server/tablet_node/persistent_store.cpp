@@ -8,10 +8,11 @@ namespace NTabletNode {
 
 using namespace NVersionedTableClient;
 using namespace NApi;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPersistentStore::TPersistentStore()
+TPersistentStore::TPersistentStore(const TChunkId& chunkId)
 { }
 
 TPersistentStore::~TPersistentStore()

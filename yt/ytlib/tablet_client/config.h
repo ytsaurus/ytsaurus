@@ -15,22 +15,12 @@ class TTableMountConfig
 public:
     int MaxVersions;
 
-    int ValueCountRotationThreshold;
-    i64 StringSpaceRotationThreshold;
-
     TTableMountConfig()
     {
         RegisterParameter("max_versions", MaxVersions)
             .Default(16)
             .GreaterThan(0)
             .LessThanOrEqual(65535);
-
-        RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
-            .GreaterThan(0)
-            .Default(1000000);
-        RegisterParameter("string_space_rotation_threshold", StringSpaceRotationThreshold)
-            .GreaterThan(0)
-            .Default((i64) 100 * 1024 * 1024);
     }
 };
 

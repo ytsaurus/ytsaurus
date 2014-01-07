@@ -6,6 +6,8 @@
 
 #include <ytlib/hive/config.h>
 
+#include <ytlib/transaction_client/config.h>
+
 #include <server/misc/config.h>
 
 #include <server/exec_agent/config.h>
@@ -50,8 +52,11 @@ public:
     //! Throttling configuration for jobs-to-master communication.
     NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
 
-    //! Timestamp provider configuration for transction coordination.
+    //! Timestamp provider configuration for transaction coordination.
     NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+
+    //! Transaction manager configuration used by tablets for e.g. flushing stores.
+    NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
 
     TCellNodeConfig()
     {
@@ -69,6 +74,8 @@ public:
         RegisterParameter("jobs_to_master_channel", JobsToMasterChannel)
             .DefaultNew();
         RegisterParameter("timestamp_provider", TimestampProvider);
+        RegisterParameter("transaction_manager", TransactionManager)
+            .DefaultNew();
 
         SetKeepOptions(true);
     }

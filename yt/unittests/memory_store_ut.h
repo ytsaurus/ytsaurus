@@ -71,6 +71,7 @@ protected:
 
         Tablet.reset(new TTablet(
             NullTabletId,
+            nullptr,
             schema,
             keyColumns,
             NChunkClient::TChunkListId(),

@@ -18,6 +18,8 @@
 
 #include <ytlib/hive/public.h>
 
+#include <ytlib/transaction_client/transaction_manager.h>
+
 #include <server/data_node/public.h>
 
 #include <server/chunk_server/public.h>
@@ -70,7 +72,9 @@ public:
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
     NHive::TCellDirectoryPtr GetCellDirectory() const;
     NHive::ITimestampProviderPtr GetTimestampProvider() const;
+    NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NQueryAgent::TQueryManagerPtr GetQueryManager() const;
+    NTabletNode::TStoreFlusherPtr GetStoreFlusher() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -115,7 +119,9 @@ private:
     NDataNode::TMasterConnectorPtr MasterConnector;
     NHive::TCellDirectoryPtr CellDirectory;
     NHive::ITimestampProviderPtr TimestampProvider;
+    NTransactionClient::TTransactionManagerPtr TransactionManager;
     NQueryAgent::TQueryManagerPtr QueryManager;
+    NTabletNode::TStoreFlusherPtr StoreFlusher;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
