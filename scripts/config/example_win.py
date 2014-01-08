@@ -141,6 +141,9 @@ class Holder(WinNode, Server):
                 },
                 'snapshots' : {
                     'path' : r'%(work_dir)s\snapshots'
+                },
+                'tablet_manager' : {
+                    'value_count_rotation_threshold' : 10
                 }
             },
             'rpc_port' : r'%(port)d',
