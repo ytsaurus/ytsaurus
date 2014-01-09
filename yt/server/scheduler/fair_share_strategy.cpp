@@ -666,30 +666,15 @@ public:
         return Config;
     }
 
-    void SetConfig(TPoolConfigPtr newConfig)
+    void SetConfig(TPoolConfigPtr config)
     {
-        Config = newConfig;
-        SetMode(Config->Mode);
+        DoSetConfig(config);
         DefaultConfigured = false;
-
-        auto combinedLimits = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
-        auto perTypeLimits = InfiniteNodeResources();
-        if (Config->ResourceLimits->UserSlots) {
-            perTypeLimits.set_user_slots(*Config->ResourceLimits->UserSlots);
-        }
-        if (Config->ResourceLimits->Cpu) {
-            perTypeLimits.set_cpu(*Config->ResourceLimits->Cpu);
-        }
-        if (Config->ResourceLimits->Memory) {
-            perTypeLimits.set_memory(*Config->ResourceLimits->Memory);
-        }
-
-        ResourceLimits_ = Min(combinedLimits, perTypeLimits);
     }
 
     void SetDefaultConfig()
     {
-        SetConfig(New<TPoolConfig>());
+        DoSetConfig(New<TPoolConfig>());
         DefaultConfigured = true;
     }
 
@@ -725,6 +710,13 @@ public:
     }
 
 
+    virtual void Update()
+    {
+        TCompositeSchedulerElement::Update();
+        ComputeResourceLimits();   
+    }
+
+
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Parent);
 
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
@@ -736,6 +728,31 @@ private:
 
     TPoolConfigPtr Config;
     bool DefaultConfigured;
+
+
+    void DoSetConfig(TPoolConfigPtr newConfig)
+    {
+        Config = newConfig;
+        SetMode(Config->Mode);
+        ComputeResourceLimits();
+    }
+
+    void ComputeResourceLimits()
+    {
+        auto combinedLimits = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
+        auto perTypeLimits = InfiniteNodeResources();
+        if (Config->ResourceLimits->UserSlots) {
+            perTypeLimits.set_user_slots(*Config->ResourceLimits->UserSlots);
+        }
+        if (Config->ResourceLimits->Cpu) {
+            perTypeLimits.set_cpu(*Config->ResourceLimits->Cpu);
+        }
+        if (Config->ResourceLimits->Memory) {
+            perTypeLimits.set_memory(*Config->ResourceLimits->Memory);
+        }
+
+        ResourceLimits_ = Min(combinedLimits, perTypeLimits);        
+    }
 
 };
 

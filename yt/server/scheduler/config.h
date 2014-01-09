@@ -123,6 +123,9 @@ public:
     //! Maximum number of jobs per operation (an approximation!).
     int MaxJobCount;
 
+    //! Maximum number of operations that can be run concurrently.
+    int MaxOperationCount;
+
     //! Maximum size of table allowed to be passed as a file to jobs.
     i64 MaxTableFileSize;
 
@@ -292,6 +295,9 @@ public:
 
         RegisterParameter("max_job_count", MaxJobCount)
             .Default(20000)
+            .GreaterThan(0);
+        RegisterParameter("max_operation_count", MaxOperationCount)
+            .Default(100)
             .GreaterThan(0);
 
         RegisterParameter("environment", Environment)

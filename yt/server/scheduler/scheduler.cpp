@@ -260,6 +260,11 @@ public:
             }
         }
 
+        if (static_cast<int>(IdToOperation.size()) >= Config->MaxOperationCount) {
+            THROW_ERROR_EXCEPTION("Limit for the number of concurrent operations %d has been reached",
+                Config->MaxOperationCount);
+        }
+
         // Attach user transaction if any. Don't ping it.
         TTransactionAttachOptions userAttachOptions(transactionId);
         userAttachOptions.AutoAbort = false;
