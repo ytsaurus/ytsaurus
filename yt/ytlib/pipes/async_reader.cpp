@@ -13,18 +13,49 @@ TAsyncReader::TAsyncReader(int fd)
     : Reader(new NDetail::TNonblockingReader(fd))
     , ReadyPromise()
     , IsAborted_(false)
+    , IsRegistered_(false)
     , Logger(ReaderLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
     FDWatcher.set(fd, ev::READ);
 
-    RegistrationError = TIODispatcher::Get()->AsyncRegister(this);
+    TIODispatcher::Get()->AsyncRegister(MakeStrong(this)).Subscribe(
+        BIND(&TAsyncReader::OnRegistered, MakeStrong(this)));
+}
+
+void TAsyncReader::OnRegistered(TError status)
+{
+    TGuard<TSpinLock> guard(Lock);
+
+    if (status.IsOK()) {
+        YCHECK(!IsAborted());
+
+        IsRegistered_ = true;
+    } else {
+        if (ReadyPromise) {
+            ReadyPromise.Set(status);
+            ReadyPromise.Reset();
+        }
+        RegistrationError = status;
+    }
 }
 
 TAsyncReader::~TAsyncReader()
 {
-    if (IsRegistered()) {
+    Unregister();
+}
+
+// This method is BLOCKING!
+void TAsyncReader::Unregister()
+{
+    bool shouldUnregister = true;
+    {
+        TGuard<TSpinLock> guard(Lock);
+        shouldUnregister = IsRegistered() || Reader->IsClosed();
+    }
+
+    if (shouldUnregister) {
         LOG_DEBUG("Start unregistering");
 
         auto error = TIODispatcher::Get()->Unregister(*this);
@@ -38,7 +69,7 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TGuard<TSpinLock> guard(ReadLock);
+    TGuard<TSpinLock> guard(Lock);
 
     if (IsAborted()) {
         // We should FAIL the registration process
@@ -62,53 +93,49 @@ void TAsyncReader::Stop()
 
     FDWatcher.stop();
     StartWatcher.stop();
+
+    Reader->Close();
 }
 
 void TAsyncReader::OnStart(ev::async&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK(eventType | ev::ASYNC == ev::ASYNC);
-    YCHECK(IsRegistered());
+    YCHECK((eventType & ev::ASYNC) == ev::ASYNC);
 
-    if (!IsAborted()) {
-        FDWatcher.start();
-    }
+    TGuard<TSpinLock> guard(Lock);
+
+    YCHECK(IsRegistered());
+    YCHECK(!IsAborted());
+
+    FDWatcher.start();
 }
 
 void TAsyncReader::OnRead(ev::io&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK(eventType | ev::READ == ev::READ);
+    YCHECK((eventType & ev::READ) == ev::READ);
 
-    TGuard<TSpinLock> guard(ReadLock);
+    TGuard<TSpinLock> guard(Lock);
+
+    YCHECK(IsRegistered());
+    YCHECK(!IsAborted());
 
     YCHECK(!Reader->ReachedEOF());
-    YCHECK(IsRegistered());
-
-    if (IsAborted()) {
-        // The call to this method can be dispatched
-        // but we can get a lock after Abort
-        // So double check the status
-        return;
-    }
 
     if (!Reader->IsBufferFull()) {
         Reader->ReadToBuffer();
 
         if (!CanReadSomeMore()) {
-            FDWatcher.stop();
-            Reader->Close();
+            Stop();
         }
 
-        if (ReadyPromise) {
-            if (Reader->IsReady()) {
+        if (Reader->IsReady()) {
+            if (ReadyPromise) {
                 ReadyPromise.Set(GetState());
                 ReadyPromise.Reset();
             }
         }
     } else {
-        LOG_DEBUG("The internal buffer is full. Stop the watcher");
-
         // pause for a while
         FDWatcher.stop();
     }
@@ -118,7 +145,7 @@ std::pair<TBlob, bool> TAsyncReader::Read(TBlob&& buffer)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(ReadLock);
+    TGuard<TSpinLock> guard(Lock);
 
     if (!IsRegistered()) {
         return std::make_pair(TBlob(), false);
@@ -138,17 +165,9 @@ TAsyncError TAsyncReader::GetReadyEvent()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(ReadLock);
+    TGuard<TSpinLock> guard(Lock);
 
-    if (IsAborted()) {
-        return MakePromise(TError("The reader was aborted"));
-    }
-
-    if (!IsRegistered()) {
-        return RegistrationError;
-    }
-
-    if (Reader->IsReady()) {
+    if (IsAborted() || !RegistrationError.IsOK() || Reader->IsReady()) {
         return MakePromise(GetState());
     }
 
@@ -161,20 +180,38 @@ TError TAsyncReader::Abort()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(ReadLock);
-
-    Reader->Close();
-    IsAborted_ = true;
-
-    if (ReadyPromise) {
-        ReadyPromise.Set(TError("The reader was aborted"));
-        ReadyPromise.Reset();
+    bool shouldUnregister = false;
+    {
+        TGuard<TSpinLock> guard(Lock);
+        IsAborted_ = true;
+        shouldUnregister = IsRegistered_;
     }
 
-    if (Reader->InFailedState()) {
-        return TError::FromSystem(Reader->GetLastSystemError());
+    if (shouldUnregister) {
+        auto error = TIODispatcher::Get()->Unregister(*this);
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Failed to unregister");
+        }
     } else {
-        return TError();
+        // it is safe to just close the reader
+        // because we never registered
+        Reader->Close();
+    }
+
+    {
+        TGuard<TSpinLock> guard(Lock);
+
+        if (ReadyPromise) {
+            ReadyPromise.Set(GetState());
+            ReadyPromise.Reset();
+        }
+
+        // report the last reader error if any
+        if (Reader->InFailedState()) {
+            return TError::FromSystem(Reader->GetLastSystemError());
+        } else {
+            return TError();
+        }
     }
 }
 
@@ -185,7 +222,11 @@ bool TAsyncReader::CanReadSomeMore() const
 
 TError TAsyncReader::GetState() const
 {
-    if (Reader->ReachedEOF() || !Reader->IsBufferEmpty()) {
+    if (IsAborted()) {
+        return TError("The reader was aborted");
+    } else if (!RegistrationError.IsOK()) {
+        return RegistrationError;
+    } else if (Reader->ReachedEOF() || !Reader->IsBufferEmpty()) {
         return TError();
     } else if (Reader->InFailedState()) {
         return TError::FromSystem(Reader->GetLastSystemError());
@@ -202,7 +243,7 @@ bool TAsyncReader::IsAborted() const
 
 bool TAsyncReader::IsRegistered() const
 {
-    return RegistrationError.IsSet() && RegistrationError.Get().IsOK();
+    return IsRegistered_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

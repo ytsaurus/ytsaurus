@@ -37,12 +37,15 @@ private:
     ev::io FDWatcher;
     ev::async StartWatcher;
 
-    TAsyncError RegistrationError;
+    TError RegistrationError;
     TAsyncErrorPromise ReadyPromise;
 
     bool IsAborted_;
+    bool IsRegistered_;
 
-    TSpinLock ReadLock;
+    TSpinLock Lock;
+
+    void Unregister();
 
     bool IsAborted() const;
     bool IsRegistered() const;
@@ -50,6 +53,7 @@ private:
     bool CanReadSomeMore() const;
     TError GetState() const;
 
+    void OnRegistered(TError status);
     void OnRead(ev::io&, int);
     void OnStart(ev::async&, int);
 

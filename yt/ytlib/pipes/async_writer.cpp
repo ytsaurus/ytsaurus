@@ -94,7 +94,7 @@ void TAsyncWriter::Stop()
 void TAsyncWriter::OnStart(ev::async&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK(eventType | ev::ASYNC == ev::ASYNC);
+    YCHECK((eventType & ev::ASYNC) == ev::ASYNC);
 
     // One can probably remove this guard
     // But this call should be rare
@@ -111,7 +111,7 @@ void TAsyncWriter::OnStart(ev::async&, int eventType)
 void TAsyncWriter::OnWrite(ev::io&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK(eventType | ev::WRITE == ev::WRITE);
+    YCHECK((eventType & ev::WRITE) == ev::WRITE);
 
     TGuard<TSpinLock> guard(Lock);
 
