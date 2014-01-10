@@ -31,21 +31,27 @@ private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
     virtual void Stop() override;
 
-    void Close();
-
     std::unique_ptr<NDetail::TNonblockingWriter> Writer;
     ev::io FDWatcher;
     ev::async StartWatcher;
 
-    TAsyncError RegistrationError;
     TAsyncErrorPromise ReadyPromise;
+    TAsyncErrorPromise ClosePromise;
 
+    TError RegistrationError;
+    bool IsRegistered_;
     bool NeedToClose;
 
     TSpinLock WriteLock;
 
+    void Close();
+    TError GetWriterStatus() const;
+
+    bool IsStopped() const;
     bool IsRegistered() const;
     bool HasJobToDo() const;
+
+    void OnRegistered(TError status);
 
     void OnWrite(ev::io&, int);
     void OnStart(ev::async&, int);

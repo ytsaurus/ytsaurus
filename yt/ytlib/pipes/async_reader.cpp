@@ -42,7 +42,7 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
 
     if (IsAborted()) {
         // We should FAIL the registration process
-        throw std::runtime_error("Reader is already aborted.");
+        THROW_ERROR_EXCEPTION("Reader is already aborted");
     }
 
     StartWatcher.set(eventLoop);
