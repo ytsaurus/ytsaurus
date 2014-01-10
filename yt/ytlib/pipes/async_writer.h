@@ -42,7 +42,7 @@ private:
     bool IsRegistered_;
     bool NeedToClose;
 
-    TSpinLock WriteLock;
+    TSpinLock Lock;
 
     void Close();
     TError GetWriterStatus() const;

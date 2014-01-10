@@ -30,7 +30,7 @@ TAsyncWriter::TAsyncWriter(int fd)
 
 void TAsyncWriter::OnRegistered(TError status)
 {
-    TGuard<TSpinLock> guard(WriteLock);
+    TGuard<TSpinLock> guard(Lock);
     if (status.IsOK()) {
         IsRegistered_ = true;
     } else {
@@ -48,7 +48,7 @@ void TAsyncWriter::OnRegistered(TError status)
 
 TAsyncWriter::~TAsyncWriter()
 {
-    if (IsRegistered()) {
+    if (IsRegistered() && !IsStopped()) {
         LOG_DEBUG("Start unregistering");
 
         auto error = TIODispatcher::Get()->Unregister(*this);
@@ -62,7 +62,7 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TGuard<TSpinLock> guard(WriteLock);
+    TGuard<TSpinLock> guard(Lock);
 
     YCHECK(!IsStopped());
 
@@ -81,7 +81,7 @@ void TAsyncWriter::Stop()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TGuard<TSpinLock> guard(WriteLock);
+    TGuard<TSpinLock> guard(Lock);
 
     Close();
 }
@@ -90,6 +90,10 @@ void TAsyncWriter::OnStart(ev::async&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     YCHECK(eventType | ev::ASYNC == ev::ASYNC);
+
+    // One can probably remove this guard
+    // But this call should be rare
+    TGuard<TSpinLock> guard(Lock);
 
     YCHECK(IsRegistered());
     YCHECK(!IsStopped());
@@ -104,7 +108,7 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
     VERIFY_THREAD_AFFINITY(EventLoop);
     YCHECK(eventType | ev::WRITE == ev::WRITE);
 
-    TGuard<TSpinLock> guard(WriteLock);
+    TGuard<TSpinLock> guard(Lock);
 
     YCHECK(IsRegistered());
     YCHECK(!IsStopped());
@@ -135,7 +139,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
     YCHECK(!IsStopped());
     YCHECK(!NeedToClose);
 
-    TGuard<TSpinLock> guard(WriteLock);
+    TGuard<TSpinLock> guard(Lock);
 
     YCHECK(!ReadyPromise);
 
@@ -159,7 +163,7 @@ TAsyncError TAsyncWriter::AsyncClose()
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(!IsStopped());
 
-    TGuard<TSpinLock> guard(WriteLock);
+    TGuard<TSpinLock> guard(Lock);
 
     NeedToClose = true;
     YCHECK(!ReadyPromise);
@@ -176,7 +180,7 @@ TAsyncError TAsyncWriter::GetReadyEvent()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(WriteLock);
+    TGuard<TSpinLock> guard(Lock);
 
     if (!RegistrationError.IsOK() || Writer->IsFailed() || !HasJobToDo()) {
         return MakePromise<TError>(GetWriterStatus());
