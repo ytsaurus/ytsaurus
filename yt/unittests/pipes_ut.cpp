@@ -74,6 +74,54 @@ TEST(TNonblockingReader, Failed)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
+TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader, bool useWaitFor)
+{
+    bool isClosed = false;
+    TBlob data, whole;
+
+    while (!isClosed)
+    {
+        std::tie(data, isClosed) = reader->Read(TBlob());
+        whole.Append(data.Begin(), data.Size());
+
+        if ((!isClosed) && (data.Size() == 0)) {
+            if (useWaitFor) {
+                auto error = WaitFor(reader->GetReadyEvent());
+            } else {
+                auto error = reader->GetReadyEvent().Get();
+            }
+        }
+    }
+    return whole;
+}
+
+TEST(TAsyncWriterTest, AsyncCloseFail)
+{
+    int pipefds[2];
+    SafeMakeNonblockingPipes(pipefds);
+
+    auto Reader = New<TAsyncReader>(pipefds[0]);
+    auto writer = New<TAsyncWriter>(pipefds[1]);
+
+    auto queue = New<NConcurrency::TActionQueue>();
+    auto readFromPipe =
+        BIND(&ReadAll, Reader, false)
+            .AsyncVia(queue->GetInvoker())
+            .Run();
+
+
+    std::vector<char> buffer(200*1024, 'a');
+    ASSERT_TRUE(writer->Write(&buffer[0], buffer.size()));
+    ASSERT_TRUE(writer->GetReadyEvent().Get().IsOK());
+
+    auto error = writer->AsyncClose();
+    auto closeStatus = error.Get();
+
+    ASSERT_EQ(-1, close(pipefds[1]));
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
 class TReadWriteTest
     : public ::testing::Test
 {
@@ -108,27 +156,6 @@ TEST_F(TReadWriteTest, ReadSomethingSpin)
     }
 
     EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
-}
-
-TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader, bool useWaitFor)
-{
-    bool isClosed = false;
-    TBlob data, whole;
-
-    while (!isClosed)
-    {
-        std::tie(data, isClosed) = reader->Read(TBlob());
-        whole.Append(data.Begin(), data.Size());
-
-        if ((!isClosed) && (data.Size() == 0)) {
-            if (useWaitFor) {
-                auto error = WaitFor(reader->GetReadyEvent());
-            } else {
-                auto error = reader->GetReadyEvent().Get();
-            }
-        }
-    }
-    return whole;
 }
 
 TEST_F(TReadWriteTest, ReadSomethingWait)
