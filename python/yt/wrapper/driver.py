@@ -13,6 +13,26 @@ import yt.packages.requests as requests
 import sys
 import socket
 import simplejson as json
+from simplejson import JSONEncoder
+
+def escape_utf8(obj):
+    def escape_symbol(sym):
+        if ord(sym) < 128:
+            return sym
+        else:
+            return chr(ord('\xC0') | (ord(sym) >> 6)) + chr(ord('\x80') | (ord(sym) & ~ord('\xC0')))
+    def escape_str(str):
+        return "".join(map(escape_symbol, str))
+
+    if isinstance(obj, unicode):
+        obj = escape_str(str(bytearray(obj, 'utf-8')))
+    elif isinstance(obj, str):
+        obj = escape_str(obj)
+    elif isinstance(obj, list):
+        obj = map(escape_utf8, obj)
+    elif isinstance(obj, dict):
+        obj = dict((escape_str(k), escape_utf8(v)) for k, v in obj.iteritems())
+    return obj
 
 def iter_lines(response):
     """
@@ -114,7 +134,7 @@ def make_request(command_name, params,
         require(data is None, YtError("Body should be empty in commands without input type"))
         if command.is_volatile:
             headers["Content-Type"] = "application/json"
-            data = json.dumps(params)
+            data = json.dumps(escape_utf8(params))
             params = {}
 
     if config.API_PATH == "api":
@@ -126,7 +146,7 @@ def make_request(command_name, params,
             del params["output_format"]
 
     if params:
-        headers.update({"X-YT-Parameters": json.dumps(params)})
+        headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
 
     token = get_token()
     if token is not None:
