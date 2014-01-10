@@ -65,7 +65,7 @@ Stroka Utf8ToByteString(const TStringBuf& str)
             output.Write(((str[i] & '\x03') << 6) | (str[i + 1] & '\x3F'));
             i += 1;
         } else {
-            THROW_ERROR_EXCEPTION("Unicode symbols with codes greater than 255 are supported");
+            THROW_ERROR_EXCEPTION("Unicode symbols with codes greater than 255 are not supported");
         }
     }
     return output.Str();
