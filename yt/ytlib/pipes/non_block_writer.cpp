@@ -58,10 +58,6 @@ void TNonblockingWriter::WriteToBuffer(const char* data, size_t size)
 {
     size_t bytesWritten = 0;
 
-    if (WriteBuffer_.Size() == 0) {
-        bytesWritten = TryWrite(data, size);
-    }
-
     WriteBuffer_.Append(data + bytesWritten, size - bytesWritten);
 }
 

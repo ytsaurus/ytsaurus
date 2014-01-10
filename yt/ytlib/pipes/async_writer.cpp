@@ -151,7 +151,6 @@ bool TAsyncWriter::Write(const void* data, size_t size)
             StartWatcher.send();
         }
     } else {
-        // this is not true
         YCHECK(Writer->IsClosed());
     }
 
