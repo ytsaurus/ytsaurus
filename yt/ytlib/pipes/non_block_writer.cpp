@@ -28,11 +28,14 @@ void TNonblockingWriter::WriteFromBuffer()
     YCHECK(WriteBuffer_.Size() >= BytesWrittenTotal_);
     const size_t size = WriteBuffer_.Size() - BytesWrittenTotal_;
     const char* data = WriteBuffer_.Begin() + BytesWrittenTotal_;
-    const size_t bytesWritten = TryWrite(data, size);
 
-    if (LastSystemError_ == 0) {
-        BytesWrittenTotal_ += bytesWritten;
-        TryCleanBuffer();
+    if (size > 0) {
+        const size_t bytesWritten = TryWrite(data, size);
+
+        if (LastSystemError_ == 0) {
+            BytesWrittenTotal_ += bytesWritten;
+            TryCleanBuffer();
+        }
     }
 }
 

@@ -31,6 +31,7 @@ TAsyncWriter::TAsyncWriter(int fd)
 void TAsyncWriter::OnRegistered(TError status)
 {
     TGuard<TSpinLock> guard(Lock);
+
     if (status.IsOK()) {
         IsRegistered_ = true;
     } else {
@@ -64,6 +65,7 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
 
     TGuard<TSpinLock> guard(Lock);
 
+    YCHECK(!IsRegistered());
     YCHECK(!IsStopped());
 
     StartWatcher.set(eventLoop);
@@ -82,6 +84,9 @@ void TAsyncWriter::Stop()
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     TGuard<TSpinLock> guard(Lock);
+
+    YCHECK(IsRegistered());
+    YCHECK(!IsStopped());
 
     Close();
 }
@@ -136,20 +141,18 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
 bool TAsyncWriter::Write(const void* data, size_t size)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(!IsStopped());
-    YCHECK(!NeedToClose);
 
     TGuard<TSpinLock> guard(Lock);
 
+    YCHECK(!IsStopped());
+
     YCHECK(!ReadyPromise);
+    YCHECK(!NeedToClose);
 
     Writer->WriteToBuffer(static_cast<const char*>(data), size);
 
-    // restart watcher
     if (!Writer->IsFailed()) {
-        if (IsRegistered() && !IsStopped() && !FDWatcher.is_active() && HasJobToDo()) {
-            StartWatcher.send();
-        }
+        RestartWatcher();
     } else {
         YCHECK(Writer->IsClosed());
     }
@@ -160,16 +163,20 @@ bool TAsyncWriter::Write(const void* data, size_t size)
 TAsyncError TAsyncWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(!IsStopped());
 
     TGuard<TSpinLock> guard(Lock);
 
-    NeedToClose = true;
-    YCHECK(!ReadyPromise);
+    YCHECK(!ClosePromise);
+    YCHECK(!NeedToClose);
 
-    if (IsRegistered() && !FDWatcher.is_active()) {
-        StartWatcher.send();
+    // Writer can be already closed due to encountered error
+    if (Writer->IsClosed()) {
+        return MakePromise<TError>(GetWriterStatus());
     }
+
+    NeedToClose = true;
+
+    RestartWatcher();
 
     ClosePromise = NewPromise<TError>();
     return ClosePromise.ToFuture();
@@ -202,6 +209,13 @@ void TAsyncWriter::Close()
     if (ClosePromise) {
         ClosePromise.Set(GetWriterStatus());
         ClosePromise.Reset();
+    }
+}
+
+void TAsyncWriter::RestartWatcher()
+{
+    if (IsRegistered() && !IsStopped() && !FDWatcher.is_active() && HasJobToDo()) {
+        StartWatcher.send();
     }
 }
 

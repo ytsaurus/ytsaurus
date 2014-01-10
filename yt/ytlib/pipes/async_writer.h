@@ -45,6 +45,7 @@ private:
     TSpinLock Lock;
 
     void Close();
+    void RestartWatcher();
     TError GetWriterStatus() const;
 
     bool IsStopped() const;
