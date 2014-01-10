@@ -105,7 +105,10 @@ void TAsyncReader::OnStart(ev::async&, int eventType)
     TGuard<TSpinLock> guard(Lock);
 
     YCHECK(IsRegistered());
-    YCHECK(!IsAborted());
+
+    if (IsAborted()) {
+        return;
+    }
 
     FDWatcher.start();
 }
@@ -118,7 +121,10 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
     TGuard<TSpinLock> guard(Lock);
 
     YCHECK(IsRegistered());
-    YCHECK(!IsAborted());
+
+    if (IsAborted()) {
+        return;
+    }
 
     YCHECK(!Reader->ReachedEOF());
 
