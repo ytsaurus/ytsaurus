@@ -1,6 +1,9 @@
 #pragma once
 
 #include "mpl.h"
+#include "intrusive_ptr.h"
+
+#include <util/string/cast.h>
 
 namespace NYT {
 
