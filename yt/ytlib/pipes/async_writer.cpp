@@ -30,11 +30,15 @@ TAsyncWriter::TAsyncWriter(int fd)
 
 void TAsyncWriter::OnRegistered(TError status)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(Lock);
 
     if (status.IsOK()) {
-        IsRegistered_ = true;
+        YCHECK(IsRegistered_);
     } else {
+        YCHECK(!IsRegistered_);
+
         if (ReadyPromise) {
             ReadyPromise.Set(status);
             ReadyPromise.Reset();
@@ -75,6 +79,8 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncWriter, &TAsyncWriter::OnWrite>(this);
     FDWatcher.start();
+
+    IsRegistered_ = true;
 
     LOG_DEBUG("Registered");
 }

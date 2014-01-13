@@ -26,13 +26,16 @@ TAsyncReader::TAsyncReader(int fd)
 
 void TAsyncReader::OnRegistered(TError status)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(Lock);
 
     if (status.IsOK()) {
         YCHECK(!IsAborted());
-
-        IsRegistered_ = true;
+        YCHECK(IsRegistered());
     } else {
+        YCHECK(!IsRegistered());
+
         if (ReadyPromise) {
             ReadyPromise.Set(status);
             ReadyPromise.Reset();
@@ -83,6 +86,9 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncReader, &TAsyncReader::OnRead>(this);
     FDWatcher.start();
+
+
+    IsRegistered_ = true;
 
     LOG_DEBUG("Registered");
 }
