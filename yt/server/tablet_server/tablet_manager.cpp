@@ -454,7 +454,7 @@ public:
         }
 
         if (!pivotKeys.empty()) {
-            if (lastTabletIndex == tablets.size() - 1) {
+            if (firstTabletIndex < 0) {
                 if (CompareRows(pivotKeys[0], EmptyKey()) != 0) {
                     THROW_ERROR_EXCEPTION("First pivot key must be empty");
                 }
