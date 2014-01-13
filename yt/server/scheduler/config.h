@@ -123,6 +123,10 @@ public:
     //! Maximum number of jobs per operation (an approximation!).
     int MaxJobCount;
 
+    //! Maximum number of partition jobs during map-reduce and sort operations.
+    //! Refines #MaxJobCount.
+    int MaxPartitionJobCount;
+
     //! Maximum number of operations that can be run concurrently.
     int MaxOperationCount;
 

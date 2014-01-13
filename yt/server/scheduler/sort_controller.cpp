@@ -1478,7 +1478,10 @@ protected:
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
             int partitionCount = GetEmpiricalParitionCount(TotalInputDataSize);
-            return static_cast<int>(Clamp(partitionCount, 1, Config->MaxJobCount));
+            return static_cast<int>(Clamp(
+                partitionCount,
+                1,
+                std::min(Config->MaxJobCount, Config->MaxPartitionJobCount)));
         }
     }
 
