@@ -298,6 +298,11 @@ public:
             ~ToString(mutationId),
             ~user);
 
+
+        LOG_INFO("Total resource limits (OperationId: %s, ResourceLimits: {%s})", 
+            ~ToString(operationId), 
+            ~FormatResources(GetTotalResourceLimits()));
+
         IOperationControllerPtr controller;
         try {
             controller = CreateController(~operation);
