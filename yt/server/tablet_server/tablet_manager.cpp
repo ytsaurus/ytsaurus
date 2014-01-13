@@ -454,7 +454,7 @@ public:
         }
 
         if (!pivotKeys.empty()) {
-            if (firstTabletIndex < 0) {
+            if (firstTabletIndex > lastTabletIndex) {
                 if (CompareRows(pivotKeys[0], EmptyKey()) != 0) {
                     THROW_ERROR_EXCEPTION("First pivot key must be empty");
                 }
@@ -523,7 +523,7 @@ public:
         chunkManager->AttachToChunkList(
             newRootChunkList,
             chunkLists.data() + lastTabletIndex + 1,
-            chunkLists.data() + oldTabletCount);
+            chunkLists.data() + chunkLists.size());
 
         table->SetChunkList(newRootChunkList);
         YCHECK(newRootChunkList->OwningNodes().insert(table).second);
