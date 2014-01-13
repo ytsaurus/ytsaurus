@@ -223,6 +223,8 @@ private:
     //! Number of nodes that are still alive.
     int AliveNodeCount;
 
+    const int MinUploadReplicationFactor;
+
     //! A new group of blocks that is currently being filled in by the client.
     //! All access to this field happens from client thread.
     TGroupPtr CurrentGroup;
@@ -594,6 +596,7 @@ TReplicationWriter::TReplicationWriter(
     , IsCloseRequested(false)
     , WindowSlots(config->SendWindowSize)
     , AliveNodeCount(targets.size())
+    , MinUploadReplicationFactor(std::min(Config->MinUploadReplicationFactor, AliveNodeCount))
     , BlockCount(0)
     , StartChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
@@ -798,7 +801,7 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
     node->MarkFailed(wrappedError);
     --AliveNodeCount;
 
-    if (State.IsActive() && AliveNodeCount < Config->MinUploadReplicationFactor) {
+    if (State.IsActive() && AliveNodeCount < MinUploadReplicationFactor) {
         TError cumulativeError(
             NChunkClient::EErrorCode::AllTargetNodesFailed,
             "Not enough target nodes to finish upload");

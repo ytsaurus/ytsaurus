@@ -172,7 +172,7 @@ public:
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
-            .Default(1)
+            .Default(2)
             .GreaterThan(0);
         RegisterParameter("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
@@ -299,12 +299,6 @@ public:
             .Default(true);
         RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
             .Default(false);
-
-        RegisterValidator([&] () {
-            if (MinUploadReplicationFactor > UploadReplicationFactor) {
-                THROW_ERROR_EXCEPTION("\"min_upload_replication_factor\" cannot be greater than \"upload_replication_factor\"");
-            }
-        });
     }
 };
 
