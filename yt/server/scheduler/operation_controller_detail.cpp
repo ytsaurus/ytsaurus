@@ -3222,6 +3222,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 {
     // Don't replicate intermediate output.
     config->TableWriter->UploadReplicationFactor = 1;
+    config->TableWriter->MinUploadReplicationFactor = 1;
 
     // Cache blocks on nodes.
     config->TableWriter->EnableNodeCaching = true;
