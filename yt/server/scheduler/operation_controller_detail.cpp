@@ -3108,6 +3108,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
+    jobSpec->set_enable_io_prio(config->EnableIOPrio);
 
     {
         // Set input and output format.
@@ -3222,6 +3223,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 {
     // Don't replicate intermediate output.
     config->TableWriter->UploadReplicationFactor = 1;
+    config->TableWriter->MinUploadReplicationFactor = 1;
 
     // Cache blocks on nodes.
     config->TableWriter->EnableNodeCaching = true;
