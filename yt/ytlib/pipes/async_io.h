@@ -3,12 +3,15 @@
 #include "public.h"
 
 #include <core/misc/error.h>
+#include <core/misc/enum.h>
 
 // should replace with forward declaration
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NPipes {
+
+DECLARE_ENUM(EAsyncIOState, (Created)(Started)(Stopped)(StartAborted));
 
 class TAsyncIOBase
     : public IFDWatcher
@@ -29,13 +32,7 @@ protected:
     virtual void OnRegistered(TError status) = 0;
     virtual void OnUnregister(TError status) = 0;
 
-    bool IsStartAborted() const;
-    bool IsStarted() const;
-    bool IsStopped() const;
-
-    bool IsStartAborted_;
-    bool IsStarted_;
-    bool IsStopped_;
+    EAsyncIOState State_;
 
     TSpinLock FlagsLock;
 };

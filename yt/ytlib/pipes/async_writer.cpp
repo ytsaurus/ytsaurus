@@ -93,11 +93,10 @@ void TAsyncWriter::OnStart(ev::async&, int eventType)
     // But this call should be rare
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsStarted());
+    YCHECK(State_ == EAsyncIOState::Started);
 
-    if (!Writer->IsClosed()) {
-        FDWatcher.start();
-    }
+    YCHECK(!Writer->IsClosed());
+    FDWatcher.start();
 }
 
 void TAsyncWriter::OnWrite(ev::io&, int eventType)
@@ -107,7 +106,7 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsStarted());
+    YCHECK(State_ == EAsyncIOState::Started);
 
     if (HasJobToDo()) {
         Writer->WriteFromBuffer();
@@ -135,7 +134,7 @@ bool TAsyncWriter::Write(const void* data, size_t size)
 
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(!IsStopped());
+    YCHECK(State_ == EAsyncIOState::Started || State_ == EAsyncIOState::Created);
 
     YCHECK(!ReadyPromise);
     YCHECK(!NeedToClose);
@@ -189,7 +188,7 @@ TAsyncError TAsyncWriter::GetReadyEvent()
 
 void TAsyncWriter::RestartWatcher()
 {
-    if (IsStarted() && !IsStopped() && !FDWatcher.is_active() && HasJobToDo()) {
+    if (State_ == EAsyncIOState::Started && !FDWatcher.is_active() && HasJobToDo()) {
         StartWatcher.send();
     }
 }

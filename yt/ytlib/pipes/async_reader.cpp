@@ -77,7 +77,7 @@ void TAsyncReader::OnStart(ev::async&, int eventType)
 
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsStarted());
+    YCHECK(State_ == EAsyncIOState::Started);
 
     YCHECK(!Reader->IsClosed());
     FDWatcher.start();
@@ -90,7 +90,7 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsStarted());
+    YCHECK(State_ == EAsyncIOState::Started);
 
     YCHECK(!Reader->ReachedEOF());
 
@@ -119,7 +119,8 @@ std::pair<TBlob, bool> TAsyncReader::Read(TBlob&& buffer)
 
     TGuard<TSpinLock> guard(Lock);
 
-    if (!IsStarted()) {
+    // should refactor
+    if (State_ == EAsyncIOState::Created) {
         return std::make_pair(TBlob(), false);
     }
 
@@ -139,7 +140,7 @@ TAsyncError TAsyncReader::GetReadyEvent()
 
     TGuard<TSpinLock> guard(Lock);
 
-    if (IsStartAborted() || !RegistrationError.IsOK() || Reader->IsReady()) {
+    if ((State_ == EAsyncIOState::StartAborted) || !RegistrationError.IsOK() || Reader->IsReady()) {
         return MakePromise(GetState());
     }
 
@@ -156,7 +157,7 @@ TError TAsyncReader::Abort()
 
     Unregister();
 
-    if (IsStartAborted()) {
+    if (State_ == EAsyncIOState::StartAborted) {
         // close the reader if TAsyncReader was aborted before registering
         Reader->Close();
     }
@@ -181,7 +182,7 @@ bool TAsyncReader::CanReadSomeMore() const
 
 TError TAsyncReader::GetState() const
 {
-    if (IsStartAborted()) {
+    if (State_ == EAsyncIOState::StartAborted) {
         return TError("Start of the reader was aborted");
     } else if (!RegistrationError.IsOK()) {
         return RegistrationError;

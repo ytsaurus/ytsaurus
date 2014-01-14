@@ -9,14 +9,12 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAsyncIOBase::TAsyncIOBase()
-    : IsStartAborted_(false)
-    , IsStarted_(false)
-    , IsStopped_(false)
+    : State_(EAsyncIOState::Created)
 { }
 
 TAsyncIOBase::~TAsyncIOBase()
 {
-    YCHECK(IsStopped() || IsStartAborted());
+    YCHECK((State_ == EAsyncIOState::StartAborted) || (State_ == EAsyncIOState::Stopped));
 }
 
 void TAsyncIOBase::Register()
@@ -29,14 +27,12 @@ void TAsyncIOBase::Unregister()
 {
     TGuard<TSpinLock> guard(FlagsLock);
 
-    if (IsStarted()) {
-        if (!IsStopped()) {
-            auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
-            error.Subscribe(
-                BIND(&TAsyncIOBase::OnUnregister, MakeStrong(this)));
-        }
+    if (State_ == EAsyncIOState::Started) {
+      auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
+      error.Subscribe(
+        BIND(&TAsyncIOBase::OnUnregister, MakeStrong(this)));
     } else {
-        IsStartAborted_ = true;
+        State_ = EAsyncIOState::StartAborted;
         // should I close a fd here????
     }
 }
@@ -45,44 +41,27 @@ void TAsyncIOBase::Start(ev::dynamic_loop& eventLoop)
 {
     TGuard<TSpinLock> guard(FlagsLock);
 
-    if (IsStartAborted()) {
+    if (State_ == EAsyncIOState::StartAborted) {
         // We should FAIL the registration process
         THROW_ERROR_EXCEPTION("Reader is already aborted");
     }
 
-    YCHECK(!IsStarted());
-    YCHECK(!IsStopped());
+    YCHECK(State_ == EAsyncIOState::Created);
 
     DoStart(eventLoop);
 
-    IsStarted_ = true;
+    State_ = EAsyncIOState::Started;
 }
 
 void TAsyncIOBase::Stop()
 {
     TGuard<TSpinLock> guard(FlagsLock);
 
-    YCHECK(IsStarted());
-    YCHECK(!IsStopped());
+    YCHECK(State_ == EAsyncIOState::Started);
 
     DoStop();
 
-    IsStopped_ = true;
-}
-
-bool TAsyncIOBase::IsStartAborted() const
-{
-    return IsStartAborted_;
-}
-
-bool TAsyncIOBase::IsStarted() const
-{
-    return IsStarted_;
-}
-
-bool TAsyncIOBase::IsStopped() const
-{
-    return IsStopped_;
+    State_ = EAsyncIOState::Stopped;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
