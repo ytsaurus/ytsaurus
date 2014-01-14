@@ -119,16 +119,8 @@ std::pair<TBlob, bool> TAsyncReader::Read(TBlob&& buffer)
 
     TGuard<TSpinLock> guard(Lock);
 
-    // should refactor
-    if (State_ == EAsyncIOState::Created) {
-        return std::make_pair(TBlob(), false);
-    }
-
-    if (CanReadSomeMore()) {
-        // is it safe?
-        if (!FDWatcher.is_active()) {
-            StartWatcher.send();
-        }
+    if (State_ == EAsyncIOState::Started && !FDWatcher.is_active() && CanReadSomeMore()) {
+        StartWatcher.send();
     }
 
     return Reader->GetRead(std::move(buffer));
