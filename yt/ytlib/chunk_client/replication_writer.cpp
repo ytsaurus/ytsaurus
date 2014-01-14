@@ -805,8 +805,9 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
             NChunkClient::EErrorCode::AllTargetNodesFailed,
             "Not enough target nodes to finish upload");
         FOREACH (const auto node, Nodes) {
-            YCHECK(!node->IsAlive());
-            cumulativeError.InnerErrors().push_back(node->Error);
+            if (!node->IsAlive()) {
+                cumulativeError.InnerErrors().push_back(node->Error);
+            }
         }
         LOG_WARNING(cumulativeError, "Chunk writer failed");
         CancelAllPings();
