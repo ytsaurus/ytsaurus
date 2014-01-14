@@ -143,6 +143,8 @@ message TUserJobSpec
     optional bool enable_core_dump = 12 [default = false];
 
     optional bool enable_vm_limit = 13 [default = true];
+
+    optional bool enable_io_prio = 14 [default = true];
 }
 
 // User code result.

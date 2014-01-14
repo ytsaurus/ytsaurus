@@ -25,6 +25,7 @@
 #include <core/actions/invoker_util.h>
 
 #include <core/misc/proc.h>
+#include <ytlib/misc/ioprio.h>
 #include <core/concurrency/periodic_executor.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/pattern_formatter.h>
@@ -491,6 +492,13 @@ private:
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
+
+                if (UserJobSpec.enable_io_prio()) {
+                    YCHECK(ioprio_set(IOPRIO_WHO_USER, config->UserId, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_BE, 7)) == 0);
+                } else {
+                    YCHECK(ioprio_set(IOPRIO_WHO_USER, config->UserId, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_BE, 4)) == 0);
+                }
+
                 YCHECK(setresgid(config->UserId, config->UserId, config->UserId) == 0);
                 YCHECK(setuid(config->UserId) == 0);
             }

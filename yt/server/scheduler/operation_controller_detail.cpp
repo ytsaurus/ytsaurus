@@ -3131,6 +3131,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
+    jobSpec->set_enable_io_prio(config->EnableIOPrio);
 
     {
         // Set input and output format.
