@@ -25,7 +25,7 @@ public:
     void Shutdown();
 
     TAsyncError AsyncRegister(IFDWatcherPtr watcher);
-    TError Unregister(IFDWatcher& watcher);
+    TAsyncError AsyncUnregister(IFDWatcherPtr watcher);
 
 private:
     TThread Thread;
@@ -56,12 +56,12 @@ private:
         TUnregistryEntry()
         { }
 
-        explicit TUnregistryEntry(IFDWatcher* watcher)
-            : Watcher(watcher)
+        explicit TUnregistryEntry(IFDWatcherPtr&& watcher)
+            : Watcher(std::move(watcher))
             , Promise(NewPromise<TError>())
         { }
 
-        IFDWatcher* Watcher;
+        IFDWatcherPtr Watcher;
         TPromise<TError> Promise;
     };
 

@@ -29,6 +29,8 @@ public:
 
     TError Abort();
 
+    void Register();
+    void Unregister();
 private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
     virtual void Stop() override;
@@ -45,15 +47,19 @@ private:
 
     TSpinLock Lock;
 
-    void Unregister();
+    void DoAbort();
+    void Close();
 
     bool IsAborted() const;
     bool IsRegistered() const;
+    bool IsStopped() const;
 
     bool CanReadSomeMore() const;
     TError GetState() const;
 
     void OnRegistered(TError status);
+    void OnUnregister(TError status);
+
     void OnRead(ev::io&, int);
     void OnStart(ev::async&, int);
 

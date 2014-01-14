@@ -15,17 +15,51 @@ TAsyncWriter::TAsyncWriter(int fd)
     : Writer(new NDetail::TNonblockingWriter(fd))
     , ReadyPromise()
     , ClosePromise()
-    , IsRegistered_()
+    , IsAborted_(false)
+    , IsRegistered_(false)
     , NeedToClose(false)
     , Logger(WriterLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
     FDWatcher.set(fd, ev::WRITE);
+}
 
-    auto RegistrationErrorFuture = TIODispatcher::Get()->AsyncRegister(MakeStrong(this));
-    RegistrationErrorFuture.Subscribe(
+TAsyncWriter::~TAsyncWriter()
+{
+    YCHECK(IsStopped());
+}
+
+void TAsyncWriter::Register()
+{
+    auto registrationErrorFuture = TIODispatcher::Get()->AsyncRegister(MakeStrong(this));
+    registrationErrorFuture.Subscribe(
         BIND(&TAsyncWriter::OnRegistered, MakeStrong(this)));
+}
+
+void TAsyncWriter::Unregister()
+{
+    TGuard<TSpinLock> guard(Lock);
+
+    if (IsRegistered()) {
+        if (!IsStopped()) {
+            LOG_DEBUG("Start unregistering");
+
+            auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
+            error.Subscribe(
+                BIND(&TAsyncWriter::OnUnregister, MakeStrong(this)));
+        }
+    } else {
+        DoAbort();
+    }
+}
+
+void TAsyncWriter::DoAbort()
+{
+    IsAborted_ = true;
+    if (!IsRegistered()) {
+        Writer->Close();
+    }
 }
 
 void TAsyncWriter::OnRegistered(TError status)
@@ -35,9 +69,10 @@ void TAsyncWriter::OnRegistered(TError status)
     TGuard<TSpinLock> guard(Lock);
 
     if (status.IsOK()) {
-        YCHECK(IsRegistered_);
+        YCHECK(!IsAborted());
+        YCHECK(IsRegistered());
     } else {
-        YCHECK(!IsRegistered_);
+        YCHECK(!IsRegistered());
 
         if (ReadyPromise) {
             ReadyPromise.Set(status);
@@ -51,15 +86,10 @@ void TAsyncWriter::OnRegistered(TError status)
     }
 }
 
-TAsyncWriter::~TAsyncWriter()
+void TAsyncWriter::OnUnregister(TError status)
 {
-    if (IsRegistered() && !IsStopped()) {
-        LOG_DEBUG("Start unregistering");
-
-        auto error = TIODispatcher::Get()->Unregister(*this);
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Failed to unregister");
-        }
+    if (!status.IsOK()) {
+        LOG_ERROR(status, "Failed to unregister");
     }
 }
 
@@ -68,6 +98,11 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     TGuard<TSpinLock> guard(Lock);
+
+    if (IsAborted()) {
+        // We should FAIL the registration process
+        THROW_ERROR_EXCEPTION("Writer is already aborted");
+    }
 
     YCHECK(!IsRegistered());
     YCHECK(!IsStopped());
@@ -107,7 +142,10 @@ void TAsyncWriter::OnStart(ev::async&, int eventType)
     TGuard<TSpinLock> guard(Lock);
 
     YCHECK(IsRegistered());
-    YCHECK(!IsStopped());
+
+    if (IsAborted()) {
+        return;
+    }
 
     if (!Writer->IsClosed()) {
         FDWatcher.start();
@@ -122,7 +160,10 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
     TGuard<TSpinLock> guard(Lock);
 
     YCHECK(IsRegistered());
-    YCHECK(!IsStopped());
+
+    if (IsAborted()) {
+        return;
+    }
 
     if (HasJobToDo()) {
         Writer->WriteFromBuffer();
@@ -239,6 +280,11 @@ TError TAsyncWriter::GetWriterStatus() const
 bool TAsyncWriter::IsStopped() const
 {
     return Writer->IsClosed();
+}
+
+bool TAsyncWriter::IsAborted() const
+{
+    return IsAborted_;
 }
 
 bool TAsyncWriter::IsRegistered() const

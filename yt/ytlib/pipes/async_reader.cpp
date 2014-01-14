@@ -19,9 +19,44 @@ TAsyncReader::TAsyncReader(int fd)
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
     FDWatcher.set(fd, ev::READ);
+}
 
+TAsyncReader::~TAsyncReader()
+{
+    YCHECK(IsStopped());
+}
+
+void TAsyncReader::Register()
+{
     TIODispatcher::Get()->AsyncRegister(MakeStrong(this)).Subscribe(
         BIND(&TAsyncReader::OnRegistered, MakeStrong(this)));
+}
+
+void TAsyncReader::Unregister()
+{
+    TGuard<TSpinLock> guard(Lock);
+
+    if (IsRegistered()) {
+        if (!IsStopped()) {
+            LOG_DEBUG("Start unregistering");
+
+            auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
+            error.Subscribe(
+                BIND(&TAsyncReader::OnUnregister, MakeStrong(this)));
+        }
+    } else {
+        DoAbort();
+    }
+}
+
+void TAsyncReader::DoAbort()
+{
+    IsAborted_ = true;
+    if (!IsRegistered()) {
+        // it is safe to just close the reader
+        // because we never registered
+        Reader->Close();
+    }
 }
 
 void TAsyncReader::OnRegistered(TError status)
@@ -44,27 +79,10 @@ void TAsyncReader::OnRegistered(TError status)
     }
 }
 
-TAsyncReader::~TAsyncReader()
+void TAsyncReader::OnUnregister(TError status)
 {
-    Unregister();
-}
-
-// This method is BLOCKING!
-void TAsyncReader::Unregister()
-{
-    bool shouldUnregister = true;
-    {
-        TGuard<TSpinLock> guard(Lock);
-        shouldUnregister = IsRegistered() || Reader->IsClosed();
-    }
-
-    if (shouldUnregister) {
-        LOG_DEBUG("Start unregistering");
-
-        auto error = TIODispatcher::Get()->Unregister(*this);
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Failed to unregister");
-        }
+    if (!status.IsOK()) {
+        LOG_ERROR(status, "Failed to unregister");
     }
 }
 
@@ -78,6 +96,9 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
         // We should FAIL the registration process
         THROW_ERROR_EXCEPTION("Reader is already aborted");
     }
+
+    YCHECK(!IsRegistered());
+    YCHECK(!IsStopped());
 
     StartWatcher.set(eventLoop);
     StartWatcher.set<TAsyncReader, &TAsyncReader::OnStart>(this);
@@ -97,10 +118,10 @@ void TAsyncReader::Stop()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    FDWatcher.stop();
-    StartWatcher.stop();
+    YCHECK(IsRegistered());
+    YCHECK(!IsStopped());
 
-    Reader->Close();
+    Close();
 }
 
 void TAsyncReader::OnStart(ev::async&, int eventType)
@@ -188,42 +209,46 @@ TAsyncError TAsyncReader::GetReadyEvent()
     return ReadyPromise.ToFuture();
 }
 
+void TAsyncReader::Close()
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    FDWatcher.stop();
+    StartWatcher.stop();
+
+    Reader->Close();
+}
+
 TError TAsyncReader::Abort()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    bool shouldUnregister = false;
-    {
-        TGuard<TSpinLock> guard(Lock);
-        IsAborted_ = true;
-        shouldUnregister = IsRegistered_;
-    }
+    TGuard<TSpinLock> guard(Lock);
 
-    if (shouldUnregister) {
-        auto error = TIODispatcher::Get()->Unregister(*this);
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Failed to unregister");
+    IsAborted_ = true;
+
+    if (IsRegistered()) {
+        if (!IsStopped()) {
+            LOG_DEBUG("Start unregistering");
+
+            auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
+            error.Subscribe(
+                BIND(&TAsyncReader::OnUnregister, MakeStrong(this)));
         }
     } else {
-        // it is safe to just close the reader
-        // because we never registered
         Reader->Close();
     }
 
-    {
-        TGuard<TSpinLock> guard(Lock);
+    if (ReadyPromise) {
+        ReadyPromise.Set(GetState());
+        ReadyPromise.Reset();
+    }
 
-        if (ReadyPromise) {
-            ReadyPromise.Set(GetState());
-            ReadyPromise.Reset();
-        }
-
-        // report the last reader error if any
-        if (Reader->InFailedState()) {
-            return TError::FromSystem(Reader->GetLastSystemError());
-        } else {
-            return TError();
-        }
+    // report the last reader error if any
+    if (Reader->InFailedState()) {
+        return TError::FromSystem(Reader->GetLastSystemError());
+    } else {
+        return TError();
     }
 }
 
@@ -256,6 +281,11 @@ bool TAsyncReader::IsAborted() const
 bool TAsyncReader::IsRegistered() const
 {
     return IsRegistered_;
+}
+
+bool TAsyncReader::IsStopped() const
+{
+    return Reader->IsClosed();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

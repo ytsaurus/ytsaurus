@@ -23,7 +23,7 @@ private:
     friend class TAsyncWriter;
 
     TAsyncError AsyncRegister(IFDWatcherPtr watcher);
-    TError Unregister(IFDWatcher& watcher);
+    TAsyncError AsyncUnregister(IFDWatcherPtr watcher);
 
     class TImpl;
     std::unique_ptr<TImpl> Impl;

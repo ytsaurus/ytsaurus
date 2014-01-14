@@ -192,7 +192,7 @@ TOutputPipe::TOutputPipe(
     , IsFinished(false)
     , IsClosed(false)
     , Buffer(OutputBufferSize)
-    , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
+    , Reader(Pipe.ReadFd)
 {
     YCHECK(JobDescriptor);
 }
@@ -281,7 +281,7 @@ TInputPipe::TInputPipe(
     , Position(0)
     , HasData(true)
     , IsFinished(false)
-    , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))
+    , Writer(Pipe.WriteFd)
 {
     YCHECK(TableProducer);
     YCHECK(Buffer);

@@ -72,6 +72,15 @@ TEST(TNonblockingReader, Failed)
     EXPECT_TRUE(reader.InFailedState());
 }
 
+TEST(TIOHolder, CanBeInstantiate)
+{
+    int pipefds[2];
+    SafeMakeNonblockingPipes(pipefds);
+
+    THolder<TAsyncReader> readerHolder(pipefds[0]);
+    THolder<TAsyncWriter> writerHolder(pipefds[1]);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 TBlob ReadAll(TIntrusivePtr<TAsyncReader> reader, bool useWaitFor)
@@ -100,12 +109,12 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
     int pipefds[2];
     SafeMakeNonblockingPipes(pipefds);
 
-    auto Reader = New<TAsyncReader>(pipefds[0]);
-    auto writer = New<TAsyncWriter>(pipefds[1]);
+    THolder<TAsyncReader> reader(pipefds[0]);
+    THolder<TAsyncWriter> writer(pipefds[1]);
 
     auto queue = New<NConcurrency::TActionQueue>();
     auto readFromPipe =
-        BIND(&ReadAll, Reader, false)
+        BIND(&ReadAll, reader.GetStrongPointer(), false)
             .AsyncVia(queue->GetInvoker())
             .Run();
 
@@ -133,6 +142,15 @@ protected:
 
         Reader = New<TAsyncReader>(pipefds[0]);
         Writer = New<TAsyncWriter>(pipefds[1]);
+
+        Reader->Register();
+        Writer->Register();
+    }
+
+    virtual void TearDown() override
+    {
+        Writer->Unregister();
+        Reader->Unregister();
     }
 
     TIntrusivePtr<TAsyncReader> Reader;

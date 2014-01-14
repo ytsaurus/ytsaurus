@@ -27,6 +27,8 @@ public:
     TAsyncError AsyncClose();
     TAsyncError GetReadyEvent();
 
+    void Register();
+    void Unregister();
 private:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
     virtual void Stop() override;
@@ -39,20 +41,24 @@ private:
     TAsyncErrorPromise ClosePromise;
 
     TError RegistrationError;
+    bool IsAborted_;
     bool IsRegistered_;
     bool NeedToClose;
 
     TSpinLock Lock;
 
+    void DoAbort();
     void Close();
     void RestartWatcher();
     TError GetWriterStatus() const;
 
     bool IsStopped() const;
+    bool IsAborted() const;
     bool IsRegistered() const;
     bool HasJobToDo() const;
 
     void OnRegistered(TError status);
+    void OnUnregister(TError status);
 
     void OnWrite(ev::io&, int);
     void OnStart(ev::async&, int);

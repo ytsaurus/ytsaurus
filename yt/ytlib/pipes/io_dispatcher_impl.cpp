@@ -46,20 +46,20 @@ TAsyncError TIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)
     YCHECK(RegisterWatcher.is_active());
     RegisterWatcher.send();
 
-    return entry.Promise;
+    return entry.Promise.ToFuture();
 }
 
-TError TIODispatcher::TImpl::Unregister(IFDWatcher& watcher)
+TAsyncError TIODispatcher::TImpl::AsyncUnregister(IFDWatcherPtr watcher)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TUnregistryEntry entry(&watcher);
+    TUnregistryEntry entry(std::move(watcher));
     UnregisterQueue.Enqueue(entry);
 
     YCHECK(UnregisterWatcher.is_active());
     UnregisterWatcher.send();
 
-    return entry.Promise.ToFuture().Get();
+    return entry.Promise.ToFuture();
 }
 
 void TIODispatcher::TImpl::OnStop(ev::async&, int)
