@@ -124,6 +124,7 @@ public:
 
     bool UseYamrDescriptors;
     bool EnableCoreDump;
+    bool EnableIOPrio;
 
     i64 MaxStderrSize;
 
@@ -154,6 +155,8 @@ public:
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
+        RegisterParameter("enable_io_prio", EnableIOPrio)
+            .Default(true);
         RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
