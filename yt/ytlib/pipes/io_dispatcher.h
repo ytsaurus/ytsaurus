@@ -19,8 +19,7 @@ public:
 
     void Shutdown();
 private:
-    friend class TAsyncReader;
-    friend class TAsyncWriter;
+    friend class TAsyncIOBase;
 
     TAsyncError AsyncRegister(IFDWatcherPtr watcher);
     TAsyncError AsyncUnregister(IFDWatcherPtr watcher);

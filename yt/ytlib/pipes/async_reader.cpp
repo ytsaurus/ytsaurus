@@ -12,8 +12,6 @@ namespace NPipes {
 TAsyncReader::TAsyncReader(int fd)
     : Reader(new NDetail::TNonblockingReader(fd))
     , ReadyPromise()
-    , IsAborted_(false)
-    , IsRegistered_(false)
     , Logger(ReaderLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
@@ -23,40 +21,6 @@ TAsyncReader::TAsyncReader(int fd)
 
 TAsyncReader::~TAsyncReader()
 {
-    YCHECK(IsStopped());
-}
-
-void TAsyncReader::Register()
-{
-    TIODispatcher::Get()->AsyncRegister(MakeStrong(this)).Subscribe(
-        BIND(&TAsyncReader::OnRegistered, MakeStrong(this)));
-}
-
-void TAsyncReader::Unregister()
-{
-    TGuard<TSpinLock> guard(Lock);
-
-    if (IsRegistered()) {
-        if (!IsStopped()) {
-            LOG_DEBUG("Start unregistering");
-
-            auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
-            error.Subscribe(
-                BIND(&TAsyncReader::OnUnregister, MakeStrong(this)));
-        }
-    } else {
-        DoAbort();
-    }
-}
-
-void TAsyncReader::DoAbort()
-{
-    IsAborted_ = true;
-    if (!IsRegistered()) {
-        // it is safe to just close the reader
-        // because we never registered
-        Reader->Close();
-    }
 }
 
 void TAsyncReader::OnRegistered(TError status)
@@ -65,12 +29,7 @@ void TAsyncReader::OnRegistered(TError status)
 
     TGuard<TSpinLock> guard(Lock);
 
-    if (status.IsOK()) {
-        YCHECK(!IsAborted());
-        YCHECK(IsRegistered());
-    } else {
-        YCHECK(!IsRegistered());
-
+    if (!status.IsOK()) {
         if (ReadyPromise) {
             ReadyPromise.Set(status);
             ReadyPromise.Reset();
@@ -86,19 +45,11 @@ void TAsyncReader::OnUnregister(TError status)
     }
 }
 
-void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
+void TAsyncReader::DoStart(ev::dynamic_loop& eventLoop)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     TGuard<TSpinLock> guard(Lock);
-
-    if (IsAborted()) {
-        // We should FAIL the registration process
-        THROW_ERROR_EXCEPTION("Reader is already aborted");
-    }
-
-    YCHECK(!IsRegistered());
-    YCHECK(!IsStopped());
 
     StartWatcher.set(eventLoop);
     StartWatcher.set<TAsyncReader, &TAsyncReader::OnStart>(this);
@@ -107,21 +58,16 @@ void TAsyncReader::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncReader, &TAsyncReader::OnRead>(this);
     FDWatcher.start();
-
-
-    IsRegistered_ = true;
-
-    LOG_DEBUG("Registered");
 }
 
-void TAsyncReader::Stop()
+void TAsyncReader::DoStop()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    YCHECK(IsRegistered());
-    YCHECK(!IsStopped());
+    FDWatcher.stop();
+    StartWatcher.stop();
 
-    Close();
+    Reader->Close();
 }
 
 void TAsyncReader::OnStart(ev::async&, int eventType)
@@ -131,12 +77,9 @@ void TAsyncReader::OnStart(ev::async&, int eventType)
 
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsRegistered());
+    YCHECK(IsStarted());
 
-    if (IsAborted()) {
-        return;
-    }
-
+    YCHECK(!Reader->IsClosed());
     FDWatcher.start();
 }
 
@@ -147,11 +90,7 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsRegistered());
-
-    if (IsAborted()) {
-        return;
-    }
+    YCHECK(IsStarted());
 
     YCHECK(!Reader->ReachedEOF());
 
@@ -180,11 +119,11 @@ std::pair<TBlob, bool> TAsyncReader::Read(TBlob&& buffer)
 
     TGuard<TSpinLock> guard(Lock);
 
-    if (!IsRegistered()) {
+    if (!IsStarted()) {
         return std::make_pair(TBlob(), false);
     }
 
-    if (!IsAborted() && CanReadSomeMore()) {
+    if (CanReadSomeMore()) {
         // is it safe?
         if (!FDWatcher.is_active()) {
             StartWatcher.send();
@@ -200,7 +139,7 @@ TAsyncError TAsyncReader::GetReadyEvent()
 
     TGuard<TSpinLock> guard(Lock);
 
-    if (IsAborted() || !RegistrationError.IsOK() || Reader->IsReady()) {
+    if (IsStartAborted() || !RegistrationError.IsOK() || Reader->IsReady()) {
         return MakePromise(GetState());
     }
 
@@ -209,33 +148,16 @@ TAsyncError TAsyncReader::GetReadyEvent()
     return ReadyPromise.ToFuture();
 }
 
-void TAsyncReader::Close()
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    FDWatcher.stop();
-    StartWatcher.stop();
-
-    Reader->Close();
-}
-
 TError TAsyncReader::Abort()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(Lock);
 
-    IsAborted_ = true;
+    Unregister();
 
-    if (IsRegistered()) {
-        if (!IsStopped()) {
-            LOG_DEBUG("Start unregistering");
-
-            auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
-            error.Subscribe(
-                BIND(&TAsyncReader::OnUnregister, MakeStrong(this)));
-        }
-    } else {
+    if (IsStartAborted()) {
+        // close the reader if TAsyncReader was aborted before registering
         Reader->Close();
     }
 
@@ -259,8 +181,8 @@ bool TAsyncReader::CanReadSomeMore() const
 
 TError TAsyncReader::GetState() const
 {
-    if (IsAborted()) {
-        return TError("The reader was aborted");
+    if (IsStartAborted()) {
+        return TError("Start of the reader was aborted");
     } else if (!RegistrationError.IsOK()) {
         return RegistrationError;
     } else if (Reader->ReachedEOF() || !Reader->IsBufferEmpty()) {
@@ -271,21 +193,6 @@ TError TAsyncReader::GetState() const
         YCHECK(false);
         return TError();
     }
-}
-
-bool TAsyncReader::IsAborted() const
-{
-    return IsAborted_;
-}
-
-bool TAsyncReader::IsRegistered() const
-{
-    return IsRegistered_;
-}
-
-bool TAsyncReader::IsStopped() const
-{
-    return Reader->IsClosed();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

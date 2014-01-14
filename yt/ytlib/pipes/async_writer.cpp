@@ -15,8 +15,6 @@ TAsyncWriter::TAsyncWriter(int fd)
     : Writer(new NDetail::TNonblockingWriter(fd))
     , ReadyPromise()
     , ClosePromise()
-    , IsAborted_(false)
-    , IsRegistered_(false)
     , NeedToClose(false)
     , Logger(WriterLogger)
 {
@@ -27,39 +25,6 @@ TAsyncWriter::TAsyncWriter(int fd)
 
 TAsyncWriter::~TAsyncWriter()
 {
-    YCHECK(IsStopped());
-}
-
-void TAsyncWriter::Register()
-{
-    auto registrationErrorFuture = TIODispatcher::Get()->AsyncRegister(MakeStrong(this));
-    registrationErrorFuture.Subscribe(
-        BIND(&TAsyncWriter::OnRegistered, MakeStrong(this)));
-}
-
-void TAsyncWriter::Unregister()
-{
-    TGuard<TSpinLock> guard(Lock);
-
-    if (IsRegistered()) {
-        if (!IsStopped()) {
-            LOG_DEBUG("Start unregistering");
-
-            auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
-            error.Subscribe(
-                BIND(&TAsyncWriter::OnUnregister, MakeStrong(this)));
-        }
-    } else {
-        DoAbort();
-    }
-}
-
-void TAsyncWriter::DoAbort()
-{
-    IsAborted_ = true;
-    if (!IsRegistered()) {
-        Writer->Close();
-    }
 }
 
 void TAsyncWriter::OnRegistered(TError status)
@@ -68,12 +33,7 @@ void TAsyncWriter::OnRegistered(TError status)
 
     TGuard<TSpinLock> guard(Lock);
 
-    if (status.IsOK()) {
-        YCHECK(!IsAborted());
-        YCHECK(IsRegistered());
-    } else {
-        YCHECK(!IsRegistered());
-
+    if (!status.IsOK()) {
         if (ReadyPromise) {
             ReadyPromise.Set(status);
             ReadyPromise.Reset();
@@ -93,19 +53,11 @@ void TAsyncWriter::OnUnregister(TError status)
     }
 }
 
-void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
+void TAsyncWriter::DoStart(ev::dynamic_loop& eventLoop)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     TGuard<TSpinLock> guard(Lock);
-
-    if (IsAborted()) {
-        // We should FAIL the registration process
-        THROW_ERROR_EXCEPTION("Writer is already aborted");
-    }
-
-    YCHECK(!IsRegistered());
-    YCHECK(!IsStopped());
 
     StartWatcher.set(eventLoop);
     StartWatcher.set<TAsyncWriter, &TAsyncWriter::OnStart>(this);
@@ -114,22 +66,22 @@ void TAsyncWriter::Start(ev::dynamic_loop& eventLoop)
     FDWatcher.set(eventLoop);
     FDWatcher.set<TAsyncWriter, &TAsyncWriter::OnWrite>(this);
     FDWatcher.start();
-
-    IsRegistered_ = true;
-
-    LOG_DEBUG("Registered");
 }
 
-void TAsyncWriter::Stop()
+void TAsyncWriter::DoStop()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TGuard<TSpinLock> guard(Lock);
+    FDWatcher.stop();
+    StartWatcher.stop();
 
-    YCHECK(IsRegistered());
-    YCHECK(!IsStopped());
+    Writer->Close();
+    NeedToClose = false;
 
-    Close();
+    if (ClosePromise) {
+        ClosePromise.Set(GetWriterStatus());
+        ClosePromise.Reset();
+    }
 }
 
 void TAsyncWriter::OnStart(ev::async&, int eventType)
@@ -141,11 +93,7 @@ void TAsyncWriter::OnStart(ev::async&, int eventType)
     // But this call should be rare
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsRegistered());
-
-    if (IsAborted()) {
-        return;
-    }
+    YCHECK(IsStarted());
 
     if (!Writer->IsClosed()) {
         FDWatcher.start();
@@ -159,17 +107,13 @@ void TAsyncWriter::OnWrite(ev::io&, int eventType)
 
     TGuard<TSpinLock> guard(Lock);
 
-    YCHECK(IsRegistered());
-
-    if (IsAborted()) {
-        return;
-    }
+    YCHECK(IsStarted());
 
     if (HasJobToDo()) {
         Writer->WriteFromBuffer();
 
         if (Writer->IsFailed() || (NeedToClose && Writer->IsBufferEmpty())) {
-            Close();
+            Stop();
         }
 
         // I should set promise only if there is no much to do: HasJobToDo() == false
@@ -243,25 +187,9 @@ TAsyncError TAsyncWriter::GetReadyEvent()
     }
 }
 
-void TAsyncWriter::Close()
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    FDWatcher.stop();
-    StartWatcher.stop();
-
-    Writer->Close();
-    NeedToClose = false;
-
-    if (ClosePromise) {
-        ClosePromise.Set(GetWriterStatus());
-        ClosePromise.Reset();
-    }
-}
-
 void TAsyncWriter::RestartWatcher()
 {
-    if (IsRegistered() && !IsStopped() && !FDWatcher.is_active() && HasJobToDo()) {
+    if (IsStarted() && !IsStopped() && !FDWatcher.is_active() && HasJobToDo()) {
         StartWatcher.send();
     }
 }
@@ -275,21 +203,6 @@ TError TAsyncWriter::GetWriterStatus() const
     } else {
         return TError();
     }
-}
-
-bool TAsyncWriter::IsStopped() const
-{
-    return Writer->IsClosed();
-}
-
-bool TAsyncWriter::IsAborted() const
-{
-    return IsAborted_;
-}
-
-bool TAsyncWriter::IsRegistered() const
-{
-    return IsRegistered_;
 }
 
 bool TAsyncWriter::HasJobToDo() const

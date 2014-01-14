@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "async_io.h"
+
 #include <core/misc/blob.h>
 #include <core/logging/tagged_logger.h>
 #include <core/concurrency/thread_affinity.h>
@@ -18,7 +20,7 @@ namespace NDetail {
 }
 
 class TAsyncReader
-    : public IFDWatcher
+    : public TAsyncIOBase
 {
 public:
     TAsyncReader(int fd);
@@ -28,12 +30,9 @@ public:
     TAsyncError GetReadyEvent();
 
     TError Abort();
-
-    void Register();
-    void Unregister();
 private:
-    virtual void Start(ev::dynamic_loop& eventLoop) override;
-    virtual void Stop() override;
+    virtual void DoStart(ev::dynamic_loop& eventLoop) override;
+    virtual void DoStop() override;
 
     std::unique_ptr<NDetail::TNonblockingReader> Reader;
     ev::io FDWatcher;
@@ -42,23 +41,13 @@ private:
     TError RegistrationError;
     TAsyncErrorPromise ReadyPromise;
 
-    bool IsAborted_;
-    bool IsRegistered_;
-
     TSpinLock Lock;
-
-    void DoAbort();
-    void Close();
-
-    bool IsAborted() const;
-    bool IsRegistered() const;
-    bool IsStopped() const;
 
     bool CanReadSomeMore() const;
     TError GetState() const;
 
-    void OnRegistered(TError status);
-    void OnUnregister(TError status);
+    virtual void OnRegistered(TError status) override;
+    virtual void OnUnregister(TError status) override;
 
     void OnRead(ev::io&, int);
     void OnStart(ev::async&, int);

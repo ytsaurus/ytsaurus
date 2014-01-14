@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "async_io.h"
+
 #include <core/misc/blob.h>
 #include <core/logging/tagged_logger.h>
 #include <core/concurrency/thread_affinity.h>
@@ -17,7 +19,8 @@ namespace NDetail {
     class TNonblockingWriter;
 }
 
-class TAsyncWriter : public IFDWatcher
+class TAsyncWriter
+    : public TAsyncIOBase
 {
 public:
     TAsyncWriter(int fd);
@@ -27,11 +30,9 @@ public:
     TAsyncError AsyncClose();
     TAsyncError GetReadyEvent();
 
-    void Register();
-    void Unregister();
 private:
-    virtual void Start(ev::dynamic_loop& eventLoop) override;
-    virtual void Stop() override;
+    virtual void DoStart(ev::dynamic_loop& eventLoop) override;
+    virtual void DoStop() override;
 
     std::unique_ptr<NDetail::TNonblockingWriter> Writer;
     ev::io FDWatcher;
@@ -41,24 +42,17 @@ private:
     TAsyncErrorPromise ClosePromise;
 
     TError RegistrationError;
-    bool IsAborted_;
-    bool IsRegistered_;
     bool NeedToClose;
 
     TSpinLock Lock;
 
-    void DoAbort();
-    void Close();
     void RestartWatcher();
     TError GetWriterStatus() const;
 
-    bool IsStopped() const;
-    bool IsAborted() const;
-    bool IsRegistered() const;
     bool HasJobToDo() const;
 
-    void OnRegistered(TError status);
-    void OnUnregister(TError status);
+    virtual void OnRegistered(TError status) override;
+    virtual void OnUnregister(TError status) override;
 
     void OnWrite(ev::io&, int);
     void OnStart(ev::async&, int);
