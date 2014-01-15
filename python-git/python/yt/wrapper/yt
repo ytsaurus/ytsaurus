@@ -212,9 +212,8 @@ def add_create_parser(add_parser):
 def get(args):
     result = yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
     if args.format is None:
-        sys.stdout.write(get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result))
-    else:
-        print result
+        result = get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result)
+    print result
 
 def add_get_parser(add_parser):
     parser = add_parser("get", help="get subtree of object in the given path")
