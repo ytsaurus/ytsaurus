@@ -300,6 +300,9 @@ public:
         RegisterParameter("max_job_count", MaxJobCount)
             .Default(20000)
             .GreaterThan(0);
+        RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
+            .Default(20000)
+            .GreaterThan(0);
         RegisterParameter("max_operation_count", MaxOperationCount)
             .Default(100)
             .GreaterThan(0);
