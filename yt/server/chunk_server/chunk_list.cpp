@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
+#include "helpers.h"
 
 #include <core/actions/invoker.h>
 
@@ -19,7 +20,7 @@ TChunkList::TChunkList(const TChunkListId& id)
     , Version_(0)
     , VisitMark_(0)
 {
-    Statistics_.ChunkListCount = 1;
+    ResetChunkListStatistics(this);
 }
 
 void TChunkList::IncrementVersion()

@@ -24,6 +24,7 @@ namespace {
 
 using namespace NObjectClient;
 using namespace NChunkClient::NProto;
+
 using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,11 +132,23 @@ public:
 
 private:
     std::set<TChunkInfo> ChunkInfos;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGuid GetNewId(EObjectType type)
+void AttachToChunkList(
+    TChunkList* chunkList,
+    const std::vector<TChunkTree*>& children)
+{
+    NChunkServer::AttachToChunkList(
+        chunkList,
+        const_cast<TChunkTree**>(children.data()),
+        const_cast<TChunkTree**>(children.data() + children.size()),
+        [] (TChunkTree* /*chunk*/) { });
+}
+
+TGuid GenerateId(EObjectType type)
 {
     static i64 counter = 0;
     return MakeId(type, 0, counter++, 0);
@@ -143,7 +156,7 @@ TGuid GetNewId(EObjectType type)
 
 std::unique_ptr<TChunk> CreateChunk(i64 rowCount, i64 compressedDataSize, i64 uncompressedDataSize, i64 dataWeight)
 {
-    auto chunk = std::unique_ptr<TChunk>(new TChunk(GetNewId(EObjectType::Chunk)));
+    auto chunk = std::unique_ptr<TChunk>(new TChunk(GenerateId(EObjectType::Chunk)));
     
     TChunkMeta chunkMeta;
 
@@ -176,8 +189,8 @@ TEST(TraverseChunkTree, Simple)
     auto chunk2 = CreateChunk(2, 2, 2, 2);
     auto chunk3 = CreateChunk(3, 3, 3, 3);
 
-    TChunkList listA(GetNewId(EObjectType::ChunkList));
-    TChunkList listB(GetNewId(EObjectType::ChunkList));
+    TChunkList listA(GenerateId(EObjectType::ChunkList));
+    TChunkList listB(GenerateId(EObjectType::ChunkList));
     
     {
         std::vector<TChunkTree*> chunks;

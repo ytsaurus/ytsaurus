@@ -66,6 +66,17 @@ public:
         TChunkList* chunkList,
         TChunkTree* child);
 
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        TChunkTree** childrenBegin,
+        TChunkTree** childrenEnd);
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        const std::vector<TChunkTree*>& children);
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        TChunkTree* child);
+
     void RebalanceChunkTree(TChunkList* chunkList);
 
     void ConfirmChunk(

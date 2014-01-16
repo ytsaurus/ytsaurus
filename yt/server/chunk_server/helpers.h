@@ -18,19 +18,25 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd,
-    F chunkAction);
+    F childAction);
 
-void AttachToChunkList(
+template <class F>
+void DetachFromChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children);
-
-void AttachToChunkList(
-    TChunkList* chunkList,
-    TChunkTree* child);
+    TChunkTree** childrenBegin,
+    TChunkTree** childrenEnd,
+    F childAction);
 
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
+void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
+void AddChildStatistics(
+    TChunkList* chunkList,
+    TChunkTree* child,
+    TChunkTreeStatistics* delta);
+void ResetChunkListStatistics(TChunkList* chunkList);
+void RecomputeChunkListStatistics(TChunkList* chunkList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

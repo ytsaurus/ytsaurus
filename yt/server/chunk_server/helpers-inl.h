@@ -61,38 +61,72 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd,
-    F chunkAction)
+    F childAction)
 {
+    // A shortcut.
+    if (childrenBegin == childrenEnd)
+        return;
+
     chunkList->IncrementVersion();
 
     TChunkTreeStatistics delta;
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        auto child = *it;
-        if (!chunkList->Children().empty()) {
-            chunkList->RowCountSums().push_back(
-                chunkList->Statistics().RowCount +
-                delta.RowCount);
-            chunkList->ChunkCountSums().push_back(
-                chunkList->Statistics().ChunkCount +
-                delta.ChunkCount);
-            chunkList->DataSizeSums().push_back(
-                chunkList->Statistics().UncompressedDataSize +
-                delta.UncompressedDataSize);
-
-        }
+        auto* child = *it;
+        AddChildStatistics(chunkList, child, &delta);
         chunkList->Children().push_back(child);
-        chunkAction(child);
         SetChunkTreeParent(chunkList, child);
-        delta.Accumulate(GetChunkTreeStatistics(child));
+        childAction(child);
     }
 
     // Go upwards and apply delta.
-    // Reset Sorted flags.
     VisitUniqueAncestors(
         chunkList,
         [&] (TChunkList* current) {
             ++delta.Rank;
             current->Statistics().Accumulate(delta);
+        });
+}
+
+template <class F>
+void DetachFromChunkList(
+    TChunkList* chunkList,
+    TChunkTree** childrenBegin,
+    TChunkTree** childrenEnd,
+    F childAction)
+{
+    // A shortcut.
+    if (childrenBegin == childrenEnd)
+        return;
+
+    chunkList->IncrementVersion();
+
+    yhash_set<TChunkTree*> detachSet;
+    for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        // Children may possibly be duplicate.
+        detachSet.insert(*it);
+    }
+
+    ResetChunkListStatistics(chunkList);
+
+    std::vector<TChunkTree*> existingChildren;
+    chunkList->Children().swap(existingChildren);
+
+    TChunkTreeStatistics delta;
+    for (auto child : existingChildren) {
+        if (detachSet.find(child) == detachSet.end()) {
+            AddChildStatistics(chunkList, child, &delta);
+            chunkList->Children().push_back(child);
+        } else {
+            ResetChunkTreeParent(chunkList, child);
+            childAction(child);
+        }
+    }
+
+    // Go upwards and recompute statistics.
+    VisitUniqueAncestors(
+        chunkList,
+        [&] (TChunkList* current) {
+            RecomputeChunkListStatistics(current);
         });
 }
 

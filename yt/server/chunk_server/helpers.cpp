@@ -25,6 +25,29 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
     }
 }
 
+void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
+{
+    switch (child->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk: {
+            auto& parents = child->AsChunk()->Parents();
+            auto it = std::find(parents.begin(), parents.end(), parent);
+            YASSERT(it != parents.end());
+            parents.erase(it);
+            break;
+        }
+        case EObjectType::ChunkList: {
+            auto& parents = child->AsChunkList()->Parents();
+            auto it = parents.find(parent);
+            YASSERT(it != parents.end());
+            parents.erase(it);
+            break;
+        }
+        default:
+            YUNREACHABLE();
+    }
+}
+
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
@@ -38,26 +61,47 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
     }
 }
 
-void AttachToChunkList(
+void AddChildStatistics(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children)
+    TChunkTree* child,
+    TChunkTreeStatistics* delta)
 {
-    AttachToChunkList(
-        chunkList,
-        const_cast<TChunkTree**>(children.data()),
-        const_cast<TChunkTree**>(children.data() + children.size()),
-        [] (TChunkTree* /*chunk*/) { });
+    if (!chunkList->Children().empty()) {
+        chunkList->RowCountSums().push_back(
+            chunkList->Statistics().RowCount +
+            delta->RowCount);
+        chunkList->ChunkCountSums().push_back(
+            chunkList->Statistics().ChunkCount +
+            delta->ChunkCount);
+        chunkList->DataSizeSums().push_back(
+            chunkList->Statistics().UncompressedDataSize +
+            delta->UncompressedDataSize);
+
+    }
+    delta->Accumulate(GetChunkTreeStatistics(child));
 }
 
-void AttachToChunkList(
-    TChunkList* chunkList,
-    TChunkTree* child)
+void ResetChunkListStatistics(TChunkList* chunkList)
 {
-    AttachToChunkList(
-        chunkList,
-        &child,
-        &child + 1,
-        [] (TChunkTree* /*chunk*/) { });
+    chunkList->Children().clear();
+    chunkList->RowCountSums().clear();
+    chunkList->ChunkCountSums().clear();
+    chunkList->Statistics() = TChunkTreeStatistics();
+    chunkList->Statistics().ChunkListCount = 1;
+}
+
+void RecomputeChunkListStatistics(TChunkList* chunkList)
+{
+    ResetChunkListStatistics(chunkList);
+
+    std::vector<TChunkTree*> existingChildren;
+    existingChildren.swap(chunkList->Children());
+
+    TChunkTreeStatistics delta;
+    for (auto* child : existingChildren) {
+        AddChildStatistics(chunkList, child, &delta);
+        chunkList->Children().push_back(child);
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

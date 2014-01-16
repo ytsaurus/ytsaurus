@@ -254,15 +254,15 @@ public:
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(&TThis::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TThis::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeConfigUpdated(BIND(&TThis::OnNodeConfigUpdated, MakeWeak(this)));
-        nodeTracker->SubscribeFullHeartbeat(BIND(&TThis::OnFullHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TThis::OnIncrementalHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, MakeWeak(this)));
+        nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
 
         ProfilingExecutor = New<TPeriodicExecutor>(
             Bootstrap->GetMetaStateFacade()->GetInvoker(),
-            BIND(&TThis::OnProfiling, MakeWeak(this)),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor->Start();
     }
@@ -278,9 +278,6 @@ public:
             &TImpl::UpdateChunkProperties);
     }
 
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
-    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
     TNodeList AllocateWriteTargets(
         int replicaCount,
@@ -304,11 +301,13 @@ public:
 
     TChunkList* CreateChunkList()
     {
-        auto id = Bootstrap->GetObjectManager()->GenerateId(EObjectType::ChunkList);
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::ChunkList);
         auto* chunkList = new TChunkList(id);
         ChunkListMap.Insert(id, chunkList);
         return chunkList;
     }
+
 
     void AttachToChunkList(
         TChunkList* chunkList,
@@ -320,8 +319,8 @@ public:
             chunkList,
             childrenBegin,
             childrenEnd,
-            [&] (TChunkTree* chunk) {
-                objectManager->RefObject(chunk);
+            [&] (TChunkTree* chunkTree) {
+                objectManager->RefObject(chunkTree);
             });
     }
 
@@ -340,6 +339,42 @@ public:
         TChunkTree* child)
     {
         AttachToChunkList(
+            chunkList,
+            &child,
+            &child + 1);
+    }
+
+
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        TChunkTree** childrenBegin,
+        TChunkTree** childrenEnd)
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        NChunkServer::DetachFromChunkList(
+            chunkList,
+            childrenBegin,
+            childrenEnd,
+            [&] (TChunkTree* chunkTree) {
+                objectManager->UnrefObject(chunkTree);
+            });
+    }
+
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        const std::vector<TChunkTree*>& children)
+    {
+        DetachFromChunkList(
+            chunkList,
+            const_cast<TChunkTree**>(children.data()),
+            const_cast<TChunkTree**>(children.data() + children.size()));
+    }
+
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        TChunkTree* child)
+    {
+        DetachFromChunkList(
             chunkList,
             &child,
             &child + 1);
@@ -456,36 +491,11 @@ public:
             ResetChunkTreeParent(chunkList, child);
             objectManager->UnrefObject(child);
         }
+
         chunkList->Children().clear();
-        chunkList->RowCountSums().clear();
-        chunkList->ChunkCountSums().clear();
-        chunkList->Statistics() = TChunkTreeStatistics();
-        chunkList->Statistics().ChunkListCount = 1;
+        ResetChunkListStatistics(chunkList);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %s)", ~ToString(chunkList->GetId()));
-    }
-
-    void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
-    {
-        switch (child->GetType()) {
-            case EObjectType::Chunk:
-            case EObjectType::ErasureChunk: {
-                auto& parents = child->AsChunk()->Parents();
-                auto it = std::find(parents.begin(), parents.end(), parent);
-                YASSERT(it != parents.end());
-                parents.erase(it);
-                break;
-            }
-            case EObjectType::ChunkList: {
-                auto& parents = child->AsChunkList()->Parents();
-                auto it = parents.find(parent);
-                YASSERT(it != parents.end());
-                parents.erase(it);
-                break;
-            }
-            default:
-                YUNREACHABLE();
-        }
     }
 
 
@@ -609,8 +619,11 @@ public:
         return ChunkReplicator->ComputeChunkStatus(chunk);
     }
 
+
+    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+
 private:
-    typedef TImpl TThis;
     friend class TChunkTypeHandlerBase;
     friend class TChunkTypeHandler;
     friend class TErasureChunkTypeHandler;
@@ -637,6 +650,7 @@ private:
 
     NHydra::TEntityMap<TChunkId, TChunk> ChunkMap;
     NHydra::TEntityMap<TChunkListId, TChunkList> ChunkListMap;
+
 
     void DestroyChunk(TChunk* chunk)
     {
@@ -1534,6 +1548,28 @@ void TChunkManager::AttachToChunkList(
     TChunkTree* child)
 {
     Impl->AttachToChunkList(chunkList, child);
+}
+
+void TChunkManager::DetachFromChunkList(
+    TChunkList* chunkList,
+    TChunkTree** childrenBegin,
+    TChunkTree** childrenEnd)
+{
+    Impl->DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
+}
+
+void TChunkManager::DetachFromChunkList(
+    TChunkList* chunkList,
+    const std::vector<TChunkTree*>& children)
+{
+    Impl->DetachFromChunkList(chunkList, children);
+}
+
+void TChunkManager::DetachFromChunkList(
+    TChunkList* chunkList,
+    TChunkTree* child)
+{
+    Impl->DetachFromChunkList(chunkList, child);
 }
 
 void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
