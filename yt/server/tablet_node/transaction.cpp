@@ -27,9 +27,9 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, Id_);
     Save(context, Timeout_);
     Save(context, StartTime_);
-    Save(context, State_ == ETransactionState::TransientlyPrepared ? ETransactionState(ETransactionState::Active) : State_);
+    Save(context, GetPersistentState());
     Save(context, StartTimestamp_);
-    Save(context, State_ == ETransactionState::TransientlyPrepared ? NullTimestamp : PrepareTimestamp_);
+    Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
 
     // TODO(babenko)
@@ -63,6 +63,20 @@ void TTransaction::ResetFinished()
 {
     Finished_.Set();
     Finished_ = NewPromise();
+}
+
+ETransactionState TTransaction::GetPersistentState() const
+{
+    return State_ == ETransactionState::TransientlyPrepared
+        ? ETransactionState(ETransactionState::Active)
+        : State_;
+}
+
+TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
+{
+    return State_ == ETransactionState::TransientlyPrepared
+        ? NullTimestamp
+        : PrepareTimestamp_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

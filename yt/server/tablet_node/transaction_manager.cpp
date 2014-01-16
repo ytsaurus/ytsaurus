@@ -332,9 +332,7 @@ private:
         // Mark all transactions are finished to release pending readers.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
-            if (transaction->GetState() == ETransactionState::TransientlyPrepared) {
-                transaction->SetState(ETransactionState::Active);
-            }
+            transaction->SetState(transaction->GetPersistentState());
             transaction->ResetFinished();
         }
     }

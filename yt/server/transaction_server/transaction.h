@@ -68,6 +68,9 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     bool IsActive() const;
+
+    ETransactionState GetPersistentState() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

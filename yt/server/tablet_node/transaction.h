@@ -46,6 +46,9 @@ public:
     void SetFinished();
     void ResetFinished();
 
+    ETransactionState GetPersistentState() const;
+    TTimestamp GetPersistentPrepareTimestamp() const;
+
 private:
     TPromise<void> Finished_;
 

@@ -661,9 +661,7 @@ void TTransactionManager::OnStopLeading()
     // Reset all transiently prepared transactions back into active state.
     for (const auto& pair : TransactionMap) {
         auto* transaction = pair.second;
-        if (transaction->GetState() == ETransactionState::TransientlyPrepared) {
-            transaction->SetState(ETransactionState::Active);
-        }
+        transaction->SetState(transaction->GetPersistentState());
     }
 }
 
