@@ -53,7 +53,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     ValueCount_ += row.GetValueCount();
 
     int lastId = KeyColumnCount_;
-    i32 valueCount = 0;
+    ui32 valueCount = 0;
     while (valueCount < row.GetValueCount()) {
         auto& value = row.BeginValues()[valueCount];
         YASSERT(lastId <= value.Id);
@@ -71,8 +71,6 @@ void TSimpleVersionedBlockWriter::WriteRow(
         WritePod(KeyStream_, valueCount);
         ++lastId;
     }
-
-    WritePod(KeyStream_, valueCount);
 
     YASSERT(KeyStream_.GetSize() - keyOffset == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
     WritePaddingZeroes(KeyStream_, GetKeySize(KeyColumnCount_, SchemaColumnCount_));
@@ -144,6 +142,7 @@ void TSimpleVersionedBlockWriter::WriteValue(
         case EValueType::Null:
             WritePod(stream, NullValue);
             nullFlags.Append(true);
+            break;
 
         default:
             YUNREACHABLE();

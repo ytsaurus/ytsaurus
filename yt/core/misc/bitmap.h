@@ -24,13 +24,13 @@ public:
     {
         YCHECK(bitCapacity >= 0);
         if (bitCapacity) {
-            Data_.reserve((bitCapacity - 1) / sizeof(TChunkType) + 1);
+            Data_.reserve((bitCapacity - 1) / sizeof(TChunkType) / 8 + 1);
         }
     }
 
     void Append(bool value)
     {
-        if (Data_.size() * sizeof(TChunkType) == BitSize_) {
+        if (Data_.size() * sizeof(TChunkType) * 8 == BitSize_) {
             Data_.push_back(TChunkType());
         }
 
@@ -88,11 +88,13 @@ public:
 
     int GetByteSize() const
     {
-        return BitSize_ / 8 + (BitSize_ % 8 ? 1 : 0) ;
+        int chunkSize = sizeof(TChunkType) * 8;
+        int sizeInChunks = BitSize_ / chunkSize + (BitSize_ % chunkSize ? 1 : 0);
+        return sizeInChunks * sizeof(TChunkType);
     }
 
 private:
-    TChunkType* Data_;
+    const TChunkType* Data_;
     int BitSize_;
 
 };

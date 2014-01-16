@@ -27,10 +27,10 @@ public:
 
     bool NextRow();
 
-    void SkipToRowIndex(int rowIndex);
-    void SkipToKey(const TOwningKey& key);
+    bool SkipToRowIndex(int rowIndex);
+    bool SkipToKey(const TOwningKey& key);
     
-    const TOwningKey& GetKey();
+    const TOwningKey& GetKey() const;
     TVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
     int GetValueCount();
@@ -60,6 +60,8 @@ private:
 
     TRef StringData_;
 
+    bool Closed_;
+
     // Members describing current row.
 
     int RowIndex_;
@@ -74,8 +76,8 @@ private:
     TVersionedRow ReadAllValues(TChunkedMemoryPool* memoryPool);
     TVersionedRow ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool);
 
-    TTimestamp ReadTimestamp(int timestamp);
-    TVersionedValue ReadValue(int valueIndex, int id);
+    TTimestamp ReadTimestamp(int timestampIndex);
+    TVersionedValue ReadValue(int valueIndex, int id, int chunkSchemaId);
     TUnversionedValue ReadKeyValue(int id);
     TStringBuf ReadString(char* ptr);
 

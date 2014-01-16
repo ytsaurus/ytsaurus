@@ -52,6 +52,7 @@ set( SRCS
   ${BASE}/url_ut.cpp
   ${BASE}/main.cpp
   ${BASE}/varint_ut.cpp
+  ${BASE}/versioned_blocks_ut.cpp
   ${BASE}/versioned_table_client_ut.cpp
   ${BASE}/weak_ptr_ut.cpp
   ${BASE}/yamr_parser_ut.cpp

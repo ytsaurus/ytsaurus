@@ -28,7 +28,10 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     , SchemaIdMapping_(schemaIdMapping)
     , Schema_(chunkSchema)
     , Meta_(meta)
+    , Closed_(false)
 {
+    YCHECK(Meta_.row_count() > 0);
+
     std::vector<TUnversionedValue> key(
         KeyColumnCount_,
         MakeUnversionedSentinelValue(EValueType::Null, 0));
@@ -36,7 +39,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
     VersionedMeta_ = Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext);
 
-    KeyData_ = TRef(data.Begin(), TSimpleVersionedBlockWriter::GetPaddedKeySize(
+    KeyData_ = TRef(const_cast<char*>(data.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         KeyColumnCount_,
         Schema_.Columns().size()) * Meta_.row_count());
 
@@ -47,57 +50,61 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     TimestampsData_ = TRef(ValueData_.End(),
         TSimpleVersionedBlockWriter::TimestampSize * VersionedMeta_.timestamp_count());
 
-    char* ptr = TimestampsData_.End();
-    KeyNullFlags_.Reset(ptr, KeyColumnCount_ * Meta_.row_count());
+    const char* ptr = TimestampsData_.End();
+    KeyNullFlags_.Reset(reinterpret_cast<const ui64*>(ptr), KeyColumnCount_ * Meta_.row_count());
     ptr += KeyNullFlags_.GetByteSize();
 
-    ValueNullFlags_.Reset(ptr, VersionedMeta_.value_count());
+    ValueNullFlags_.Reset(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
     ptr += ValueNullFlags_.GetByteSize();
 
-    StringData_ = TRef(ptr, data.End());
+    StringData_ = TRef(const_cast<char*>(ptr), const_cast<char*>(data.End()));
 
     JumpToRowIndex(0);
 }
 
 bool TSimpleVersionedBlockReader::NextRow()
 {
+    YCHECK(!Closed_);
     return JumpToRowIndex(RowIndex_ + 1);
 }
 
-void TSimpleVersionedBlockReader::SkipToRowIndex(int rowIndex)
+bool TSimpleVersionedBlockReader::SkipToRowIndex(int rowIndex)
 {
+    YCHECK(!Closed_);
     YCHECK(rowIndex >= RowIndex_);
-    JumpToRowIndex(rowIndex);
+    return JumpToRowIndex(rowIndex);
 }
 
-void TSimpleVersionedBlockReader::SkipToKey(const TOwningKey& key)
+bool TSimpleVersionedBlockReader::SkipToKey(const TOwningKey& key)
 {
-    // Caller must ensure that given key doesn't exceed the last key of the block.
+    YCHECK(!Closed_);
 
     if (GetKey() >= key) {
         // We are already further than pivot key.
-        return;
+        return true;
     }
 
     int lowerIndex = RowIndex_;
     int upperIndex = Meta_.row_count();
-    while (upperIndex - lowerIndex > 1) {
+    while (upperIndex - lowerIndex > 0) {
         auto middle = (upperIndex + lowerIndex) / 2;
-        JumpToRowIndex(middle);
+        YCHECK(JumpToRowIndex(middle));
         if (GetKey() < key) {
-            lowerIndex = middle;
+            lowerIndex = middle + 1;
         } else {
             upperIndex = middle;
         }
     }
 
-    YCHECK(upperIndex < Meta_.row_count());
-    JumpToRowIndex(upperIndex);
+    return JumpToRowIndex(lowerIndex);
 }
 
 bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
 {
+    YCHECK(!Closed_);
+
     if (index >= Meta_.row_count()) {
+        Closed_ = true;
         return false;
     }
 
@@ -124,6 +131,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
 
 TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool *memoryPool)
 {
+    YCHECK(!Closed_);
     if (Timestamp_ == AllCommittedTimestamp) {
         return ReadAllValues(memoryPool);
     } else {
@@ -159,7 +167,10 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
 
         for (int valueIndex = lowerValueIndex; valueIndex < upperValueIndex; ++valueIndex) {
-            row.BeginValues()[valueCount] = ReadValue(ValueOffset_ + valueIndex, KeyColumnCount_ + valueId);
+            row.BeginValues()[valueCount] = ReadValue(
+                ValueOffset_ + valueIndex,
+                KeyColumnCount_ + valueId,
+                chunkSchemaId);
             ++valueCount;
         }
     }
@@ -171,19 +182,19 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
 TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryPool *memoryPool)
 {
     int lowerTimestampIndex = 0; // larger timestamp
-    int upperTimestampIndex = TimestampCount_; // smaller timestamp
+    int upperTimestampIndex = TimestampCount_;
 
     while (upperTimestampIndex - lowerTimestampIndex > 0) {
         int middle = (lowerTimestampIndex + upperTimestampIndex) / 2;
         auto ts = ReadTimestamp(TimestampOffset_ + middle);
-        if (ts & TimestampValueMask > Timestamp_) {
-            lowerTimestampIndex = middle;
+        if ((ts & TimestampValueMask) > Timestamp_) {
+            lowerTimestampIndex = middle + 1;
         } else {
             upperTimestampIndex = middle;
         }
     }
 
-    if (upperTimestampIndex == TimestampCount_) {
+    if (lowerTimestampIndex == TimestampCount_) {
         // Row didn't exist at given timestamp.
         return TVersionedRow();
     }
@@ -195,7 +206,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         1);
 
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-    auto ts = ReadTimestamp(TimestampOffset_ + upperTimestampIndex);
+    auto ts = ReadTimestamp(TimestampOffset_ + lowerTimestampIndex);
     *row.BeginTimestamps() = ts;
 
     if (TombstoneTimestampMask & ts) {
@@ -208,25 +219,25 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
     }
 
     int valueCount = 0;
-    for (int valueId = 0; valueId < SchemaIdMapping_.size(); ++valueId) {
+    for (int valueId = KeyColumnCount_; valueId < SchemaIdMapping_.size(); ++valueId) {
         int chunkSchemaId = SchemaIdMapping_[valueId];
 
         int lowerValueIndex = chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
 
-        while (upperTimestampIndex - lowerTimestampIndex > 0) {
+        while (upperValueIndex - lowerValueIndex > 0) {
             int middle = (lowerValueIndex + upperValueIndex) / 2;
-            auto value = ReadValue(TimestampOffset_ + middle, KeyColumnCount_ + valueId);
+            auto value = ReadValue(ValueOffset_ + middle, valueId, chunkSchemaId);
             if (value.Timestamp  > Timestamp_) {
-                lowerTimestampIndex = middle;
+                lowerValueIndex = middle + 1;
             } else {
-                upperTimestampIndex = middle;
+                upperValueIndex = middle;
             }
         }
 
-        if (upperTimestampIndex < GetColumnValueCount(chunkSchemaId)) {
-            auto value = ReadValue(TimestampOffset_ + upperTimestampIndex, KeyColumnCount_ + valueId);
-            if (value.Timestamp >= TimestampValueMask & ts) {
+        if (lowerValueIndex < GetColumnValueCount(chunkSchemaId)) {
+            auto value = ReadValue(ValueOffset_ + lowerValueIndex, valueId, chunkSchemaId);
+            if (value.Timestamp >= (ts & TimestampValueMask)) {
                 // Check that value didn't come from the previous incarnation of this row.
                 row.BeginValues()[valueCount] = value;
                 ++valueCount;
@@ -278,12 +289,46 @@ TStringBuf TSimpleVersionedBlockReader::ReadString(char* ptr)
     return TStringBuf(StringData_.Begin() + offset, length);
 }
 
-TVersionedValue TSimpleVersionedBlockReader::ReadValue(int valueIndex, int id)
+TVersionedValue TSimpleVersionedBlockReader::ReadValue(int valueIndex, int id, int chunkSchemaId)
 {
     YCHECK(id >= KeyColumnCount_);
+    char* valuePtr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
+    auto ts = *reinterpret_cast<TTimestamp*>(valuePtr + 8);
 
+    bool isNull = ValueNullFlags_[valueIndex];
+    if (isNull) {
+        return MakeVersionedSentinelValue(EValueType::Null,  ts, id);
+    }
+
+    switch (Schema_.Columns()[chunkSchemaId].Type) {
+        case EValueType::Integer:
+            return MakeVersionedIntegerValue(*reinterpret_cast<i64*>(valuePtr), ts, id);
+
+        case EValueType::Double:
+            return MakeVersionedDoubleValue(*reinterpret_cast<double*>(valuePtr), ts, id);
+
+        case EValueType::String:
+            return MakeVersionedStringValue(ReadString(valuePtr), ts, id);
+
+        case EValueType::Any:
+            return MakeVersionedAnyValue(ReadString(valuePtr), ts, id);
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
+const TOwningKey& TSimpleVersionedBlockReader::GetKey() const
+{
+    return Key_;
+}
+
+TTimestamp TSimpleVersionedBlockReader::ReadTimestamp(int timestampIndex)
+{
+    return *reinterpret_cast<TTimestamp*>(
+        TimestampsData_.Begin() +
+        timestampIndex * TSimpleVersionedBlockWriter::TimestampSize);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
