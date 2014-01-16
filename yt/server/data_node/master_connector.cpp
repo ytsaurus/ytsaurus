@@ -326,7 +326,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     }
 
     auto tabletCellController = Bootstrap->GetTabletCellController();
-    for (auto slot : tabletCellController->GetSlots()) {
+    for (auto slot : tabletCellController->Slots()) {
         auto* info = request->add_tablet_slots();
         ToProto(info->mutable_cell_guid(), slot->GetCellGuid());
         info->set_peer_state(slot->GetState());

@@ -26,6 +26,9 @@ extern const TTabletCellId NullTabletCellId;
 typedef NObjectClient::TObjectId TTabletId;
 extern const TTabletId NullTabletId;
 
+typedef NObjectClient::TObjectId TStoreId;
+extern const TStoreId NullStoreId;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TTableMountInfo;

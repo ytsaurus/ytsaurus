@@ -38,6 +38,10 @@ public:
     TTablet* GetTabletOrThrow(const TTabletId& id);
     void ValidateTabletMounted(TTablet* tablet);
 
+
+    void SetStoreFailed(TTablet* tablet, IStorePtr store, EStoreState state);
+
+
     void Read(
         TTablet* tablet,
         NTransactionClient::TTimestamp timestamp,

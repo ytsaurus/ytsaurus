@@ -9,11 +9,12 @@
 #include "store_manager.h"
 #include "tablet_cell_controller.h"
 #include "dynamic_memory_store.h"
-#include "persistent_store.h"
+#include "chunk_store.h"
 #include "flush.h"
 #include "private.h"
 
 #include <core/misc/ring_queue.h>
+#include <core/misc/string.h>
 
 #include <ytlib/new_table_client/name_table.h>
 
@@ -89,9 +90,9 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetPersistentStore, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraCommitFlushedChunk, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletStoresUpdated, Unretained(this)));
     }
-
 
     void Initialize()
     {
@@ -118,6 +119,16 @@ public:
             THROW_ERROR_EXCEPTION("Tablet %s is not in \"mounted\" state",
                 ~ToString(tablet->GetId()));
         }
+    }
+
+
+    void SetStoreFailed(TTablet* tablet, IStorePtr store, EStoreState state)
+    {
+        store->SetState(state);
+        TDelayedExecutor::Submit(
+            BIND(&TImpl::RestoreStoreState, MakeStrong(this), store)
+                .Via(tablet->GetEpochAutomatonInvoker()),
+            Config_->StoreErrorBackoffTime);
     }
 
 
@@ -283,7 +294,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            FlushAllStores(tablet);
+            InitTablet(tablet);
             CheckIfFullyUnlocked(tablet);
             CheckIfAllStoresFlushed(tablet);
         }
@@ -299,6 +310,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
+            FiniTablet(tablet);
             tablet->GetStoreManager()->ResetRotationScheduled();
         }
     }
@@ -318,6 +330,7 @@ private:
             keyColumns,
             chunkListId,
             New<TTableMountConfig>());
+        InitTablet(tablet);
         tablet->SetState(ETabletState::Mounted);
         TabletMap_.Insert(id, tablet);
 
@@ -325,7 +338,7 @@ private:
         tablet->SetStoreManager(std::move(storeManager));
 
         {
-            TReqOnTabletMounted response;
+            TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), id);
             PostMasterMutation(response);
         }
@@ -397,11 +410,12 @@ private:
 
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %s)",
                     ~ToString(tabletId));
+                tablet->GetCancelableContext()->Cancel();
                 TabletMap_.Remove(tabletId);
                 YCHECK(UnmountingTablets_.erase(tablet) == 1);
 
                 {
-                    TReqOnTabletUnmounted response;
+                    TRspUnmountTablet response;
                     ToProto(response.mutable_tablet_id(), tabletId);
                     PostMasterMutation(response);
                 }
@@ -468,29 +482,98 @@ private:
         RotateStore(tablet);
     }
 
-    void HydraSetPersistentStore(const TReqSetPersistentStore& request)
+    void HydraCommitFlushedChunk(const TReqCommitFlushedChunk& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet)
             return;
 
-        auto& stores = tablet->PassiveStores();
-        int storeIndex = request.store_index();
-        YCHECK(storeIndex >= 0 && storeIndex < stores.size());
-        
+        auto storeId = FromProto<TStoreId>(request.store_id());
+        auto store = tablet->FindStore(storeId);
+        if (!store)
+            return;
+
+        auto state = store->GetState();
+        if (state != EStoreState::Flushing && state != EStoreState::PassiveDynamic) {
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to commit a flushed chunk for store in %s state, ignored (TabletId: %s, StoreId: %s)",
+                ~FormatEnum(state).Quote(),
+                ~ToString(tabletId),
+                ~ToString(storeId));
+            return;
+        }
+
         auto chunkId = FromProto<TChunkId>(request.chunk_id());
 
-        auto newStore = New<TPersistentStore>(chunkId);
-        stores[storeIndex] = newStore;
-
-        LOG_INFO_UNLESS(IsRecovery(), "Switched to a persistent store (TabletId: %s, StoreIndex: %d, ChunkId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Committing a flushed chunk (TabletId: %s, StoreId: %s, ChunkId: %s)",
             ~ToString(tabletId),
-            storeIndex,
+            ~ToString(storeId),
             ~ToString(chunkId));
 
-        if (IsLeader()) {
-            CheckIfAllStoresFlushed(tablet);
+        store->SetState(EStoreState::FlushCommitting);
+
+        {
+            TReqUpdateTabletStores request;
+            ToProto(request.mutable_tablet_id(), tabletId);
+            {
+                auto* descriptor = request.add_stores_to_add();
+                ToProto(descriptor->mutable_store_id(), chunkId);
+            }
+            {
+                auto* descriptor = request.add_stores_to_remove();
+                ToProto(descriptor->mutable_store_id(), storeId);
+            }
+            auto* slot = tablet->GetSlot();
+            auto hiveManager = slot->GetHiveManager();
+            hiveManager->PostMessage(slot->GetMasterMailbox(), request);
+        }
+    }
+
+    void HydraOnTabletStoresUpdated(const TRspUpdateTabletStores& response)
+    {
+        auto tabletId = FromProto<TTabletId>(response.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        if (response.has_error()) {
+            auto error = FromProto(response.error());
+            LOG_WARNING(error, "Error updating tablet stores (TabletId: %s)",
+                ~ToString(tabletId));
+
+            for (const auto& descriptor : response.stores_to_remove()) {
+                auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                auto store = tablet->GetStore(storeId);
+                switch (store->GetState()) {
+                    case EStoreState::FlushCommitting:
+                        SetStoreFailed(tablet, store, EStoreState::FlushFailed);
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
+            }
+        } else {
+            std::vector<TStoreId> addedStoreIds;
+            for (const auto& descriptor : response.stores_to_add()) {
+                auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                auto store = New<TChunkStore>(storeId);
+                tablet->AddStore(store);
+            }
+
+            std::vector<TStoreId> removedStoreIds;
+            for (const auto& descriptor : response.stores_to_remove()) {
+                auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                tablet->RemoveStore(storeId);
+            }
+
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %s, AddedStoreIds: [%s], RemovedStoreIds: [%s])",
+                ~ToString(tabletId),
+                ~JoinToString(addedStoreIds),
+                ~JoinToString(removedStoreIds));
+
+            if (IsLeader()) {
+                CheckIfAllStoresFlushed(tablet);
+            }
         }
     }
 
@@ -675,44 +758,6 @@ private:
     {
         auto storeManager = tablet->GetStoreManager();
         storeManager->Rotate();
-
-        if (IsLeader()) {
-            FlushStore(tablet, static_cast<int>(tablet->PassiveStores().size()) - 1);
-        }
-    }
-
-    void FlushStore(TTablet* tablet, int storeIndex)
-    {
-        auto storeFlusher = Bootstrap_->GetStoreFlusher();
-        storeFlusher->Enqueue(tablet, storeIndex).Subscribe(
-            BIND(&TImpl::OnStoreFlushed, MakeStrong(this), tablet->GetId(), storeIndex)
-                .Via(Slot_->GetEpochAutomatonInvoker()));
-    }
-
-    void OnStoreFlushed(
-        const TTabletId& tabletId,
-        int storeIndex,
-        TChunkId chunkId)
-    {
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet)
-            return;
-
-        TReqSetPersistentStore request;
-        ToProto(request.mutable_tablet_id(), tabletId);
-        request.set_store_index(storeIndex);
-        ToProto(request.mutable_chunk_id(), chunkId);
-        PostTabletMutation(request);
-    }
-
-    void FlushAllStores(TTablet* tablet)
-    {
-        for (int storeIndex = 0; storeIndex < static_cast<int>(tablet->PassiveStores().size()); ++storeIndex) {
-            auto store = tablet->PassiveStores()[storeIndex];
-            if (!store->IsPersistent()) {
-                FlushStore(tablet, storeIndex);
-            }
-        }
     }
 
 
@@ -728,6 +773,34 @@ private:
     {
         auto hiveManager = Slot_->GetHiveManager();
         hiveManager->PostMessage(Slot_->GetMasterMailbox(), message);
+    }
+
+
+    void InitTablet(TTablet* tablet)
+    {
+        auto context = New<TCancelableContext>();
+        tablet->SetCancelableContext(context);
+        auto hydraManager = Slot_->GetHydraManager();
+        tablet->SetEpochAutomatonInvoker(context->CreateInvoker(Slot_->GetEpochAutomatonInvoker()));
+    }
+
+    void FiniTablet(TTablet* tablet)
+    {
+        for (const auto& pair : tablet->Stores()) {
+            const auto& store = pair.second;
+            store->SetState(store->GetPersistentState());
+        }
+
+        tablet->SetCancelableContext(nullptr);
+        tablet->SetEpochAutomatonInvoker(nullptr);
+    }
+
+
+    void RestoreStoreState(IStorePtr store)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        store->SetState(store->GetPersistentState());
     }
 
 };
@@ -749,6 +822,11 @@ TTabletManager::TTabletManager(
 TTabletManager::~TTabletManager()
 { }
 
+void TTabletManager::Initialize()
+{
+    Impl_->Initialize();
+}
+
 TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 {
     return Impl_->GetTabletOrThrow(id);
@@ -759,9 +837,9 @@ void TTabletManager::ValidateTabletMounted(TTablet* tablet)
     Impl_->ValidateTabletMounted(tablet);
 }
 
-void TTabletManager::Initialize()
+void TTabletManager::SetStoreFailed(TTablet* tablet, IStorePtr store, EStoreState state)
 {
-    Impl_->Initialize();
+    Impl_->SetStoreFailed(tablet, store, state);
 }
 
 void TTabletManager::Read(

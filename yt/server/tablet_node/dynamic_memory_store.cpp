@@ -9,6 +9,8 @@
 
 #include <core/concurrency/fiber.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/versioned_reader.h>
@@ -21,6 +23,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
@@ -340,11 +343,13 @@ private:
 
 TDynamicMemoryStore::TDynamicMemoryStore(
     TTabletManagerConfigPtr config,
+    const TStoreId& id,
     TTablet* tablet)
     : Config_(config)
+    , Id_(id)
     , Tablet_(tablet)
     , LockCount_(0)
-    , Active_(true)
+    , State_(EStoreState::ActiveDynamic)
     , KeyCount_(static_cast<int>(Tablet_->KeyColumns().size()))
     , SchemaColumnCount_(static_cast<int>(Tablet_->Schema().Columns().size()))
     , AllocatedStringSpace_(0)
@@ -354,16 +359,15 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , Comparer_(new TKeyPrefixComparer(KeyCount_))
     , Tree_(new TRcuTree<TDynamicRow, TKeyPrefixComparer>(&AlignedPool_, Comparer_.get()))
 {
-    LOG_DEBUG("Dynamic memory store created (TabletId: %s, This: %p)",
+    LOG_DEBUG("Dynamic memory store created (TabletId: %s, StoreId: %s)",
         ~ToString(Tablet_->GetId()),
-        this);
+        ~ToString(Id_));
 }
 
 TDynamicMemoryStore::~TDynamicMemoryStore()
 {
-    LOG_DEBUG("Dynamic memory store destroyed (TabletId: %s, This: %p)",
-        ~ToString(Tablet_->GetId()),
-        this);
+    LOG_DEBUG("Dynamic memory store destroyed (StoreId: %s)",
+        ~ToString(Id_));
 }
 
 TTablet* TDynamicMemoryStore::GetTablet() const
@@ -386,23 +390,13 @@ int TDynamicMemoryStore::Unlock()
     return --LockCount_;
 }
 
-bool TDynamicMemoryStore::IsActive() const
-{
-    return Active_;
-}
-
-void TDynamicMemoryStore::MakePassive()
-{
-    Active_ = false;
-}
-
 TDynamicRow TDynamicMemoryStore::WriteRow(
     const TNameTablePtr& nameTable,
     TTransaction* transaction,
     TUnversionedRow row,
     bool prewrite)
 {
-    YASSERT(Active_);
+    YASSERT(State_ == EStoreState::ActiveDynamic);
 
     TDynamicRow result;
 
@@ -513,7 +507,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     NVersionedTableClient::TKey key,
     bool prewrite)
 {
-    YASSERT(Active_);
+    YASSERT(State_ == EStoreState::ActiveDynamic);
 
     TDynamicRow result;
 
@@ -671,7 +665,7 @@ TDynamicRow TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(
 
 void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
 {
-    YASSERT(Active_);
+    YASSERT(State_ == EStoreState::ActiveDynamic);
 
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
@@ -683,7 +677,7 @@ void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
 
 void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
 {
-    YASSERT(Active_);
+    YASSERT(State_ == EStoreState::ActiveDynamic);
 
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
@@ -692,7 +686,7 @@ void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
 
 void TDynamicMemoryStore::CommitRow(TDynamicRow row)
 {
-    YASSERT(Active_);
+    YASSERT(State_ == EStoreState::ActiveDynamic);
 
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
@@ -725,7 +719,7 @@ void TDynamicMemoryStore::CommitRow(TDynamicRow row)
 
 void TDynamicMemoryStore::AbortRow(TDynamicRow row)
 {
-    if (Active_) {
+    if (State_ == EStoreState::ActiveDynamic) {
         // Timestamps.
         auto timestampList = row.GetTimestampList(KeyCount_);
         if (timestampList) {
@@ -833,6 +827,21 @@ int TDynamicMemoryStore::GetAllocatedValueCount() const
     return AllocatedValueCount_;
 }
 
+TStoreId TDynamicMemoryStore::GetId() const
+{
+    return Id_;
+}
+
+EStoreState TDynamicMemoryStore::GetState() const
+{
+    return State_;
+}
+
+void TDynamicMemoryStore::SetState(EStoreState state)
+{
+    State_ = state;
+}
+
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     NVersionedTableClient::TKey lowerKey,
     NVersionedTableClient::TKey upperKey,
@@ -847,12 +856,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         columnFilter);
 }
 
-bool TDynamicMemoryStore::IsPersistent() const
-{
-    return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NTabletNode
+} // namespace NYT

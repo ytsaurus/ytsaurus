@@ -39,11 +39,11 @@ protected:
         EXPECT_EQ(1, transaction->LockedRows().size());
         const auto& rowRef = transaction->LockedRows()[0];
 
-        StoreManager->PrepareRow(rowRef);
         PrepareTransaction(transaction.get());
+        StoreManager->PrepareRow(rowRef);
 
-        StoreManager->CommitRow(rowRef);
         CommitTransaction(transaction.get());
+        StoreManager->CommitRow(rowRef);
     }
 
     void DeleteRow(const TOwningKey& key)

@@ -70,7 +70,7 @@ DECLARE_ENUM(EObjectType,
     // These must be created by calling TCypressYPathProxy::Create.
     // NB: When adding a new type, don't forget to update IsVersioned.
 
-    // Auxiliary.
+    // Auxiliary
     ((Lock)                       (200))
 
     // Static nodes
@@ -103,21 +103,24 @@ DECLARE_ENUM(EObjectType,
     ((Document)                   (421))
     ((LockMap)                    (422))
 
-    // Security
+    // Security stuff
     ((Account)                    (500))
     ((User)                       (501))
     ((Group)                      (502))
 
+    // Global stuff
     // A mysterious creature representing master as a whole.
     ((Master)                     (600))
 
-    // Tablets
+    // Tablet stuff
     ((TabletCell)                 (700))
     ((TabletCellMap)              (701))
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
+    ((TabletStore)                (704))
 
-    // Special type reserved for marking data splits for delegated subfragments
+    // Query stuff
+    // A special type reserved for marking data splits for delegated subfragments
     // in Query Client.
     ((QueryPlan)                  (800))
 );

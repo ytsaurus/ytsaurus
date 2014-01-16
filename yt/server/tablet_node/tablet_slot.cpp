@@ -48,6 +48,7 @@ using namespace NElection;
 using namespace NHydra;
 using namespace NHive;
 using namespace NNodeTrackerClient::NProto;
+using namespace NObjectClient;
 using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,11 +66,11 @@ public:
         int slotIndex,
         NCellNode::TCellNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
-        : Owner(owner)
-        , SlotIndex(slotIndex)
-        , Config(config)
-        , Bootstrap(bootstrap)
-        , AutomatonQueue(New<TActionQueue>(Sprintf("TabletSlot:%d", SlotIndex)))
+        : Owner_(owner)
+        , SlotIndex_(slotIndex)
+        , Config_(config)
+        , Bootstrap_(bootstrap)
+        , AutomatonQueue_(New<TActionQueue>(Sprintf("TabletSlot:%d", SlotIndex_)))
         , Logger(TabletNodeLogger)
     {
         Reset();
@@ -80,7 +81,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return CellGuid;
+        return CellGuid_;
     }
 
     EPeerState GetState() const
@@ -88,24 +89,24 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (HydraManager) {
-            State = HydraManager->GetControlState();
+            State_ = HydraManager->GetControlState();
         }
 
-        return State;
+        return State_;
     }
 
     TPeerId GetPeerId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return PeerId;
+        return PeerId_;
     }
 
     const NHydra::NProto::TCellConfig& GetCellConfig() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return CellConfig;
+        return CellConfig_;
     }
 
     IHydraManagerPtr GetHydraManager() const
@@ -115,66 +116,84 @@ public:
 
     TTabletAutomatonPtr GetAutomaton() const
     {
-        return Automaton;
+        return Automaton_;
     }
 
     IInvokerPtr GetAutomatonInvoker() const
     {
-        return AutomatonQueue->GetInvoker();
+        return AutomatonQueue_->GetInvoker();
     }
 
     IInvokerPtr GetEpochAutomatonInvoker() const
     {
-        return EpochAutomatonInvoker;
+        return EpochAutomatonInvoker_;
     }
 
     THiveManagerPtr GetHiveManager() const
     {
-        return HiveManager;
+        return HiveManager_;
     }
 
     TMailbox* GetMasterMailbox()
     {
         // Create master mailbox lazily.
-        if (!MasterMailbox) {
-            auto masterCellGuid = Bootstrap->GetCellGuid();
-            MasterMailbox = HiveManager->GetOrCreateMailbox(masterCellGuid);
+        if (!MasterMailbox_) {
+            auto masterCellGuid = Bootstrap_->GetCellGuid();
+            MasterMailbox_ = HiveManager_->GetOrCreateMailbox(masterCellGuid);
         }
-        return MasterMailbox;
+        return MasterMailbox_;
     }
 
     TTransactionManagerPtr GetTransactionManager() const
     {
-        return TransactionManager;
+        return TransactionManager_;
     }
 
     TTransactionSupervisorPtr GetTransactionSupervisor() const
     {
-        return TransactionSupervisor;
+        return TransactionSupervisor_;
     }
 
     TTabletManagerPtr GetTabletManager() const
     {
-        return TabletManager;
+        return TabletManager_;
+    }
+
+    TObjectId GenerateId(EObjectType type)
+    {
+        auto* mutationContext = HydraManager->GetMutationContext();
+
+        const auto& version = mutationContext->GetVersion();
+
+        auto random = mutationContext->RandomGenerator().Generate<ui64>();
+
+        int typeValue = static_cast<int>(type);
+        YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
+
+        return TObjectId(
+            random ^ CellGuid_.Parts[0],
+            (CellGuid_.Parts[1] & 0xff00) + typeValue,
+            version.RecordId,
+            version.SegmentId);
     }
 
 
     void Load(const TCellGuid& cellGuid)
     {
         // NB: Load is called from bootstrap thread.
-        YCHECK(State == EPeerState::None);
+        YCHECK(State_ == EPeerState::None);
 
         SetCellGuid(cellGuid);
 
         LOG_INFO("Loading slot");
 
-        State = EPeerState::Initializing;
+        State_ = EPeerState::Initializing;
 
-        auto tabletCellController = Bootstrap->GetTabletCellController();
-        ChangelogStore = tabletCellController->GetChangelogCatalog()->GetStore(CellGuid);
-        SnapshotStore = tabletCellController->GetSnapshotCatalog()->GetStore(CellGuid);
+        auto tabletCellController = Bootstrap_->GetTabletCellController();
+        ChangelogStore_ = tabletCellController->GetChangelogCatalog()->GetStore(CellGuid_);
+        SnapshotStore_ = tabletCellController->GetSnapshotCatalog()->GetStore(CellGuid_);
 
-        State = EPeerState::Stopped;
+        State_ = EPeerState::Stopped;
 
         LOG_INFO("Slot loaded");
     }
@@ -182,40 +201,40 @@ public:
     void Create(const TCreateTabletSlotInfo& createInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State == EPeerState::None);
+        YCHECK(State_ == EPeerState::None);
 
         auto cellGuid = FromProto<TCellGuid>(createInfo.cell_guid());
         SetCellGuid(cellGuid);
 
         LOG_INFO("Creating slot");
 
-        State = EPeerState::Initializing;
+        State_ = EPeerState::Initializing;
 
         auto this_ = MakeStrong(this);
         BIND([this, this_] () {
             SwitchToIOThread();
 
-            auto tabletCellController = Bootstrap->GetTabletCellController();
-            ChangelogStore = tabletCellController->GetChangelogCatalog()->CreateStore(CellGuid);
-            SnapshotStore = tabletCellController->GetSnapshotCatalog()->CreateStore(CellGuid);
+            auto tabletCellController = Bootstrap_->GetTabletCellController();
+            ChangelogStore_ = tabletCellController->GetChangelogCatalog()->CreateStore(CellGuid_);
+            SnapshotStore_ = tabletCellController->GetSnapshotCatalog()->CreateStore(CellGuid_);
 
             SwitchToControlThread();
 
-            State = EPeerState::Stopped;
+            State_ = EPeerState::Stopped;
 
             LOG_INFO("Slot created");
         })
-        .AsyncVia(Bootstrap->GetControlInvoker())
+        .AsyncVia(Bootstrap_->GetControlInvoker())
         .Run();
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EPeerState::Initializing && State != EPeerState::Finalizing);
+        YCHECK(State_ != EPeerState::Initializing && State_ != EPeerState::Finalizing);
 
         auto cellConfig = New<TCellConfig>();
-        cellConfig->CellGuid = CellGuid;
+        cellConfig->CellGuid = CellGuid_;
         // NB: Missing peers will be represented by empty strings.
         cellConfig->Addresses.resize(configureInfo.config().size());
         for (const auto& peer : configureInfo.config().peers()) {
@@ -223,27 +242,27 @@ public:
         }
 
         if (HydraManager) {
-            CellManager->Reconfigure(cellConfig);
+            CellManager_->Reconfigure(cellConfig);
         } else {
-            PeerId = configureInfo.peer_id();
-            State = EPeerState::Elections;
+            PeerId_ = configureInfo.peer_id();
+            State_ = EPeerState::Elections;
 
-            CellManager = New<TCellManager>(
+            CellManager_ = New<TCellManager>(
                 cellConfig,
-                Bootstrap->GetTabletChannelFactory(),
+                Bootstrap_->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
-            Automaton = New<TTabletAutomaton>(Bootstrap, Owner);
+            Automaton_ = New<TTabletAutomaton>(Bootstrap_, Owner_);
 
             HydraManager = CreateDistributedHydraManager(
-                Config->TabletNode->HydraManager,
-                Bootstrap->GetControlInvoker(),
+                Config_->TabletNode->HydraManager,
+                Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(),
-                Automaton,
-                Bootstrap->GetRpcServer(),
-                CellManager,
-                ChangelogStore,
-                SnapshotStore);
+                Automaton_,
+                Bootstrap_->GetRpcServer(),
+                CellManager_,
+                ChangelogStore_,
+                SnapshotStore_);
 
             HydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
             HydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
@@ -251,47 +270,47 @@ public:
             HydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             HydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-            HiveManager = New<THiveManager>(
-                CellGuid,
-                Config->TabletNode->HiveManager,
-                Bootstrap->GetCellDirectory(),
+            HiveManager_ = New<THiveManager>(
+                CellGuid_,
+                Config_->TabletNode->HiveManager,
+                Bootstrap_->GetCellDirectory(),
                 GetAutomatonInvoker(),
-                Bootstrap->GetRpcServer(),
+                Bootstrap_->GetRpcServer(),
                 HydraManager,
-                Automaton);
+                Automaton_);
 
-            TabletManager = New<TTabletManager>(
-                Config->TabletNode->TabletManager,
-                Owner,
-                Bootstrap);
+            TabletManager_ = New<TTabletManager>(
+                Config_->TabletNode->TabletManager,
+                Owner_,
+                Bootstrap_);
 
-            TransactionManager = New<TTransactionManager>(
-                Config->TabletNode->TransactionManager,
-                Owner,
-                Bootstrap);
+            TransactionManager_ = New<TTransactionManager>(
+                Config_->TabletNode->TransactionManager,
+                Owner_,
+                Bootstrap_);
 
-            TransactionSupervisor = New<TTransactionSupervisor>(
-                Config->TabletNode->TransactionSupervisor,
+            TransactionSupervisor_ = New<TTransactionSupervisor>(
+                Config_->TabletNode->TransactionSupervisor,
                 GetAutomatonInvoker(),
-                Bootstrap->GetRpcServer(),
+                Bootstrap_->GetRpcServer(),
                 HydraManager,
-                Automaton,
-                HiveManager,
-                TransactionManager,
-                Bootstrap->GetTimestampProvider());
+                Automaton_,
+                HiveManager_,
+                TransactionManager_,
+                Bootstrap_->GetTimestampProvider());
 
-            TabletService = New<TTabletService>(
-                Owner,
-                Bootstrap);
+            TabletService_ = New<TTabletService>(
+                Owner_,
+                Bootstrap_);
 
-            TransactionSupervisor->Start();
-            TabletManager->Initialize();
+            TransactionSupervisor_->Start();
+            TabletManager_->Initialize();
             HydraManager->Start();
-            HiveManager->Start();
-            TabletService->Start();
+            HiveManager_->Start();
+            TabletService_->Start();
         }
 
-        CellConfig = configureInfo.config();
+        CellConfig_ = configureInfo.config();
 
         LOG_INFO("Slot configured");
     }
@@ -299,62 +318,62 @@ public:
     void Remove()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State != EPeerState::None);
+        YCHECK(State_ != EPeerState::None);
         
         LOG_INFO("Removing slot");
         
-        State = EPeerState::Finalizing;
+        State_ = EPeerState::Finalizing;
 
         auto this_ = MakeStrong(this);
         BIND([this, this_] () {
             SwitchToIOThread();
 
-            auto tabletCellController = Bootstrap->GetTabletCellController();
-            tabletCellController->GetChangelogCatalog()->RemoveStore(CellGuid);
-            tabletCellController->GetSnapshotCatalog()->RemoveStore(CellGuid);
+            auto tabletCellController = Bootstrap_->GetTabletCellController();
+            tabletCellController->GetChangelogCatalog()->RemoveStore(CellGuid_);
+            tabletCellController->GetSnapshotCatalog()->RemoveStore(CellGuid_);
 
             SwitchToControlThread();
 
-            SnapshotStore.Reset();
-            ChangelogStore.Reset();
+            SnapshotStore_.Reset();
+            ChangelogStore_.Reset();
             Reset();
 
             LOG_INFO("Slot removed");
         })
-        .AsyncVia(Bootstrap->GetControlInvoker())
+        .AsyncVia(Bootstrap_->GetControlInvoker())
         .Run();
     }
 
 
 private:
-    TTabletSlot* Owner;
-    int SlotIndex;
-    NCellNode::TCellNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TTabletSlot* Owner_;
+    int SlotIndex_;
+    NCellNode::TCellNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    TCellGuid CellGuid;
-    mutable EPeerState State;
-    TPeerId PeerId;
-    NHydra::NProto::TCellConfig CellConfig;
+    TCellGuid CellGuid_;
+    mutable EPeerState State_;
+    TPeerId PeerId_;
+    NHydra::NProto::TCellConfig CellConfig_;
 
-    IChangelogStorePtr ChangelogStore;
-    ISnapshotStorePtr SnapshotStore;
-    TCellManagerPtr CellManager;
+    IChangelogStorePtr ChangelogStore_;
+    ISnapshotStorePtr SnapshotStore_;
+    TCellManagerPtr CellManager_;
     IHydraManagerPtr HydraManager;
     
-    THiveManagerPtr HiveManager;
-    TMailbox* MasterMailbox;
+    THiveManagerPtr HiveManager_;
+    TMailbox* MasterMailbox_;
 
-    TTabletManagerPtr TabletManager;
+    TTabletManagerPtr TabletManager_;
 
-    TTransactionManagerPtr TransactionManager;
-    TTransactionSupervisorPtr TransactionSupervisor;
+    TTransactionManagerPtr TransactionManager_;
+    TTransactionSupervisorPtr TransactionSupervisor_;
 
-    TTabletServicePtr TabletService;
+    TTabletServicePtr TabletService_;
 
-    TTabletAutomatonPtr Automaton;
-    TActionQueuePtr AutomatonQueue;
-    IInvokerPtr EpochAutomatonInvoker;
+    TTabletAutomatonPtr Automaton_;
+    TActionQueuePtr AutomatonQueue_;
+    IInvokerPtr EpochAutomatonInvoker_;
 
     NLog::TTaggedLogger Logger;
 
@@ -363,57 +382,57 @@ private:
     {
         SetCellGuid(NullCellGuid);
 
-        State = EPeerState::None;
+        State_ = EPeerState::None;
         
-        PeerId = InvalidPeerId;
+        PeerId_ = InvalidPeerId;
         
-        CellConfig = NHydra::NProto::TCellConfig();
+        CellConfig_ = NHydra::NProto::TCellConfig();
         
-        CellManager.Reset();
+        CellManager_.Reset();
 
         if (HydraManager) {
             HydraManager->Stop();
             HydraManager.Reset();
         }
 
-        if (HiveManager) {
-            HiveManager->Stop();
-            HiveManager.Reset();
+        if (HiveManager_) {
+            HiveManager_->Stop();
+            HiveManager_.Reset();
         }
 
-        MasterMailbox = nullptr;
+        MasterMailbox_ = nullptr;
 
-        TabletManager.Reset();
+        TabletManager_.Reset();
 
-        TransactionManager.Reset();
+        TransactionManager_.Reset();
 
-        if (TransactionSupervisor) {
-            TransactionSupervisor->Stop();
-            TransactionSupervisor.Reset();
+        if (TransactionSupervisor_) {
+            TransactionSupervisor_->Stop();
+            TransactionSupervisor_.Reset();
         }
 
-        if (TabletService) {
-            TabletService->Stop();
-            TabletService.Reset();
+        if (TabletService_) {
+            TabletService_->Stop();
+            TabletService_.Reset();
         }
 
-        Automaton.Reset();
+        Automaton_.Reset();
 
-        EpochAutomatonInvoker.Reset();
+        EpochAutomatonInvoker_.Reset();
     }
 
     void SetCellGuid(const TCellGuid& cellGuid)
     {
-        CellGuid = cellGuid;
+        CellGuid_ = cellGuid;
         InitLogger();
     }
 
     void InitLogger()
     {
         Logger = NLog::TTaggedLogger(TabletNodeLogger);
-        Logger.AddTag(Sprintf("Slot: %d", SlotIndex));
-        if (CellGuid != NullCellGuid) {
-            Logger.AddTag(Sprintf("CellGuid: %s", ~ToString(CellGuid)));
+        Logger.AddTag(Sprintf("Slot: %d", SlotIndex_));
+        if (CellGuid_ != NullCellGuid) {
+            Logger.AddTag(Sprintf("CellGuid: %s", ~ToString(CellGuid_)));
         }
     }
 
@@ -426,14 +445,14 @@ private:
 
     void SwitchToControlThread()
     {
-        SwitchTo(Bootstrap->GetControlInvoker());
+        SwitchTo(Bootstrap_->GetControlInvoker());
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
 
 
     void OnStartEpoch()
     {
-        EpochAutomatonInvoker = HydraManager
+        EpochAutomatonInvoker_ = HydraManager
             ->GetEpochContext()
             ->CancelableContext
             ->CreateInvoker(GetAutomatonInvoker());
@@ -441,7 +460,7 @@ private:
 
     void OnStopEpoch()
     {
-        EpochAutomatonInvoker.Reset();
+        EpochAutomatonInvoker_.Reset();
     }
 
 
@@ -456,7 +475,7 @@ TTabletSlot::TTabletSlot(
     int slotIndex,
     NCellNode::TCellNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         this,
         slotIndex,
         config,
@@ -468,87 +487,92 @@ TTabletSlot::~TTabletSlot()
 
 const TCellGuid& TTabletSlot::GetCellGuid() const
 {
-    return Impl->GetCellGuid();
+    return Impl_->GetCellGuid();
 }
 
 EPeerState TTabletSlot::GetState() const
 {
-    return Impl->GetState();
+    return Impl_->GetState();
 }
 
 TPeerId TTabletSlot::GetPeerId() const
 {
-    return Impl->GetPeerId();
+    return Impl_->GetPeerId();
 }
 
 const NHydra::NProto::TCellConfig& TTabletSlot::GetCellConfig() const
 {
-    return Impl->GetCellConfig();
+    return Impl_->GetCellConfig();
 }
 
 IHydraManagerPtr TTabletSlot::GetHydraManager() const
 {
-    return Impl->GetHydraManager();
+    return Impl_->GetHydraManager();
 }
 
 TTabletAutomatonPtr TTabletSlot::GetAutomaton() const
 {
-    return Impl->GetAutomaton();
+    return Impl_->GetAutomaton();
 }
 
 IInvokerPtr TTabletSlot::GetAutomatonInvoker() const
 {
-    return Impl->GetAutomatonInvoker();
+    return Impl_->GetAutomatonInvoker();
 }
 
 IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker() const
 {
-    return Impl->GetEpochAutomatonInvoker();
+    return Impl_->GetEpochAutomatonInvoker();
 }
 
 THiveManagerPtr TTabletSlot::GetHiveManager() const
 {
-    return Impl->GetHiveManager();
+    return Impl_->GetHiveManager();
 }
 
 TMailbox* TTabletSlot::GetMasterMailbox()
 {
-    return Impl->GetMasterMailbox();
+    return Impl_->GetMasterMailbox();
 }
 
 TTransactionManagerPtr TTabletSlot::GetTransactionManager() const
 {
-    return Impl->GetTransactionManager();
+    return Impl_->GetTransactionManager();
 }
 
 TTransactionSupervisorPtr TTabletSlot::GetTransactionSupervisor() const
 {
-    return Impl->GetTransactionSupervisor();
+    return Impl_->GetTransactionSupervisor();
 }
 
 TTabletManagerPtr TTabletSlot::GetTabletManager() const
 {
-    return Impl->GetTabletManager();
+    return Impl_->GetTabletManager();
+}
+
+TObjectId TTabletSlot::GenerateId(EObjectType type)
+{
+    return Impl_->GenerateId(type);
 }
 
 void TTabletSlot::Load(const TCellGuid& cellGuid)
 {
-    Impl->Load(cellGuid);
+    Impl_->Load(cellGuid);
 }
 
 void TTabletSlot::Create(const TCreateTabletSlotInfo& createInfo)
 {
-    Impl->Create(createInfo);
+    Impl_->Create(createInfo);
 }
 
 void TTabletSlot::Configure(const TConfigureTabletSlotInfo& configureInfo)
 {
-    Impl->Configure(configureInfo);
+    Impl_->Configure(configureInfo);
 }
 
 void TTabletSlot::Remove()
 {
-    Impl->Remove();
+    Impl_->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

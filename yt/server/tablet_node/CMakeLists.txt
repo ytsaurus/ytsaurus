@@ -11,10 +11,11 @@ set( SRCS
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
   ${BASE}/tablet_service.cpp
+  ${BASE}/store.cpp
   ${BASE}/dynamic_memory_store.cpp
 #  ${BASE}/static_memory_store.cpp
+  ${BASE}/chunk_store.cpp
   ${BASE}/store_manager.cpp
-  ${BASE}/persistent_store.cpp
   ${BASE}/flush.cpp
 #  ${BASE}/compaction.cpp
   ${BASE}/dynamic_memory_store_bits.cpp
@@ -37,7 +38,7 @@ set( HDRS
   ${BASE}/dynamic_memory_store_bits.h
 #  ${BASE}/static_memory_store.h
 #  ${BASE}/static_memory_store_bits.h
-  ${BASE}/persistent_store.h
+  ${BASE}/chunk_store.h
   ${BASE}/store_manager.h
   ${BASE}/flush.h
 #  ${BASE}/compaction.h

@@ -37,6 +37,7 @@ private:
     {
         const auto* tablet = GetThisTypedImpl();
         attributes->push_back("state");
+        attributes->push_back("index");
         attributes->push_back("table_id");
         attributes->push_back(TAttributeInfo("cell_id", tablet->GetCell()));
         TBase::ListSystemAttributes(attributes);
@@ -49,6 +50,12 @@ private:
         if (key == "state") {
             BuildYsonFluently(consumer)
                 .Value(tablet->GetState());
+            return true;
+        }
+
+        if (key == "index") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetIndex());
             return true;
         }
 

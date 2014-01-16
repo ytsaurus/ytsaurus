@@ -6,6 +6,8 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
+#include <ytlib/object_client/public.h>
+
 #include <server/hydra/public.h>
 
 #include <server/hive/public.h>
@@ -46,7 +48,9 @@ public:
     NHive::TTransactionSupervisorPtr GetTransactionSupervisor() const;
 
     TTabletManagerPtr GetTabletManager() const;
-    
+
+    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
+   
     void Load(const NHydra::TCellGuid& cellGuid);
     void Create(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
@@ -54,7 +58,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 

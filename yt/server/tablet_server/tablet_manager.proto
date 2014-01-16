@@ -22,14 +22,27 @@ message TReqRevokePeer
     required int32 peer_id = 2;
 }
 
-message TReqOnTabletMounted
+message TRspMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TReqOnTabletUnmounted
+message TRspUnmountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
+	optional int32 partition_index = 2; // null means Eden
+}
+
+message TReqUpdateTabletStores
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+	repeated TStoreDescriptor stores_to_add = 2;	
+	repeated TStoreDescriptor stores_to_remove = 3;	
 }
 
 ////////////////////////////////////////////////////////////////////////////////

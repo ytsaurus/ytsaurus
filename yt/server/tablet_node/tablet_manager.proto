@@ -1,8 +1,10 @@
 package NYT.NTabletNode.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/server/tablet_server/tablet_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,11 +35,19 @@ message TReqRotateStore
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TReqSetPersistentStore
+message TReqCommitFlushedChunk
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int32 store_index = 2;
+    required NYT.NProto.TGuid store_id = 2;
     required NYT.NProto.TGuid chunk_id = 3;
+}
+
+message TRspUpdateTabletStores
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+	optional NYT.NProto.TError error = 2;
+	repeated NYT.NTabletServer.NProto.TStoreDescriptor stores_to_add = 3;
+	repeated NYT.NTabletServer.NProto.TStoreDescriptor stores_to_remove = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

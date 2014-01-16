@@ -132,7 +132,7 @@ public:
         return UsedSlotCount_;
     }
 
-    const std::vector<TTabletSlotPtr>& GetSlots() const
+    const std::vector<TTabletSlotPtr>& Slots() const
     {
         return Slots_;
     }
@@ -237,9 +237,9 @@ int TTabletCellController::GetUsedTableSlotCount() const
     return Impl->GetUsedTabletSlotCount();
 }
 
-const std::vector<TTabletSlotPtr>& TTabletCellController::GetSlots() const
+const std::vector<TTabletSlotPtr>& TTabletCellController::Slots() const
 {
-    return Impl->GetSlots();
+    return Impl->Slots();
 }
 
 TTabletSlotPtr TTabletCellController::FindSlot(const TCellGuid& guid)

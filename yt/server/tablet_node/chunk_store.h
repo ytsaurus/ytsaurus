@@ -3,30 +3,34 @@
 #include "public.h"
 #include "store.h"
 
-#include <ytlib/chunk_client/public.h>
-
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPersistentStore
+class TChunkStore
     : public IStore
 {
 public:
-    explicit TPersistentStore(const NChunkClient::TChunkId& chunkId);
-    ~TPersistentStore();
+    explicit TChunkStore(const TStoreId& id);
+    ~TChunkStore();
 
     // IStore implementation.
+    virtual TStoreId GetId() const override;
+
+    virtual EStoreState GetState() const override;
+    virtual void SetState(EStoreState state) override;
+
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TKey lowerKey,
         NVersionedTableClient::TKey upperKey,
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
 
-    virtual bool IsPersistent() const override;
-
 private:
+    TStoreId Id_;
+    
+    EStoreState State_;
 
 };
 

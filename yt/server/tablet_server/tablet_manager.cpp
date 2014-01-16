@@ -10,10 +10,13 @@
 #include "private.h"
 
 #include <core/misc/address.h>
+#include <core/misc/string.h>
 
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/new_table_client/schema.h>
+
+#include <ytlib/object_client/helpers.h>
 
 #include <server/object_server/type_handler_detail.h>
 
@@ -41,13 +44,13 @@
 namespace NYT {
 namespace NTabletServer {
 
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NHydra;
 using namespace NTransactionServer;
-using namespace NCellMaster;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerServer::NProto;
@@ -55,6 +58,8 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NTabletNode::NProto;
 using namespace NVersionedTableClient;
+using namespace NChunkServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,11 +171,12 @@ public:
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, MakeStrong(this)));
 
-        RegisterMethod(BIND(&TImpl::StartSlots, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::SetCellState, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::RevokePeer, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::OnTabletMounted, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::OnTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraStartSlots, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetCellState, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRevokePeer, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
@@ -192,7 +198,7 @@ public:
             Bootstrap->GetMetaStateFacade()->GetManager(),
             request,
             this,
-            &TImpl::StartSlots);
+            &TImpl::HydraStartSlots);
     }
 
     TMutationPtr CreateSetCellStateMutation(const TReqSetCellState& request)
@@ -201,7 +207,7 @@ public:
             Bootstrap->GetMetaStateFacade()->GetManager(),
             request,
             this,
-            &TImpl::SetCellState);
+            &TImpl::HydraSetCellState);
     }
 
     TMutationPtr CreateRevokePeerMutation(const TReqRevokePeer& request)
@@ -210,7 +216,7 @@ public:
             Bootstrap->GetMetaStateFacade()->GetManager(),
             request,
             this,
-            &TImpl::RevokePeer);
+            &TImpl::HydraRevokePeer);
     }
 
 
@@ -337,6 +343,7 @@ public:
         // When mounting a table with no tablets, create the tablet automatically.
         if (table->Tablets().empty()) {
             auto* tablet = CreateTablet(table);
+            tablet->SetIndex(0);
             tablet->PivotKey() = EmptyKey();
             table->Tablets().push_back(tablet);
             firstTabletIndex = 0;
@@ -507,6 +514,12 @@ public:
 
         tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + lastTabletIndex + 1);
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
+
+        // Update all indexes.
+        for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
+            auto* tablet = tablets[index];
+            tablet->SetIndex(index);
+        }
 
         // Update chunk lists.
         // TODO(babenko): save data
@@ -841,7 +854,7 @@ private:
     }
 
 
-    void StartSlots(const TReqStartSlots& request)
+    void HydraStartSlots(const TReqStartSlots& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);       
 
@@ -883,7 +896,7 @@ private:
         }
     }
 
-    void SetCellState(const TReqSetCellState& request)
+    void HydraSetCellState(const TReqSetCellState& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);       
 
@@ -902,7 +915,7 @@ private:
             ~ToString(cellId));
     }
 
-    void RevokePeer(const TReqRevokePeer& request)
+    void HydraRevokePeer(const TReqRevokePeer& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);       
 
@@ -925,12 +938,19 @@ private:
         ReconfigureCell(cell);
     }
 
-    void OnTabletMounted(const TReqOnTabletMounted& request)
+    void HydraOnTabletMounted(const TRspMountTablet& response)
     {
-        auto id = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = FindTablet(id);
-        if (!tablet || tablet->GetState() != ETabletState::Mounting)
+        auto tabletId = FromProto<TTabletId>(response.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet))
             return;
+
+        if (tablet->GetState() != ETabletState::Mounting) {
+            LOG_INFO_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %s state, ignored (TabletId: %s)",
+                ~FormatEnum(tablet->GetState()).Quote(),
+                ~ToString(tabletId));
+            return;
+        }
         
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
@@ -943,13 +963,20 @@ private:
         tablet->SetState(ETabletState::Mounted);
     }
 
-    void OnTabletUnmounted(const TReqOnTabletUnmounted& request)
+    void HydraOnTabletUnmounted(const TRspUnmountTablet& response)
     {
-        auto id = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = FindTablet(id);
-        if (!tablet || tablet->GetState() != ETabletState::Unmounting)
+        auto tabletId = FromProto<TTabletId>(response.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet))
             return;
         
+        if (tablet->GetState() != ETabletState::Unmounting) {
+            LOG_INFO_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %s state, ignored (TabletId: %s)",
+                ~FormatEnum(tablet->GetState()).Quote(),
+                ~ToString(tabletId));
+            return;
+        }
+
         DoTabletUnmounted(tablet);
     }
 
@@ -969,6 +996,72 @@ private:
 
         YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
+    }
+
+    void HydraUpdateTabletStores(const TReqUpdateTabletStores& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet))
+            return;
+
+        // NB: Stores may be updated while unmounting to facilitate flush.
+        if (tablet->GetState() != ETabletState::Mounted &&
+            tablet->GetState() != ETabletState::Unmounting)
+        {
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stores for a tablet in %s state, ignored (TabletId: %s)",
+                ~FormatEnum(tablet->GetState()).Quote(),
+                ~ToString(tabletId));
+            return;
+        }
+
+        auto* cell = tablet->GetCell();
+
+        TRspUpdateTabletStores response;
+        response.mutable_tablet_id()->MergeFrom(request.tablet_id());
+        response.mutable_stores_to_add()->MergeFrom(request.stores_to_add());
+        response.mutable_stores_to_remove()->MergeFrom(request.stores_to_remove());
+
+        try {
+            auto chunkManager = Bootstrap->GetChunkManager();
+
+            // Collect all changes first.
+            auto decodeStoreDescriptors = [&] (const google::protobuf::RepeatedPtrField<TStoreDescriptor>& descriptors) -> std::vector<TChunkTree*> {
+                std::vector<TChunkTree*> results;
+                for (const auto& descriptor : descriptors) {
+                    auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                    if (TypeFromId(storeId) == EObjectType::Chunk ||
+                        TypeFromId(storeId) == EObjectType::ErasureChunk)
+                    {
+                        results.push_back(chunkManager->GetChunkOrThrow(storeId));
+                    }
+                }
+                return results;
+            };
+
+            auto chunksToAttach = decodeStoreDescriptors(request.stores_to_add());
+            auto chunksToDetach = decodeStoreDescriptors(request.stores_to_remove());
+
+            // Apply all requested changes.
+            auto* table = tablet->GetTable();
+            auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
+            chunkManager->AttachToChunkList(chunkList, chunksToAttach);
+            chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
+
+            LOG_INFO("Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s])",
+                ~ToString(tabletId),
+                ~JoinToString(ToObjectIds(chunksToAttach)),
+                ~JoinToString(ToObjectIds(chunksToDetach)));
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            LOG_WARNING(error, "Error updating tablet stores (TabletId: %s)",
+                ~ToString(tabletId));
+            ToProto(response.mutable_error(), error);
+        }
+
+        auto hiveManager = Bootstrap->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        hiveManager->PostMessage(mailbox, response);
     }
 
 
@@ -1081,11 +1174,11 @@ private:
             auto hiveManager = Bootstrap->GetHiveManager();
 
             {
-                TReqSetTabletState req;
-                ToProto(req.mutable_tablet_id(), tablet->GetId());
-                req.set_state(NTabletNode::ETabletState::Unmounting);
+                TReqSetTabletState request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+                request.set_state(NTabletNode::ETabletState::Unmounting);
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                hiveManager->PostMessage(mailbox, req);
+                hiveManager->PostMessage(mailbox, request);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %s, TabletId: %s, CellId: %s)",

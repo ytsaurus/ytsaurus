@@ -65,6 +65,7 @@ private:
 
     std::vector<NVersionedTableClient::TUnversionedRow> PooledRowset_;
 
+    void CreateNewStore();
     
     TDynamicRow MaybeMigrateRow(const TDynamicRowRef& rowRef);
 

@@ -52,7 +52,7 @@ void TTablet::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, Id_);
-    Save(context, NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(Schema_));
+    Save(context, ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(Schema_));
     Save(context, KeyColumns_);
 
     // TODO(babenko)
@@ -67,31 +67,6 @@ void TTablet::Load(TLoadContext& context)
     Load(context, KeyColumns_);
 
     // TODO(babenko)
-}
-
-const TTabletId& TTablet::GetId() const
-{
-    return Id_;
-}
-
-TTabletSlot* TTablet::GetSlot() const
-{
-    return Slot_;
-}
-
-const TTableSchema& TTablet::Schema() const
-{
-    return Schema_;
-}
-
-const TKeyColumns& TTablet::KeyColumns() const
-{
-    return KeyColumns_;
-}
-
-const TChunkListId& TTablet::GetChunkListId() const
-{
-    return ChunkListId_;
 }
 
 const TTableMountConfigPtr& TTablet::GetConfig() const
@@ -114,14 +89,32 @@ void TTablet::SetStoreManager(TStoreManagerPtr manager)
     StoreManager_ = manager;
 }
 
-ETabletState TTablet::GetState() const
+const yhash_map<TStoreId, IStorePtr>& TTablet::Stores() const
 {
-    return State_;
+    return Stores_;
 }
 
-void TTablet::SetState(ETabletState state)
+void TTablet::AddStore(IStorePtr store)
 {
-    State_ = state;
+    YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
+}
+
+void TTablet::RemoveStore(const TStoreId& id)
+{
+    YCHECK(Stores_.erase(id) == 1);
+}
+
+IStorePtr TTablet::FindStore(const TStoreId& id)
+{
+    auto it = Stores_.find(id);
+    return it == Stores_.end() ? nullptr : it->second;
+}
+
+IStorePtr TTablet::GetStore(const TStoreId& id)
+{
+    auto store = FindStore(id);
+    YCHECK(store);
+    return store;
 }
 
 const TDynamicMemoryStorePtr& TTablet::GetActiveStore() const
@@ -132,11 +125,6 @@ const TDynamicMemoryStorePtr& TTablet::GetActiveStore() const
 void TTablet::SetActiveStore(TDynamicMemoryStorePtr store)
 {
     ActiveStore_ = std::move(store);
-}
-
-std::vector<IStorePtr>& TTablet::PassiveStores()
-{
-    return PassiveStores_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

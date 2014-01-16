@@ -23,6 +23,7 @@ using NElection::NullCellGuid;
 
 using NTabletClient::TTabletCellId;
 using NTabletClient::TTabletId;
+using NTabletClient::TStoreId;
 
 using NTransactionClient::TTransactionId;
 using NTransactionClient::NullTransactionId;
@@ -39,15 +40,26 @@ DECLARE_ENUM(ETabletState,
     (Mounted)
 
     // NB: All states below are for unmounting workflow only!
-    (Unmounting)       // ephemeral, requested by master, immediately becomes WaitingForLock
+    (Unmounting)       // transient, requested by master, immediately becomes WaitingForLock
     (WaitingForLocks)
-    (RotatingStore)    // ephemeral, immediately becomes FlushingStores
+    (RotatingStore)    // transient, immediately becomes FlushingStores
     (FlushingStores)
     (Unmounted)
 );
 
-////////////////////////////////////////////////////////////////////////////////
+DECLARE_ENUM(EStoreState,
+    (ActiveDynamic)   // can receive updates
+    (PassiveDynamic)  // rotated and cannot receive more updates
 
+    (Flushing)        // transient, flush is in progress
+    (FlushCommitting) // UpdateTabletStores request sent
+    (FlushFailed)     // transient, waiting for back off to complete
+
+    (Persistent)      // stored in a chunk
+);
+
+////////////////////////////////////////////////////////////////////////////////
+    
 class TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 
@@ -113,8 +125,8 @@ typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
 //class TMemoryCompactor;
 
-class TPersistentStore;
-typedef TIntrusivePtr<TPersistentStore> TPersistentStorePtr;
+class TChunkStore;
+typedef TIntrusivePtr<TChunkStore> TChunkStorePtr;
 
 class TStoreFlusher;
 typedef TIntrusivePtr<TStoreFlusher> TStoreFlusherPtr;

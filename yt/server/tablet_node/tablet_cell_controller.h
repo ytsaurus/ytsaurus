@@ -28,7 +28,7 @@ public:
     int GetAvailableTabletSlotCount() const;
     int GetUsedTableSlotCount() const;
 
-    const std::vector<TTabletSlotPtr>& GetSlots() const;
+    const std::vector<TTabletSlotPtr>& Slots() const;
 
     TTabletSlotPtr FindSlot(const NHydra::TCellGuid& guid);
 

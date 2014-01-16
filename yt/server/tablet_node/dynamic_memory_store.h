@@ -23,6 +23,7 @@ class TDynamicMemoryStore
 public:
     TDynamicMemoryStore(
         TTabletManagerConfigPtr config,
+        const TStoreId& id,
         TTablet* tablet);
 
     ~TDynamicMemoryStore();
@@ -32,9 +33,6 @@ public:
     int GetLockCount() const;
     int Lock();
     int Unlock();
-
-    bool IsActive() const;
-    void MakePassive();
 
     TDynamicRow WriteRow(
         const NVersionedTableClient::TNameTablePtr& nameTable,
@@ -65,23 +63,27 @@ public:
     int GetAllocatedValueCount() const;
 
     // IStore implementaion.
+    virtual TStoreId GetId() const override;
+
+    virtual EStoreState GetState() const override;
+    virtual void SetState(EStoreState state) override;
+
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TKey lowerKey,
         NVersionedTableClient::TKey upperKey,
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
-        
-    virtual bool IsPersistent() const override;
 
 private:
     class TReader;
 
     TTabletManagerConfigPtr Config_;
+    TStoreId Id_;
     TTablet* Tablet_;
 
     int LockCount_;
 
-    bool Active_;
+    EStoreState State_;
 
     int KeyCount_;
     int SchemaColumnCount_;

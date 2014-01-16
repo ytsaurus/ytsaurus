@@ -21,6 +21,7 @@ namespace NTabletServer {
 class TTablet
     : public NObjectServer::TNonversionedObjectBase
 {
+    DEFINE_BYVAL_RW_PROPERTY(int, Index);
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);

@@ -3,12 +3,15 @@
 #include "tablet.h"
 #include "dynamic_memory_store.h"
 #include "config.h"
+#include "tablet_slot.h"
 #include "private.h"
 
 #include <core/misc/small_vector.h>
 
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/parallel_collector.h>
+
+#include <ytlib/object_client/public.h>
 
 #include <ytlib/tablet_client/protocol.h>
 
@@ -24,12 +27,13 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NTabletClient;
-using namespace NConcurrency;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,9 +51,7 @@ TStoreManager::TStoreManager(
     YCHECK(Config_);
     YCHECK(Tablet_);
 
-    Tablet_->SetActiveStore(New<TDynamicMemoryStore>(
-        Config_,
-        Tablet_));
+    CreateNewStore();
 }
 
 TStoreManager::~TStoreManager()
@@ -75,8 +77,10 @@ bool TStoreManager::HasActiveLocks() const
 
 bool TStoreManager::HasUnflushedStores() const
 {
-    for (const auto& store : Tablet_->PassiveStores()) {
-        if (!store->IsPersistent()) {
+    for (const auto& pair : Tablet_->Stores()) {
+        const auto& store = pair.second;
+        auto state = store->GetState();
+        if (state != EStoreState::Persistent) {
             return true;
         }
     }
@@ -110,8 +114,10 @@ void TStoreManager::LookupRow(
     }
 
     auto keySuccessor = GetKeySuccessor(key);
+
     SmallVector<IVersionedReaderPtr, 16> rowReaders;
-    auto tryAddStore = [&] (const IStorePtr& store) {
+    for (const auto& pair : Tablet_->Stores()) {
+        const auto& store = pair.second;
         auto rowReader = store->CreateReader(
             key,
             keySuccessor.Get(),
@@ -120,13 +126,6 @@ void TStoreManager::LookupRow(
         if (rowReader) {
             rowReaders.push_back(std::move(rowReader));
         }
-    };
-
-    tryAddStore(Tablet_->GetActiveStore());
-
-    const auto& passiveStores = Tablet_->PassiveStores();
-    for (auto it = passiveStores.rbegin(); it != passiveStores.rend(); ++it) {
-        tryAddStore(*it);
     }
 
     // Open readers.
@@ -149,11 +148,16 @@ void TStoreManager::LookupRow(
     }
 
     // Merge values.
-    TUnversionedRowBuilder builder;
-    bool keysWritten = false;
     std::vector<TVersionedRow> rows;
     TKeyPrefixComparer keyComparer(keyColumnCount);
-    
+
+    auto currentTimestamp = NullTimestamp | TombstoneTimestampMask;
+    SmallVector<TVersionedValue, TypicalColumnCount> currentValues(schemaColumnCount);
+
+    for (int id = 0; id < keyColumnCount; ++id) {
+        currentValues[id] = MakeVersionedValue(key[id], NullTimestamp);
+    }
+
     for (const auto& reader : rowReaders) {
         if (!reader->Read(&rows))
             continue;
@@ -169,38 +173,42 @@ void TStoreManager::LookupRow(
 
         YASSERT(row.GetTimestampCount() == 1);
         auto rowTimestamp = row.BeginTimestamps()[0];
-
-        if (rowTimestamp & TombstoneTimestampMask)
-            break;
-
-        if (!keysWritten) {
-            for (int id = 0; id < keyColumnCount; ++id) {
-                if (columnFilterFlags[id]) {
-                    builder.AddValue(rowKeys[id]);
-                    columnFilterFlags[id] = false;
+        if ((rowTimestamp & TimestampValueMask) < (currentTimestamp & TimestampValueMask))
+            continue;
+        
+        if (rowTimestamp & TombstoneTimestampMask) {
+            currentTimestamp = rowTimestamp;
+        } else {
+            if (currentTimestamp & TombstoneTimestampMask) {
+                currentTimestamp = rowTimestamp & TimestampValueMask;
+                for (int id = keyColumnCount; id < schemaColumnCount; ++id) {
+                    currentValues[id] = MakeVersionedSentinelValue(EValueType::Null, currentTimestamp);
                 }
             }
-            keysWritten = true;
-        }
 
-        const auto* rowValues = row.BeginValues();
-        for (int index = 0; index < row.GetValueCount(); ++index) {
-            const auto& value = rowValues[index];
-            int id = value.Id;
-            if (columnFilterFlags[id]) {
-                builder.AddValue(value);
-                columnFilterFlags[id] = false;
+            const auto* rowValues = row.BeginValues();
+            for (int index = 0; index < row.GetValueCount(); ++index) {
+                const auto& value = rowValues[index];
+                int id = value.Id;
+                if (columnFilterFlags[id] && currentValues[id].Timestamp < value.Timestamp) {
+                    currentValues[id] = value;
+                }
             }
         }
-
-        if (!(rowTimestamp & IncrementalTimestampMask))
-            break;
     }
 
+    TUnversionedRowBuilder builder;
     PooledRowset_.clear();
-    if (keysWritten) {
-        auto row = builder.GetRow();
-        PooledRowset_.push_back(row);
+    if (!(currentTimestamp & TombstoneTimestampMask)) {
+        for (int id = 0; id < schemaColumnCount; ++id) {
+            if (columnFilterFlags[id]) {
+                const auto& value = currentValues[id];
+                if (value.Type != EValueType::Null) {
+                    builder.AddValue(currentValues[id]);
+                }
+            }
+        }
+        PooledRowset_.push_back(builder.GetRow());
     }
     writer->WriteUnversionedRowset(PooledRowset_);
 }
@@ -268,14 +276,29 @@ void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
 
 void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
 {
-    // NB: Even passive store can handle it.
+    // NB: Even passive store can handle this.
     rowRef.Store->AbortRow(rowRef.Row);
     CheckForUnlockedStore(rowRef.Store);
 }
 
+void TStoreManager::CreateNewStore()
+{
+    auto* slot = Tablet_->GetSlot();
+    // NB: For tests mostly.
+    auto id = slot ? slot->GenerateId(EObjectType::TabletStore) : TStoreId::Create();
+    
+    auto store = New<TDynamicMemoryStore>(
+        Config_,
+        id,
+        Tablet_);
+
+    Tablet_->AddStore(store);
+    Tablet_->SetActiveStore(store);
+}
+
 TDynamicRow TStoreManager::MaybeMigrateRow(const TDynamicRowRef& rowRef)
 {
-    if (rowRef.Store->IsActive()) {
+    if (rowRef.Store->GetState() == EStoreState::ActiveDynamic) {
         return rowRef.Row;
     }
 
@@ -351,25 +374,22 @@ void TStoreManager::ResetRotationScheduled()
 void TStoreManager::Rotate()
 {
     auto activeStore = Tablet_->GetActiveStore();
-    Tablet_->PassiveStores().push_back(activeStore);
-    activeStore->MakePassive();
-
-    LOG_INFO("Tablet stores rotated (TabletId: %s, StoreCount: %d)",
-        ~ToString(Tablet_->GetId()),
-        static_cast<int>(Tablet_->PassiveStores().size()));
+    activeStore->SetState(EStoreState::PassiveDynamic);
 
     if (activeStore->GetLockCount() > 0) {
-        LOG_INFO("Current store is locked and will be kept (TabletId: %s, LockCount: %d)",
+        LOG_INFO("Current store is locked and will be kept (TabletId: %s, StoreId: %d, LockCount: %d)",
             ~ToString(Tablet_->GetId()),
+            ~ToString(activeStore->GetId()),
             activeStore->GetLockCount());
         YCHECK(LockedStores_.insert(activeStore).second);
     }
 
-    Tablet_->SetActiveStore(New<TDynamicMemoryStore>(
-        Config_,
-        Tablet_));
-
+    CreateNewStore();
     RotationScheduled_ = false;
+
+    LOG_INFO("Tablet stores rotated (TabletId: %s, StoreCount: %d)",
+        ~ToString(Tablet_->GetId()),
+        static_cast<int>(Tablet_->Stores().size()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,8 @@ public:
     int ValueCountRotationThreshold;
     i64 StringSpaceRotationThreshold;
 
+    TDuration StoreErrorBackoffTime;
+
     TTabletManagerConfig()
     {
         RegisterParameter("aligned_pool_chunk_size", AlignedPoolChunkSize)
@@ -62,6 +64,9 @@ public:
         RegisterParameter("string_space_rotation_threshold", StringSpaceRotationThreshold)
             .GreaterThan(0)
             .Default((i64) 100 * 1024 * 1024);
+
+        RegisterParameter("store_error_backoff_time", StoreErrorBackoffTime)
+            .Default(TDuration::Minutes(1));
     }
 };
 
@@ -72,15 +77,12 @@ class TStoreFlusherConfig
 {
 public:
     int PoolSize;
-    TDuration ErrorBackoffTime;
 
     TStoreFlusherConfig()
     {
         RegisterParameter("pool_size", PoolSize)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("error_backoff_time", ErrorBackoffTime)
-            .Default(TDuration::Minutes(1));
     }
 };
 

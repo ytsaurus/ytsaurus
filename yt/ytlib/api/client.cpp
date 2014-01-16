@@ -133,9 +133,10 @@ private:
         }
         const auto& tabletInfo = mountInfo->GetTablet(key);
         if (tabletInfo.State != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %s of table %s is not mounted",
+            THROW_ERROR_EXCEPTION("Tablet %s of table %s is in %s state",
                 ~ToString(tabletInfo.TabletId),
-                ~tablePath);
+                ~tablePath,
+                ~FormatEnum(tabletInfo.State).Quote());
         }
         return tabletInfo;
     }

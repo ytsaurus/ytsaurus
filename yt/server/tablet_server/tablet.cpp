@@ -16,6 +16,7 @@ using namespace NCellMaster;
 
 TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
+    , Index_(-1)
     , State_(ETabletState::Unmounted)
     , Table_(nullptr)
     , Cell_(nullptr)
@@ -26,6 +27,7 @@ void TTablet::Save(TSaveContext& context) const
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
+    Save(context, Index_);
     Save(context, State_);
     Save(context, Table_);
     Save(context, Cell_);
@@ -37,6 +39,7 @@ void TTablet::Load(TLoadContext& context)
     TNonversionedObjectBase::Load(context);
 
     using NYT::Load;
+    Load(context, Index_);
     Load(context, State_);
     Load(context, Table_);
     Load(context, Cell_);

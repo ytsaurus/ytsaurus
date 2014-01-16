@@ -45,9 +45,9 @@ using NHydra::EPeerState;
 
 using NTabletClient::TTabletCellId;
 using NTabletClient::NullTabletCellId;
-
 using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
+using NTabletClient::TStoreId;
 using NTabletClient::ETabletState;
 
 ////////////////////////////////////////////////////////////////////////////////

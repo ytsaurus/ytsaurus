@@ -3,15 +3,16 @@
 #include "private.h"
 #include "config.h"
 #include "dynamic_memory_store.h"
-#include "persistent_store.h"
+#include "chunk_store.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
+#include "tablet_cell_controller.h"
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -24,11 +25,13 @@
 
 #include <ytlib/api/transaction.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <server/tablet_server/tablet_manager.pb.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <server/tablet_node/tablet_manager.pb.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <server/hydra/mutation.h>
+
+#include <server/hive/hive_manager.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -39,13 +42,15 @@ using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NVersionedTableClient;
 using namespace NApi;
-using namespace NObjectClient;
 using namespace NChunkClient;
-using namespace NCypressClient;
+using namespace NHydra;
+using namespace NTabletServer::NProto;
+using namespace NTabletNode::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = TabletNodeLogger;
+static const TDuration ScanPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,11 +64,17 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->PoolSize, "StoreFlush"))
-    { }
-
-    TFuture<TChunkId> Enqueue(TTablet* tablet, int storeIndex)
+        , ScanExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::ScanSlots, Unretained(this)),
+            ScanPeriod))
     {
-        return New<TSession>(this, tablet, storeIndex)->Run();
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+    }
+
+    void Start()
+    {
+        ScanExecutor_->Start();
     }
 
 private:
@@ -72,169 +83,152 @@ private:
 
     TThreadPoolPtr ThreadPool_;
 
+    TPeriodicExecutorPtr ScanExecutor_;
 
-    class TSession
-        : public TRefCounted
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void ScanSlots()
     {
-    public:
-        explicit TSession(
-            TIntrusivePtr<TImpl> owner,
-            TTablet* tablet,
-            int storeIndex)
-            : Owner_(owner)
-            , StoreIndex_(storeIndex)
-            , Promise_(NewPromise<TChunkId>())
-            , Logger(TabletNodeLogger)
-        {
-            TabletId_ = tablet->GetId();
-            Store_ = tablet->PassiveStores()[StoreIndex_];
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-            auto* slot = tablet->GetSlot();
-
-            TabletManager_ = slot->GetTabletManager();
-
-            AutomatonInvoker_ = slot->GetEpochAutomatonInvoker();
-            VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-            YCHECK(tablet->PassiveStores()[StoreIndex_] == Store_);
-
-            ChunkListId_ = tablet->GetChunkListId();
-
-            Logger.AddTag(Sprintf("TabletId: %s", ~ToString(TabletId_)));
-        }
-
-        TFuture<TChunkId> Run()
-        {
-            Start();
-            return Promise_;
-        }
-
-    private:
-        TIntrusivePtr<TImpl> Owner_;
-        IStorePtr Store_;
-        int StoreIndex_;
-
-        TTabletManagerPtr TabletManager_;
-        TTabletId TabletId_;
-        TChunkListId ChunkListId_;
-        IInvokerPtr AutomatonInvoker_;
-
-        TPromise<TChunkId> Promise_;
-
-        NLog::TTaggedLogger Logger;
-
-        DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    
-        void DoRun()
-        {
-            VERIFY_THREAD_AFFINITY_ANY();
-
-            try {
-                // Write chunk.
-                auto transactionManager = Owner_->Bootstrap_->GetTransactionManager();
-
-                TTransactionPtr transaction;
-                {
-                    LOG_INFO("Creating upload transaction for store flush");
-                    NTransactionClient::TTransactionStartOptions options;
-                    options.Attributes->Set("title", Sprintf("Store flush for tablet %s", ~ToString(TabletId_)));
-                    auto transactionOrError = WaitFor(transactionManager->Start(options));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
-                    transaction = transactionOrError.GetValue();
-                }
-
-            
-                LOG_INFO("Started writing store chunk");
-
-                auto reader = Store_->CreateReader(
-                    MinKey().Get(),
-                    MaxKey().Get(),
-                    AllCommittedTimestamp,
-                    TColumnFilter());
-
-                // TODO(babenko): need some real writer here!
-                IVersionedWriterPtr writer;
-
-                std::vector<TVersionedRow> rows;
-                while (reader->Read(&rows)) {
-                    // NB: Memory store reader is always synchronous.
-                    YCHECK(!rows.empty());
-#if 0
-                    if (!writer->Write(rows)) {
-                        auto writeResult = WaitFor(writer->GetReadyEvent());
-                        THROW_ERROR_EXCEPTION_IF_FAILED(writeResult);
-                    }
-#endif
-                }
-
-                {
-#if 0
-                    auto closeResult = WaitFor(writer->Close());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(closeResult);
-#endif
-                }
-
-                // TODO(babenko): need some real chunk id here!
-                TChunkId chunkId;
-
-                LOG_INFO("Finished writing store chunk");
-
-                {
-#if 0
-                    LOG_INFO("Attaching flushed store chunk (ChunkId: %s, ChunkListId: %s)",
-                        ~ToString(chunkId),
-                        ~ToString(ChunkListId_));
-                    TObjectServiceProxy proxy(Owner_->Bootstrap_->GetMasterChannel());
-                    auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
-                    ToProto(req->add_children_ids(), chunkId);
-                    auto rsp = WaitFor(proxy.Execute(req));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching flushed store chunk");
-#endif
-                }
-
-                {
-                    LOG_INFO("Committing store flush transaction");
-                    auto commitResult = WaitFor(transaction->Commit());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
-                }
-
-                LOG_INFO("Store flush completed");
-
-                Promise_.Set(chunkId);
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error flushing tablet store, backing off");
-
-                TDelayedExecutor::Submit(
-                    BIND(&TSession::Retry, MakeStrong(this))
-                        .Via(AutomatonInvoker_),
-                    Owner_->Config_->ErrorBackoffTime);
+        // Post ScanSlot callback to each leading slot.
+        auto tabletCellController = Bootstrap_->GetTabletCellController();
+        const auto& slots = tabletCellController->Slots();
+        for (const auto& slot : slots) {
+            if (slot->GetState() == EPeerState::Leading) {
+                slot->GetEpochAutomatonInvoker()->Invoke(
+                    BIND(&TImpl::ScanSlot, MakeStrong(this), slot));
             }
         }
+    }
 
-        void Retry()
-        {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-            
-            auto* tablet = TabletManager_->FindTablet(TabletId_);
-            if (!tablet)
-                return;
-
-            Start();
+    void ScanSlot(const TTabletSlotPtr& slot)
+    {
+        auto tabletManager = slot->GetTabletManager();
+        auto tablets = tabletManager->Tablets().GetValues();
+        for (auto* tablet : tablets) {
+            ScanTablet(tablet);
         }
+    }
 
-        void Start()
-        {
-            Owner_->ThreadPool_->GetInvoker()->Invoke(BIND(
-                &TSession::DoRun,
-                MakeStrong(this)));
+    void ScanTablet(TTablet* tablet)
+    {
+        for (const auto& pair : tablet->Stores()) {
+            ScanStore(tablet, pair.second);
         }
+    }
 
-    };
+    void ScanStore(TTablet* tablet, const IStorePtr& store)
+    {
+        // Preliminary check.
+        if (store->GetState() != EStoreState::PassiveDynamic)
+            return;
+
+        tablet->GetEpochAutomatonInvoker()->Invoke(
+            BIND(&TImpl::FlushStore, MakeStrong(this), tablet, store));
+    }
+
+    void FlushStore(TTablet* tablet, const IStorePtr& store)
+    {
+        // Final check.
+        if (store->GetState() != EStoreState::PassiveDynamic)
+            return;
+
+        NLog::TTaggedLogger Logger(TabletNodeLogger);
+        Logger.AddTag(Sprintf("TabletId: %s, StoreId: %s",
+            ~ToString(tablet->GetId()),
+            ~ToString(store->GetId())));
+
+        auto* slot = tablet->GetSlot();
+        auto hydraManager = slot->GetHydraManager();
+        auto tabletManager = slot->GetTabletManager();
+
+        auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
+        auto poolInvoker = ThreadPool_->GetInvoker();
+
+        try {
+            LOG_INFO("Store flush started");
+
+            store->SetState(EStoreState::Flushing);
+
+            SwitchTo(poolInvoker);
+
+            // Write chunk.
+            auto transactionManager = Bootstrap_->GetTransactionManager();
+        
+            TTransactionPtr transaction;
+            {
+                LOG_INFO("Creating upload transaction for store flush");
+                NTransactionClient::TTransactionStartOptions options;
+                options.AutoAbort = false;
+                options.Attributes->Set("title", Sprintf("Flush of store %s, tablet %s",
+                    ~ToString(store->GetId()),
+                    ~ToString(tablet->GetId())));
+                auto transactionOrError = WaitFor(transactionManager->Start(options));
+                THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+                transaction = transactionOrError.GetValue();
+            }
+                            
+            LOG_INFO("Started writing store chunk");
+        
+            auto reader = store->CreateReader(
+                MinKey().Get(),
+                MaxKey().Get(),
+                AllCommittedTimestamp,
+                TColumnFilter());
+        
+            // TODO(babenko): need some real writer here!
+            IVersionedWriterPtr writer;
+        
+            std::vector<TVersionedRow> rows;
+            while (reader->Read(&rows)) {
+                // NB: Memory store reader is always synchronous.
+                YCHECK(!rows.empty());
+#if 0
+                if (!writer->Write(rows)) {
+                    auto result = WaitFor(writer->GetReadyEvent());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                }
+#endif
+            }
+        
+            {
+#if 0
+                auto result = WaitFor(writer->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+#endif
+            }
+        
+            // TODO(babenko): need some real chunk id here!
+            TChunkId chunkId(0, NObjectClient::EObjectType::Chunk, 0, 0);
+
+            LOG_INFO("Finished writing store chunk");
+        
+            SwitchTo(automatonInvoker);
+
+            {
+                TReqCommitFlushedChunk request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+                ToProto(request.mutable_store_id(), store->GetId());
+                ToProto(request.mutable_chunk_id(), chunkId);
+                CreateMutation(slot->GetHydraManager(), request)
+                    ->Commit();
+            }
+
+            // Just abandon the transaction, hopefully it will expire after the chunk is attached.
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error flushing tablet store, backing off");
+        
+            SwitchTo(automatonInvoker);
+
+            YCHECK(store->GetState() == EStoreState::Flushing);
+            tabletManager->SetStoreFailed(tablet, store, EStoreState::FlushFailed);
+        }
+    }
 
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,12 +243,12 @@ TStoreFlusher::TStoreFlusher(
 TStoreFlusher::~TStoreFlusher()
 { }
 
-TFuture<TChunkId> TStoreFlusher::Enqueue(TTablet* tablet, int storeIndex)
+void TStoreFlusher::Start()
 {
-    return Impl_->Enqueue(tablet, storeIndex);
+    Impl_->Start();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NTabletNode
+} // namespace NYT

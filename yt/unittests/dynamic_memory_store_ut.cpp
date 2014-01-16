@@ -23,6 +23,7 @@ protected:
         : TMemoryStoreTestBase()
         , Store(New<TDynamicMemoryStore>(
             New<TTabletManagerConfig>(),
+            TTabletId(),
             Tablet.get()))
     { }
 

@@ -194,9 +194,9 @@ void TBootstrap::Run()
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
 
-    MasterConnector = New<TMasterConnector>(Config->DataNode, this);
+    MasterConnector = New<NDataNode::TMasterConnector>(Config->DataNode, this);
 
-    ChunkStore = New<TChunkStore>(Config->DataNode, this);
+    ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
 
@@ -355,8 +355,9 @@ void TBootstrap::Run()
     PeerBlockUpdater->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
-    httpServer.Start();
+    StoreFlusher->Start();
     RpcServer->Start();
+    httpServer.Start();
 
     Sleep(TDuration::Max());
 }
@@ -421,7 +422,7 @@ TJobProxyConfigPtr TBootstrap::GetJobProxyConfig() const
     return JobProxyConfig;
 }
 
-TChunkStorePtr TBootstrap::GetChunkStore() const
+NDataNode::TChunkStorePtr TBootstrap::GetChunkStore() const
 {
     return ChunkStore;
 }
@@ -461,7 +462,7 @@ TReaderCachePtr TBootstrap::GetReaderCache() const
     return ReaderCache;
 }
 
-TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 {
     return MasterConnector;
 }
