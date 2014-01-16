@@ -257,6 +257,69 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
     CheckResult(expected, actual);
 }
 
+TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
+{
+    std::vector<TVersionedRow> expected;
+    {
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1);
+        FillKey(row, MakeNullable(A), MakeNullable(2), Null);
+
+        // v2
+        row.BeginValues()[0] = MakeVersionedIntegerValue(100, 10, 3);
+
+        row.BeginTimestamps()[0] = 1 | IncrementalTimestampMask;
+
+        expected.push_back(row);
+    } {
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+        FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
+        row.BeginTimestamps()[0] = 20 | TombstoneTimestampMask;
+
+        expected.push_back(row);
+    }
+
+    WriteThreeRows();
+
+    TTableSchema schema;
+    schema.Columns() = {
+        TColumnSchema("k1", EValueType::String),
+        TColumnSchema("k2", EValueType::Integer),
+        TColumnSchema("k3", EValueType::Double),
+        TColumnSchema("v2", EValueType::Integer)
+    };
+
+    auto chunkMeta = New<TCachableVersionedChunkMeta>(
+        MemoryReader,
+        schema,
+        KeyColumns);
+
+    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+
+    TUnversionedOwningRowBuilder lowerKeyBuilder;
+    lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
+    lowerKeyBuilder.AddValue(MakeUnversionedIntegerValue(1, 1));
+    lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
+
+    TReadLimit lowerLimit;
+    lowerLimit.SetKey(lowerKeyBuilder.Finish());
+
+    auto chunkReader = CreateVersionedChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        chunkMeta,
+        std::move(lowerLimit),
+        TReadLimit());
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    std::vector<TVersionedRow> actual;
+    actual.reserve(10);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+
+    CheckResult(expected, actual);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
