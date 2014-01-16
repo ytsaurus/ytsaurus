@@ -98,7 +98,7 @@ public:
         : Epoch(0)
         , Waiters(0)
 #ifndef _linux_
-        , Event()
+        , Event_()
 #endif
     { }
 
@@ -140,7 +140,7 @@ private:
     TAtomic Waiters;
 
 #ifndef _linux_
-    Event Event;
+    Event Event_;
 #endif
 
 };
@@ -165,7 +165,7 @@ inline void TEventCount::DoNotify(int n)
 #ifdef _linux_
         NDetail::futex((int*) &Epoch, FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
 #else
-        Event.Signal();
+        Event_.Signal();
 #endif
     }
 }
@@ -189,9 +189,9 @@ inline void TEventCount::Wait(TCookie key)
     }
 #else
     if (AtomicGet(Epoch) == key.Epoch) {
-        Event.Reset();
+        Event_.Reset();
         if (AtomicGet(Epoch) == key.Epoch) {
-            YCHECK(Event.Wait());
+            YCHECK(Event_.Wait());
         }
     }
 #endif
