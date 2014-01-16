@@ -82,6 +82,7 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
     , LastKey(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
     , BlockWriter_(new TBlockWriter(Schema_, KeyColumns_))
+    , RowCount_(0)
 {
     YCHECK(Schema_.Columns().size() > 0);
     YCHECK(KeyColumns_.size() > 0);
@@ -196,6 +197,7 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
 
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(meta.mutable_extensions(), BlockIndexExt_);
+    SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
 
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);

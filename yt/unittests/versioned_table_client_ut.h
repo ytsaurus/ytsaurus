@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "framework.h"
 
 #include <yt/core/yson/public.h>
 
@@ -7,6 +8,7 @@
 
 #include <yt/ytlib/new_table_client/public.h>
 #include <yt/ytlib/new_table_client/unversioned_row.h>
+#include <yt/ytlib/new_table_client/versioned_row.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -55,6 +57,32 @@ inline Stroka KeyToYson(TKey key)
 {
     return ConvertToYsonString(key, EYsonFormat::Text).Data();
 }
+
+
+class TVersionedTableClientTestBase
+    : public ::testing::Test
+{
+protected:
+    void ExpectRowsEqual(TVersionedRow expected, TVersionedRow actual)
+    {
+        if (!expected) {
+            EXPECT_FALSE(actual);
+            return;
+        }
+
+        EXPECT_EQ(0, CompareRows(expected.BeginKeys(), expected.EndKeys(), actual.BeginKeys(), actual.EndKeys()));
+        EXPECT_EQ(expected.GetTimestampCount(), actual.GetTimestampCount());
+        for (int i = 0; i < expected.GetTimestampCount(); ++i) {
+            EXPECT_EQ(expected.BeginTimestamps()[i], actual.BeginTimestamps()[i]);
+        }
+
+        EXPECT_EQ(expected.GetValueCount(), actual.GetValueCount());
+        for (int i = 0; i < expected.GetValueCount(); ++i) {
+            EXPECT_EQ(CompareRowValues(expected.BeginValues()[i], actual.BeginValues()[i]), 0);
+            EXPECT_EQ(expected.BeginValues()[i].Timestamp, actual.BeginValues()[i].Timestamp);
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

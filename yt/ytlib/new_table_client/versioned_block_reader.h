@@ -63,7 +63,6 @@ private:
     bool Closed_;
 
     // Members describing current row.
-
     int RowIndex_;
 
     TOwningKey Key_;

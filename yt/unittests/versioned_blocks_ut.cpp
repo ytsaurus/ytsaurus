@@ -1,20 +1,13 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include "versioned_table_client_ut.h"
+
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/versioned_block_writer.h>
 #include <ytlib/new_table_client/versioned_block_reader.h>
 
 #include <ytlib/transaction_client/public.h>
-
-//#include <ytlib/new_table_client/chunk_reader.h>
-//#include <ytlib/new_table_client/chunk_writer.h>
-//#include <ytlib/new_table_client/name_table.h>
-//#include <ytlib/new_table_client/reader.h>
-//#include <ytlib/new_table_client/unversioned_row.h>
-
-//#include <ytlib/chunk_client/memory_reader.h>
-//#include <ytlib/chunk_client/memory_writer.h>
 
 #include <core/compression/codec.h>
 
@@ -27,37 +20,17 @@ using namespace NCompression;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedBlockTestBase
-    : public ::testing::Test
+class TVersionedBlocksTestBase
+    : public TVersionedTableClientTestBase
 {
 protected:
-    void CheckRowEquals(TVersionedRow expected, TVersionedRow actual)
-    {
-        if (!expected) {
-            EXPECT_FALSE(actual);
-            return;
-        }
-
-        EXPECT_EQ(0, CompareRows(expected.BeginKeys(), expected.EndKeys(), actual.BeginKeys(), actual.EndKeys()));
-        EXPECT_EQ(expected.GetTimestampCount(), actual.GetTimestampCount());
-        for (int i = 0; i < expected.GetTimestampCount(); ++i) {
-            EXPECT_EQ(expected.BeginTimestamps()[i], actual.BeginTimestamps()[i]);
-        }
-
-        EXPECT_EQ(expected.GetValueCount(), actual.GetValueCount());
-        for (int i = 0; i < expected.GetValueCount(); ++i) {
-            EXPECT_EQ(CompareRowValues(expected.BeginValues()[i], actual.BeginValues()[i]), 0);
-            EXPECT_EQ(expected.BeginValues()[i].Timestamp, actual.BeginValues()[i].Timestamp);
-        }
-    }
-
     void CheckResult(TSimpleVersionedBlockReader& reader, const std::vector<TVersionedRow>& rows)
     {
         int i = 0;
         do {
             EXPECT_LT(i, rows.size());
             auto row = reader.GetRow(&MemoryPool);
-            CheckRowEquals(rows[i], row);
+            ExpectRowsEqual(rows[i], row);
         } while (reader.NextRow());
     }
 
@@ -73,8 +46,8 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedBlockTestOneRow
-    :public TVersionedBlockTestBase
+class TVersionedBlocksTestOneRow
+    :public TVersionedBlocksTestBase
 {
 protected:
     virtual void SetUp() override
@@ -117,7 +90,7 @@ protected:
 
 };
 
-TEST_F(TVersionedBlockTestOneRow, ReadByTimestamp)
+TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 {
     // Reorder value columns in reading schema.
     std::vector<int> schemaIdMapping = {0, 1, 2, 4, 3};
@@ -137,6 +110,87 @@ TEST_F(TVersionedBlockTestOneRow, ReadByTimestamp)
     row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
     row.BeginValues()[1] = MakeVersionedIntegerValue(7, 3, 4);
     row.BeginTimestamps()[0] = 3 | IncrementalTimestampMask;
+
+    std::vector<TVersionedRow> rows;
+    rows.push_back(row);
+
+    CheckResult(blockReader, rows);
+}
+
+TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
+{
+    // Omit last column
+    std::vector<int> schemaIdMapping = {0, 1, 2, 4};
+
+    TSimpleVersionedBlockReader blockReader(
+        Data,
+        Meta,
+        Schema,
+        KeyColumns,
+        schemaIdMapping,
+        9);
+
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
+    row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+    row.BeginTimestamps()[0] = 9 | TombstoneTimestampMask;
+
+    std::vector<TVersionedRow> rows;
+    rows.push_back(row);
+
+    CheckResult(blockReader, rows);
+}
+
+TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
+{
+    // Omit last column
+    std::vector<int> schemaIdMapping = {0, 1, 2, 4};
+
+    TSimpleVersionedBlockReader blockReader(
+        Data,
+        Meta,
+        Schema,
+        KeyColumns,
+        schemaIdMapping,
+        LastCommittedTimestamp);
+
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
+    row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+    row.BeginTimestamps()[0] = 11;
+
+    std::vector<TVersionedRow> rows;
+    rows.push_back(row);
+
+    CheckResult(blockReader, rows);
+}
+
+TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
+{
+    // Read only last non-key column.
+    std::vector<int> schemaIdMapping = {0, 1, 2, 4};
+
+    TSimpleVersionedBlockReader blockReader(
+        Data,
+        Meta,
+        Schema,
+        KeyColumns,
+        schemaIdMapping,
+        AllCommittedTimestamp);
+
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3);
+    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
+    row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+
+    // v2
+    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
+
+    row.BeginTimestamps()[0] = 11;
+    row.BeginTimestamps()[1] = 9 | TombstoneTimestampMask;
+    row.BeginTimestamps()[2] = 3;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);

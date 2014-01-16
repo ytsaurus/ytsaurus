@@ -14,6 +14,19 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int LowerBound(int lowerIndex, int upperIndex, std::function<bool(int)> less)
+{
+    while (upperIndex - lowerIndex > 0) {
+        auto middle = (upperIndex + lowerIndex) / 2;
+        if (less(middle)) {
+            lowerIndex = middle + 1;
+        } else {
+            upperIndex = middle;
+        }
+    }
+    return lowerIndex;
+}
+
 int TSimpleVersionedBlockReader::FormatVersion = ETableChunkFormat::SimpleVersioned;
 
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
@@ -84,19 +97,15 @@ bool TSimpleVersionedBlockReader::SkipToKey(const TOwningKey& key)
         return true;
     }
 
-    int lowerIndex = RowIndex_;
-    int upperIndex = Meta_.row_count();
-    while (upperIndex - lowerIndex > 0) {
-        auto middle = (upperIndex + lowerIndex) / 2;
-        YCHECK(JumpToRowIndex(middle));
-        if (GetKey() < key) {
-            lowerIndex = middle + 1;
-        } else {
-            upperIndex = middle;
-        }
-    }
+    auto index = LowerBound(
+        RowIndex_,
+        Meta_.row_count(),
+        [&] (int index) {
+            YCHECK(JumpToRowIndex(index));
+            return GetKey() < key;
+        });
 
-    return JumpToRowIndex(lowerIndex);
+    return JumpToRowIndex(index);
 }
 
 bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
@@ -160,7 +169,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
     }
 
     int valueCount = 0;
-    for (int valueId = 0; valueId < SchemaIdMapping_.size(); ++valueId) {
+    for (int valueId = KeyColumnCount_; valueId < SchemaIdMapping_.size(); ++valueId) {
         int chunkSchemaId = SchemaIdMapping_[valueId];
 
         int lowerValueIndex = chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
@@ -169,7 +178,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
         for (int valueIndex = lowerValueIndex; valueIndex < upperValueIndex; ++valueIndex) {
             row.BeginValues()[valueCount] = ReadValue(
                 ValueOffset_ + valueIndex,
-                KeyColumnCount_ + valueId,
+                valueId,
                 chunkSchemaId);
             ++valueCount;
         }
@@ -181,20 +190,12 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
 
 TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryPool *memoryPool)
 {
-    int lowerTimestampIndex = 0; // larger timestamp
-    int upperTimestampIndex = TimestampCount_;
+    int timestampIndex = LowerBound(0, TimestampCount_, [&] (int index) {
+        auto ts = ReadTimestamp(TimestampOffset_ + index);
+        return (ts & TimestampValueMask) > Timestamp_;
+    });
 
-    while (upperTimestampIndex - lowerTimestampIndex > 0) {
-        int middle = (lowerTimestampIndex + upperTimestampIndex) / 2;
-        auto ts = ReadTimestamp(TimestampOffset_ + middle);
-        if ((ts & TimestampValueMask) > Timestamp_) {
-            lowerTimestampIndex = middle + 1;
-        } else {
-            upperTimestampIndex = middle;
-        }
-    }
-
-    if (lowerTimestampIndex == TimestampCount_) {
+    if (timestampIndex == TimestampCount_) {
         // Row didn't exist at given timestamp.
         return TVersionedRow();
     }
@@ -206,7 +207,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         1);
 
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-    auto ts = ReadTimestamp(TimestampOffset_ + lowerTimestampIndex);
+    auto ts = ReadTimestamp(TimestampOffset_ + timestampIndex);
     *row.BeginTimestamps() = ts;
 
     if (TombstoneTimestampMask & ts) {
@@ -214,7 +215,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         return row;
     }
 
-    if (upperTimestampIndex == TimestampCount_ - 1) {
+    if (timestampIndex == TimestampCount_ - 1) {
         row.BeginTimestamps()[0] |= IncrementalTimestampMask;
     }
 
@@ -222,21 +223,16 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
     for (int valueId = KeyColumnCount_; valueId < SchemaIdMapping_.size(); ++valueId) {
         int chunkSchemaId = SchemaIdMapping_[valueId];
 
-        int lowerValueIndex = chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
-        int upperValueIndex = GetColumnValueCount(chunkSchemaId);
+        int valueIndex = LowerBound(
+            chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
+            GetColumnValueCount(chunkSchemaId),
+            [&] (int index) {
+                auto value = ReadValue(ValueOffset_ + index, valueId, chunkSchemaId);
+                return (value.Timestamp  > Timestamp_);
+            });
 
-        while (upperValueIndex - lowerValueIndex > 0) {
-            int middle = (lowerValueIndex + upperValueIndex) / 2;
-            auto value = ReadValue(ValueOffset_ + middle, valueId, chunkSchemaId);
-            if (value.Timestamp  > Timestamp_) {
-                lowerValueIndex = middle + 1;
-            } else {
-                upperValueIndex = middle;
-            }
-        }
-
-        if (lowerValueIndex < GetColumnValueCount(chunkSchemaId)) {
-            auto value = ReadValue(ValueOffset_ + lowerValueIndex, valueId, chunkSchemaId);
+        if (valueIndex < GetColumnValueCount(chunkSchemaId)) {
+            auto value = ReadValue(ValueOffset_ + valueIndex, valueId, chunkSchemaId);
             if (value.Timestamp >= (ts & TimestampValueMask)) {
                 // Check that value didn't come from the previous incarnation of this row.
                 row.BeginValues()[valueCount] = value;

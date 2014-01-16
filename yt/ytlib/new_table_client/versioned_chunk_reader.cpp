@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "versioned_chunk_reader.h"
 
 #include "chunk_meta_extensions.h"
 #include "config.h"
@@ -29,40 +30,6 @@ using NCompression::ECodec;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TMiscExt;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCachableVersionedChunkMeta
-    : public TRefCounted
-{
-    DEFINE_BYREF_RO_PROPERTY(TBlockIndexExt, BlockIndex);
-    DEFINE_BYREF_RO_PROPERTY(TBlockMetaExt, BlockMeta);
-    DEFINE_BYREF_RO_PROPERTY(TBoundaryKeysExt, BoundaryKeys);
-    DEFINE_BYREF_RO_PROPERTY(TChunkMeta, ChunkMeta);
-    DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
-    DEFINE_BYREF_RO_PROPERTY(TKeyColumns, KeyColumns);
-    DEFINE_BYREF_RO_PROPERTY(TMiscExt, Misc);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<int>, SchemaIdMapping);
-
-public:
-    TCachableVersionedChunkMeta(
-        IAsyncReaderPtr& asyncReader,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns);
-
-    TAsyncError Load();
-
-private:
-    IAsyncReaderPtr AsyncReader_;
-    const TTableSchema ReaderSchema_;
-
-    TError DoLoad();
-    void ReleaseReader(TError error);
-    TError ValidateSchema();
-
-};
-
-typedef TIntrusivePtr<TCachableVersionedChunkMeta> TCachableVersionedChunkMetaPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,7 +86,7 @@ TError TCachableVersionedChunkMeta::ValidateSchema()
     auto protoSchema = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
     FromProto(&ChunkSchema_, protoSchema);
 
-    SchemaIdMapping_.resize(ChunkSchema_.Columns().size() , -1);
+    SchemaIdMapping_.reserve(ReaderSchema_.Columns().size());
     for (int readerIndex = 0; readerIndex < ReaderSchema_.Columns().size(); ++readerIndex) {
         auto& column = ReaderSchema_.Columns()[readerIndex];
         auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
@@ -137,7 +104,7 @@ TError TCachableVersionedChunkMeta::ValidateSchema()
         }
 
         int index = ChunkSchema_.GetColumnIndex(*chunkColumn);
-        SchemaIdMapping_[index] = readerIndex;
+        SchemaIdMapping_.push_back(index);
     }
 
     return TError();
@@ -206,6 +173,8 @@ private:
     const TTimestamp Timestamp_;
 
     std::unique_ptr<TBlockReader> BlockReader_;
+    std::unique_ptr<TBlockReader> PreviousBlockReader_;
+
     TSequentialReaderPtr SequentialReader_;
 
     TChunkedMemoryPool MemoryPool_;
@@ -265,24 +234,16 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
     YCHECK(rows->capacity() > 0);
     YCHECK(NextBlockFuture_.IsSet());
 
+    if (PreviousBlockReader_) {
+        PreviousBlockReader_.reset();
+    }
+
     if (!BlockReader_) {
         // Nothing to read from chunk.
         return false;
     }
 
     while (rows->size() < rows->capacity()) {
-        if (!BlockReader_->NextRow()) {
-            if (SequentialReader_->HasNext()) {
-                NextBlockFuture_ = SequentialReader_->AsyncNextBlock();
-                BIND(&TVersionedChunkReader<TBlockReader>::DoSwitchBlock, MakeWeak(this))
-                    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-                    .Run();
-                return true;
-            } else {
-                return false;
-            }
-        }
-
         ++CurrentRowIndex_;
         if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ == UpperLimit_.GetRowIndex()) {
             return false;
@@ -296,6 +257,19 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
         if (row) {
             rows->push_back(row);
             ++RowCount_;
+        }
+
+        if (!BlockReader_->NextRow()) {
+            PreviousBlockReader_.swap(BlockReader_);
+            if (SequentialReader_->HasNext()) {
+                NextBlockFuture_ = SequentialReader_->AsyncNextBlock();
+                BIND(&TVersionedChunkReader<TBlockReader>::DoSwitchBlock, MakeWeak(this))
+                    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+                    .Run();
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 
@@ -425,6 +399,7 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
     }
 
     if (blocks.empty()) {
+        NextBlockFuture_ = MakeFuture(TError());
         return TError();
     }
 
@@ -440,13 +415,14 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
     BlockReader_.reset(NewBlockReader());
 
     if (LowerLimit_.HasRowIndex()) {
-        BlockReader_->SkipToRowIndex(LowerLimit_.GetRowIndex() - CurrentRowIndex_);
+        YCHECK(BlockReader_->SkipToRowIndex(LowerLimit_.GetRowIndex() - CurrentRowIndex_));
     }
 
     if (LowerLimit_.HasKey()) {
-        BlockReader_->SkipToKey(LowerLimit_.GetKey());
+        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey()));
     }
 
+    NextBlockFuture_ = MakeFuture(TError());
     return TError();
 }
 
@@ -474,106 +450,16 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
     BlockReader_.reset(NewBlockReader());
 }
 
-/*
-template <class TBlockReader>
-TVersionedRow TVersionedChunkReader<TBlockReader>::ReadAllVersions()
-{
-    auto key = BlockReader_->GetRowKey();
-    auto row = TVersionedRow::Allocate(
-        &MemoryPool_,
-        key.GetCount(),
-        BlockReader_->GetRowValueCount(),
-        BlockReader_->GetRowTimestampCount());
-
-    for (int i = 0; i < key.GetCount(); ++i) {
-        row.BeginKeys()[i] = key[i];
-    }
-
-    for (int i = 0; i < BlockReader_->GetTimestampCount(); ++i) {
-        row.BeginTimestamps()[i] = BlockReader_->ReadTimestamp();
-    }
-
-    int valueCount = 0;
-    for (int i = 0; i < BlockReader_->GetValueCount(); ++i) {
-        auto value = BlockReader_->ReadValue();
-        if (InSchema_[value.Id]) {
-            row.BeginValues()[valueCount] = value;
-            ++valueCount;
-        }
-    }
-
-    row.GetHeader()->ValueCount = valueCount;
-
-    return row;
-}
-
-template <class TBlockReader>
-TVersionedRow TVersionedChunkReader<TBlockReader>::ReadByTimestamp()
-{
-    // ToDo(psushin): use intermediate pivots to speed up reading for huge rows
-    auto key = BlockReader_->GetRowKey();
-    auto row = TVersionedRow::Allocate(
-        &MemoryPool_,
-        key.GetCount(),
-        std::min(Schema_.Columns().size(), BlockReader_->GetValueCount()),
-        1);
-
-    TTimestamp timestamp;
-    while (true) {
-        timestamp = BlockReader_->ReadTimestamp();
-        if (timestamp & UncommittedTimestampMask) {
-            // Row didn't exist at given timestamp.
-            BlockReader_->SkipToNextRow();
-            return TVersionedRow();
-        }
-
-        if (timestamp & TimestampValueMask <= Timestamp_) {
-            row.BeginTimestamps()[0] = timestamp;
-            BlockReader_->SkipToNextId();
-            break;
-        }
-    }
-
-    if (timestamp & TombstoneTimestampMask) {
-        BlockReader_->SkipToNextRow();
-        row.GetHeader()->ValueCount = 0;
-        return row;
-    }
-
-    int valueCount = 0;
-    while (true) {
-        auto value = BlockReader_->ReadValue();
-        if (value.Timestamp & UncommittedTimestampMask) {
-            break;
-        }
-
-        if (!InSchema[value->Id]) {
-            BlockReader_->SkipToNextId();
-        } else if (value->Timestamp <= Timestamp_) {
-            row.BeginValues()[valueCount] = *value;
-            ++valueCount;
-            BlockReader_->SkipToNextId();
-        }
-    }
-
-    row.GetHeader()->ValueCount = valueCount;
-    return row;
-}
-*/
-
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkReaderConfigPtr& config,
     IAsyncReaderPtr asyncReader,
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
+    TCachableVersionedChunkMetaPtr chunkMeta,
     TReadLimit&& lowerLimit,
     TReadLimit&& upperLimit,
     TTimestamp timestamp)
 {
-    auto chunkMeta = New<TCachableVersionedChunkMeta>(asyncReader, schema, keyColumns);
-
     switch (chunkMeta->ChunkMeta().version()) {
         case ETableChunkFormat::SimpleVersioned:
             return New< TVersionedChunkReader<TSimpleVersionedBlockReader> >(
@@ -587,7 +473,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         default:
             YUNREACHABLE();
     }
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

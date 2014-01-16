@@ -17,6 +17,7 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::MinTimestamp;
 using NTransactionClient::MaxTimestamp;
+using NTransactionClient::LastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
 
 using NTableClient::TKeyColumns;
@@ -103,6 +104,9 @@ typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
 
 class TChunkReaderConfig;
 typedef TIntrusivePtr<TChunkReaderConfig> TChunkReaderConfigPtr;
+
+class TCachableVersionedChunkMeta;
+typedef TIntrusivePtr<TCachableVersionedChunkMeta> TCachableVersionedChunkMetaPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
