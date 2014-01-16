@@ -97,15 +97,15 @@ auto TMultiChunkSequentialWriter<TChunkWriter>::GetCurrentWriter() -> TFacade*
             CurrentSession.ChunkWriter->GetMetaSize());
 
         SwitchSession();
-    } else if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) {
-        i64 currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
+    } else if (CurrentSession.ChunkWriter->GetDataSize() > Config->DesiredChunkSize) {
+        i64 currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetDataSize();
         i64 expectedInputSize = static_cast<i64>(currentDataSize * std::max(0.0, 1.0 - Progress));
 
         if (expectedInputSize > Config->DesiredChunkSize ||
-            CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize)
+            CurrentSession.ChunkWriter->GetDataSize() > 2 * Config->DesiredChunkSize)
         {
             LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %" PRId64 ", ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
-                CurrentSession.ChunkWriter->GetCurrentSize(),
+                CurrentSession.ChunkWriter->GetDataSize(),
                 expectedInputSize,
                 Config->DesiredChunkSize);
 
@@ -293,7 +293,7 @@ TAsyncError TMultiChunkSequentialWriter<TChunkWriter>::FinishCurrentSession()
     }
 
     auto finishResult = NewPromise<TError>();
-    if (CurrentSession.ChunkWriter->GetCurrentSize() > 0) {
+    if (CurrentSession.ChunkWriter->GetDataSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~ToString(CurrentSession.ChunkId));
 
@@ -349,7 +349,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
     auto asyncWriter = currentSession.AsyncWriter;
     auto chunkWriter = currentSession.ChunkWriter;
 
-    CompleteChunkSize += chunkWriter->GetCurrentSize();
+    CompleteChunkSize += chunkWriter->GetDataSize();
 
     Provider->OnChunkClosed(chunkWriter);
 

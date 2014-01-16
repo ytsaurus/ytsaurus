@@ -32,7 +32,7 @@ public:
 
     void EndRow();
 
-    i64 GetCurrentSize() const;
+    i64 GetDataSize() const;
     i64 GetCapacity() const;
 
     //! Number of rows in the current unflushed buffer.

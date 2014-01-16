@@ -56,7 +56,7 @@ i64 TChunkWriterBase::GetRowCount() const
     return RowCount;
 }
 
-i64 TChunkWriterBase::GetCurrentSize() const
+i64 TChunkWriterBase::GetDataSize() const
 {
     return CurrentSize;
 }
@@ -111,7 +111,7 @@ TAsyncError TChunkWriterBase::GetReadyEvent()
 
 bool TChunkWriterBase::IsLess(const TChannelWriter* lhs, const TChannelWriter* rhs)
 {
-    return lhs->GetCurrentSize() < rhs->GetCurrentSize();
+    return lhs->GetDataSize() < rhs->GetDataSize();
 }
 
 void TChunkWriterBase::AdjustBufferHeap(int updatedBufferIndex)
@@ -135,7 +135,7 @@ void TChunkWriterBase::PopBufferHeap()
 {
     LOG_DEBUG("Block is finished (CurrentBufferCapacity: %" PRId64 ", CurrentBlockSize: %" PRId64 ")",
         CurrentBufferCapacity,
-        BuffersHeap.front()->GetCurrentSize());
+        BuffersHeap.front()->GetDataSize());
 
     int lastIndex = BuffersHeap.size() - 1;
 

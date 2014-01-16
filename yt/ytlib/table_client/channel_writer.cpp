@@ -104,7 +104,7 @@ void TChannelWriter::EndRow()
     ++CurrentRowCount;
 }
 
-i64 TChannelWriter::GetCurrentSize() const
+i64 TChannelWriter::GetDataSize() const
 {
     return CurrentSize;
 }

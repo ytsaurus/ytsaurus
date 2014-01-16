@@ -179,12 +179,12 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
     CurrentUncompressedSize = EncodingWriter->GetUncompressedSize();
 
     for (const auto& channel : Buffers) {
-        CurrentUncompressedSize += channel->GetCurrentSize();
+        CurrentUncompressedSize += channel->GetDataSize();
     }
 
     CurrentSize = static_cast<int>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 
-    while (BuffersHeap.front()->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
+    while (BuffersHeap.front()->GetDataSize() > static_cast<size_t>(Config->BlockSize)) {
         PrepareBlock();
     }
 
@@ -374,7 +374,7 @@ TAsyncError TTableChunkWriter::AsyncClose()
 
     State.StartOperation();
 
-    while (BuffersHeap.front()->GetCurrentSize() > 0) {
+    while (BuffersHeap.front()->GetDataSize() > 0) {
         PrepareBlock();
     }
 

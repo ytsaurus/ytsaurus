@@ -170,7 +170,7 @@ TChunkId TFileChunkOutput::GetChunkId() const
 
 i64 TFileChunkOutput::GetSize() const
 {
-    return Writer->GetCurrentSize();
+    return Writer->GetDataSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

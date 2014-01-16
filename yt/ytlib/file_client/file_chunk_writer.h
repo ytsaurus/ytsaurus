@@ -52,7 +52,7 @@ public:
 
     TAsyncError AsyncClose();
 
-    i64 GetCurrentSize() const;
+    i64 GetDataSize() const;
     i64 GetMetaSize() const;
 
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;

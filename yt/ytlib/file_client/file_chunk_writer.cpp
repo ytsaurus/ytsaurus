@@ -140,7 +140,7 @@ void TFileChunkWriter::Write(const TRef& data)
     Size += data.Size();
 }
 
-i64 TFileChunkWriter::GetCurrentSize() const
+i64 TFileChunkWriter::GetDataSize() const
 {
     return EncodingWriter->GetCompressedSize() + Buffer.Size();
 }

@@ -143,7 +143,7 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
 
     i64 rowDataWeight = 1;
     auto capacity = channelWriter->GetCapacity();
-    auto channelSize = channelWriter->GetCurrentSize();
+    auto channelSize = channelWriter->GetDataSize();
 
     for (const auto& pair : row) {
         channelWriter->WriteRange(pair.first, pair.second);
@@ -166,7 +166,7 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
 
     AdjustBufferHeap(partitionTag);
 
-    if (channelWriter->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
+    if (channelWriter->GetDataSize() > static_cast<size_t>(Config->BlockSize)) {
         YCHECK(channelWriter->GetHeapIndex() == 0);
         PrepareBlock();
     }
@@ -175,7 +175,7 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
         PrepareBlock();
     }
 
-    CurrentUncompressedSize += channelWriter->GetCurrentSize() - channelSize;
+    CurrentUncompressedSize += channelWriter->GetDataSize() - channelSize;
     CurrentSize = static_cast<i64>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 }
 

@@ -29,7 +29,7 @@ public:
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
     i64 GetRowCount() const;
-    i64 GetCurrentSize() const;
+    i64 GetDataSize() const;
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
