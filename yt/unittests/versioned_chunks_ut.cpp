@@ -142,12 +142,51 @@ protected:
 
         ChunkWriter->Write(rows);
 
+        FinishWriter();
+    }
+
+    void FinishWriter()
+    {
         EXPECT_TRUE(ChunkWriter->Close().Get().IsOK());
 
         // Initialize reader.
         MemoryReader = New<TMemoryReader>(
             std::move(MemoryWriter->GetChunkMeta()),
             std::move(MemoryWriter->GetBlocks()));
+    }
+
+    int CreateManyRows(std::vector<TVersionedRow>* rows, int startIndex)
+    {
+        const int N = 100000;
+        for (int i = 0; i < N; ++i) {
+            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3);
+            FillKey(row, MakeNullable(A), MakeNullable(startIndex + i), Null);
+
+            // v1
+            row.BeginValues()[0] = MakeVersionedIntegerValue(8, 11, 3);
+            row.BeginValues()[1] = MakeVersionedIntegerValue(7, 3, 3);
+            // v2
+            row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
+
+            row.BeginTimestamps()[0] = 11;
+            row.BeginTimestamps()[1] = 9 | TombstoneTimestampMask;
+            row.BeginTimestamps()[2] = 3;
+
+            rows->push_back(row);
+        }
+        return startIndex + N;
+    }
+
+    void WriteManyRows()
+    {
+        int startIndex = 0;
+        for (int i = 0; i < 3; ++i) {
+            std::vector<TVersionedRow> rows;
+            startIndex = CreateManyRows(&rows, startIndex);
+            ChunkWriter->Write(rows);
+        }
+
+        FinishWriter();
     }
 
 };
@@ -318,6 +357,50 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     EXPECT_FALSE(chunkReader->Read(&actual));
 
     CheckResult(expected, actual);
+}
+
+TEST_F(TVersionedChunksTest, ReadManyRows)
+{
+    std::vector<TVersionedRow> expected;
+    int startIndex = 0;
+    for (int i = 0; i < 3; ++i) {
+        std::vector<TVersionedRow> rows;
+        startIndex = CreateManyRows(&rows, startIndex);
+        expected.insert(expected.end(), rows.begin(), rows.end());
+    }
+
+    WriteManyRows();
+
+    auto chunkMeta = New<TCachableVersionedChunkMeta>(
+        MemoryReader,
+        Schema,
+        KeyColumns);
+
+    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+
+    auto chunkReader = CreateVersionedChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        chunkMeta,
+        TReadLimit(),
+        TReadLimit(),
+        AllCommittedTimestamp);
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    auto it = expected.begin();
+    std::vector<TVersionedRow> actual;
+    actual.reserve(1000);
+
+    while (chunkReader->Read(&actual)) {
+        if (actual.empty()) {
+            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+            continue;
+        }
+        std::vector<TVersionedRow> ex(it, it + actual.size());
+        CheckResult(ex, actual);
+        it += actual.size();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

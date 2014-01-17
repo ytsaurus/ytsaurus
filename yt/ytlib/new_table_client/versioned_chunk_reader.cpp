@@ -234,6 +234,9 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
     YCHECK(rows->capacity() > 0);
     YCHECK(NextBlockFuture_.IsSet());
 
+    MemoryPool_.Clear();
+    rows->clear();
+
     if (PreviousBlockReader_) {
         PreviousBlockReader_.reset();
     }

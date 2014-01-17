@@ -10,7 +10,7 @@ namespace NYT {
 template<class TChunkType>
 TChunkType GetChunkMask(int bitIndex, bool value) 
 {
-     return static_cast<TChunkType>(value) << (bitIndex % sizeof(TChunkType));
+    return static_cast<TChunkType>(value) << (bitIndex % (sizeof(TChunkType) * 8));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +82,7 @@ public:
     bool operator[] (int index) const
     {
         YCHECK(index < BitSize_);
-        int dataIndex = index / sizeof(TChunkType);
+        int dataIndex = index / (sizeof(TChunkType) * 8);
         return static_cast<bool>(Data_[dataIndex] & GetChunkMask<TChunkType>(index, true));
     }
 
