@@ -12,7 +12,7 @@
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "")
   set( CMAKE_BUILD_TYPE "Debug"
     CACHE STRING
-    "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS are used) Debug Release RelWithDebInfo MinSizeRel."
+    "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS are used) Debug Release RelWithDebInfo MinSizeRel Sanitizer."
     FORCE )
 endif()
 
@@ -100,6 +100,8 @@ if (CMAKE_COMPILER_IS_CLANG)
     CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os"
     CACHE STRING "" FORCE )
+  set( CMAKE_CXX_FLAGS_SANITIZER "-g -O1 -fsanitize=thread -fPIE"
+    CACHE STRING "" FORCE )
 
   set( CMAKE_C_FLAGS_DEBUG "-g -O0"
     CACHE STRING "" FORCE )
@@ -109,10 +111,13 @@ if (CMAKE_COMPILER_IS_CLANG)
     CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os"
     CACHE STRING "" FORCE )
+  set( CMAKE_C_FLAGS_SANITIZER "-g -O1"
+    CACHE STRING "" FORCE )
 
   set( CMAKE_EXE_LINKER_FLAGS_RELEASE "" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "" )
   set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "" )
+  set( CMAKE_EXE_LINKER_FLAGS_SANITIZER "-fsanitize=thread -pie")
 # Now configure compiler options for g++.
 elseif (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
@@ -145,6 +150,8 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
     CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
+  set( CMAKE_CXX_FLAGS_SANITIZER "-g -O1 -fsanitize=thread -fPIE ${ARCH_FLAGS}"
+    CACHE STRING "" FORCE )
 
   set( CMAKE_C_FLAGS_DEBUG "-g -O0 ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
@@ -154,7 +161,10 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
     CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
+  set( CMAKE_C_FLAGS_SANITIZER "-g -O1 ${ARCH_FLAGS}"
+    CACHE STRING "" FORCE )
 
+  set( CMAKE_EXE_LINKER_FLAGS_SANITIZER "-fsanitize=thread -pie" )
   # TODO(sandello): Enable this when gcc will be stable.
   # set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
   # set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "-fwhole-program" )

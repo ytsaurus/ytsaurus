@@ -41,9 +41,15 @@ add_library( ytlib STATIC
   shutdown.cpp
 )
 
-target_link_libraries ( ytlib
-  ytcore
-)
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Sanitizer")
+  target_link_libraries ( ytlib
+    ytcore-without-lfalloc
+  )
+else()
+  target_link_libraries ( ytlib
+    ytcore
+  )
+endif()
 
 if (YT_BUILD_ENABLE_LLVM)
   llvm_map_components_to_libraries(REQ_LLVM_LIBRARIES jit native)

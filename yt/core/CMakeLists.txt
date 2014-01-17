@@ -55,6 +55,16 @@ if (HAVE_LIBUNWIND)
   target_link_libraries(ytcore unwind)
 endif()
 
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Sanitizer")
+  add_library(ytcore-without-lfalloc STATIC
+    ${YT_SOURCE_FILES}
+  )
+  target_link_libraries(ytcore-without-lfalloc
+    ytext-lfalloc-fake
+    ${LIBS}
+  )
+endif()
+
 if (YT_BUILD_ENABLE_PYTHON)
   add_library(ytcore-without-lfalloc STATIC
     ${YT_SOURCE_FILES}
