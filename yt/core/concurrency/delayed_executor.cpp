@@ -3,6 +3,8 @@
 
 #include <core/concurrency/action_queue.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NConcurrency {
 
