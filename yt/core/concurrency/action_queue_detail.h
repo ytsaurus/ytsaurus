@@ -77,7 +77,7 @@ private:
     TThreadId ThreadId;
     bool EnableLogging;
 
-    volatile bool Running;
+    std::atomic_bool Running;
 
     NProfiling::TProfiler Profiler;
 
@@ -134,7 +134,7 @@ private:
 
     NProfiling::TProfiler Profiler;
 
-    volatile bool Running;
+    std::atomic_bool Running;
     int FibersCreated;
     int FibersAlive;
 

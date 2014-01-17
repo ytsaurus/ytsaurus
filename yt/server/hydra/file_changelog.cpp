@@ -535,7 +535,7 @@ private:
 
     TThread Thread;
     Event WakeupEvent;
-    volatile bool Finished;
+    std::atomic_bool Finished;
 
     NProfiling::TRateCounter RecordCounter;
     NProfiling::TRateCounter SizeCounter;
