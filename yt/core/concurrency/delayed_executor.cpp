@@ -118,7 +118,7 @@ private:
     std::set<TEntryPtr, TEntry::TComparer> Entries;
     TThread Thread;
     TSpinLock SpinLock;
-    std::atomic_bool Finished;
+    volatile bool Finished;
 
 
     static void* ThreadFunc(void* param)
