@@ -32,7 +32,6 @@ message TBlockMeta
     optional int32 variable_buffer_offset = 5;
     optional int32 end_of_key_flags_offset = 6;
 
-
     extensions 100 to max;
 }
 

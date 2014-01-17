@@ -314,6 +314,7 @@ void TChunkWriter::FlushPreviousBlock()
 {
     auto block = PreviousBlock->FlushBlock();
     EncodingWriter->WriteBlock(std::move(block.Data));
+    block.Meta.set_chunk_row_count(GetRowIndex());
     *BlockMetaExt.add_entries() = block.Meta;
     if (block.Meta.block_size() > LargestBlockSize) {
         LargestBlockSize = block.Meta.block_size();
