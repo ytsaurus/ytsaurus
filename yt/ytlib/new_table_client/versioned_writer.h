@@ -3,6 +3,7 @@
 #include "public.h"
 #include "versioned_row.h"
 
+#include <ytlib/chunk_client/writer_base.h>
 #include <core/misc/error.h>
 
 namespace NYT {
@@ -16,7 +17,7 @@ namespace NVersionedTableClient {
  *  Useful for: compactions.
  */
 struct IVersionedWriter
-    : public virtual TRefCounted
+    : public virtual NChunkClient::IWriterBase
 {
     //! Initializes the writer. Must be called (and its result must be waited for)
     //! before making any other calls.

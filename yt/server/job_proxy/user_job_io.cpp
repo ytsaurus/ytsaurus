@@ -80,7 +80,7 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
         transactionId,
         chunkListId);
 
-    auto writer = CreateSyncWriter<TTableChunkWriter>(asyncWriter);
+    auto writer = CreateSyncWriter<TTableChunkWriterProvider>(asyncWriter);
 
     YCHECK(Outputs.size() == index);
     Outputs.push_back(asyncWriter);

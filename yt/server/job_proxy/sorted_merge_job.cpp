@@ -34,7 +34,7 @@ using namespace NJobTrackerClient::NProto;
 static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
+typedef TMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +93,7 @@ public:
                 config->JobIO->TableWriter,
                 options);
 
-            Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
+            Writer = CreateSyncWriter<TTableChunkWriterProvider>(New<TWriter>(
                 config->JobIO->TableWriter,
                 options,
                 writerProvider,

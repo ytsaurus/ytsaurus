@@ -31,7 +31,7 @@ TFileChunkWriter::TFileChunkWriter(
 TFileChunkWriter::~TFileChunkWriter()
 { }
 
-auto TFileChunkWriter::GetFacade() -> TFacade*
+TFileChunkWriterFacade* TFileChunkWriter::GetFacade()
 {
     if (State.IsActive() && EncodingWriter->IsReady()) {
         return &Facade;
@@ -68,7 +68,7 @@ void TFileChunkWriter::FlushBlock()
     ++BlockCount;
 }
 
-TAsyncError TFileChunkWriter::AsyncClose()
+TAsyncError TFileChunkWriter::Close()
 {
     YCHECK(!State.IsClosed());
 

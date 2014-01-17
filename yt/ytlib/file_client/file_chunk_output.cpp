@@ -124,7 +124,7 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
     YCHECK(IsOpen);
 
-    TFileChunkWriter::TFacade* facade = nullptr;
+    TFileChunkWriterFacade* facade = nullptr;
     while ((facade = Writer->GetFacade()) == nullptr) {
         Sync(Writer.Get(), &TFileChunkWriter::GetReadyEvent);
     }
@@ -141,7 +141,7 @@ void TFileChunkOutput::DoFinish()
 
     LOG_INFO("Closing file writer");
 
-    Sync(Writer.Get(), &TFileChunkWriter::AsyncClose);
+    Sync(Writer.Get(), &TFileChunkWriter::Close);
 
     LOG_INFO("Confirming chunk");
     {

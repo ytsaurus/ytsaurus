@@ -136,7 +136,7 @@ struct IPartitioner;
 typedef NChunkClient::TMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
 typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
 
-typedef NChunkClient::TMultiChunkSequentialWriter<TTableChunkWriter> TTableChunkSequenceWriter;
+typedef NChunkClient::TMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableChunkSequenceWriter;
 typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////

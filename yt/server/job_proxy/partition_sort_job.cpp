@@ -43,7 +43,7 @@ static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
 typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
+typedef TMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,7 +193,7 @@ public:
 
             LOG_INFO("Writing");
             {
-                auto syncWriter = CreateSyncWriter<TTableChunkWriter>(Writer);
+                auto syncWriter = CreateSyncWriter<TTableChunkWriterProvider>(Writer);
 
                 TMemoryInput input;
                 TRow row;

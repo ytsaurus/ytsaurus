@@ -53,9 +53,6 @@ class TPartitionChunkWriter
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
 
 public:
-    typedef TPartitionChunkWriterProvider TProvider;
-    typedef TPartitionChunkWriterFacade TFacade;
-
     TPartitionChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
@@ -64,8 +61,8 @@ public:
 
     ~TPartitionChunkWriter();
 
-    TFacade* GetFacade();
-    TAsyncError AsyncClose();
+    TPartitionChunkWriterFacade* GetFacade();
+    TAsyncError Close();
 
     i64 GetMetaSize() const;
 
@@ -100,6 +97,9 @@ class TPartitionChunkWriterProvider
     : public virtual TRefCounted
 {
 public:
+    typedef TPartitionChunkWriter TChunkWriter;
+    typedef TPartitionChunkWriterFacade TFacade;
+
     TPartitionChunkWriterProvider(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,

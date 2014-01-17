@@ -30,7 +30,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TTableMultiChunkWriter;
+typedef TMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableMultiChunkWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +96,7 @@ private:
     TTransactionPtr UploadTransaction;
 
     TIntrusivePtr<TTableMultiChunkWriter> Writer;
-    TTableChunkWriter::TFacade* CurrentWriterFacade;
+    TTableChunkWriterFacade* CurrentWriterFacade;
 
     TAsyncError WriteFuture_;
 };
@@ -173,7 +173,7 @@ void TAsyncTableWriter::Open()
         UploadTransaction->GetId(),
         chunkListId);
 
-    auto error = WaitFor(Writer->AsyncOpen());
+    auto error = WaitFor(Writer->Open());
 
     THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening table chunk writer");
 
@@ -328,7 +328,7 @@ void TAsyncTableWriter::Close()
 
     LOG_INFO("Closing chunk writer");
     {
-        auto error = WaitFor(Writer->AsyncClose());
+        auto error = WaitFor(Writer->Close());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
         LOG_INFO("Chunk writer closed");
     }

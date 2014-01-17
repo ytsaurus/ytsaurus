@@ -252,7 +252,7 @@ NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
     return meta;
 }
 
-TAsyncError TPartitionChunkWriter::AsyncClose()
+TAsyncError TPartitionChunkWriter::Close()
 {
     YASSERT(!State.IsClosed());
 

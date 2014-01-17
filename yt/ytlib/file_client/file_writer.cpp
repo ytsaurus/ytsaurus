@@ -176,7 +176,7 @@ TAsyncError TAsyncWriter::OnFileInfoReceived(TObjectServiceProxy::TRspExecuteBat
         MasterChannel,
         UploadTransaction->GetId(),
         chunkListId);
-    return Writer->AsyncOpen();
+    return Writer->Open();
 }
 
 
@@ -209,7 +209,7 @@ void TAsyncWriter::Close()
     LOG_INFO("Closing file writer and committing upload transaction");
 
     {
-        auto error = WaitFor(Writer->AsyncClose());
+        auto error = WaitFor(Writer->Close());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to close file writer");
     }
 

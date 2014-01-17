@@ -67,6 +67,7 @@ set( HDRS
   ${BASE}/replication_writer.h
   ${BASE}/schema.h
   ${BASE}/sequential_reader.h
+  ${BASE}/writer_base.h
 )
 
 list(APPEND YT_SOURCE_FILES

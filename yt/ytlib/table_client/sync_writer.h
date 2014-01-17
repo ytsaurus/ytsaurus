@@ -41,12 +41,12 @@ struct ISyncWriterUnsafe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkWriter>
+template <class TProvider>
 class TSyncWriterAdapter
     : public ISyncWriterUnsafe
 {
 public:
-    typedef NChunkClient::TMultiChunkSequentialWriter<TChunkWriter> TAsyncWriter;
+    typedef NChunkClient::TMultiChunkSequentialWriter<TProvider> TAsyncWriter;
     typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
     TSyncWriterAdapter(TAsyncWriterPtr writer)
@@ -57,7 +57,7 @@ public:
     inline void EnsureOpen()
     {
         if (!IsOpen) {
-            Sync(Writer.Get(), &TAsyncWriter::AsyncOpen);
+            Sync(Writer.Get(), &TAsyncWriter::Open);
             IsOpen = true;
         }
     }
@@ -82,7 +82,7 @@ public:
 
     virtual void Close() override
     {
-        Sync(Writer.Get(), &TAsyncWriter::AsyncClose);
+        Sync(Writer.Get(), &TAsyncWriter::Close);
     }
 
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
@@ -116,9 +116,9 @@ public:
      }
 
 private:
-    typename TChunkWriter::TFacade* GetCurrentWriter()
+    typename TProvider::TFacade* GetCurrentWriter()
     {
-        typename TChunkWriter::TFacade* facade = nullptr;
+        typename TProvider::TFacade* facade = nullptr;
 
         while ((facade = Writer->GetCurrentWriter()) == nullptr) {
             Sync(Writer.Get(), &TAsyncWriter::GetReadyEvent);
@@ -133,11 +133,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkWriter>
+template <class TProvider>
 ISyncWriterUnsafePtr CreateSyncWriter(
-    typename TSyncWriterAdapter<TChunkWriter>::TAsyncWriterPtr asyncWriter)
+    typename TSyncWriterAdapter<TProvider>::TAsyncWriterPtr asyncWriter)
 {
-    return New< TSyncWriterAdapter<TChunkWriter> >(asyncWriter);
+    return New< TSyncWriterAdapter<TProvider> >(asyncWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

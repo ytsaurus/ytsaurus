@@ -53,7 +53,7 @@ class TMergeJob
 {
 public:
     typedef TMultiChunkReader<TTableChunkReader> TReader;
-    typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
+    typedef TMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
     explicit TMergeJob(IJobHost* host)
         : TJob(host)
@@ -100,7 +100,7 @@ public:
             config->JobIO->TableWriter,
             options);
 
-        Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
+        Writer = CreateSyncWriter<TTableChunkWriterProvider>(New<TWriter>(
             config->JobIO->TableWriter,
             options,
             writerProvider,

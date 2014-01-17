@@ -43,7 +43,7 @@ static auto& Profiler = JobProxyProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
-typedef TMultiChunkSequentialWriter<TPartitionChunkWriter> TWriter;
+typedef TMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 class TPartitionJob
     : public TJob
@@ -113,7 +113,7 @@ public:
             options,
             Partitioner.get());
 
-        Writer = CreateSyncWriter<TPartitionChunkWriter>(New<TWriter>(
+        Writer = CreateSyncWriter<TPartitionChunkWriterProvider>(New<TWriter>(
             config->JobIO->TableWriter,
             options,
             writerProvider,

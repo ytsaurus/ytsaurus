@@ -36,9 +36,6 @@ class TFileChunkWriter
     : public TRefCounted
 {
 public:
-    typedef TFileChunkWriterProvider TProvider;
-    typedef TFileChunkWriterFacade TFacade;
-
     TFileChunkWriter(
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options,
@@ -47,10 +44,10 @@ public:
     ~TFileChunkWriter();
 
     // Is retuns nullptr, take GetReadyEvent and wait.
-    TFacade* GetFacade();
+    TFileChunkWriterFacade* GetFacade();
     TAsyncError GetReadyEvent();
 
-    TAsyncError AsyncClose();
+    TAsyncError Close();
 
     i64 GetDataSize() const;
     i64 GetMetaSize() const;
@@ -92,6 +89,9 @@ class TFileChunkWriterProvider
     : public virtual TRefCounted
 {
 public:
+    typedef TFileChunkWriter TChunkWriter;
+    typedef TFileChunkWriterFacade TFacade;
+
     TFileChunkWriterProvider(
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options);

@@ -28,7 +28,7 @@ namespace NFileClient {
 //! A client-side facade for writing files.
 /*!
  *  The client must call #AsyncOpen and then feed the data in by calling #AsyncWrite.
- *  Finally it must call #AsyncClose.
+ *  Finally it must call #Close.
  */
 class TAsyncWriter
     : public NTransactionClient::TTransactionListener
@@ -49,7 +49,7 @@ public:
 
 private:
     typedef TAsyncWriter TThis;
-    typedef NChunkClient::TMultiChunkSequentialWriter<TFileChunkWriter> TWriter;
+    typedef NChunkClient::TMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
 
     TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;

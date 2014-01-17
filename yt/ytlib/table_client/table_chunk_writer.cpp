@@ -362,7 +362,7 @@ const TOwningKey& TTableChunkWriter::GetLastKey() const
     return LastKey;
 }
 
-TAsyncError TTableChunkWriter::AsyncClose()
+TAsyncError TTableChunkWriter::Close()
 {
     YASSERT(!State.IsClosed());
 

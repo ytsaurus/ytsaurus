@@ -54,9 +54,6 @@ class TTableChunkWriter
     : public TChunkWriterBase
 {
 public:
-    typedef TTableChunkWriterProvider TProvider;
-    typedef TTableChunkWriterFacade TFacade;
-
     TTableChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
@@ -65,8 +62,8 @@ public:
 
     ~TTableChunkWriter();
 
-    TFacade* GetFacade();
-    TAsyncError AsyncClose();
+    TTableChunkWriterFacade* GetFacade();
+    TAsyncError Close();
 
     i64 GetMetaSize() const;
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
@@ -159,6 +156,9 @@ class TTableChunkWriterProvider
     : public virtual TRefCounted
 {
 public:
+    typedef TTableChunkWriter TChunkWriter;
+    typedef TTableChunkWriterFacade TFacade;
+
     TTableChunkWriterProvider(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options);

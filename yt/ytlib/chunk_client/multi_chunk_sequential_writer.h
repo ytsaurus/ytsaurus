@@ -3,6 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "chunk_replica.h"
+#include "writer_base.h"
 
 #include <core/misc/async_stream_state.h>
 
@@ -22,15 +23,14 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkWriter>
+template <class TProvider>
 class TMultiChunkSequentialWriter
-    : virtual public TRefCounted
+    : public virtual IWriterBase
 {
 public:
-    typedef typename TChunkWriter::TProvider TProvider;
     typedef TIntrusivePtr<TProvider> TProviderPtr;
-
-    typedef typename TChunkWriter::TFacade TFacade;
+    typedef typename TProvider::TChunkWriter TChunkWriter;
+    typedef typename TProvider::TFacade TFacade;
 
     TMultiChunkSequentialWriter(
         TMultiChunkWriterConfigPtr config,
@@ -42,13 +42,13 @@ public:
 
     ~TMultiChunkSequentialWriter();
 
-    TAsyncError AsyncOpen();
-    TAsyncError AsyncClose();
+    virtual TAsyncError Open() override;
+    virtual TAsyncError Close() override;
 
     // Returns pointer to writer facade, which allows single write operation.
     // In nullptr is returned, caller should subscribe to ReadyEvent.
     TFacade* GetCurrentWriter();
-    TAsyncError GetReadyEvent();
+    virtual TAsyncError GetReadyEvent() override;
 
     void SetProgress(double progress);
 
