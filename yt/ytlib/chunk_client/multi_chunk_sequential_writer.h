@@ -61,9 +61,6 @@ public:
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
     TProviderPtr GetProvider();
 
-    //! Current row count.
-    i64 GetRowCount() const;
-
 protected:
     struct TSession
     {

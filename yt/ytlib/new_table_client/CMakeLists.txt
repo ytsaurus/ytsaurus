@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/versioned_block_writer.cpp
   ${BASE}/versioned_chunk_reader.cpp
   ${BASE}/versioned_chunk_writer.cpp
+  ${BASE}/versioned_multi_chunk_writer.cpp
   ${BASE}/versioned_row.cpp
 )
 
@@ -34,6 +35,7 @@ set( HDRS
   ${BASE}/versioned_block_reader.h
   ${BASE}/versioned_chunk_reader.h
   ${BASE}/versioned_chunk_writer.h
+  ${BASE}/versioned_multi_chunk_writer.h
   ${BASE}/versioned_reader.h
   ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h

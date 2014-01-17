@@ -21,7 +21,8 @@ struct IVersionedWriter
 {
     //! Initializes the writer. Must be called (and its result must be waited for)
     //! before making any other calls.
-    virtual TAsyncError Open() = 0;
+    // Inherited from IWriterBase.
+    // virtual TAsyncError Open() override = 0;
 
     //! Enqueues more rows into the writer.
     /*!
@@ -38,11 +39,13 @@ struct IVersionedWriter
     /*!
      *  Must be the last call to the writer.
      */
-    virtual TAsyncError Close() = 0;
+    // Inherited from IWriterBase.
+    // virtual TAsyncError Close() override = 0;
 
     //! Returns an asynchronous flag enabling to wait until data is written.
     //! \see #Read.
-    virtual TAsyncError GetReadyEvent() = 0;
+    // Inherited from IWriterBase.
+    // virtual TAsyncError GetReadyEvent() override = 0;
 
 };
 

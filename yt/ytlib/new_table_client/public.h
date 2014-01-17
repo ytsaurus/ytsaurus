@@ -93,6 +93,15 @@ typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
 struct IVersionedWriter;
 typedef TIntrusivePtr<IVersionedWriter> IVersionedWriterPtr;
 
+struct IVersionedChunkWriter;
+typedef TIntrusivePtr<IVersionedChunkWriter> IVersionedChunkWriterPtr;
+
+class TVersionedChunkWriterProvider;
+typedef TIntrusivePtr<TVersionedChunkWriterProvider> TVersionedChunkWriterProviderPtr;
+
+struct IVersionedMultiChunkWriter;
+typedef TIntrusivePtr<IVersionedMultiChunkWriter> IVersionedMultiChunkWriterPtr;
+
 struct IVersionedReader;
 typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
 
