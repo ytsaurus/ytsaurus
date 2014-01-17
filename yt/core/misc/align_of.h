@@ -71,12 +71,8 @@ template <size_t Alignment> struct AlignedCharArrayImpl {};
 template <> struct AlignedCharArrayImpl<0> {
   typedef char type;
 };
-#if __has_feature(cxx_alignas)
-#define LLVM_ALIGNEDCHARARRAY_TEMPLATE_ALIGNMENT(x) \
-  template <> struct AlignedCharArrayImpl<x> { \
-    typedef char alignas(x) type; \
-  }
-#elif defined(__clang__) || defined(__GNUC__)
+
+#if defined(__clang__) || defined(__GNUC__)
 #define LLVM_ALIGNEDCHARARRAY_TEMPLATE_ALIGNMENT(x) \
   template <> struct AlignedCharArrayImpl<x> { \
     typedef char type __attribute__((aligned(x))); \
