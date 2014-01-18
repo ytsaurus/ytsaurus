@@ -49,9 +49,13 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     auto syncReader = NTableClient::CreateSyncReader(reader);
 
-    // ToDo(psushin): init all inputs in constructor, get rid of this check.
-    YCHECK(index == Inputs.size());
-    Inputs.push_back(syncReader);
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        // ToDo(psushin): init all inputs in constructor, get rid of this check.
+        YCHECK(index == Inputs.size());
+        Inputs.push_back(syncReader);
+    }
 
     syncReader->Open();
 

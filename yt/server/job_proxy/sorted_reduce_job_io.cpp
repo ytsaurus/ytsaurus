@@ -70,9 +70,11 @@ public:
 
         auto reader = CreateMergingReader(readers);
 
-        // ToDo(psushin): init all inputs in constructor, get rid of this check.
-        YCHECK(index == Inputs.size());
-        Inputs.push_back(reader);
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            YCHECK(index == Inputs.size());
+            Inputs.push_back(reader);
+        }
 
         reader->Open();
 

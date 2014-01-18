@@ -69,8 +69,11 @@ public:
 
         YCHECK(index == Inputs.size());
 
-        // NB: put reader here before opening, for proper failed chunk generation.
-        Inputs.push_back(reader);
+        {
+            // NB: put reader here before opening, for proper failed chunk generation.
+            TGuard<TSpinLock> guard(SpinLock);
+            Inputs.push_back(reader);
+        }
 
         reader->Open();
 
