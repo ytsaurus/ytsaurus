@@ -362,7 +362,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     const TKeyColumns& keyColumns,
     IAsyncWriterPtr asyncWriter)
 {
-    return New< TVersionedChunkWriter<TSimpleVersionedBlockWriter> >(
+    return New<TVersionedChunkWriter<TSimpleVersionedBlockWriter>>(
         config,
         options,
         schema, 

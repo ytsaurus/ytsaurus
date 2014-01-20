@@ -160,7 +160,6 @@ void TMultiChunkSequentialWriter<TProvider>::CreateNextSession()
     reqExt->set_upload_replication_factor(UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
     reqExt->set_vital(Options->ChunksVital);
-
     reqExt->set_erasure_codec(Options->ErasureCodec);
 
     objectProxy.Execute(req).Subscribe(
