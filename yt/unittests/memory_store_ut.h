@@ -13,8 +13,8 @@
 #include <yt/ytlib/new_table_client/name_table.h>
 #include <yt/ytlib/new_table_client/reader.h>
 #include <yt/ytlib/new_table_client/writer.h>
-#include <yt/ytlib/new_table_client/chunk_reader.h>
-#include <yt/ytlib/new_table_client/chunk_writer.h>
+#include <yt/ytlib/new_table_client/schemed_chunk_reader.h>
+#include <yt/ytlib/new_table_client/schemed_chunk_writer.h>
 #include <yt/ytlib/new_table_client/versioned_row.h>
 #include <yt/ytlib/new_table_client/unversioned_row.h>
 #include <yt/ytlib/new_table_client/versioned_reader.h>

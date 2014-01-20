@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "chunk_reader.h"
+#include "schemed_chunk_reader.h"
 #include "reader.h"
 #include "config.h"
 #include "private.h"

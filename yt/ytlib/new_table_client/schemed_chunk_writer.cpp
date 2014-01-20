@@ -1,8 +1,9 @@
 #include "stdafx.h"
 
+#include "schemed_chunk_writer.h"
+
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
-#include "chunk_writer.h"
 #include "config.h"
 #include "name_table.h"
 #include "private.h"
@@ -102,7 +103,6 @@ private:
     IAsyncWriterPtr UnderlyingWriter;
 
     std::vector<int> KeyIds;
-    ERowsetType RowsetType;
     TNameTablePtr InputNameTable;
     TNameTablePtr OutputNameTable;
 
@@ -165,13 +165,7 @@ void TChunkWriter::Open(
     const TKeyColumns& keyColumns)
 {
     Schema = schema;
-    RowsetType = ERowsetType::Simple;
     InputNameTable = nameTable;
-
-    if (RowsetType == ERowsetType::Versioned) {
-        // Block writer treats timestamps as integers.
-        ColumnSizes.push_back(EValueType::Integer);
-    }
 
     // Integers and Doubles align at 8 bytes (stores the whole value),
     // while String and Any align at 4 bytes (stores just offset to value).
@@ -309,19 +303,6 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
 
 bool TChunkWriter::EndRow()
 {
-    if (RowsetType == ERowsetType::Versioned && RowIndex > 0) {
-        if (PreviousBlock) {
-            PreviousBlock->PushEndOfKey(IsNewKey);
-        } else {
-            CurrentBlock->PushEndOfKey(IsNewKey);
-        }
-        // TODO(babenko): fixme
-        //CurrentBlock->WriteTimestamp(timestamp, deleted, TimestampIndex);
-        IsNewKey = false;
-    } else {
-        // TODO(babenko): fixme
-        //YASSERT(timestamp == NullTimestamp);
-    }
 
     CurrentBlock->EndRow();
 

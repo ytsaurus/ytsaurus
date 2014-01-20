@@ -24,11 +24,6 @@ using NTableClient::TKeyColumns;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ERowsetType,
-    (Simple)
-    (Versioned)   // With timestamps and tombstones
-);
-
 DECLARE_ENUM(EValueType,
     ((Min)         (0))
     ((TheBottom)   (1))

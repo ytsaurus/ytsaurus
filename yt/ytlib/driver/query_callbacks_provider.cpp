@@ -25,8 +25,8 @@
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
-#include <ytlib/new_table_client/chunk_reader.h>
-#include <ytlib/new_table_client/chunk_writer.h>
+#include <ytlib/new_table_client/schemed_chunk_reader.h>
+#include <ytlib/new_table_client/schemed_chunk_writer.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/reader.h>

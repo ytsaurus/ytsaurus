@@ -13,8 +13,7 @@ IReaderPtr CreateMergingVersionedReader(
     const TSchema& schema,
     TKeyColumns keyColumns,
     TNameTablePtr nameTable,
-    const std::vector<IReaderPtr>& readers,
-    ERowsetType outputRowSetType = ERowsetType::Simple);
+    const std::vector<IReaderPtr>& readers);
 
 /*
 class TMergingMvccReader

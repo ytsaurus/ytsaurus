@@ -12,7 +12,7 @@
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
-#include <ytlib/new_table_client/chunk_reader.h>
+#include <ytlib/new_table_client/schemed_chunk_reader.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 
