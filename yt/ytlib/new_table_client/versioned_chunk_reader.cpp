@@ -33,7 +33,7 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachableVersionedChunkMeta::TCachableVersionedChunkMeta(
+TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
     IAsyncReaderPtr &asyncReader,
     const TTableSchema &schema,
     const TKeyColumns &keyColumns)
@@ -42,7 +42,7 @@ TCachableVersionedChunkMeta::TCachableVersionedChunkMeta(
     , ReaderSchema_(schema)
 { }
 
-TAsyncError TCachableVersionedChunkMeta::Load()
+TAsyncError TCachedVersionedChunkMeta::Load()
 {
     TAsyncError asyncError;
 
@@ -50,19 +50,19 @@ TAsyncError TCachableVersionedChunkMeta::Load()
     if (!error.IsOK()) {
         asyncError = MakeFuture(error);
     } else {
-        asyncError = BIND(&TCachableVersionedChunkMeta::DoLoad, MakeStrong(this))
+        asyncError = BIND(&TCachedVersionedChunkMeta::DoLoad, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
 
     asyncError.Subscribe(BIND(
-        &TCachableVersionedChunkMeta::ReleaseReader,
+        &TCachedVersionedChunkMeta::ReleaseReader,
         MakeWeak(this)));
 
     return asyncError;
 }
 
-TError TCachableVersionedChunkMeta::ValidateSchema()
+TError TCachedVersionedChunkMeta::ValidateSchema()
 {
     auto keyColumns = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
     if (keyColumns.names_size() != KeyColumns_.size()) {
@@ -110,7 +110,7 @@ TError TCachableVersionedChunkMeta::ValidateSchema()
     return TError();
 }
 
-TError TCachableVersionedChunkMeta::DoLoad()
+TError TCachedVersionedChunkMeta::DoLoad()
 {
     auto getMetaResult = WaitFor(AsyncReader_->AsyncGetChunkMeta());
     RETURN_IF_ERROR(getMetaResult)
@@ -139,7 +139,7 @@ TError TCachableVersionedChunkMeta::DoLoad()
     return TError();
 }
 
-void TCachableVersionedChunkMeta::ReleaseReader(TError /* error */)
+void TCachedVersionedChunkMeta::ReleaseReader(TError /* error */)
 {
     AsyncReader_.Reset();
 }
@@ -153,7 +153,7 @@ class TVersionedChunkReader
 public:
     TVersionedChunkReader(
         const TChunkReaderConfigPtr& config,
-        const TCachableVersionedChunkMetaPtr& chunkMeta,
+        const TCachedVersionedChunkMetaPtr& chunkMeta,
         IAsyncReaderPtr asyncReader,
         TReadLimit&& lowerLimit,
         TReadLimit&& upperLimit,
@@ -165,7 +165,7 @@ public:
 
 private:
     const TChunkReaderConfigPtr Config_;
-    TCachableVersionedChunkMetaPtr CachableChunkMeta_;
+    TCachedVersionedChunkMetaPtr CachedChunkMeta_;
     IAsyncReaderPtr AsyncReader_;
     TReadLimit LowerLimit_;
     TReadLimit UpperLimit_;
@@ -200,13 +200,13 @@ private:
 template <class TBlockReader>
 TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     const TChunkReaderConfigPtr& config,
-    const TCachableVersionedChunkMetaPtr& chunkMeta,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
     IAsyncReaderPtr asyncReader,
     TReadLimit&& lowerLimit,
     TReadLimit&& upperLimit,
     TTimestamp timestamp)
     : Config_(config)
-    , CachableChunkMeta_(chunkMeta)
+    , CachedChunkMeta_(chunkMeta)
     , AsyncReader_(asyncReader)
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
@@ -215,9 +215,9 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     , CurrentRowIndex_(0)
     , RowCount_(0)
 {
-    YCHECK(CachableChunkMeta_->Misc().sorted());
-    YCHECK(CachableChunkMeta_->ChunkMeta().type() == EChunkType::Table);
-    YCHECK(CachableChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
+    YCHECK(CachedChunkMeta_->Misc().sorted());
+    YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
+    YCHECK(CachedChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
 }
 
 template <class TBlockReader>
@@ -288,8 +288,8 @@ TAsyncError TVersionedChunkReader<TBlockReader>::GetReadyEvent()
 template <class TBlockReader>
 int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
 {
-    auto& blockMetaEntries = CachableChunkMeta_->BlockMeta().entries();
-    auto& blockIndexEntries = CachableChunkMeta_->BlockIndex().entries();
+    auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
+    auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int beginBlockIndex = 0;
     if (LowerLimit_.HasRowIndex() && LowerLimit_.GetRowIndex() > 0) {
@@ -341,8 +341,8 @@ int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
 template <class TBlockReader>
 int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
 {
-    auto& blockMetaEntries = CachableChunkMeta_->BlockMeta().entries();
-    auto& blockIndexEntries = CachableChunkMeta_->BlockIndex().entries();
+    auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
+    auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int endBlockIndex = blockMetaEntries.size();
     if (UpperLimit_.HasRowIndex() && UpperLimit_.GetRowIndex() > 0) {
@@ -390,14 +390,14 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
 {
     CurrentBlockIndex_ = GetBeginBlockIndex();
 
-    auto& blockMeta = CachableChunkMeta_->BlockMeta().entries(CurrentBlockIndex_);
+    auto& blockMeta = CachedChunkMeta_->BlockMeta().entries(CurrentBlockIndex_);
     CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
     for (int index = CurrentBlockIndex_; index < GetEndBlockIndex(); ++index) {
         TSequentialReader::TBlockInfo blockInfo;
         blockInfo.Index = index;
-        blockInfo.Size = CachableChunkMeta_->BlockMeta().entries(index).block_size();
+        blockInfo.Size = CachedChunkMeta_->BlockMeta().entries(index).block_size();
         blocks.push_back(blockInfo);
     }
 
@@ -410,7 +410,7 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
         Config_,
         std::move(blocks),
         AsyncReader_,
-        ECodec(CachableChunkMeta_->Misc().compression_codec()));
+        ECodec(CachedChunkMeta_->Misc().compression_codec()));
 
     auto error = WaitFor(SequentialReader_->AsyncNextBlock());
     RETURN_IF_ERROR(error);
@@ -434,10 +434,10 @@ TBlockReader* TVersionedChunkReader<TBlockReader>::NewBlockReader()
 {
     return new TBlockReader(
         SequentialReader_->GetBlock(),
-        CachableChunkMeta_->BlockMeta().entries(CurrentBlockIndex_),
-        CachableChunkMeta_->ChunkSchema(),
-        CachableChunkMeta_->KeyColumns(),
-        CachableChunkMeta_->SchemaIdMapping(),
+        CachedChunkMeta_->BlockMeta().entries(CurrentBlockIndex_),
+        CachedChunkMeta_->ChunkSchema(),
+        CachedChunkMeta_->KeyColumns(),
+        CachedChunkMeta_->SchemaIdMapping(),
         Timestamp_);
 }
 
@@ -458,7 +458,7 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkReaderConfigPtr& config,
     IAsyncReaderPtr asyncReader,
-    TCachableVersionedChunkMetaPtr chunkMeta,
+    TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit&& lowerLimit,
     TReadLimit&& upperLimit,
     TTimestamp timestamp)

@@ -17,7 +17,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachableVersionedChunkMeta
+class TCachedVersionedChunkMeta
     : public TRefCounted
 {
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockIndexExt, BlockIndex);
@@ -30,7 +30,7 @@ class TCachableVersionedChunkMeta
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, SchemaIdMapping);
 
 public:
-    TCachableVersionedChunkMeta(
+    TCachedVersionedChunkMeta(
         NChunkClient::IAsyncReaderPtr& asyncReader,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns);
@@ -52,7 +52,7 @@ private:
 IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkReaderConfigPtr& config,
     NChunkClient::IAsyncReaderPtr asyncReader,
-    TCachableVersionedChunkMetaPtr chunkMeta,
+    TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TReadLimit&& lowerLimit,
     NChunkClient::TReadLimit&& upperLimit,
     TTimestamp timestamp = LastCommittedTimestamp);

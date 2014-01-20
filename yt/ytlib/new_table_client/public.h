@@ -115,8 +115,8 @@ typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
 class TChunkReaderConfig;
 typedef TIntrusivePtr<TChunkReaderConfig> TChunkReaderConfigPtr;
 
-class TCachableVersionedChunkMeta;
-typedef TIntrusivePtr<TCachableVersionedChunkMeta> TCachableVersionedChunkMetaPtr;
+class TCachedVersionedChunkMeta;
+typedef TIntrusivePtr<TCachedVersionedChunkMeta> TCachedVersionedChunkMetaPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
