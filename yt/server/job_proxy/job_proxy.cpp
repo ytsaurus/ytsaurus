@@ -15,7 +15,9 @@
 
 #include <core/actions/invoker_util.h>
 
+#include <core/concurrency/action_queue.h>
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/proc.h>
 #include <core/misc/ref_counted_tracker.h>
@@ -73,6 +75,7 @@ TJobProxy::TJobProxy(
     : Config(config)
     , JobId(jobId)
     , Logger(JobProxyLogger)
+    , JobThread(New<TActionQueue>("JobMain"))
     , JobProxyMemoryLimit(InitialJobProxyMemoryLimit)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~ToString(JobId)));
@@ -132,7 +135,10 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
-    auto result = DoRun();
+
+    auto result = BIND(&TJobProxy::DoRun, Unretained(this))
+        .AsyncVia(JobThread->GetInvoker())
+        .Run().Get();
 
     if (HeartbeatExecutor) {
         HeartbeatExecutor->Stop();
@@ -192,10 +198,10 @@ TJobResult TJobProxy::DoRun()
         Config->HeartbeatPeriod);
 
     if (schedulerJobSpecExt.job_proxy_memory_control()) {
-	    MemoryWatchdogExecutor = New<TPeriodicExecutor>(
-    	    GetSyncInvoker(),
-        	BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-        	Config->MemoryWatchdogPeriod);
+        MemoryWatchdogExecutor = New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+            Config->MemoryWatchdogPeriod);
     }
 
     try {
