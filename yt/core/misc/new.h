@@ -1,6 +1,7 @@
 #pragma once
 
 #include <typeinfo>
+#include <atomic>
 
 #include <util/system/defaults.h>
 
@@ -72,7 +73,7 @@ void* GetRefCountedTrackerCookie(const void* key);
 template <class T>
 FORCED_INLINE void* GetRefCountedTrackerCookie()
 {
-    static void* cookie = nullptr;
+    static std::atomic<void*> cookie(nullptr);
     if (UNLIKELY(!cookie)) {
         cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(T));
     }
