@@ -360,20 +360,34 @@ IReaderPtr CreateChunkReader(
     return New<TChunkReader>(config, asyncReader, startLimit, endLimit, timestamp);
 }
 
+ISchemedReaderPtr CreateSchemedChunkReader(
+    TChunkReaderConfigPtr config,
+    NChunkClient::IAsyncReaderPtr asyncReader,
+    const TReadLimit& startLimit,
+    const TReadLimit& endLimit,
+    TTimestamp timestamp)
+{
+    return New<TChunkReader>(config, asyncReader, startLimit, endLimit, timestamp);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Adapter for old chunks.
 class TTableChunkReaderAdapter
     : public IReader
+    , public ISchemedReader
 {
 public:
     TSequentialReaderPtr SequentialReader;
     TTableChunkReaderAdapter(TTableChunkSequenceReaderPtr underlyingReader);
 
-    TAsyncError Open(
+    // ToDo (psushin): deprecated.
+    virtual TAsyncError Open(
         TNameTablePtr nameTable,
         const TTableSchema& schema,
         bool includeAllColumns) override;
+
+    virtual TAsyncError Open(const TTableSchema& schema) final override;
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TAsyncError GetReadyEvent() override;
@@ -413,6 +427,12 @@ TAsyncError TTableChunkReaderAdapter::Open(
     }
 
     return UnderlyingReader->AsyncOpen();
+}
+
+TAsyncError TTableChunkReaderAdapter::Open(const TTableSchema& schema)
+{
+    auto nameTable = New<TNameTable>();
+    return Open(nameTable, schema, false);
 }
 
 bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow> *rows)
@@ -530,6 +550,34 @@ void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema
 ////////////////////////////////////////////////////////////////////////////////
 
 IReaderPtr CreateChunkReader(
+    TChunkReaderConfigPtr config,
+    const TChunkSpec& chunkSpec,
+    NRpc::IChannelPtr masterChannel,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    IBlockCachePtr blockCache,
+    TTimestamp timestamp)
+{
+    std::vector<TChunkSpec> chunkSpecs;
+    chunkSpecs.push_back(chunkSpec);
+
+    auto provider = New<TTableChunkReaderProvider>(
+        chunkSpecs,
+        config,
+        New<TChunkReaderOptions>());
+
+    auto multiChunkReaderConfig = New<TMultiChunkReaderConfig>();
+    auto reader = New<TTableChunkSequenceReader>(
+        multiChunkReaderConfig,
+        masterChannel,
+        blockCache,
+        nodeDirectory,
+        std::move(chunkSpecs),
+        provider);
+
+    return New<TTableChunkReaderAdapter>(reader);
+}
+
+ISchemedReaderPtr CreateSchemedChunkReader(
     TChunkReaderConfigPtr config,
     const TChunkSpec& chunkSpec,
     NRpc::IChannelPtr masterChannel,
