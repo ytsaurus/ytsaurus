@@ -30,6 +30,8 @@ set( HDRS
   ${BASE}/row_base.h
   ${BASE}/reader.h
   ${BASE}/schema.h
+  ${BASE}/schemed_reader.h
+  ${BASE}/schemed_writer.h
   ${BASE}/unversioned_row.h
   ${BASE}/versioned_block_writer.h
   ${BASE}/versioned_block_reader.h
@@ -39,7 +41,6 @@ set( HDRS
   ${BASE}/versioned_reader.h
   ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h
-
   ${BASE}/writer.h
 )
 

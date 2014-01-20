@@ -1,20 +1,26 @@
 #include "stdafx.h"
-#include "chunk_writer.h"
-#include "unversioned_row.h"
-#include "name_table.h"
+
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_writer.h"
+#include "config.h"
+#include "name_table.h"
 #include "private.h"
+#include "schema.h"
+#include "schemed_writer.h"
+#include "unversioned_row.h"
+#include "writer.h"
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/async_writer.h>
-#include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/encoding_writer.h>
 
 #include <core/concurrency/fiber.h>
 
+#include <core/misc/error.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -22,7 +28,99 @@ namespace NVersionedTableClient {
 using namespace NChunkClient;
 using namespace NConcurrency;
 
+using NChunkClient::NProto::TChunkMeta;
+using NProto::TBlockMetaExt;
+
 static const int TimestampIndex = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkWriter
+    : public IWriter
+{
+public:
+    TChunkWriter(
+        TChunkWriterConfigPtr config,
+        TChunkWriterOptionsPtr options,
+        IAsyncWriterPtr asyncWriter);
+
+    virtual void Open(
+        TNameTablePtr nameTable,
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns = TKeyColumns(),
+        ERowsetType type = ERowsetType::Simple) final override;
+
+    virtual void WriteValue(const TUnversionedValue& value) final override;
+
+    virtual bool EndRow() final override;
+
+    virtual TAsyncError GetReadyEvent() final override;
+
+    virtual TAsyncError AsyncClose() final override;
+
+    virtual i64 GetRowIndex() const final override;
+
+private:
+    struct TColumnDescriptor
+    {
+        TColumnDescriptor()
+            : IndexInBlock(-1)
+            , OutputIndex(-1)
+            , Type(EValueType::Null)
+            , IsKeyPart(false)
+            , PreviousValue()
+        { }
+
+        int IndexInBlock;
+        int OutputIndex;
+        EValueType Type;
+        // Used for versioned rowsets.
+        bool IsKeyPart;
+
+        union {
+            i64 Integer;
+            double Double;
+            struct {
+                const char* String;
+                size_t Length;
+            };
+        } PreviousValue;
+
+    };
+
+    TChunkWriterConfigPtr Config;
+    TEncodingWriterOptionsPtr Options;
+    IAsyncWriterPtr UnderlyingWriter;
+
+    std::vector<int> KeyIds;
+    ERowsetType RowsetType;
+    TNameTablePtr InputNameTable;
+    TNameTablePtr OutputNameTable;
+
+    // Vector is indexed by InputNameTable indexes.
+    std::vector<TColumnDescriptor> ColumnDescriptors;
+
+    TEncodingWriterPtr EncodingWriter;
+
+    std::unique_ptr<TBlockWriter> PreviousBlock;
+    std::unique_ptr<TBlockWriter> CurrentBlock;
+
+    bool IsNewKey;
+
+    i64 RowIndex;
+    i64 LargestBlockSize;
+
+    // Column sizes for block writer.
+    std::vector<int> ColumnSizes;
+
+    TChunkMeta Meta;
+    TBlockMetaExt BlockMetaExt;
+    TTableSchema Schema;
+
+    void DoClose(TAsyncErrorPromise result);
+    void FlushPreviousBlock();
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,7 +388,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     } else {
         miscExt.set_sorted(true);
 
-//        SetProtoExtension(Meta.mutable_extensions(), IndexExt);
+//      SetProtoExtension(Meta.mutable_extensions(), IndexExt);
         NTableClient::NProto::TKeyColumnsExt keyColumnsExt;
         for (int id : KeyIds) {
             keyColumnsExt.add_names(InputNameTable->GetName(id));
@@ -320,6 +418,16 @@ void TChunkWriter::FlushPreviousBlock()
         LargestBlockSize = block.Meta.block_size();
     }
     PreviousBlock.reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IWriterPtr CreateChunkWriter(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    IAsyncWriterPtr asyncWriter)
+{
+    return New<TChunkWriter>(config, options, asyncWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

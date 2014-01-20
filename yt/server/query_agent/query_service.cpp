@@ -4,7 +4,9 @@
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/memory_writer.h>
 
+#include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/chunk_writer.h>
+#include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 
@@ -63,7 +65,7 @@ DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)
     auto planFragment = NQueryClient::FromProto(request->plan_fragment());
 
     auto memoryWriter = New<TMemoryWriter>();
-    auto chunkWriter = New<TChunkWriter>(
+    auto chunkWriter = CreateChunkWriter(
         ChunkWriterConfig_,
         EncodingWriterOptions_,
         memoryWriter);

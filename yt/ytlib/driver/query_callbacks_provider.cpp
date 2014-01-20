@@ -28,7 +28,7 @@
 #include <ytlib/new_table_client/chunk_reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/reader.h>
 
 #include <ytlib/chunk_client/async_reader.h>

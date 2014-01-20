@@ -3,9 +3,12 @@
 
 #include <ytlib/new_table_client/chunk_reader.h>
 #include <ytlib/new_table_client/chunk_writer.h>
+#include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
@@ -32,14 +35,14 @@ protected:
     virtual void SetUp() override
     {
         MemoryWriter = New<TMemoryWriter>();
-        ChunkWriter = New<TChunkWriter>(
+        ChunkWriter = CreateChunkWriter(
             New<TChunkWriterConfig>(),
             New<TEncodingWriterOptions>(),
             MemoryWriter);
     }
 
     IReaderPtr ChunkReader;
-    TChunkWriterPtr ChunkWriter;
+    IWriterPtr ChunkWriter;
 
     TMemoryReaderPtr MemoryReader;
     TMemoryWriterPtr MemoryWriter;
