@@ -18,7 +18,7 @@
 namespace NYT {
 namespace NVersionedTableClient {
 namespace {
-    
+
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
@@ -108,7 +108,7 @@ protected:
         WriteInteger(100500, 5);
         ChunkWriter->EndRow();
 
-        auto error = ChunkWriter->AsyncClose().Get();
+        auto error = ChunkWriter->Close().Get();
         EXPECT_TRUE(error.IsOK());
 
         // Initialize reader.
@@ -126,7 +126,7 @@ protected:
 TEST_F(TVersionedTableClientTest, Empty)
 {
     ChunkWriter->Open(New<TNameTable>(), TTableSchema());
-    EXPECT_TRUE(ChunkWriter->AsyncClose().Get().IsOK());
+    EXPECT_TRUE(ChunkWriter->Close().Get().IsOK());
 
     MemoryReader = New<TMemoryReader>(
         std::move(MemoryWriter->GetChunkMeta()),

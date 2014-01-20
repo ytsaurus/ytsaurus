@@ -72,7 +72,7 @@ TError TEvaluateController::Run()
         }
 
         LOG_DEBUG("Closing writer");
-        auto error = WaitFor(Writer_->AsyncClose());
+        auto error = WaitFor(Writer_->Close());
         if (!error.IsOK()) {
             LOG_ERROR(error);
             return error;

@@ -87,6 +87,12 @@ typedef TIntrusivePtr<IReader> IReaderPtr;
 struct IWriter;
 typedef TIntrusivePtr<IWriter> IWriterPtr;
 
+struct ISchemedReader;
+typedef TIntrusivePtr<ISchemedReader> ISchemedReaderPtr;
+
+struct ISchemedWriter;
+typedef TIntrusivePtr<ISchemedWriter> ISchemedWriterPtr;
+
 struct IVersionedReader;
 typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
 

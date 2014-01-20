@@ -37,6 +37,7 @@ static const int TimestampIndex = 0;
 
 class TChunkWriter
     : public IWriter
+    , public ISchemedWriter
 {
 public:
     TChunkWriter(
@@ -44,19 +45,27 @@ public:
         TChunkWriterOptionsPtr options,
         IAsyncWriterPtr asyncWriter);
 
+    // ToDo(psushin): deprecated.
     virtual void Open(
         TNameTablePtr nameTable,
         const TTableSchema& schema,
-        const TKeyColumns& keyColumns = TKeyColumns(),
-        ERowsetType type = ERowsetType::Simple) final override;
+        const TKeyColumns& keyColumns = TKeyColumns()) final override;
 
+    // ToDo(psushin): deprecated.
     virtual void WriteValue(const TUnversionedValue& value) final override;
 
+    // ToDo(psushin): deprecated.
     virtual bool EndRow() final override;
+
+    virtual TAsyncError Open(
+        const TTableSchema& schema,
+        const TNullable<TKeyColumns>& keyColumns) final override;
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) final override;
 
     virtual TAsyncError GetReadyEvent() final override;
 
-    virtual TAsyncError AsyncClose() final override;
+    virtual TAsyncError Close() final override;
 
     virtual i64 GetRowIndex() const final override;
 
@@ -138,14 +147,22 @@ TChunkWriter::TChunkWriter(
     , LargestBlockSize(0)
 { }
 
+TAsyncError TChunkWriter::Open(
+   const TTableSchema& schema,
+   const TNullable<TKeyColumns>& keyColumns)
+{
+    auto nameTable = New<TNameTable>();
+    Open(nameTable, schema, *keyColumns);
+    return MakeFuture(TError());
+}
+
 void TChunkWriter::Open(
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    ERowsetType rowsetType)
+    const TKeyColumns& keyColumns)
 {
     Schema = schema;
-    RowsetType = rowsetType;
+    RowsetType = ERowsetType::Simple;
     InputNameTable = nameTable;
 
     if (RowsetType == ERowsetType::Versioned) {
@@ -203,6 +220,19 @@ void TChunkWriter::Open(
     }
 
     CurrentBlock.reset(new TBlockWriter(ColumnSizes));
+}
+
+bool TChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
+{
+    bool res = true;
+    for (const auto& row : rows) {
+        for (auto it = row.Begin(); it != row.End(); ++it) {
+            WriteValue(*it);
+        }
+        res = EndRow();
+    }
+
+    return res;
 }
 
 void TChunkWriter::WriteValue(const TUnversionedValue& value)
@@ -336,7 +366,7 @@ TAsyncError TChunkWriter::GetReadyEvent()
     return EncodingWriter->GetReadyEvent();
 }
 
-TAsyncError TChunkWriter::AsyncClose()
+TAsyncError TChunkWriter::Close()
 {
     auto result = NewPromise<TError>();
 
@@ -426,6 +456,16 @@ IWriterPtr CreateChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     IAsyncWriterPtr asyncWriter)
+{
+    return New<TChunkWriter>(config, options, asyncWriter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemedWriterPtr CreateSchemedChunkWriter(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    NChunkClient::IAsyncWriterPtr asyncWriter)
 {
     return New<TChunkWriter>(config, options, asyncWriter);
 }

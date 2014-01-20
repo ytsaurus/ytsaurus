@@ -9,7 +9,15 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): deprecated, remove.
 IWriterPtr CreateChunkWriter(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    NChunkClient::IAsyncWriterPtr asyncWriter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemedWriterPtr CreateSchemedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     NChunkClient::IAsyncWriterPtr asyncWriter);

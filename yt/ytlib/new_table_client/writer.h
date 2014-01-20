@@ -12,13 +12,12 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IWriter
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual void Open(
         TNameTablePtr nameTable,
         const TTableSchema& schema,
-        const TKeyColumns& keyColumns = TKeyColumns(),
-        ERowsetType type = ERowsetType::Simple) = 0;
+        const TKeyColumns& keyColumns = TKeyColumns()) = 0;
 
     virtual void WriteValue(const TUnversionedValue& value) = 0;
 
@@ -26,7 +25,7 @@ struct IWriter
 
     virtual TAsyncError GetReadyEvent() = 0;
 
-    virtual TAsyncError AsyncClose() = 0;
+    virtual TAsyncError Close() = 0;
 
     virtual i64 GetRowIndex() const = 0;
 
