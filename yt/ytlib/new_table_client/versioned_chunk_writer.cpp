@@ -10,6 +10,7 @@
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
+#include <ytlib/chunk_client/encoding_writer.h>
 
 namespace NYT {
 namespace NVersionedTableClient {

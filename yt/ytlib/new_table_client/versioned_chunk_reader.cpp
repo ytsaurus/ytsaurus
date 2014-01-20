@@ -204,7 +204,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     IAsyncReaderPtr asyncReader,
     TReadLimit&& lowerLimit,
     TReadLimit&& upperLimit,
-    TTimestamp timestamp = NullTimestamp)
+    TTimestamp timestamp)
     : Config_(config)
     , CachableChunkMeta_(chunkMeta)
     , AsyncReader_(asyncReader)
