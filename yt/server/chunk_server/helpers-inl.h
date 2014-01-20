@@ -67,6 +67,13 @@ void AttachToChunkList(
     if (childrenBegin == childrenEnd)
         return;
 
+    for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        auto* child = *it;
+        if (child->GetType() == EObjectType::Chunk) {
+            child->AsChunk()->ValidateConfirmed();
+        }
+    }
+
     chunkList->IncrementVersion();
 
     TChunkTreeStatistics delta;
