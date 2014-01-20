@@ -1442,8 +1442,7 @@ private:
         int startTeleportIndex = -1;
 
         int openedSlicesCount = 0;
-        TOwningKey previousKey;
-        previousKey = GetKeySuccessor(previousKey.Get());
+        auto previousKey = EmptyKey();
 
         for (int i = 0; i < Endpoints.size(); ++i) {
             auto& endpoint = Endpoints[i];
