@@ -7,7 +7,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TChunkType>
+template <class TChunkType>
 TChunkType GetChunkMask(int bitIndex, bool value) 
 {
     return static_cast<TChunkType>(value) << (bitIndex % (sizeof(TChunkType) * 8));
@@ -15,7 +15,7 @@ TChunkType GetChunkMask(int bitIndex, bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TChunkType>
+template <class TChunkType>
 class TAppendOnlyBitMap
 {
 public:
@@ -57,7 +57,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TChunkType>
+template <class TChunkType>
 class TReadOnlyBitMap
 {
 public:

@@ -310,8 +310,8 @@ struct TCallTraits
         typedef char ArrayOfOne[1];                                                      \
         typedef char ArrayOfTwo[2];                                                      \
                                                                                          \
-        template<typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *);  \
-        template<typename U> static ArrayOfTwo & func(...);                              \
+        template <typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *);  \
+        template <typename U> static ArrayOfTwo & func(...);                              \
                                                                                          \
     public:                                                                              \
         enum                                                                             \
