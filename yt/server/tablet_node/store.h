@@ -12,7 +12,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IStore
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual TStoreId GetId() const = 0;
     
