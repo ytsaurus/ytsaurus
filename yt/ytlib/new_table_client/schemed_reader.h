@@ -18,7 +18,7 @@ struct ISchemedReader
      *  \note 
      *  Read timestamp and read limits should be passed in constructor if applicable.
      */
-    virtual TAsyncError Open() = 0;
+    virtual TAsyncError Open(const TTableSchema& schema) = 0;
 
     /*!
      *  Every row will contain exactly one value for each column in schema, in the same order.

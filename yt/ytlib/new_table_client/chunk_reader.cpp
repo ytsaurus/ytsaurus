@@ -7,6 +7,7 @@
 #include "name_table.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
+#include "schemed_reader.h"
 #include "unversioned_row.h"
 
 #include <ytlib/chunk_client/async_reader.h>
@@ -53,6 +54,7 @@ using namespace NYson;
 
 class TChunkReader
     : public IReader
+    , public ISchemedReader
 {
 public:
     TChunkReader(
@@ -62,14 +64,16 @@ public:
         const TReadLimit& endLimit,
         TTimestamp timestamp);
 
-    TAsyncError Open(
+    // ToDo (psushin): deprecated.
+    virtual TAsyncError Open(
         TNameTablePtr nameTable, 
         const TTableSchema& schema,
-        bool includeAllColumns,
-        ERowsetType type) override;
+        bool includeAllColumns) final override;
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TAsyncError Open(const TTableSchema& schema) final override;
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) final override;
+    virtual TAsyncError GetReadyEvent() final override;
 
 private:
     struct TColumn
@@ -125,14 +129,22 @@ TChunkReader::TChunkReader(
     YCHECK(IsTrivial(endLimit));
 }
 
+TAsyncError TChunkReader::Open(const TTableSchema& schema)
+{
+    auto nameTable = New<TNameTable>();
+    for (int i = 0; i < schema.Columns().size(); ++i) {
+        YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
+    }
+
+    return Open(nameTable, schema, false);
+}
+
 TAsyncError TChunkReader::Open(
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    bool includeAllColumns,
-    ERowsetType type)
+    bool includeAllColumns)
 {
     YCHECK(nameTable);
-    YCHECK(type == ERowsetType::Simple);
 
     NameTable = nameTable;
     Schema = schema;
@@ -355,13 +367,13 @@ class TTableChunkReaderAdapter
     : public IReader
 {
 public:
+    TSequentialReaderPtr SequentialReader;
     TTableChunkReaderAdapter(TTableChunkSequenceReaderPtr underlyingReader);
 
     TAsyncError Open(
         TNameTablePtr nameTable,
         const TTableSchema& schema,
-        bool includeAllColumns,
-        ERowsetType type) override;
+        bool includeAllColumns) override;
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TAsyncError GetReadyEvent() override;
@@ -389,10 +401,8 @@ TTableChunkReaderAdapter::TTableChunkReaderAdapter(
 TAsyncError TTableChunkReaderAdapter::Open(
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    bool includeAllColumns,
-    ERowsetType type)
+    bool includeAllColumns)
 {
-    YCHECK(type == ERowsetType::Simple);
     IncludeAllColumns = includeAllColumns;
     Schema = schema;
     NameTable = nameTable;

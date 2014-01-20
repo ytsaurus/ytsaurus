@@ -152,6 +152,9 @@ TAsyncError TChunkWriter::Open(
    const TNullable<TKeyColumns>& keyColumns)
 {
     auto nameTable = New<TNameTable>();
+    for (int i = 0; i < schema.Columns().size(); ++i) {
+        YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
+    }
     Open(nameTable, schema, *keyColumns);
     return MakeFuture(TError());
 }

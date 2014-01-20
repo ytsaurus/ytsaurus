@@ -17,8 +17,7 @@ struct IReader
     virtual TAsyncError Open(
         TNameTablePtr nameTable, 
         const TTableSchema& schema,
-        bool includeAllColumns = false,
-        ERowsetType rowsetType = ERowsetType::Simple) = 0;
+        bool includeAllColumns = false) = 0;
 
     //! Returns |true| while reading is in progress, |false| when reading is complete.
     //! If |rows->size() < rows->capacity()|, the client should wait for ready event before next call to #Read.
