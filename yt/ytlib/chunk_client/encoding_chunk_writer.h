@@ -21,9 +21,9 @@ class TEncodingChunkWriter
 
 public:
     TEncodingChunkWriter(
-        const TEncodingWriterConfigPtr& config,
-        const TEncodingWriterOptionsPtr& options,
-        const IAsyncWriterPtr asyncWriter);
+        TEncodingWriterConfigPtr config,
+        TEncodingWriterOptionsPtr options,
+        IAsyncWriterPtr asyncWriter);
 
     void WriteBlock(std::vector<TSharedRef>&& data);
     TError Close();

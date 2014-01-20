@@ -50,7 +50,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedChunkReader(
-    const TChunkReaderConfigPtr& config,
+    TChunkReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr asyncReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TReadLimit&& lowerLimit,

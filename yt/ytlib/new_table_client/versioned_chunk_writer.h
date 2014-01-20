@@ -78,11 +78,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedChunkWriterPtr CreateVersionedChunkWriter(
-    const TChunkWriterConfigPtr& config,
-    const TChunkWriterOptionsPtr& options,
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    const NChunkClient::IAsyncWriterPtr& asyncWriter);
+    NChunkClient::IAsyncWriterPtr asyncWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

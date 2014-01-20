@@ -16,9 +16,9 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TEncodingChunkWriter::TEncodingChunkWriter(
-    const TEncodingWriterConfigPtr& config,
-    const TEncodingWriterOptionsPtr& options,
-    const NChunkClient::IAsyncWriterPtr asyncWriter)
+    TEncodingWriterConfigPtr config,
+    TEncodingWriterOptionsPtr options,
+    NChunkClient::IAsyncWriterPtr asyncWriter)
     : AsyncWriter_(asyncWriter)
     , EncodingWriter_(New<TEncodingWriter>(config, options, asyncWriter))
     , CurrentBlockIndex_(0)

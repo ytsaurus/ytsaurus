@@ -152,8 +152,8 @@ class TVersionedChunkReader
 {
 public:
     TVersionedChunkReader(
-        const TChunkReaderConfigPtr& config,
-        const TCachedVersionedChunkMetaPtr& chunkMeta,
+        TChunkReaderConfigPtr config,
+        TCachedVersionedChunkMetaPtr chunkMeta,
         IAsyncReaderPtr asyncReader,
         TReadLimit&& lowerLimit,
         TReadLimit&& upperLimit,
@@ -199,8 +199,8 @@ private:
 
 template <class TBlockReader>
 TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
-    const TChunkReaderConfigPtr& config,
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    TChunkReaderConfigPtr config,
+    TCachedVersionedChunkMetaPtr chunkMeta,
     IAsyncReaderPtr asyncReader,
     TReadLimit&& lowerLimit,
     TReadLimit&& upperLimit,
@@ -456,7 +456,7 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedChunkReader(
-    const TChunkReaderConfigPtr& config,
+    TChunkReaderConfigPtr config,
     IAsyncReaderPtr asyncReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit&& lowerLimit,

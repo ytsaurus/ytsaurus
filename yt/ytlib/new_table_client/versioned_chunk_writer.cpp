@@ -30,8 +30,8 @@ class TVersionedChunkWriter
 {
 public:
     TVersionedChunkWriter(
-        const TChunkWriterConfigPtr& config,
-        const TChunkWriterOptionsPtr& options,
+        TChunkWriterConfigPtr config,
+        TChunkWriterOptionsPtr options,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns,
         const IAsyncWriterPtr& asyncWriter);
@@ -92,8 +92,8 @@ private:
 
 template <class TBlockWriter>
 TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
-    const TChunkWriterConfigPtr& config,
-    const TChunkWriterOptionsPtr& options,
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const IAsyncWriterPtr& asyncWriter)
@@ -356,11 +356,11 @@ TDataStatistics TVersionedChunkWriterProvider::GetDataStatistics() const
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedChunkWriterPtr CreateVersionedChunkWriter(
-    const TChunkWriterConfigPtr& config,
-    const TChunkWriterOptionsPtr& options,
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    const IAsyncWriterPtr& asyncWriter)
+    IAsyncWriterPtr asyncWriter)
 {
     return New< TVersionedChunkWriter<TSimpleVersionedBlockWriter> >(
         config,
