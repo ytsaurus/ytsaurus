@@ -31,7 +31,7 @@ class TCachedVersionedChunkMeta
 
 public:
     TCachedVersionedChunkMeta(
-        NChunkClient::IAsyncReaderPtr& asyncReader,
+        NChunkClient::IAsyncReaderPtr asyncReader,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns);
 
@@ -53,8 +53,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr asyncReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    NChunkClient::TReadLimit&& lowerLimit,
-    NChunkClient::TReadLimit&& upperLimit,
+    NChunkClient::TReadLimit lowerLimit,
+    NChunkClient::TReadLimit upperLimit,
     TTimestamp timestamp = LastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

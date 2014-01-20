@@ -34,9 +34,9 @@ using NChunkClient::NProto::TMiscExt;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
-    IAsyncReaderPtr &asyncReader,
-    const TTableSchema &schema,
-    const TKeyColumns &keyColumns)
+    IAsyncReaderPtr asyncReader,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns)
     : KeyColumns_(keyColumns)
     , AsyncReader_(asyncReader)
     , ReaderSchema_(schema)
@@ -155,9 +155,9 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IAsyncReaderPtr asyncReader,
-        TReadLimit&& lowerLimit,
-        TReadLimit&& upperLimit,
-        const TTimestamp timestamp);
+        TReadLimit lowerLimit,
+        TReadLimit upperLimit,
+        TTimestamp timestamp);
 
     virtual TAsyncError Open() override;
     virtual bool Read(std::vector<TVersionedRow>* rows) override;
@@ -202,8 +202,8 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IAsyncReaderPtr asyncReader,
-    TReadLimit&& lowerLimit,
-    TReadLimit&& upperLimit,
+    TReadLimit lowerLimit,
+    TReadLimit upperLimit,
     TTimestamp timestamp)
     : Config_(config)
     , CachedChunkMeta_(chunkMeta)
@@ -459,13 +459,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IAsyncReaderPtr asyncReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    TReadLimit&& lowerLimit,
-    TReadLimit&& upperLimit,
+    TReadLimit lowerLimit,
+    TReadLimit upperLimit,
     TTimestamp timestamp)
 {
     switch (chunkMeta->ChunkMeta().version()) {
         case ETableChunkFormat::SimpleVersioned:
-            return New< TVersionedChunkReader<TSimpleVersionedBlockReader> >(
+            return New<TVersionedChunkReader<TSimpleVersionedBlockReader>>(
                 config,
                 chunkMeta,
                 asyncReader,
