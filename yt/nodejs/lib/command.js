@@ -234,6 +234,7 @@ YtCommand.prototype._epilogue = function(result) {
         }
     } else {
         if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
+            this.logger.debug("User '" + this.user + "' was banned or has hit rate limit");
             this.rate_check_cache.set(this.user, result.toJson());
         }
 
