@@ -20,8 +20,10 @@ class TDelayedExecutor::TImpl
 public:
     TImpl()
         : Thread(&ThreadFunc, (void*)this)
-        , Finished(false)
+        // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
+        // , Finished(false)
     {
+        Finished = false;
         Thread.Start();
     }
 

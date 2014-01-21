@@ -33,7 +33,8 @@ TInvokerQueue::TInvokerQueue(
     : EventCount(eventCount)
     , ThreadId(InvalidThreadId)
     , EnableLogging(enableLogging)
-    , Running(true)
+    // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
+    // , Running(true)
     , Profiler("/action_queue")
     , EnqueueCounter("/enqueue_rate", tagIds)
     , DequeueCounter("/dequeue_rate", tagIds)
@@ -43,6 +44,7 @@ TInvokerQueue::TInvokerQueue(
     , ExecTimeCounter("/time/exec", tagIds)
     , TotalTimeCounter("/time/total", tagIds)
 {
+    Running = true;
     Profiler.SetEnabled(enableProfiling);
 }
 
@@ -167,12 +169,14 @@ TExecutorThread::TExecutorThread(
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)
-    , Running(false)
+    // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
+    // , Running(false)
     , FibersCreated(0)
     , FibersAlive(0)
     , ThreadId(InvalidThreadId)
     , Thread(ThreadMain, (void*) this)
 {
+    Running = false;
     Profiler.SetEnabled(enableProfiling);
 }
 

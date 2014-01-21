@@ -414,10 +414,12 @@ private:
     TChangelogDispatcher()
         : Thread(ThreadFunc, static_cast<void*>(this))
         , WakeupEvent(Event::rManual)
-        , Finished(false)
+        // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
+        // , Finished(false)
         , RecordCounter("/record_rate")
         , SizeCounter("/record_throughput")
     {
+        Finished = false;
         Thread.Start();
     }
 
