@@ -271,7 +271,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
 
     WriteThreeRows();
 
-    auto chunkMeta = New<TCachableVersionedChunkMeta>(
+    auto chunkMeta = New<TCachedVersionedChunkMeta>(
         MemoryReader,
         Schema,
         KeyColumns);
@@ -327,7 +327,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
         TColumnSchema("v2", EValueType::Integer)
     };
 
-    auto chunkMeta = New<TCachableVersionedChunkMeta>(
+    auto chunkMeta = New<TCachedVersionedChunkMeta>(
         MemoryReader,
         schema,
         KeyColumns);
@@ -371,7 +371,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
 
     WriteManyRows();
 
-    auto chunkMeta = New<TCachableVersionedChunkMeta>(
+    auto chunkMeta = New<TCachedVersionedChunkMeta>(
         MemoryReader,
         Schema,
         KeyColumns);
