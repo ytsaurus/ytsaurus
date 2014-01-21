@@ -21,6 +21,8 @@
 #include <ytlib/tablet_client/config.h>
 #include <ytlib/tablet_client/protocol.h>
 
+#include <ytlib/chunk_client/block_cache.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/mutation_context.h>
@@ -30,6 +32,8 @@
 #include <server/tablet_server/tablet_manager.pb.h>
 
 #include <server/hive/hive_manager.h>
+
+#include <server/data_node/block_store.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -568,7 +572,13 @@ private:
             std::vector<TStoreId> addedStoreIds;
             for (const auto& descriptor : response.stores_to_add()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                auto store = New<TChunkStore>(storeId);
+                auto store = New<TChunkStore>(
+                    Config_,
+                    storeId,
+                    tablet,
+                    Bootstrap_->GetBlockStore()->GetBlockCache(),
+                    Bootstrap_->GetMasterChannel(),
+                    Bootstrap_->GetLocalDescriptor());
                 tablet->AddStore(store);
             }
 

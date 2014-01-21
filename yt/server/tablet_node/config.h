@@ -8,8 +8,6 @@
 
 #include <ytlib/chunk_client/config.h>
 
-#include <ytlib/chunk_client/config.h>
-
 #include <server/hydra/config.h>
 
 #include <server/hive/config.h>
@@ -39,6 +37,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletChunkReaderConfig
+    : public NVersionedTableClient::TChunkReaderConfig
+    , public NChunkClient::TReplicationReaderConfig
+{ };
+
 class TTabletManagerConfig
     : public TYsonSerializable
 {
@@ -51,6 +54,8 @@ public:
     i64 StringSpaceRotationThreshold;
 
     TDuration StoreErrorBackoffTime;
+
+    TIntrusivePtr<TTabletChunkReaderConfig> ChunkReader;
 
     TTabletManagerConfig()
     {
@@ -73,6 +78,9 @@ public:
 
         RegisterParameter("store_error_backoff_time", StoreErrorBackoffTime)
             .Default(TDuration::Minutes(1));
+
+        RegisterParameter("chunk_reader", ChunkReader)
+            .DefaultNew();
     }
 };
 

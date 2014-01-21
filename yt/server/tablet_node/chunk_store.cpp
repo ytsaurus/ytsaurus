@@ -1,21 +1,45 @@
 #include "stdafx.h"
 #include "chunk_store.h"
+#include "tablet.h"
+#include "config.h"
+
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/versioned_reader.h>
+#include <ytlib/new_table_client/versioned_chunk_reader.h>
+
+#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/replication_reader.h>
+#include <ytlib/chunk_client/read_limit.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
+using namespace NRpc;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
+using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(const TStoreId& id)
-    : Id_(id)
+TChunkStore::TChunkStore(
+    TTabletManagerConfigPtr config,
+    const TStoreId& id,
+    TTablet* tablet,
+    IBlockCachePtr blockCache,
+    IChannelPtr masterChannel,
+    const TNullable<TNodeDescriptor>& localDescriptor)
+    : Config_(config)
+    , Id_(id)
+    , Tablet_(tablet)
+    , BlockCache_(blockCache)
+    , MasterChannel_(masterChannel)
     , State_(EStoreState::Persistent)
 {
     YCHECK(
@@ -47,7 +71,40 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    return nullptr;
+    if (!ChunkReader_) {
+        // TODO(babenko): provide seed replicas
+        ChunkReader_ = CreateReplicationReader(
+            Config_->ChunkReader,
+            BlockCache_,
+            MasterChannel_,
+            New<TNodeDirectory>(),
+            LocalDescriptor_,
+            Id_);
+    }
+
+    if (!CachedMeta_) {
+        auto cachedMeta = New<TCachedVersionedChunkMeta>(
+            ChunkReader_,
+            Tablet_->Schema(),
+            Tablet_->KeyColumns());
+        auto result = WaitFor(cachedMeta->Load());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error caching chunk meta");
+        CachedMeta_ = cachedMeta;
+    }
+
+    TReadLimit lowerLimit;
+    lowerLimit.SetKey(TOwningKey(lowerKey));
+
+    TReadLimit upperLimit;
+    upperLimit.SetKey(TOwningKey(upperKey));
+
+    return CreateVersionedChunkReader(
+        Config_->ChunkReader,
+        ChunkReader_,
+        CachedMeta_,
+        lowerLimit,
+        upperLimit,
+        timestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
