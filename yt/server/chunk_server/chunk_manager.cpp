@@ -1010,7 +1010,7 @@ private:
             chunk->SetRefreshScheduled(false);
             chunk->SetPropertiesUpdateScheduled(false);
             chunk->ResetWeakRefCounter();
-            chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
+            chunk->SetRepairQueueIterator(Null);
         }
 
         for (const auto& pair : ChunkListMap) {

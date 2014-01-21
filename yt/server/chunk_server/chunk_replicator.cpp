@@ -133,8 +133,8 @@ void TChunkReplicator::Finalize()
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     auto repairIt = chunk->GetRepairQueueIterator();
-    if (repairIt != TChunkRepairQueueIterator()) {
-        RepairQueue.erase(repairIt);
+    if (repairIt) {
+        RepairQueue.erase(*repairIt);
         auto newRepairIt = RepairQueue.insert(RepairQueue.begin(), chunk);
         chunk->SetRepairQueueIterator(newRepairIt);
     }
@@ -716,7 +716,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 registerJob(job);
             }
             if (flags & EJobScheduleFlags::Purged) {
-                chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
+                chunk->SetRepairQueueIterator(Null);
                 RepairQueue.erase(jt);
             }
         }
@@ -879,9 +879,9 @@ void TChunkReplicator::ResetChunkJobs(TChunk* chunk)
 
     if (chunk->IsErasure()) {
         auto repairIt = chunk->GetRepairQueueIterator();
-        if (repairIt != TChunkRepairQueueIterator()) {
-            RepairQueue.erase(repairIt);
-            chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
+        if (repairIt) {
+            RepairQueue.erase(*repairIt);
+            chunk->SetRepairQueueIterator(Null);
         }
     }
 }

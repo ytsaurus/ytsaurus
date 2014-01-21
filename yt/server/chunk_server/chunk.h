@@ -7,6 +7,7 @@
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
 #include <core/misc/ref_tracked.h>
+#include <core/misc/nullable.h>
 
 #include <core/erasure/public.h>
 
@@ -59,8 +60,8 @@ class TChunk
     DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
     //! Contains a valid iterator for those chunks belonging to the repair queue
-    //! and a default-constructed instance for others.
-    DEFINE_BYVAL_RW_PROPERTY(TChunkRepairQueueIterator, RepairQueueIterator);
+    //! and |Null| for others.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TChunkRepairQueueIterator>, RepairQueueIterator);
 
 public:
     static const i64 UnknownDiskSpace;
