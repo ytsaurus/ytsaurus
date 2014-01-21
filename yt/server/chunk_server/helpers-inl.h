@@ -69,7 +69,7 @@ void AttachToChunkList(
 
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
         auto* child = *it;
-        if (child->GetType() == EObjectType::Chunk) {
+        if (child->GetType() == NObjectClient::EObjectType::Chunk) {
             child->AsChunk()->ValidateConfirmed();
         }
     }
