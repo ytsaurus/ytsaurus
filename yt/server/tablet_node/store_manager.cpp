@@ -371,8 +371,10 @@ void TStoreManager::ResetRotationScheduled()
     }
 }
 
-void TStoreManager::Rotate()
+void TStoreManager::Rotate(bool createNew)
 {
+    RotationScheduled_ = false;
+
     auto activeStore = Tablet_->GetActiveStore();
     activeStore->SetState(EStoreState::PassiveDynamic);
 
@@ -384,8 +386,11 @@ void TStoreManager::Rotate()
         YCHECK(LockedStores_.insert(activeStore).second);
     }
 
-    CreateNewStore();
-    RotationScheduled_ = false;
+    if (createNew) {
+        CreateNewStore();
+    } else {
+        Tablet_->SetActiveStore(nullptr);
+    }
 
     LOG_INFO("Tablet stores rotated (TabletId: %s, StoreCount: %d)",
         ~ToString(Tablet_->GetId()),

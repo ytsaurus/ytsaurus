@@ -280,7 +280,7 @@ private:
         }
 
         int timestampCount = timestampList.GetSize() + timestampList.GetSuccessorsSize();
-        if (timestampList.Back() & UncommittedTimestamp) {
+        if ((timestampList.Back() & TimestampValueMask) == UncommittedTimestamp) {
             --timestampCount;
         }
 
@@ -293,7 +293,7 @@ private:
             auto list = dynamicRow.GetFixedValueList(index, KeyCount_);
             if (list) {
                 valueCount += list.GetSize() + list.GetSuccessorsSize();
-                if (list.Back().Timestamp & UncommittedTimestamp) {
+                if ((list.Back().Timestamp & TimestampValueMask) == UncommittedTimestamp) {
                     --valueCount;
                 }
             }
@@ -311,7 +311,7 @@ private:
             while (currentList) {
                 for (const auto* it = &currentList.Back(); it >= &currentList.Front(); --it) {
                     const auto& value = *it;
-                    if (!(value.Timestamp & UncommittedTimestamp)) {
+                    if ((value.Timestamp & TimestampValueMask) != UncommittedTimestamp) {
                         *currentValue++ = value;
                     }
                 }
@@ -326,7 +326,7 @@ private:
         while (currentTimestampList) {
             for (const auto* it = &currentTimestampList.Back(); it >= &currentTimestampList.Front(); --it) {
                 auto timestamp = *it;
-                if (!(timestamp & UncommittedTimestamp)) {
+                if ((timestamp & TimestampValueMask) != UncommittedTimestamp) {
                     *currentTimestamp++ = timestamp;
                 }
             }

@@ -39,7 +39,7 @@ message TReqCommitFlushedChunk
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid store_id = 2;
-    required NYT.NProto.TGuid chunk_id = 3;
+    optional NYT.NProto.TGuid chunk_id = 3; // null indicates empty store
 }
 
 message TRspUpdateTabletStores

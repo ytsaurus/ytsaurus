@@ -52,7 +52,7 @@ public:
     bool IsRotationNeeded() const;
     void SetRotationScheduled();
     void ResetRotationScheduled();
-    void Rotate();
+    void Rotate(bool createNew);
 
 private:
     TTabletManagerConfigPtr Config_;

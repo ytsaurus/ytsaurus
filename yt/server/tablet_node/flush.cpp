@@ -9,6 +9,8 @@
 #include "tablet_manager.h"
 #include "tablet_cell_controller.h"
 
+#include <core/misc/address.h>
+
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/thread_affinity.h>
@@ -18,10 +20,21 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/helpers.h>
+
+#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/replication_writer.h>
+#include <ytlib/chunk_client/chunk_ypath_proxy.h>
+
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_writer.h>
+#include <ytlib/new_table_client/versioned_chunk_writer.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/api/transaction.h>
 
@@ -41,8 +54,11 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NVersionedTableClient;
+using namespace NNodeTrackerClient;
 using namespace NApi;
+using namespace NObjectClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NHydra;
 using namespace NTabletServer::NProto;
 using namespace NTabletNode::NProto;
@@ -63,7 +79,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , ThreadPool_(New<TThreadPool>(Config_->PoolSize, "StoreFlush"))
+        , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreFlush"))
         , ScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::ScanSlots, Unretained(this)),
@@ -148,6 +164,8 @@ private:
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
+        TObjectServiceProxy proxy(Bootstrap_->GetMasterChannel());
+
         try {
             LOG_INFO("Store flush started");
 
@@ -160,7 +178,7 @@ private:
         
             TTransactionPtr transaction;
             {
-                LOG_INFO("Creating upload transaction for store flush");
+                LOG_INFO("Creating store flush transaction");
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
                 options.Attributes->Set("title", Sprintf("Flush of store %s, tablet %s",
@@ -170,8 +188,36 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.GetValue();
             }
+
+            TChunkId chunkId;
+            auto nodeDirectory = New<TNodeDirectory>();
+            std::vector<TChunkReplica> replicas;
+            std::vector<TNodeDescriptor> targets;
+            {
+                // TODO(babenko): make configurable
+                LOG_INFO("Creating flushed chunk");
+                auto req = TMasterYPathProxy::CreateObjects();
+                req->set_type(EObjectType::Chunk);
+                req->set_account("tmp");
+                ToProto(req->mutable_transaction_id(), transaction->GetId());
+                auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
+                reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+                reqExt->set_replication_factor(3);
+                reqExt->set_upload_replication_factor(2);
+                reqExt->set_movable(true);
+                reqExt->set_vital(true);
+                reqExt->set_erasure_codec(NErasure::ECodec::None);
+
+                auto rsp = WaitFor(proxy.Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                chunkId = FromProto<TChunkId>(rsp->object_ids(0));
+                const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk_ext);
+                nodeDirectory->MergeFrom(rspExt.node_directory());
+                replicas = FromProto<TChunkReplica>(rspExt.replicas());
+                targets = nodeDirectory->GetDescriptors(replicas);
+            }
                             
-            LOG_INFO("Started writing store chunk");
+            LOG_INFO("Writing flushed chunk");
         
             auto reader = store->CreateReader(
                 MinKey().Get(),
@@ -179,33 +225,65 @@ private:
                 AllCommittedTimestamp,
                 TColumnFilter());
         
-            // TODO(babenko): need some real writer here!
-            IVersionedWriterPtr writer;
+            // NB: Memory store reader is always synchronous.
+            reader->Open().Get();
+
+            auto chunkWriter = CreateReplicationWriter(
+                Config_->Writer,
+                chunkId,
+                targets);
+            chunkWriter->Open();
+
+            auto rowsetWriter = CreateVersionedChunkWriter(
+                Config_->Writer,
+                New<TChunkWriterOptions>(), // TODO(babenko): make configurable
+                tablet->Schema(),
+                tablet->KeyColumns(),
+                chunkWriter);
         
+            int rowCount = 0;
             std::vector<TVersionedRow> rows;
             while (reader->Read(&rows)) {
+                rowCount += rows.size();
                 // NB: Memory store reader is always synchronous.
                 YCHECK(!rows.empty());
-#if 0
-                if (!writer->Write(rows)) {
-                    auto result = WaitFor(writer->GetReadyEvent());
+                if (!rowsetWriter->Write(rows)) {
+                    auto result = WaitFor(rowsetWriter->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
-#endif
             }
-        
-            {
-#if 0
-                auto result = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-#endif
-            }
-        
-            // TODO(babenko): need some real chunk id here!
-            TChunkId chunkId(0, NObjectClient::EObjectType::Chunk, 0, 0);
 
-            LOG_INFO("Finished writing store chunk");
-        
+            if (rowCount == 0) {
+                LOG_INFO("Store is empty, requesting drop");
+
+                SwitchTo(automatonInvoker);
+
+                // Simulate master response.
+                TReqCommitFlushedChunk request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+                ToProto(request.mutable_store_id(), store->GetId());
+                CreateMutation(slot->GetHydraManager(), request)
+                    ->Commit();
+                return;
+            }
+
+            {
+                auto result = WaitFor(rowsetWriter->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            LOG_INFO("Confirming flushed chunk");
+            {
+                auto req = TChunkYPathProxy::Confirm(FromObjectId(chunkId));
+                *req->mutable_chunk_info() = chunkWriter->GetChunkInfo();
+                for (int index : chunkWriter->GetWrittenIndexes()) {
+                    req->add_replicas(ToProto<ui32>(replicas[index]));
+                }
+                *req->mutable_chunk_meta() = rowsetWriter->GetMasterMeta();
+                auto rsp = WaitFor(proxy.Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+            }
+
             SwitchTo(automatonInvoker);
 
             {
@@ -217,7 +295,9 @@ private:
                     ->Commit();
             }
 
-            // Just abandon the transaction, hopefully it will expire after the chunk is attached.
+            LOG_INFO("Store flush finished");
+
+            // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing tablet store, backing off");
         

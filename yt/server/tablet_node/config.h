@@ -4,6 +4,12 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/new_table_client/config.h>
+
+#include <ytlib/chunk_client/config.h>
+
+#include <ytlib/chunk_client/config.h>
+
 #include <server/hydra/config.h>
 
 #include <server/hive/config.h>
@@ -72,17 +78,27 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStoreFlushWriterConfig
+    : public NVersionedTableClient::TChunkWriterConfig
+    , public NChunkClient::TReplicationWriterConfig
+{ };
+
 class TStoreFlusherConfig
     : public TYsonSerializable
 {
 public:
-    int PoolSize;
+    int ThreadPoolSize;
+
+    TIntrusivePtr<TStoreFlushWriterConfig> Writer;
 
     TStoreFlusherConfig()
     {
-        RegisterParameter("pool_size", PoolSize)
+        RegisterParameter("thread_pool_size", ThreadPoolSize)
             .GreaterThan(0)
             .Default(1);
+
+        RegisterParameter("writer", Writer)
+            .DefaultNew();
     }
 };
 

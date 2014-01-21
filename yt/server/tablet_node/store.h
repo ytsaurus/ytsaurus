@@ -15,7 +15,7 @@ struct IStore
     : public virtual TRefCounted
 {
     virtual TStoreId GetId() const = 0;
-    
+
     virtual EStoreState GetState() const = 0;
     EStoreState GetPersistentState() const;
     virtual void SetState(EStoreState state) = 0;

@@ -62,7 +62,7 @@ public:
     i64 GetAllocatedStringSpace() const;
     int GetAllocatedValueCount() const;
 
-    // IStore implementaion.
+    // IStore implementation.
     virtual TStoreId GetId() const override;
 
     virtual EStoreState GetState() const override;

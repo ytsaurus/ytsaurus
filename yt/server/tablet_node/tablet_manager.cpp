@@ -389,7 +389,7 @@ private:
                 YCHECK(tablet->GetState() == ETabletState::WaitingForLocks);
                 tablet->SetState(ETabletState::RotatingStore);
                 // NB: Flush requests for all other stores must already be on their way.
-                RotateStore(tablet);
+                RotateStore(tablet, false);
 
                 YCHECK(tablet->GetState() == ETabletState::RotatingStore);
                 tablet->SetState(ETabletState::FlushingStores);
@@ -479,7 +479,7 @@ private:
         if (!tablet)
             return;
 
-        RotateStore(tablet);
+        RotateStore(tablet, true);
     }
 
     void HydraCommitFlushedChunk(const TReqCommitFlushedChunk& request)
@@ -503,29 +503,41 @@ private:
             return;
         }
 
-        auto chunkId = FromProto<TChunkId>(request.chunk_id());
+        if (request.has_chunk_id()) {
+            auto chunkId = FromProto<TChunkId>(request.chunk_id());
 
-        LOG_INFO_UNLESS(IsRecovery(), "Committing a flushed chunk (TabletId: %s, StoreId: %s, ChunkId: %s)",
-            ~ToString(tabletId),
-            ~ToString(storeId),
-            ~ToString(chunkId));
+            LOG_INFO_UNLESS(IsRecovery(), "Committing flushed chunk (TabletId: %s, StoreId: %s, ChunkId: %s)",
+                ~ToString(tabletId),
+                ~ToString(storeId),
+                ~ToString(chunkId));
 
-        store->SetState(EStoreState::FlushCommitting);
+            store->SetState(EStoreState::FlushCommitting);
 
-        {
-            TReqUpdateTabletStores request;
-            ToProto(request.mutable_tablet_id(), tabletId);
             {
-                auto* descriptor = request.add_stores_to_add();
-                ToProto(descriptor->mutable_store_id(), chunkId);
+                TReqUpdateTabletStores request;
+                ToProto(request.mutable_tablet_id(), tabletId);
+                {
+                    auto* descriptor = request.add_stores_to_add();
+                    ToProto(descriptor->mutable_store_id(), chunkId);
+                }
+                {
+                    auto* descriptor = request.add_stores_to_remove();
+                    ToProto(descriptor->mutable_store_id(), storeId);
+                }
+                auto* slot = tablet->GetSlot();
+                auto hiveManager = slot->GetHiveManager();
+                hiveManager->PostMessage(slot->GetMasterMailbox(), request);
             }
-            {
-                auto* descriptor = request.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), storeId);
+        } else {
+            LOG_INFO_UNLESS(IsRecovery(), "Dropping empty store (TabletId: %s, StoreId: %s)",
+                ~ToString(tabletId),
+                ~ToString(storeId));
+
+            tablet->RemoveStore(storeId);
+
+            if (IsLeader()) {
+                CheckIfAllStoresFlushed(tablet);
             }
-            auto* slot = tablet->GetSlot();
-            auto hiveManager = slot->GetHiveManager();
-            hiveManager->PostMessage(slot->GetMasterMailbox(), request);
         }
     }
 
@@ -754,10 +766,10 @@ private:
     }
 
 
-    void RotateStore(TTablet* tablet)
+    void RotateStore(TTablet* tablet, bool createNew)
     {
         auto storeManager = tablet->GetStoreManager();
-        storeManager->Rotate();
+        storeManager->Rotate(createNew);
     }
 
 
