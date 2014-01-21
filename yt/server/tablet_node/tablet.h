@@ -25,7 +25,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkListId, ChunkListId);
     
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
 
@@ -39,7 +38,6 @@ public:
         TTabletSlot* slot,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
-        const NChunkClient::TChunkListId& chunkListId,
         NTabletClient::TTableMountConfigPtr config);
 
     ~TTablet();

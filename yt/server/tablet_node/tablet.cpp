@@ -32,13 +32,11 @@ TTablet::TTablet(
     TTabletSlot* slot,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    const TChunkListId& chunkListId,
     NTabletClient::TTableMountConfigPtr config)
     : Id_(id)
     , Slot_(slot)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
-    , ChunkListId_(chunkListId)
     , State_(ETabletState::Mounted)
     , Config_(config)
     , NameTable_(TNameTable::FromSchema(Schema_))

@@ -13,7 +13,7 @@ message TReqMountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
-    required NYT.NProto.TGuid chunk_list_id = 4;
+    repeated NYT.NProto.TGuid chunk_ids = 4;
 }
 
 message TReqSetTabletState

@@ -74,7 +74,6 @@ protected:
             nullptr,
             schema,
             keyColumns,
-            NChunkClient::TChunkListId(),
             New<TTableMountConfig>()));
     }
 

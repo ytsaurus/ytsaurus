@@ -34,6 +34,7 @@
 
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_manager.h>
+#include <server/chunk_server/chunk_tree_traversing.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -382,16 +383,22 @@ public:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
-            ToProto(req.mutable_chunk_list_id(), chunkLists[index]->GetId());
-            
+
+            auto* chunkList = chunkLists[index]->AsChunkList();
+            auto chunks = EnumerateChunksInChunkTree(chunkList);
+            for (auto* chunk : chunks) {
+                ToProto(req.add_chunk_ids(), chunk->GetId());
+            }
+
             auto hiveManager = Bootstrap->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %s, TabletId: %s, CellId: %s, ChunkCount: %d)",
                 ~ToString(table->GetId()),
                 ~ToString(tablet->GetId()),
-                ~ToString(cell->GetId()));
+                ~ToString(cell->GetId()),
+                static_cast<int>(chunks.size()));
         }
     }
 

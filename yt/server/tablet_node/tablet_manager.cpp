@@ -325,18 +325,22 @@ private:
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<Stroka>(request.key_columns().names());
-        auto chunkListId = FromProto<TChunkListId>(request.chunk_list_id());
 
         auto* tablet = new TTablet(
             id,
             Slot_,
             schema,
             keyColumns,
-            chunkListId,
             New<TTableMountConfig>());
         InitTablet(tablet);
         tablet->SetState(ETabletState::Mounted);
         TabletMap_.Insert(id, tablet);
+
+        for (const auto& protoChunkId: request.chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto store = CreateChunkStore(tablet, chunkId);
+            tablet->AddStore(store);
+        }
 
         auto storeManager = New<TStoreManager>(Config_, tablet);
         tablet->SetStoreManager(std::move(storeManager));
@@ -347,9 +351,9 @@ private:
             PostMasterMutation(response);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkListId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkCount: %d)",
             ~ToString(id),
-            ~ToString(chunkListId));
+            request.chunk_ids_size());
     }
 
     void HydraSetTabletState(const TReqSetTabletState& request)
@@ -571,14 +575,8 @@ private:
         } else {
             std::vector<TStoreId> addedStoreIds;
             for (const auto& descriptor : response.stores_to_add()) {
-                auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                auto store = New<TChunkStore>(
-                    Config_,
-                    storeId,
-                    tablet,
-                    Bootstrap_->GetBlockStore()->GetBlockCache(),
-                    Bootstrap_->GetMasterChannel(),
-                    Bootstrap_->GetLocalDescriptor());
+                auto chunkId = FromProto<TChunkId>(descriptor.store_id());
+                auto store = CreateChunkStore(tablet, chunkId);
                 tablet->AddStore(store);
             }
 
@@ -823,6 +821,17 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         store->SetState(store->GetPersistentState());
+    }
+
+    IStorePtr CreateChunkStore(TTablet* tablet, const TChunkId& chunkId)
+    {
+        return New<TChunkStore>(
+            Config_,
+            chunkId,
+            tablet,
+            Bootstrap_->GetBlockStore()->GetBlockCache(),
+            Bootstrap_->GetMasterChannel(),
+            Bootstrap_->GetLocalDescriptor());
     }
 
 };
