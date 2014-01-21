@@ -18,33 +18,36 @@ void RefCountedSingletonDestroyer(void* ctx)
 template <class T>
 TIntrusivePtr<T> RefCountedSingleton()
 {
-    static std::atomic<T*> instance;
+    static std::atomic<T*> holder;
+
+    auto* relaxedInstance = holder.load(std::memory_order_relaxed);
 
     // Failure here means that singleton is requested after it has been destroyed.
-    YASSERT(instance != reinterpret_cast<T*>(-1));
+    YASSERT(relaxedInstance != reinterpret_cast<T*>(-1));
 
-    if (LIKELY(instance)) {
-        return instance.load();
+    if (LIKELY(relaxedInstance)) {
+        return relaxedInstance;
     }
 
     static TSpinLock spinLock;
     TGuard<TSpinLock> guard(spinLock);
 
-    if (instance) {
-        return instance.load();
+    auto* orderedInstance = holder.load();
+    if (orderedInstance) {
+        return orderedInstance;
     }
 
-    T* obj = new T();
-    obj->Ref();
+    auto* newInstance = new T();
+    newInstance->Ref();
 
-    instance = obj;
+    holder.store(newInstance);
 
     AtExit(
         RefCountedSingletonDestroyer<T>,
-        &instance,
+        &holder,
         TSingletonTraits<T>::Priority);
 
-    return instance.load();
+    return newInstance;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
