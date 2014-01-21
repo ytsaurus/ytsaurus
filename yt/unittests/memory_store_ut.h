@@ -226,9 +226,9 @@ protected:
         THROW_ERROR_EXCEPTION_IF_FAILED(reader->Open().Get());
 
         std::vector<TVersionedRow> rows;
-        if (!reader->Read(&rows)) {
-            return TUnversionedOwningRow();
-        }
+        rows.reserve(1);
+
+        reader->Read(&rows);
 
         EXPECT_LE(rows.size(), 1);
         if (rows.empty()) {
