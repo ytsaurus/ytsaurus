@@ -252,13 +252,13 @@ TOwningKey GetKeySuccessor(TKey key);
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
 
 //! Returns the key with no components.
-TOwningKey EmptyKey();
+const TOwningKey EmptyKey();
 
 //! Returns the key with a single |Min| component.
-TOwningKey MinKey();
+const TOwningKey MinKey();
 
 //! Returns the key with a single |Max| component.
-TOwningKey MaxKey();
+const TOwningKey MaxKey();
 
 //! Compares two keys, |a| and |b|, and returns a smaller one.
 //! Ties are broken in favour of the first argument.

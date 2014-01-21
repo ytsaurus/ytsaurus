@@ -470,15 +470,15 @@ static TOwningKey MakeSentinelKey(EValueType type)
     return builder.Finish();
 }
 
-static TOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
-static TOwningKey CachedMaxKey = MakeSentinelKey(EValueType::Max);
+static const TOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
+static const TOwningKey CachedMaxKey = MakeSentinelKey(EValueType::Max);
 
-TOwningKey MinKey()
+const TOwningKey MinKey()
 {
     return CachedMinKey;
 }
 
-TOwningKey MaxKey()
+const TOwningKey MaxKey()
 {
     return CachedMaxKey;
 }
@@ -489,9 +489,9 @@ static TOwningKey MakeEmptyKey()
     return builder.Finish();
 }
 
-static TOwningKey CachedEmptyKey = MakeEmptyKey();
+static const TOwningKey CachedEmptyKey = MakeEmptyKey();
 
-TOwningKey EmptyKey()
+const TOwningKey EmptyKey()
 {
     return CachedEmptyKey;
 }
