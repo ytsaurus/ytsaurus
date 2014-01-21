@@ -63,7 +63,8 @@ private:
 
     NVersionedTableClient::TNameTablePtr NameTable_;
 
-    std::vector<NVersionedTableClient::TUnversionedRow> PooledRowset_;
+    std::vector<NVersionedTableClient::TUnversionedRow> UnversionedPooledRowset_;
+    std::vector<NVersionedTableClient::TVersionedRow> VersionedPooledRowset_;
 
     void CreateNewStore();
     

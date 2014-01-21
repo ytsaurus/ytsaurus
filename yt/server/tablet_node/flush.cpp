@@ -67,6 +67,7 @@ using namespace NTabletNode::NProto;
 
 static auto& Logger = TabletNodeLogger;
 static const TDuration ScanPeriod = TDuration::Seconds(1);
+static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,10 +244,14 @@ private:
         
             int rowCount = 0;
             std::vector<TVersionedRow> rows;
-            while (reader->Read(&rows)) {
-                rowCount += rows.size();
+            rows.reserve(MaxRowsPerRead);
+
+            while (true) {
                 // NB: Memory store reader is always synchronous.
-                YCHECK(!rows.empty());
+                reader->Read(&rows);
+                if (rows.empty())
+                    break;
+                rowCount += rows.size();
                 if (!rowsetWriter->Write(rows)) {
                     auto result = WaitFor(rowsetWriter->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);

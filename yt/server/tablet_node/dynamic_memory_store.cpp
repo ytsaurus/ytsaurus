@@ -152,12 +152,13 @@ public:
             return false;
         }
 
+        YASSERT(rows->capacity() > 0);
         rows->clear();
         Pool_.Clear();
 
         TKeyPrefixComparer keyComparer(KeyCount_);
 
-        while (TreeScanner_->IsValid() && rows->size() < MaxRowsPerRead) {
+        while (TreeScanner_->IsValid() && rows->size() < rows->capacity()) {
             const auto* rowKeys = TreeScanner_->GetCurrent().GetKeys();
             if (CompareRows(rowKeys, rowKeys + KeyCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
                 break;
@@ -198,9 +199,6 @@ private:
     TChunkedMemoryPool Pool_;
     
     bool Finished_;
-
-    static const size_t MaxRowsPerRead = 1024;
-
 
     TVersionedRow ProduceRow()
     {

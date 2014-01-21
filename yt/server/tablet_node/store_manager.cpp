@@ -38,6 +38,7 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = TabletNodeLogger;
+static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +51,8 @@ TStoreManager::TStoreManager(
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
+
+    VersionedPooledRowset_.reserve(MaxRowsPerRead);
 
     CreateNewStore();
 }
@@ -147,8 +150,6 @@ void TStoreManager::LookupRow(
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    // Merge values.
-    std::vector<TVersionedRow> rows;
     TKeyPrefixComparer keyComparer(keyColumnCount);
 
     auto currentTimestamp = NullTimestamp | TombstoneTimestampMask;
@@ -158,12 +159,15 @@ void TStoreManager::LookupRow(
         currentValues[id] = MakeVersionedValue(key[id], NullTimestamp);
     }
 
+    // Merge values.
     for (const auto& reader : rowReaders) {
-        if (!reader->Read(&rows))
+        VersionedPooledRowset_.clear();
+        // NB: Reading at most one row.
+        reader->Read(&VersionedPooledRowset_);
+        if (VersionedPooledRowset_.empty())
             continue;
 
-        YASSERT(!rows.empty());
-        auto row = rows[0];
+        auto row = VersionedPooledRowset_[0];
 
         YASSERT(row.GetKeyCount() == keyColumnCount);
 
@@ -189,7 +193,7 @@ void TStoreManager::LookupRow(
             for (int index = 0; index < row.GetValueCount(); ++index) {
                 const auto& value = rowValues[index];
                 int id = value.Id;
-                if (columnFilterFlags[id] && currentValues[id].Timestamp < value.Timestamp) {
+                if (columnFilterFlags[id] && currentValues[id].Timestamp <= value.Timestamp) {
                     currentValues[id] = value;
                 }
             }
@@ -197,7 +201,7 @@ void TStoreManager::LookupRow(
     }
 
     TUnversionedRowBuilder builder;
-    PooledRowset_.clear();
+    UnversionedPooledRowset_.clear();
     if (!(currentTimestamp & TombstoneTimestampMask)) {
         for (int id = 0; id < schemaColumnCount; ++id) {
             if (columnFilterFlags[id]) {
@@ -207,9 +211,9 @@ void TStoreManager::LookupRow(
                 }
             }
         }
-        PooledRowset_.push_back(builder.GetRow());
+        UnversionedPooledRowset_.push_back(builder.GetRow());
     }
-    writer->WriteUnversionedRowset(PooledRowset_);
+    writer->WriteUnversionedRowset(UnversionedPooledRowset_);
 }
 
 void TStoreManager::WriteRow(
