@@ -4,6 +4,8 @@
 #include "chunk.h"
 #include "chunk_manager.h"
 
+#include <core/misc/singleton.h>
+
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -20,7 +22,7 @@ using namespace NChunkClient;
 using namespace NTableClient::NProto;
 using namespace NVersionedTableClient;
 
-namespace {
+////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxChunksPerAction = 1000;
 
@@ -130,10 +132,10 @@ protected:
     void DoTraverse()
     {
         int visitedChunkCount = 0;
-        while (visitedChunkCount < MaxChunksPerAction) {
+        while (!Preemptable_ || visitedChunkCount < MaxChunksPerAction) {
             if (IsStackEmpty()) {
                 Shutdown();
-                Visitor->OnFinish();
+                Visitor_->OnFinish();
                 return;
             }
 
@@ -142,7 +144,7 @@ protected:
 
             if (chunkList->GetVersion() != entry.ChunkListVersion) {
                 Shutdown();
-                Visitor->OnError(TError(
+                Visitor_->OnError(TError(
                     NRpc::EErrorCode::Unavailable,
                     "Optimistic locking failed for chunk list %s",
                     ~ToString(chunkList->GetId())));
@@ -260,7 +262,7 @@ protected:
                 case EObjectType::Chunk:
                 case EObjectType::ErasureChunk: {
                     auto* childChunk = child->AsChunk();
-                    if (!Visitor->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
+                    if (!Visitor_->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
                         Shutdown();
                         return;
                     }
@@ -275,11 +277,11 @@ protected:
 
         // Schedule continuation.
         {
-            auto invoker = TraverserCallbacks->GetInvoker();
+            auto invoker = TraverserCallbacks_->GetInvoker();
             auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
             if (!result) {
                 Shutdown();
-                Visitor->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
+                Visitor_->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
             }
         }
     }
@@ -407,48 +409,50 @@ protected:
 
     bool IsStackEmpty()
     {
-        return Stack.empty();
+        return Stack_.empty();
     }
 
     void PushStack(const TStackEntry& newEntry)
     {
-        TraverserCallbacks->OnPush(newEntry.ChunkList);
-        Stack.push_back(newEntry);
+        TraverserCallbacks_->OnPush(newEntry.ChunkList);
+        Stack_.push_back(newEntry);
     }
 
     TStackEntry& PeekStack()
     {
-        return Stack.back();
+        return Stack_.back();
     }
 
     void PopStack()
     {
-        auto& entry = Stack.back();
-        TraverserCallbacks->OnPop(entry.ChunkList);
-        Stack.pop_back();
+        auto& entry = Stack_.back();
+        TraverserCallbacks_->OnPop(entry.ChunkList);
+        Stack_.pop_back();
     }
 
     void Shutdown()
     {
         std::vector<TChunkTree*> nodes;
-        for (const auto& entry : Stack) {
+        for (const auto& entry : Stack_) {
             nodes.push_back(entry.ChunkList);
         }
-        TraverserCallbacks->OnShutdown(nodes);
-        Stack.clear();
+        TraverserCallbacks_->OnShutdown(nodes);
+        Stack_.clear();
     }
 
-    IChunkTraverserCallbacksPtr TraverserCallbacks;
-    IChunkVisitorPtr Visitor;
+    IChunkTraverserCallbacksPtr TraverserCallbacks_;
+    IChunkVisitorPtr Visitor_;
+    bool Preemptable_;
 
-    std::vector<TStackEntry> Stack;
+    std::vector<TStackEntry> Stack_;
 
 public:
     TChunkTreeTraverser(
         IChunkTraverserCallbacksPtr traverserCallbacks,
         IChunkVisitorPtr visitor)
-        : TraverserCallbacks(traverserCallbacks)
-        , Visitor(visitor)
+        : TraverserCallbacks_(traverserCallbacks)
+        , Visitor_(visitor)
+        , Preemptable_(TraverserCallbacks_->IsPreemptable())
     { }
 
     void Run(
@@ -470,67 +474,149 @@ public:
 
 };
 
+void TraverseChunkTree(
+    IChunkTraverserCallbacksPtr traverserCallbacks,
+    IChunkVisitorPtr visitor,
+    TChunkList* root,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit)
+{
+    auto traverser = New<TChunkTreeTraverser>(
+        std::move(traverserCallbacks),
+        std::move(visitor));
+    traverser->Run(root, lowerLimit, upperLimit);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkTraverserCallbacks
+class TPreemptableChunkTraverserCallbacks
     : public IChunkTraverserCallbacks
 {
 public:
-    explicit TChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+    explicit TPreemptableChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
     { }
+
+    virtual bool IsPreemptable() const override
+    {
+        return true;
+    }
 
     virtual IInvokerPtr GetInvoker() const override
     {
-        return Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+        return Bootstrap_->GetMetaStateFacade()->GetGuardedInvoker();
     }
 
     virtual void OnPop(TChunkTree* node) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakUnrefObject(node);
     }
 
     virtual void OnPush(TChunkTree* node) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(node);
     }
 
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         for (const auto& node : nodes) {
             objectManager->WeakUnrefObject(node);
         }
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap;
+    NCellMaster::TBootstrap* Bootstrap_;
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-IChunkTraverserCallbacksPtr CreateTraverserCallbacks(
+IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
     NCellMaster::TBootstrap* bootstrap)
 {
-    return New<TChunkTraverserCallbacks>(bootstrap);
+    return New<TPreemptableChunkTraverserCallbacks>(bootstrap);
 }
 
-void TraverseChunkTree(
-    IChunkTraverserCallbacksPtr traverserCallbacks,
-    IChunkVisitorPtr visitor,
-    TChunkList* root,
-    const TReadLimit& lowerBound,
-    const TReadLimit& upperBound)
+////////////////////////////////////////////////////////////////////////////////
+
+class TNonpreemptableChunkTraverserCallbacks
+    : public IChunkTraverserCallbacks
 {
-    auto traverser = New<TChunkTreeTraverser>(traverserCallbacks, visitor);
-    traverser->Run(root, lowerBound, upperBound);
+public:
+    virtual bool IsPreemptable() const override
+    {
+        return false;
+    }
+
+    virtual IInvokerPtr GetInvoker() const override
+    {
+        return GetSyncInvoker();
+    }
+
+    virtual void OnPop(TChunkTree* /*node*/) override
+    { }
+
+    virtual void OnPush(TChunkTree* /*node*/) override
+    { }
+
+    virtual void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
+    { }
+
+};
+
+IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks()
+{
+    return RefCountedSingleton<TNonpreemptableChunkTraverserCallbacks>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEnumeratingChunkVisitor
+    : public IChunkVisitor
+{
+public:
+    virtual bool OnChunk(
+        TChunk* chunk,
+        i64 /*rowIndex*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/) override
+    {
+        Chunks_.push_back(chunk);
+        return true;
+    }
+
+    virtual void OnError(const TError& /*error*/) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void OnFinish() override
+    { }
+
+    std::vector<TChunk*> GetChunks()
+    {
+        return std::move(Chunks_);
+    }
+
+private:
+    std::vector<TChunk*> Chunks_;
+
+};
+
+std::vector<TChunk*> EnumerateChunksInChunkTree(
+    TChunkList* root,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit)
+{
+    auto visitor = New<TEnumeratingChunkVisitor>();
+    TraverseChunkTree(
+        GetNonpreemptableChunkTraverserCallbacks(),
+        visitor,
+        root,
+        lowerLimit,
+        upperLimit);
+    return visitor->GetChunks();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

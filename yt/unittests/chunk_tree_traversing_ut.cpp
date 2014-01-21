@@ -36,27 +36,6 @@ bool operator == (const TReadLimit& lhs, const TReadLimit& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNoneTraverserCallbacks
-    : public IChunkTraverserCallbacks
-{
-public:
-    virtual IInvokerPtr GetInvoker() const override
-    {
-        return GetSyncInvoker();
-    }
-
-    virtual void OnPop(TChunkTree*) override
-    { }
-
-    virtual void OnPush(TChunkTree*) override
-    { }
-
-    virtual void OnShutdown(const std::vector<TChunkTree*>&) override
-    { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChunkInfo
 {
 public:
@@ -206,11 +185,11 @@ TEST(TraverseChunkTree, Simple)
         AttachToChunkList(&listA, chunks);
     }
 
-    auto bootstrap = New<TNoneTraverserCallbacks>();
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(bootstrap, visitor, &listA);
+        TraverseChunkTree(callbacks, visitor, &listA);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -241,7 +220,7 @@ TEST(TraverseChunkTree, Simple)
         TReadLimit endLimit;
         endLimit.SetRowIndex(5);
 
-        TraverseChunkTree(bootstrap, visitor, &listA, startLimit, endLimit);
+        TraverseChunkTree(callbacks, visitor, &listA, startLimit, endLimit);
 
         TReadLimit correctStartLimit;
         correctStartLimit.SetRowIndex(1);

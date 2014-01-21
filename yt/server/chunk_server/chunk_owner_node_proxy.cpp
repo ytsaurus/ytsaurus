@@ -121,7 +121,7 @@ void TFetchChunkVisitor::StartSession(
     ++SessionCount;
 
     TraverseChunkTree(
-        CreateTraverserCallbacks(Bootstrap),
+        CreatePreemptableChunkTraverserCallbacks(Bootstrap),
         this,
         ChunkList,
         lowerBound,
@@ -252,7 +252,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TraverseChunkTree(
-            CreateTraverserCallbacks(Bootstrap),
+            CreatePreemptableChunkTraverserCallbacks(Bootstrap),
             this,
             ChunkList);
 

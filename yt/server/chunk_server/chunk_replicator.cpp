@@ -1069,7 +1069,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         void Run()
         {
-            TraverseChunkTree(CreateTraverserCallbacks(Bootstrap), this, Root);
+            TraverseChunkTree(CreatePreemptableChunkTraverserCallbacks(Bootstrap), this, Root);
         }
 
     private:

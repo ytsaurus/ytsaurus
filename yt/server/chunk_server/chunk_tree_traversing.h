@@ -37,6 +37,8 @@ struct IChunkVisitor
 struct IChunkTraverserCallbacks
     : public virtual TRefCounted
 {
+    virtual bool IsPreemptable() const = 0;
+
     virtual IInvokerPtr GetInvoker() const = 0;
 
     virtual void OnPop(TChunkTree* node) = 0;
@@ -48,12 +50,19 @@ struct IChunkTraverserCallbacks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkTraverserCallbacksPtr CreateTraverserCallbacks(
+IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
     NCellMaster::TBootstrap* bootstrap);
 
+IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks();
+
 void TraverseChunkTree(
-    IChunkTraverserCallbacksPtr bootstrap,
+    IChunkTraverserCallbacksPtr traverserCallbacks,
     IChunkVisitorPtr visitor,
+    TChunkList* root,
+    const NChunkClient::TReadLimit& lowerLimit = NChunkClient::TReadLimit(),
+    const NChunkClient::TReadLimit& upperLimit = NChunkClient::TReadLimit());
+
+std::vector<TChunk*> EnumerateChunksInChunkTree(
     TChunkList* root,
     const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
     const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
