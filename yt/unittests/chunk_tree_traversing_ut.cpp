@@ -133,11 +133,16 @@ TGuid GenerateId(EObjectType type)
     return MakeId(type, 0, counter++, 0);
 }
 
-std::unique_ptr<TChunk> CreateChunk(i64 rowCount, i64 compressedDataSize, i64 uncompressedDataSize, i64 dataWeight)
+std::unique_ptr<TChunk> CreateChunk(
+    i64 rowCount,
+    i64 compressedDataSize,
+    i64 uncompressedDataSize,
+    i64 dataWeight)
 {
-    auto chunk = std::unique_ptr<TChunk>(new TChunk(GenerateId(EObjectType::Chunk)));
+    std::unique_ptr<TChunk> chunk(new TChunk(GenerateId(EObjectType::Chunk)));
     
     TChunkMeta chunkMeta;
+    chunkMeta.set_type(EChunkType::Table); // this makes chunk confirmed
 
     TMiscExt miscExt;
     miscExt.set_row_count(rowCount);
