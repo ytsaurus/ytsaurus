@@ -39,9 +39,9 @@ TTablet::TTablet(
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , ChunkListId_(chunkListId)
+    , State_(ETabletState::Mounted)
     , Config_(config)
     , NameTable_(TNameTable::FromSchema(Schema_))
-    , State_(ETabletState::Mounted)
 { }
 
 TTablet::~TTablet()

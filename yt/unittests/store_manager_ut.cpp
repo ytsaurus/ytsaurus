@@ -27,7 +27,7 @@ protected:
     void Rotate()
     {
         StoreManager->SetRotationScheduled();
-        StoreManager->Rotate();
+        StoreManager->Rotate(true);
     }
 
     void WriteRow(const TUnversionedOwningRow& row)

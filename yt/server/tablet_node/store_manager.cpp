@@ -166,7 +166,6 @@ void TStoreManager::LookupRow(
         auto row = rows[0];
 
         YASSERT(row.GetKeyCount() == keyColumnCount);
-        const auto* rowKeys = row.BeginKeys();
 
         if (keyComparer(key.Begin(), row.BeginKeys()) != 0)
             continue;
@@ -379,7 +378,7 @@ void TStoreManager::Rotate(bool createNew)
     activeStore->SetState(EStoreState::PassiveDynamic);
 
     if (activeStore->GetLockCount() > 0) {
-        LOG_INFO("Current store is locked and will be kept (TabletId: %s, StoreId: %d, LockCount: %d)",
+        LOG_INFO("Current store is locked and will be kept (TabletId: %s, StoreId: %s, LockCount: %d)",
             ~ToString(Tablet_->GetId()),
             ~ToString(activeStore->GetId()),
             activeStore->GetLockCount());

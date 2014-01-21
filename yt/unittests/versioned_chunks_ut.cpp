@@ -225,7 +225,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     WriteThreeRows();
 
-    auto chunkMeta = New<TCachableVersionedChunkMeta>(
+    auto chunkMeta = New<TCachedVersionedChunkMeta>(
         MemoryReader,
         Schema,
         KeyColumns);
