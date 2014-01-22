@@ -179,12 +179,12 @@ private:
 
     TChunkedMemoryPool MemoryPool_;
 
-    TAsyncError NextBlockFuture_;
-
     int CurrentBlockIndex_;
     i64 CurrentRowIndex_;
 
     i64 RowCount_;
+
+    TAsyncError NextBlockFuture_;
 
     int GetBeginBlockIndex() const;
     int GetEndBlockIndex() const;
@@ -214,6 +214,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     , CurrentBlockIndex_(0)
     , CurrentRowIndex_(0)
     , RowCount_(0)
+    , NextBlockFuture_(MakeFuture(TError()))
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
@@ -388,13 +389,29 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
 template <class TBlockReader>
 TError TVersionedChunkReader<TBlockReader>::DoOpen()
 {
+    // Check sensible lower limit.
+    if (LowerLimit_.HasKey()) {
+        TOwningKey lastKey;
+        FromProto(&lastKey, CachedChunkMeta_->BoundaryKeys().first());
+        if (LowerLimit_.GetKey() > lastKey) {
+            return TError();
+        }
+    }
+
+    if (LowerLimit_.HasRowIndex() &&
+        LowerLimit_.GetRowIndex() >= CachedChunkMeta_->Misc().row_count())
+    {
+        return TError();
+    }
+
     CurrentBlockIndex_ = GetBeginBlockIndex();
+    auto endBlockIndex = GetEndBlockIndex();
 
     auto& blockMeta = CachedChunkMeta_->BlockMeta().entries(CurrentBlockIndex_);
     CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
-    for (int index = CurrentBlockIndex_; index < GetEndBlockIndex(); ++index) {
+    for (int index = CurrentBlockIndex_; index < endBlockIndex; ++index) {
         TSequentialReader::TBlockInfo blockInfo;
         blockInfo.Index = index;
         blockInfo.Size = CachedChunkMeta_->BlockMeta().entries(index).block_size();
@@ -402,7 +419,6 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
     }
 
     if (blocks.empty()) {
-        NextBlockFuture_ = MakeFuture(TError());
         return TError();
     }
 
@@ -425,7 +441,6 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
         YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey()));
     }
 
-    NextBlockFuture_ = MakeFuture(TError());
     return TError();
 }
 
