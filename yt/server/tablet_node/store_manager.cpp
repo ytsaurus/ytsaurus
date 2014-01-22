@@ -182,7 +182,7 @@ void TStoreManager::LookupRow(
         if (rowTimestamp & TombstoneTimestampMask) {
             currentTimestamp = rowTimestamp;
         } else {
-            if (currentTimestamp & TombstoneTimestampMask) {
+            if ((currentTimestamp & TombstoneTimestampMask) || !(rowTimestamp & IncrementalTimestampMask)) {
                 currentTimestamp = rowTimestamp & TimestampValueMask;
                 for (int id = keyColumnCount; id < schemaColumnCount; ++id) {
                     currentValues[id] = MakeVersionedSentinelValue(EValueType::Null, currentTimestamp);
