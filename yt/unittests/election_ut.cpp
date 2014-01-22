@@ -36,7 +36,8 @@ class TElectionTest
 {
 public:
     TElectionTest()
-        : ActionQueue(New<TActionQueue>("Main"))
+        : DelayedExecutor()
+        , ActionQueue(New<TActionQueue>("Main"))
         , CallbacksMock(New<TElectionCallbacksMock>())
         , RpcServer(CreateLocalServer())
         , ChannelFactory(New<TStaticChannelFactory>())
@@ -63,6 +64,7 @@ public:
         auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, selfId);
 
         auto electionConfig = New<TElectionManagerConfig>();
+        electionConfig->RpcTimeout = TDuration::MilliSeconds(40);
         electionConfig->VotingRoundInterval = TDuration::MilliSeconds(10);
         ElectionManager = New<TElectionManager>(
             electionConfig,
@@ -90,6 +92,7 @@ public:
     }
 
 protected:
+    TDelayedExecutor DelayedExecutor;
     TActionQueuePtr ActionQueue;
     TIntrusivePtr<TElectionCallbacksMock> CallbacksMock;
     IServerPtr RpcServer;
@@ -138,7 +141,7 @@ TEST_F(TElectionTest, SinglePeer)
     RunElections();
 }
 
-TEST_F(TElectionTest, JoinActiveQuorum)
+TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
 {
     Configure(3, 0);
 
@@ -147,6 +150,7 @@ TEST_F(TElectionTest, JoinActiveQuorum)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillOnce(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], { }))
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 response->set_state(id == 2 ? EPeerState::Leading : EPeerState::Following);
                 response->set_vote_id(2);
@@ -166,7 +170,7 @@ TEST_F(TElectionTest, JoinActiveQuorum)
     RunElections();
 }
 
-TEST_F(TElectionTest, Madness)
+TEST_F(TElectionTest, AllFollowers)
 {
     Configure(3, 0);
 
@@ -196,6 +200,89 @@ TEST_F(TElectionTest, Madness)
 
     RunElections();
 }
+
+TEST_F(TElectionTest, AllLeaders)
+{
+    Configure(3, 0);
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(0));
+
+    for (int id = 1; id < 3; id++) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+                response->set_state(EPeerState::Leading);
+                response->set_vote_id(id);
+                ToProto(response->mutable_vote_epoch_id(), TEpochId());
+                response->set_priority(id);
+                response->set_self_id(id);
+                context->Reply();
+            }));
+    }
+
+    {
+        InSequence dummy;
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing());
+    }
+
+    RunElections();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TElectionDelayedTest
+    : public TElectionTest
+    , public ::testing::WithParamInterface<TDuration>
+{ };
+
+TEST_P(TElectionDelayedTest, JoinActiveQuorum)
+{
+    Configure(3, 0);
+
+    auto delay = GetParam();
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(0));
+
+    for (int id = 1; id < 3; id++) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+                DelayedExecutor.Submit(BIND([=] () {
+                    response->set_state(id == 2 ? EPeerState::Leading : EPeerState::Following);
+                    response->set_vote_id(2);
+                    ToProto(response->mutable_vote_epoch_id(), TEpochId());
+                    response->set_priority(id);
+                    response->set_self_id(id);
+                    context->Reply();
+                }), delay);
+            }));
+    }
+
+    if (delay < TDuration::MilliSeconds(40)) {
+        InSequence dummy;
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing());
+    } else {
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing())
+            .Times(0);
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing())
+            .Times(0);
+    }
+    EXPECT_CALL(*CallbacksMock, OnStartLeading())
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopLeading())
+        .Times(0);
+
+    RunElections();
+}
+
+INSTANTIATE_TEST_CASE_P(
+    ValueParametrized,
+    TElectionDelayedTest,
+    ::testing::Values(
+        TDuration::MilliSeconds(10),
+        TDuration::MilliSeconds(60)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
