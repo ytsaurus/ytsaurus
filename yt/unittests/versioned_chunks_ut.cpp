@@ -28,7 +28,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka A("a");
-Stroka B("a");
+Stroka B("b");
 
 class TVersionedChunksTest
     : public TVersionedTableClientTestBase
@@ -337,6 +337,43 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
     lowerKeyBuilder.AddValue(MakeUnversionedIntegerValue(1, 1));
+    lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
+
+    TReadLimit lowerLimit;
+    lowerLimit.SetKey(lowerKeyBuilder.Finish());
+
+    auto chunkReader = CreateVersionedChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        chunkMeta,
+        std::move(lowerLimit),
+        TReadLimit());
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    std::vector<TVersionedRow> actual;
+    actual.reserve(10);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+
+    CheckResult(expected, actual);
+}
+
+TEST_F(TVersionedChunksTest, ReadEmpty)
+{
+    std::vector<TVersionedRow> expected;
+    WriteThreeRows();
+
+    auto chunkMeta = New<TCachedVersionedChunkMeta>(
+        MemoryReader,
+        Schema,
+        KeyColumns);
+
+    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+
+    TUnversionedOwningRowBuilder lowerKeyBuilder;
+    lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
+    lowerKeyBuilder.AddValue(MakeUnversionedIntegerValue(15, 1));
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;

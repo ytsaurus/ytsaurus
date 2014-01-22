@@ -62,7 +62,7 @@ private:
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
-    TOwningKey LastKey;
+    TOwningKey LastKey_;
     std::unique_ptr<TBlockWriter> BlockWriter_;
 
     TBlockMetaExt BlockMetaExt_;
@@ -101,7 +101,7 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
-    , LastKey(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
+    , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
     , BlockWriter_(new TBlockWriter(Schema_, KeyColumns_))
     , BlockMetaExtSize_(0)
     , BlockIndexExtSize_(0)
@@ -129,15 +129,15 @@ bool TVersionedChunkWriter<TBlockWriter>::Write(const std::vector<TVersionedRow>
             TOwningKey(rows.front().BeginKeys(), rows.front().EndKeys()));
     }
 
-    WriteRow(rows.front(), LastKey.Begin(), LastKey.End());
+    WriteRow(rows.front(), LastKey_.Begin(), LastKey_.End());
     FinishBlockIfLarge(rows.front());
 
     for (int i = 1; i < rows.size(); ++i) {
         WriteRow(rows[i], rows[i - 1].BeginKeys(), rows[i - 1].EndKeys());
-        FinishBlockIfLarge(rows.front());
+        FinishBlockIfLarge(rows[i]);
     }
 
-    LastKey = TOwningKey(rows.back().BeginKeys(), rows.back().EndKeys());
+    LastKey_ = TOwningKey(rows.back().BeginKeys(), rows.back().EndKeys());
     return EncodingChunkWriter_->IsReady();
 }
 
@@ -253,7 +253,7 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
         FinishBlock();
     }
 
-    ToProto(BoundaryKeysExt_.mutable_last(), LastKey);
+    ToProto(BoundaryKeysExt_.mutable_last(), LastKey_);
 
     auto& meta = EncodingChunkWriter_->Meta();
     FillCommonMeta(&meta);

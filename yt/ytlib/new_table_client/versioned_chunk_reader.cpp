@@ -392,7 +392,7 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
     // Check sensible lower limit.
     if (LowerLimit_.HasKey()) {
         TOwningKey lastKey;
-        FromProto(&lastKey, CachedChunkMeta_->BoundaryKeys().first());
+        FromProto(&lastKey, CachedChunkMeta_->BoundaryKeys().last());
         if (LowerLimit_.GetKey() > lastKey) {
             return TError();
         }
