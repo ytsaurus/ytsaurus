@@ -95,7 +95,7 @@ def main():
     parser.add_argument("--src")
     parser.add_argument("--dst")
 
-    parser.add_argument("--yt-proxy", "Proxy of destination cluster. Source cluster should be specified through YT_PROXY")
+    parser.add_argument("--yt-proxy", help="Proxy of destination cluster. Source cluster should be specified through YT_PROXY")
     parser.add_argument("--yt-token")
     parser.add_argument("--yt-pool", default="export_restricted")
 
