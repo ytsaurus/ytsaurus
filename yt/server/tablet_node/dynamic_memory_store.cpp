@@ -808,6 +808,17 @@ bool TDynamicMemoryStore::LockRow(
 void TDynamicMemoryStore::CopyValue(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     *dst = src;
+    CopyValueData(dst, src);
+}
+
+void TDynamicMemoryStore::CopyValue(TVersionedValue* dst, const TVersionedValue& src)
+{
+    *dst = src;
+    CopyValueData(dst, src);
+}
+
+void TDynamicMemoryStore::CopyValueData(TUnversionedValue* dst, const TUnversionedValue& src)
+{
     if (src.Type == EValueType::String || src.Type == EValueType::Any) {
         dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
         memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);

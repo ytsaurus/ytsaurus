@@ -108,11 +108,11 @@ public:
         int timestampCount)
     {
         auto* header = reinterpret_cast<TVersionedRowHeader*>(pool->Allocate(GetVersionedRowDataSize(
-            valueCount, 
-            keyCount, 
+            keyCount,
+            valueCount,
             timestampCount)));
-        header->ValueCount = valueCount;
         header->KeyCount = keyCount;
+        header->ValueCount = valueCount;
         header->TimestampCount = timestampCount;
         return TVersionedRow(header);
     }

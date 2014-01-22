@@ -113,6 +113,12 @@ private:
     void CopyValue(
         NVersionedTableClient::TUnversionedValue* dst,
         const NVersionedTableClient::TUnversionedValue& src);
+    void CopyValue(
+        NVersionedTableClient::TVersionedValue* dst,
+        const NVersionedTableClient::TVersionedValue& src);
+    void CopyValueData(
+        NVersionedTableClient::TUnversionedValue* dst,
+        const NVersionedTableClient::TUnversionedValue& src);
 
 };
 
