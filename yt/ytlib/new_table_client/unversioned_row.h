@@ -122,12 +122,12 @@ int CompareRows(
     TUnversionedRow rhs,
     int prefixLength = std::numeric_limits<int>::max());
 
-bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator <= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator <  (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator >= (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
-bool operator >  (const TUnversionedRow& lhs, const TUnversionedRow& rhs);
+bool operator == (TUnversionedRow lhs, TUnversionedRow rhs);
+bool operator != (TUnversionedRow lhs, TUnversionedRow rhs);
+bool operator <= (TUnversionedRow lhs, TUnversionedRow rhs);
+bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
+bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
+bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
 
 //! Ternary comparison predicate for TUnversionedOwningRow-s stripped to a given number of
 //! (leading) values.

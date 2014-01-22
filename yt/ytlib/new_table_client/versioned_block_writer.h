@@ -23,7 +23,7 @@ public:
     TSimpleVersionedBlockWriter(const TTableSchema& schema, const TKeyColumns& keyColumns);
 
     void WriteRow(
-        const TVersionedRow& row,
+        TVersionedRow row,
         const TUnversionedValue* beginPrevKey,
         const TUnversionedValue* endPrevKey);
 

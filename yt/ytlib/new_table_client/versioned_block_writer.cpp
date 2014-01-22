@@ -30,9 +30,9 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
 { }
 
 void TSimpleVersionedBlockWriter::WriteRow(
-        const TVersionedRow& row,
-        const TUnversionedValue* /* beginPrevKey */,
-        const TUnversionedValue* /* endPrevKey */)
+    TVersionedRow row,
+    const TUnversionedValue* /* beginPrevKey */,
+    const TUnversionedValue* /* endPrevKey */)
 {
     ++RowCount_;
 

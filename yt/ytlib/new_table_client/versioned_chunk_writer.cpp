@@ -76,11 +76,11 @@ private:
     i64 RowCount_;
 
     void WriteRow(
-        const TVersionedRow& row,
+        TVersionedRow row,
         const TUnversionedValue* beginPreviousKey,
         const TUnversionedValue* endPreviousKey);
 
-    void FinishBlockIfLarge(const TVersionedRow& row);
+    void FinishBlockIfLarge(TVersionedRow row);
     void FinishBlock();
 
     TError DoClose();
@@ -209,7 +209,7 @@ TDataStatistics TVersionedChunkWriter<TBlockWriter>::GetDataStatistics() const
 
 template <class TBlockWriter>
 void TVersionedChunkWriter<TBlockWriter>::WriteRow(
-    const TVersionedRow& row,
+    TVersionedRow row,
     const TUnversionedValue* beginPreviousKey,
     const TUnversionedValue* endPreviousKey)
 {
@@ -218,7 +218,7 @@ void TVersionedChunkWriter<TBlockWriter>::WriteRow(
 }
 
 template <class TBlockWriter>
-void TVersionedChunkWriter<TBlockWriter>::FinishBlockIfLarge(const TVersionedRow& row)
+void TVersionedChunkWriter<TBlockWriter>::FinishBlockIfLarge(TVersionedRow row)
 {
     if (BlockWriter_->GetBlockSize() < Config_->BlockSize) {
         return;

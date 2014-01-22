@@ -328,32 +328,32 @@ int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
         rhs.Begin() + std::min(rhs.GetCount(), prefixLength));
 }
 
-bool operator == (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator == (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) == 0;
 }
 
-bool operator != (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator != (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) != 0;
 }
 
-bool operator <= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator <= (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) <= 0;
 }
 
-bool operator < (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator < (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) < 0;
 }
 
-bool operator >= (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) >= 0;
 }
 
-bool operator > (const TUnversionedRow& lhs, const TUnversionedRow& rhs)
+bool operator > (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) > 0;
 }
