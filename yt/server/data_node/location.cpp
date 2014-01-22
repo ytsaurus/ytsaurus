@@ -282,7 +282,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     LOG_INFO("Scanning storage location");
 
-    // Others cannot list chunk_store and chunk_cache dirs.
+    // Others must not be able to list chunk store and chunk cache dirs.
     NFS::ForcePath(path, Permissions);
     NFS::CleanTempFiles(path);
 
