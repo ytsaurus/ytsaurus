@@ -156,7 +156,7 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        TKeyPrefixComparer keyComparer(KeyCount_);
+        TKeyComparer keyComparer(KeyCount_);
 
         while (TreeScanner_->IsValid() && rows->size() < rows->capacity()) {
             const auto* rowKeys = TreeScanner_->GetCurrent().GetKeys();
@@ -194,7 +194,7 @@ private:
     int KeyCount_;
     int SchemaColumnCount_;
 
-    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> TreeScanner_;
+    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> TreeScanner_;
 
     TChunkedMemoryPool Pool_;
     
@@ -354,8 +354,8 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , AllocatedValueCount_(0)
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
-    , Comparer_(new TKeyPrefixComparer(KeyCount_))
-    , Tree_(new TRcuTree<TDynamicRow, TKeyPrefixComparer>(&AlignedPool_, Comparer_.get()))
+    , Comparer_(new TKeyComparer(KeyCount_))
+    , Tree_(new TRcuTree<TDynamicRow, TKeyComparer>(&AlignedPool_, Comparer_.get()))
 {
     LOG_DEBUG("Dynamic memory store created (TabletId: %s, StoreId: %s)",
         ~ToString(Tablet_->GetId()),
@@ -647,7 +647,7 @@ TDynamicRow TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(
     const TDynamicMemoryStorePtr& migrateTo)
 {
     TDynamicRow row;
-    TRcuTreeScannerPtr<TDynamicRow, TKeyPrefixComparer> scanner(Tree_.get());
+    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> scanner(Tree_.get());
     if (!scanner->Find(key, &row)) {
         return TDynamicRow();
     }

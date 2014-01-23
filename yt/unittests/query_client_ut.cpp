@@ -102,7 +102,7 @@ MATCHER_P(HasLowerBound, encodedLowerBound, "")
     auto expected = BuildKey(encodedLowerBound);
     auto actual = GetLowerBoundFromDataSplit(arg);
 
-    auto result = TKeyComparer()(expected, actual);
+    auto result = CompareRows(expected, actual);
 
     if (result != 0 && result_listener->IsInterested()) {
         *result_listener << "expected lower bound to be ";
@@ -123,7 +123,7 @@ MATCHER_P(HasUpperBound, encodedUpperBound, "")
     auto expected = BuildKey(encodedUpperBound);
     auto actual = GetUpperBoundFromDataSplit(arg);
 
-    auto result = TKeyComparer()(expected, actual);
+    auto result = CompareRows(expected, actual);
 
     if (result != 0) {
         *result_listener << "expected upper bound to be ";

@@ -58,10 +58,12 @@ TValue MakeAnyValue(const TStringBuf& value, int id = 0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKeyPrefixComparer
+//! Provides a comparer functor for row-like entities
+//! trimmed to a given length.
+class TKeyComparer
 {
 public:
-    explicit TKeyPrefixComparer(int prefixLength)
+    explicit TKeyComparer(int prefixLength)
         : PrefixLength_(prefixLength)
     { }
 
@@ -75,35 +77,6 @@ public:
             }
         }
         return 0;
-    }
-
-private:
-    int PrefixLength_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TKeyComparer
-{
-public:
-    explicit TKeyComparer(int prefixLength = std::numeric_limits<int>::max())
-        : PrefixLength_(prefixLength)
-    { }
-
-    template <class TLhs, class TRhs>
-    int operator () (TLhs lhs, TRhs rhs) const
-    {
-        int lhsLength = std::min(static_cast<int>(lhs.GetCount()), PrefixLength_);
-        int rhsLength = std::min(static_cast<int>(rhs.GetCount()), PrefixLength_);
-        int minLength = std::min(lhsLength, rhsLength);
-        for (int index = 0; index < minLength; ++index) {
-            int result = CompareRowValues(lhs[index], rhs[index]);
-            if (result != 0) {
-                return result;
-            }
-        }
-        return lhsLength - rhsLength;
     }
 
 private:

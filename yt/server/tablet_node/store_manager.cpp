@@ -150,7 +150,7 @@ void TStoreManager::LookupRow(
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    TKeyPrefixComparer keyComparer(keyColumnCount);
+    TKeyComparer keyComparer(keyColumnCount);
 
     auto currentTimestamp = NullTimestamp | TombstoneTimestampMask;
     SmallVector<TVersionedValue, TypicalColumnCount> currentValues(schemaColumnCount);
