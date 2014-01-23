@@ -160,6 +160,10 @@ public:
         TCallback<void(T)> onResult,
         TClosure onTimeout);
 
+    //! Does exactly same thing as its TPromise counterpart.
+    //! Gives the consumder a chance to handle cancelation.
+    void OnCanceled(TClosure onCancel);
+
     //! Notifies the producer that the promised value is no
     //! longer needed.
     void Cancel();
@@ -273,6 +277,10 @@ public:
         TDuration timeout,
         TClosure onResult,
         TClosure onTimeout);
+
+    //! Does exactly same thing as its TPromise counterpart.
+    //! Gives the consumder a chance to handle cancelation.
+    void OnCanceled(TClosure onCancel);
 
     //! Notifies the producer that the promised value is no
     //! longer needed.

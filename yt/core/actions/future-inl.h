@@ -607,6 +607,13 @@ inline void TFuture<T>::Subscribe(
 }
 
 template <class T>
+inline void TFuture<T>::OnCanceled(TClosure onCancel)
+{
+    YASSERT(Impl);
+    Impl->OnCanceled(std::move(onCancel));
+}
+
+template <class T>
 inline void TFuture<T>::Cancel()
 {
     YASSERT(Impl);
@@ -773,6 +780,12 @@ inline void TFuture<void>::Subscribe(
 {
     YASSERT(Impl);
     return Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
+}
+
+inline void TFuture<void>::OnCanceled(TClosure onCancel)
+{
+    YASSERT(Impl);
+    Impl->OnCanceled(std::move(onCancel));
 }
 
 inline void TFuture<void>::Cancel()
@@ -1000,7 +1013,7 @@ template <class T>
 inline void TPromise<T>::OnCanceled(TClosure onCancel)
 {
     YASSERT(Impl);
-    Impl->OnCanceled(onCancel);
+    Impl->OnCanceled(std::move(onCancel));
 }
 
 template <class T>
@@ -1116,7 +1129,7 @@ inline void TPromise<void>::Subscribe(
 inline void TPromise<void>::OnCanceled(TClosure onCancel)
 {
     YASSERT(Impl);
-    Impl->OnCanceled(onCancel);
+    Impl->OnCanceled(std::move(onCancel));
 }
 
 inline TFuture<void> TPromise<void>::ToFuture() const
