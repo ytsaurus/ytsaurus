@@ -170,9 +170,32 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
     RunElections();
 }
 
-TEST_F(TElectionTest, AllFollowers)
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStatus
+{
+    EPeerState State;
+    TPeerId VoteId;
+    TEpochId VoteEpochId;
+    TPeerPriority Priority;
+};
+
+struct TElectionTestData
+{
+    TNullable<TStatus> Statuses[2];
+    int ExpectedLeader;
+};
+
+class TElectionGenericTest
+    : public TElectionTest
+    , public ::testing::WithParamInterface<TElectionTestData>
+{ };
+
+TEST_P(TElectionGenericTest, Basic)
 {
     Configure(3, 0);
+
+    TElectionTestData data = GetParam();
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
         .WillRepeatedly(Return(0));
@@ -180,54 +203,88 @@ TEST_F(TElectionTest, AllFollowers)
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                response->set_state(EPeerState::Following);
-                response->set_vote_id(id);
-                ToProto(response->mutable_vote_epoch_id(), TEpochId());
-                response->set_priority(id);
-                response->set_self_id(id);
-                context->Reply();
+                const TStatus* status = data.Statuses[id - 1].GetPtr();
+                if (status != nullptr) {
+                    response->set_state(status->State);
+                    response->set_vote_id(status->VoteId);
+                    ToProto(response->mutable_vote_epoch_id(), status->VoteEpochId);
+                    response->set_priority(status->Priority);
+                    response->set_self_id(id);
+                    context->Reply();
+                }
             }));
     }
 
+    if (data.ExpectedLeader >= 0) {
+        InSequence dummy;
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing());
+    } else {
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing())
+            .Times(0);
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing())
+            .Times(0);
+    }
     EXPECT_CALL(*CallbacksMock, OnStartLeading())
         .Times(0);
     EXPECT_CALL(*CallbacksMock, OnStopLeading())
         .Times(0);
-    EXPECT_CALL(*CallbacksMock, OnStartFollowing())
-        .Times(0);
-    EXPECT_CALL(*CallbacksMock, OnStopFollowing())
-        .Times(0);
 
     RunElections();
 }
 
-TEST_F(TElectionTest, AllLeaders)
-{
-    Configure(3, 0);
+static TEpochId OtherEpoch = TEpochId::Create();
 
-    EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
-
-    for (int id = 1; id < 3; id++) {
-        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                response->set_state(EPeerState::Leading);
-                response->set_vote_id(id);
-                ToProto(response->mutable_vote_epoch_id(), TEpochId());
-                response->set_priority(id);
-                response->set_self_id(id);
-                context->Reply();
-            }));
-    }
-
-    {
-        InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartFollowing());
-        EXPECT_CALL(*CallbacksMock, OnStopFollowing());
-    }
-
-    RunElections();
-}
+INSTANTIATE_TEST_CASE_P(
+    ValueParametrized,
+    TElectionGenericTest,
+    ::testing::Values(
+        TElectionTestData{
+            {
+                TStatus{ EPeerState::Following, 0, TEpochId(), 1 },
+                TStatus{ EPeerState::Following, 0, TEpochId(), 2 }
+            },
+            -1
+        },
+        TElectionTestData{
+            {
+                TStatus{ EPeerState::Leading, 1, OtherEpoch, 1 },
+                TNullable<TStatus>()
+            },
+            1
+        },
+        TElectionTestData{
+            {
+                TStatus{ EPeerState::Leading, 1, OtherEpoch, -1 },
+                TNullable<TStatus>()
+            },
+            -1
+        },
+        // all followers
+        TElectionTestData{
+            {
+                TStatus{ EPeerState::Following, 1, OtherEpoch, 1 },
+                TStatus{ EPeerState::Following, 2, OtherEpoch, 2 },
+            },
+            -1
+        },
+        // all leaders
+        TElectionTestData{
+            {
+                TStatus{ EPeerState::Leading, 1, OtherEpoch, 1 },
+                TStatus{ EPeerState::Leading, 2, OtherEpoch, 2 },
+            },
+            2
+        },
+        // potential leader should recognize itself as a leader
+        TElectionTestData{
+            {
+                TStatus{ EPeerState::Following, 2, OtherEpoch, 1 },
+                TStatus{ EPeerState::Following, 2, OtherEpoch, 2 },
+            },
+            -1
+        }
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 
