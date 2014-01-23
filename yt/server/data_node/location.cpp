@@ -286,7 +286,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     NFS::ForcePath(path, Permissions);
     NFS::CleanTempFiles(path);
 
-    yhash_set<Stroka> recozniedFileNames;
+    yhash_set<Stroka> recognizedFileNames;
     yhash_set<TChunkId> chunkIds;
     auto allFileNames = NFS::EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& fileName : allFileNames) {
@@ -296,7 +296,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         TChunkId chunkId;
         auto strippedFileName = NFS::GetFileNameWithoutExtension(fileName);
         if (TChunkId::FromString(strippedFileName, &chunkId)) {
-            recozniedFileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
+            recognizedFileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
             chunkIds.insert(chunkId);
         } else {
             LOG_ERROR("Unrecognized file %s",
@@ -309,8 +309,8 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         auto chunkDataFileName = GetChunkFileName(chunkId);
         auto chunkMetaFileName = chunkDataFileName + ChunkMetaSuffix;
 
-        bool hasMeta = recozniedFileNames.find(NFS::NormalizePathSeparators(chunkMetaFileName)) != recozniedFileNames.end();
-        bool hasData = recozniedFileNames.find(NFS::NormalizePathSeparators(chunkDataFileName)) != recozniedFileNames.end();
+        bool hasMeta = recognizedFileNames.find(NFS::NormalizePathSeparators(chunkMetaFileName)) != recognizedFileNames.end();
+        bool hasData = recognizedFileNames.find(NFS::NormalizePathSeparators(chunkDataFileName)) != recognizedFileNames.end();
 
         YCHECK(hasMeta || hasData);
 
