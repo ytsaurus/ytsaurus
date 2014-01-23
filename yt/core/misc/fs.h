@@ -49,10 +49,10 @@ Stroka CombinePaths(const Stroka& path1, const Stroka& path2);
 void CleanTempFiles(const Stroka& path);
 
 //! Returns all files in a given directory.
-std::vector<Stroka> EnumerateFiles(const Stroka& path);
+std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth = 1);
 
 //! Returns all directories in a given directory.
-std::vector<Stroka> EnumerateDirectories(const Stroka& path);
+std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth = 1);
 
 //! Describes total, free, and available space on a disk drive.
 struct TDiskSpaceStatistics

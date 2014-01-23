@@ -108,7 +108,7 @@ void CleanTempFiles(const Stroka& path)
 {
     LOG_INFO("Cleaning temp files in %s", ~path.Quote());
 
-    auto entries = EnumerateFiles(path);
+    auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
         if (entry.has_suffix(TempFileSuffix)) {
             Stroka fileName = NFS::CombinePaths(path, entry);
@@ -120,12 +120,12 @@ void CleanTempFiles(const Stroka& path)
     }
 }
 
-std::vector<Stroka> EnumerateFiles(const Stroka& path)
+std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth)
 {
     std::vector<Stroka> result;
     if (isexist(~path)) {
         TFileList list;
-        list.Fill(path, TStringBuf(), TStringBuf(), 1);
+        list.Fill(path, TStringBuf(), TStringBuf(), depth);
         int size = list.Size();
         for (int i = 0; i < size; ++i) {
             result.push_back(list.Next());
@@ -134,12 +134,12 @@ std::vector<Stroka> EnumerateFiles(const Stroka& path)
     return result;
 }
 
-std::vector<Stroka> EnumerateDirectories(const Stroka& path)
+std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth)
 {
     std::vector<Stroka> result;
     if (isexist(~path)) {
         TDirsList list;
-        list.Fill(path, TStringBuf(), TStringBuf(), 1);
+        list.Fill(path, TStringBuf(), TStringBuf(), depth);
         int size = list.Size();
         for (int i = 0; i < size; ++i) {
             result.push_back(list.Next());
