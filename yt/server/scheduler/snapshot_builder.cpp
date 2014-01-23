@@ -69,8 +69,8 @@ TAsyncError TSnapshotBuilder::Run()
     LOG_INFO("Snapshot builder started");
 
     try {
-        RemoveDirWithContents(Config->SnapshotTempPath);
         ForcePath(Config->SnapshotTempPath);
+        CleanTempFiles(Config->SnapshotTempPath);
     } catch (const std::exception& ex) {
         return MakeFuture(TError(ex));
     }
