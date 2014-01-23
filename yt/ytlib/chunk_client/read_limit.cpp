@@ -211,27 +211,32 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 void Deserialize(TReadLimit& readLimit, INodePtr node)
 {
     if (node->GetType() != ENodeType::Map) {
-        THROW_ERROR_EXCEPTION("Unexpected read limit token: %s", ~node->GetType().ToString());
+        THROW_ERROR_EXCEPTION("Unexpected read limit token type %s",
+            ~FormatEnum(node->GetType()).Quote());
     }
 
     auto mapNode = node->AsMap();
     if (mapNode->GetChildCount() > 1) {
-        THROW_ERROR_EXCEPTION("Too many children in read limit: %d > 1", mapNode->GetChildCount());
+        THROW_ERROR_EXCEPTION("Too many children in read limit: %d > 1",
+            mapNode->GetChildCount());
     }
 
     if (auto child = mapNode->FindChild("row_index")) {
         if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected row index token: %s", ~child->GetType().ToString());
+            THROW_ERROR_EXCEPTION("Unexpected row index token type %s",
+                ~FormatEnum(child->GetType()).Quote());
         }
         readLimit.SetRowIndex(child->GetValue<i64>());
     } else if (auto child = mapNode->FindChild("chunk_index")) {
         if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
+            THROW_ERROR_EXCEPTION("Unexpected chunk index token type %s",
+                ~FormatEnum(child->GetType()).Quote());
         }
         readLimit.SetChunkIndex(child->GetValue<i64>());
     } else if (auto child = mapNode->FindChild("offset")) {
         if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
+            THROW_ERROR_EXCEPTION("Unexpected chunk index token type %s",
+                ~FormatEnum(child->GetType()).Quote());
         }
         readLimit.SetOffset(child->GetValue<i64>());
     } else if (auto child = mapNode->FindChild("key")) {

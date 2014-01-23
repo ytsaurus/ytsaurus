@@ -67,7 +67,7 @@ TError TCachedVersionedChunkMeta::ValidateSchema()
     auto keyColumns = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
     if (keyColumns.names_size() != KeyColumns_.size()) {
         auto protoColumns = NYT::FromProto<Stroka>(keyColumns.names());
-        return TError("Incorrect key columns (Actual: [%s], Expected: [%s])",
+        return TError("Incorrect key columns: actual [%s], expected [%s]",
             ~JoinToString(KeyColumns_),
             ~JoinToString(protoColumns));
     }
@@ -78,7 +78,7 @@ TError TCachedVersionedChunkMeta::ValidateSchema()
         keyColumns.names().begin()))
     {
         auto protoColumns = NYT::FromProto<Stroka>(keyColumns.names());
-        return TError("Incorrect key columns (Actual: [%s], Expected: [%s])",
+        return TError("Incorrect key columns: actual [%s], expected [%s]",
             ~JoinToString(KeyColumns_),
             ~JoinToString(protoColumns));
     }
@@ -91,16 +91,14 @@ TError TCachedVersionedChunkMeta::ValidateSchema()
         auto& column = ReaderSchema_.Columns()[readerIndex];
         auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
         if (!chunkColumn) {
-            return TError(
-                "Incompatible schema: column %s is absent in chunk schema",
+            return TError("Incompatible schema: column %s is absent in chunk schema",
                 ~column.Name.Quote());
         }
 
         if (chunkColumn->Type != column.Type) {
-            return TError(
-                "Incompatible type for column %s (Actual: %s, Expected: %s)",
-                ~FormatEnum(chunkColumn->Type),
-                ~FormatEnum(column.Type));
+            return TError("Incompatible type for column %s: actual: %s, expected %s",
+                ~FormatEnum(chunkColumn->Type).Quote(),
+                ~FormatEnum(column.Type).Quote());
         }
 
         int index = ChunkSchema_.GetColumnIndex(*chunkColumn);
@@ -117,15 +115,15 @@ TError TCachedVersionedChunkMeta::DoLoad()
 
     ChunkMeta_ = getMetaResult.GetValue();
     if (ChunkMeta_.type() != EChunkType::Table) {
-        return TError("Incorrect chunk type (Actual: %s, Expected:  %s)",
-            ~FormatEnum(EChunkType(ChunkMeta_.type())),
-            ~FormatEnum(EChunkType(EChunkType::Table)));
+        return TError("Incorrect chunk type: actual %s, expected %s",
+            ~FormatEnum(EChunkType(ChunkMeta_.type())).Quote(),
+            ~FormatEnum(EChunkType(EChunkType::Table)).Quote());
     }
 
     if (ChunkMeta_.version() != ETableChunkFormat::SimpleVersioned) {
-        return TError("Incorrect chunk format version (Actual: %s, Expected:  %s)",
-            ~FormatEnum(ETableChunkFormat(ChunkMeta_.version())),
-            ~FormatEnum(ETableChunkFormat(ETableChunkFormat::SimpleVersioned)));
+        return TError("Incorrect chunk format version: actual %s, expected: %s",
+            ~FormatEnum(ETableChunkFormat(ChunkMeta_.version())).Quote(),
+            ~FormatEnum(ETableChunkFormat(ETableChunkFormat::SimpleVersioned)).Quote());
     }
 
     auto error = ValidateSchema();
