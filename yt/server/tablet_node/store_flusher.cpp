@@ -215,6 +215,12 @@ private:
                 const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk_ext);
                 nodeDirectory->MergeFrom(rspExt.node_directory());
                 replicas = FromProto<TChunkReplica>(rspExt.replicas());
+                if (replicas.size() < 2) {
+                    THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
+                        static_cast<int>(replicas.size()),
+                        2);
+                    return;
+                }
                 targets = nodeDirectory->GetDescriptors(replicas);
             }
                             
