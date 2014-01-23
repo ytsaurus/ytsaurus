@@ -80,7 +80,7 @@
 #include <server/exec_agent/job.h>
 
 #include <server/tablet_node/tablet_cell_controller.h>
-#include <server/tablet_node/flush.h>
+#include <server/tablet_node/store_flusher.h>
 
 #include <server/query_agent/query_manager.h>
 #include <server/query_agent/query_service.h>

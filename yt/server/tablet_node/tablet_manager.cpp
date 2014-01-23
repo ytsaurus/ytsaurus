@@ -10,7 +10,7 @@
 #include "tablet_cell_controller.h"
 #include "dynamic_memory_store.h"
 #include "chunk_store.h"
-#include "flush.h"
+#include "store_flusher.h"
 #include "private.h"
 
 #include <core/misc/ring_queue.h>

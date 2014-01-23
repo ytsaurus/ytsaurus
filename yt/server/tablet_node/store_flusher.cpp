@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "flush.h"
+#include "store_flusher.h"
 #include "private.h"
 #include "config.h"
 #include "dynamic_memory_store.h"
