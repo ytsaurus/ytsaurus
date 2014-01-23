@@ -286,21 +286,17 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     NFS::ForcePath(path, Permissions);
     NFS::CleanTempFiles(path);
 
-    yhash_set<Stroka> fileNames;
+    yhash_set<Stroka> recozniedFileNames;
     yhash_set<TChunkId> chunkIds;
-
-    TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), std::numeric_limits<int>::max());
-    i32 size = fileList.Size();
-    for (i32 i = 0; i < size; ++i) {
-        Stroka fileName = fileList.Next();
+    auto allFileNames = NFS::EnumerateFiles(path, std::numeric_limits<int>::max());
+    for (const auto& fileName : allFileNames) {
         if (fileName == CellGuidFileName)
             continue;
 
         TChunkId chunkId;
         auto strippedFileName = NFS::GetFileNameWithoutExtension(fileName);
         if (TChunkId::FromString(strippedFileName, &chunkId)) {
-            fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
+            recozniedFileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
             chunkIds.insert(chunkId);
         } else {
             LOG_ERROR("Unrecognized file %s",
@@ -309,14 +305,12 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     }
 
     std::vector<TChunkDescriptor> descriptors;
-    descriptors.reserve(chunkIds.size());
-
     for (const auto& chunkId : chunkIds) {
         auto chunkDataFileName = GetChunkFileName(chunkId);
         auto chunkMetaFileName = chunkDataFileName + ChunkMetaSuffix;
 
-        bool hasMeta = fileNames.find(NFS::NormalizePathSeparators(chunkMetaFileName)) != fileNames.end();
-        bool hasData = fileNames.find(NFS::NormalizePathSeparators(chunkDataFileName)) != fileNames.end();
+        bool hasMeta = recozniedFileNames.find(NFS::NormalizePathSeparators(chunkMetaFileName)) != recozniedFileNames.end();
+        bool hasData = recozniedFileNames.find(NFS::NormalizePathSeparators(chunkDataFileName)) != recozniedFileNames.end();
 
         YCHECK(hasMeta || hasData);
 
@@ -324,7 +318,8 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
             i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
             i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
             if (chunkMetaSize == 0) {
-                // Happens on e.g. power outage.
+                // EXT4 specific thing.
+                // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
                 LOG_WARNING("Chunk meta file %s is empty",
                     ~chunkMetaFileName.Quote());
                 RemoveFileOrThrow(chunkDataFileName);
