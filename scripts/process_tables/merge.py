@@ -24,6 +24,7 @@ def merge(table):
 
         locks = yt.get_attribute(table, "locks")
         if any(map(lambda l: l["mode"] in ["exclusive", "shared"], locks)):
+            logger.info("Table %s is locked", table)
             return -1
 
         revision = yt.get_attribute(table, "revision")
