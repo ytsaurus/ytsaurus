@@ -108,7 +108,7 @@ bool IsValueSuccessor(
     const TUnversionedValue& value,
     const TUnversionedValue& successor);
 
-
+//! Ternary comparison predicate for ranges ot TUnversionedValue-s.
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
