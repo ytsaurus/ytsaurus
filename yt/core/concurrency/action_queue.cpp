@@ -273,7 +273,7 @@ public:
             auto thread = New<TSingleQueueExecutorThread>(
                 Queue,
                 &EventCount,
-                threadNamePrefix,
+                Sprintf("%s:%d", ~threadNamePrefix, i),
                 GetThreadTagIds(threadNamePrefix),
                 true,
                 true);
