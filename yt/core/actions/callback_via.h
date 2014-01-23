@@ -35,23 +35,24 @@ void RegisterFiberCancelation(TPromise<T> promise)
 
 } // namespace NDetail
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class R, class... TArgs>
 TCallback<R(TArgs...)>
-TCallback<R(TArgs...)>::Via(
-    IInvokerPtr invoker)
+TCallback<R(TArgs...)>::Via(IInvokerPtr invoker)
 {
-    static_assert(NMpl::TIsVoid<R>::Value,
-        "Via() can be used with void return type only.");
+    static_assert(
+        NMpl::TIsVoid<R>::Value,
+        "Via() can only be used with void return type.");
     YASSERT(invoker);
 
     auto this_ = *this;
     return BIND([=] (TArgs... args) {
-        invoker->Invoke(BIND(this_, std::forward<TArgs>(args) ...));
+        invoker->Invoke(BIND(this_, std::forward<TArgs>(args)...));
     });
 }
 
-namespace NDetail
-{
+namespace NDetail {
 
 template <bool W, class U, class... TArgs>
 struct TAsyncViaHelper<W, U(TArgs...)>
@@ -61,9 +62,7 @@ struct TAsyncViaHelper<W, U(TArgs...)>
         typename NYT::NDetail::TFutureHelper<U>::TFutureType
         (TArgs...)> TTargetCallback;
 
-    static inline TTargetCallback Do(
-        const TSourceCallback& this_,
-        IInvokerPtr invoker)
+    static TTargetCallback Do(const TSourceCallback& this_, IInvokerPtr invoker)
     {
         typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
@@ -71,14 +70,19 @@ struct TAsyncViaHelper<W, U(TArgs...)>
 
         auto inner = BIND([=] (PR promise, TArgs... args) -> void {
             RegisterFiberCancelation(promise);
-            promise.Set(this_.Run(
-                std::forward<TArgs>(args)...));
+            promise.Set(this_.Run(std::forward<TArgs>(args)...));
         });
         auto outer = BIND([=] (TArgs... args) -> FR {
             auto promise = NewPromise<R>();
-            invoker->Invoke(BIND(inner, promise,
+            auto future = promise.ToFuture();
+            auto result = invoker->Invoke(BIND(
+                inner,
+                promise,
                 std::forward<TArgs>(args)...));
-            return promise.ToFuture();
+            if (!result) {
+                future.Cancel();
+            }
+            return future;
         });
         return outer;
     }
@@ -92,9 +96,7 @@ struct TAsyncViaHelper<W, void(TArgs...)>
         typename NYT::NDetail::TFutureHelper<void>::TFutureType
         (TArgs...)> TTargetCallback;
 
-    static inline TTargetCallback Do(
-        const TSourceCallback& this_,
-        IInvokerPtr invoker)
+    static TTargetCallback Do(const TSourceCallback& this_, IInvokerPtr invoker)
     {
         typedef typename NYT::NDetail::TFutureHelper<void>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<void>::TFutureType FR;
@@ -102,15 +104,20 @@ struct TAsyncViaHelper<W, void(TArgs...)>
 
         auto inner = BIND([=] (PR promise, TArgs... args) {
             RegisterFiberCancelation(promise);
-            this_.Run(
-                std::forward<TArgs>(args)...);
+            this_.Run(std::forward<TArgs>(args)...);
             promise.Set();
         });
         auto outer = BIND([=] (TArgs... args) -> FR {
             auto promise = NewPromise<R>();
-            invoker->Invoke(BIND(inner, promise,
+            auto future = promise.ToFuture();
+            bool result = invoker->Invoke(BIND(
+                inner,
+                promise,
                 std::forward<TArgs>(args)... ));
-            return promise.ToFuture();
+            if (!result) {
+                future.Cancel();
+            }
+            return future;
         });
         return outer;
     }
@@ -124,9 +131,7 @@ struct TAsyncViaHelper<true, U(TArgs...)>
         typename NYT::NDetail::TFutureHelper<U>::TFutureType
         (TArgs...)> TTargetCallback;
 
-    static inline TTargetCallback Do(
-        const TSourceCallback& this_,
-        IInvokerPtr invoker)
+    static TTargetCallback Do(const TSourceCallback& this_, IInvokerPtr invoker)
     {
         typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
@@ -134,15 +139,20 @@ struct TAsyncViaHelper<true, U(TArgs...)>
 
         auto inner = BIND([=] (PR promise, TArgs... args) {
             RegisterFiberCancelation(promise);
-            this_.Run(
-                std::forward<TArgs>(args)...)
+            this_.Run(std::forward<TArgs>(args)...)
                 .Subscribe(BIND(&TPromiseSetter<R>::Do, promise));
         });
         auto outer = BIND([=] (TArgs... args) -> FR {
             auto promise = NewPromise<R>();
-            invoker->Invoke(BIND(inner, promise,
+            auto future = promise.ToFuture();
+            bool result = invoker->Invoke(BIND(
+                inner,
+                promise,
                 std::forward<TArgs>(args)...));
-            return promise;
+            if (!result) {
+                future.Cancel();
+            }
+            return future;
         });
         return outer;
     }
@@ -151,11 +161,8 @@ struct TAsyncViaHelper<true, U(TArgs...)>
 } // namespace NDetail
 
 template <class U, class... TArgs>
-TCallback<
-    typename NYT::NDetail::TFutureHelper<U>::TFutureType
-    (TArgs...)>
-TCallback<U(TArgs...)>::AsyncVia(
-    IInvokerPtr invoker)
+TCallback<typename NYT::NDetail::TFutureHelper<U>::TFutureType(TArgs...)>
+TCallback<U(TArgs...)>::AsyncVia(IInvokerPtr invoker)
 {
     return NYT::NDetail::TAsyncViaHelper<
         NYT::NDetail::TFutureHelper<U>::WrappedInFuture,
