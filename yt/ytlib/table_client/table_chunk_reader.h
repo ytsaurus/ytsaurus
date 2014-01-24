@@ -16,8 +16,6 @@
 #include <core/misc/blob_output.h>
 #include <core/misc/async_stream_state.h>
 
-#include <core/concurrency/thread_affinity.h>
-
 #include <core/ytree/public.h>
 #include <core/ytree/yson_string.h>
 
@@ -173,8 +171,6 @@ private:
      */
     std::vector<TSharedRef> FetchedBlocks;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
-    DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -758,7 +758,8 @@ TTableChunkReader::TTableChunkReader(
     , OnRowFetchedCallback(BIND(&TTableChunkReader::OnRowFetched, MakeWeak(this)))
     , SuccessResult(MakePromise(TError()))
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YCHECK(Provider);
+    YCHECK(config);
     YCHECK(chunkReader);
 
     if (PartitionTag == DefaultPartitionTag) {
