@@ -35,7 +35,6 @@ public:
     int Unlock();
 
     TDynamicRow WriteRow(
-        const NVersionedTableClient::TNameTablePtr& nameTable,
         TTransaction* transaction,
         NVersionedTableClient::TUnversionedRow row,
         bool prewrite);

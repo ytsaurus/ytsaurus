@@ -228,7 +228,6 @@ void TStoreManager::WriteRow(
         ERowLockMode::Write);
 
     auto dynamicRow = Tablet_->GetActiveStore()->WriteRow(
-        NameTable_,
         transaction,
         row,
         prewrite);

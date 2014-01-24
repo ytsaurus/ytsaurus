@@ -389,7 +389,6 @@ int TDynamicMemoryStore::Unlock()
 }
 
 TDynamicRow TDynamicMemoryStore::WriteRow(
-    const TNameTablePtr& nameTable,
     TTransaction* transaction,
     TUnversionedRow row,
     bool prewrite)
