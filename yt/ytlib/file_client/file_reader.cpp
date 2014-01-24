@@ -4,6 +4,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <core/concurrency/fiber.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
@@ -11,6 +13,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/rpc_helpers.h>
 
+#include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
@@ -19,8 +22,10 @@
 
 namespace NYT {
 namespace NFileClient {
-
+    
+using namespace NRpc;
 using namespace NYTree;
+using namespace NConcurrency;
 using namespace NYPath;
 using namespace NChunkClient;
 using namespace NTransactionClient;
@@ -32,9 +37,9 @@ using namespace NCypressClient;
 
 TAsyncReader::TAsyncReader(
     TFileReaderConfigPtr config,
-    NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr blockCache,
-    NTransactionClient::TTransactionPtr transaction,
+    IChannelPtr masterChannel,
+    IBlockCachePtr blockCache,
+    TTransactionPtr transaction,
     const TRichYPath& richPath,
     const TNullable<i64>& offset,
     const TNullable<i64>& length)
@@ -49,9 +54,9 @@ TAsyncReader::TAsyncReader(
     , Size(0)
     , Logger(FileReaderLogger)
 {
-    YCHECK(config);
-    YCHECK(masterChannel);
-    YCHECK(blockCache);
+    YCHECK(Config);
+    YCHECK(MasterChannel);
+    YCHECK(BlockCache);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~RichPath.GetPath(),
@@ -61,136 +66,136 @@ TAsyncReader::TAsyncReader(
 TAsyncReader::~TAsyncReader()
 { }
 
-TAsyncError TAsyncReader::AsyncOpen()
+TAsyncError TAsyncReader::Open()
 {
-    LOG_INFO("Opening file reader");
-
-    LOG_INFO("Fetching file info");
-
-    const auto& path = RichPath.GetPath();
-
-    TObjectServiceProxy proxy(MasterChannel);
-    auto batchReq = proxy.ExecuteBatch();
-
-    {
-        auto req = TYPathProxy::Get(path + "/@type");
-        SetTransactionId(req, Transaction);
-        batchReq->AddRequest(req, "get_type");
-    }
-
-    {
-        auto attributes = CreateEphemeralAttributes();
-
-        i64 lowerLimit = Offset.Get(0);
-        if (Offset) {
-            TReadLimit limit;
-            limit.SetOffset(*Offset);
-            attributes->SetYson("lower_limit", ConvertToYsonString(limit));
-        }
-
-        if (Length) {
-            TReadLimit limit;
-            limit.SetOffset(lowerLimit + *Length);
-            attributes->SetYson("upper_limit", ConvertToYsonString(limit));
-        }
-
-        auto req = TFileYPathProxy::Fetch(RichPath.GetPath());
-        ToProto(req->mutable_attributes(), *attributes);
-        SetTransactionId(req, Transaction);
-        SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
-        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-        batchReq->AddRequest(req, "fetch");
-    }
-
-    return batchReq->Invoke().Apply(
-        BIND(&TThis::OnInfoFetched, MakeStrong(this)));
+    return BIND(&TAsyncReader::DoOpen, MakeStrong(this))
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        .Run();
 }
 
-TAsyncError TAsyncReader::OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+TError TAsyncReader::DoOpen()
 {
-    if (!batchRsp->IsOK()) {
-        return MakeFuture(TError("Error fetching file info") << *batchRsp);
-    }
+    try {
+        LOG_INFO("Opening file reader");
 
-    {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-        if (!rsp->IsOK()) {
-            return MakeFuture(TError("Error getting object type") << *rsp);
+        LOG_INFO("Fetching file info");
+
+        const auto& path = RichPath.GetPath();
+
+        TObjectServiceProxy proxy(MasterChannel);
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TYPathProxy::Get(path + "/@type");
+            SetTransactionId(req, Transaction);
+            batchReq->AddRequest(req, "get_type");
         }
 
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-        if (type != EObjectType::File) {
-            return MakeFuture(TError("Invalid type of %s: expected %s, actual %s",
-                ~RichPath.GetPath(),
-                ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
-                ~FormatEnum(type).Quote()));
-        }
-    }
+        {
+            auto attributes = CreateEphemeralAttributes();
 
-    {
-        auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
-        if (!rsp->IsOK()) {
-            return MakeFuture(TError("Error fetching file chunks"));
+            i64 lowerLimit = Offset.Get(0);
+            if (Offset) {
+                TReadLimit limit;
+                limit.SetOffset(*Offset);
+                attributes->SetYson("lower_limit", ConvertToYsonString(limit));
+            }
+
+            if (Length) {
+                TReadLimit limit;
+                limit.SetOffset(lowerLimit + *Length);
+                attributes->SetYson("upper_limit", ConvertToYsonString(limit));
+            }
+
+            auto req = TFileYPathProxy::Fetch(RichPath.GetPath());
+            ToProto(req->mutable_attributes(), *attributes);
+            SetTransactionId(req, Transaction);
+            SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
+            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            batchReq->AddRequest(req, "fetch");
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching file info");
+
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object type");
+
+            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            if (type != EObjectType::File) {
+                THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
+                    ~RichPath.GetPath(),
+                    ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
+                    ~FormatEnum(type).Quote());
+            }
         }
 
         auto nodeDirectory = New<TNodeDirectory>();
-        nodeDirectory->MergeFrom(rsp->node_directory());
+        {
+            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching file chunks");
 
-        auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-        for (const auto& chunk : chunks) {
-            i64 dataSize;
-            GetStatistics(chunk, &dataSize);
-            Size += dataSize;
+            nodeDirectory->MergeFrom(rsp->node_directory());
+
+            auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+            for (const auto& chunk : chunks) {
+                i64 dataSize;
+                GetStatistics(chunk, &dataSize);
+                Size += dataSize;
+            }
+
+            auto provider = New<TFileChunkReaderProvider>(Config);
+            Reader = New<TReader>(
+                Config,
+                MasterChannel,
+                BlockCache,
+                nodeDirectory,
+                std::move(chunks),
+                provider);
         }
 
-        auto provider = New<TFileChunkReaderProvider>(Config);
-        Reader = New<TReader>(
-            Config,
-            MasterChannel,
-            BlockCache,
-            nodeDirectory,
-            std::move(chunks),
-            provider);
+        {
+            auto result = WaitFor(Reader->AsyncOpen());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
-        auto this_ = MakeStrong(this);
-        return Reader->AsyncOpen().Apply(
-            BIND([this, this_] (TError error) -> TError {
-                if (!error.IsOK()) {
-                    return error;
-                }
-                if (Transaction) {
-                    ListenTransaction(Transaction);
-                }
-                LOG_INFO("File reader opened");
-                return TError();
-        }));
+        if (Transaction) {
+            ListenTransaction(Transaction);
+        }
+
+        LOG_INFO("File reader opened");
+        
+        return TError();
+    } catch (const std::exception& ex) {
+        return ex;
     }
 }
 
-TFuture<TAsyncReader::TReadResult> TAsyncReader::AsyncRead()
+TFuture<TAsyncReader::TReadResult> TAsyncReader::Read()
 {
-    if (IsAborted()) {
-        return MakeFuture<TAsyncReader::TReadResult>(TError("Transaction aborted"));
-    }
+    return BIND(&TAsyncReader::DoRead, MakeStrong(this))
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        .Run();
+}
 
-    auto result = MakeFuture(TError());
-    if (!IsFirstBlock && !Reader->FetchNext()) {
-        result = Reader->GetReadyEvent();
-    }
+TAsyncReader::TReadResult TAsyncReader::DoRead()
+{
+    try {
+        CheckAborted();
+        
+        if (!IsFirstBlock && !Reader->FetchNext()) {
+            auto result = WaitFor(Reader->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
-    if (IsFirstBlock) {
         IsFirstBlock = false;
-    }
 
-    auto this_ = MakeStrong(this);
-    return result.Apply(
-        BIND([this, this_] (TError error) -> TReadResult {
-            if (!error.IsOK()) {
-                return error;
-            }
-            auto* facade = Reader->GetFacade();
-            return facade ? facade->GetBlock() : TSharedRef();
-        }));
+        auto* facade = Reader->GetFacade();
+        return facade ? facade->GetBlock() : TSharedRef();
+    } catch (const std::exception& ex) {
+        return ex;
+    }
 }
 
 i64 TAsyncReader::GetSize() const

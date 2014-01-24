@@ -41,9 +41,10 @@ public:
 
     ~TAsyncReader();
 
-    TAsyncError AsyncOpen();
-    TFuture<TReadResult> AsyncRead();
+    TAsyncError Open();
+    TFuture<TReadResult> Read();
 
+    //! Can only be called after the reader is successfully opened.
     i64 GetSize() const;
 
 private:
@@ -65,7 +66,9 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TAsyncError OnInfoFetched(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
+    TError DoOpen();
+    TReadResult DoRead();
 
 };
 

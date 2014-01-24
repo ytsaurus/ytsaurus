@@ -57,7 +57,7 @@ void TSnapshotDownloader::Run()
         snapshotPath);
 
     {
-        auto result = WaitFor(reader->AsyncOpen());
+        auto result = WaitFor(reader->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
         
@@ -72,7 +72,7 @@ void TSnapshotDownloader::Run()
         blob.Reserve(size);
 
         while (true) {
-            auto blockOrError = WaitFor(reader->AsyncRead());
+            auto blockOrError = WaitFor(reader->Read());
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
             auto block = blockOrError.GetValue();
             if (!block)
