@@ -25,7 +25,7 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     : RowCount_(0)
     , SchemaColumnCount_(schema.Columns().size())
     , KeyColumnCount_(keyColumns.size())
-    , TimestampsCount_(0)
+    , TimestampCount_(0)
     , ValueCount_(0)
 { }
 
@@ -41,11 +41,11 @@ void TSimpleVersionedBlockWriter::WriteRow(
         WriteValue(KeyStream_, KeyNullFlags_, *it);
     }
 
-    WritePod(KeyStream_, TimestampsCount_);
+    WritePod(KeyStream_, TimestampCount_);
     WritePod(KeyStream_, ValueCount_);
     WritePod(KeyStream_, static_cast<ui32>(row.GetTimestampCount()));
 
-    TimestampsCount_ += row.GetTimestampCount();
+    TimestampCount_ += row.GetTimestampCount();
     for (auto* it = row.BeginTimestamps(); it != row.EndTimestamps(); ++it) {
         WritePod(TimestampsStream_, *it);
     }
@@ -106,7 +106,7 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
 
     auto* metaExt = meta.MutableExtension(TSimpleVersionedBlockMeta::block_meta_ext);
     metaExt->set_value_count(ValueCount_);
-    metaExt->set_timestamp_count(TimestampsCount_);
+    metaExt->set_timestamp_count(TimestampCount_);
 
     TBlock block;
     block.Data.swap(blockParts);

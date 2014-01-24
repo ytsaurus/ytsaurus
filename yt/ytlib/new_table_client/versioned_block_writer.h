@@ -53,7 +53,7 @@ private:
 
     TChunkedOutputStream StringData_;
 
-    i64 TimestampsCount_;
+    i64 TimestampCount_;
     i64 ValueCount_;
 
     void WriteValue(
