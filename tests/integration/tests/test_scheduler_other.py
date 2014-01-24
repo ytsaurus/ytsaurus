@@ -62,4 +62,17 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert read('//tmp/t_out') == [ {'foo' : 'bar'} ]
 
+    def test_revive(self):
+        self._prepare_tables()
+
+        op_id = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat; sleep 3')
+
+        time.sleep(2)
+        self.Env._kill_service("scheduler")
+        self.Env._run_ytserver("scheduler")
+
+        track_op(op_id)
+
+        assert read('//tmp/t_out') == [ {'foo' : 'bar'} ]
+
 

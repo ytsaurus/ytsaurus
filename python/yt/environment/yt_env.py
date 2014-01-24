@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import simplejson as json
+from collections import defaultdict
 
 
 def init_logging(node, path, name):
@@ -91,7 +92,8 @@ class YTEnv(object):
                      (self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS))
         logging.info('SANDBOX_DIR is %s', self.path_to_run)
 
-        self.process_to_kill = []
+        self.process_to_kill = defaultdict(lambda: [])
+        self.configs = {}
 
         if self.NUM_MASTERS == 0:
             logging.info("Do nothing, because we have 0 masters")
@@ -135,21 +137,28 @@ class YTEnv(object):
             message += 'Alarm! %s (pid %d) was not killed after 50 iterations\n' % (name, proc.pid)
         return message, ok
 
-    def clear_environment(self):
+    def _kill_service(self, name):
         ok = True
         message = ""
-        for p, name in reversed(self.process_to_kill):
+        for p in self.process_to_kill[name]:
             p_message, p_ok = self.kill_process(p, name)
-            if not p_ok: ok = False
+            if not p_ok:
+                ok = False
             message += p_message
 
         assert ok, message
+
+        self.process_to_kill[name] = []
+
+    def clear_environment(self):
+        for name in ["proxy", "scheduler", "node", "master"]:
+            self._kill_service(name)
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + '\n')
         self.pids_file.flush();
 
-    def _run(self, args, name, timeout=0.5):
+    def _run(self, args, name, number, timeout=0.5):
         if self.supress_yt_output:
             stdout = open("/dev/null", "w")
             stderr = open("/dev/null", "w")
@@ -158,21 +167,22 @@ class YTEnv(object):
             stderr = sys.stderr
         p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid,
                              stdout=stdout, stderr=stderr)
-        self.process_to_kill.append((p, name))
+        self.process_to_kill[name].append(p)
         self._append_pid(p.pid)
 
         time.sleep(timeout)
         if p.poll():
-            print >>sys.stderr, "Process %s unexpectedly terminated." % name
+            print >>sys.stderr, "Process %s-%d unexpectedly terminated." % (name, number)
             print >>sys.stderr, "Check that there are no other incarnations of this process."
             assert False, "Process unexpectedly terminated"
 
-    def _run_ytserver(self, service_name, configs):
-        for i in xrange(len(configs)):
+    def _run_ytserver(self, service_name):
+        for i in xrange(len(self.configs[service_name])):
             self._run([
                 'ytserver', "--" + service_name,
-                '--config', configs[i]],
-                "%s-%d" % (service_name, i))
+                '--config', self.configs[service_name][i]],
+                service_name,
+                i)
 
     def _kill_previously_run_services(self):
         if os.path.exists(self._pids_filename):
@@ -234,8 +244,10 @@ class YTEnv(object):
                 write_config(config, config_path)
             config_paths.append(config_path)
 
+        self.configs['master'] = config_paths
 
-        self._run_ytserver('master', config_paths)
+
+        self._run_ytserver('master')
 
         def masters_ready():
             good_marker = "World initialization completed"
@@ -303,7 +315,9 @@ class YTEnv(object):
             write_config(config, config_path)
             config_paths.append(config_path)
 
-        self._run_ytserver('node', config_paths)
+        self.configs['node'] = config_paths
+
+        self._run_ytserver('node')
 
 
         def all_nodes_ready():
@@ -357,7 +371,7 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports["scheduler"][2 * i + 1]
 
             config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
-            
+
             logs.append(config['logging']['writers']['file']['file_name'])
 
             self.modify_scheduler_config(config)
@@ -366,7 +380,9 @@ class YTEnv(object):
             config_paths.append(config_path)
             write_config(config, config_path)
 
-        self._run_ytserver('scheduler', config_paths)
+        self.configs['scheduler'] = config_paths
+
+        self._run_ytserver('scheduler')
 
         self.scheduler_logs = logs
 
