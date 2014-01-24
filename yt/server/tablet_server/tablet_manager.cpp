@@ -95,7 +95,7 @@ public:
         TRspCreateObjects* response) override;
 
 private:
-    TImpl* Owner;
+    TImpl* Owner_;
 
     virtual Stroka DoGetName(TTabletCell* object) override
     {
@@ -125,7 +125,7 @@ public:
     }
 
 private:
-    TImpl* Owner;
+    TImpl* Owner_;
 
     virtual Stroka DoGetName(TTablet* object) override
     {
@@ -151,8 +151,8 @@ public:
         TTabletManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
-        , Config(config)
-        , TabletTracker(New<TTabletTracker>(Config, Bootstrap))
+        , Config_(config)
+        , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap))
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
 
@@ -231,7 +231,7 @@ public:
         cell->SetSize(size);
         cell->Peers().resize(size);
         
-        TabletCellMap.Insert(id, cell);
+        TabletCellMap_.Insert(id, cell);
 
         // Make the fake reference.
         YCHECK(cell->RefObject() == 1);   
@@ -265,7 +265,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::Tablet);
         auto* tablet = new TTablet(id);
         tablet->SetTable(table);
-        TabletMap.Insert(id, tablet);
+        TabletMap_.Insert(id, tablet);
         objectManager->RefObject(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %s, TabletId: %s)",
@@ -350,17 +350,19 @@ public:
             firstTabletIndex = 0;
             lastTabletIndex = 0;
 
-            // TODO(babenko): save data when creating the very first tablet
             auto* oldRootChunkList = table->GetChunkList();
+            auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
             auto* newRootChunkList = chunkManager->CreateChunkList();
             table->SetChunkList(newRootChunkList);
             YCHECK(newRootChunkList->OwningNodes().insert(table).second);
             objectManager->RefObject(newRootChunkList);
             YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
-            objectManager->UnrefObject(oldRootChunkList);
-
             auto* tabletChunkList = chunkManager->CreateChunkList();
             chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+            for (auto* chunk : chunks) {
+                chunkManager->AttachToChunkList(tabletChunkList, chunk);
+            }
+            objectManager->UnrefObject(oldRootChunkList);
         }
 
         const auto& chunkLists = table->GetChunkList()->Children();
@@ -560,26 +562,26 @@ private:
     friend class TTabletCellTypeHandler;
     friend class TTabletTypeHandler;
 
-    TTabletManagerConfigPtr Config;
+    TTabletManagerConfigPtr Config_;
 
-    TTabletTrackerPtr TabletTracker;
+    TTabletTrackerPtr TabletTracker_;
 
-    NHydra::TEntityMap<TTabletCellId, TTabletCell> TabletCellMap;
-    NHydra::TEntityMap<TTabletId, TTablet> TabletMap;
+    NHydra::TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
+    NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
-        TabletCellMap.SaveKeys(context);
-        TabletMap.SaveKeys(context);
+        TabletCellMap_.SaveKeys(context);
+        TabletMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
-        TabletCellMap.SaveValues(context);
-        TabletMap.SaveValues(context);
+        TabletCellMap_.SaveValues(context);
+        TabletMap_.SaveValues(context);
     }
 
 
@@ -594,23 +596,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletCellMap.LoadKeys(context);
-        TabletMap.LoadKeys(context);
+        TabletCellMap_.LoadKeys(context);
+        TabletMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletCellMap.LoadValues(context);
-        TabletMap.LoadValues(context);
+        TabletCellMap_.LoadValues(context);
+        TabletMap_.LoadValues(context);
     }
 
 
     void DoClear()
     {
-        TabletCellMap.Clear();
-        TabletMap.Clear();
+        TabletCellMap_.Clear();
+        TabletMap_.Clear();
     }
 
     virtual void Clear() override
@@ -835,7 +837,7 @@ private:
         };
 
         yhash_set<TTabletCell*> missingCells;
-        for (const auto& pair : TabletCellMap) {
+        for (const auto& pair : TabletCellMap_) {
             YCHECK(missingCells.insert(pair.second).second);
         }
             
@@ -1076,12 +1078,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletTracker->Start();
+        TabletTracker_->Start();
 
         auto cellRegistry = Bootstrap->GetCellRegistry();
         cellRegistry->Clear();
 
-        for (const auto& pair : TabletCellMap) {
+        for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             UpdateCellRegistry(cell);
         }
@@ -1091,7 +1093,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TabletTracker->Stop();
+        TabletTracker_->Stop();
     }
 
 
@@ -1128,7 +1130,7 @@ private:
 
     void ValidateHasHealthyCells()
     {
-        auto cells = TabletCellMap.GetValues();
+        auto cells = TabletCellMap_.GetValues();
         for (auto* cell : cells) {
             if (cell->GetHealth() == ETabletCellHealth::Good)
                 return;
@@ -1139,7 +1141,7 @@ private:
     TTabletCell* AllocateCell()
     {
         // TODO(babenko): do something smarter?
-        auto cells = TabletCellMap.GetValues();
+        auto cells = TabletCellMap_.GetValues();
 
         cells.erase(
             std::remove_if(
@@ -1229,14 +1231,14 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TTabletCellId, TabletCellMap)
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TTabletCellId, TabletCellMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TabletCellMap)
-    , Owner(owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TabletCellMap_)
+    , Owner_(owner)
 { }
 
 TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
@@ -1257,25 +1259,25 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
         THROW_ERROR_EXCEPTION("\"size\" must be odd");
     }
 
-    auto* cell = Owner->CreateCell(size);
+    auto* cell = Owner_->CreateCell(size);
     return cell;
 }
 
 void TTabletManager::TTabletCellTypeHandler::DoDestroy(TTabletCell* cell)
 {
-    Owner->DestroyCell(cell);
+    Owner_->DestroyCell(cell);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TTabletManager::TTabletTypeHandler::TTabletTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TabletMap)
-    , Owner(owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TabletMap_)
+    , Owner_(owner)
 { }
 
 void TTabletManager::TTabletTypeHandler::DoDestroy(TTablet* tablet)
 {
-    Owner->DestroyTablet(tablet);
+    Owner_->DestroyTablet(tablet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1283,7 +1285,7 @@ void TTabletManager::TTabletTypeHandler::DoDestroy(TTablet* tablet)
 TTabletManager::TTabletManager(
     TTabletManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TTabletManager::~TTabletManager()
@@ -1291,27 +1293,27 @@ TTabletManager::~TTabletManager()
 
 void TTabletManager::Initialize()
 {
-    return Impl->Initialize();
+    return Impl_->Initialize();
 }
 
 TMutationPtr TTabletManager::CreateStartSlotsMutation(const TReqStartSlots& request)
 {
-    return Impl->CreateStartSlotsMutation(request);
+    return Impl_->CreateStartSlotsMutation(request);
 }
 
 TMutationPtr TTabletManager::CreateSetCellStateMutation(const TReqSetCellState& request)
 {
-    return Impl->CreateSetCellStateMutation(request);
+    return Impl_->CreateSetCellStateMutation(request);
 }
 
 TMutationPtr TTabletManager::CreateRevokePeerMutation(const TReqRevokePeer& request)
 {
-    return Impl->CreateRevokePeerMutation(request);
+    return Impl_->CreateRevokePeerMutation(request);
 }
 
 TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
 {
-    return Impl->GetTableSchema(table);
+    return Impl_->GetTableSchema(table);
 }
 
 void TTabletManager::MountTable(
@@ -1319,7 +1321,7 @@ void TTabletManager::MountTable(
     int firstTabletIndex,
     int lastTabletIndex)
 {
-    Impl->MountTable(
+    Impl_->MountTable(
         table,
         firstTabletIndex,
         lastTabletIndex);
@@ -1330,7 +1332,7 @@ void TTabletManager::UnmountTable(
     int firstTabletIndex,
     int lastTabletIndex)
 {
-    Impl->UnmountTable(
+    Impl_->UnmountTable(
         table,
         firstTabletIndex,
         lastTabletIndex);
@@ -1338,7 +1340,7 @@ void TTabletManager::UnmountTable(
 
 void TTabletManager::ForceUnmountTable(TTableNode* table)
 {
-    Impl->ForceUnmountTable(table);
+    Impl_->ForceUnmountTable(table);
 }
 
 void TTabletManager::ReshardTable(
@@ -1347,15 +1349,15 @@ void TTabletManager::ReshardTable(
     int lastTabletIndex,
     const std::vector<TOwningKey>& pivotKeys)
 {
-    Impl->ReshardTable(
+    Impl_->ReshardTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
         pivotKeys);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, TTabletCellId, *Impl)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, TTabletCellId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

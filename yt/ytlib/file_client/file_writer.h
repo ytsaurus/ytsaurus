@@ -43,12 +43,11 @@ public:
 
     ~TAsyncWriter();
 
-    TAsyncError AsyncOpen();
-    TAsyncError AsyncWrite(const TRef& data);
-    void Close();
+    TAsyncError Open();
+    TAsyncError Write(const TRef& data);
+    TAsyncError Close();
 
 private:
-    typedef TAsyncWriter TThis;
     typedef NChunkClient::TMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
 
     TFileWriterConfigPtr Config;
@@ -65,9 +64,10 @@ private:
 
     NCypressClient::TNodeId NodeId;
 
-    TAsyncError OnUploadTransactionStarted(
-        TErrorOr<NTransactionClient::TTransactionPtr> transactionOrError);
-    TAsyncError OnFileInfoReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
+    TError DoOpen();
+    TError DoWrite(const TRef& data);
+    TError DoClose();
 
 };
 

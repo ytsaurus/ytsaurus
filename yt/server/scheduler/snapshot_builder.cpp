@@ -212,7 +212,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 snapshotPath);
 
             {
-                auto result = WaitFor(writer->AsyncOpen());
+                auto result = WaitFor(writer->Open());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
@@ -227,12 +227,15 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 }
 
                 {
-                    auto result = WaitFor(writer->AsyncWrite(TRef(buffer.Begin(), bytesRead)));
+                    auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
             }
 
-            writer->Close();
+            {
+                auto result = WaitFor(writer->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
             LOG_INFO("Snapshot uploaded successfully");
         }

@@ -74,7 +74,7 @@ void TUploadCommand::DoExecute()
         Request->Path);
 
     {
-        auto result = WaitFor(writer->AsyncOpen());
+        auto result = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
@@ -94,13 +94,15 @@ void TUploadCommand::DoExecute()
             break;
 
         {
-            auto result = WaitFor(writer->AsyncWrite(TRef(buffer.Begin(), length)));
+            auto result = WaitFor(writer->Write(TRef(buffer.Begin(), length)));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
 
-    writer->Close();
-
+    {
+        auto result = WaitFor(writer->Close());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

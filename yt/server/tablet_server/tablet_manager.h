@@ -68,7 +68,7 @@ private:
     class TTabletTypeHandler;
     class TImpl;
     
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 

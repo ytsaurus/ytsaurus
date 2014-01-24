@@ -12,6 +12,7 @@
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
+#include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -46,11 +47,13 @@ TAsyncWriter::TAsyncWriter(
     , RichPath(richPath.Simplify())
     , Logger(FileWriterLogger)
 {
-    YCHECK(transactionManager);
+    YCHECK(Config);
+    YCHECK(MasterChannel);
+    YCHECK(TransactionManager);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~RichPath.GetPath(),
-        transaction ? ~ToString(transaction->GetId()) : ~ToString(NullTransactionId)));
+        Transaction ? ~ToString(Transaction->GetId()) : ~ToString(NullTransactionId)));
 
     if (Transaction) {
         ListenTransaction(Transaction);
@@ -60,162 +63,174 @@ TAsyncWriter::TAsyncWriter(
 TAsyncWriter::~TAsyncWriter()
 { }
 
-TAsyncError TAsyncWriter::AsyncOpen()
+TAsyncError TAsyncWriter::Open()
 {
-    if (IsAborted()) {
-        return MakeFuture(TError("Transaction aborted"));
-    }
-
-    LOG_INFO("Creating upload transaction");
-    TTransactionStartOptions options;
-    options.ParentId = Transaction ? Transaction->GetId() : NullTransactionId;
-    options.EnableUncommittedAccounting = false;
-    options.Attributes->Set("title", Sprintf("File upload to %s", ~RichPath.GetPath()));
-    return TransactionManager->Start(options).Apply(
-            BIND(&TThis::OnUploadTransactionStarted, MakeStrong(this)));
+    return BIND(&TAsyncWriter::DoOpen, MakeStrong(this))
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+        .Run();
 }
 
-TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<TTransactionPtr> transactionOrError)
+TError TAsyncWriter::DoOpen()
 {
-    if (!transactionOrError.IsOK()) {
-        return MakeFuture(TError("Error creating upload transaction")
-            << transactionOrError);
-    }
+    try {
+        CheckAborted();
 
-    UploadTransaction = transactionOrError.GetValue();
-    ListenTransaction(UploadTransaction);
-    LOG_INFO("Upload transaction created (TransactionId: %s)",
-        ~ToString(UploadTransaction->GetId()));
+        LOG_INFO("Creating upload transaction");
 
-    TObjectServiceProxy proxy(MasterChannel);
-
-    LOG_INFO("Requesting file info");
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    auto path = RichPath.GetPath();
-    bool overwrite = NChunkClient::ExtractOverwriteFlag(RichPath.Attributes());
-    {
-        auto req = TCypressYPathProxy::Get(path);
-        SetTransactionId(req, UploadTransaction);
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-        attributeFilter.Keys.push_back("type");
-        attributeFilter.Keys.push_back("replication_factor");
-        attributeFilter.Keys.push_back("account");
-        attributeFilter.Keys.push_back("compression_codec");
-        attributeFilter.Keys.push_back("erasure_codec");
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
-        batchReq->AddRequest(req, "get_attributes");
-    }
-
-    {
-        auto req = TFileYPathProxy::PrepareForUpdate(path);
-        req->set_mode(overwrite ? EUpdateMode::Overwrite : EUpdateMode::Append);
-        NHydra::GenerateMutationId(req);
-        SetTransactionId(req, UploadTransaction);
-        batchReq->AddRequest(req, "prepare_for_update");
-    }
-
-    return batchReq->Invoke().Apply(BIND(&TThis::OnFileInfoReceived, MakeStrong(this)));
-}
-
-TAsyncError TAsyncWriter::OnFileInfoReceived(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-{
-    if (!batchRsp->IsOK()) {
-        return MakeFuture(TError("Error requesting file info")
-            << *batchRsp);
-    }
-
-    auto options = New<TMultiChunkWriterOptions>();
-    {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-        if (!rsp->IsOK()) {
-            return MakeFuture(TError("Error getting file attributes")
-                << *rsp);
+        {
+            TTransactionStartOptions options;
+            options.ParentId = Transaction ? Transaction->GetId() : NullTransactionId;
+            options.EnableUncommittedAccounting = false;
+            options.Attributes->Set("title", Sprintf("File upload to %s", ~RichPath.GetPath()));
+            auto transactionOrError = WaitFor(TransactionManager->Start(options));
+            THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
+            UploadTransaction = transactionOrError.GetValue();
         }
 
-        auto node = ConvertToNode(TYsonString(rsp->value()));
-        const auto& attributes = node->Attributes();
+        LOG_INFO("Upload transaction created (TransactionId: %s)",
+            ~ToString(UploadTransaction->GetId()));
 
-        auto type = attributes.Get<EObjectType>("type");
-        if (type != EObjectType::File) {
-            return MakeFuture(TError("Invalid type of %s: expected %s, actual %s",
-                ~RichPath.GetPath(),
-                ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
-                ~FormatEnum(type).Quote()));
+        ListenTransaction(UploadTransaction);
+
+        LOG_INFO("Requesting file info");
+
+        TObjectServiceProxy proxy(MasterChannel);
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto path = RichPath.GetPath();
+        bool overwrite = NChunkClient::ExtractOverwriteFlag(RichPath.Attributes());
+        {
+            auto req = TCypressYPathProxy::Get(path);
+            SetTransactionId(req, UploadTransaction);
+            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("type");
+            attributeFilter.Keys.push_back("replication_factor");
+            attributeFilter.Keys.push_back("account");
+            attributeFilter.Keys.push_back("compression_codec");
+            attributeFilter.Keys.push_back("erasure_codec");
+            ToProto(req->mutable_attribute_filter(), attributeFilter);
+            batchReq->AddRequest(req, "get_attributes");
         }
 
-        options->ReplicationFactor = attributes.Get<int>("replication_factor");
-        options->Account = attributes.Get<Stroka>("account");
-        options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-        options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
-    }
-
-    TChunkListId chunkListId;
-    {
-        auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-        if (!rsp->IsOK()) {
-            return MakeFuture(TError("Error preparing file for update")
-                << *rsp);
+        {
+            auto req = TFileYPathProxy::PrepareForUpdate(path);
+            req->set_mode(overwrite ? EUpdateMode::Overwrite : EUpdateMode::Append);
+            NHydra::GenerateMutationId(req);
+            SetTransactionId(req, UploadTransaction);
+            batchReq->AddRequest(req, "prepare_for_update");
         }
-        chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting file info");
+
+        auto writerOptions = New<TMultiChunkWriterOptions>();
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting file attributes");
+
+            auto node = ConvertToNode(TYsonString(rsp->value()));
+            const auto& attributes = node->Attributes();
+
+            auto type = attributes.Get<EObjectType>("type");
+            if (type != EObjectType::File) {
+                THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
+                    ~RichPath.GetPath(),
+                    ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
+                    ~FormatEnum(type).Quote());
+            }
+
+            writerOptions->ReplicationFactor = attributes.Get<int>("replication_factor");
+            writerOptions->Account = attributes.Get<Stroka>("account");
+            writerOptions->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
+            writerOptions->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        }
+
+        TChunkListId chunkListId;
+        {
+            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing file for update");
+            chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+        }
+
+        LOG_INFO("File info received (Account: %s, ChunkListId: %s)",
+            ~writerOptions->Account,
+            ~ToString(chunkListId));
+
+        auto provider = New<TFileChunkWriterProvider>(
+            Config,
+            writerOptions);
+
+        Writer = New<TWriter>(
+            Config,
+            writerOptions,
+            provider,
+            MasterChannel,
+            UploadTransaction->GetId(),
+            chunkListId);
+
+        {
+            auto result = WaitFor(Writer->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        return TError();
+    } catch (const std::exception& ex) {
+        return ex;
     }
-
-    LOG_INFO("File info received (Account: %s, ChunkListId: %s)",
-        ~options->Account,
-        ~ToString(chunkListId));
-
-    auto provider = New<TFileChunkWriterProvider>(
-        Config,
-        options);
-
-    Writer = New<TWriter>(
-        Config,
-        options,
-        provider,
-        MasterChannel,
-        UploadTransaction->GetId(),
-        chunkListId);
-    return Writer->Open();
 }
 
-
-TAsyncError TAsyncWriter::AsyncWrite(const TRef& data)
+TAsyncError TAsyncWriter::Write(const TRef& data)
 {
-    if (IsAborted()) {
-        return MakeFuture(TError("Transaction aborted"));
-    }
+    return BIND(&TAsyncWriter::DoWrite, MakeStrong(this))
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+        .Run(data);
+}
 
-    if (auto writer = Writer->GetCurrentWriter()) {
-        writer->Write(data);
-        return MakeFuture(TError());
-    } else {
-        auto this_ = MakeStrong(this);
-        return Writer->GetReadyEvent().Apply(
-            BIND([this, this_, data] (TError error) -> TError {
-                RETURN_IF_ERROR(error);
-                Writer->GetCurrentWriter()->Write(data);
-                return TError();
-            }));
+TError TAsyncWriter::DoWrite(const TRef& data)
+{
+    try {
+        CheckAborted();
+
+        while (!Writer->GetCurrentWriter()) {
+            auto result = WaitFor(Writer->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+        
+        Writer->GetCurrentWriter()->Write(data);
+        
+        return TError();
+    } catch (const std::exception& ex) {
+        return ex;
     }
 }
 
-void TAsyncWriter::Close()
+TAsyncError TAsyncWriter::Close()
 {
-    if (IsAborted()) {
-        return;
-    }
+    return BIND(&TAsyncWriter::DoClose, MakeStrong(this))
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+        .Run();
+}
 
-    LOG_INFO("Closing file writer and committing upload transaction");
+TError TAsyncWriter::DoClose()
+{
+    try {
+        CheckAborted();
 
-    {
-        auto error = WaitFor(Writer->Close());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to close file writer");
-    }
+        LOG_INFO("Closing file writer and committing upload transaction");
 
-    {
-        auto error = WaitFor(UploadTransaction->Commit(NHydra::NullMutationId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to commit upload transaction");
+        {
+            auto result = WaitFor(Writer->Close());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to close file writer");
+        }
+
+        {
+            auto result = WaitFor(UploadTransaction->Commit(NHydra::NullMutationId));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to commit upload transaction");
+        }
+
+        return TError();
+    } catch (const std::exception& ex) {
+        return ex;
     }
 }
 
