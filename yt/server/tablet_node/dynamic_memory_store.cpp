@@ -872,6 +872,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
 void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
+        .Item("key_count").Value(Tree_->Size())
         .Item("lock_count").Value(GetLockCount())
         .Item("allocated_string_space").Value(GetAllocatedStringSpace())
         .Item("allocated_value_count").Value(GetAllocatedValueCount());

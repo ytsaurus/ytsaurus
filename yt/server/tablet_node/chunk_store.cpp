@@ -114,7 +114,14 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 
 void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer);
+    BuildYsonMapFluently(consumer)
+        .DoIf(CachedMeta_, [&] (TFluentMap fluent) {
+            const auto& miscExt = CachedMeta_->Misc();
+            fluent
+                .Item("compressed_data_size").Value(miscExt.compressed_data_size())
+                .Item("uncompressed_data_size").Value(miscExt.uncompressed_data_size())
+                .Item("key_count").Value(miscExt.row_count());
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
