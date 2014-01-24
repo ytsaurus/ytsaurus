@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/ytree/public.h>
+
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <server/cell_node/public.h>
@@ -41,9 +43,11 @@ public:
 
     IInvokerPtr GetCompactionInvoker();
 
+    NYTree::IYPathServicePtr GetOrchidService();
+
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 

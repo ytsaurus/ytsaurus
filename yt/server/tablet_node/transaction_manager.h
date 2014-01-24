@@ -4,6 +4,8 @@
 
 #include <core/actions/signal.h>
 
+#include <core/yson/public.h>
+
 #include <ytlib/tablet_client/tablet_service.pb.h>
 
 #include <server/hydra/composite_automaton.h>
@@ -49,6 +51,9 @@ public:
 
     //! Finds transaction by id, throws if nothing is found.
     TTransaction* GetTransactionOrThrow(const TTransactionId& id);
+
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
+    
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 

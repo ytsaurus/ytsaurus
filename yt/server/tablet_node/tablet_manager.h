@@ -4,6 +4,8 @@
 
 #include <core/misc/small_vector.h>
 
+#include <core/yson/public.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/new_table_client/public.h>
@@ -52,6 +54,9 @@ public:
         TTablet* tablet,
         TTransaction* transaction,
         const Stroka& encodedRequest);
+
+
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);

@@ -328,7 +328,11 @@ void TBootstrap::Run()
         OrchidRoot,
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(ChunkCache)));
-    
+    SetNodeByYPath(
+        OrchidRoot,
+        "/tablet_slots",
+        CreateVirtualNode(TabletCellController->GetOrchidService()
+            ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
     NHttp::TServer httpServer(Config->MonitoringPort);

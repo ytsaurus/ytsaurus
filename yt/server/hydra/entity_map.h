@@ -54,8 +54,9 @@ public:
     typedef TEntityMap<TKey, TValue, TTraits, THash> TThis;
     typedef yhash_map<TKey, TValue*, THash> TMap;
     typedef typename TMap::iterator TIterator;
-    typedef typename TMap::iterator TConstIterator;
+    typedef typename TMap::const_iterator TConstIterator;
     typedef std::pair<TKey, TValue*> TItem;
+    typedef std::pair<TKey, const TValue*> TConstItem;
 
     explicit TEntityMap(const TTraits& traits = TTraits());
     virtual ~TEntityMap();
@@ -126,6 +127,18 @@ inline auto begin(NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> d
 
 template <class TKey, class TValue, class THash>
 inline auto end(NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
+{
+    return collection.End();
+}
+
+template <class TKey, class TValue, class THash>
+inline auto begin(const NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
+{
+    return collection.Begin();
+}
+
+template <class TKey, class TValue, class THash>
+inline auto end(const NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
 {
     return collection.End();
 }

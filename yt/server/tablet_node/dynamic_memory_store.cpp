@@ -9,6 +9,8 @@
 
 #include <core/concurrency/fiber.h>
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/name_table.h>
@@ -23,6 +25,8 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYson;
+using namespace NYTree;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
@@ -863,6 +867,14 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         upperKey,
         timestamp,
         columnFilter);
+}
+
+void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("lock_count").Value(GetLockCount())
+        .Item("allocated_string_space").Value(GetAllocatedStringSpace())
+        .Item("allocated_value_count").Value(GetAllocatedValueCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

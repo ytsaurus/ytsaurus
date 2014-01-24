@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/yson/public.h>
+
 #include <ytlib/new_table_client/public.h>
 
 #include <ytlib/api/public.h>
@@ -32,6 +34,8 @@ struct IStore
         NVersionedTableClient::TKey upperKey,
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) = 0;
+
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
 
 };
 

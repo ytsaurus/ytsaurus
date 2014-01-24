@@ -16,6 +16,8 @@
 #include <core/misc/ring_queue.h>
 #include <core/misc/string.h>
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/tablet_client/config.h>
@@ -41,6 +43,8 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYson;
+using namespace NYTree;
 using namespace NHydra;
 using namespace NCellNode;
 using namespace NTabletClient;
@@ -209,6 +213,29 @@ public:
         if (IsLeader()) {
             CheckIfRotationNeeded(tablet);
         }
+    }
+
+
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        BuildYsonFluently(consumer)
+            .DoMapFor(TabletMap_, [&] (TFluentMap fluent, const std::pair<TTabletId, TTablet*>& pair) {
+                auto* tablet = pair.second;
+                fluent
+                    .Item(ToString(tablet->GetId())).BeginMap()
+                        .Item("state").Value(tablet->GetState())
+                        .Item("stores").DoMapFor(tablet->Stores(), [&] (TFluentMap fluent, const std::pair<TStoreId, IStorePtr>& pair) {
+                            auto store = pair.second;
+                            fluent
+                                .Item(ToString(store->GetId())).BeginMap()
+                                    .Item("state").Value(store->GetState())
+                                    .Do(BIND(&IStore::BuildOrchidYson, store))
+                                .EndMap();
+                        })
+                    .EndMap();
+            });
     }
 
 
@@ -895,6 +922,11 @@ void TTabletManager::Write(
         tablet,
         transaction,
         encodedRequest);
+}
+
+void TTabletManager::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    Impl_->BuildOrchidYson(consumer);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl_)

@@ -73,6 +73,8 @@ public:
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
 
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+
 private:
     class TReader;
 

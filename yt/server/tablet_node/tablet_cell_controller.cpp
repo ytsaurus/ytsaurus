@@ -4,6 +4,10 @@
 #include "private.h"
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/thread_affinity.h>
+
+#include <core/ytree/ypath_service.h>
+#include <core/ytree/fluent.h>
 
 #include <server/hydra/changelog.h>
 #include <server/hydra/changelog_catalog.h>
@@ -23,6 +27,8 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
 using namespace NNodeTrackerClient::NProto;
 using namespace NDataNode;
 using namespace NHydra;
@@ -124,21 +130,29 @@ public:
 
     int GetAvailableTabletSlotCount() const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return Config_->TabletNode->Slots - UsedSlotCount_;
     }
 
     int GetUsedTabletSlotCount() const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return UsedSlotCount_;
     }
 
     const std::vector<TTabletSlotPtr>& Slots() const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return Slots_;
     }
 
     TTabletSlotPtr FindSlot(const TCellGuid& guid)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         for (auto slot : Slots_) {
             if (slot->GetCellGuid() == guid) {
                 return slot;
@@ -149,11 +163,15 @@ public:
 
     TTabletSlotPtr FindFreeSlot()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return FindSlot(NullCellGuid);
     }
 
     TTabletSlotPtr GetFreeSlot()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto slot = FindFreeSlot();
         YCHECK(slot);
         return slot;
@@ -162,6 +180,8 @@ public:
 
     void CreateSlot(const TCreateTabletSlotInfo& createInfo)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto slot = GetFreeSlot();
         slot->Create(createInfo);
         ++UsedSlotCount_;
@@ -169,11 +189,15 @@ public:
 
     void ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         slot->Configure(configureInfo);
     }
 
     void RemoveSlot(TTabletSlotPtr slot)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         slot->Remove();
         --UsedSlotCount_;
     }
@@ -195,6 +219,14 @@ public:
         return CompactionQueue_->GetInvoker();
     }
 
+    IYPathServicePtr GetOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
+        return IYPathService::FromProducer(producer);
+    }
+
 private:
     NCellNode::TCellNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
@@ -207,6 +239,19 @@ private:
 
     TActionQueuePtr CompactionQueue_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .DoListFor(Slots_, [&] (TFluentList fluent, TTabletSlotPtr slot) {
+                slot->BuildOrchidYson(fluent);
+            });
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,7 +259,7 @@ private:
 TTabletCellController::TTabletCellController(
     NCellNode::TCellNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         config,
         bootstrap))
 { }
@@ -224,57 +269,62 @@ TTabletCellController::~TTabletCellController()
 
 void TTabletCellController::Initialize()
 {
-    Impl->Initialize();
+    Impl_->Initialize();
 }
 
 int TTabletCellController::GetAvailableTabletSlotCount() const
 {
-    return Impl->GetAvailableTabletSlotCount();
+    return Impl_->GetAvailableTabletSlotCount();
 }
 
 int TTabletCellController::GetUsedTableSlotCount() const
 {
-    return Impl->GetUsedTabletSlotCount();
+    return Impl_->GetUsedTabletSlotCount();
 }
 
 const std::vector<TTabletSlotPtr>& TTabletCellController::Slots() const
 {
-    return Impl->Slots();
+    return Impl_->Slots();
 }
 
 TTabletSlotPtr TTabletCellController::FindSlot(const TCellGuid& guid)
 {
-    return Impl->FindSlot(guid);
+    return Impl_->FindSlot(guid);
 }
 
 void TTabletCellController::CreateSlot(const TCreateTabletSlotInfo& createInfo)
 {
-    Impl->CreateSlot(createInfo);
+    Impl_->CreateSlot(createInfo);
 }
 
 void TTabletCellController::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
 {
-    Impl->ConfigureSlot(slot, configureInfo);
+    Impl_->ConfigureSlot(slot, configureInfo);
 }
 
 void TTabletCellController::RemoveSlot(TTabletSlotPtr slot)
 {
-    Impl->RemoveSlot(slot);
+    Impl_->RemoveSlot(slot);
 }
 
 IChangelogCatalogPtr TTabletCellController::GetChangelogCatalog()
 {
-    return Impl->GetChangelogCatalog();
+    return Impl_->GetChangelogCatalog();
 }
 
 ISnapshotCatalogPtr TTabletCellController::GetSnapshotCatalog()
 {
-    return Impl->GetSnapshotCatalog();
+    return Impl_->GetSnapshotCatalog();
 }
 
-NYT::IInvokerPtr TTabletCellController::GetCompactionInvoker()
+IInvokerPtr TTabletCellController::GetCompactionInvoker()
 {
-    return Impl->GetCompactionInvoker();
+    return Impl_->GetCompactionInvoker();
+}
+
+IYPathServicePtr TTabletCellController::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

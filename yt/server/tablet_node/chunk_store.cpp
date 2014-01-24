@@ -5,6 +5,8 @@
 
 #include <core/concurrency/fiber.h>
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/versioned_reader.h>
@@ -19,6 +21,8 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
@@ -88,7 +92,8 @@ IVersionedReaderPtr TChunkStore::CreateReader(
             Tablet_->Schema(),
             Tablet_->KeyColumns());
         auto result = WaitFor(cachedMeta->Load());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error caching chunk meta");
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error caching meta of chunk %s",
+            ~ToString(Id_));
         CachedMeta_ = cachedMeta;
     }
 
@@ -105,6 +110,11 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         lowerLimit,
         upperLimit,
         timestamp);
+}
+
+void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

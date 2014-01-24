@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/yson/public.h>
+
 #include <ytlib/hydra/public.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
@@ -55,6 +57,8 @@ public:
     void Create(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void Remove();
+
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
 private:
     class TImpl;

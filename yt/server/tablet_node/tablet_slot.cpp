@@ -12,6 +12,8 @@
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/action_queue.h>
 
+#include <core/ytree/fluent.h>
+
 #include <core/rpc/server.h>
 
 #include <core/logging/tagged_logger.h>
@@ -44,6 +46,8 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
 using namespace NElection;
 using namespace NHydra;
 using namespace NHive;
@@ -73,6 +77,8 @@ public:
         , AutomatonQueue_(New<TActionQueue>(Sprintf("TabletSlot:%d", SlotIndex_)))
         , Logger(TabletNodeLogger)
     {
+        VERIFY_INVOKER_AFFINITY(AutomatonQueue_->GetInvoker(), AutomatonThread);
+
         Reset();
     }
 
@@ -88,8 +94,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (HydraManager) {
-            State_ = HydraManager->GetControlState();
+        if (HydraManager_) {
+            State_ = HydraManager_->GetControlState();
         }
 
         return State_;
@@ -111,7 +117,7 @@ public:
 
     IHydraManagerPtr GetHydraManager() const
     {
-        return HydraManager;
+        return HydraManager_;
     }
 
     TTabletAutomatonPtr GetAutomaton() const
@@ -161,7 +167,7 @@ public:
 
     TObjectId GenerateId(EObjectType type)
     {
-        auto* mutationContext = HydraManager->GetMutationContext();
+        auto* mutationContext = HydraManager_->GetMutationContext();
 
         const auto& version = mutationContext->GetVersion();
 
@@ -241,7 +247,7 @@ public:
             cellConfig->Addresses[peer.peer_id()] = peer.address();
         }
 
-        if (HydraManager) {
+        if (HydraManager_) {
             CellManager_->Reconfigure(cellConfig);
         } else {
             PeerId_ = configureInfo.peer_id();
@@ -254,7 +260,7 @@ public:
 
             Automaton_ = New<TTabletAutomaton>(Bootstrap_, Owner_);
 
-            HydraManager = CreateDistributedHydraManager(
+            HydraManager_ = CreateDistributedHydraManager(
                 Config_->TabletNode->HydraManager,
                 Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(),
@@ -264,11 +270,13 @@ public:
                 ChangelogStore_,
                 SnapshotStore_);
 
-            HydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-            HydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+            HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+            HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
             
-            HydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
-            HydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+            HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+            HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+
+            GuardedAutomatonInvoker_ = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonQueue_->GetInvoker());
 
             HiveManager_ = New<THiveManager>(
                 CellGuid_,
@@ -276,7 +284,7 @@ public:
                 Bootstrap_->GetCellDirectory(),
                 GetAutomatonInvoker(),
                 Bootstrap_->GetRpcServer(),
-                HydraManager,
+                HydraManager_,
                 Automaton_);
 
             TabletManager_ = New<TTabletManager>(
@@ -293,7 +301,7 @@ public:
                 Config_->TabletNode->TransactionSupervisor,
                 GetAutomatonInvoker(),
                 Bootstrap_->GetRpcServer(),
-                HydraManager,
+                HydraManager_,
                 Automaton_,
                 HiveManager_,
                 TransactionManager_,
@@ -305,7 +313,7 @@ public:
 
             TransactionSupervisor_->Start();
             TabletManager_->Initialize();
-            HydraManager->Start();
+            HydraManager_->Start();
             HiveManager_->Start();
             TabletService_->Start();
         }
@@ -345,6 +353,15 @@ public:
     }
 
 
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Do(BIND(&TImpl::BuildOrchidYsonControl, Unretained(this)))
+                .Do(BIND(&TImpl::BuildOrchidYsonAutomaton, Unretained(this)))
+            .EndMap();
+    }
+
 private:
     TTabletSlot* Owner_;
     int SlotIndex_;
@@ -359,7 +376,7 @@ private:
     IChangelogStorePtr ChangelogStore_;
     ISnapshotStorePtr SnapshotStore_;
     TCellManagerPtr CellManager_;
-    IHydraManagerPtr HydraManager;
+    IHydraManagerPtr HydraManager_;
     
     THiveManagerPtr HiveManager_;
     TMailbox* MasterMailbox_;
@@ -374,6 +391,7 @@ private:
     TTabletAutomatonPtr Automaton_;
     TActionQueuePtr AutomatonQueue_;
     IInvokerPtr EpochAutomatonInvoker_;
+    IInvokerPtr GuardedAutomatonInvoker_;
 
     NLog::TTaggedLogger Logger;
 
@@ -390,10 +408,12 @@ private:
         
         CellManager_.Reset();
 
-        if (HydraManager) {
-            HydraManager->Stop();
-            HydraManager.Reset();
+        if (HydraManager_) {
+            HydraManager_->Stop();
+            HydraManager_.Reset();
         }
+
+        GuardedAutomatonInvoker_.Reset();
 
         if (HiveManager_) {
             HiveManager_->Stop();
@@ -452,7 +472,7 @@ private:
 
     void OnStartEpoch()
     {
-        EpochAutomatonInvoker_ = HydraManager
+        EpochAutomatonInvoker_ = HydraManager_
             ->GetEpochContext()
             ->CancelableContext
             ->CreateInvoker(GetAutomatonInvoker());
@@ -464,7 +484,57 @@ private:
     }
 
 
+    void BuildOrchidYsonControl(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonMapFluently(consumer)
+            .Item("state").Value(GetState())
+            .DoIf(GetState() != EPeerState::None, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("cell_guid").Value(CellGuid_);
+            });
+    }
+
+    void BuildOrchidYsonAutomaton(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!HydraManager_)
+            return;
+        
+        auto epochContext = HydraManager_->GetEpochContext();
+        if (!epochContext)
+            return;
+
+        auto cancelableContext = epochContext->CancelableContext;
+        auto actuallyDone = BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
+            .AsyncVia(GuardedAutomatonInvoker_)
+            .Run(cancelableContext, consumer);
+        // Wait for actuallyDone to become fulfilled or canceled.
+        auto somehowDone = NewPromise();
+        actuallyDone.Subscribe(BIND([=] () mutable { somehowDone.Set(); }));
+        actuallyDone.OnCanceled(BIND([=] () mutable { somehowDone.Set(); }));
+        WaitFor(somehowDone);
+    }
+
+    void DoBuildOrchidYsonAutomaton(TCancelableContextPtr context, IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // Make sure we're still using the same context.
+        // Otherwise cell guid, which has alread been printed, might be wrong.
+        if (context->IsCanceled())
+            return;
+
+        BuildYsonMapFluently(consumer)
+            .Item("transactions").Do(BIND(&TTransactionManager::BuildOrchidYson, TransactionManager_))
+            .Item("tablets").Do(BIND(&TTabletManager::BuildOrchidYson, TabletManager_));
+    }
+
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(IOThread);
 
 };
@@ -573,6 +643,11 @@ void TTabletSlot::Configure(const TConfigureTabletSlotInfo& configureInfo)
 void TTabletSlot::Remove()
 {
     Impl_->Remove();
+}
+
+void TTabletSlot::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    return Impl_->BuildOrchidYson(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

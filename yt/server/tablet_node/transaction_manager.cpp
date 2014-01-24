@@ -10,6 +10,8 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <core/ytree/fluent.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 
@@ -18,6 +20,8 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NYTree;
+using namespace NYson;
 using namespace NTransactionClient;
 using namespace NHydra;
 using namespace NCellNode;
@@ -73,14 +77,17 @@ public:
 
     TDuration GetActualTimeout(TNullable<TDuration> timeout)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return std::min(
             timeout.Get(Config_->DefaultTransactionTimeout),
             Config_->MaxTransactionTimeout);
     }
 
-    TMutationPtr CreateStartTransactionMutation(
-        TReqStartTransaction request)
+    TMutationPtr CreateStartTransactionMutation(TReqStartTransaction request)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return CreateMutation(
             Slot_->GetHydraManager(),
             request,
@@ -88,10 +95,10 @@ public:
             &TImpl::HydraStartTransaction);
     }
 
-
     TTransaction* GetTransactionOrThrow(const TTransactionId& id)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto* transaction = FindTransaction(id);
         if (!transaction) {
             THROW_ERROR_EXCEPTION(
@@ -100,6 +107,26 @@ public:
                 ~ToString(id));
         }
         return transaction;
+    }
+
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        BuildYsonFluently(consumer)
+            .DoMapFor(TransactionMap_, [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
+                auto* transaction = pair.second;
+                fluent
+                    .Item(ToString(transaction->GetId())).BeginMap()
+                        .Item("timeout").Value(transaction->GetTimeout())
+                        .Item("start_time").Value(transaction->GetStartTime())
+                        .Item("state").Value(transaction->GetState())
+                        .Item("start_timestamp").Value(transaction->GetStartTimestamp())
+                        .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
+                        // Omit CommitTimestamp, it's typically null.
+                        .Item("locked_row_count").Value(transaction->LockedRows().size())
+                    .EndMap();
+            });
     }
 
 
@@ -414,6 +441,11 @@ TMutationPtr TTransactionManager::CreateStartTransactionMutation(
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
 {
     return Impl_->GetTransactionOrThrow(id);
+}
+
+void TTransactionManager::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    Impl_->BuildOrchidYson(consumer);
 }
 
 void TTransactionManager::PrepareTransactionCommit(
