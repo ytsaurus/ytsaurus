@@ -606,6 +606,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
                     migratedList.Push([&] (TVersionedValue* dstValue) {
                         migrateTo->CopyValue(dstValue, srcValue);
                     });
+                    ++AllocatedValueCount_;
                 }
             }
         }
