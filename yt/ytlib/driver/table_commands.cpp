@@ -257,6 +257,7 @@ void TInsertCommand::DoExecute()
         mountInfo->Schema,
         mountInfo->KeyColumns);
     consumer.SetTreatMissingAsNull(!Request->Update);
+    consumer.SetAllowNonSchemaColumns(false);
 
     auto format = Context->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);

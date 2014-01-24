@@ -325,6 +325,7 @@ TTableConsumerBase::TTableConsumerBase(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
     : TreatMissingAsNull_(true)
+    , AllowNonSchemaColumns_(true)
     , KeyColumnCount_(static_cast<int>(keyColumns.size()))
     , NameTable_(TNameTable::FromSchema(schema))
     , ControlState_(EControlState::None)
@@ -341,6 +342,16 @@ TTableConsumerBase::TTableConsumerBase(
 TNameTablePtr TTableConsumerBase::GetNameTable() const
 {
     return NameTable_;
+}
+
+bool TTableConsumerBase::GetAllowNonSchemaColumns() const
+{
+    return AllowNonSchemaColumns_;
+}
+
+void TTableConsumerBase::SetAllowNonSchemaColumns(bool value)
+{
+    AllowNonSchemaColumns_ = value;
 }
 
 TError TTableConsumerBase::AttachLocationAttributes(TError error)
@@ -560,7 +571,11 @@ void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
 
     YASSERT(Depth_ > 0);
     if (Depth_ == 1) {
-        ColumnIndex_ = NameTable_->GetIdOrRegisterName(name);
+        if (AllowNonSchemaColumns_) {
+            ColumnIndex_ = NameTable_->GetIdOrRegisterName(name);
+        } else {
+            ColumnIndex_ = NameTable_->GetId(name);
+        }
     } else {
         ThrowCompositesNotSupported();
     }
@@ -665,7 +680,6 @@ TWritingTableConsumer::TWritingTableConsumer(
     , Writers_(std::move(writers))
     , CurrentWriter_(Writers_[CurrentTableIndex_])
 { }
-
 
 TError TWritingTableConsumer::AttachLocationAttributes(TError error)
 {

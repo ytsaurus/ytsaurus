@@ -102,6 +102,9 @@ class TTableConsumerBase
 public:
     NVersionedTableClient::TNameTablePtr GetNameTable() const;
 
+    bool GetAllowNonSchemaColumns() const;
+    void SetAllowNonSchemaColumns(bool value);
+
 protected:
     TTableConsumerBase(
         const NVersionedTableClient::TTableSchema& schema,
@@ -150,6 +153,8 @@ protected:
 
 
     bool TreatMissingAsNull_;
+    bool AllowNonSchemaColumns_;
+
     int KeyColumnCount_;
     NVersionedTableClient::TNameTablePtr NameTable_;
 
