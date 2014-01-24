@@ -91,7 +91,9 @@ TError TCachedVersionedChunkMeta::ValidateSchema()
         auto& column = ReaderSchema_.Columns()[readerIndex];
         auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
         if (!chunkColumn) {
-            return TError("Incompatible schema: column %s is absent in chunk schema",
+            // ToDo (psushin): this may be valid behavior, just skip the column.
+            return TError(
+                "Incompatible schema: column %s is absent in chunk schema",
                 ~column.Name.Quote());
         }
 

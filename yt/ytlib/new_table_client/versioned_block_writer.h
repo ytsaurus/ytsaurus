@@ -33,6 +33,7 @@ public:
 
     static int GetKeySize(int keyColumnCount, int schemaColumnCount);
     static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);
+
     static int FormatVersion;
     static int ValueSize;
     static int TimestampSize;
