@@ -52,7 +52,7 @@ protected:
         const TUnversionedOwningRow& row,
         bool prewrite)
     {
-        return Store->WriteRow(NameTable, transaction, row.Get(), prewrite);
+        return Store->WriteRow(transaction, row.Get(), prewrite);
     }
 
     TTimestamp WriteRow(const TUnversionedOwningRow& row)
