@@ -111,6 +111,23 @@ TKeyRange RefineKeyRange(
     TKeyRange result = keyRange;
     TConstraints constraints;
 
+    const size_t keySize = keyColumns.size();
+
+    auto normalizeKey =
+    [&] (TKey& key) {
+        if (key.GetCount() == keySize + 1 && key[keySize].Type == EValueType::Min) {
+            TUnversionedOwningRowBuilder builder(keySize);
+            for (size_t index = 0; index < keySize; ++index) {
+                builder.AddValue(key[index]);
+            }
+            key = builder.Finish();
+            AdvanceToValueSuccessor(key[keySize - 1]);
+        }
+    };
+
+    normalizeKey(result.first);
+    normalizeKey(result.second);
+
     // Computes key index for a given column name.
     auto columnNameToKeyPartIndex =
     [&] (const Stroka& columnName) -> size_t {
