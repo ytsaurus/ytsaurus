@@ -23,7 +23,7 @@ public:
         TVersionedChunkWriterProviderPtr provider,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkClient::TChunkListId& parentChunkListId);
+        const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
 
     virtual bool Write(const std::vector<TVersionedRow>& rows) override;
 

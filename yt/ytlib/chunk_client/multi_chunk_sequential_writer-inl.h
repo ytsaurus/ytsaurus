@@ -453,6 +453,13 @@ void TMultiChunkSequentialWriter<TProvider>::AttachChunks()
         return;
     }
 
+    if (ParentChunkListId == NullChunkListId) {
+        LOG_DEBUG("Chunk sequence writer closed, no chunks attached");
+
+        State.Close();
+        State.FinishOperation();
+    }
+
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
 
