@@ -52,13 +52,9 @@ else()
 endif()
 
 if (YT_BUILD_ENABLE_LLVM)
-  llvm_map_components_to_libraries(REQ_LLVM_LIBRARIES jit native)
+  llvm_map_components_to_libraries(LLVM_MODULE_LIBS jit native)
   target_link_libraries ( ytlib
-    ${REQ_LLVM_LIBRARIES}
-  )
-
-  include_directories(
-    ${LLVM_INCLUDE_DIRS}
+    ${LLVM_MODULE_LIBS}
   )
 endif()
 
