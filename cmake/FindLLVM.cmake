@@ -17,6 +17,8 @@ find_program(LLVM_CONFIG_EXECUTABLE llvm-config)
 
 if (NOT LLVM_CONFIG_EXECUTABLE)
   message(FATAL_ERROR "Could not find llvm-config")
+else()
+  SET(LLVM_FOUND TRUE)
 endif (NOT LLVM_CONFIG_EXECUTABLE)
 
 message(STATUS "LLVM opt found at: ${LLVM_OPT_EXECUTABLE}")
@@ -82,3 +84,4 @@ message(STATUS "LLVM include dir: ${LLVM_INCLUDE_DIR}")
 message(STATUS "LLVM lib dir: ${LLVM_LIBRARY_DIR}")
 #message(STATUS "LLVM libs: ${LLVM_MODULE_LIBS}")
 message(STATUS "LLVM compile flags: ${LLVM_CFLAGS}")
+
