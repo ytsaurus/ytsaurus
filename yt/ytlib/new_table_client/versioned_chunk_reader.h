@@ -9,8 +9,9 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/read_limit.h>
 
-#include <core/misc/property.h>
+#include <ytlib/api/transaction.h>
 
+#include <core/misc/property.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -27,7 +28,7 @@ class TCachedVersionedChunkMeta
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TKeyColumns, KeyColumns);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<int>, SchemaIdMapping);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
 
 public:
     TCachedVersionedChunkMeta(
@@ -55,6 +56,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TReadLimit lowerLimit,
     NChunkClient::TReadLimit upperLimit,
+    const NApi::TColumnFilter& columnFilter,
     TTimestamp timestamp = LastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

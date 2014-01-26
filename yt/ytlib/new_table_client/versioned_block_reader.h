@@ -22,7 +22,7 @@ public:
         const NProto::TBlockMeta& meta,
         const TTableSchema& chunkSchema,
         const TKeyColumns& keyColumns,
-        const std::vector<int>& schemaIdMapping,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp);
 
     bool NextRow();
@@ -44,7 +44,7 @@ private:
     TTimestamp Timestamp_;
     const int KeyColumnCount_;
 
-    const std::vector<int>& SchemaIdMapping_;
+    const std::vector<TColumnIdMapping>& SchemaIdMapping_;
     const TTableSchema& Schema_;
 
     NProto::TBlockMeta Meta_;

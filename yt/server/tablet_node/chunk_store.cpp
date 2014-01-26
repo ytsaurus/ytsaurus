@@ -109,6 +109,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         CachedMeta_,
         lowerLimit,
         upperLimit,
+        columnFilter,
         timestamp);
 }
 

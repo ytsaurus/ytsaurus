@@ -29,12 +29,11 @@ int LowerBound(int lowerIndex, int upperIndex, std::function<bool(int)> less)
 
 int TSimpleVersionedBlockReader::FormatVersion = ETableChunkFormat::SimpleVersioned;
 
-TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
-    const TSharedRef& data,
+TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(const TSharedRef& data,
     const TBlockMeta& meta,
     const TTableSchema& chunkSchema,
     const TKeyColumns& keyColumns,
-    const std::vector<int>& schemaIdMapping,
+    const std::vector<TColumnIdMapping>& schemaIdMapping,
     TTimestamp timestamp)
     : Timestamp_(timestamp)
     , KeyColumnCount_(keyColumns.size())
@@ -169,8 +168,9 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
     }
 
     int valueCount = 0;
-    for (int valueId = KeyColumnCount_; valueId < SchemaIdMapping_.size(); ++valueId) {
-        int chunkSchemaId = SchemaIdMapping_[valueId];
+    for (const auto& mapping : SchemaIdMapping_) {
+        int valueId = mapping.ReaderSchemaIndex;
+        int chunkSchemaId = mapping.ChunkSchemaIndex;
 
         int lowerValueIndex = chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
@@ -220,8 +220,9 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
     }
 
     int valueCount = 0;
-    for (int valueId = KeyColumnCount_; valueId < SchemaIdMapping_.size(); ++valueId) {
-        int chunkSchemaId = SchemaIdMapping_[valueId];
+    for (const auto& mapping : SchemaIdMapping_) {
+        int valueId = mapping.ReaderSchemaIndex;
+        int chunkSchemaId = mapping.ChunkSchemaIndex;
 
         int valueIndex = LowerBound(
             chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),

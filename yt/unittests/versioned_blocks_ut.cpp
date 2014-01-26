@@ -93,7 +93,7 @@ protected:
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 {
     // Reorder value columns in reading schema.
-    std::vector<int> schemaIdMapping = {0, 1, 2, 4, 3};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}, {3, 4}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,
@@ -119,8 +119,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 {
-    // Omit last column
-    std::vector<int> schemaIdMapping = {0, 1, 2, 4};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,
@@ -144,8 +143,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 
 TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
 {
-    // Omit last column
-    std::vector<int> schemaIdMapping = {0, 1, 2, 4};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,
@@ -170,7 +168,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
 TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
 {
     // Read only last non-key column.
-    std::vector<int> schemaIdMapping = {0, 1, 2, 4};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,

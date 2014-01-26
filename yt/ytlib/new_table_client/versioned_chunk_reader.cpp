@@ -30,6 +30,7 @@ using NCompression::ECodec;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TMiscExt;
+using NApi::TColumnFilter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,8 +87,8 @@ TError TCachedVersionedChunkMeta::ValidateSchema()
     auto protoSchema = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
     FromProto(&ChunkSchema_, protoSchema);
 
-    SchemaIdMapping_.reserve(ReaderSchema_.Columns().size());
-    for (int readerIndex = 0; readerIndex < ReaderSchema_.Columns().size(); ++readerIndex) {
+    SchemaIdMapping_.reserve(ReaderSchema_.Columns().size() - KeyColumns_.size());
+    for (int readerIndex = KeyColumns_.size(); readerIndex < ReaderSchema_.Columns().size(); ++readerIndex) {
         auto& column = ReaderSchema_.Columns()[readerIndex];
         auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
         if (!chunkColumn) {
@@ -103,8 +104,10 @@ TError TCachedVersionedChunkMeta::ValidateSchema()
                 ~FormatEnum(column.Type).Quote());
         }
 
-        int index = ChunkSchema_.GetColumnIndex(*chunkColumn);
-        SchemaIdMapping_.push_back(index);
+        TColumnIdMapping mapping;
+        mapping.ChunkSchemaIndex = ChunkSchema_.GetColumnIndex(*chunkColumn);
+        mapping.ReaderSchemaIndex = readerIndex;
+        SchemaIdMapping_.push_back(mapping);
     }
 
     return TError();
@@ -157,6 +160,7 @@ public:
         IAsyncReaderPtr asyncReader,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
+        const TColumnFilter& columnFilter,
         TTimestamp timestamp);
 
     virtual TAsyncError Open() override;
@@ -171,6 +175,8 @@ private:
     TReadLimit UpperLimit_;
 
     const TTimestamp Timestamp_;
+
+    std::vector<TColumnIdMapping> SchemaIdMapping_;
 
     std::unique_ptr<TBlockReader> BlockReader_;
     std::unique_ptr<TBlockReader> PreviousBlockReader_;
@@ -204,6 +210,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     IAsyncReaderPtr asyncReader,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
+    const TColumnFilter& columnFilter,
     TTimestamp timestamp)
     : Config_(config)
     , CachedChunkMeta_(chunkMeta)
@@ -219,6 +226,16 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
     YCHECK(CachedChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
+    YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
+
+    if (columnFilter.All) {
+        SchemaIdMapping_ = CachedChunkMeta_->SchemaIdMapping();
+    } else {
+        SchemaIdMapping_.reserve(CachedChunkMeta_->SchemaIdMapping().size());
+        for (auto index : columnFilter.Indexes) {
+            SchemaIdMapping_.push_back(CachedChunkMeta_->SchemaIdMapping()[index]);
+        }
+    }
 }
 
 template <class TBlockReader>
@@ -452,7 +469,7 @@ TBlockReader* TVersionedChunkReader<TBlockReader>::NewBlockReader()
         CachedChunkMeta_->BlockMeta().entries(CurrentBlockIndex_),
         CachedChunkMeta_->ChunkSchema(),
         CachedChunkMeta_->KeyColumns(),
-        CachedChunkMeta_->SchemaIdMapping(),
+        SchemaIdMapping_,
         Timestamp_);
 }
 
@@ -470,12 +487,12 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateVersionedChunkReader(
-    TChunkReaderConfigPtr config,
+IVersionedReaderPtr CreateVersionedChunkReader(TChunkReaderConfigPtr config,
     IAsyncReaderPtr asyncReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
+    const NApi::TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
     switch (chunkMeta->ChunkMeta().version()) {
@@ -486,6 +503,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 asyncReader,
                 std::move(lowerLimit),
                 std::move(upperLimit),
+                columnFilter,
                 timestamp);
 
         default:
