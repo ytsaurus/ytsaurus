@@ -42,6 +42,7 @@ set( HDRS
   ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h
   ${BASE}/writer.h
+  ${BASE}/unversioned_writer.h
 )
 
 list(APPEND YT_SOURCE_FILES
