@@ -1,11 +1,11 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client )
 set( SRCS
-  ${BASE}/block_reader.cpp
-  ${BASE}/block_writer.cpp
   ${BASE}/name_table.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
+  ${BASE}/schemed_block_reader.cpp
+  ${BASE}/schemed_block_writer.cpp
   ${BASE}/schemed_chunk_reader.cpp
   ${BASE}/schemed_chunk_writer.cpp
   ${BASE}/unversioned_row.cpp
@@ -18,8 +18,6 @@ set( SRCS
 )
 
 set( HDRS
-  ${BASE}/block_reader.h
-  ${BASE}/block_writer.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/config.h
   ${BASE}/name_table.h
@@ -28,6 +26,8 @@ set( HDRS
   ${BASE}/row_base.h
   ${BASE}/reader.h
   ${BASE}/schema.h
+  ${BASE}/schemed_block_reader.h
+  ${BASE}/schemed_block_writer.h
   ${BASE}/schemed_chunk_reader.h
   ${BASE}/schemed_chunk_writer.h
   ${BASE}/schemed_reader.h

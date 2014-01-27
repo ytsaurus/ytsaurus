@@ -3,7 +3,7 @@
 #include "reader.h"
 #include "config.h"
 #include "private.h"
-#include "block_reader.h"
+#include "schemed_block_reader.h"
 #include "name_table.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"

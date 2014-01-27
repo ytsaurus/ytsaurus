@@ -2,7 +2,7 @@
 
 #include "schemed_chunk_writer.h"
 
-#include "block_writer.h"
+#include "schemed_block_writer.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "name_table.h"
