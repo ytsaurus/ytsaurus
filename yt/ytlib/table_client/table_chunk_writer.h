@@ -71,7 +71,7 @@ public:
 
     // Used by provider.
     const NVersionedTableClient::TOwningKey& GetLastKey() const;
-    const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
+    const NProto::TOldBoundaryKeysExt& GeTOldBoundaryKeys() const;
 
     // Used by facade.
     void WriteRow(const TRow& row);
@@ -130,7 +130,7 @@ private:
     NProto::TSample FirstSample;
 
     //! Only for sorted tables.
-    NProto::TBoundaryKeysExt BoundaryKeysExt;
+    NProto::TOldBoundaryKeysExt BoundaryKeysExt;
     NProto::TIndexExt IndexExt;
 
     void PrepareBlock();
@@ -167,7 +167,7 @@ public:
     void OnChunkFinished();
     void OnChunkClosed(TTableChunkWriterPtr writer);
 
-    const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
+    const NProto::TOldBoundaryKeysExt& GeTOldBoundaryKeys() const;
     i64 GetRowCount() const;
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
@@ -180,7 +180,7 @@ private:
     int CreatedWriterCount;
     int FinishedWriterCount;
 
-    NProto::TBoundaryKeysExt BoundaryKeysExt;
+    NProto::TOldBoundaryKeysExt BoundaryKeysExt;
     TTableChunkWriterPtr CurrentWriter;
 
     TSpinLock SpinLock;

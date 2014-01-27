@@ -487,7 +487,7 @@ NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 
     static const int masterMetaTagsArray[] = {
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NProto::TBoundaryKeysExt>::Value };
+        TProtoExtensionTag<NProto::TOldBoundaryKeysExt>::Value };
     static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 2);
 
     auto meta = Meta;
@@ -509,7 +509,7 @@ i64 TTableChunkWriter::GetMetaSize() const
     return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
 }
 
-const NProto::TBoundaryKeysExt& TTableChunkWriter::GetBoundaryKeys() const
+const NProto::TOldBoundaryKeysExt& TTableChunkWriter::GeTOldBoundaryKeys() const
 {
     return BoundaryKeysExt;
 }
@@ -559,7 +559,7 @@ void TTableChunkWriterProvider::OnChunkFinished()
 
     if (Options->KeyColumns) {
         if (FinishedWriterCount == 1) {
-            const auto& boundaryKeys = CurrentWriter->GetBoundaryKeys();
+            const auto& boundaryKeys = CurrentWriter->GeTOldBoundaryKeys();
             *BoundaryKeysExt.mutable_start() = boundaryKeys.start();
         }
         ToProto(BoundaryKeysExt.mutable_end(), CurrentWriter->GetLastKey().Get());
@@ -574,7 +574,7 @@ void TTableChunkWriterProvider::OnChunkClosed(TTableChunkWriterPtr writer)
     YCHECK(ActiveWriters.erase(writer) == 1);
 }
 
-const NProto::TBoundaryKeysExt& TTableChunkWriterProvider::GetBoundaryKeys() const
+const NProto::TOldBoundaryKeysExt& TTableChunkWriterProvider::GeTOldBoundaryKeys() const
 {
     return BoundaryKeysExt;
 }

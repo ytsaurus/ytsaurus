@@ -40,7 +40,7 @@ message TKeyColumnsExt
 }
 
 // Chunk meta extension.
-message TBoundaryKeysExt
+message TOldBoundaryKeysExt
 {
     required NChunkClient.NProto.TKey start = 1;
     required NChunkClient.NProto.TKey end = 2;

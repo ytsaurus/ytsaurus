@@ -272,7 +272,7 @@ private:
         NodeDirectory_->MergeFrom(rsp->node_directory());
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
-        typedef NTableClient::NProto::TBoundaryKeysExt TProtoBoundaryKeys;
+        typedef NTableClient::NProto::TOldBoundaryKeysExt TProtoBoundaryKeys;
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
         typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
 

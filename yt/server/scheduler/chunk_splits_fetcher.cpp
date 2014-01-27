@@ -85,7 +85,7 @@ bool TChunkSplitsFetcher::AddChunkToRequest(
     i64 dataSize;
     GetStatistics(*chunk, &dataSize);
 
-    auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunk->chunk_meta().extensions());
+    auto boundaryKeys = GetProtoExtension<TOldBoundaryKeysExt>(chunk->chunk_meta().extensions());
 
     if (dataSize < ChunkSliceSize ||
         CompareKeys(boundaryKeys.start(), boundaryKeys.end(), KeyColumns.size()) == 0)

@@ -21,7 +21,7 @@ using NVersionedTableClient::MaxKey;
 
 typedef NChunkClient::NProto::TMiscExt TMiscProto;
 typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchemaProto;
-typedef NTableClient::NProto::TBoundaryKeysExt TBoundaryKeysProto;
+typedef NTableClient::NProto::TOldBoundaryKeysExt TOldBoundaryKeysProto;
 typedef NTableClient::NProto::TKeyColumnsExt TKeyColumnsProto;
 
 ////////////////////////////////////////////////////////////////////////////////

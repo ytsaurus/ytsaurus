@@ -2937,7 +2937,7 @@ void TOperationControllerBase::RegisterOutput(
 }
 
 void TOperationControllerBase::RegisterEndpoints(
-    const TBoundaryKeysExt& boundaryKeys,
+    const TOldBoundaryKeysExt& boundaryKeys,
     int key,
     TOutputTable* outputTable)
 {
@@ -2966,7 +2966,7 @@ void TOperationControllerBase::RegisterOutput(
     auto& table = OutputTables[tableIndex];
 
     if (table.Options->KeyColumns && IsSortedOutputSupported()) {
-        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
+        auto boundaryKeys = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
         RegisterEndpoints(boundaryKeys, key, &table);
     }
 

@@ -150,7 +150,7 @@ message TUserJobSpec
 message TUserJobResult
 {
     // Used for reordering chunks from operations that produce sorted output.
-    repeated NTableClient.NProto.TBoundaryKeysExt output_boundary_keys = 2;
+    repeated NTableClient.NProto.TOldBoundaryKeysExt output_boundary_keys = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

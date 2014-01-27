@@ -39,7 +39,7 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree);
 TOwningKey GetMaxKey(const TChunk* chunk)
 {
     // XXX(psushin): check chunk version.
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+    auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
     TOwningKey key;
     FromProto(&key, boundaryKeysExt.end());
@@ -70,7 +70,7 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
 
 TOwningKey GetMinKey(const TChunk* chunk)
 {
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+    auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
     TOwningKey key;
     FromProto(&key, boundaryKeysExt.start());

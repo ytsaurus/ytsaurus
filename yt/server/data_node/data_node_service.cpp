@@ -861,7 +861,7 @@ void TDataNodeService::MakeChunkSplits(
         });
 
     TChunkSpec* currentSplit;
-    NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
+    NTableClient::NProto::TOldBoundaryKeysExt boundaryKeysExt;
     i64 endRowIndex = beginIt->row_index();
     i64 startRowIndex;
     i64 dataSize;
@@ -869,7 +869,7 @@ void TDataNodeService::MakeChunkSplits(
     auto createNewSplit = [&] () {
         currentSplit = splittedChunk->add_chunk_specs();
         currentSplit->CopyFrom(*chunkSpec);
-        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(currentSplit->chunk_meta().extensions());
+        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TOldBoundaryKeysExt>(currentSplit->chunk_meta().extensions());
         startRowIndex = endRowIndex;
         dataSize = 0;
     };

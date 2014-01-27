@@ -1000,7 +1000,7 @@ protected:
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
         for (const auto& chunk : chunks) {
             // XXX(psushin): handle new chunks.
-            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->chunk_meta().extensions());
+            auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunk->chunk_meta().extensions());
 
             TKeyEndpoint leftEndpoint;
             leftEndpoint.Type = EEndpointType::Left;
