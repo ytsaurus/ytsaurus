@@ -233,16 +233,13 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
 
-    TColumnFilter columnFilter;
-    columnFilter.All = true;
-
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
-        columnFilter);
+        TColumnFilter());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -283,16 +280,13 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
 
     EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
 
-    TColumnFilter columnFilter;
-    columnFilter.All = true;
-
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
-        columnFilter,
+        TColumnFilter(),
         2); // timestamp
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
@@ -351,16 +345,13 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     TReadLimit lowerLimit;
     lowerLimit.SetKey(lowerKeyBuilder.Finish());
 
-    TColumnFilter columnFilter;
-    columnFilter.All = true;
-
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        columnFilter);
+        TColumnFilter());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -392,16 +383,13 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
     TReadLimit lowerLimit;
     lowerLimit.SetKey(lowerKeyBuilder.Finish());
 
-    TColumnFilter columnFilter;
-    columnFilter.All = true;
-
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        columnFilter);
+        TColumnFilter());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -432,16 +420,13 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
 
     EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
 
-    TColumnFilter columnFilter;
-    columnFilter.All = true;
-
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
-        columnFilter,
+        TColumnFilter(),
         AllCommittedTimestamp);
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
