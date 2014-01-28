@@ -28,8 +28,8 @@ void TDownloadCommand::DoExecute()
 
     auto reader = New<TAsyncReader>(
         config,
-        Context->GetMasterChannel(),
-        Context->GetBlockCache(),
+        Context->GetClient()->GetMasterChannel(),
+        Context->GetClient()->GetConnection()->GetBlockCache(),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Request->Path,
         Request->Offset,
@@ -68,9 +68,9 @@ void TUploadCommand::DoExecute()
 
     auto writer = New<TAsyncWriter>(
         config,
-        Context->GetMasterChannel(),
+        Context->GetClient()->GetMasterChannel(),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context->GetTransactionManager(),
+        Context->GetClient()->GetTransactionManager(),
         Request->Path);
 
     {

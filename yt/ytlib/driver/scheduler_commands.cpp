@@ -85,7 +85,7 @@ void TMapReduceCommand::DoExecute()
 
 void TAbortOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context->GetClient()->GetSchedulerChannel());
     auto req = proxy.AbortOperation();
     ToProto(req->mutable_operation_id(), Request->OperationId);
 
@@ -97,7 +97,7 @@ void TAbortOperationCommand::DoExecute()
 
 void TSuspendOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context->GetClient()->GetSchedulerChannel());
     auto req = proxy.SuspendOperation();
     ToProto(req->mutable_operation_id(), Request->OperationId);
 
@@ -109,7 +109,7 @@ void TSuspendOperationCommand::DoExecute()
 
 void TResumeOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context->GetClient()->GetSchedulerChannel());
     auto req = proxy.ResumeOperation();
     ToProto(req->mutable_operation_id(), Request->OperationId);
 

@@ -30,6 +30,7 @@ public:
     explicit TTransaction(TIntrusivePtr<TImpl> impl);
     ~TTransaction();
 
+
     //! Commits the transaction asynchronously.
     /*!
      *  Should not be called more than once.
@@ -56,6 +57,10 @@ public:
      */
     TAsyncError Ping();
 
+
+    //! Returns the transaction type.
+    ETransactionType GetType() const;
+
     //! Returns the transaction id.
     /*!
      *  \note Thread affinity: any
@@ -68,12 +73,14 @@ public:
      */
     TTimestamp GetStartTimestamp() const;
 
+
     //! Called to mark a given cell as a transaction participant.
     //! Starts the corresponding transaction and returns the async result.
     /*!
      *  \note Thread affinity: ClientThread
      */
     TAsyncError AddTabletParticipant(const NElection::TCellGuid& cellGuid);
+
 
     //! Raised when the transaction is aborted.
     /*!

@@ -574,7 +574,12 @@ void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
         if (AllowNonSchemaColumns_) {
             ColumnIndex_ = NameTable_->GetIdOrRegisterName(name);
         } else {
-            ColumnIndex_ = NameTable_->GetId(name);
+            auto maybeIndex = NameTable_->FindId(name);
+            if (!maybeIndex) {
+                THROW_ERROR AttachLocationAttributes(TError("No such column %s in schema",
+                    ~Stroka(name).Quote()));
+            }
+            ColumnIndex_ = *maybeIndex;
         }
     } else {
         ThrowCompositesNotSupported();

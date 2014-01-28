@@ -35,6 +35,8 @@
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/api/connection.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/config.h>
 
 namespace NYT {
 namespace NDriver {
@@ -106,9 +108,10 @@ typedef TIntrusivePtr<TSuppressableAccessTrackingRequest> TAccessTrackingSuppres
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommandContext
-    : public NApi::IConnection
+    : public virtual TRefCounted
 {
     virtual TDriverConfigPtr GetConfig() = 0;
+    virtual NApi::IClientPtr GetClient() = 0;
     virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() = 0;
 
     virtual const TDriverRequest& Request() const = 0;
@@ -140,7 +143,6 @@ protected:
     ICommandContextPtr Context;
     bool Replied;
 
-    NApi::IClientPtr Client;
     std::unique_ptr<NObjectClient::TObjectServiceProxy> ObjectProxy;
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 
@@ -245,7 +247,7 @@ protected:
         options.Ping = (pingTransaction == EPingTransaction::Yes);
         options.PingAncestors = this->Request->PingAncestors;
 
-        auto transactionManager = this->Context->GetTransactionManager();
+        auto transactionManager = this->Context->GetClient()->GetTransactionManager();
         return transactionManager->Attach(options);
     }
 

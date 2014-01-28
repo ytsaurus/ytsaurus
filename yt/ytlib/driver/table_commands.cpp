@@ -74,9 +74,9 @@ void TReadCommand::DoExecute()
 
     auto reader = New<TAsyncTableReader>(
         config,
-        Context->GetMasterChannel(),
+        Context->GetClient()->GetMasterChannel(),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context->GetBlockCache(),
+        Context->GetClient()->GetConnection()->GetBlockCache(),
         Request->Path);
 
     auto output = Context->Request().OutputStream;
@@ -145,9 +145,9 @@ void TWriteCommand::DoExecute()
 
     auto writer = CreateAsyncTableWriter(
         config,
-        Context->GetMasterChannel(),
+        Context->GetClient()->GetMasterChannel(),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context->GetTransactionManager(),
+        Context->GetClient()->GetTransactionManager(),
         Request->Path,
         Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
 
@@ -247,7 +247,7 @@ void TInsertCommand::DoExecute()
         config,
         Request->GetOptions());
 
-    auto tableMountCache = Context->GetTableMountCache();
+    auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
     auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
     const auto& mountInfo = mountInfoOrError.GetValue();
@@ -286,7 +286,7 @@ void TInsertCommand::DoExecute()
 
     NApi::TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(Client->StartTransaction(startOptions));
+    auto transactionOrError = WaitFor(Context->GetClient()->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 
@@ -403,13 +403,13 @@ void TSelectCommand::DoExecute()
 
 void TLookupCommand::DoExecute()
 {
-    auto tableMountCache = Context->GetTableMountCache();
+    auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
     auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
     const auto& mountInfo = mountInfoOrError.GetValue();
     auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
 
-    TLookupOptions options;
+    TLookupRowsOptions options;
     options.Timestamp = Request->Timestamp;
     if (Request->Columns) {
         options.ColumnFilter.All = false;
@@ -419,16 +419,16 @@ void TLookupCommand::DoExecute()
         }
     }
 
-    auto lookupResult = WaitFor(Client->Lookup(
+    auto lookupResult = WaitFor(Context->GetClient()->LookupRow(
         Request->Path.GetPath(),
         Request->Key.Get(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
+    
     auto rowset = lookupResult.GetValue();
-
-    if (!rowset->Rows().empty()) {
-        YCHECK(rowset->Rows().size() <= 1);
-        auto row = rowset->Rows()[0];
+    YCHECK(rowset->Rows().size() == 1);
+    auto row = rowset->Rows()[0];
+    if (row) {
         TBlobOutput buffer;
         auto format = Context->GetOutputFormat();
         auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
@@ -473,7 +473,7 @@ void TDeleteCommand::DoExecute()
 {
     NApi::TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(Client->StartTransaction(startOptions));
+    auto transactionOrError = WaitFor(Context->GetClient()->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.GetValue();
 

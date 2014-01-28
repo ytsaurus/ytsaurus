@@ -286,6 +286,11 @@ public:
     }
 
 
+    ETransactionType GetType() const
+    {
+        return Type_;
+    }
+
     const TTransactionId& GetId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -908,6 +913,11 @@ void TTransaction::Detach()
 TAsyncError TTransaction::Ping()
 {
     return Impl_->AsyncPing();
+}
+
+ETransactionType TTransaction::GetType() const
+{
+    return Impl_->GetType();
 }
 
 const TTransactionId& TTransaction::GetId() const

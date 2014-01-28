@@ -6,7 +6,9 @@
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
 
-#include <core/ytree/public.h>
+#include <core/ytree/yson_string.h>
+
+#include <core/rpc/public.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -15,43 +17,83 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Describes settings for a newly created transaction.
-struct TTransactionStartOptions
+struct TClientOptions
 {
-    TTransactionStartOptions();
-
-    NTransactionClient::ETransactionType Type;
-    TNullable<TDuration> Timeout;
-    NTransactionClient::TTransactionId ParentId;
-    bool AutoAbort;
-    bool Ping;
-    bool PingAncestors;
-    std::shared_ptr<NYTree::IAttributeDictionary> Attributes; // to make the type copyable
+    TNullable<Stroka> User;
 };
 
-///////////////////////////////////////////////////////////////////////////////
-
-struct IRowset
-    : public virtual TRefCounted
+struct TTabletRangeOptions
 {
-    virtual const std::vector<NVersionedTableClient::TUnversionedRow>& Rows() const = 0;
+    TNullable<int> FirstTabletIndex;
+    TNullable<int> LastTabletIndex;
 };
+
+struct TMountTableOptions
+    : public TTabletRangeOptions
+{ };
+
+struct TUnmountTableOptions
+    : public TTabletRangeOptions
+{ };
+
+struct TReshardTableOptions
+    : public TTabletRangeOptions
+{ };
+
+struct TAddMemberOptions
+    : public TMutatingOptions
+{ };
+
+struct TRemoveMemberOptions
+    : public TMutatingOptions
+{ };
+
+struct TCheckPermissionOptions
+{ };
 
 ///////////////////////////////////////////////////////////////////////////////
 
 struct IClient
-    : public virtual TRefCounted
+    : public IClientBase
 {
-    virtual TFuture<TErrorOr<ITransactionPtr>> StartTransaction(
-        const TTransactionStartOptions& options) = 0;
+    virtual IConnectionPtr GetConnection() = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
+    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
-    virtual TFuture<TErrorOr<IRowsetPtr>> Lookup(
-        const NYPath::TYPath& tablePath,
-        NVersionedTableClient::TKey key,
-        const TLookupOptions& options = TLookupOptions()) = 0;
+    // Tables
+    virtual TAsyncError MountTable(
+        const NYPath::TYPath& path,
+        const TMountTableOptions& options = TMountTableOptions()) = 0;
+
+    virtual TAsyncError UnmountTable(
+        const NYPath::TYPath& path,
+        const TUnmountTableOptions& options = TUnmountTableOptions()) = 0;
+
+    virtual TAsyncError ReshardTable(
+        const NYPath::TYPath& path,
+        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
+        const TReshardTableOptions& options = TReshardTableOptions()) = 0;
+
+
+    // Security
+    virtual TAsyncError AddMember(
+        const Stroka& group,
+        const Stroka& member,
+        const TAddMemberOptions& options = TAddMemberOptions()) = 0;
+
+    virtual TAsyncError RemoveMember(
+        const Stroka& group,
+        const Stroka& member,
+        const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
+
+    // TODO(babenko): CheckPermission
+
 };
 
-IClientPtr CreateClient(IConnectionPtr connection);
+IClientPtr CreateClient(
+    IConnectionPtr connection,
+    const TClientOptions& options);
 
 ///////////////////////////////////////////////////////////////////////////////
 

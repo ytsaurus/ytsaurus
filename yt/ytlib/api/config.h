@@ -14,6 +14,8 @@
 
 #include <ytlib/table_client/config.h>
 
+#include <ytlib/chunk_client/config.h>
+
 #include <ytlib/new_table_client/config.h>
 
 #include <ytlib/scheduler/config.h>
@@ -31,19 +33,20 @@ class TConnectionConfig
     : public TYsonSerializable
 {
 public:
-    NHive::TCellDirectoryConfigPtr CellDirectory;
     NHydra::TPeerDiscoveryConfigPtr Masters;
+    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
-    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
     TConnectionConfig()
     {
+        RegisterParameter("masters", Masters);
+        RegisterParameter("timestamp_provider", TimestampProvider);
         RegisterParameter("cell_directory", CellDirectory)
             .DefaultNew();
-        RegisterParameter("masters", Masters);
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
         RegisterParameter("transaction_manager", TransactionManager)
@@ -52,9 +55,21 @@ public:
             .DefaultNew();
         RegisterParameter("table_mount_cache", TableMountCache)
             .DefaultNew();
-        RegisterParameter("timestamp_provider", TimestampProvider);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileReaderConfig
+    : public NChunkClient::TMultiChunkReaderConfig
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileWriterConfig
+    : public NChunkClient::TMultiChunkWriterConfig
+    , public NFileClient::TFileChunkWriterConfig
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

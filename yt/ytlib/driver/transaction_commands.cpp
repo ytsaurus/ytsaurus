@@ -12,8 +12,6 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/api/connection.h>
-
 namespace NYT {
 namespace NDriver {
 
@@ -35,11 +33,13 @@ void TStartTransactionCommand::DoExecute()
     options.AutoAbort = false;
     options.PingAncestors = Request->PingAncestors;
 
+    std::unique_ptr<IAttributeDictionary> attributes;
     if (Request->Attributes) {
-        options.Attributes = ConvertToAttributes(Request->Attributes);
+        attributes = ConvertToAttributes(Request->Attributes);
+        options.Attributes = attributes.get();
     }
 
-    auto transactionManager = Context->GetTransactionManager();
+    auto transactionManager = Context->GetClient()->GetTransactionManager();
     auto transactionOrError = WaitFor(transactionManager->Start(options));
     auto transaction = transactionOrError.GetValueOrThrow();
     transaction->Detach();

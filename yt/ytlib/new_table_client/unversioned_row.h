@@ -247,7 +247,7 @@ static_assert(
 TOwningKey GetKeySuccessor(TKey key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
-//! obtained by triming |key| to |prefixLength| and appending
+//! obtained by trimming |key| to |prefixLength| and appending
 //! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
 

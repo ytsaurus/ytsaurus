@@ -11,6 +11,8 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/client.h
   ${BASE}/transaction.h
+  ${BASE}/file_reader.h
+  ${BASE}/file_writer.h
   ${BASE}/connection.h
 )
 

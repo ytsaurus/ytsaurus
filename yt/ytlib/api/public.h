@@ -12,7 +12,7 @@ namespace NApi {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TColumnFilter;
-struct TLookupOptions;
+struct TLookupRowsOptions;
 
 struct IConnection;
 typedef TIntrusivePtr<IConnection> IConnectionPtr;
@@ -26,8 +26,20 @@ typedef TIntrusivePtr<IClient> IClientPtr;
 struct ITransaction;
 typedef TIntrusivePtr<ITransaction> ITransactionPtr;
 
+struct IFileReader;
+typedef TIntrusivePtr<IFileReader> IFileReaderPtr;
+
+struct IFileWriter;
+typedef TIntrusivePtr<IFileWriter> IFileWriterPtr;
+
 class TConnectionConfig;
 typedef TIntrusivePtr<TConnectionConfig> TConnectionConfigPtr;
+
+class TFileReaderConfig;
+typedef TIntrusivePtr<TFileReaderConfig> TFileReaderConfigPtr;
+
+class TFileWriterConfig;
+typedef TIntrusivePtr<TFileWriterConfig> TFileWriterConfigPtr;
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -22,7 +22,7 @@
 
 #include <core/yson/parser.h>
 
-#include <core/rpc/helpers.h>
+//#include <core/rpc/helpers.h>
 #include <core/rpc/scoped_channel.h>
 
 #include <ytlib/hive/timestamp_provider.h>
@@ -75,6 +75,9 @@ TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TDriver;
+typedef TIntrusivePtr<TDriver> TDriverPtr;
 
 class TDriver
     : public IDriver
@@ -188,8 +191,8 @@ public:
                 LOG_INFO(response.Error, "Command failed (Command: %s)", ~request.CommandName);
             }
 
-            context->GetTransactionManager()->AbortAll();
-
+            // TODO(babenko): move into IClient?
+            context->GetClient()->GetTransactionManager()->AbortAll();
             WaitFor(context->TerminateChannels());
 
             return response;
@@ -255,7 +258,7 @@ private:
     {
     public:
         TCommandContext(
-            TDriver* driver,
+            TDriverPtr driver,
             const TCommandDescriptor& descriptor,
             const TDriverRequest& request,
             TQueryCallbacksProviderPtr queryCallbacksProvider)
@@ -266,30 +269,9 @@ private:
             , SyncInputStream_(CreateSyncInputStream(request.InputStream))
             , SyncOutputStream_(CreateSyncOutputStream(request.OutputStream))
         {
-            Connection_ = CreateConnection(driver->Config);
-
-            MasterChannel_ = Connection_->GetMasterChannel();
-            if (request.AuthenticatedUser) {
-                MasterChannel_ = CreateAuthenticatedChannel(
-                    MasterChannel_,
-                    *request.AuthenticatedUser);
-            }
-            MasterChannel_ = CreateScopedChannel(MasterChannel_);
-
-            SchedulerChannel_ = Connection_->GetSchedulerChannel();
-            if (request.AuthenticatedUser) {
-                SchedulerChannel_ = CreateAuthenticatedChannel(
-                    SchedulerChannel_,
-                    *request.AuthenticatedUser);
-            }
-            SchedulerChannel_ = CreateScopedChannel(SchedulerChannel_);
-
-            TransactionManager_ = New<TTransactionManager>(
-                driver->Config->TransactionManager,
-                driver->Config->Masters->CellGuid,
-                MasterChannel_,
-                Connection_->GetTimestampProvider(),
-                Connection_->GetCellDirectory());
+            TClientOptions options;
+            options.User = Request_.AuthenticatedUser;
+            Client_ = CreateClient(Driver_->Connection_, options);
         }
 
         TFuture<void> TerminateChannels()
@@ -298,8 +280,8 @@ private:
 
             TError error("Command context terminated");
             auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-            awaiter->Await(Connection_->GetMasterChannel()->Terminate(error));
-            awaiter->Await(Connection_->GetSchedulerChannel()->Terminate(error));
+            awaiter->Await(Client_->GetMasterChannel()->Terminate(error));
+            awaiter->Await(Client_->GetSchedulerChannel()->Terminate(error));
             return awaiter->Complete();
         }
 
@@ -308,39 +290,9 @@ private:
             return Driver_->Config;
         }
 
-        virtual IChannelPtr GetMasterChannel() override
+        virtual IClientPtr GetClient() override
         {
-            return MasterChannel_;
-        }
-
-        virtual IChannelPtr GetSchedulerChannel() override
-        {
-            return SchedulerChannel_;
-        }
-
-        virtual TTransactionManagerPtr GetTransactionManager() override
-        {
-            return TransactionManager_;
-        }
-
-        virtual IBlockCachePtr GetBlockCache() override
-        {
-            return Connection_->GetBlockCache();
-        }
-
-        virtual TTableMountCachePtr GetTableMountCache() override
-        {
-            return Connection_->GetTableMountCache();
-        }
-
-        virtual ITimestampProviderPtr GetTimestampProvider() override
-        {
-            return Connection_->GetTimestampProvider();
-        }
-
-        virtual TCellDirectoryPtr GetCellDirectory() override
-        {
-            return Connection_->GetCellDirectory();
+            return Client_;
         }
 
         virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() override
@@ -396,14 +348,10 @@ private:
         }
 
     private:
-        TDriver* Driver_;
-        TCommandDescriptor Descriptor_;
+        const TDriverPtr Driver_;
+        const TCommandDescriptor Descriptor_;
         const TDriverRequest Request_;
-        IConnectionPtr Connection_;
-        IChannelPtr MasterChannel_;
-        IChannelPtr SchedulerChannel_;
-        TTransactionManagerPtr TransactionManager_;
-        TQueryCallbacksProviderPtr QueryCallbacksProvider_;
+        const TQueryCallbacksProviderPtr QueryCallbacksProvider_;
 
         TDriverResponse Response_;
 
@@ -412,6 +360,8 @@ private:
 
         std::unique_ptr<TInputStream> SyncInputStream_;
         std::unique_ptr<TOutputStream> SyncOutputStream_;
+
+        IClientPtr Client_;
 
     };
 };

@@ -15,8 +15,6 @@
 #include <ytlib/hive/timestamp_provider.h>
 #include <ytlib/hive/remote_timestamp_provider.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
-
 #include <ytlib/tablet_client/table_mount_cache.h>
 
 namespace NYT {
@@ -26,7 +24,6 @@ using namespace NRpc;
 using namespace NHive;
 using namespace NHydra;
 using namespace NChunkClient;
-using namespace NTransactionClient;
 using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,13 +56,6 @@ public:
             channelFactory);
         CellDirectory_->RegisterCell(config->Masters);
 
-        TransactionManager_ = New<TTransactionManager>(
-            Config_->TransactionManager,
-            Config_->Masters->CellGuid,
-            MasterChannel_,
-            TimestampProvider_,
-            CellDirectory_);
-
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache);
 
@@ -76,6 +66,11 @@ public:
     }
 
 
+    virtual TConnectionConfigPtr GetConfig() override
+    {
+        return Config_;
+    }
+
     virtual IChannelPtr GetMasterChannel() override
     {
         return MasterChannel_;
@@ -84,11 +79,6 @@ public:
     virtual IChannelPtr GetSchedulerChannel() override
     {
         return SchedulerChannel_;
-    }
-
-    virtual TTransactionManagerPtr GetTransactionManager() override
-    {
-        return TransactionManager_;
     }
 
     virtual IBlockCachePtr GetBlockCache() override
@@ -116,7 +106,6 @@ private:
 
     IChannelPtr MasterChannel_;
     IChannelPtr SchedulerChannel_;
-    TTransactionManagerPtr TransactionManager_;
     IBlockCachePtr BlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
