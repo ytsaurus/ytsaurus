@@ -13,7 +13,6 @@ import yt.packages.requests as requests
 import sys
 import socket
 import simplejson as json
-from simplejson import JSONEncoder
 
 def escape_utf8(obj):
     def escape_symbol(sym):
