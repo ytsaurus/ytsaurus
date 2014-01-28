@@ -16,102 +16,16 @@ namespace NYT {
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
-//
-// === THas{Ref,Unref}Method ===
-//
-// Use the Substitution Failure Is Not An Error (SFINAE) trick to inspect T
-// for the existence of Ref() and Unref() methods.
-//
-// http://en.wikipedia.org/wiki/Substitution_failure_is_not_an_error
-// http://stackoverflow.com/questions/257288/is-it-possible-to-write-a-c-template-to-check-for-a-functions-existence
-// http://stackoverflow.com/questions/4358584/sfinae-approach-comparison
-// http://stackoverflow.com/questions/1966362/sfinae-to-check-for-inherited-member-functions
-//
-// The last link in particular show the method used below.
-// Works on gcc-4.2, gcc-4.4, and Visual Studio 2008.
-//
 
-//! An MPL functor which tests for existance of Ref() method in a given type.
-template <class T>
-struct THasRefMethod
-{
-private:
-    struct TMixin
-    {
-        void Ref();
-    };
-    // MSVC warns when you try to use TMixed if T has a private destructor,
-    // the common pattern for reference-counted types. It does this even though
-    // no attempt to instantiate TMixed is made.
-    // We disable the warning for this definition.
-#ifdef _win_
-#pragma warning(disable:4624)
-#endif
-    struct TMixed
-        : public T
-        , public TMixin
-    { };
-#ifdef _win_
-#pragma warning(default:4624)
-#endif
-    template <void(TMixin::*)()>
-    struct THelper
-    { };
-
-    template <class U>
-    static NMpl::NDetail::TNoType  Test(THelper<&U::Ref>*);
-    template <class>
-    static NMpl::NDetail::TYesType Test(...);
-
-public:
-    enum
-    {
-        Value = (sizeof(Test<TMixed>(0)) == sizeof(NMpl::NDetail::TYesType))
-    };
-};
-
-//! An MPL functor which tests for existance of Unref() method in a given type.
-template <class T>
-struct THasUnrefMethod
-{
-private:
-    struct TMixin
-    {
-        void Unref();
-    };
-#ifdef _win_
-#pragma warning(disable:4624)
-#endif
-    struct TMixed
-        : public T
-        , public TMixin
-    { };
-#ifdef _win_
-#pragma warning(default:4624)
-#endif
-
-    template <void(TMixin::*)()>
-    struct THelper
-    { };
-
-    template <class U>
-    static NMpl::NDetail::TNoType  Test(THelper<&U::Unref>*);
-    template <class>
-    static NMpl::NDetail::TYesType Test(...);
-
-public:
-    enum
-    {
-        Value = (sizeof(Test<TMixed>(0)) == sizeof(NMpl::NDetail::TYesType))
-    };
-};
+DEFINE_MPL_MEMBER_DETECTOR(Ref);
+DEFINE_MPL_MEMBER_DETECTOR(Unref);
 
 //! An MPL functor which tests for existance of both Ref() and Unref() methods.
 template <class T>
 struct THasRefAndUnrefMethods
     : NMpl::TIntegralConstant<bool, NMpl::TAnd<
-        THasRefMethod<T>,
-        THasUnrefMethod<T>
+        THasRefMember<T>,
+        THasUnrefMember<T>
     >::Value>
 { };
 
