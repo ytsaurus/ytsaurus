@@ -13,25 +13,20 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_MPL_MEMBER_DETECTOR(Ref);
-DEFINE_MPL_MEMBER_DETECTOR(Unref);
-
-//! An MPL functor which tests for existance of both Ref() and Unref() methods.
+// Default (generic) implementation of Ref/Unref strategy.
+// Assumes the existence of Ref/Unref members.
+// Only works if |T| is fully defined.
 template <class T>
-struct THasRefAndUnrefMethods
-    : NMpl::TIntegralConstant<bool, NMpl::TAnd<
-        THasRefMember<T>,
-        THasUnrefMember<T>
-    >::Value>
-{ };
+void Ref(T* obj)
+{
+    obj->Ref();
+}
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
+template <class T>
+void Unref(T* obj)
+{
+    obj->Unref();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +38,7 @@ public:
 
     //! Empty constructor.
     TIntrusivePtr() // noexcept
-        : T_(NULL)
+        : T_(nullptr)
     { }
 
     //! Constructor from an unqualified reference.
@@ -54,28 +49,20 @@ public:
      * Note that it notoriously hard to make this constructor explicit
      * given the current amount of code written.
      */
-    TIntrusivePtr(T* p) // noexcept
-        : T_(p)
+    TIntrusivePtr(T* obj) // noexcept
+        : T_(obj)
     {
-        static_assert(
-            NYT::NDetail::THasRefAndUnrefMethods<T>::Value,
-            "T must have Ref() and UnRef() methods");
-
         if (T_) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
     //! Constructor from an unqualified reference.
-    TIntrusivePtr(T* p, bool addReference) // noexcept
-        : T_(p)
+    TIntrusivePtr(T* obj, bool addReference) // noexcept
+        : T_(obj)
     {
-        static_assert(
-            NYT::NDetail::THasRefAndUnrefMethods<T>::Value,
-            "T must have Ref() and UnRef() methods");
-
         if (T_ && addReference) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
@@ -84,7 +71,7 @@ public:
         : T_(other.Get())
     {
         if (T_) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
@@ -96,7 +83,7 @@ public:
         : T_(other.Get())
     {
         if (T_) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
@@ -104,7 +91,7 @@ public:
     explicit TIntrusivePtr(TIntrusivePtr&& other) // noexcept
         : T_(other.Get())
     {
-        other.T_ = NULL;
+        other.T_ = nullptr;
     }
 
     //! Move constructor with an upcast.
@@ -114,14 +101,14 @@ public:
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
         : T_(other.Get())
     {
-        other.T_ = NULL;
+        other.T_ = nullptr;
     }
 
     //! Destructor.
     ~TIntrusivePtr()
     {
         if (T_) {
-            T_->Unref();
+            Unref(T_);
         }
     }
 
@@ -195,7 +182,7 @@ public:
     typedef T* TIntrusivePtr::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const // noexcept
     {
-        return T_ ? &TIntrusivePtr::T_ : NULL;
+        return T_ ? &TIntrusivePtr::T_ : nullptr;
     }
 
     //! Swap the pointer with the other one.
@@ -288,6 +275,54 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
         "U* have to be convertible to T*");
     return lhs != rhs.Get();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// A bunch of helpful macros that enable working with intrusive pointers to incomplete types.
+/*
+ *  Typically when you have a forward-declared type |T| and an instance
+ *  of |TIntrusivePtr<T>| you need the complete definition of |T| to work with
+ *  the pointer even if you're not actually using the members of |T|.
+ *  E.g. the dtor of |TIntrusivePtr<T>|, should you ever need it, must be able
+ *  to unref an instance of |T| and eventually destroy it.
+ *  This may force #inclusion of way more headers than really seems necessary.
+ *
+ *  |DECLARE_REFCOUNTED_STRUCT|, |DECLARE_REFCOUNTED_CLASS|, and |DEFINE_REFCOUNTED_TYPE|
+ *  alleviate this issue by forcing TIntrusivePtr to work with the free-standing overloads
+ *  of |Ref| and |Unref| instead of their template version.
+ *  These overloads are declared together with the forward declaration of |T| and
+ *  are subsequently defined afterwards.
+ */
+
+#define DECLARE_REFCOUNTED_TYPE(kind, type) \
+    kind type; \
+    typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
+    \
+    void Ref(type* obj); \
+    void Unref(type* obj);
+
+//! Forward-declares a class type, defines an intrusive pointer for it, and finally
+//! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
+#define DECLARE_REFCOUNTED_CLASS(type) \
+    DECLARE_REFCOUNTED_TYPE(class, type)
+
+//! Forward-declares a struct type, defines an intrusive pointer for it, and finally
+//! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
+#define DECLARE_REFCOUNTED_STRUCT(type) \
+    DECLARE_REFCOUNTED_TYPE(struct, type)
+
+//! Provides implementations for Ref/Unref overloads. Use this macro right
+//! after the type's full definition.
+#define DEFINE_REFCOUNTED_TYPE(type) \
+    inline void Ref(type* obj) \
+    { \
+        obj->Ref(); \
+    } \
+    \
+    inline void Unref(type* obj) \
+    { \
+        obj->Unref(); \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

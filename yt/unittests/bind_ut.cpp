@@ -632,29 +632,6 @@ TEST_F(TBindTest, ArrayArgumentBinding)
     EXPECT_EQ(7, constArrayGet.Run());
 }
 
-// Verify THasRefAndUnrefMethods correctly introspects the class type for a pair of
-// Ref() and Unref().
-//   - Class with Ref() and Unref().
-//   - Class without Ref() and Unref().
-//   - Derived class with Ref() and Unref().
-//   - Derived class without Ref() and Unref().
-//   - Derived class with Ref() and Unref() and a private destructor.
-TEST_F(TBindTest, HasRefAndUnrefMethods)
-{
-    EXPECT_TRUE(NDetail::THasRefAndUnrefMethods<TObjectWithRC>::Value);
-    EXPECT_FALSE(NDetail::THasRefAndUnrefMethods<TObject>::Value);
-
-    // StrictMock<T> is a derived class of T.
-    // So, we use StrictMock<TObjectWithRC> and StrictMock<TObject> to test that
-    // THasRefAndUnrefMethods works over inheritance.
-    EXPECT_TRUE(NDetail::THasRefAndUnrefMethods< StrictMock<TObjectWithRC> >::Value);
-    EXPECT_FALSE(NDetail::THasRefAndUnrefMethods< StrictMock<TObject> >::Value);
-
-    // This matters because the implementation creates a dummy class that
-    // inherits from the template type.
-    EXPECT_TRUE(NDetail::THasRefAndUnrefMethods<TObjectWithRCAndPrivateDtor>::Value);
-}
-
 // Unretained() wrapper support.
 //   - Method bound to Unretained() non-const object.
 //   - Const method bound to Unretained() non-const object.
