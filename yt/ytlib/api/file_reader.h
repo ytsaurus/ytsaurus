@@ -23,6 +23,8 @@ struct IFileReader
     virtual i64 GetSize() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IFileReader)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi

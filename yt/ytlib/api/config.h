@@ -4,8 +4,6 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <core/rpc/retrying_channel.h>
-
 #include <ytlib/hydra/config.h>
 
 #include <ytlib/transaction_client/config.h>
@@ -58,11 +56,15 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileReaderConfig
     : public NChunkClient::TMultiChunkReaderConfig
 { };
+
+DEFINE_REFCOUNTED_TYPE(TFileReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +72,8 @@ class TFileWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NFileClient::TFileChunkWriterConfig
 { };
+
+DEFINE_REFCOUNTED_TYPE(TFileWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

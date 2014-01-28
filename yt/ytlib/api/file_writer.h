@@ -23,6 +23,8 @@ struct IFileWriter
     virtual TAsyncError Close() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IFileWriter)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi

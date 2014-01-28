@@ -29,6 +29,8 @@ struct IConnection
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IConnection)
+
 IConnectionPtr CreateConnection(TConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

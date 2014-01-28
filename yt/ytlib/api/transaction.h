@@ -1,8 +1,6 @@
 #pragma once
 
 #include "public.h"
-// TODO(babenko): remove this
-#include "config.h"
 
 #include <core/misc/error.h>
 #include <core/misc/small_vector.h>
@@ -31,6 +29,9 @@ struct IRowset
 {
     virtual const std::vector<NVersionedTableClient::TUnversionedRow>& Rows() const = 0;
 };
+
+
+DEFINE_REFCOUNTED_TYPE(IRowset)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -328,6 +329,10 @@ struct IClientBase
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IClientBase)
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct ITransaction
     : public IClientBase
 {
@@ -358,6 +363,8 @@ struct ITransaction
         std::vector<NVersionedTableClient::TKey> keys) = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(ITransaction)
 
 ///////////////////////////////////////////////////////////////////////////////
 

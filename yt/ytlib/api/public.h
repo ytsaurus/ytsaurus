@@ -14,32 +14,19 @@ namespace NApi {
 struct TColumnFilter;
 struct TLookupRowsOptions;
 
-struct IConnection;
-typedef TIntrusivePtr<IConnection> IConnectionPtr;
+DECLARE_REFCOUNTED_STRUCT(IRowset)
 
-struct IRowset;
-typedef TIntrusivePtr<IRowset> IRowsetPtr;
+DECLARE_REFCOUNTED_STRUCT(IConnection)
+DECLARE_REFCOUNTED_STRUCT(ITransaction)
+DECLARE_REFCOUNTED_STRUCT(IClient)
+DECLARE_REFCOUNTED_STRUCT(ITransaction)
 
-struct IClient;
-typedef TIntrusivePtr<IClient> IClientPtr;
+DECLARE_REFCOUNTED_STRUCT(IFileReader)
+DECLARE_REFCOUNTED_STRUCT(IFileWriter)
 
-struct ITransaction;
-typedef TIntrusivePtr<ITransaction> ITransactionPtr;
-
-struct IFileReader;
-typedef TIntrusivePtr<IFileReader> IFileReaderPtr;
-
-struct IFileWriter;
-typedef TIntrusivePtr<IFileWriter> IFileWriterPtr;
-
-class TConnectionConfig;
-typedef TIntrusivePtr<TConnectionConfig> TConnectionConfigPtr;
-
-class TFileReaderConfig;
-typedef TIntrusivePtr<TFileReaderConfig> TFileReaderConfigPtr;
-
-class TFileWriterConfig;
-typedef TIntrusivePtr<TFileWriterConfig> TFileWriterConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TFileReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TFileWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
