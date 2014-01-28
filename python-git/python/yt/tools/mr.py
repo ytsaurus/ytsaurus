@@ -57,13 +57,13 @@ class Mr(object):
         if self.fetch_info_from_http:
             return int(self.get_field_from_page(table, "Records"))
         else:
-            return self.get_field_from_server(table, "records")
+            return self._as_int(self.get_field_from_server(table, "records"))
     
     def data_size(self, table):
         if self.fetch_info_from_http:
             return int(self.get_field_from_page(table, "Size"))
         else:
-            return self.get_field_from_server(table, "size")
+            return self._as_int(self.get_field_from_server(table, "size"))
 
     def is_sorted(self, table):
         if self.fetch_info_from_http:
@@ -85,4 +85,10 @@ class Mr(object):
 
     def copy(self, src, dst):
         subprocess.check_call("USER=yt MR_USER={} {} -server {} -copy -src {} -dst {}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
+
+    def _as_int(self, obj):
+        if obj is None:
+            return 0
+        return int(obj)
+
     
