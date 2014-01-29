@@ -173,9 +173,11 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
         // Start outer transaction.
         {
             TTransactionStartOptions options;
-            options.Attributes->Set(
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set(
                 "title",
                 Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetOperationId())));
+            options.Attributes = attributes.get();
             auto transactionOrError = WaitFor(transactionManager->Start(options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
             transaction = transactionOrError.GetValue();

@@ -20,7 +20,6 @@
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/config.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
 

@@ -11,10 +11,6 @@
 
 #include <core/profiling/profiler.h>
 
-#include <ytlib/scheduler/config.h>
-
-#include <server/job_proxy/config.h>
-
 namespace NYT {
 namespace NScheduler {
 

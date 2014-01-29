@@ -471,7 +471,7 @@ void TLookupCommand::DoExecute()
 
 void TDeleteCommand::DoExecute()
 {
-    NApi::TTransactionStartOptions startOptions;
+    NTransactionClient::TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
     auto transactionOrError = WaitFor(Context->GetClient()->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);

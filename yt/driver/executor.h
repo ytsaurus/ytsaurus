@@ -10,10 +10,9 @@
 
 #include <ytlib/misc/tclap_helpers.h>
 
-#include <ytlib/scheduler/config.h>
+#include <ytlib/scheduler/public.h>
 
 #include <ytlib/driver/public.h>
-#include <ytlib/driver/config.h>
 
 #include <ytlib/formats/format.h>
 

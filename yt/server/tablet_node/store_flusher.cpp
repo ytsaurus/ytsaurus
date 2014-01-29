@@ -16,6 +16,8 @@
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
 
+#include <core/ytree/attribute_helpers.h>
+
 #include <core/logging/tagged_logger.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -52,6 +54,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient;
@@ -182,9 +185,11 @@ private:
                 LOG_INFO("Creating store flush transaction");
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
-                options.Attributes->Set("title", Sprintf("Flush of store %s, tablet %s",
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("title", Sprintf("Flush of store %s, tablet %s",
                     ~ToString(store->GetId()),
                     ~ToString(tablet->GetId())));
+                options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(transactionManager->Start(options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.GetValue();

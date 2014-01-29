@@ -81,7 +81,10 @@ TError TAsyncWriter::DoOpen()
             TTransactionStartOptions options;
             options.ParentId = Transaction ? Transaction->GetId() : NullTransactionId;
             options.EnableUncommittedAccounting = false;
-            options.Attributes->Set("title", Sprintf("File upload to %s", ~RichPath.GetPath()));
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("File upload to %s", ~RichPath.GetPath()));
+            options.Attributes = attributes.get();
+
             auto transactionOrError = WaitFor(TransactionManager->Start(options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
             UploadTransaction = transactionOrError.GetValue();

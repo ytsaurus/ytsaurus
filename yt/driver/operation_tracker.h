@@ -8,7 +8,7 @@
 
 #include <core/ytree/yson_string.h>
 
-#include <server/job_proxy/config.h>
+#include <server/job_proxy/public.h>
 
 namespace NYT {
 namespace NDriver {

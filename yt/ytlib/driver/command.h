@@ -36,7 +36,6 @@
 
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
-#include <ytlib/api/config.h>
 
 namespace NYT {
 namespace NDriver {
