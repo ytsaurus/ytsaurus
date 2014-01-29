@@ -467,7 +467,9 @@ private:
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
         auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
-        ToProto(req->mutable_object_attributes(), *options.Attributes);
+        if (options.Attributes) {
+            ToProto(req->mutable_object_attributes(), *options.Attributes);
+        }
         if (options.ParentId != NullTransactionId) {
             ToProto(req->mutable_transaction_id(), options.ParentId);
         }
