@@ -249,14 +249,13 @@ class WaitStrategy(object):
         if self.check_result and state.is_failed():
             operation_result = get_operation_result(operation)
             jobs_errors = get_jobs_errors(operation)
-            raise YtOperationFailedError(
-                "Operation {0} {1}!\n"
-                "Operation result: {2}\n\n"
-                "Failed jobs:\n{3}\n\n".format(
-                    operation,
-                    str(state),
-                    operation_result,
-                    jobs_errors))
+            message = "Operation {0} {1}.\n"\
+                      "Operation result: {2}\n\n"\
+                .format(operation, str(state),
+                        operation_result)
+            if jobs_errors:
+                message += "Failed jobs:\n{0}\n\n".format(jobs_errors)
+            raise YtOperationFailedError(message)
 
         stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
         if logger.LOGGER.isEnabledFor(stderr_level):
