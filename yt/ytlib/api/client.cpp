@@ -7,11 +7,13 @@
 
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/parallel_collector.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/ytree/attribute_helpers.h>
 #include <core/ytree/ypath_proxy.h>
 
 #include <core/rpc/helpers.h>
+#include <core/rpc/scoped_channel.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -99,21 +101,28 @@ public:
         const TClientOptions& options)
         : Connection_(std::move(connection))
         // TODO(babenko): consider using pool
-        , MasterChannel_ (options.User
-            ? CreateAuthenticatedChannel(Connection_->GetMasterChannel(), *options.User)
-            : Connection_->GetMasterChannel())
-        , SchedulerChannel_(options.User
-            ? CreateAuthenticatedChannel(Connection_->GetSchedulerChannel(), *options.User)
-            : Connection_->GetSchedulerChannel())
-        , TransactionManager_ (New<TTransactionManager>(
+        , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
+    {
+        MasterChannel_ = Connection_->GetMasterChannel();
+        SchedulerChannel_ = Connection_->GetSchedulerChannel();
+
+        if (options.User) {
+            MasterChannel_ = CreateAuthenticatedChannel(MasterChannel_, *options.User);
+            SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, *options.User);
+        }
+
+        MasterChannel_ = CreateScopedChannel(MasterChannel_);
+        SchedulerChannel_ = CreateScopedChannel(SchedulerChannel_);
+            
+        TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
             Connection_->GetConfig()->Masters->CellGuid,
             MasterChannel_,
             Connection_->GetTimestampProvider(),
-            Connection_->GetCellDirectory()))
-        , ObjectProxy_(MasterChannel_)
-        , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
-    { }
+            Connection_->GetCellDirectory());
+
+        ObjectProxy_.reset(new TObjectServiceProxy(MasterChannel_));
+    }
 
 
     virtual IConnectionPtr GetConnection() override
@@ -134,6 +143,18 @@ public:
     virtual TTransactionManagerPtr GetTransactionManager() override
     {
         return TransactionManager_;
+    }
+
+
+    virtual TFuture<void> Terminate() override
+    {
+        TransactionManager_->AbortAll();
+
+        TError error("Client terminated");
+        auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
+        awaiter->Await(MasterChannel_->Terminate(error));
+        awaiter->Await(SchedulerChannel_->Terminate(error));
+        return awaiter->Complete();
     }
 
 
@@ -277,7 +298,7 @@ private:
     IChannelPtr MasterChannel_;
     IChannelPtr SchedulerChannel_;
     TTransactionManagerPtr TransactionManager_;
-    TObjectServiceProxy ObjectProxy_;
+    std::unique_ptr<TObjectServiceProxy> ObjectProxy_;
     IInvokerPtr Invoker_;
 
 
@@ -421,7 +442,7 @@ private:
                 req->set_first_tablet_index(*options.LastTabletIndex);
             }
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TError();
@@ -443,7 +464,7 @@ private:
                 req->set_first_tablet_index(*options.LastTabletIndex);
             }
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TError();
@@ -467,7 +488,7 @@ private:
             }
             ToProto(req->mutable_pivot_keys(), pivotKeys);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TError();
@@ -495,7 +516,7 @@ private:
                 ToProto(req->mutable_options(), *options.Options);
             }
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TYsonString(rsp->value());
@@ -515,7 +536,7 @@ private:
             GenerateMutationId(req, options);
             req->set_value(value.Data());
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TError();
@@ -535,7 +556,7 @@ private:
             req->set_recursive(options.Recursive);
             req->set_force(options.Force);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TError();
@@ -559,7 +580,7 @@ private:
                 req->set_max_size(*options.MaxSize);
             }
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TYsonString(rsp->keys());
@@ -585,7 +606,7 @@ private:
                 ToProto(req->mutable_node_attributes(), *options.Attributes);
             }
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return FromProto<TNodeId>(rsp->node_id());
@@ -606,7 +627,7 @@ private:
             lockReq->set_mode(mode);
             lockReq->set_waitable(options.Waitable);
 
-            auto lockRsp = WaitFor(ObjectProxy_.Execute(lockReq));
+            auto lockRsp = WaitFor(ObjectProxy_->Execute(lockReq));
             THROW_ERROR_EXCEPTION_IF_FAILED(*lockRsp);
 
             return FromProto<TLockId>(lockRsp->lock_id());
@@ -627,7 +648,7 @@ private:
             req->set_source_path(srcPath);
             req->set_preserve_account(options.PreserveAccount);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return FromProto<TNodeId>(rsp->object_id());
@@ -648,7 +669,7 @@ private:
             req->set_source_path(srcPath);
             req->set_remove_source(true);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return FromProto<TNodeId>(rsp->object_id());
@@ -674,7 +695,7 @@ private:
             attributes->Set("target_path", srcPath);
             ToProto(req->mutable_node_attributes(), *attributes);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return FromProto<TNodeId>(rsp->node_id());
@@ -691,7 +712,7 @@ private:
             auto req = TYPathProxy::Exists(path);
             SetTransactionId(req, options, true);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return rsp->value();
@@ -716,7 +737,7 @@ private:
                 ToProto(req->mutable_object_attributes(), *options.Attributes);
             }
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return FromProto<TObjectId>(rsp->object_ids(0));
@@ -741,7 +762,7 @@ private:
             req->set_name(member);
             GenerateMutationId(req, options);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TError();
@@ -760,7 +781,7 @@ private:
             req->set_name(member);
             GenerateMutationId(req, options);
 
-            auto rsp = WaitFor(ObjectProxy_.Execute(req));
+            auto rsp = WaitFor(ObjectProxy_->Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             return TError();

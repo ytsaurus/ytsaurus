@@ -191,9 +191,7 @@ public:
                 LOG_INFO(response.Error, "Command failed (Command: %s)", ~request.CommandName);
             }
 
-            // TODO(babenko): move into IClient?
-            context->GetClient()->GetTransactionManager()->AbortAll();
-            WaitFor(context->TerminateChannels());
+            WaitFor(context->Terminate());
 
             return response;
         }).AsyncVia(invoker).Run();
@@ -274,15 +272,10 @@ private:
             Client_ = CreateClient(Driver_->Connection_, options);
         }
 
-        TFuture<void> TerminateChannels()
+        TFuture<void> Terminate()
         {
-            LOG_DEBUG("Terminating channels");
-
-            TError error("Command context terminated");
-            auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-            awaiter->Await(Client_->GetMasterChannel()->Terminate(error));
-            awaiter->Await(Client_->GetSchedulerChannel()->Terminate(error));
-            return awaiter->Complete();
+            LOG_DEBUG("Terminating client");
+            return Client_->Terminate();
         }
 
         virtual TDriverConfigPtr GetConfig() override

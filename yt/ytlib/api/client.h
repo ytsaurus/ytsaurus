@@ -61,6 +61,11 @@ struct IClient
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
+    //! Terminates all channels.
+    //! Aborts all pending uncommitted transactions.
+    //! Returns a async flag indicating completion.
+    virtual TFuture<void> Terminate() = 0;
+
     // Tables
     virtual TAsyncError MountTable(
         const NYPath::TYPath& path,
