@@ -40,6 +40,10 @@ add_executable( ytserver
   "main.cpp"
 )
 
+if (MSVC)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
+
 add_library( ytserver_lib
   ${YT_SOURCE_FILES}
 )
