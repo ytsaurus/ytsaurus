@@ -112,7 +112,7 @@ class TestTxCommands(YTEnvSetup):
         assert exists('//sys/transactions/' + tx)
 
         # check that transaction is expired after 4 seconds
-        sleep(2)
+        sleep(3)
         assert not exists('//sys/transactions/' + tx)
 
     def test_ping(self):
