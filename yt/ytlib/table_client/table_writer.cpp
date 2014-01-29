@@ -10,6 +10,8 @@
 
 #include <core/concurrency/fiber.h>
 
+#include <core/ytree/attribute_helpers.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/rpc_helpers.h>
 
@@ -145,7 +147,9 @@ void TAsyncTableWriter::Open()
     TTransactionStartOptions options;
     options.ParentId = TransactionId;
     options.EnableUncommittedAccounting = false;
-    options.Attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
+    options.Attributes = attributes.get();
     auto transactionOrError = WaitFor(TransactionManager->Start(options));
 
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
