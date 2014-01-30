@@ -79,7 +79,9 @@ public:
     TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> GetReplicas() const;
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
+    
     bool IsConfirmed() const;
+    void ValidateConfirmed();
 
     bool GetMovable() const;
     void SetMovable(bool value);
