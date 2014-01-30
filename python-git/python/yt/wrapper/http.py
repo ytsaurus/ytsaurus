@@ -120,6 +120,9 @@ def get_token():
             token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
         if os.path.isfile(token_path):
             token = open(token_path).read().strip()
+            logger.debug("Token got from %s", token_path)
+    else:
+        logger.debug("Token got from environment variable")
     if token is not None:
         require(all(c in string.hexdigits for c in token),
                 YtTokenError("You have an improper authentication token"))
