@@ -1104,7 +1104,6 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 {
-
     if (!IsObjectAlive(chunk) || chunk->GetPropertiesUpdateScheduled())
         return;
 

@@ -64,6 +64,20 @@ void AttachToChunkList(
     F chunkAction,
     bool resetSorted)
 {
+    // A shortcut.
+    if (childrenBegin == childrenEnd)
+        return;
+
+    for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        auto* child = *it;
+        auto type = child->GetType();
+        if (type == NObjectClient::EObjectType::Chunk ||
+            type == NObjectClient::EObjectType::ErasureChunk)
+        {
+            child->AsChunk()->ValidateConfirmed();
+        }
+    }
+
     chunkList->IncrementVersion();
 
     TChunkTreeStatistics delta;
