@@ -19,8 +19,6 @@ TSharedRefArray CreateRequestMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
-    YCHECK(body);
-
     std::vector<TSharedRef> parts;
 
     TSharedRef headerData;
@@ -41,8 +39,6 @@ TSharedRefArray CreateResponseMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
-    YCHECK(body);
-
     std::vector<TSharedRef> parts;
 
     TSharedRef headerData;
@@ -58,7 +54,24 @@ TSharedRefArray CreateResponseMessage(
     return TSharedRefArray(std::move(parts));
 }
 
-TSharedRefArray CreateResponseMessage(IServiceContextPtr context)
+TSharedRefArray CreateResponseMessage(
+    const ::google::protobuf::MessageLite& body,
+    const std::vector<TSharedRef>& attachments)
+{
+    NProto::TResponseHeader header;
+    ToProto(header.mutable_error(), TError());
+
+    TSharedRef serializedBody;
+    YCHECK(SerializeToProtoWithEnvelope(body, &serializedBody));
+
+    return CreateResponseMessage(
+        header,
+        serializedBody,
+        attachments);
+}
+
+TSharedRefArray CreateResponseMessage(
+    IServiceContextPtr context)
 {
     YCHECK(context->IsReplied());
 

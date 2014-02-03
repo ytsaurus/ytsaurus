@@ -12,9 +12,6 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClosure CreateRpcSuccessHandler(NRpc::IServiceContextPtr context);
-TCallback<void (const TError& error)> CreateRpcErrorHandler(NRpc::IServiceContextPtr context);
-
 NHydra::TMutationId GenerateMutationId();
 
 TMutationId GetMutationId(NRpc::IServiceContextPtr context);

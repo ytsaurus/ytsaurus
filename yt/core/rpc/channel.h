@@ -46,12 +46,16 @@ struct IChannel
     virtual TFuture<void> Terminate(const TError& error) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IChannel)
+
 //! Provides means for parsing addresses and creating channels.
 struct IChannelFactory
     : public virtual TRefCounted
 {
     virtual IChannelPtr CreateChannel(const Stroka& address) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IChannelFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

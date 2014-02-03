@@ -66,6 +66,8 @@ struct IClientRequest
     virtual void SetStartTime(TInstant value) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IClientRequest)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientRequest
@@ -201,6 +203,8 @@ struct IClientResponseHandler
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IClientResponseHandler)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a common base for both one-way and two-way responses.
@@ -321,6 +325,8 @@ private:
     virtual void FireCompleted();
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 
 ////////////////////////////////////////////////////////////////////////////////
 

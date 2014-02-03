@@ -11,10 +11,9 @@
 
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
+#include <server/hydra/rpc_helpers.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -82,7 +81,6 @@ DEFINE_RPC_SERVICE_METHOD(TTabletService, StartTransaction)
     transactionManager
         ->CreateStartTransactionMutation(*request)
         ->OnSuccess(CreateRpcSuccessHandler(context))
-        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 

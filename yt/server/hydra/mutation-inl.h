@@ -6,10 +6,95 @@
 
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/rpc/message.h>
+
 namespace NYT {
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest, class TResponse>
+struct TMutationActionTraits
+{
+    static void Run(
+        TCallback<TResponse(const TRequest& request)> handler,
+        TMutationContext* context)
+    {
+        TRequest request;
+        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->Request().Data));
+
+        TSharedRefArray responseMessage;
+        try {
+            TResponse response(handler.Run(request));
+            responseMessage = NRpc::CreateResponseMessage(std::move(response));
+        } catch (const std::exception& ex) {
+            responseMessage = NRpc::CreateErrorResponseMessage(ex);
+        }
+
+        context->Response().Data = std::move(responseMessage);
+    }
+};
+
+template <class TRequest>
+struct TMutationActionTraits<TRequest, void>
+{
+    static void Run(
+        TCallback<void(const TRequest& request)> handler,
+        TMutationContext* context)
+    {
+        TRequest request;
+        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->Request().Data));
+
+        try {
+            handler.Run(request);
+        } catch (const std::exception& ex) {
+            context->Response().Data = NRpc::CreateErrorResponseMessage(ex);
+        }
+    }
+};
+
+template <class TResponse>
+struct TMutationActionTraits<void, TResponse>
+{
+    static void Run(
+        TCallback<TResponse()> handler,
+        TMutationContext* context)
+    {
+        TSharedRefArray responseMessage;
+        try {
+            TResponse response(handler.Run());
+            responseMessage = NRpc::CreateResponseMessage(std::move(response));
+        } catch (const std::exception& ex) {
+            responseMessage = NRpc::CreateErrorResponseMessage(ex);
+        }
+
+        context->Response().Data = std::move(responseMessage);
+    }
+};
+
+template <>
+struct TMutationActionTraits<void, void>
+{
+    static void Run(
+        TCallback<void()> handler,
+        TMutationContext* context)
+    {
+        try {
+            handler.Run();
+        } catch (const std::exception& ex) {
+            context->Response().Data = NRpc::CreateErrorResponseMessage(ex);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TResponse>
+TMutationPtr TMutation::SetAction(TCallback<TResponse()> action)
+{
+    auto wrappedAction = BIND(&TMutationActionTraits<void, TResponse>::Run, std::move(action));
+    return SetAction(std::move(wrappedAction));
+}
 
 template <class TResponse>
 TMutationPtr TMutation::OnSuccess(TCallback<void(const TResponse&)> onSuccess)
@@ -17,7 +102,7 @@ TMutationPtr TMutation::OnSuccess(TCallback<void(const TResponse&)> onSuccess)
     YASSERT(!OnSuccess_);
     OnSuccess_ = BIND([=] (const TMutationResponse& mutationResponse) {
         TResponse response;
-        YCHECK(DeserializeFromProtoWithEnvelope(&response, mutationResponse.Data));
+        YCHECK(DeserializeFromProtoWithEnvelope(&response, mutationResponse.Data[0]));
         onSuccess.Run(response);
     });
     return this;
@@ -28,53 +113,10 @@ TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
     TSharedRef requestData;
     YCHECK(SerializeToProtoWithEnvelope(request, &requestData));
-    Request.Data = std::move(requestData);
-    Request.Type = request.GetTypeName();
+    Request_.Data = std::move(requestData);
+    Request_.Type = request.GetTypeName();
     return this;
 }
-
-template <class TResponse>
-struct TMutationFactory
-{
-    template <class TTarget, class TRequest>
-    static TMutationPtr Create(
-        IHydraManagerPtr hydraManager,
-        const TRequest& request,
-        TTarget* target,
-        TResponse (TTarget::* method)(const TRequest& request))
-    {
-        return
-            New<TMutation>(std::move(hydraManager))
-            ->SetRequestData(request)
-            ->SetAction(BIND([=] () {
-                TResponse response((target->*method)(request));
-
-                TSharedRef responseData;
-                YCHECK(SerializeToProtoWithEnvelope(response, &responseData));
-
-                auto* context = hydraManager->GetMutationContext();
-                YASSERT(context);
-
-                context->SetResponseData(std::move(responseData));
-            }));
-    }
-};
-
-template <>
-struct TMutationFactory<void>
-{
-    template <class TTarget, class TRequest>
-    static TMutationPtr Create(
-        IHydraManagerPtr hydraManager,
-        const TRequest& request,
-        TTarget* target,
-        void (TTarget::* method)(const TRequest& request))
-    {
-        return New<TMutation>(std::move(hydraManager))
-            ->SetRequestData(request)
-            ->SetAction(BIND(method, Unretained(target), request));
-    }
-};
 
 template <class TTarget, class TRequest, class TResponse>
 TMutationPtr CreateMutation(
@@ -83,11 +125,12 @@ TMutationPtr CreateMutation(
     TTarget* target,
     TResponse (TTarget::* method)(const TRequest& request))
 {
-    return TMutationFactory<TResponse>::Create(
-        std::move(hydraManager),
-        request,
-        target,
-        method);
+    auto handler = BIND(method, Unretained(target), request);
+    auto wrappedHandler = BIND(&TMutationActionTraits<void, TResponse>::Run, std::move(handler));
+
+    return New<TMutation>(std::move(hydraManager))
+        ->SetAction(std::move(wrappedHandler))
+        ->SetRequestData(request);
 }
 
 template <class TRequest>

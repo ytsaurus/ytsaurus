@@ -2,6 +2,8 @@
 
 #include <core/misc/common.h>
 
+#include <core/rpc/public.h>
+
 #include <ytlib/election/public.h>
 
 namespace NYT {
@@ -11,11 +13,6 @@ namespace NHydra {
 
 class TPeerDiscoveryConfig;
 typedef TIntrusivePtr<TPeerDiscoveryConfig> TPeerDiscoveryConfigPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef TGuid TMutationId;
-extern const TMutationId NullMutationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +53,11 @@ DECLARE_ENUM(EPeerRole,
     (Leader)
     (Follower)
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NRpc::TMutationId;
+using NRpc::NullMutationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

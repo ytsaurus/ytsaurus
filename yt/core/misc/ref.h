@@ -268,6 +268,12 @@ public:
         return *this;
     }
 
+    void Reset()
+    {
+        Holder.Reset();
+        Ref = TRef();
+    }
+
     template <class TTag>
     void EnsureNonShared()
     {

@@ -69,9 +69,14 @@ struct IHydraManager
      *
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture< TErrorOr<TMutationResponse> > CommitMutation(const TMutationRequest& request) = 0;
+    virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) = 0;
 
-    //! Finds the response for an earlier-committed mutation with a given id.
+    //! Registers a response for the current mutation.
+    virtual void RegisterKeptResponse(
+        const TMutationId& mutationId,
+        const TMutationResponse& response) = 0;
+
+    //! Finds the response for an earlier committed mutation with a given id.
     //! Returns |Null| if nothing is found.
     virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) = 0;
 

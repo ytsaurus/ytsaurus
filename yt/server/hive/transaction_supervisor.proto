@@ -8,8 +8,9 @@ import "yt/core/misc/error.proto";
 message TReqStartDistributedCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    repeated NYT.NProto.TGuid participant_cell_guids = 2;
-    required int64 prepare_timestamp = 3;
+    required NYT.NProto.TGuid mutation_id = 2;
+    repeated NYT.NProto.TGuid participant_cell_guids = 3;
+    required int64 prepare_timestamp = 4;
 }
 
 message TReqPrepareTransaction

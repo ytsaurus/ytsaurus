@@ -17,23 +17,6 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClosure CreateRpcSuccessHandler(IServiceContextPtr context)
-{
-    return BIND([=] () {
-        context->Reply(TError());
-    });
-}
-
-TCallback<void (const TError& error)> CreateRpcErrorHandler(IServiceContextPtr context)
-{
-    return BIND([=] (const TError& error) {
-        context->Reply(TError(
-            NRpc::EErrorCode::Unavailable,
-            "Error committing mutations")
-            << error);
-    });
-}
-
 TMutationId GenerateMutationId()
 {
     return TMutationId::Create();

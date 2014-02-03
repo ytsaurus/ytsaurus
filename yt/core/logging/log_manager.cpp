@@ -616,7 +616,9 @@ public:
         WasShutdown = true;
         Queue->Shutdown();
         Thread->Shutdown();
-        Config->FlushWriters();
+        if (Config) {
+            Config->FlushWriters();
+        }
     }
 
     /*!

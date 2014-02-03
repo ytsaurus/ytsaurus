@@ -2,9 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include composite_automaton.h"
 #endif
 
-#include "mutation_context.h"
-
-#include <core/misc/serialize.h>
+#include "mutation.h"
 
 namespace NYT {
 namespace NHydra {
@@ -12,47 +10,15 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequest, class TResponse>
-struct TCompositeAutomatonPart::TThunkTraits
-{
-    static void Thunk(
-        TCallback<TResponse(const TRequest& request)> handler,
-        TMutationContext* context)
-    {
-        TRequest request;
-        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->GetRequestData()));
-
-        auto response = handler.Run(request);
-
-        TSharedRef responseData;
-        YCHECK(SerializeToProtoWithEnvelope(response, &responseData));
-
-        context->SetResponseData(responseData);
-    }
-};
-
-template <class TRequest>
-struct TCompositeAutomatonPart::TThunkTraits<TRequest, void>
-{
-    static void Thunk(
-        TCallback<void(const TRequest& request)> handler,
-        TMutationContext* context)
-    {
-        TRequest request;
-        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->GetRequestData()));
-
-        handler.Run(request);
-    }
-};
-
-template <class TRequest, class TResponse>
 void TCompositeAutomatonPart::RegisterMethod(
     TCallback<TResponse(const TRequest&)> handler)
 {
-    auto mutationType = TRequest().GetTypeName();
     auto wrappedHandler = BIND(
-        &TThunkTraits<TRequest, TResponse>::Thunk,
+        &TMutationActionTraits<TRequest, TResponse>::Run,
         std::move(handler));
-    YCHECK(Automaton->Methods.insert(std::make_pair(mutationType, wrappedHandler)).second);
+    YCHECK(Automaton->Methods.insert(std::make_pair(
+        TRequest::default_instance().GetTypeName(),
+        std::move(wrappedHandler))).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,6 +10,8 @@
 
 #include <core/actions/invoker.h>
 
+#include <core/rpc/public.h>
+
 #include <core/logging/tagged_logger.h>
 
 #include <core/profiling/profiler.h>
@@ -33,7 +35,8 @@ public:
         IInvokerPtr automatonInvoker,
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
-        IChangelogStorePtr changelogStore);
+        IChangelogStorePtr changelogStore,
+        NProfiling::TProfiler profiler);
 
     void OnStartLeading();
     void OnLeaderRecoveryComplete();
@@ -76,7 +79,10 @@ public:
 
     void CommitMutations(TVersion version);
 
-    bool FindKeptResponse(const TMutationId& id, TSharedRef* data);
+    void RegisterKeptResponse(
+        const TMutationId& mutationId,
+        const TMutationResponse& response);
+    TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId);
 
     TMutationContext* GetMutationContext();
 
@@ -99,7 +105,7 @@ private:
     ISnapshotStorePtr SnapshotStore_;
     IChangelogStorePtr ChangelogStore_;
 
-    TResponseKeeperPtr ResponseKeeper_;
+    NRpc::TResponseKeeperPtr ResponseKeeper_;
 
     TEpochId Epoch_;
     TMutationContext* MutationContext_;
@@ -127,6 +133,7 @@ private:
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
     NLog::TTaggedLogger Logger;
+    NProfiling::TProfiler Profiler;
 
 
     void DoApplyMutation(const TSharedRef& recordData);

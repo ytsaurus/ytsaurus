@@ -35,6 +35,8 @@ public:
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
 
+    virtual TSharedRefArray GetResponseMessage() const override;
+
     virtual const TError& GetError() const override;
 
     virtual TSharedRef GetRequestBody() const override;
@@ -76,10 +78,12 @@ protected:
     TSharedRef ResponseBody;
     std::vector<TSharedRef> ResponseAttachments_;
 
+    TSharedRefArray ResponseMessage_;
+
     Stroka RequestInfo;
     Stroka ResponseInfo;
 
-    virtual void DoReply(TSharedRefArray responseMessage) = 0;
+    virtual void DoReply() = 0;
 
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;
@@ -117,6 +121,7 @@ public:
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
+    virtual TSharedRefArray GetResponseMessage() const override;
 
     virtual const TError& GetError() const override;
 

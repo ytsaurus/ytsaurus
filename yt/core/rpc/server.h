@@ -23,6 +23,8 @@ struct IServer
     virtual void Stop() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IServer)
+
 IServerPtr CreateBusServer(NBus::IBusServerPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////

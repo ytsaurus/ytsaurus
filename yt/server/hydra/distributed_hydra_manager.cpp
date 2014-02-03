@@ -11,7 +11,6 @@
 #include "automaton.h"
 #include "follower_tracker.h"
 #include "mutation_context.h"
-#include "response_keeper.h"
 #include "mutation_committer.h"
 #include "changelog_rotation.h"
 #include "snapshot_discovery.h"
@@ -24,7 +23,12 @@
 
 #include <core/ytree/fluent.h>
 
+#include <core/rpc/response_keeper.h>
+
 #include <core/logging/tagged_logger.h>
+
+#include <core/profiling/profiler.h>
+#include <core/profiling/profiling_manager.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -144,6 +148,7 @@ public:
         , ReadOnly_(false)
         , ControlState_(EPeerState::Stopped)
         , Logger(HydraLogger)
+        , Profiler(HydraProfiler)
     {
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
         VERIFY_INVOKER_AFFINITY(automatonInvoker, AutomatonThread);
@@ -152,6 +157,9 @@ public:
         Logger.AddTag(Sprintf("CellGuid: %s",
             ~ToString(CellManager_->GetCellGuid())));
 
+        auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("cell_guid", CellManager_->GetCellGuid());
+        Profiler.TagIds().push_back(tagId);
+
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,
             CellManager_,
@@ -159,7 +167,8 @@ public:
             AutomatonInvoker_,
             ControlInvoker_,
             SnapshotStore_,
-            ChangelogStore_);
+            ChangelogStore_,
+            Profiler);
 
         ElectionManager_ = New<TElectionManager>(
             Config_->Elections,
@@ -181,7 +190,7 @@ public:
             .SetInvoker(DecoratedAutomaton_->CreateGuardedUserInvoker(AutomatonInvoker_)));
 
         CellManager_->SubscribePeerReconfigured(
-            BIND(&TThis::OnPeerReconfigured, Unretained(this))
+            BIND(&TDistributedHydraManager::OnPeerReconfigured, Unretained(this))
                 .Via(ControlInvoker_));
     }
 
@@ -191,7 +200,7 @@ public:
 
         LOG_INFO("Hydra instance is starting");
 
-        ControlInvoker_->Invoke(BIND(&TThis::DoStart, MakeStrong(this)));
+        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoStart, MakeStrong(this)));
     }
 
     virtual void Stop() override
@@ -200,7 +209,7 @@ public:
 
         LOG_INFO("Hydra instance is stopping");
 
-        ControlInvoker_->Invoke(BIND(&TThis::DoStop, MakeStrong(this)));
+        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoStop, MakeStrong(this)));
     }
 
     virtual EPeerState GetControlState() const override
@@ -294,7 +303,7 @@ public:
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
 
-    virtual TFuture< TErrorOr<TMutationResponse> > CommitMutation(const TMutationRequest& request) override
+    virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(!DecoratedAutomaton_->GetMutationContext());
@@ -319,27 +328,28 @@ public:
         }
 
         if (request.Id != NullMutationId) {
-            auto response = FindKeptResponse(request.Id);
-            if (response) {
-                return MakeFuture(TErrorOr<TMutationResponse>(*response));
+            auto keptResponse = DecoratedAutomaton_->FindKeptResponse(request.Id);
+            if (keptResponse) {
+                return MakeFuture(TErrorOr<TMutationResponse>(*keptResponse));
             }
         }
 
         return epochContext->LeaderCommitter->Commit(request)
-            .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
+            .Apply(BIND(&TDistributedHydraManager::OnMutationCommitted, MakeStrong(this)));
+    }
+
+    virtual void RegisterKeptResponse(
+        const TMutationId& mutationId,
+        const TMutationResponse& response) override
+    {
+        DecoratedAutomaton_->RegisterKeptResponse(
+            mutationId,
+            response);
     }
 
     virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) override
     {
-        TSharedRef responseData;
-        if (!DecoratedAutomaton_->FindKeptResponse(mutationId, &responseData))
-            return Null;
-
-        LOG_DEBUG("Kept response returned (MutationId: %s)", ~ToString(mutationId));
-        
-        TMutationResponse response;
-        response.Data = std::move(responseData);
-        return response;
+        return DecoratedAutomaton_->FindKeptResponse(mutationId);
     }
 
     virtual TMutationContext* GetMutationContext() override
@@ -348,8 +358,6 @@ public:
     }
 
  private:
-    typedef TDistributedHydraManager TThis;
-
     TDistributedHydraManagerConfigPtr Config_;
     NRpc::IServerPtr RpcServer;
     TCellManagerPtr CellManager_;
@@ -366,6 +374,7 @@ public:
     TEpochContextPtr EpochContext_;
 
     NLog::TTaggedLogger Logger;
+    NProfiling::TProfiler Profiler;
 
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
@@ -926,9 +935,10 @@ public:
             epochContext->FollowerTracker,
             epochContext->EpochId,
             epochContext->EpochControlInvoker,
-            epochContext->EpochUserAutomatonInvoker);
+            epochContext->EpochUserAutomatonInvoker,
+            Profiler);
         epochContext->LeaderCommitter->SubscribeChangelogLimitReached(
-            BIND(&TThis::OnChangelogLimitReached, MakeWeak(this), epochContext));
+            BIND(&TDistributedHydraManager::OnChangelogLimitReached, MakeWeak(this), epochContext));
 
         epochContext->ChangelogRotation = New<TChangelogRotation>(
             Config_,
@@ -1057,7 +1067,8 @@ public:
             CellManager_,
             DecoratedAutomaton_,
             epochContext->EpochControlInvoker,
-            epochContext->EpochUserAutomatonInvoker);
+            epochContext->EpochUserAutomatonInvoker,
+            Profiler);
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);

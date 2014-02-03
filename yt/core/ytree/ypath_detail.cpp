@@ -942,10 +942,10 @@ protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(TSharedRefArray responseMessage) override
+    virtual void DoReply() override
     {
         if (ResponseHandler) {
-            ResponseHandler.Run(responseMessage);
+            ResponseHandler.Run(ResponseMessage_);
         }
     }
 

@@ -102,9 +102,9 @@ private:
     IBusPtr ReplyBus;
     NLog::TLogger Logger;
 
-    virtual void DoReply(TSharedRefArray responseMessage) override
+    virtual void DoReply() override
     {
-        Service->OnResponse(ActiveRequest, std::move(responseMessage));
+        Service->OnResponse(ActiveRequest, ResponseMessage_);
     }
 
     virtual void LogRequest() override

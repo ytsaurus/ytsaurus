@@ -14,9 +14,6 @@ namespace NHydra {
 class TSyncFileChangelog;
 typedef TIntrusivePtr<TSyncFileChangelog> TSyncFileChangelogPtr;
 
-class TResponseKeeper;
-typedef TIntrusivePtr<TResponseKeeper> TResponseKeeperPtr;
-
 class TDecoratedAutomaton;
 typedef TIntrusivePtr<TDecoratedAutomaton> TDecoratedAutomatonPtr;
 

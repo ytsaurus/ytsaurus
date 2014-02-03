@@ -8,6 +8,7 @@ namespace NRpc {
 
 const TRequestId NullRequestId;
 const TRealmId NullRealmId;
+const TMutationId NullMutationId;
 
 bool IsRetriableError(const TError& error)
 {

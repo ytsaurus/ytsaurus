@@ -66,8 +66,8 @@ void TServiceContextBase::Reply(const TError& error)
         // Cannot reply OK to a one-way request.
         YCHECK(!error.IsOK());
     } else {
-        auto responseMessage = CreateResponseMessage(this);
-        DoReply(std::move(responseMessage));
+        ResponseMessage_ = CreateResponseMessage(this);
+        DoReply();
     }
 
     LogResponse(error);
@@ -77,33 +77,34 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 {
     YASSERT(!Replied);
     YASSERT(!IsOneWay());
-
     YASSERT(responseMessage.Size() >= 1);
 
     TResponseHeader header;
     YCHECK(DeserializeFromProto(&header, responseMessage[0]));
 
     Error = FromProto(header.error());
-    ResponseBody = TSharedRef();
-    ResponseAttachments_.clear();
-
     if (Error.IsOK()) {
         YASSERT(responseMessage.Size() >= 2);
         ResponseBody = responseMessage[1];
-        ResponseAttachments_.insert(
-            ResponseAttachments_.end(),
+        ResponseAttachments_ = std::vector<TSharedRef>(
             responseMessage.Begin() + 2,
             responseMessage.End());
     } else {
-        ResponseBody = TSharedRef();
+        ResponseBody.Reset();
         ResponseAttachments_.clear();
     }
 
     Replied = true;
-
-    DoReply(std::move(responseMessage));
+    ResponseMessage_ = CreateResponseMessage(this);
+    DoReply();
     
     LogResponse(Error);
+}
+
+TSharedRefArray TServiceContextBase::GetResponseMessage() const
+{
+    YCHECK(Replied);
+    return ResponseMessage_;
 }
 
 bool TServiceContextBase::IsOneWay() const
@@ -310,6 +311,11 @@ void TServiceContextWrapper::Reply(const TError& error)
 void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
 {
     UnderlyingContext->Reply(responseMessage);
+}
+
+TSharedRefArray TServiceContextWrapper::GetResponseMessage() const
+{
+    return UnderlyingContext->GetResponseMessage();
 }
 
 const TError& TServiceContextWrapper::GetError() const

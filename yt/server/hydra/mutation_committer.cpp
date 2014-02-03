@@ -21,15 +21,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = HydraProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCommitter::TCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IInvokerPtr epochControlInvoker,
-    IInvokerPtr epochAutomatonInvoker)
+    IInvokerPtr epochAutomatonInvoker,
+    const NProfiling::TProfiler& profiler)
     : CellManager(cellManager)
     , DecoratedAutomaton(decoratedAutomaton)
     , EpochControlInvoker(epochControlInvoker)
@@ -37,6 +34,7 @@ TCommitter::TCommitter(
     , CommitCounter("/commit_rate")
     , BatchFlushCounter("/batch_flush_rate")
     , Logger(HydraLogger)
+    , Profiler(profiler)
 {
     YCHECK(DecoratedAutomaton);
     YCHECK(EpochControlInvoker);
@@ -101,11 +99,11 @@ public:
             static_cast<int>(BatchedRecordsData.size())));
         CommittedVersion = TVersion(StartVersion.SegmentId, StartVersion.RecordId + BatchedRecordsData.size());
 
-        Profiler.Enqueue("/commit_batch_size", BatchedRecordsData.size());
+        Owner->Profiler.Enqueue("/commit_batch_size", BatchedRecordsData.size());
 
         Awaiter = New<TParallelAwaiter>(
             Owner->EpochControlInvoker,
-            &Profiler,
+            &Owner->Profiler,
             "/changelog_flush_time");
 
         if (!BatchedRecordsData.empty()) {
@@ -254,12 +252,14 @@ TLeaderCommitter::TLeaderCommitter(
     TFollowerTrackerPtr followerTracker,
     const TEpochId& epochId,
     IInvokerPtr epochControlInvoker,
-    IInvokerPtr epochAutomatonInvoker)
+    IInvokerPtr epochAutomatonInvoker,
+    const NProfiling::TProfiler& profiler)
     : TCommitter(
         cellManager,
         decoratedAutomaton,
         epochControlInvoker,
-        epochAutomatonInvoker)
+        epochAutomatonInvoker,
+        profiler)
     , Config(config)
     , ChangelogStore(changelogStore)
     , FollowerTracker(followerTracker)
@@ -441,12 +441,14 @@ TFollowerCommitter::TFollowerCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IInvokerPtr epochControlInvoker,
-    IInvokerPtr epochAutomatonInvoker)
+    IInvokerPtr epochAutomatonInvoker,
+    const NProfiling::TProfiler& profiler)
     : TCommitter(
         cellManager,
         decoratedAutomaton,
         epochControlInvoker,
-        epochAutomatonInvoker)
+        epochAutomatonInvoker,
+        profiler)
 { }
 
 TFollowerCommitter::~TFollowerCommitter()

@@ -8,13 +8,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IClientRequest;
-typedef TIntrusivePtr<IClientRequest> IClientRequestPtr;
-
 class TClientRequest;
-
-struct IClientResponseHandler;
-typedef TIntrusivePtr<IClientResponseHandler> IClientResponseHandlerPtr;
 
 template <class TRequestMessage, class TResponse>
 class TTypedClientRequest;
@@ -24,46 +18,29 @@ class TClientResponse;
 template <class TResponseMessage>
 class TTypedClientResponse;
 
-class TOneWayClientResponse;
-typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
-
-class TStaticChannelFactory;
-typedef TIntrusivePtr<TStaticChannelFactory> TStaticChannelFactoryPtr;
-
-class TRetryingChannelConfig;
-typedef TIntrusivePtr<TRetryingChannelConfig> TRetryingChannelConfigPtr;
-
-class TThrottlingChannelConfig;
-typedef TIntrusivePtr<TThrottlingChannelConfig> TThrottlingChannelConfigPtr;
-
-struct IServer;
-typedef TIntrusivePtr<IServer> IServerPtr;
-
 struct TServiceId;
 
-struct IService;
-typedef TIntrusivePtr<IService> IServicePtr;
+DECLARE_REFCOUNTED_STRUCT(IClientRequest)
+DECLARE_REFCOUNTED_STRUCT(IClientResponseHandler)
+DECLARE_REFCOUNTED_STRUCT(IServer)
+DECLARE_REFCOUNTED_STRUCT(IService)
+DECLARE_REFCOUNTED_STRUCT(IServiceContext)
+DECLARE_REFCOUNTED_STRUCT(IChannel)
+DECLARE_REFCOUNTED_STRUCT(IChannelFactory)
 
-struct IServiceContext;
-typedef TIntrusivePtr<IServiceContext> IServiceContextPtr;
+DECLARE_REFCOUNTED_CLASS(TServiceBase)
+DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
+DECLARE_REFCOUNTED_CLASS(TOneWayClientResponse)
+DECLARE_REFCOUNTED_CLASS(TStaticChannelFactory)
 
-struct IChannel;
-typedef TIntrusivePtr<IChannel> IChannelPtr;
+////////////////////////////////////////////////////////////////////////////////
 
-struct IChannelFactory;
-typedef TIntrusivePtr<IChannelFactory> IChannelFactoryPtr;
-
-class TServiceBase;
-typedef TIntrusivePtr<TServiceBase> TServiceBasePtr;
-
-class TServerConfig;
-typedef TIntrusivePtr<TServerConfig> TServerConfigPtr;
-
-class TServiceConfig;
-typedef TIntrusivePtr<TServiceConfig> TServiceConfigPtr;
-
-class TMethodConfig;
-typedef TIntrusivePtr<TMethodConfig> TMethodConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TServerConfig)
+DECLARE_REFCOUNTED_CLASS(TServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TMethodConfig)
+DECLARE_REFCOUNTED_CLASS(TRetryingChannelConfig)
+DECLARE_REFCOUNTED_CLASS(TThrottlingChannelConfig)
+DECLARE_REFCOUNTED_CLASS(TResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,6 +49,9 @@ extern const TRequestId NullRequestId;
 
 typedef TGuid TRealmId;
 extern const TRealmId NullRealmId;
+
+typedef TGuid TMutationId;
+extern const TMutationId NullMutationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

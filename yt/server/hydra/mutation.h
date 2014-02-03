@@ -25,7 +25,9 @@ public:
     template <class TRequest>
     TMutationPtr SetRequestData(const TRequest& request);
 
-    TMutationPtr SetAction(TClosure action);
+    TMutationPtr SetAction(TCallback<void(TMutationContext*)> action);
+    template <class TResponse>
+    TMutationPtr SetAction(TCallback<TResponse()> action);
 
     TMutationPtr OnSuccess(TClosure onSuccess);
     TMutationPtr OnSuccess(TCallback<void(const TMutationResponse&)> onSuccess);
@@ -35,15 +37,18 @@ public:
     TMutationPtr OnError(TCallback<void(const TError&)> onError);
 
 private:
-    IHydraManagerPtr HydraManager;
+    IHydraManagerPtr HydraManager_;
 
-    TMutationRequest Request;
+    TMutationRequest Request_;
     TCallback<void(const TMutationResponse&)> OnSuccess_;
     TCallback<void(const TError&)> OnError_;
 
     TErrorOr<TMutationResponse> OnCommitted(TErrorOr<TMutationResponse> response);
 
 };
+
+template <class TRequest, class TResponse>
+struct TMutationActionTraits;
 
 ////////////////////////////////////////////////////////////////////////////////
 

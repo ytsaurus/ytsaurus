@@ -70,57 +70,6 @@ static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A wrapper that is used to postpone the reply until the mutation is committed by quorum.
-class TObjectManager::TServiceContextWrapper
-    : public NRpc::TServiceContextWrapper
-{
-public:
-    explicit TServiceContextWrapper(IServiceContextPtr underlyingContext)
-        : NRpc::TServiceContextWrapper(std::move(underlyingContext))
-        , Replied(false)
-    { }
-
-    virtual bool IsReplied() const override
-    {
-        return Replied;
-    }
-
-    virtual void Reply(const TError& error) override
-    {
-        YCHECK(!Replied);
-        Replied = true;
-        Error = error;
-    }
-
-    virtual void Reply(TSharedRefArray responseMessage) override
-    {
-        UNUSED(responseMessage);
-        YUNREACHABLE();
-    }
-
-    virtual const TError& GetError() const override
-    {
-        return Error;
-    }
-
-    TSharedRefArray GetResponseMessage()
-    {
-        YCHECK(Replied);
-        if (!ResponseMessage) {
-            ResponseMessage = CreateResponseMessage(this);
-        }
-        return ResponseMessage;
-    }
-
-private:
-    bool Replied;
-    TError Error;
-    TSharedRefArray ResponseMessage;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TObjectManager::TRootService
     : public IYPathService
 {
@@ -152,7 +101,7 @@ public:
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         auto userId = user->GetId();
-
+        
         auto mutationId = GetMutationId(context);
 
         NProto::TReqExecute request;
@@ -167,8 +116,17 @@ public:
         objectManager
             ->CreateExecuteMutation(request)
             ->SetId(mutationId)
-            ->SetAction(BIND(&TObjectManager::ExecuteMutatingRequest, objectManager, userId, context))
-            ->OnError(CreateRpcErrorHandler(context))
+            ->SetAction(BIND(
+                &TObjectManager::ExecuteMutatingRequest,
+                objectManager,
+                userId,
+                context))
+            ->OnSuccess(BIND([=] (const TMutationResponse& response) {
+                if (!context->IsReplied()) {
+                    // Handle kept response.
+                    context->Reply(response.Data);
+                }
+            }))
             ->Commit();
     }
 
@@ -859,7 +817,7 @@ TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& re
         Bootstrap->GetMetaStateFacade()->GetManager(),
         request,
         this,
-        &TThis::HydraExecute);
+        &TObjectManager::HydraExecute);
 }
 
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
@@ -868,7 +826,7 @@ TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDest
         Bootstrap->GetMetaStateFacade()->GetManager(),
         request,
         this,
-        &TThis::HydraDestroyObjects);
+        &TObjectManager::HydraDestroyObjects);
 }
 
 TFuture<void> TObjectManager::GCCollect()
@@ -1023,7 +981,9 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
     }
 }
 
-void TObjectManager::ExecuteMutatingRequest(const TUserId& userId, IServiceContextPtr context)
+void TObjectManager::ExecuteMutatingRequest(
+    const TUserId& userId,
+    IServiceContextPtr context)
 {
     try {
         auto securityManager = Bootstrap->GetSecurityManager();
@@ -1037,14 +997,7 @@ void TObjectManager::ExecuteMutatingRequest(const TUserId& userId, IServiceConte
     auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
     auto* mutationContext = hydraManager->GetMutationContext();
     if (mutationContext && !mutationContext->IsMutationSuppressed()) {
-	    YCHECK(context->IsReplied());
-	    if (mutationContext->GetId() != NullMutationId) {
-	        auto responseMessage = CreateResponseMessage(context);
-	        auto responseData = responseMessage.Pack();
-	        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
-	        auto* mutationContext = hydraManager->GetMutationContext();
-    	    mutationContext->SetResponseData(std::move(responseData));
-	    }
+        mutationContext->Response().Data = context->GetResponseMessage();
     }
 }
 
@@ -1069,7 +1022,9 @@ void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
         "", // disable logging
         TYPathResponseHandler());
 
-    ExecuteMutatingRequest(userId, std::move(context));
+    ExecuteMutatingRequest(
+        userId,
+        std::move(context));
 }
 
 void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)

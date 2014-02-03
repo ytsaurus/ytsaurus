@@ -21,21 +21,23 @@ TCommit::TCommit(const TTransactionId& transationId)
 TCommit::TCommit(
     bool persistent,
     const TTransactionId& transationId,
+    const TMutationId& mutationId,
     const std::vector<TCellGuid>& participantCellGuids)
     : TransactionId_(transationId)
+    , MutationId_(mutationId)
     , ParticipantCellGuids_(participantCellGuids)
 {
     Init();
 }
 
-TFuture<TErrorOr<TTimestamp>> TCommit::GetResult()
+TFuture<TSharedRefArray> TCommit::GetResult()
 {
     return Result_;
 }
 
-void TCommit::SetResult(const TErrorOr<TTimestamp>& result)
+void TCommit::SetResult(TSharedRefArray result)
 {
-    Result_.Set(result);
+    Result_.Set(std::move(result));
 }
 
 bool TCommit::IsDistributed() const
@@ -48,6 +50,7 @@ void TCommit::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, TransactionId_);
+    Save(context, MutationId_);
     Save(context, ParticipantCellGuids_);
     Save(context, PreparedParticipantCellGuids_);
 }
@@ -57,17 +60,17 @@ void TCommit::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, TransactionId_);
+    Load(context, MutationId_);
     Load(context, ParticipantCellGuids_);
     Load(context, PreparedParticipantCellGuids_);
 }
 
 void TCommit::Init()
 {
-    Result_ = NewPromise<TErrorOr<TTimestamp>>();
+    Result_ = NewPromise<TSharedRefArray>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NHive
 } // namespace NYT

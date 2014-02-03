@@ -59,6 +59,10 @@ struct IServiceContext
     //! Parses the message and forwards to the client.
     virtual void Reply(TSharedRefArray message) = 0;
 
+    //! Returns the serialized response message.
+    //! Can only be called after #Reply.
+    virtual TSharedRefArray GetResponseMessage() const = 0;
+
     //! Returns the error that was previously set by #Reply.
     /*!
      *  Calling #GetError before #Reply is forbidden.
@@ -105,6 +109,8 @@ struct IServiceContext
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IServiceContext)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TServiceId
@@ -142,6 +148,8 @@ struct IService
         TSharedRefArray message,
         NBus::IBusPtr replyBus) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IService)
 
 ////////////////////////////////////////////////////////////////////////////////
 

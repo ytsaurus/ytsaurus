@@ -17,21 +17,23 @@ namespace NHydra {
 struct TMutationRequest
 {
     TMutationRequest();
-
     TMutationRequest(
         Stroka type,
         TSharedRef data,
-        TClosure action = TClosure());
+        TCallback<void(TMutationContext*)> action = TCallback<void(TMutationContext*)>());
 
     Stroka Type;
     TSharedRef Data;
-    TClosure Action;
+    TCallback<void(TMutationContext*)> Action;
     TMutationId Id;
 };
 
 struct TMutationResponse
 {
-    TSharedRef Data;
+    TMutationResponse();
+    explicit TMutationResponse(TSharedRefArray data);
+
+    TSharedRefArray Data;
 };
 
 class TMutationContext
@@ -48,28 +50,23 @@ public:
         ui64 randomSeed);
 
     TVersion GetVersion() const;
-    const Stroka& GetType() const;
-    const TRef& GetRequestData() const;
-    const TClosure& GetRequestAction() const;
-    const TMutationId& GetId() const;
+    const TMutationRequest& Request() const;
     TInstant GetTimestamp() const;
-
-    TSharedRef GetResponseData() const;
-    void SetResponseData(TSharedRef data);
-
     TRandomGenerator& RandomGenerator();
+
+    TMutationResponse& Response();
 
     void SuppressMutation();
     bool IsMutationSuppressed() const;
 
 private:
-    TMutationContext* Parent;
-    TVersion Version;
-    TMutationRequest Request;
-    TInstant Timestamp;
+    TMutationContext* Parent_;
+    TVersion Version_;
+    const TMutationRequest& Request_;
+    TMutationResponse Response_;
+    TInstant Timestamp_;
     TRandomGenerator RandomGenerator_;
-    TSharedRef ResponseData;
-    bool MutationSuppressed;
+    bool MutationSuppressed_;
 
 };
 

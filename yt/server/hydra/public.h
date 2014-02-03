@@ -75,9 +75,6 @@ typedef TIntrusivePtr<TFileSnapshotStoreConfig> TFileSnapshotStoreConfigPtr;
 typedef TFileSnapshotStoreConfig TFileSnapshotCatalogConfig;
 typedef TIntrusivePtr<TFileSnapshotCatalogConfig> TFileSnapshotCatalogConfigPtr;
 
-class TResponseKeeperConfig;
-typedef TIntrusivePtr<TResponseKeeperConfig> TResponseKeeperConfigPtr;
-
 class TSnapshotDownloaderConfig;
 typedef TIntrusivePtr<TSnapshotDownloaderConfig> TSnapshotDownloaderConfigPtr;
 

@@ -24,6 +24,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TServerConfig)
+
 class TServiceConfig
     : public TYsonSerializable
 {
@@ -36,6 +38,8 @@ public:
             .Default();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TServiceConfig)
 
 class TMethodConfig
     : public TYsonSerializable
@@ -58,6 +62,8 @@ public:
             .Default();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TMethodConfig)
 
 class TRetryingChannelConfig
     : public TYsonSerializable
@@ -86,6 +92,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
+
 class TThrottlingChannelConfig
     : public TYsonSerializable
 {
@@ -100,6 +108,24 @@ public:
             .Default(10);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
+
+class TResponseKeeperConfig
+    : public TYsonSerializable
+{
+public:
+    //! For how long responses are kept in memory.
+    TDuration ExpirationTime;
+
+    TResponseKeeperConfig()
+    {
+        RegisterParameter("expiration_time", ExpirationTime)
+            .Default(TDuration::Minutes(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

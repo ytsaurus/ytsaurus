@@ -260,11 +260,12 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
 
 void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 {
-    if (context->GetType().empty()) {
+    const auto& type = context->Request().Type;
+    if (type.empty()) {
         // Empty mutation. Typically appears as a tombstone after editing changelogs.
         return;
     }
-    auto it = Methods.find(context->GetType());
+    auto it = Methods.find(type);
     YCHECK(it != Methods.end());
     it->second.Run(context);
 }

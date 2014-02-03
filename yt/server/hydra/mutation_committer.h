@@ -32,7 +32,8 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochAutomatonInvoker);
+        IInvokerPtr epochAutomatonInvoker,
+        const NProfiling::TProfiler& profiler);
 
     ~TCommitter();
 
@@ -48,6 +49,7 @@ protected:
     NProfiling::TRateCounter BatchFlushCounter;
 
     NLog::TTaggedLogger Logger;
+    NProfiling::TProfiler Profiler;
 
  };
 
@@ -67,7 +69,8 @@ public:
         TFollowerTrackerPtr followerTracker,
         const TEpochId& epoch,
         IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochAutomatonInvoker);
+        IInvokerPtr epochAutomatonInvoker,
+        const NProfiling::TProfiler& profiler);
 
     ~TLeaderCommitter();
 
@@ -78,7 +81,7 @@ public:
      *
      *  \note Thread affinity: AutomatonThread
      */
-    TFuture< TErrorOr<TMutationResponse> > Commit(const TMutationRequest& request);
+    TFuture<TErrorOr<TMutationResponse>> Commit(const TMutationRequest& request);
 
     //! Sends out the current batch of mutations.
     void Flush();
@@ -154,7 +157,8 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochAutomatonInvoker);
+        IInvokerPtr epochAutomatonInvoker,
+        const NProfiling::TProfiler& profiler);
 
     ~TFollowerCommitter();
 

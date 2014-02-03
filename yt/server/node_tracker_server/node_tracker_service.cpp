@@ -5,9 +5,9 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
+
+#include <server/hydra/rpc_helpers.h>
 
 #include <server/object_server/object_manager.h>
 
@@ -93,19 +93,9 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
         THROW_ERROR_EXCEPTION("Node %s is banned", ~address);
     }
 
-    NProto::TReqRegisterNode registerReq;
-    ToProto(registerReq.mutable_node_descriptor(), descriptor);
-    *registerReq.mutable_statistics() = statistics;
     nodeTracker
-        ->CreateRegisterNodeMutation(registerReq)
-        ->OnSuccess(BIND([=] (const NProto::TRspRegisterNode& registerRsp) {
-            auto nodeId = registerRsp.node_id();
-            context->Response().set_node_id(nodeId);
-            ToProto(response->mutable_cell_guid(), expectedCellGuid);
-            context->SetResponseInfo("NodeId: %d", nodeId);
-            context->Reply();
-        }))
-        ->OnError(CreateRpcErrorHandler(context))
+        ->CreateRegisterNodeMutation(*request)
+        ->OnSuccess(CreateRpcSuccessHandler(context))
         ->Commit();
 }
 
@@ -134,7 +124,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
     nodeTracker
         ->CreateFullHeartbeatMutation(context)
         ->OnSuccess(CreateRpcSuccessHandler(context))
-        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 
@@ -163,7 +152,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
     nodeTracker
         ->CreateIncrementalHeartbeatMutation(context)
         ->OnSuccess(CreateRpcSuccessHandler(context))
-        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 

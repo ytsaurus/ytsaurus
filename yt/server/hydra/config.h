@@ -6,6 +6,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/rpc/config.h>
+
 #include <server/election/config.h>
 
 namespace NYT {
@@ -134,25 +136,6 @@ public:
     }
 };
 
-class TResponseKeeperConfig
-    : public TYsonSerializable
-{
-public:
-    //! For how long responses are kept in memory.
-    TDuration ExpirationPeriod;
-
-    //! Interval between consequent attempts to sweep expired responses.
-    TDuration SweepPeriod;
-
-    TResponseKeeperConfig()
-    {
-        RegisterParameter("expiration_period", ExpirationPeriod)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("sweep_period", SweepPeriod)
-            .Default(TDuration::Seconds(5));
-    }
-};
-
 class TSnapshotDownloaderConfig
     : public TYsonSerializable
 {
@@ -257,7 +240,7 @@ public:
 
     TLeaderCommitterConfigPtr LeaderCommitter;
 
-    TResponseKeeperConfigPtr ResponseKeeper;
+    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     TDistributedHydraManagerConfig()
     {

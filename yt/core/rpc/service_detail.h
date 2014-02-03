@@ -497,6 +497,8 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TServiceBase)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \

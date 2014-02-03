@@ -181,10 +181,6 @@ public:
 private:
     friend class TObjectProxyBase;
 
-    typedef TObjectManager TThis;
-
-    class TServiceContextWrapper;
-
     class TRootService;
     typedef TIntrusivePtr<TRootService> TRootServicePtr;
 

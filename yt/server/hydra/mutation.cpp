@@ -9,31 +9,31 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutation::TMutation(IHydraManagerPtr hydraManager)
-    : HydraManager(std::move(hydraManager))
+    : HydraManager_(std::move(hydraManager))
 { }
 
 TFuture<TErrorOr<TMutationResponse>>  TMutation::Commit()
 {
-    return HydraManager->CommitMutation(Request).Apply(
+    return HydraManager_->CommitMutation(Request_).Apply(
         BIND(&TMutation::OnCommitted, MakeStrong(this)));
 }
 
 TMutationPtr TMutation::SetId(const TMutationId& id)
 {
-    Request.Id = id;
+    Request_.Id = id;
     return this;
 }
 
 TMutationPtr TMutation::SetRequestData(TSharedRef data, Stroka type)
 {
-    Request.Data = std::move(data);
-    Request.Type = std::move(type);
+    Request_.Data = std::move(data);
+    Request_.Type = std::move(type);
     return this;
 }
 
-TMutationPtr TMutation::SetAction(TClosure action)
+TMutationPtr TMutation::SetAction(TCallback<void(TMutationContext*)> action)
 {
-    Request.Action = std::move(action);
+    Request_.Action = std::move(action);
     return this;
 }
 
@@ -76,11 +76,9 @@ TErrorOr<TMutationResponse> TMutation::OnCommitted(TErrorOr<TMutationResponse> r
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutationPtr CreateMutation(
-    IHydraManagerPtr hydraManager)
+TMutationPtr CreateMutation(IHydraManagerPtr hydraManager)
 {
-    return New<TMutation>(
-        std::move(hydraManager));
+    return New<TMutation>(std::move(hydraManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

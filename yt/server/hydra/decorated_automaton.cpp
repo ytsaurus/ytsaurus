@@ -5,11 +5,12 @@
 #include "changelog.h"
 #include "automaton.h"
 #include "serialize.h"
-#include "response_keeper.h"
 #include "mutation_context.h"
 #include "snapshot_discovery.h"
 
 #include <core/concurrency/fiber.h>
+
+#include <core/rpc/response_keeper.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -24,10 +25,7 @@ namespace NHydra {
 
 using namespace NConcurrency;
 using namespace NElection;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static auto& Profiler = HydraProfiler;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,7 +194,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr automatonInvoker,
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
-    IChangelogStorePtr changelogStore)
+    IChangelogStorePtr changelogStore,
+    NProfiling::TProfiler profiler)
     : State_(EPeerState::Stopped)
     , Config_(config)
     , CellManager_(cellManager)
@@ -211,6 +210,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , MutationContext_(nullptr)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
+    , Profiler(profiler)
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
@@ -227,9 +227,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
         ~ToString(CellManager_->GetCellGuid())));
 
     ResponseKeeper_ = New<TResponseKeeper>(
-        config->ResponseKeeper,
-        CellManager_,
-        AutomatonInvoker_);
+        Config_->ResponseKeeper,
+        Profiler);
 
     Reset();
 }
@@ -386,8 +385,7 @@ void TDecoratedAutomaton::LogMutationAtLeader(
     
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
 
-    LOG_DEBUG("Logging mutation %s at version %s",
-        ~ToString(request.Id),
+    LOG_DEBUG("Logging mutation at version %s",
         ~ToString(LoggedVersion_));
 
     auto changelog = GetCurrentChangelog();
@@ -420,8 +418,7 @@ void TDecoratedAutomaton::LogMutationAtFollower(
     pendingMutation.RandomSeed  = MutationHeader_.random_seed();
     PendingMutations_.push(pendingMutation);
 
-    LOG_DEBUG("Logging mutation %s at version %s",
-        ~ToString(pendingMutation.Request.Id),
+    LOG_DEBUG("Logging mutation at version %s",
         ~ToString(LoggedVersion_));
 
     auto changelog = GetCurrentChangelog();
@@ -520,8 +517,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
             if (pendingMutation.Version >= version)
                 break;
 
-            LOG_DEBUG("Applying mutation %s at version %s",
-                ~ToString(pendingMutation.Request.Id),
+            LOG_DEBUG("Applying mutation at version %s",
                 ~ToString(pendingMutation.Version));
 
             // Check for rotated changelogs, update segmentId if needed.
@@ -548,9 +544,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
             }
 
             if (pendingMutation.CommitPromise) {
-                TMutationResponse response;
-                response.Data = context.GetResponseData();
-                pendingMutation.CommitPromise.Set(std::move(response));
+                pendingMutation.CommitPromise.Set(context.Response());
             }
 
             MaybeStartSnapshotBuilder();
@@ -594,25 +588,53 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    YASSERT(!MutationContext_);
     MutationContext_ = context;
-    const auto& action = context->GetRequestAction();
-    if (!action) {
-        Automaton_->ApplyMutation(context);
+
+    const auto& request = context->Request();
+    const auto& response = context->Response();
+
+    if (request.Action) {
+        request.Action.Run(context);
     } else {
-        action.Run();
+        Automaton_->ApplyMutation(context);
     }
+
+    if (context->Request().Id == NullMutationId) {
+        ResponseKeeper_->RemoveExpiredResponses(context->GetTimestamp());
+    } else {
+        ResponseKeeper_->RegisterResponse(
+            request.Id,
+            response.Data,
+            context->GetTimestamp());
+    }
+
     MutationContext_ = nullptr;
-    
-    if (context->GetId() != NullMutationId) {
-        ResponseKeeper_->RegisterResponse(context->GetId(), context->GetResponseData());
-    }
 }
 
-bool TDecoratedAutomaton::FindKeptResponse(const TMutationId& id, TSharedRef* data)
+void TDecoratedAutomaton::RegisterKeptResponse(
+    const TMutationId& mutationId,
+    const TMutationResponse& response)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YASSERT(MutationContext_);
+
+    ResponseKeeper_->RegisterResponse(
+        mutationId,
+        response.Data,
+        MutationContext_->GetTimestamp());
+}
+
+TNullable<TMutationResponse> TDecoratedAutomaton::FindKeptResponse(const TMutationId& mutationId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return ResponseKeeper_->FindResponse(id, data);
+    auto data = ResponseKeeper_->FindResponse(mutationId);
+    if (!data) {
+        return Null;
+    }
+
+    return TMutationResponse(std::move(data));
 }
 
 IChangelogPtr TDecoratedAutomaton::GetCurrentChangelog()

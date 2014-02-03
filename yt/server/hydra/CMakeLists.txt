@@ -14,7 +14,6 @@ set( SRCS
   ${BASE}/file_snapshot_catalog.cpp
   ${BASE}/mutation_context.cpp
   ${BASE}/decorated_automaton.cpp
-  ${BASE}/response_keeper.cpp
   ${BASE}/serialize.cpp
   ${BASE}/snapshot_discovery.cpp
   ${BASE}/snapshot_download.cpp
@@ -31,6 +30,7 @@ set( SRCS
   ${BASE}/composite_automaton.cpp
   ${BASE}/mutation.cpp
   ${BASE}/hydra_service.cpp
+  ${BASE}/rpc_helpers.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -51,7 +51,6 @@ set( HDRS
   ${BASE}/automaton.h
   ${BASE}/mutation_context.h
   ${BASE}/decorated_automaton.h
-  ${BASE}/response_keeper.h
   ${BASE}/serialize.h
   ${BASE}/snapshot_discovery.h
   ${BASE}/snapshot_download.h
@@ -70,6 +69,7 @@ set( HDRS
   ${BASE}/entity_map-inl.h
   ${BASE}/entity_map.h
   ${BASE}/hydra_service.h
+  ${BASE}/rpc_helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES

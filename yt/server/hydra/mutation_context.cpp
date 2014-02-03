@@ -12,7 +12,7 @@ TMutationRequest::TMutationRequest()
 TMutationRequest::TMutationRequest(
     Stroka type,
     TSharedRef data,
-    TClosure action /*= TClosure()*/ )
+    TCallback<void(TMutationContext*)> action)
     : Type(std::move(type))
     , Data(std::move(data))
     , Action(std::move(action))
@@ -20,14 +20,23 @@ TMutationRequest::TMutationRequest(
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TMutationResponse::TMutationResponse()
+{ }
+
+TMutationResponse::TMutationResponse(TSharedRefArray data)
+    : Data(std::move(data))
+{ }
+
+///////////////////////////////////////////////////////////////////////////////
+
 TMutationContext::TMutationContext(
     TMutationContext* parent,
     const TMutationRequest& request)
-    : Parent(parent)
-    , Version(Parent->GetVersion())
-    , Request(request)
-    , Timestamp(Parent->GetTimestamp())
-    , MutationSuppressed(false)
+    : Parent_(parent)
+    , Version_(Parent_->GetVersion())
+    , Request_(request)
+    , Timestamp_(Parent_->GetTimestamp())
+    , MutationSuppressed_(false)
 { }
 
 TMutationContext::TMutationContext(
@@ -35,71 +44,50 @@ TMutationContext::TMutationContext(
     const TMutationRequest& request,
     TInstant timestamp,
     ui64 randomSeed)
-    : Parent(nullptr)
-    , Version(version)
-    , Request(request)
-    , Timestamp(timestamp)
+    : Parent_(nullptr)
+    , Version_(version)
+    , Request_(request)
+    , Timestamp_(timestamp)
     , RandomGenerator_(randomSeed)
-    , MutationSuppressed(false)
+    , MutationSuppressed_(false)
 { }
 
 TVersion TMutationContext::GetVersion() const
 {
-    return Version;
+    return Version_;
 }
 
-const Stroka& TMutationContext::GetType() const
+const TMutationRequest& TMutationContext::Request() const
 {
-    return Request.Type;
-}
-
-const TRef& TMutationContext::GetRequestData() const
-{
-    return Request.Data;
-}
-
-const TClosure& TMutationContext::GetRequestAction() const
-{
-    return Request.Action;
-}
-
-const TMutationId& TMutationContext::GetId() const
-{
-    return Request.Id;
+    return Request_;
 }
 
 TInstant TMutationContext::GetTimestamp() const
 {
-    return Timestamp;
+    return Timestamp_;
 }
 
 TRandomGenerator& TMutationContext::RandomGenerator()
 {
-    return Parent ? Parent->RandomGenerator() : RandomGenerator_;
+    return Parent_ ? Parent_->RandomGenerator() : RandomGenerator_;
 }
 
-TSharedRef TMutationContext::GetResponseData() const
+TMutationResponse& TMutationContext::Response()
 {
-    return ResponseData;
-}
-
-void TMutationContext::SetResponseData(TSharedRef data)
-{
-    ResponseData = std::move(data);
+    return Response_;
 }
 
 void TMutationContext::SuppressMutation()
 {
-    MutationSuppressed = true;
+    MutationSuppressed_ = true;
 }
 
 bool TMutationContext::IsMutationSuppressed() const
 {
-    return MutationSuppressed;
+    return MutationSuppressed_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NHydra
 } // namespace NYT

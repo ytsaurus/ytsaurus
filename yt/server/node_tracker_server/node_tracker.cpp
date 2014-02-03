@@ -50,6 +50,7 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = NodeTrackerServerLogger;
+static auto& Profiler = NodeTrackerServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,13 +65,11 @@ public:
         , Config(config)
         , OnlineNodeCount(0)
         , RegisteredNodeCount(0)
-        , Profiler(NodeTrackerServerProfiler)
     {
-        RegisterMethod(BIND(&TImpl::RegisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
-
+        RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
+        RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -120,15 +119,24 @@ public:
     {
         return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND(&TThis::RpcFullHeartbeat, MakeStrong(this), context));
-    }
+            ->SetAction(BIND(
+                &TImpl::HydraFullHeartbeat,
+                MakeStrong(this),
+                context,
+                ConstRef(context->Request())));
+   }
 
     TMutationPtr CreateIncrementalHeartbeatMutation(
         TCtxIncrementalHeartbeatPtr context)
     {
         return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND(&TThis::RpcIncrementalHeartbeat, MakeStrong(this), context));
+            ->SetAction(BIND(
+                &TImpl::HydraIncrementalHeartbeat,
+                MakeStrong(this),
+                context,
+                &context->Response(),
+                ConstRef(context->Request())));
     }
 
 
@@ -235,14 +243,10 @@ public:
     }
 
 private:
-    typedef TImpl TThis;
-
     TNodeTrackerConfigPtr Config;
 
     int OnlineNodeCount;
     int RegisteredNodeCount;
-
-    NProfiling::TProfiler& Profiler;
 
     TIdGenerator NodeIdGenerator;
 
@@ -287,7 +291,7 @@ private:
     }
 
 
-    TRspRegisterNode RegisterNode(const TReqRegisterNode& request)
+    TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
         auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
         const auto& statistics = request.statistics();
@@ -308,10 +312,11 @@ private:
 
         TRspRegisterNode response;
         response.set_node_id(node->GetId());
+        ToProto(response.mutable_cell_guid(), Bootstrap->GetCellGuid());
         return response;
     }
 
-    void UnregisterNode(const TReqUnregisterNode& request)
+    void HydraUnregisterNode(const TReqUnregisterNode& request)
     {
         auto nodeId = request.node_id();
 
@@ -323,13 +328,9 @@ private:
         DoUnregisterNode(node);
     }
 
-
-    void RpcFullHeartbeat(TCtxFullHeartbeatPtr context)
-    {
-        return HydraFullHeartbeat(context->Request());
-    }
-
-    void HydraFullHeartbeat(const TReqFullHeartbeat& request)
+    void HydraFullHeartbeat(
+        TCtxFullHeartbeatPtr context,
+        const TReqFullHeartbeat& request)
     {
         PROFILE_TIMING ("/full_heartbeat_time") {
             auto nodeId = request.node_id();
@@ -360,18 +361,10 @@ private:
         }
     }
 
-
-    void RpcIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
-    {
-        DoIncrementalHeartbeat(context->Request(), &context->Response());
-    }
-
-    void HydraIncrementalHeartbeat(const TReqIncrementalHeartbeat& request)
-    {
-        DoIncrementalHeartbeat(request, nullptr);
-    }
-
-    void DoIncrementalHeartbeat(const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response)
+    void HydraIncrementalHeartbeat(
+        TCtxIncrementalHeartbeatPtr context,
+        TRspIncrementalHeartbeat* response,
+        const TReqIncrementalHeartbeat& request)
     {
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto nodeId = request.node_id();
@@ -750,8 +743,8 @@ private:
 
         auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
         auto mutation = CreateUnregisterNodeMutation(message)
-            ->OnSuccess(BIND(&TThis::OnUnregisterCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
-            ->OnError(BIND(&TThis::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker));
+            ->OnSuccess(BIND(&TImpl::OnUnregisterCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
+            ->OnError(BIND(&TImpl::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker));
         invoker->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
     }
 

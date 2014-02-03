@@ -12,7 +12,6 @@
 
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
-#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/hive/cell_directory.h>
 
@@ -23,6 +22,7 @@
 #include <server/hydra/mutation_context.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/hydra_service.h>
+#include <server/hydra/rpc_helpers.h>
 
 #include <server/hive/hive_manager.pb.h>
 
@@ -224,7 +224,6 @@ private:
         
         CreateReceiveMessagesMutation(context)
             ->OnSuccess(CreateRpcSuccessHandler(context))
-            ->OnError(CreateRpcErrorHandler(context))
             ->Commit();
     }
 

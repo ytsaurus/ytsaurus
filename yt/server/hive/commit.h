@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <core/misc/property.h>
-#include <core/misc/error.h>
+
+#include <ytlib/hydra/public.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -17,6 +18,7 @@ namespace NHive {
 class TCommit
 {
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
+    DEFINE_BYVAL_RO_PROPERTY(NHydra::TMutationId, MutationId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellGuid>, ParticipantCellGuids);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellGuid>, PreparedParticipantCellGuids);
 
@@ -25,10 +27,11 @@ public:
     TCommit(
         bool persistent,
         const TTransactionId& transactionId,
+        const NHydra::TMutationId& mutationId,
         const std::vector<TCellGuid>& participantCellGuids);
 
-    TFuture<TErrorOr<TTimestamp>> GetResult();
-    void SetResult(const TErrorOr<TTimestamp>& result);
+    TFuture<TSharedRefArray> GetResult();
+    void SetResult(TSharedRefArray result);
 
     bool IsDistributed() const;
 
@@ -36,7 +39,7 @@ public:
     void Load(NHydra::TLoadContext& context);
 
 private:
-    TPromise<TErrorOr<TTimestamp>> Result_;
+    TPromise<TSharedRefArray> Result_;
 
     void Init();
 

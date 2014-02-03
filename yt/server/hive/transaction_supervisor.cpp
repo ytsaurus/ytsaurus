@@ -8,6 +8,7 @@
 
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
+#include <core/rpc/message.h>
 
 #include <core/ytree/attribute_helpers.h>
 
@@ -23,6 +24,7 @@
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
 #include <server/hydra/hydra_service.h>
+#include <server/hydra/rpc_helpers.h>
 
 #include <server/election/election_manager.h>
 
@@ -83,7 +85,7 @@ public:
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartDistributedCommit, Unretained(this), nullptr));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraFinalizeDistributedCommit, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this), nullptr));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnTransactionPrepared, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitPreparedTransaction, Unretained(this)));
@@ -125,8 +127,6 @@ public:
     }
 
 private:
-    typedef TImpl TThis;
-    
     TTransactionSupervisorConfigPtr Config;
     IServerPtr RpcServer;
     THiveManagerPtr HiveManager;
@@ -143,27 +143,41 @@ private:
     {
         ValidateActiveLeader();
 
+        auto mutationId = GetMutationId(context);
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto participantCellGuids = FromProto<TCellGuid>(request->participant_cell_guids());
 
+        context->SetRequestInfo("TransactionId: %s, ParticipantCellGuids: [%s]",
+            ~ToString(transactionId),
+            ~JoinToString(participantCellGuids));
+
         auto prepareTimestamp = TimestampProvider->GetLatestTimestamp();
 
-        if (request->participant_cell_guids_size() == 0) {
+        if (participantCellGuids.empty()) {
             // Simple commit.
-            context->SetRequestInfo("TransactionId: %s",
-                ~ToString(transactionId));
-
             auto* commit = FindCommit(transactionId);
             if (commit) {
                 LOG_DEBUG("Waiting for simple commit to complete (TransactionId: %s)",
                     ~ToString(transactionId));
-                SubscribeToCommitResult(commit, context);
+                ReplyWhenFinished(commit, context);
                 return;
             }
 
-            commit = new TCommit(false, transactionId, participantCellGuids);
+            auto keptResponse = HydraManager->FindKeptResponse(mutationId);
+            if (keptResponse) {
+                LOG_DEBUG("Replying with kept response (TransactionId: %s)",
+                    ~ToString(transactionId));
+                context->Reply(keptResponse->Data);
+                return;
+            }
+
+            commit = new TCommit(
+                false,
+                transactionId,
+                mutationId,
+                participantCellGuids);
             SimpleCommitMap.Insert(transactionId, commit);
-            SubscribeToCommitResult(commit, context);
+            ReplyWhenFinished(commit, context);
 
             try {
                 // Any exception thrown here is replied to the client.
@@ -183,11 +197,12 @@ private:
                 ~ToString(transactionId),
                 prepareTimestamp);
 
-            GenerateCommitTimestamp(commit);
+            RunCommit(commit);
         } else {
             // Distributed commit.
             TReqStartDistributedCommit startCommitRequest;
             startCommitRequest.mutable_transaction_id()->Swap(request->mutable_transaction_id());
+            ToProto(startCommitRequest.mutable_mutation_id(), mutationId);
             startCommitRequest.mutable_participant_cell_guids()->Swap(request->mutable_participant_cell_guids());
             startCommitRequest.set_prepare_timestamp(prepareTimestamp);
             CreateMutation(HydraManager, startCommitRequest)
@@ -200,8 +215,15 @@ private:
     {
         ValidateActiveLeader();
 
+        auto mutationId = GetMutationId(context);
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        context->SetRequestInfo("TransactionId: %s",
+            ~ToString(transactionId));
+
         CreateMutation(HydraManager, *request)
-            ->SetAction(BIND(&TImpl::HydraAbortTransaction, MakeStrong(this), context, ConstRef(*request)))
+            ->SetId(mutationId)
+            ->OnSuccess(CreateRpcSuccessHandler(context))
             ->Commit();
     }
 
@@ -210,6 +232,7 @@ private:
         ValidateActiveLeader();
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
         context->SetRequestInfo("TransactionId: %s",
             ~ToString(transactionId));
 
@@ -222,44 +245,25 @@ private:
 
     // Hydra handlers.
 
-    void HydraAbortTransaction(TCtxAbortTransactionPtr context, const TReqAbortTransaction& request)
+    TRspAbortTransaction HydraAbortTransaction(const TReqAbortTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
 
-        if (context) {
-            context->SetRequestInfo("TransactionId: %s",
-                ~ToString(transactionId));
-        }
-
-        try {
-            // Any exception thrown here is replied to the client.
-            TransactionManager->AbortTransaction(transactionId);
-        } catch (const std::exception& ex) {
-            if (context) {
-                context->Reply(ex);
-            }
-            return;
-        }
+        // Any exception thrown here is replied to the client.
+        TransactionManager->AbortTransaction(transactionId);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
             ~ToString(transactionId));
 
-        if (context) {
-            context->Reply();
-        }
+        return TRspAbortTransaction();
     }
 
     void HydraStartDistributedCommit(TCtxCommitTransactionPtr context, const TReqStartDistributedCommit& request)
     {
+        auto mutationId = FromProto<TMutationId>(request.mutation_id());
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto participantCellGuids = FromProto<TCellGuid>(request.participant_cell_guids());
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
-
-        if (context) {
-            context->SetRequestInfo("TransactionId: %s, ParticipantCellGuids: [%s]",
-                ~ToString(transactionId),
-                ~JoinToString(participantCellGuids));
-        }
 
         YCHECK(!SimpleCommitMap.Find(transactionId));
 
@@ -268,16 +272,20 @@ private:
             if (context) {
                 LOG_DEBUG("Waiting for distributed commit to complete (TransactionId: %s)",
                     ~ToString(transactionId));
-                SubscribeToCommitResult(commit, context);
+                ReplyWhenFinished(commit, context);
             }
             return;
         }
             
-        commit = new TCommit(true, transactionId, participantCellGuids);
+        commit = new TCommit(
+            true,
+            transactionId,
+            mutationId,
+            participantCellGuids);
         DistributedCommitMap.Insert(transactionId, commit);
 
         if (context) {
-            SubscribeToCommitResult(commit, context);
+            ReplyWhenFinished(commit, context);
         }
 
         const auto& coordinatorCellGuid = HiveManager->GetSelfCellGuid();
@@ -446,7 +454,8 @@ private:
 
     void SetCommitFailed(TCommit* commit, const TError& error)
     {
-        commit->SetResult(error);
+        auto responseMessage = CreateErrorResponseMessage(error);
+        SetCommitResult(commit, responseMessage);
 
         const auto& transactionId = commit->GetTransactionId();
 
@@ -475,8 +484,23 @@ private:
             ~ToString(commit->GetTransactionId()),
             commitTimestamp);
 
-        commit->SetResult(TErrorOr<TTimestamp>(commitTimestamp));
+        TRspCommitTransaction response;
+        response.set_commit_timestamp(commitTimestamp);
+        
+        auto responseMessage = CreateResponseMessage(response);
+        SetCommitResult(commit, responseMessage);
+
         RemoveCommit(commit);
+    }
+
+    void SetCommitResult(TCommit* commit, TSharedRefArray result)
+    {
+        auto mutationId = commit->GetMutationId();
+        if (HydraManager->IsMutating() && mutationId != NullMutationId) {
+            HydraManager->RegisterKeptResponse(mutationId, TMutationResponse(result));
+        }
+
+        commit->SetResult(std::move(result));
     }
 
     void RemoveCommit(TCommit* commit)
@@ -488,16 +512,10 @@ private:
         }
     }
 
-    static void SubscribeToCommitResult(TCommit* commit, TCtxCommitTransactionPtr context)
+    static void ReplyWhenFinished(TCommit* commit, TCtxCommitTransactionPtr context)
     {
-        commit->GetResult().Subscribe(BIND([=] (TErrorOr<TTimestamp> result) {
-            if (result.IsOK()) {
-                auto& response = context->Response();
-                response.set_commit_timestamp(result.GetValue());
-                context->Reply();
-            } else {
-                context->Reply(result);
-            }
+        commit->GetResult().Subscribe(BIND([=] (TSharedRefArray message) {
+            context->Reply(std::move(message));
         }));
     }
 
@@ -520,7 +538,7 @@ private:
 
 
 
-    void GenerateCommitTimestamp(TCommit* commit)
+    void RunCommit(TCommit* commit)
     {
         TimestampProvider->GenerateNewTimestamp()
             .Subscribe(BIND(&TImpl::OnCommitTimestampGenerated, MakeStrong(this), commit->GetTransactionId())
@@ -529,7 +547,7 @@ private:
 
     void OnCommitTimestampGenerated(
         const TTransactionId& transactionId,
-        TErrorOr<TTimestamp> timestampOrError)
+        TErrorOr<TTimestamp> timestampOrError) 
     {
         auto* commit = FindCommit(transactionId);
         if (!commit) {
@@ -641,7 +659,7 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit second phase started (TransactionId: %s)",
             ~ToString(transactionId));
 
-        GenerateCommitTimestamp(commit);
+        RunCommit(commit);
     }
 
     
