@@ -172,6 +172,9 @@ struct TAggregateCounter
 class TProfiler
 {
 public:
+    //! Constructs a disabled profiler.
+    TProfiler();
+
     //! Constructs a new profiler for a given prefix.
     /*!
      *  By default the profiler is enabled.

@@ -109,6 +109,10 @@ void TAggregateCounter::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TProfiler::TProfiler()
+    : Enabled_(false)
+{ }
+
 TProfiler::TProfiler(
     const TYPath& pathPrefix,
     const TTagIdList& tagIds,
