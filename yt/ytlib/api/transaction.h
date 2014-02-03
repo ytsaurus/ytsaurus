@@ -30,7 +30,6 @@ struct IRowset
     virtual const std::vector<NVersionedTableClient::TUnversionedRow>& Rows() const = 0;
 };
 
-
 DEFINE_REFCOUNTED_TYPE(IRowset)
 
 ///////////////////////////////////////////////////////////////////////////////
