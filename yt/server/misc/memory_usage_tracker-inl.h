@@ -12,7 +12,9 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class EMemoryConsumer>
-TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(i64 totalMemory, Stroka profilingPath)
+TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(
+    i64 totalMemory,
+    const Stroka& profilingPath)
     : TotalMemory(totalMemory)
     , FreeMemory(totalMemory)
     , Profiler(profilingPath + "/memory_usage")
