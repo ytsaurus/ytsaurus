@@ -53,6 +53,7 @@ public:
         RegisterParameter("path", Path)
             .NonEmpty();
         RegisterParameter("quota", Quota)
+            .GreaterThanOrEqual(0)
             .Default(TNullable<i64>());
         RegisterParameter("min_disk_space", MinDiskSpace)
             .Default(TNullable<i64>());
