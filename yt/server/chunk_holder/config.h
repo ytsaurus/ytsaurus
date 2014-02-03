@@ -56,6 +56,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default(TNullable<i64>());
         RegisterParameter("min_disk_space", MinDiskSpace)
+            .GreaterThanOrEqual(0)
             .Default(TNullable<i64>());
         RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
