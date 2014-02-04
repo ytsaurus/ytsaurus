@@ -69,7 +69,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         time.sleep(2)
         self.Env._kill_service("scheduler")
-        self.Env._run_ytserver("scheduler")
+        self.Env.start_schedulers("scheduler")
 
         track_op(op_id)
 
