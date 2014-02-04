@@ -31,18 +31,8 @@ public:
     void Reclaim(T* obj);
 
 private:
-	struct THeader
-	{
-		TInstant ExpireTime;
-	};
-
-    TLockFreeQueue<TEntry> PooledObjects_;
+    TLockFreeQueue<T*> PooledObjects_;
     TAtomic PoolSize_;
-
-
-    T* AllocateInstance();
-    void DisposeInstance(T* obj);
-    THeader* GetHeader(T* obj);
 
 };
 
@@ -57,37 +47,10 @@ TObjectPool<T>& ObjectPool();
  * 
  * |GetMaxPoolSize| method is called to determine the maximum number of
  * objects allowed to be pooled.
- *
- * |GetMaxLifetime| method is called to determine the maximum amount of
- * time a pooled instance is allowed to live (plus a random duration not
- * in the range from 0 to|GetMaxLifetimeSplay|).
  */
 template <class T, class = void>
 struct TPooledObjectTraits
 { };
-
-//! Basic version of traits. Others may consider inheriting from it.
-struct TPooledObjectTraitsBase
-{
-	template <class T>
-    static void Clean(T*)
-    { }
-
-    static int GetMaxPoolSize()
-    {
-        return 256;
-    }
-
-    static TDuration GetMaxLifetime()
-    {
-        return TDuration::Seconds(60);
-    }
-
-    static TDuration GetMaxLifetimeSplay()
-    {
-    	return TDuration::Seconds(60);
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

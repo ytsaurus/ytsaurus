@@ -894,12 +894,11 @@ template <size_t Size, int GuardedPages>
 struct TPooledObjectTraits<
     NConcurrency::TFiberStack<Size, GuardedPages>,
     void>
-    : public TPooledObjectTraitsBase
 {
     static void Clean(NConcurrency::TFiberStack<Size, GuardedPages>* stack)
     {
 #ifndef NDEBUG
-        ::memset(stack->GetStack(), 0, stack->GetSize());
+    ::memset(stack->GetStack(), 0, stack->GetSize());
 #endif
     }
 
