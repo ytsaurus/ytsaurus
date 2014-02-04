@@ -21,8 +21,9 @@ typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
     if (PooledObjects_.Dequeue(&object)) {
         AtomicDecrement(PoolSize_);
     } else {
-        object = new T();
+        object = AllocateInstance();
     }
+    
     return TValuePtr(object, [] (T* object) {
         ObjectPool<T>().Reclaim(object);
     });
@@ -31,6 +32,12 @@ typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
 template <class T>
 void TObjectPool<T>::Reclaim(T* obj)
 {
+    auto* header = GetHeader(obj);
+    if (header->ExpireTime > TInstant::Now()) {
+        DisposeInstance(obj);
+        return;
+    }
+
     TPooledObjectTraits<T>::Clean(obj);
     PooledObjects_.Enqueue(obj);
     if (AtomicIncrement(PoolSize_) > TPooledObjectTraits<T>::GetMaxPoolSize()) {
@@ -40,6 +47,34 @@ void TObjectPool<T>::Reclaim(T* obj)
             delete objToDestroy;
         }
     }
+}
+
+template <class T>
+T* TObjectPool<T>::AllocateInstance()
+{
+    char* buffer = new char[sizeof (THeader) + sizeof (T)];
+    auto* header = reinterpret_cast<THeader*>(buffer);
+    auto* obj = reinterpret_cast<T*>(header + 1);
+    new (obj) T();
+    header->ExpireTime =
+        TInstant::Now() +
+        TPooledObjectTraits<T>::GetMaxLifetime() +
+        RandomDuration(TPooledObjectTraits<T>::GetMaxLifetimeSplay());
+    return obj;
+}
+
+template <class T>
+void TObjectPool<T>::DisposeInstance(T* obj)
+{
+    obj->~T();
+    auto* buffer = reinterpret_cast<char*>(obj) - sizeof (THeader);
+    delete[] buffer;
+}
+
+tempalte <class T>
+TObjectPool<T>::THeader TObjectPool<T>::GetHeader(T* obj)
+{
+    return reinterpret_cast<THeader*>(obj) - 1;
 }
 
 template <class T>
@@ -75,15 +110,11 @@ struct TPooledObjectTraits<
         NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&> 
     >::TType
 >
+    : public TPooledObjectTraitsBase
 {
     static void Clean(::google::protobuf::MessageLite* obj)
     {
         obj->Clear();
-    }
-
-    static int GetMaxPoolSize()
-    {
-        return 256;
     }
 };
 
