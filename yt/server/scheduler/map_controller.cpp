@@ -5,6 +5,7 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
+#include "helpers.h"
 
 #include <ytlib/ytree/fluent.h>
 
@@ -64,7 +65,7 @@ public:
             .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
-                        .Item("command").Value(Spec->Mapper->Command)
+                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
                     .EndMap();
             });
     }

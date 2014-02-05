@@ -2694,7 +2694,7 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    LOG_INFO("Input totals collected (ChunkCount: %d, DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+    LOG_INFO("Input totals collected (ChunkCount: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ValueCount: %" PRId64 ")",
         TotalInputChunkCount,
         TotalInputDataSize,
         TotalInputRowCount,
