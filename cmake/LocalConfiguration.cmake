@@ -175,19 +175,19 @@ endif()
 if (MSVC)
   # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS}" )
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} /Gd /EHsc" )
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} /Gd /EHsc /bigobj" )
 
   # These are configuration-specific compliation flags.
   # http://msdn.microsoft.com/en-us/library/fwkeyyhe.aspx
   set( CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /Oy- /GS /MDd" )
-  set( CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )
-  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL" )
-  set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL" )
+  set( CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Oy- /GT" )
+  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GT" )
+  set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GT" )
 
   set( CMAKE_C_FLAGS_DEBUG "/Zi /Od /Oy- /GS /MDd" )
-  set( CMAKE_C_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )
-  set( CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL" )
-  set( CMAKE_C_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL" )
+  set( CMAKE_C_FLAGS_RELEASE "/O2 /Oi /Oy- /GT" )
+  set( CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GT" )
+  set( CMAKE_C_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GT" )
 
   set( CMAKE_EXE_LINKER_FLAGS_DEBUG "/DEBUG" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "/DEBUG" )
