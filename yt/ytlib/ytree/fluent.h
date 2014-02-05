@@ -433,12 +433,12 @@ public:
             return *this;
         }
 
-        TThis& Items(IAttributeDictionary* attributes)
+        TThis& Items(const IAttributeDictionary& attributes)
         {
-            FOREACH (const auto& key, attributes->List()) {
-                const auto& yson = attributes->GetYson(key);
+            FOREACH (const auto& key, attributes.List()) {
+                const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                ParseYson(yson, this->Consumer);
+                this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
             }
             return *this;
         }
