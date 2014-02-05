@@ -1774,17 +1774,18 @@ private:
         auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
         sortJobCount = std::min(sortJobCount, static_cast<int>(stripes.size()));
 
-        // Initialize counters.
-        PartitionJobCounter.Set(0);
-        SortDataSizeCounter.Set(TotalInputDataSize);
-        InitSimpleSortPool(sortJobCount);
-
         // Create the fake partition.
+        InitSimpleSortPool(sortJobCount);
         auto partition = New<TPartition>(this, 0);
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = ~SimpleSortPool;
         partition->SortTask->AddInput(stripes);
         partition->SortTask->FinishInput();
+
+        // Initialize counters.
+        PartitionJobCounter.Set(0);
+        // NB: Cannot use TotalInputDataSize due to slicing and rounding issues.
+        SortDataSizeCounter.Set(SimpleSortPool->GetTotalDataSize());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %d)",
             sortJobCount);
