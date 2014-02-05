@@ -3,7 +3,7 @@
 #include "private.h"
 
 #include "coordinate_controller.h"
-#include "evaluate_controller.h"
+#include "codegen_controller.h"
 
 #include <ytlib/new_table_client/schemed_writer.h>
 
@@ -19,6 +19,9 @@ public:
     TEvaluatorProxy(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
+#ifdef YT_USE_LLVM
+        , CodegenController_(Invoker_)
+#endif
     { }
 
     virtual TAsyncError Execute(
@@ -26,8 +29,11 @@ public:
         ISchemedWriterPtr writer) override
     {
         return BIND([=] () -> TError {
-            TEvaluateController evaluator(Callbacks_, fragment, std::move(writer));
-            return evaluator.Run();
+#ifdef YT_USE_LLVM
+            return CodegenController_.Run(Callbacks_, fragment, std::move(writer));
+#else
+            return TError("Query evaluation is not supported in this build");
+#endif
         })
         .AsyncVia(Invoker_)
         .Run();
@@ -36,13 +42,11 @@ public:
 private:
     IInvokerPtr Invoker_;
     IEvaluateCallbacks* Callbacks_;
+#ifdef YT_USE_LLVM
+    TCodegenController CodegenController_;
+#endif
 
 };
-
-IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
-{
-    return New<TEvaluatorProxy>(std::move(invoker), callbacks);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +57,9 @@ public:
     TCoordinatorProxy(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
+#ifdef YT_USE_LLVM
+        , CodegenController_(Invoker_)
+#endif
     { }
 
     virtual TAsyncError Execute(
@@ -65,12 +72,14 @@ public:
             auto error = coordinator.Run();
             RETURN_IF_ERROR(error);
 
-            TEvaluateController evaluator(
+#ifdef YT_USE_LLVM
+            return CodegenController_.Run(
                 &coordinator,
                 coordinator.GetCoordinatorFragment(),
                 std::move(writer));
-
-            return evaluator.Run();
+#else
+            return TError("Query evaluation is not supported in this build");
+#endif
         })
         .AsyncVia(Invoker_)
         .Run();
@@ -79,8 +88,18 @@ public:
 private:
     IInvokerPtr Invoker_;
     ICoordinateCallbacks* Callbacks_;
+#ifdef YT_USE_LLVM
+    TCodegenController CodegenController_;
+#endif
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
+{
+    return New<TEvaluatorProxy>(std::move(invoker), callbacks);
+}
 
 IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
 {

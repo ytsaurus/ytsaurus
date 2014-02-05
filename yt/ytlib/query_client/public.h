@@ -1,11 +1,13 @@
 #pragma once
 
+#include <ytlib/tablet_client/public.h>
 #include <ytlib/new_table_client/public.h>
 
 // TODO(babenko): kill this when refactoring TDataSplit
 namespace NYT { namespace NChunkClient { namespace NProto {
     class TChunkSpec;
 } } }
+
 
 namespace NYT {
 namespace NQueryClient {
@@ -27,6 +29,7 @@ struct TSourceLocation;
 class TOperator;
 class TExpression;
 
+class TPlanContext;
 DECLARE_REFCOUNTED_CLASS(TPlanContext)
 
 class TPlanFragment;
@@ -39,8 +42,13 @@ DECLARE_REFCOUNTED_STRUCT(IExecutor)
 
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
+typedef std::vector<TDataSplit> TDataSplits;
 
+typedef std::map<Stroka, TDataSplits> TLocationToDataSplits;
+
+using NVersionedTableClient::ISchemedReader;
 using NVersionedTableClient::ISchemedReaderPtr;
+using NVersionedTableClient::ISchemedWriter;
 using NVersionedTableClient::ISchemedWriterPtr;
 
 using NVersionedTableClient::EValueType;
@@ -52,7 +60,9 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 
 typedef NVersionedTableClient::TUnversionedRow TRow;
+typedef NVersionedTableClient::TUnversionedRowHeader TRowHeader;
 typedef NVersionedTableClient::TUnversionedValue TValue;
+typedef NVersionedTableClient::TUnversionedValueData TValueData;
 
 typedef NVersionedTableClient::TOwningKey TKey;
 typedef std::pair<TKey, TKey> TKeyRange;

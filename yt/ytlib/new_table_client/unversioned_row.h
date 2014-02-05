@@ -22,6 +22,16 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+union TUnversionedValueData
+{
+    //! Integral value.
+    i64 Integer;
+    //! Floating-point value.
+    double Double;
+    //! String value for |String| type or YSON-encoded value for |Any| type.
+    const char* String;
+};
+
 struct TUnversionedValue
 {
     //! Column id obtained from a name table.
@@ -31,15 +41,7 @@ struct TUnversionedValue
     //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
     ui32 Length;
 
-    union
-    {
-        //! Integral value.
-        i64 Integer;
-        //! Floating-point value.
-        double Double;
-        //! String value for |String| type or YSON-encoded value for |Any| type.
-        const char* String;
-    } Data;
+    TUnversionedValueData Data;
 };
 
 static_assert(

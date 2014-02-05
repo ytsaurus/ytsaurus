@@ -9,16 +9,16 @@
 #include <ytlib/query_client/helpers.h>
 
 #include <ytlib/query_client/coordinate_controller.h>
+#include <ytlib/query_client/codegen_controller.h>
 #include <ytlib/query_client/plan_node.h>
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/plan_visitor.h>
 #include <ytlib/query_client/helpers.h>
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/writer.h>
-#include <ytlib/new_table_client/schemed_chunk_reader.h>
-#include <ytlib/new_table_client/schemed_chunk_writer.h>
+#include <ytlib/new_table_client/schemed_writer.h>
 
 #include "versioned_table_client_ut.h"
 
@@ -55,6 +55,7 @@ using ::testing::HasSubstr;
 using ::testing::ContainsRegex;
 using ::testing::Invoke;
 using ::testing::Return;
+using ::testing::SetArgPointee;
 using ::testing::AllOf;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,13 +79,17 @@ public:
 
     MOCK_METHOD1(CanSplit, bool(const TDataSplit&));
 
-    MOCK_METHOD2(SplitFurther, TFuture<TErrorOr<std::vector<TDataSplit>>>(
+    MOCK_METHOD2(GroupByLocation, TLocationToDataSplits(
+        const TDataSplits&,
+        TPlanContextPtr));
+
+    MOCK_METHOD2(SplitFurther, TFuture<TErrorOr<TDataSplits>>(
         const TDataSplit&,
         TPlanContextPtr));
 
     MOCK_METHOD2(Delegate, ISchemedReaderPtr(
         const TPlanFragment&,
-        const TDataSplit&));
+        const Stroka&));
 };
 
 MATCHER_P(HasCounter, expectedCounter, "")
@@ -102,6 +107,18 @@ MATCHER_P(HasCounter, expectedCounter, "")
         *result_listener
             << "actual counter id is " << counter << " while "
             << "expected counter id is " << expectedCounter;
+        return false;
+    }
+
+    return true;
+}
+
+MATCHER_P(HasSplitsCount, expectedCount, "")
+{
+    if (arg.size() != expectedCount) {
+        *result_listener
+            << "actual splits count is " << arg.size() << " while "
+            << "expected count is " << expectedCount;
         return false;
     }
 
@@ -176,6 +193,11 @@ template <class T>
 TFuture<TErrorOr<T>> WrapInFuture(const T& value)
 {
     return MakeFuture(TErrorOr<T>(value));
+}
+
+TFuture<TErrorOr<void>> WrapVoidInFuture()
+{
+    return MakeFuture(TErrorOr<void>());
 }
 
 TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
@@ -320,7 +342,9 @@ protected:
         std::vector<const TDataSplit*> result;
         Visit(op, [&result] (const TOperator* op) {
             if (auto* scanOp = op->As<TScanOperator>()) {
-                result.emplace_back(&scanOp->DataSplit());
+                for (const auto& dataSplit : scanOp->DataSplits()) {
+                    result.emplace_back(&dataSplit);
+                }                
             }
         });
         return result;
@@ -340,10 +364,14 @@ TEST_F(TQueryCoordinateTest, EmptySplit)
 {
     std::vector<TDataSplit> emptySplit;
 
+    TLocationToDataSplits emptyLocationToSplits;
+
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(emptySplit)));
+    EXPECT_CALL(CoordinateMock_, GroupByLocation(HasSplitsCount(0), _))
+        .WillOnce(Return(emptyLocationToSplits));
 
     EXPECT_NO_THROW({
         Coordinate("k from [//t]");
@@ -355,16 +383,16 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
     std::vector<TDataSplit> singleSplit;
     singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
 
+    TLocationToDataSplits singleLocationToSplits;
+    singleLocationToSplits["mylocation"] = singleSplit;
+
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(singleSplit)));
-    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(1)))
-        .WillOnce(Return(false));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, AllOf(
-            HasCounter(1),
-            HasLowerBound(_MIN_),
-            HasUpperBound(_MAX_))))
+    EXPECT_CALL(CoordinateMock_, GroupByLocation(HasSplitsCount(1), _))
+        .WillOnce(Return(singleLocationToSplits));
+    EXPECT_CALL(CoordinateMock_, Delegate(_, "mylocation"))
         .WillOnce(Return(nullptr));
 
     EXPECT_NO_THROW({
@@ -1059,6 +1087,9 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
     SetLowerBound(&splits.back(), BuildKey("2;0;0"));
     SetUpperBound(&splits.back(), BuildKey("3;0;0"));
 
+    TLocationToDataSplits locationToSplits;
+    locationToSplits["mylocation"] = splits;
+
     EXPECT_CALL(CoordinateMock_, CanSplit(_))
         .WillRepeatedly(Return(false));
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
@@ -1066,10 +1097,9 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
         .RetiresOnSaturation();
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(splits)));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, AllOf(
-            HasCounter(2),
-            HasLowerBound("1;2;3"),
-            HasUpperBound("1;2;4"))))
+    EXPECT_CALL(CoordinateMock_, GroupByLocation(HasSplitsCount(3), _))
+        .WillOnce(Return(locationToSplits));
+    EXPECT_CALL(CoordinateMock_, Delegate(_, "mylocation"))
         .WillOnce(Return(nullptr));
 
     EXPECT_NO_THROW({
@@ -1078,6 +1108,209 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TEvaluateCallbacksMock
+    : public IEvaluateCallbacks
+{
+public:
+    MOCK_METHOD2(GetReader, ISchemedReaderPtr(const TDataSplit&, TPlanContextPtr));
+
+};
+
+class TReaderMock
+    : public ISchemedReader
+{
+public:
+    MOCK_METHOD1(Open, TAsyncError(const TTableSchema&));
+    MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
+    MOCK_METHOD0(GetReadyEvent, TAsyncError());
+};
+
+class TWriterMock
+    : public ISchemedWriter
+{
+public:
+    MOCK_METHOD2(Open, TAsyncError(const TTableSchema&, const TNullable<TKeyColumns>&));
+    MOCK_METHOD0(Close, TAsyncError());
+    MOCK_METHOD1(Write, bool(const std::vector<TUnversionedRow>&));
+    MOCK_METHOD0(GetReadyEvent, TAsyncError());
+};
+
+TUnversionedOwningRow BuildRow(
+    const Stroka& yson,
+    TDataSplit& dataSplit,
+    bool treatMissingAsNull = true)
+{
+    auto keyColumns = GetKeyColumnsFromDataSplit(dataSplit);
+    auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
+    auto nameTable = NVersionedTableClient::TNameTable::FromSchema(tableSchema);
+
+    auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
+        TYsonString(yson, EYsonType::MapFragment));
+
+    TUnversionedOwningRowBuilder rowBuilder;
+    auto addValue = [&] (int id, INodePtr value) {
+        switch (value->GetType()) {
+            case ENodeType::Integer:
+                rowBuilder.AddValue(MakeUnversionedIntegerValue(value->GetValue<i64>(), id));
+                break;
+            case ENodeType::Double:
+                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
+                break;
+            case ENodeType::String:
+                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
+                break;
+            default:
+                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
+                break;
+        }
+    };
+
+    // Key
+    for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {
+        auto it = rowParts.find(nameTable->GetName(id));
+        if (it != rowParts.end()) {
+            addValue(id, it->second);
+        }
+    }
+
+    // Fixed values
+    for (int id = static_cast<int>(keyColumns.size()); id < static_cast<int>(tableSchema.Columns().size()); ++id) {
+        auto it = rowParts.find(nameTable->GetName(id));
+        if (it != rowParts.end()) {
+            addValue(id, it->second);
+        } else if (treatMissingAsNull) {
+            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+        }
+    }
+
+    // Variable values
+    for (const auto& pair : rowParts) {
+        int id = nameTable->GetIdOrRegisterName(pair.first);
+        if (id >= tableSchema.Columns().size()) {
+            addValue(id, pair.second);
+        }
+    }
+
+    return rowBuilder.Finish();
+}
+
+class TQueryCodegenTest
+    : public ::testing::Test
+{
+protected:
+    virtual void SetUp() override
+    {
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+        ReaderMock_ = New<StrictMock<TReaderMock>>();
+        WriterMock_ = New<StrictMock<TWriterMock>>();
+    }
+
+    void CodegenAndEvaluate(
+        const Stroka& query,
+        const std::vector<TUnversionedOwningRow>& owningSource,
+        const std::vector<TUnversionedOwningRow>& owningResult)
+    {
+        std::vector<TRow> source(owningSource.size());
+        std::vector<TRow> result(owningResult.size());
+        typedef const TRow (TUnversionedOwningRow::*TGetFunction)() const;
+        std::transform(
+            owningSource.begin(),
+            owningSource.end(),
+            source.begin(),
+            std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
+
+        YCHECK(!Controller_);
+        Controller_.Emplace(GetCurrentInvoker());
+
+        EXPECT_CALL(EvaluateMock_, GetReader(_, _))
+            .WillOnce(Return(ReaderMock_));
+
+        EXPECT_CALL(*ReaderMock_, Open(_))
+            .WillOnce(Return(WrapVoidInFuture()));
+
+        EXPECT_CALL(*ReaderMock_, Read(_))
+            .WillOnce(DoAll(SetArgPointee<0>(source), Return(false)));
+
+        {
+            testing::InSequence s;
+
+            EXPECT_CALL(*WriterMock_, Open(_, _))
+                .WillOnce(Return(WrapVoidInFuture()));
+
+            EXPECT_CALL(*WriterMock_, Write(result))
+                .WillOnce(Return(true));
+
+            EXPECT_CALL(*WriterMock_, Close())
+                .WillOnce(Return(WrapVoidInFuture()));
+        }
+
+        auto error = Controller_->Run(
+            &EvaluateMock_,
+            TPlanFragment::Prepare(query, NullTimestamp, &PrepareMock_),
+            WriterMock_);
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
+        Controller_.Reset();
+    }
+
+    StrictMock<TPrepareCallbacksMock> PrepareMock_;
+    StrictMock<TEvaluateCallbacksMock> EvaluateMock_;
+    TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;   
+    TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
+
+    TNullable<TCodegenController> Controller_;
+
+};
+
+TEST_F(TQueryCodegenTest, Simple)
+{
+    auto simpleSplit = MakeSimpleSplit("//t");
+
+    std::vector<TUnversionedOwningRow> source;
+    source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
+    source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+    
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
+    result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+
+    CodegenAndEvaluate("a, b FROM [//t]", source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryCodegenTest, Complex)
+{
+    auto simpleSplit = MakeSimpleSplit("//t");
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, false));
+    }
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("x=0;t=200", simpleSplit, false));
+    result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
+
+    CodegenAndEvaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result);
+
+    SUCCEED();
+}
 
 } // namespace
 

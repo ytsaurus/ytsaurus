@@ -324,17 +324,28 @@ public:
         CurrentSourceSchema_ = op->GetTableSchema();
         using NObjectClient::TObjectId;
         using NObjectClient::TypeFromId;
-        auto objectId = GetObjectIdFromDataSplit(op->DataSplit());
+
+        Stroka dataSplitsInfo;
+        dataSplitsInfo += "Splits: [";
+        for (const auto& dataSplit : op->DataSplits()) {
+            auto objectId = GetObjectIdFromDataSplit(dataSplit);
+            if (!dataSplitsInfo.empty()) {
+                dataSplitsInfo += ", ";
+            }
+            dataSplitsInfo += Stroka() + "{" +
+                "<BR/>Id: " + ToString(objectId) +
+                "<BR/>Type: " + ToString(TypeFromId(objectId)) +
+                "<BR/>Sorted: " + (IsSorted(dataSplit) ? "true" : "false") +
+                "<BR/>}";
+        }
+        dataSplitsInfo += "]";
+
         WriteNode(
             op,
             TLabel(op)
-                .WithRow(Stroka() +
-                    "Split: {" +
-                    "<BR/>Id: " + ToString(objectId) +
-                    "<BR/>Type: " + ToString(TypeFromId(objectId)) +
-                    "<BR/>Sorted: " + (IsSorted(op->DataSplit()) ? "true" : "false") +
-                    "<BR/>}")
+                .WithRow(dataSplitsInfo)
                 .Build());
+
         return true;
     }
 

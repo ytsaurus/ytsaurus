@@ -7,11 +7,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Finds and returns heaviest (in terms of data weight) data split used
-//! in the query. Most likely that query time will be determined by IO time
-//! for that data split.
-const TDataSplit& GetHeaviestSplit(const TOperator* op);
-
 //! Infers key columns of the query result.
 //! XXX(sandello): Right now it just computes key columns for the data source.
 TKeyColumns InferKeyColumns(const TOperator* op);

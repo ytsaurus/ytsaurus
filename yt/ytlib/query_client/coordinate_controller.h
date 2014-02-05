@@ -39,24 +39,31 @@ public:
     std::vector<TPlanFragment> GetPeerFragments() const;
 
 private:
+
+    void InitializeReaders();
+
+    TDataSplits GetUnitedDataSplit(
+        TPlanContext* context,
+        std::map<Stroka, const TOperator*> operatorsByLocation);
+
+    TDataSplits SplitFurther(
+        TPlanContext* context,
+        const TDataSplits& splits);
+
+    std::map<Stroka, const TOperator*> SplitOperator(
+        TPlanContext* context,
+        const TOperator* op);
+
+    TPlanFragment SplitPlanFragment(const TPlanFragment& planFragment);
+
+
+private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
 
-    std::vector<std::tuple<TPlanFragment, ISchemedReaderPtr>> Peers_;
+    std::vector<std::tuple<TPlanFragment, Stroka, ISchemedReaderPtr>> Peers_;
 
     NLog::TTaggedLogger Logger;
-
-
-    void SplitFurther();
-    void PushdownFilters();
-    void PushdownGroups();
-    void PushdownProjects();
-    void DistributeToPeers();
-    void InitializeReaders();
-
-    template <class TFunctor>
-    void Rewrite(const TFunctor& functor);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

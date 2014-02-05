@@ -48,13 +48,17 @@ struct ICoordinateCallbacks
     virtual bool CanSplit(
         const TDataSplit& dataSplit) = 0;
 
-    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
+    virtual TFuture<TErrorOr<TDataSplits>> SplitFurther(
         const TDataSplit& dataSplit,
+        TPlanContextPtr context) = 0;
+
+    virtual TLocationToDataSplits GroupByLocation(
+        const TDataSplits& dataSplits,
         TPlanContextPtr context) = 0;
 
     virtual ISchemedReaderPtr Delegate(
         const TPlanFragment& fragment,
-        const TDataSplit& colocatedDataSplit) = 0;
+        const Stroka& location) = 0;
 
 };
 

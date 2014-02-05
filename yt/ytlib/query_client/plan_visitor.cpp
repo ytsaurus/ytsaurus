@@ -23,7 +23,7 @@ static const int TypicalQueueLength = 16;
 #include "list_of_expressions.inc"
 #undef XX
 
-#ifdef __GNUC__ 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic error "-Wswitch-enum"
 #endif
@@ -121,7 +121,7 @@ bool Traverse(IPlanVisitor* visitor, const TExpression* root)
     return true;
 }
 
-#ifdef __GNUC__ 
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 
