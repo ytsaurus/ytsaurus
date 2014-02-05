@@ -2166,19 +2166,19 @@ public:
             .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
-                      .Item("command").Value(Spec->Mapper->Command)
+                      .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
                     .EndMap();
             })
             .DoIf(Spec->Reducer, [&] (TFluentMap fluent) {
                 fluent
                     .Item("reducer").BeginMap()
-                        .Item("command").Value(Spec->Reducer->Command)
+                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
                     .EndMap();
             })
             .DoIf(Spec->ReduceCombiner, [&] (TFluentMap fluent) {
                 fluent
                     .Item("reduce_combiner").BeginMap()
-                        .Item("command").Value(Spec->ReduceCombiner->Command)
+                        .Item("command").Value(TrimCommandForBriefSpec(Spec->ReduceCombiner->Command))
                     .EndMap();
             });
     }
