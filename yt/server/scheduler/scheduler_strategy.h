@@ -40,12 +40,19 @@ struct ISchedulerStrategy
 
     virtual void ScheduleJobs(ISchedulingContext* context) = 0;
 
-    //! Builds a YSON structure reflecting the state of the operation to be put into Cypress.
+    //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
+    //! in Cypress during creation.
+    virtual void BuildOperationAttributes(
+        TOperationPtr operation,
+        NYson::IYsonConsumer* consumer) = 0;
+
+    //! Builds a YSON structure reflecting operation's progress.
+    //! This progress is periodically pushed into Cypress and is also displayed via Orchid.
     virtual void BuildOperationProgress(
         TOperationPtr operation,
         NYson::IYsonConsumer* consumer) = 0;
 
-    //! Similar to #BuildOperationProgress but constructs a reduced version to used by UI..
+    //! Similar to #BuildOperationProgress but constructs a reduced version to used by UI.
     virtual void BuildBriefOperationProgress(
         TOperationPtr operation,
         NYson::IYsonConsumer* consumer) = 0;

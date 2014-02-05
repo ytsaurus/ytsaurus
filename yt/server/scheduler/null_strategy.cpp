@@ -20,6 +20,9 @@ public:
     virtual void ScheduleJobs(ISchedulingContext* /*context*/) override
     { }
 
+    virtual void BuildOperationAttributes(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
+    { }
+
     virtual void BuildOperationProgress(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
     { }
 
