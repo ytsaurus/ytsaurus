@@ -458,6 +458,32 @@ struct TSharedRefSerializer
     }
 };
 
+struct TSharedRefArraySerializer
+{
+    template <class C>
+    static void Save(C& context, const TSharedRefArray& value)
+    {
+        using NYT::Save;
+        TSizeSerializer::Save(context, value.Size());
+        for (const auto& part : value) {
+            Save(context, part);
+        }
+    }
+
+    template <class C>
+    static void Load(C& context, TSharedRefArray& value)
+    {
+        using NYT::Load;
+        size_t size = TSizeSerializer::Load(context);
+        std::vector<TSharedRef> parts;
+        parts.reserve(size);
+        for (int index = 0; index < static_cast<int>(size); ++index) {
+            Load(context, parts[index]);
+        }
+        value = TSharedRefArray(std::move(parts));
+    }
+};
+
 struct TEnumSerializer
 {
     template <class T, class C>
@@ -997,6 +1023,12 @@ template <class C>
 struct TSerializerTraits<TSharedRef, C, void>
 {
     typedef TSharedRefSerializer TSerializer;
+};
+
+template <class C>
+struct TSerializerTraits<TSharedRefArray, C, void>
+{
+    typedef TSharedRefArraySerializer TSerializer;
 };
 
 template <class T, class C>
