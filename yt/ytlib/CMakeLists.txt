@@ -52,11 +52,12 @@ else()
 endif()
 
 if (YT_BUILD_ENABLE_LLVM)
-  llvm_map_components_to_libraries(LLVM_MODULE_LIBS jit native)
-  target_link_libraries ( ytlib
-    ${LLVM_MODULE_LIBS}
-  )
+  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES core jit interpreter native)
 endif()
+
+target_link_libraries ( ytlib
+  ${REQUIRED_LLVM_LIBRARIES}
+)
 
 if (HAVE_LIBUNWIND)
   target_link_libraries( ytlib unwind )
@@ -69,6 +70,7 @@ if (YT_BUILD_ENABLE_PYTHON)
   )
   target_link_libraries ( ytlib-without-lfalloc
     ytcore-without-lfalloc
+    ${REQUIRED_LLVM_LIBRARIES}
   )
 endif()
 

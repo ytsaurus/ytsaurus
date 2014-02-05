@@ -73,30 +73,11 @@ check_include_files(unistd.h       HAVE_UNISTD_H)
 include(PCFromUcontext)
 
 if (YT_BUILD_ENABLE_LLVM)
-
-  if( NOT WIN32 OR MSYS OR CYGWIN )
-    # Using CMake module FindLLVM.cmake form <yt_root>/cmake directory
-    find_package(LLVM)
-
-    if( NOT LLVM_FOUND )
-      message(FATAL_ERROR "LLVM package can't be found. Set environment variable LLVM_ROOT.")
-    endif()
-
-  else()
-    # Using CMake module LLVMConfig.cmake from magically obtained <llvm_build> directory
-    find_package(LLVM NO_MODULE)
-
-    if( NOT LLVM_FOUND )
-      message(FATAL_ERROR "LLVM package can't be found. Set cmake variable LLVM_DIR.")
-    endif()
-  endif()
+  # Using CMake module FindLLVM.cmake form <yt_root>/cmake directory
+  find_package(LLVM)
 
   link_directories( ${LLVM_LIBRARY_DIRS} )
-
-  include_directories(
-    ${LLVM_INCLUDE_DIRS}
-  )
-
+  include_directories( ${LLVM_INCLUDE_DIRS} )
   add_definitions(-DYT_USE_LLVM)
 endif()
 

@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_SUPPORT_COMPILER_H
-#define LLVM_SUPPORT_COMPILER_H
+#ifndef YT_LLVM_SUPPORT_COMPILER_H
+#define YT_LLVM_SUPPORT_COMPILER_H
 
 #ifndef __has_feature
 # define __has_feature(x) 0

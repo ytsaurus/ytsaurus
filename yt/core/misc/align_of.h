@@ -17,7 +17,7 @@
 #include "compiler.h"
 #include <cstddef>
 
-namespace llvm {
+namespace NYT {
 
 template <typename T>
 struct AlignmentCalcImpl {
@@ -137,7 +137,7 @@ public:
   // aligned member, and this alignment should carry over to the character
   // array in the union.
   struct {
-    typename llvm::AlignedCharArrayImpl<AlignOf<AlignerImpl>::Alignment>::type
+    typename AlignedCharArrayImpl<AlignOf<AlignerImpl>::Alignment>::type
       nonce_inner_member;
   } nonce_member;
 };

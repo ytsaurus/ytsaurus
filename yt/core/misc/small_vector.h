@@ -71,7 +71,7 @@ private:
   // Allocate raw space for N elements of type T.  If T has a ctor or dtor, we
   // don't want it to be automatically run, so we need to represent the space as
   // something else.  Use an array of char of sufficient alignment.
-  typedef llvm::AlignedCharArrayUnion<T> U;
+  typedef AlignedCharArrayUnion<T> U;
   U FirstEl;
   // Space after 'FirstEl' is clobbered, do not add any instance vars after it.
 
