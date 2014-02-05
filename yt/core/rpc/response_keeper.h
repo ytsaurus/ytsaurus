@@ -3,6 +3,8 @@
 #include "public.h"
 
 #include <core/misc/ref.h>
+// TODO(babenko): replace with forward declaration
+#include <core/misc/serialize.h>
 
 #include <core/profiling/profiler.h>
 
@@ -29,6 +31,9 @@ public:
     void RemoveExpiredResponses(TInstant now = Now());
 
     void Clear();
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
 private:
     class TImpl;
