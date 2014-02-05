@@ -54,7 +54,7 @@ class TestHackChangelog(YTEnvSetup):
              "-t", str(record_count - 1)],
             stdin=subprocess.PIPE)
 
-    def test_all(self):
+    def DISABLED_test_all(self):
         self.prepare_changelog_path()
         record_count = self.get_record_count()
 
