@@ -15,6 +15,7 @@ namespace NObjectServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,28 +198,18 @@ void TGarbageCollector::OnSweep()
     LOG_DEBUG("Starting GC sweep for %d objects",
         request.object_ids_size());
 
+    auto this_ = MakeStrong(this);
     auto invoker = metaStateFacade->GetEpochInvoker();
     Bootstrap
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
-        ->OnSuccess(BIND(&TGarbageCollector::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
-        ->OnError(BIND(&TGarbageCollector::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->Commit();
-}
-
-void TGarbageCollector::OnCommitSucceeded()
-{
-    LOG_DEBUG("GC sweep commit succeeded");
-
-    SweepExecutor->ScheduleOutOfBand();
-    SweepExecutor->ScheduleNext();
-}
-
-void TGarbageCollector::OnCommitFailed(const TError& error)
-{
-    LOG_ERROR(error, "GC sweep commit failed");
-
-    SweepExecutor->ScheduleNext();
+        ->Commit()
+        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+            if (error.IsOK()) {
+                SweepExecutor->ScheduleOutOfBand();
+            }
+            SweepExecutor->ScheduleNext();
+        }).Via(invoker));
 }
 
 int TGarbageCollector::GetGCQueueSize() const

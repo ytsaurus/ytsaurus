@@ -16,6 +16,7 @@ namespace NYT {
 namespace NSecurityServer {
 
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,22 +35,22 @@ void TRequestTracker::StartFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(!FlushInvoker);
-    FlushInvoker = New<TPeriodicExecutor>(
+    YCHECK(!FlushExecutor);
+    FlushExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
         Config->StatisticsFlushPeriod,
         EPeriodicExecutorMode::Manual);
-    FlushInvoker->Start();
+    FlushExecutor->Start();
 }
 
 void TRequestTracker::StopFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (FlushInvoker) {
-        FlushInvoker->Stop();
-        FlushInvoker.Reset();
+    if (FlushExecutor) {
+        FlushExecutor->Stop();
+        FlushExecutor.Reset();
     }
 
     Reset();
@@ -91,7 +92,7 @@ void TRequestTracker::OnFlush()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (UsersWithRequestStatisticsUpdate.empty()) {
-        FlushInvoker->ScheduleNext();
+        FlushExecutor->ScheduleNext();
         return;
     }
 
@@ -100,29 +101,19 @@ void TRequestTracker::OnFlush()
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto invoker = metaStateFacade->GetEpochInvoker();
+    auto this_ = MakeStrong(this);
     Bootstrap
         ->GetSecurityManager()
         ->CreateUpdateRequestStatisticsMutation(UpdateRequestStatisticsRequest)
-        ->OnSuccess(BIND(&TRequestTracker::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
-        ->OnError(BIND(&TRequestTracker::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->Commit();
+        ->Commit()
+        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+            if (error.IsOK()) {
+                FlushExecutor->ScheduleOutOfBand();
+            }
+            FlushExecutor->ScheduleNext();
+        }).Via(invoker));
 
     Reset();
-}
-
-void TRequestTracker::OnCommitSucceeded()
-{
-    LOG_DEBUG("Request statistics commit succeeded");
-
-    FlushInvoker->ScheduleOutOfBand();
-    FlushInvoker->ScheduleNext();
-}
-
-void TRequestTracker::OnCommitFailed(const TError& error)
-{
-    LOG_ERROR(error, "Request statistics commit failed");
-
-    FlushInvoker->ScheduleNext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

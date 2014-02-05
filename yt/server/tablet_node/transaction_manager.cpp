@@ -288,14 +288,6 @@ private:
 
         transactionSupervisor
             ->CreateAbortTransactionMutation(req)
-            ->OnSuccess(BIND([=] () {
-                LOG_INFO("Transaction expiration commit success (TransactionId: %s)",
-                    ~ToString(id));
-            }))
-            ->OnError(BIND([=] (const TError& error) {
-                LOG_ERROR(error, "Transaction expiration commit failed (TransactionId: %s)",
-                    ~ToString(id));
-            }))
             ->Commit();
     }
 

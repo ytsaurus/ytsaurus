@@ -741,23 +741,9 @@ private:
         TReqUnregisterNode message;
         message.set_node_id(nodeId);
 
+        auto mutation = CreateUnregisterNodeMutation(message);
         auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
-        auto mutation = CreateUnregisterNodeMutation(message)
-            ->OnSuccess(BIND(&TImpl::OnUnregisterCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
-            ->OnError(BIND(&TImpl::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker));
         invoker->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
-    }
-
-    void OnUnregisterCommitSucceeded(TNodeId nodeId)
-    {
-        LOG_INFO("Node unregister commit succeeded (NodeId: %d)",
-            nodeId);
-    }
-
-    void OnUnregisterCommitFailed(TNodeId nodeId, const TError& error)
-    {
-        LOG_ERROR(error, "Node unregister commit failed (NodeId: %d)",
-            nodeId);
     }
 
 

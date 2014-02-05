@@ -194,8 +194,6 @@ private:
     bool HasRunningJobs(TChunkPtrWithIndex replica);
 
     void OnPropertiesUpdate();
-    void OnPropertiesUpdateCommitSucceeded();
-    void OnPropertiesUpdateCommitFailed(const TError& error);
 
     //! Computes the actual properties the chunk must have.
     TChunkProperties ComputeChunkProperties(TChunk* chunk);

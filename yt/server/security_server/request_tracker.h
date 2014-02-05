@@ -35,17 +35,13 @@ private:
     NProto::TReqUpdateRequestStatistics UpdateRequestStatisticsRequest;
     std::vector<TUser*> UsersWithRequestStatisticsUpdate;
 
-    NConcurrency::TPeriodicExecutorPtr FlushInvoker;
+    NConcurrency::TPeriodicExecutorPtr FlushExecutor;
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
     void Reset();
-
     void OnFlush();
-    void OnCommitSucceeded();
-    void OnCommitFailed(const TError& error);
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
 

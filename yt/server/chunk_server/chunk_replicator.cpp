@@ -37,7 +37,8 @@
 namespace NYT {
 namespace NChunkServer {
 
-using namespace NCellMaster;
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NChunkClient;
@@ -46,7 +47,7 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerServer;
 using namespace NChunkServer::NProto;
-using namespace NConcurrency;
+using namespace NCellMaster;
 
 using NChunkClient::TReadLimit;
 
@@ -1169,27 +1170,17 @@ void TChunkReplicator::OnPropertiesUpdate()
 
     LOG_DEBUG("Starting properties update for %d chunks", request.updates_size());
 
+    auto this_ = MakeStrong(this);
     auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
     chunkManager
         ->CreateUpdateChunkPropertiesMutation(request)
-        ->OnSuccess(BIND(&TChunkReplicator::OnPropertiesUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
-        ->OnError(BIND(&TChunkReplicator::OnPropertiesUpdateCommitFailed, MakeWeak(this)).Via(invoker))
-        ->Commit();
-}
-
-void TChunkReplicator::OnPropertiesUpdateCommitSucceeded()
-{
-    LOG_DEBUG("Properties update commit succeeded");
-
-    PropertiesUpdateExecutor->ScheduleOutOfBand();
-    PropertiesUpdateExecutor->ScheduleNext();
-}
-
-void TChunkReplicator::OnPropertiesUpdateCommitFailed(const TError& error)
-{
-    LOG_WARNING(error, "Properties update commit failed");
-
-    PropertiesUpdateExecutor->ScheduleNext();
+        ->Commit()
+        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+            if (error.IsOK()) {
+                PropertiesUpdateExecutor->ScheduleOutOfBand();
+            }
+            PropertiesUpdateExecutor->ScheduleNext();
+        }).Via(invoker));
 }
 
 TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)

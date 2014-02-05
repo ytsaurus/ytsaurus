@@ -15,9 +15,10 @@
 namespace NYT {
 namespace NCypressServer {
 
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NTransactionServer;
 using namespace NObjectServer;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,31 +128,20 @@ void TAccessTracker::OnFlush()
     LOG_DEBUG("Starting access statistics commit for %d nodes",
         UpdateAccessStatisticsRequest.updates_size());
 
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-    auto invoker = metaStateFacade->GetEpochInvoker();
+    auto this_ = MakeStrong(this);
+    auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
     Bootstrap
         ->GetCypressManager()
         ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest)
-        ->OnSuccess(BIND(&TAccessTracker::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
-        ->OnError(BIND(&TAccessTracker::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->Commit();
+        ->Commit()
+        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+            if (error.IsOK()) {
+                FlushExecutor->ScheduleOutOfBand();
+            }
+            FlushExecutor->ScheduleNext();
+        }).Via(invoker));
 
     Reset();
-}
-
-void TAccessTracker::OnCommitSucceeded()
-{
-    LOG_DEBUG("Access statistics commit succeeded");
-
-    FlushExecutor->ScheduleOutOfBand();
-    FlushExecutor->ScheduleNext();
-}
-
-void TAccessTracker::OnCommitFailed(const TError& error)
-{
-    LOG_ERROR(error, "Access statistics commit failed");
-
-    FlushExecutor->ScheduleNext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
