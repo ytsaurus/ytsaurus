@@ -89,6 +89,7 @@ set( HDRS
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h
+  ${BASE}/public.h
   ${BASE}/random-inl.h
   ${BASE}/random.h
   ${BASE}/raw_formatter.h

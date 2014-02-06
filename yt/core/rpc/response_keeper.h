@@ -2,9 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/public.h>
 #include <core/misc/ref.h>
-// TODO(babenko): replace with forward declaration
-#include <core/misc/serialize.h>
 
 #include <core/profiling/profiler.h>
 

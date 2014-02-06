@@ -2,6 +2,8 @@
 #include "response_keeper.h"
 #include "config.h"
 
+#include <core/misc/serialize.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <queue>
