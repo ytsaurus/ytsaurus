@@ -31,9 +31,10 @@ struct TMutationRequest
 struct TMutationResponse
 {
     TMutationResponse();
-    explicit TMutationResponse(TSharedRefArray data);
+    TMutationResponse(TSharedRefArray data, bool isKept);
 
     TSharedRefArray Data;
+    bool IsKept;
 };
 
 class TMutationContext

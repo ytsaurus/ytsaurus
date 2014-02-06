@@ -122,8 +122,8 @@ public:
                 userId,
                 context))
             ->OnSuccess(BIND([=] (const TMutationResponse& response) {
-                if (!context->IsReplied()) {
-                    // Handle kept response.
+                // Handle kept response.
+                if (response.IsKept) {
                     context->Reply(response.Data);
                 }
             }))

@@ -21,10 +21,12 @@ TMutationRequest::TMutationRequest(
 ///////////////////////////////////////////////////////////////////////////////
 
 TMutationResponse::TMutationResponse()
+    : IsKept(false)
 { }
 
-TMutationResponse::TMutationResponse(TSharedRefArray data)
+TMutationResponse::TMutationResponse(TSharedRefArray data, bool isKept)
     : Data(std::move(data))
+    , IsKept(isKept)
 { }
 
 ///////////////////////////////////////////////////////////////////////////////

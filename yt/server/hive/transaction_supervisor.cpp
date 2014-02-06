@@ -497,7 +497,7 @@ private:
     {
         auto mutationId = commit->GetMutationId();
         if (HydraManager->IsMutating() && mutationId != NullMutationId) {
-            HydraManager->RegisterKeptResponse(mutationId, TMutationResponse(result));
+            HydraManager->RegisterKeptResponse(mutationId, TMutationResponse(result, true));
         }
 
         commit->SetResult(std::move(result));

@@ -634,7 +634,7 @@ TNullable<TMutationResponse> TDecoratedAutomaton::FindKeptResponse(const TMutati
         return Null;
     }
 
-    return TMutationResponse(std::move(data));
+    return TMutationResponse(std::move(data), true);
 }
 
 IChangelogPtr TDecoratedAutomaton::GetCurrentChangelog()
