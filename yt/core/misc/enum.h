@@ -90,6 +90,17 @@ class TEnumBase
             } \
         } \
         \
+        friend TOutputStream& operator << (TOutputStream& stream, name value) \
+        { \
+            auto* literal = GetLiteralByValue(value.Value); \
+            if (literal) { \
+                stream << literal; \
+            } else { \
+                stream << PP_STRINGIZE(name) << "(" << static_cast<int>(value.Value) << ")"; \
+            } \
+            return stream; \
+        } \
+        \
         static const char* GetLiteralByValue(int value) \
         { \
             switch (value) \
@@ -100,7 +111,7 @@ class TEnumBase
             } \
         } \
         \
-        static bool GetValueByLiteral(const char* literal, int* target) \
+        static bool GetValueByLiteral(const TStringBuf& literal, int* result) \
         { \
             PP_FOR_EACH(ENUM__VALUE_BY_LITERAL_ITEM, seq); \
             return false; \
@@ -129,7 +140,7 @@ class TEnumBase
             return std::vector<Stroka>(names, names + sizeof(names) / sizeof(names[0]) - 1); \
         } \
         \
-        static name FromString(const char* str) \
+        static name FromString(const TStringBuf& str) \
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
@@ -140,25 +151,15 @@ class TEnumBase
             return name(value); \
         } \
         \
-        static name FromString(const Stroka& str) \
-        { \
-            return name::FromString(str.c_str()); \
-        } \
-        \
-        static bool FromString(const char* str, name* target) \
+        static bool FromString(const TStringBuf& str, name* result) \
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
                 return false; \
             } else { \
-                *target = name(value); \
+                *result = name(value); \
                 return true; \
             } \
-        } \
-        \
-        static bool FromString(const Stroka& str, name* target) \
-        { \
-            return name::FromString(str.c_str(), target); \
         } \
         \
     private: \
@@ -210,8 +211,8 @@ class TEnumBase
     ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(item) \
-    if (::strcmp(literal, PP_STRINGIZE(item)) == 0) { \
-        *target = static_cast<int>(item); \
+    if (literal == PP_STRINGIZE(item)) { \
+        *result = static_cast<int>(item); \
         return true; \
     }
 //! \}
