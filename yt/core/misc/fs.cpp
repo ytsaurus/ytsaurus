@@ -16,6 +16,7 @@
     #include <sys/param.h>
     #include <sys/mount.h>
 #elif defined (_win_)
+    #include <shlobj.h>
     #include <windows.h>
 #endif
 
@@ -328,6 +329,17 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
     return (lhsBuffer.st_dev == rhsBuffer.st_dev) && (lhsBuffer.st_ino == rhsBuffer.st_ino);
 #else
     return false;
+#endif
+}
+
+Stroka GetHomePath()
+{
+#ifdef _win_
+    char buffer[1024];
+    SHGetSpecialFolderPath(0, buffer, CSIDL_PROFILE, 0);
+    return Stroka(buffer);
+#else
+    return std::getenv("HOME");
 #endif
 }
 

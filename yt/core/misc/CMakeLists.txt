@@ -18,7 +18,6 @@ set( SRCS
   ${BASE}/fs.cpp
   ${BASE}/guid.cpp
   ${BASE}/high_resolution_clock.cpp
-  ${BASE}/home.cpp
   ${BASE}/hr_timer.cpp
   ${BASE}/id_generator.cpp
   ${BASE}/lease_manager.cpp
@@ -68,7 +67,6 @@ set( HDRS
   ${BASE}/heap-inl.h
   ${BASE}/heap.h
   ${BASE}/high_resolution_clock.h
-  ${BASE}/home.h
   ${BASE}/hr_timer.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h

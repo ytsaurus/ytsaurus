@@ -3,7 +3,6 @@
 
 #include <core/build.h>
 
-#include <core/misc/home.h>
 #include <core/misc/fs.h>
 #include <core/misc/assert.h>
 
@@ -55,7 +54,7 @@ Stroka TExecutor::GetConfigFileName()
 {
     Stroka fromCommandLine = ConfigArg.getValue();;
     Stroka fromEnv = Stroka(getenv(ConfigEnvVar));
-    Stroka user = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
+    Stroka user = NFS::CombinePaths(NFS::GetHomePath(), UserConfigFileName);
     Stroka system = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
 
     if (!fromCommandLine.empty()) {

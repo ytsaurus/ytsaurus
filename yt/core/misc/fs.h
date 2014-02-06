@@ -85,7 +85,13 @@ void SetExecutableMode(const Stroka& path, bool executable);
 //! Makes a symbolic link on file #fileName with #linkName.
 void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath);
 
+//! Returns |true| if given paths refer to the same inode.
+//! Always returns |false| under Windows.
 bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath);
+
+//! Returns the home directory of the current user.
+//! Interestingly, implemented for both Windows and *nix.
+Stroka GetHomePath();
 
 ////////////////////////////////////////////////////////////////////////////////
 
