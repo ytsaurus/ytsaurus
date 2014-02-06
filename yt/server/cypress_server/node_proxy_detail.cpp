@@ -792,6 +792,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockThisImpl(
     bool recursive /*= false*/)
 {
     // NB: Cannot use |CachedNode| here.
+    CachedNode = nullptr;
     return LockImpl(TrunkNode, request, recursive);
 }
 
