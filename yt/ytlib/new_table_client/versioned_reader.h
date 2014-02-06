@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "versioned_row.h"
 
 #include <core/misc/error.h>
 
