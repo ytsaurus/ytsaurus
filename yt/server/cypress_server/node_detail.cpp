@@ -136,7 +136,7 @@ std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneC
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
-    TCypressNodeBase* /*sourceNode*/,
+    TCypressNodeBase* sourceNode,
     TCypressNodeBase* clonedNode,
     ICypressNodeFactoryPtr factory)
 {
