@@ -9,6 +9,8 @@ namespace NYT {
 class TStreamSaveContext;
 class TStreamLoadContext;
 
+class TChunkedMemoryPool;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "ref.h"
 
 namespace NYT {
