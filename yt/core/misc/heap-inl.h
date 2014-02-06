@@ -9,6 +9,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
 template <class TIterator, class TComparer>
 void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
 {
@@ -40,18 +42,43 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer
 }
 
 template <class TIterator, class TComparer>
+void SiftUp(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
+{
+    auto value = *current;
+    while (current != begin) {
+        size_t dist = std::distance(begin, current);
+        auto parent = begin + (dist - 1) / 2;
+        auto parentValue = *parent;
+        if (comparer(parentValue, value))
+            break;
+
+        *current = parentValue;
+        current = parent;
+    }
+    *current = value;
+}
+
+} // namespace NDetail
+
+template <class TIterator, class TComparer>
 void MakeHeap(TIterator begin, TIterator end, const TComparer& comparer)
 {
     size_t size = std::distance(begin, end);
     for (auto current = begin + size / 2 - 1; current >= begin; --current) {
-        SiftDown(begin, end, current, comparer);
+        NYT::NDetail::SiftDown(begin, end, current, comparer);
     }
 }
 
 template <class TIterator, class TComparer>
-void AdjustHeap(TIterator begin, TIterator end, const TComparer& comparer)
+void AdjustHeapFront(TIterator begin, TIterator end, const TComparer& comparer)
 {
-    SiftDown(begin, end, begin, comparer);
+    NYT::NDetail::SiftDown(begin, end, begin, comparer);
+}
+
+template <class TIterator, class TComparer>
+void AdjustHeapBack(TIterator begin, TIterator end, const TComparer& comparer)
+{
+    NYT::NDetail::SiftUp(begin, end, end - 1, comparer);
 }
 
 template <class TIterator, class TComparer>
@@ -59,7 +86,7 @@ void ExtractHeap(TIterator begin, TIterator end, const TComparer& comparer)
 {
     auto newEnd = end - 1;
     std::swap(*begin, *newEnd);
-    SiftDown(begin, newEnd, begin, comparer);
+    NYT::NDetail::SiftDown(begin, newEnd, begin, comparer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

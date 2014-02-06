@@ -389,7 +389,7 @@ private:
                     BucketHeap.pop_back();
                 } else {
                     BucketHeap.front() = bucketIndex;
-                    AdjustHeap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
+                    AdjustHeapFront(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
                 }
 
                 ++sortedRowCount;

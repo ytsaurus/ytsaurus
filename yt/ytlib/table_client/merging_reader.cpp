@@ -95,7 +95,7 @@ public:
             }
             auto* readerFacade = currentReader->GetFacade();
             if (readerFacade) {
-                AdjustHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+                AdjustHeapFront(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
             } else {
                 ExtractHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
                 ReaderHeap.pop_back();

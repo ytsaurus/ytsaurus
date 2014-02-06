@@ -179,10 +179,12 @@ public:
         return TUnversionedRow(header);
     }
 
+
     explicit operator bool() const
     {
         return Header != nullptr;
     }
+
 
     const TUnversionedRowHeader* GetHeader() const
     {
@@ -194,6 +196,7 @@ public:
         return Header;
     }
 
+
     const TUnversionedValue* Begin() const
     {
         return reinterpret_cast<const TUnversionedValue*>(Header + 1);
@@ -203,6 +206,7 @@ public:
     {
         return reinterpret_cast<TUnversionedValue*>(Header + 1);
     }
+
 
     const TUnversionedValue* End() const
     {
@@ -214,10 +218,17 @@ public:
         return Begin() + GetCount();
     }
 
+
     int GetCount() const
     {
         return Header->Count;
     }
+
+    void SetCount(int count)
+    {
+        Header->Count = count;
+    }
+
 
     const TUnversionedValue& operator[] (int index) const
     {
@@ -479,6 +490,7 @@ class TUnversionedRowBuilder
 {
 public:
     explicit TUnversionedRowBuilder(int initialValueCapacity = 16);
+
     void AddValue(const TUnversionedValue& value);
     TUnversionedRow GetRow();
 

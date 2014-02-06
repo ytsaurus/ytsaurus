@@ -125,6 +125,16 @@ void TTablet::SetActiveStore(TDynamicMemoryStorePtr store)
     ActiveStore_ = std::move(store);
 }
 
+int TTablet::GetSchemaColumnCount() const
+{
+    return static_cast<int>(Schema_.Columns().size());
+}
+
+int TTablet::GetKeyColumnCount() const
+{
+    return static_cast<int>(KeyColumns_.size());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

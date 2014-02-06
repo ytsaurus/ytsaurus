@@ -62,6 +62,9 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
+    int GetSchemaColumnCount() const;
+    int GetKeyColumnCount() const;
+
 private:
     NTabletClient::TTableMountConfigPtr Config_;
     NVersionedTableClient::TNameTablePtr NameTable_;

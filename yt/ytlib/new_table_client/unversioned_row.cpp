@@ -752,7 +752,7 @@ void TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
     ++header->Count;
 }
 
-NYT::NVersionedTableClient::TUnversionedRow TUnversionedRowBuilder::GetRow()
+TUnversionedRow TUnversionedRowBuilder::GetRow()
 {
     return TUnversionedRow(GetHeader());
 }
@@ -807,7 +807,7 @@ void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
     ++header->Count;
 }
 
-NYT::NVersionedTableClient::TUnversionedOwningRow TUnversionedOwningRowBuilder::Finish()
+TUnversionedOwningRow TUnversionedOwningRowBuilder::Finish()
 {
     auto row = TUnversionedOwningRow(
         TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),

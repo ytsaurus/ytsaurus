@@ -86,7 +86,7 @@ private:
 
     EStoreState State_;
 
-    int KeyCount_;
+    int KeyColumnCount_;
     int SchemaColumnCount_;
 
     i64 AllocatedStringSpace_;
