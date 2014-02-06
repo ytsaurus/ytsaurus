@@ -46,7 +46,7 @@ public:
     {
         auto token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
-        EXPECT_EQ(expectedValue, token.ToString());
+        EXPECT_EQ(expectedValue, ToString(token));
         Reset();
     }
 
@@ -62,7 +62,7 @@ public:
     {
         auto token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
-        EXPECT_EQ(input, token.ToString());
+        EXPECT_EQ(input, ToString(token));
         Reset();
     }
 
