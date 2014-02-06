@@ -123,44 +123,19 @@ double TToken::GetDoubleValue() const
     return DoubleValue;
 }
 
-Stroka TToken::ToString() const
-{
-    switch (Type_) {
-        case ETokenType::EndOfStream:
-            return Stroka();
-
-        case ETokenType::String:
-            return Stroka(StringValue);
-
-        case ETokenType::Integer:
-            return ::ToString(IntegerValue);
-
-        case ETokenType::Double:
-            return ::ToString(DoubleValue);
-
-        default:
-            return TokenTypeToString(Type_);
-    }
-}
-
-// Used below in JoinStroku
-Stroka ToString(ETokenType type)
-{
-    return type.ToString();
-}
-
 void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
 {
     if (expectedTypes.size() == 1) {
         CheckType(expectedTypes.front());
     } else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
-        Stroka typesString = JoinStroku(expectedTypes.begin(), expectedTypes.end(), " or ");
+        auto typesString = JoinStroku(expectedTypes.begin(), expectedTypes.end(), " or ");
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %s)", ~typesString);
+            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %s)",
+                ~typesString);
         } else {
             THROW_ERROR_EXCEPTION("Unexpected token (Token: %s, Type: %s, ExpectedTypes: %s)",
-                ~ToString().Quote(),
-                ~Type_.ToString(),
+                ~ToString(*this).Quote(),
+                ~::ToString(Type_),
                 ~typesString);
         }
     }
@@ -174,9 +149,9 @@ void TToken::CheckType(ETokenType expectedType) const
                 ~expectedType.ToString());
         } else {
             THROW_ERROR_EXCEPTION("Unexpected token (Token: %s, Type: %s, ExpectedType: %s)",
-                ~ToString().Quote(),
-                ~Type_.ToString(),
-                ~expectedType.ToString());
+                ~ToString(*this).Quote(),
+                ~::ToString(Type_),
+                ~::ToString(expectedType));
         }
     }
 }
@@ -189,6 +164,25 @@ void TToken::Reset()
     StringValue = TStringBuf();
 }
 
+Stroka ToString(const TToken& token)
+{
+    switch (token.GetType()) {
+        case ETokenType::EndOfStream:
+            return Stroka();
+
+        case ETokenType::String:
+            return Stroka(token.GetStringValue());
+
+        case ETokenType::Integer:
+            return ::ToString(token.GetIntegerValue());
+
+        case ETokenType::Double:
+            return ::ToString(token.GetDoubleValue());
+
+        default:
+            return TokenTypeToString(token.GetType());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
