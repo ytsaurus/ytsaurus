@@ -600,7 +600,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         Automaton_->ApplyMutation(context);
     }
 
-    if (context->Request().Id == NullMutationId) {
+    if (context->Request().Id == NullMutationId || context->IsMutationSuppressed()) {
         ResponseKeeper_->RemoveExpiredResponses(context->GetTimestamp());
     } else {
         ResponseKeeper_->RegisterResponse(
