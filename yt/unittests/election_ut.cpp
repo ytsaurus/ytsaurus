@@ -31,6 +31,8 @@ using testing::_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef _win_
+
 class TElectionTest
     : public testing::Test
 {
@@ -340,6 +342,9 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Values(
         TDuration::MilliSeconds(10),
         TDuration::MilliSeconds(60)));
+
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
