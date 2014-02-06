@@ -184,37 +184,25 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NTransactionServer::TTransaction* transaction,
-        TReqCreate* request,
-        TRspCreate* response)
+        NTransactionServer::TTransaction* /*transaction*/,
+        TReqCreate* /*request*/,
+        TRspCreate* /*response*/)
     {
-        UNUSED(transaction);
-        UNUSED(request);
-        UNUSED(response);
-
         return std::unique_ptr<TImpl>(new TImpl(id));
     }
 
-    virtual void DoDestroy(TImpl* node)
-    {
-        UNUSED(node);
-    }
+    virtual void DoDestroy(TImpl* /*node*/)
+    { }
 
     virtual void DoBranch(
-        const TImpl* originatingNode,
-        TImpl* branchedNode)
-    {
-        UNUSED(originatingNode);
-        UNUSED(branchedNode);
-    }
+        const TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    { }
 
     virtual void DoMerge(
-        TImpl* originatingNode,
-        TImpl* branchedNode)
-    {
-        UNUSED(originatingNode);
-        UNUSED(branchedNode);
-    }
+        TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    { }
 
     virtual void DoClone(
         TImpl* /*sourceNode*/,

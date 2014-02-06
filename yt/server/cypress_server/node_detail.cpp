@@ -136,12 +136,10 @@ std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneC
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
-    TCypressNodeBase* sourceNode,
+    TCypressNodeBase* /*sourceNode*/,
     TCypressNodeBase* clonedNode,
     ICypressNodeFactoryPtr factory)
 {
-    UNUSED(sourceNode);
-
     // Copy attributes directly to suppress validation.
     auto objectManager = Bootstrap->GetObjectManager();
     auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), factory->GetTransaction());
