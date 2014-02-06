@@ -648,10 +648,9 @@ void TDataNodeService::ProcessSample(
         std::back_inserter(samples),
         sampleRequest->sample_count());
 
-    TUnversionedRowBuilder rowBuilder;
     for (const auto& sample : samples) {
+        TUnversionedRowBuilder rowBuilder;
         auto* key = chunkSamples->add_items();
-
         size_t size = 0;
         for (const auto& column : keyColumns) {
             if (size >= MaxKeySize)
