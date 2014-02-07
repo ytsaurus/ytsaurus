@@ -19,6 +19,7 @@ public:
     explicit TResponseKeeper(
         TResponseKeeperConfigPtr config,
         const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+    ~TResponseKeeper();
 
     TSharedRefArray FindResponse(const TMutationId& id);
 

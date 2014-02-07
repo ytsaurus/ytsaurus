@@ -172,6 +172,9 @@ TResponseKeeper::TResponseKeeper(
         profiler))
 { }
 
+TResponseKeeper::~TResponseKeeper()
+{ }
+
 TSharedRefArray TResponseKeeper::FindResponse(const TMutationId& id)
 {
     return Impl_->FindResponse(id);
