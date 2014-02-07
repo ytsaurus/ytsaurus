@@ -277,16 +277,11 @@ private:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
-
-        auto nodesNode = resolver->ResolvePath("//sys/nodes");
-        YCHECK(nodesNode);
-
-        auto nodesMap = nodesNode->AsMap();
+        auto nodesMap = resolver->ResolvePath("//sys/nodes")->AsMap();
         auto nodeNode = nodesMap->FindChild(address);
         if (!nodeNode) {
             return nullptr;
         }
-
         return nodeNode->Attributes().ToMap();
     }
 
