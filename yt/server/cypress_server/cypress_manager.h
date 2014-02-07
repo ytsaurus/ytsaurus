@@ -55,6 +55,12 @@ public:
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
+    //! Creates a factory for creating nodes.
+    ICypressNodeFactoryPtr CreateNodeFactory(
+        NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account,
+        bool preserveAccount);
+
     //! Creates a new node and registers it.
     TCypressNodeBase* CreateNode(
         INodeTypeHandlerPtr handler,
@@ -120,8 +126,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
 
 private:
-    typedef TCypressManager TThis;
-
+    class TNodeFactory;
     class TNodeTypeHandler;
     class TLockTypeHandler;
     class TYPathResolver;
