@@ -37,7 +37,7 @@ TEvaluateController::TEvaluateController(
 {
     Logger.AddTag(Sprintf(
         "FragmendId: %s",
-        ~ToString(Fragment_.Guid())));
+        ~ToString(Fragment_.Id())));
 }
 
 TEvaluateController::~TEvaluateController()

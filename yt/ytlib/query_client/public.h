@@ -2,12 +2,23 @@
 
 #include <ytlib/new_table_client/public.h>
 
+// TODO(babenko): kill this when refactoring TDataSplit
 namespace NYT { namespace NChunkClient { namespace NProto {
     class TChunkSpec;
 } } }
 
 namespace NYT {
 namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+    
+class TPlanFragment;
+class TExpression;
+class TOperator;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,9 +34,9 @@ struct IPrepareCallbacks;
 struct ICoordinateCallbacks;
 struct IEvaluateCallbacks;
 
-class IExecutor;
-typedef TIntrusivePtr<IExecutor> IExecutorPtr;
+DECLARE_REFCOUNTED_STRUCT(IExecutor)
 
+// TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 
 using NVersionedTableClient::IReaderPtr;

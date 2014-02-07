@@ -306,9 +306,6 @@ void TInsertCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
-    using namespace NChunkClient;
-    using namespace NVersionedTableClient;
-
     auto fragment = TPlanFragment::Prepare(
         Request->Query,
         Context->GetQueryCallbacksProvider()->GetPrepareCallbacks());

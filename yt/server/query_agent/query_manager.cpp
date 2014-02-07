@@ -60,7 +60,7 @@ TAsyncError TQueryManager::Execute(
     const TPlanFragment& fragment,
     IWriterPtr writer)
 {
-    LOG_DEBUG("Executing plan fragment %s", ~ToString(fragment.Guid()));
+    LOG_DEBUG("Executing plan fragment %s", ~ToString(fragment.Id()));
     return Evaluator->Execute(fragment, std::move(writer));
 }
 
@@ -72,18 +72,19 @@ IReaderPtr TQueryManager::GetReader(const TDataSplit& dataSplit)
     auto objectId = FromProto<TObjectId>(dataSplit.chunk_id());
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
     switch (TypeFromId(objectId)) {
-    case EObjectType::Chunk: {
-        return CreateChunkReader(
-            New<TChunkReaderConfig>(),
-            dataSplit,
-            std::move(masterChannel),
-            NodeDirectory,
-            std::move(blockCache));
-    }
-    default:
-        THROW_ERROR_EXCEPTION(
-            "Unsupported data split type \"%s\"", 
-            ~TypeFromId(objectId).ToString());
+        case EObjectType::Chunk: {
+            return CreateChunkReader(
+                // TODO(babenko): make configuable
+                New<TChunkReaderConfig>(),
+                dataSplit,
+                std::move(masterChannel),
+                NodeDirectory,
+                std::move(blockCache));
+        }
+
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported data split type %s", 
+                ~FormatEnum(TypeFromId(objectId)).Quote());
     }
 }
 

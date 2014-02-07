@@ -270,7 +270,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto { class TExpression; }
 void ToProto(NProto::TExpression* serialized, const TExpression* original);
 const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext* context);
 

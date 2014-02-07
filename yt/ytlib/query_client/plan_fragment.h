@@ -18,7 +18,7 @@ public:
     explicit TPlanFragment(
         TPlanContextPtr context,
         const TOperator* head = nullptr,
-        const TGuid& guid = TGuid::Create());
+        const TGuid& id = TGuid::Create());
 
     TPlanFragment(const TPlanFragment& other);
 
@@ -38,7 +38,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TPlanContextPtr, Context);
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Head);
-    DEFINE_BYREF_RO_PROPERTY(TGuid, Guid);
+    DEFINE_BYREF_RO_PROPERTY(TGuid, Id);
 
     static TPlanFragment Prepare(
         const Stroka& source,
@@ -47,7 +47,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto { class TPlanFragment; }
 void ToProto(NProto::TPlanFragment* serialized, const TPlanFragment& original);
 TPlanFragment FromProto(const NProto::TPlanFragment& serialized);
 

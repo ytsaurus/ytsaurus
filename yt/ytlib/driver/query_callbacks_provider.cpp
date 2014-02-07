@@ -60,6 +60,10 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static auto& Logger = DriverLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteReader
     : public NChunkClient::IAsyncReader
 {
@@ -142,8 +146,6 @@ IReaderPtr DelegateToPeer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DriverLogger;
-
 class TQueryCallbacksProvider::TImpl
     : public TRefCounted
     , public IPrepareCallbacks
@@ -201,7 +203,7 @@ public:
         auto& descriptor = NodeDirectory_->GetDescriptor(replica);
 
         LOG_DEBUG("Delegating fragment %s to %s",
-            ~ToString(fragment.Guid()),
+            ~ToString(fragment.Id()),
             ~descriptor.Address);
         auto channel = ChannelFactory_->CreateChannel(descriptor.Address);
 

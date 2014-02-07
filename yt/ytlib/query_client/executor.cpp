@@ -40,6 +40,13 @@ private:
 
 };
 
+IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
+{
+    return New<TEvaluatorProxy>(std::move(invoker), callbacks);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCoordinatorProxy
     : public IExecutor
 {
@@ -75,13 +82,6 @@ private:
     ICoordinateCallbacks* Callbacks_;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
-{
-    return New<TEvaluatorProxy>(std::move(invoker), callbacks);
-}
 
 IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
 {

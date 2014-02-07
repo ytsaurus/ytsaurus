@@ -9,8 +9,6 @@ namespace NQueryClient {
 
 extern NLog::TLogger QueryClientLogger;
 
-extern const int FormatVersion;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

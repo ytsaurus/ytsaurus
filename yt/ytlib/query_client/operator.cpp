@@ -167,52 +167,54 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
 
     switch (original->GetKind()) {
 
-    case EOperatorKind::Scan: {
-        auto* op = original->As<TScanOperator>();
-        auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
-        ToProto(proto->mutable_data_split(), op->DataSplit());
-        break;
-    }
+        case EOperatorKind::Scan: {
+            auto* op = original->As<TScanOperator>();
+            auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
+            ToProto(proto->mutable_data_split(), op->DataSplit());
+            break;
+        }
 
-    case EOperatorKind::Union: {
-        auto* op = original->As<TUnionOperator>();
-        auto* proto = serialized->MutableExtension(NProto::TUnionOperator::union_operator);
-        ToProto(proto->mutable_sources(), op->Sources());
-        break;
-    }
+        case EOperatorKind::Union: {
+            auto* op = original->As<TUnionOperator>();
+            auto* proto = serialized->MutableExtension(NProto::TUnionOperator::union_operator);
+            ToProto(proto->mutable_sources(), op->Sources());
+            break;
+        }
 
-    case EOperatorKind::Filter: {
-        auto* op = original->As<TFilterOperator>();
-        auto* proto = serialized->MutableExtension(NProto::TFilterOperator::filter_operator);
-        ToProto(proto->mutable_source(), op->GetSource());
-        ToProto(proto->mutable_predicate(), op->GetPredicate());
-        break;
-    }
+        case EOperatorKind::Filter: {
+            auto* op = original->As<TFilterOperator>();
+            auto* proto = serialized->MutableExtension(NProto::TFilterOperator::filter_operator);
+            ToProto(proto->mutable_source(), op->GetSource());
+            ToProto(proto->mutable_predicate(), op->GetPredicate());
+            break;
+        }
 
-    case EOperatorKind::Group: {
-        auto* op = original->As<TGroupOperator>();
-        auto* proto = serialized->MutableExtension(NProto::TGroupOperator::group_operator);
-        ToProto(proto->mutable_source(), op->GetSource());
-        ToProto(proto->mutable_group_items(), op->GroupItems());
-        ToProto(proto->mutable_aggregate_items(), op->AggregateItems());
-        break;
-    }
+        case EOperatorKind::Group: {
+            auto* op = original->As<TGroupOperator>();
+            auto* proto = serialized->MutableExtension(NProto::TGroupOperator::group_operator);
+            ToProto(proto->mutable_source(), op->GetSource());
+            ToProto(proto->mutable_group_items(), op->GroupItems());
+            ToProto(proto->mutable_aggregate_items(), op->AggregateItems());
+            break;
+        }
 
-    case EOperatorKind::Project: {
-        auto* op = original->As<TProjectOperator>();
-        auto* proto = serialized->MutableExtension(NProto::TProjectOperator::project_operator);
-        ToProto(proto->mutable_source(), op->GetSource());
-        ToProto(proto->mutable_projections(), op->Projections());
-        break;
-    }
+        case EOperatorKind::Project: {
+            auto* op = original->As<TProjectOperator>();
+            auto* proto = serialized->MutableExtension(NProto::TProjectOperator::project_operator);
+            ToProto(proto->mutable_source(), op->GetSource());
+            ToProto(proto->mutable_projections(), op->Projections());
+            break;
+        }
 
-    ENSURE_ALL_CASES
+        ENSURE_ALL_CASES
     }
 }
 
 TNamedExpression FromProto(const NProto::TNamedExpression& serialized, TPlanContext* context)
 {
-    return TNamedExpression(FromProto(serialized.expression(), context), serialized.name());
+    return TNamedExpression(
+    	FromProto(serialized.expression(), context),
+    	serialized.name());
 }
 
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized, TPlanContext* context)
@@ -229,80 +231,79 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
 
     switch (EOperatorKind(serialized.kind())) {
 
-    case EOperatorKind::Scan: {
-        auto data = serialized.GetExtension(NProto::TScanOperator::scan_operator);
-        auto typedResult = new (context) TScanOperator(context);
-        FromProto(&typedResult->DataSplit(), data.data_split());
-        YASSERT(!result);
-        result = typedResult;
-        break;
-    }
-
-    case EOperatorKind::Union: {
-        auto data = serialized.GetExtension(NProto::TUnionOperator::union_operator);
-        auto typedResult = new (context) TUnionOperator(context);
-        typedResult->Sources().reserve(data.sources_size());
-        for (int i = 0; i < data.sources_size(); ++i) {
-            typedResult->Sources().push_back(
-                FromProto(data.sources(i), context));
+        case EOperatorKind::Scan: {
+            auto data = serialized.GetExtension(NProto::TScanOperator::scan_operator);
+            auto typedResult = new (context) TScanOperator(context);
+            FromProto(&typedResult->DataSplit(), data.data_split());
+            YASSERT(!result);
+            result = typedResult;
+            break;
         }
-        YASSERT(!result);
-        result = typedResult;
-        break;
-    }
 
-    case EOperatorKind::Filter: {
-        auto data = serialized.GetExtension(NProto::TFilterOperator::filter_operator);
-        auto typedResult = new (context) TFilterOperator(
-            context,
-            FromProto(data.source(), context));
-        typedResult->SetPredicate(FromProto(data.predicate(), context));
-        YASSERT(!result);
-        result = typedResult;
-        break;
-    }
-
-    case EOperatorKind::Group: {
-        auto data = serialized.GetExtension(NProto::TGroupOperator::group_operator);
-        auto typedResult = new (context) TGroupOperator(
-            context,
-            FromProto(data.source(), context));
-        typedResult->GroupItems().reserve(data.group_items_size());
-        for (int i = 0; i < data.group_items_size(); ++i) {
-            typedResult->GroupItems().push_back(
-                FromProto(data.group_items(i), context));
+        case EOperatorKind::Union: {
+            auto data = serialized.GetExtension(NProto::TUnionOperator::union_operator);
+            auto typedResult = new (context) TUnionOperator(context);
+            typedResult->Sources().reserve(data.sources_size());
+            for (int i = 0; i < data.sources_size(); ++i) {
+                typedResult->Sources().push_back(
+                    FromProto(data.sources(i), context));
+            }
+            YASSERT(!result);
+            result = typedResult;
+            break;
         }
-        typedResult->AggregateItems().reserve(data.aggregate_items_size());
-        for (int i = 0; i < data.aggregate_items_size(); ++i) {
-            typedResult->AggregateItems().push_back(
-                FromProto(data.aggregate_items(i), context));
-        }
-        YASSERT(!result);
-        result = typedResult;
-        break;
-    }
 
-    case EOperatorKind::Project: {
-        auto data = serialized.GetExtension(NProto::TProjectOperator::project_operator);
-        auto typedResult = new (context) TProjectOperator(
-            context,
-            FromProto(data.source(), context));
-        typedResult->Projections().reserve(data.projections_size());
-        for (int i = 0; i < data.projections_size(); ++i) {
-            typedResult->Projections().push_back(
-                FromProto(data.projections(i), context));
+        case EOperatorKind::Filter: {
+            auto data = serialized.GetExtension(NProto::TFilterOperator::filter_operator);
+            auto typedResult = new (context) TFilterOperator(
+                context,
+                FromProto(data.source(), context));
+            typedResult->SetPredicate(FromProto(data.predicate(), context));
+            YASSERT(!result);
+            result = typedResult;
+            break;
         }
-        YASSERT(!result);
-        result = typedResult;
-        break;
-    }
 
-    ENSURE_ALL_CASES
+        case EOperatorKind::Group: {
+            auto data = serialized.GetExtension(NProto::TGroupOperator::group_operator);
+            auto typedResult = new (context) TGroupOperator(
+                context,
+                FromProto(data.source(), context));
+            typedResult->GroupItems().reserve(data.group_items_size());
+            for (int i = 0; i < data.group_items_size(); ++i) {
+                typedResult->GroupItems().push_back(
+                    FromProto(data.group_items(i), context));
+            }
+            typedResult->AggregateItems().reserve(data.aggregate_items_size());
+            for (int i = 0; i < data.aggregate_items_size(); ++i) {
+                typedResult->AggregateItems().push_back(
+                    FromProto(data.aggregate_items(i), context));
+            }
+            YASSERT(!result);
+            result = typedResult;
+            break;
+        }
+
+        case EOperatorKind::Project: {
+            auto data = serialized.GetExtension(NProto::TProjectOperator::project_operator);
+            auto typedResult = new (context) TProjectOperator(
+                context,
+                FromProto(data.source(), context));
+            typedResult->Projections().reserve(data.projections_size());
+            for (int i = 0; i < data.projections_size(); ++i) {
+                typedResult->Projections().push_back(
+                    FromProto(data.projections(i), context));
+            }
+            YASSERT(!result);
+            result = typedResult;
+            break;
+        }
+
+        ENSURE_ALL_CASES
     }
 
     YCHECK(result);
     return result;
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

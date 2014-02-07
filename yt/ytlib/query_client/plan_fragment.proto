@@ -8,7 +8,7 @@ import "yt/ytlib/query_client/operator.proto";
 message TPlanFragment
 {
     required TOperator head = 1;
-    required NYT.NProto.TGuid guid = 2;
+    required NYT.NProto.TGuid id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

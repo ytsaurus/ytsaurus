@@ -10,16 +10,16 @@
 
 #include "graphviz.h"
 
+#include <core/concurrency/fiber.h>
+
+#include <core/misc/protobuf_helpers.h>
+
 #include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/object_client/helpers.h>
-
-#include <core/concurrency/fiber.h>
-
-#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -39,7 +39,7 @@ TCoordinateController::TCoordinateController(
 {
     Logger.AddTag(Sprintf(
         "FragmendId: %s",
-        ~ToString(Fragment_.Guid())));
+        ~ToString(Fragment_.Id())));
 }
 
 TCoordinateController::~TCoordinateController()
@@ -299,36 +299,36 @@ void TCoordinateController::DistributeToPeers()
 
         for (const auto& sourceOp : unionOp->Sources()) {
             auto fragment = TPlanFragment(GetContext(), sourceOp);
-            LOG_DEBUG("Created subfragment (SubFragmentId: %s)", ~ToString(fragment.Guid()));
+            LOG_DEBUG("Created subfragment (SubfragmentId: %s)", ~ToString(fragment.Id()));
 
             auto inferredKeyRange = InferKeyRange(fragment.GetHead());
             if (IsEmpty(inferredKeyRange)) {
-                LOG_DEBUG("Subfragment is empty (SubFragmentId: %s)", ~ToString(fragment.Guid()));
+                LOG_DEBUG("Subfragment is empty (SubfragmentId: %s)", ~ToString(fragment.Id()));
                 continue;
             } else {
-                LOG_DEBUG("Inferred key range %s ... %s (SubFragmentId: %s)",
+                LOG_DEBUG("Inferred key range %s ... %s (SubfragmentId: %s)",
                     ~ToString(inferredKeyRange.first),
                     ~ToString(inferredKeyRange.second),
-                    ~ToString(fragment.Guid()));
+                    ~ToString(fragment.Id()));
             }
 
             fragment.Rewrite(
-            [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-                auto* scanOp = op->As<TScanOperator>();
-                if (!scanOp) {
-                    return op;
-                }
-                if (!IsSorted(scanOp->DataSplit())) {
-                    return op;
-                }
+                [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+                    auto* scanOp = op->As<TScanOperator>();
+                    if (!scanOp) {
+                        return op;
+                    }
+                    if (!IsSorted(scanOp->DataSplit())) {
+                        return op;
+                    }
 
-                auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-                auto& clonedDataSplit = clonedScanOp->DataSplit();
-                SetBothBounds(&clonedDataSplit, Intersect(
-                    GetBothBoundsFromDataSplit(clonedDataSplit),
-                    inferredKeyRange));
-                return clonedScanOp;
-            });
+                    auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                    auto& clonedDataSplit = clonedScanOp->DataSplit();
+                    SetBothBounds(&clonedDataSplit, Intersect(
+                        GetBothBoundsFromDataSplit(clonedDataSplit),
+                        inferredKeyRange));
+                    return clonedScanOp;
+                });
 
             Peers_.emplace_back(fragment, nullptr);
 

@@ -305,7 +305,7 @@ void TBootstrap::Run()
 
     StoreFlusher = New<TStoreFlusher>(Config->TabletNode->StoreFlusher, this);
 
-    RpcServer->RegisterService(New<TQueryService>(this));
+    RpcServer->RegisterService(CreateQueryService(this));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(

@@ -12,15 +12,18 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IExecutor
-    : public TRefCounted
+struct IExecutor
+    : public virtual TRefCounted
 {
-public:
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
         IWriterPtr writer) = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(IExecutor)
+
+////////////////////////////////////////////////////////////////////////////////
 
 IExecutorPtr CreateEvaluator(
     IInvokerPtr invoker,

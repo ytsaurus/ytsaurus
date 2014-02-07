@@ -2,13 +2,7 @@
 
 #include "public.h"
 
-#include <core/rpc/service_detail.h>
-
-#include <ytlib/chunk_client/public.h>
-
-#include <ytlib/new_table_client/public.h>
-
-#include <ytlib/query_client/query_service_proxy.h>
+#include <core/rpc/public.h>
 
 #include <server/cell_node/public.h>
 
@@ -17,27 +11,7 @@ namespace NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryService
-    : public NRpc::TServiceBase
-{
-public:
-    explicit TQueryService(NCellNode::TBootstrap* bootstrap);
-
-    ~TQueryService();
-
-private:
-    typedef TQueryService TThis;
-    typedef NQueryClient::TQueryServiceProxy TProxy;
-
-    NVersionedTableClient::TChunkWriterConfigPtr ChunkWriterConfig_;
-    NChunkClient::TEncodingWriterOptionsPtr EncodingWriterOptions_;
-
-    NCellNode::TBootstrap* Bootstrap;
-
-
-    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute);
-
-};
+NRpc::IServicePtr CreateQueryService(NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

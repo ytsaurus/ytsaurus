@@ -11,10 +11,6 @@
 
 #include <server/cell_node/public.h>
 
-namespace NYT { namespace NNodeTrackerClient { namespace NProto {
-    class TNodeDirectory;
-} } }
-
 namespace NYT {
 namespace NQueryAgent {
 
@@ -53,6 +49,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
+} // namespace NQueryAgent
 } // namespace NYT
 

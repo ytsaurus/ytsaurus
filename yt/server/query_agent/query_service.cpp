@@ -1,6 +1,10 @@
 #include "query_service.h"
 #include "private.h"
 
+#include <core/compression/public.h>
+
+#include <core/rpc/service_detail.h>
+
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/memory_writer.h>
 
@@ -9,10 +13,7 @@
 #include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
-
-#include <core/compression/public.h>
-
-#include <core/concurrency/action_queue.h>
+#include <ytlib/query_client/query_service_proxy.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -25,62 +26,70 @@ using namespace NCellNode;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NQueryClient;
-using namespace NQueryClient::NProto;
 using namespace NRpc;
 using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = QueryAgentLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TQueryService::TQueryService(TBootstrap* bootstrap)
-    : NRpc::TServiceBase(
-        CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
-        TProxy::GetServiceName(),
-        QueryAgentLogger.GetCategory())
-    , Bootstrap(bootstrap)
+class TQueryService
+    : public NRpc::TServiceBase
 {
-    YCHECK(bootstrap);
+public:
+    explicit TQueryService(NCellNode::TBootstrap* bootstrap)
+        : TServiceBase(
+            CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
+            TQueryServiceProxy::GetServiceName(),
+            QueryAgentLogger.GetCategory())
+        , Bootstrap(bootstrap)
+    {
+        YCHECK(bootstrap);
 
-    ChunkWriterConfig_ = New<TChunkWriterConfig>();
+        ChunkWriterConfig_ = New<TChunkWriterConfig>();
 
-    EncodingWriterOptions_ = New<TEncodingWriterOptions>();
-    EncodingWriterOptions_->CompressionCodec = NCompression::ECodec::Lz4;
+        EncodingWriterOptions_ = New<TEncodingWriterOptions>();
+        EncodingWriterOptions_->CompressionCodec = NCompression::ECodec::Lz4;
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-        .SetEnableReorder(true));
-}
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
+            .SetEnableReorder(true));
+    }
 
-TQueryService::~TQueryService()
-{ }
+private:
+    NVersionedTableClient::TChunkWriterConfigPtr ChunkWriterConfig_;
+    NChunkClient::TEncodingWriterOptionsPtr EncodingWriterOptions_;
 
-////////////////////////////////////////////////////////////////////////////////
+    NCellNode::TBootstrap* Bootstrap;
 
-DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
+    {
+        Bootstrap->GetQueryManager()->UpdateNodeDirectory(request->node_directory());
+
+        auto planFragment = NQueryClient::FromProto(request->plan_fragment());
+
+        auto memoryWriter = New<TMemoryWriter>();
+        auto chunkWriter = CreateChunkWriter(
+            ChunkWriterConfig_,
+            EncodingWriterOptions_,
+            memoryWriter);
+
+        Bootstrap->GetQueryManager()
+            ->Execute(planFragment, chunkWriter)
+            .Apply(BIND([=] (TError error) {
+                if (error.IsOK()) {
+                    response->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());
+                    response->Attachments() = std::move(memoryWriter->GetBlocks());
+                    context->Reply();
+                } else {
+                    context->Reply(error);
+                }
+            }));
+    }
+
+};
+
+IServicePtr CreateQueryService(NCellNode::TBootstrap* bootstrap)
 {
-    Bootstrap->GetQueryManager()->UpdateNodeDirectory(request->node_directory());
-
-    auto planFragment = NQueryClient::FromProto(request->plan_fragment());
-
-    auto memoryWriter = New<TMemoryWriter>();
-    auto chunkWriter = CreateChunkWriter(
-        ChunkWriterConfig_,
-        EncodingWriterOptions_,
-        memoryWriter);
-
-    Bootstrap->GetQueryManager()
-        ->Execute(planFragment, chunkWriter)
-        .Apply(BIND([=] (TError error) {
-            if (error.IsOK()) {
-                response->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());
-                response->Attachments() = std::move(memoryWriter->GetBlocks());
-                context->Reply();
-            } else {
-                context->Reply(error);
-            }
-        }));
+    return New<TQueryService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

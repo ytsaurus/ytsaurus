@@ -313,11 +313,11 @@ public:
 private:
     TNamedExpressionList Projections_;
     mutable std::unique_ptr<TTableSchema> TableSchema_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto { class TOperator; }
 void ToProto(NProto::TOperator* serialized, const TOperator* original);
 const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* context);
 
