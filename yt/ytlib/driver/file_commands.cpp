@@ -89,12 +89,12 @@ void TUploadCommand::DoExecute()
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        size_t length = input->GetReadLength();
-        if (length == 0)
+        size_t bytesRead = input->GetReadLength();
+        if (bytesRead == 0)
             break;
 
         {
-            auto result = WaitFor(writer->Write(TRef(buffer.Begin(), length)));
+            auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
