@@ -831,7 +831,7 @@ private:
         return false;
     }
 
-#ifdef _linux_
+#ifdef _unix_
     static void __attribute__((__noinline__, __regparm__(1)))
 #else
     static void
