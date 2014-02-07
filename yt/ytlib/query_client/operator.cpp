@@ -213,8 +213,8 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
 TNamedExpression FromProto(const NProto::TNamedExpression& serialized, TPlanContext* context)
 {
     return TNamedExpression(
-    	FromProto(serialized.expression(), context),
-    	serialized.name());
+        FromProto(serialized.expression(), context),
+        serialized.name());
 }
 
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized, TPlanContext* context)
