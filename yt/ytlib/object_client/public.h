@@ -114,7 +114,7 @@ DECLARE_ENUM(EObjectType,
 
     // Tablet stuff
     ((TabletCell)                 (700))
-    ((TabletCellMap)              (701))
+    ((TabletCellNode)             (701))
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
     ((TabletStore)                (704))

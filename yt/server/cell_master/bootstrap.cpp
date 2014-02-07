@@ -386,7 +386,7 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateAccountMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateGroupMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateTabletCellMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager->RegisterHandler(CreateTabletMapTypeHandler(this));
 
     MetaStateFacade->Start();

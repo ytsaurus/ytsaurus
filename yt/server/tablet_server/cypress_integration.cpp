@@ -2,35 +2,104 @@
 #include "cypress_integration.h"
 #include "tablet_cell.h"
 #include "tablet.h"
+#include "tablet_manager.h"
 
 #include <server/cell_master/bootstrap.h>
 
 #include <server/cypress_server/virtual.h>
+#include <server/cypress_server/node_detail.h>
+#include <server/cypress_server/node_proxy_detail.h>
 
 #include <server/tablet_server/tablet_manager.h>
 
 namespace NYT {
 namespace NTabletServer {
 
-using namespace NCypressServer;
-using namespace NCellMaster;
+using namespace NYPath;
+using namespace NRpc;
 using namespace NObjectClient;
+using namespace NCypressServer;
+using namespace NTransactionServer;
+using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateTabletCellMapTypeHandler(TBootstrap* bootstrap)
+class TTabletCellNodeProxy
+    : public TMapNodeProxy
 {
-    YCHECK(bootstrap);
+public:
+    TTabletCellNodeProxy(
+        INodeTypeHandlerPtr typeHandler,
+        TBootstrap* bootstrap,
+        TTransaction* transaction,
+        TMapNode* trunkNode)
+        : TMapNodeProxy(
+            typeHandler,
+            bootstrap,
+            transaction,
+            trunkNode)
+    { }
 
-    auto service = CreateVirtualObjectMap(
-        bootstrap,
-        bootstrap->GetTabletManager()->TabletCells());
-    return CreateVirtualTypeHandler(
-        bootstrap,
-        EObjectType::TabletCellMap,
-        service,
-        EVirtualNodeOptions::RedirectSelf);
+    virtual IYPathService::TResolveResult ResolveAttributes(
+        const TYPath& path,
+        IServiceContextPtr /*context*/) override
+    {
+        return TResolveResult::There(
+            GetTargetProxy(),
+            "/@" + path);
+    }
+
+private:
+    IObjectProxyPtr GetTargetProxy() const
+    {
+        auto key = GetParent()->AsMap()->GetChildKey(this);
+        auto id = TTabletCellId::FromString(key);
+     
+        auto tabletManager = Bootstrap->GetTabletManager();
+        auto* cell = tabletManager->GetTabletCell(id);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        return objectManager->GetProxy(cell, nullptr);
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletCellNodeTypeHandler
+    : public TMapNodeTypeHandler
+{
+public:
+    explicit TTabletCellNodeTypeHandler(TBootstrap* bootstrap)
+        : TMapNodeTypeHandler(bootstrap)
+    { }
+
+    virtual EObjectType GetObjectType() override
+    {
+        return EObjectType::TabletCellNode;
+    }
+
+private:
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TMapNode* trunkNode,
+        TTransaction* transaction) override
+    {
+        return New<TTabletCellNodeProxy>(
+            this,
+            Bootstrap,
+            transaction,
+            trunkNode);
+    }
+
+};
+
+INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* bootstrap)
+{
+    return New<TTabletCellNodeTypeHandler>(bootstrap);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
 {

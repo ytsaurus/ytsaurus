@@ -11,7 +11,7 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressServer::INodeTypeHandlerPtr CreateTabletCellMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateTabletMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////

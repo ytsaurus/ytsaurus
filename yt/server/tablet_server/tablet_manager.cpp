@@ -36,6 +36,10 @@
 #include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk_tree_traversing.h>
 
+#include <server/cypress_server/cypress_manager.h>
+
+#include <server/security_server/security_manager.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/serialize.h>
@@ -45,6 +49,7 @@
 namespace NYT {
 namespace NTabletServer {
 
+using namespace NVersionedTableClient;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NYTree;
@@ -58,8 +63,8 @@ using namespace NNodeTrackerServer::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NTabletNode::NProto;
-using namespace NVersionedTableClient;
 using namespace NChunkServer;
+using namespace NCypressServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,12 +244,39 @@ public:
         auto hiveManager = Bootstrap->GetHiveManager();
         hiveManager->CreateMailbox(id);
 
+        auto cellMapNodeProxy = GetCellMapNode();
+
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* sysAccount = securityManager->GetSysAccount();
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto nodeFactory = cypressManager->CreateNodeFactory(
+            nullptr,
+            sysAccount,
+            false);
+
+        auto cellNodeTypeHandler = cypressManager->GetHandler(EObjectType::TabletCellNode);
+
+        auto* cellNode = cypressManager->CreateNode(
+            cellNodeTypeHandler,
+            nodeFactory,
+            nullptr,
+            nullptr);
+
+        auto cellNodeProxy = cypressManager->GetNodeProxy(cellNode);
+        cellMapNodeProxy->AddChild(cellNodeProxy, ToString(id));
+        
+        cellNodeProxy->MutableAttributes()->Set("opaque", true);
+     
         return cell;
     }
 
     void DestroyCell(TTabletCell* cell)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto cellMapNodeProxy = GetCellMapNode();
+        cellMapNodeProxy->RemoveChild(ToString(cell->GetId()));
 
         for (const auto& peer : cell->Peers()) {
             if (peer.Node) {
@@ -1227,6 +1259,14 @@ private:
                 THROW_ERROR_EXCEPTION("First tablet index is greater than last tablet index");
             }
         }
+    }
+
+
+    IMapNodePtr GetCellMapNode()
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
     }
 
 };

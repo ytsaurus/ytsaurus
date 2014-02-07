@@ -336,7 +336,11 @@ private:
             CreateNode(
                 "//sys/tablet_cells",
                 transactionId,
-                EObjectType::TabletCellMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
             CreateNode(
                 "//sys/tablets",
