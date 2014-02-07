@@ -255,7 +255,7 @@ private:
     static VOID CALLBACK
     Trampoline(PVOID opaque);
 #else
-    static void __attribute__((__noinline__, __regparm__(1)))
+    static void __attribute__((__noinline__))
     Trampoline();
 #endif
 
