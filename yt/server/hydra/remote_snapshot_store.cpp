@@ -145,6 +145,9 @@ private:
             , CurrentOffset_(-1)
         { }
 
+        ~TReaderStream() throw()
+        { }
+
         void Open()
         {
             auto result = WaitFor(Reader_->Open());
