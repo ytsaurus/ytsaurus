@@ -221,7 +221,7 @@ private:
             auto params = DoGetSnapshotParams(snapshotId).GetValueOrThrow();
             auto reader = New<TReader>(this, snapshotId, params);
             reader->Open();
-            return reader;
+            return TErrorOr<ISnapshotReaderPtr>(reader);
         } catch (const std::exception& ex) {
             return ex;
         }
