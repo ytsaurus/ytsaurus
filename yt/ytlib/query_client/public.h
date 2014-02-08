@@ -40,7 +40,7 @@ DECLARE_REFCOUNTED_STRUCT(IExecutor)
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 
 using NVersionedTableClient::ISchemedReaderPtr;
-using NVersionedTableClient::IWriterPtr;
+using NVersionedTableClient::ISchemedWriterPtr;
 
 using NVersionedTableClient::EValueType;
 

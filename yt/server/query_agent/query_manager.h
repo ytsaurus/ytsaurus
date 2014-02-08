@@ -32,7 +32,7 @@ public:
 
     virtual TAsyncError Execute(
         const NQueryClient::TPlanFragment& fragment,
-        NQueryClient::IWriterPtr writer) override;
+        NQueryClient::ISchemedWriterPtr writer) override;
 
     virtual NQueryClient::ISchemedReaderPtr GetReader(
         const NQueryClient::TDataSplit& dataSplit) override;

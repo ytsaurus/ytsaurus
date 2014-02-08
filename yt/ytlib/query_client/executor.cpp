@@ -5,7 +5,7 @@
 #include "coordinate_controller.h"
 #include "evaluate_controller.h"
 
-#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/schemed_writer.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -23,7 +23,7 @@ public:
 
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        IWriterPtr writer) override
+        ISchemedWriterPtr writer) override
     {
         return BIND([=] () -> TError {
             TEvaluateController evaluator(Callbacks_, fragment, std::move(writer));
@@ -57,7 +57,7 @@ public:
 
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        IWriterPtr writer) override
+        ISchemedWriterPtr writer) override
     {
         return BIND([=] () -> TError {
             TCoordinateController coordinator(Callbacks_, fragment);

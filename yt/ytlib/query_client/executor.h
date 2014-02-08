@@ -17,7 +17,7 @@ struct IExecutor
 {
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        IWriterPtr writer) = 0;
+        ISchemedWriterPtr writer) = 0;
 
 };
 

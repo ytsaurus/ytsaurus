@@ -10,7 +10,7 @@
 
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/schemed_chunk_writer.h>
-#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/schemed_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/query_service_proxy.h>
@@ -67,7 +67,7 @@ private:
         auto planFragment = NQueryClient::FromProto(request->plan_fragment());
 
         auto memoryWriter = New<TMemoryWriter>();
-        auto chunkWriter = CreateChunkWriter(
+        auto chunkWriter = CreateSchemedChunkWriter(
             ChunkWriterConfig_,
             EncodingWriterOptions_,
             memoryWriter);

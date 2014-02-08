@@ -15,7 +15,7 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/schemed_writer.h>
 #include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
@@ -26,10 +26,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int MaxRowsPerWrite = 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEvaluateController::TEvaluateController(
     IEvaluateCallbacks* callbacks,
     const TPlanFragment& fragment,
-    IWriterPtr writer)
+    ISchemedWriterPtr writer)
     : Callbacks_(callbacks)
     , Fragment_(fragment)
     , Writer_(std::move(writer))
@@ -51,31 +55,30 @@ TError TEvaluateController::Run()
         auto producer = CreateProducer(GetHead());
 
         LOG_DEBUG("Opening writer");
-        Writer_->Open(
-            GetHead()->GetNameTable(),
-            GetHead()->GetTableSchema(),
-            GetHead()->GetKeyColumns());
+        {
+            auto result = WaitFor(Writer_->Open(
+                GetHead()->GetTableSchema(),
+                GetHead()->GetKeyColumns()));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
         std::vector<TRow> rows;
-        rows.reserve(1000);
-        while (producer.Run(&rows)) {
-            for (auto row : rows) {
-               for (int i = 0; i < row.GetCount(); ++i) {
-                    Writer_->WriteValue(row[i]);
-                }
-                if (!Writer_->EndRow()) {
-                    auto result = WaitFor(Writer_->GetReadyEvent());
-                    RETURN_IF_ERROR(result);
-                }
-            }
+        rows.reserve(MaxRowsPerWrite);
+        while (true) {
             rows.clear();
+            if (!producer.Run(&rows))
+                break;
+
+            if (!Writer_->Write(rows)) {
+                auto result = WaitFor(Writer_->GetReadyEvent());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
         }
 
         LOG_DEBUG("Closing writer");
-        auto error = WaitFor(Writer_->Close());
-        if (!error.IsOK()) {
-            LOG_ERROR(error);
-            return error;
+        {
+            auto result = WaitFor(Writer_->Close());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
         LOG_DEBUG("Finished evaluating plan fragment");

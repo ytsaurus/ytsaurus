@@ -27,9 +27,9 @@
 #include <ytlib/new_table_client/schemed_chunk_writer.h>
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/schemed_writer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
@@ -315,7 +315,7 @@ void TSelectCommand::DoExecute()
         Context->GetQueryCallbacksProvider()->GetCoordinateCallbacks());
 
     auto memoryWriter = New<TMemoryWriter>();
-    auto chunkWriter = CreateChunkWriter(
+    auto chunkWriter = CreateSchemedChunkWriter(
         New<NVersionedTableClient::TChunkWriterConfig>(),
         New<TEncodingWriterOptions>(),
         memoryWriter);

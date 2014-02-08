@@ -12,9 +12,11 @@
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/schemed_reader.h>
 #include <ytlib/new_table_client/schemed_chunk_reader.h>
-#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/schemed_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
+
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <server/data_node/block_store.h>
 
@@ -58,7 +60,7 @@ void TQueryManager::UpdateNodeDirectory(
 
 TAsyncError TQueryManager::Execute(
     const TPlanFragment& fragment,
-    IWriterPtr writer)
+    ISchemedWriterPtr writer)
 {
     LOG_DEBUG("Executing plan fragment %s", ~ToString(fragment.Id()));
     return Evaluator->Execute(fragment, std::move(writer));
