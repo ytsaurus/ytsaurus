@@ -1,9 +1,6 @@
 #pragma once
 
 #include <core/misc/common.h>
-#include <core/misc/lazy_ptr.h>
-
-#include <core/concurrency/action_queue.h>
 
 #include <ytlib/hydra/public.h>
 
@@ -53,7 +50,7 @@ DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern TLazyIntrusivePtr<NConcurrency::TActionQueue> HydraIOQueue;
+IInvokerPtr GetHydraIOInvoker();
 
 ////////////////////////////////////////////////////////////////////////////////
 

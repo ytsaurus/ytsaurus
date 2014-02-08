@@ -459,7 +459,7 @@ private:
 
     void SwitchToIOThread()
     {
-        SwitchTo(HydraIOQueue->GetInvoker());
+        SwitchTo(GetHydraIOInvoker());
         VERIFY_THREAD_AFFINITY(IOThread);
     }
 

@@ -46,7 +46,7 @@ public:
     TAsyncError Run(int snapshotId)
     {
         return BIND(&TSnapshotDownloader::DoRun, MakeStrong(this))
-            .AsyncVia(HydraIOQueue->GetInvoker())
+            .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
 

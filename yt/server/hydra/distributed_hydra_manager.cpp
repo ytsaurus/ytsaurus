@@ -152,7 +152,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
         VERIFY_INVOKER_AFFINITY(automatonInvoker, AutomatonThread);
-        VERIFY_INVOKER_AFFINITY(HydraIOQueue->GetInvoker(), IOThread);
+        VERIFY_INVOKER_AFFINITY(GetHydraIOInvoker(), IOThread);
 
         Logger.AddTag(Sprintf("CellGuid: %s",
             ~ToString(CellManager_->GetCellGuid())));
@@ -409,7 +409,7 @@ public:
         YCHECK(startRecordId >= 0);
         YCHECK(recordCount >= 0);
 
-        SwitchTo(HydraIOQueue->GetInvoker());
+        SwitchTo(GetHydraIOInvoker());
         VERIFY_THREAD_AFFINITY(IOThread);
 
         auto changelog = ChangelogStore_->OpenChangelogOrThrow(changelogId);

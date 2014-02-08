@@ -223,7 +223,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_AFFINITY(ControlInvoker_, ControlThread);
-    VERIFY_INVOKER_AFFINITY(HydraIOQueue->GetInvoker(), IOThread);
+    VERIFY_INVOKER_AFFINITY(GetHydraIOInvoker(), IOThread);
 
     Logger.AddTag(Sprintf("CellGuid: %s",
         ~ToString(CellManager_->GetCellGuid())));
@@ -464,7 +464,7 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog()
             &TDecoratedAutomaton::DoRotateChangelog,
             MakeStrong(this),
             GetCurrentChangelog())
-        .AsyncVia(HydraIOQueue->GetInvoker())
+        .AsyncVia(GetHydraIOInvoker())
         .Run();
 }
 

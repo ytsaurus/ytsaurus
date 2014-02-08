@@ -21,7 +21,7 @@ TLocalSnapshotService::TLocalSnapshotService(
     const TCellGuid& cellGuid,
     TFileSnapshotStorePtr fileStore)
     : TServiceBase(
-        HydraIOQueue->GetInvoker(),
+        GetHydraIOInvoker(),
         TServiceId(TSnapshotServiceProxy::GetServiceName(), cellGuid),
         HydraLogger.GetCategory())
         , FileStore_(fileStore)

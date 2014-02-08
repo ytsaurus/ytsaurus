@@ -47,7 +47,7 @@ public:
     TAsyncError Run(int changelogId, int recordCount)
     {
         return BIND(&TChangelogDownloader::DoRun, MakeStrong(this))
-            .AsyncVia(HydraIOQueue->GetInvoker())
+            .AsyncVia(GetHydraIOInvoker())
             .Run(changelogId, recordCount);
     }
 

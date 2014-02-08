@@ -6,9 +6,6 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLazyIntrusivePtr<NConcurrency::TActionQueue> HydraIOQueue(
-    NConcurrency::TActionQueue::CreateFactory("HydraIO"));
-
 const Stroka LogSuffix(".log");
 const Stroka IndexSuffix(".index");
 const Stroka MultiplexedDirectory("multiplexed");

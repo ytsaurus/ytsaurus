@@ -80,7 +80,7 @@ public:
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoCreateReader, MakeStrong(this))
-            .AsyncVia(HydraIOQueue->GetInvoker())
+            .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
 
@@ -99,21 +99,21 @@ public:
     virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
-            .AsyncVia(HydraIOQueue->GetInvoker())
+            .AsyncVia(GetHydraIOInvoker())
             .Run(maxSnapshotId);
     }
 
     virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoConfirmSnapshot, MakeStrong(this))
-            .AsyncVia(HydraIOQueue->GetInvoker())
+            .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
 
     virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetSnapshotParams, MakeStrong(this))
-            .AsyncVia(HydraIOQueue->GetInvoker())
+            .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
 
