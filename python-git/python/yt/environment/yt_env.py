@@ -219,7 +219,7 @@ class YTEnv(object):
             config['timestamp_provider']['addresses'] = self._master_addresses
             config['changelogs']['path'] = \
                 os.path.join(current, 'changelogs')
-            config['snapshots']['temp_path'] = \
+            config['snapshots']['path'] = \
                     os.path.join(current, 'snapshots')
             init_logging(config['logging'], current, 'master-' + str(i))
 
@@ -292,7 +292,7 @@ class YTEnv(object):
                 os.path.join(current, 'slots')
             config['tablet_node']['changelogs']['path'] = \
                 os.path.join(current, 'changelogs')
-            config['tablet_node']['snapshots']['path'] = \
+            config['tablet_node']['snapshots']['temp_path'] = \
                 os.path.join(current, 'snapshots')
 
             current_user += config['exec_agent']['job_controller']['resource_limits']['slots'] + 1
