@@ -20,7 +20,7 @@ def get_master_config():
     };
     
     snapshots = {
-        path = "";
+        temp_path = "";
     };
 
     hydra = {
