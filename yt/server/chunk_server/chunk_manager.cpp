@@ -438,7 +438,7 @@ public:
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
 
-        if (IsLeader()) {
+        if (ChunkReplicator) {
             ChunkReplicator->ScheduleChunkRefresh(chunk);
         }
 
@@ -777,7 +777,7 @@ private:
 
             node->SetDecommissioned(config->Decommissioned);
 
-            if (IsLeader()) {
+            if (ChunkReplicator) {
                 ChunkReplicator->ScheduleNodeRefresh(node);
             }
         }
@@ -844,7 +844,7 @@ private:
                 chunk->SetVital(update.vital());
             }
 
-            if (IsLeader() && hasChanged) {
+            if (ChunkReplicator && hasChanged) {
                 ChunkReplicator->ScheduleChunkRefresh(chunk);
             }
         }
@@ -1092,7 +1092,7 @@ private:
                 ~node->GetAddress());
         }
 
-        if (!cached && IsLeader()) {
+        if (ChunkReplciator && !cached) {
             ChunkReplicator->ScheduleChunkRefresh(chunkWithIndex.GetPtr());
         }
 
@@ -1149,7 +1149,7 @@ private:
                 ~node->GetAddress());
         }
 
-        if (!cached && IsLeader()) {
+        if (ChunkReplicator && !cached) {
             ChunkReplicator->ScheduleChunkRefresh(chunk);
         }
 
@@ -1181,7 +1181,7 @@ private:
                 ~ToString(chunkIdWithIndex),
                 ~FormatBool(cached));
 
-            if (IsLeader()) {
+            if (ChunkReplicator) {
                 ChunkReplicator->ScheduleUnknownChunkRemoval(node, chunkIdWithIndex);
             }
 
