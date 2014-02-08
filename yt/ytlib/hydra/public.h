@@ -11,17 +11,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPeerDiscoveryConfig;
-typedef TIntrusivePtr<TPeerDiscoveryConfig> TPeerDiscoveryConfigPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NElection::TCellGuid;
-using NElection::NullCellGuid;
-using NElection::TPeerId;
-using NElection::InvalidPeerId;
-using NElection::TPeerPriority;
-using NElection::TEpochId;
+DECLARE_REFCOUNTED_CLASS(TPeerDiscoveryConfig)
 
 DECLARE_ENUM(EPeerState,
     ((None)                       (0))
@@ -55,6 +45,13 @@ DECLARE_ENUM(EPeerRole,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using NElection::TCellGuid;
+using NElection::NullCellGuid;
+using NElection::TPeerId;
+using NElection::InvalidPeerId;
+using NElection::TPeerPriority;
+using NElection::TEpochId;
 
 using NRpc::TMutationId;
 using NRpc::NullMutationId;

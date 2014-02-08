@@ -72,6 +72,8 @@ struct IChangelog
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IChangelog)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Parameters used for creating new changelogs.
@@ -111,6 +113,8 @@ struct IChangelogStore
     IChangelogPtr OpenChangelogOrThrow(int id);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(IChangelogStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

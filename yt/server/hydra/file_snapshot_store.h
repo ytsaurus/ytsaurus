@@ -41,6 +41,8 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TFileSnapshotStore)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISnapshotReaderPtr CreateFileSnapshotReader(

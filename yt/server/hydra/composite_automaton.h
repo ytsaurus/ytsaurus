@@ -95,6 +95,8 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ESerializationPriority,
@@ -163,6 +165,8 @@ private:
     virtual void Clear() override;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCompositeAutomaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -47,8 +47,7 @@ private:
 
 };
 
-template <class TRequest, class TResponse>
-struct TMutationActionTraits;
+DEFINE_REFCOUNTED_TYPE(TMutation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,6 +22,8 @@ struct ISnapshotReader
 
 };
 
+DEFINE_REFCOUNTED_TYPE(ISnapshotReader)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A wrapper around snapshot output stream (either compressed or not).
@@ -38,6 +40,8 @@ struct ISnapshotWriter
     virtual void Close() = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(ISnapshotWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +95,8 @@ struct ISnapshotStore
     virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(ISnapshotStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

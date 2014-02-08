@@ -43,6 +43,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
+
 class TFileChangelogStoreConfig
     : public TFileChangelogConfig
 {
@@ -62,20 +64,24 @@ public:
     }
 };
 
-class TMutiplexedFileChangelogConfig
+DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)
+
+class TMultiplexedFileChangelogConfig
     : public TFileChangelogConfig
 {
 public:
     //! Number of records to force rotation of the multiplexed changelog.
     int RotateRecords;
 
-    TMutiplexedFileChangelogConfig()
+    TMultiplexedFileChangelogConfig()
     {
         RegisterParameter("rotate_records", RotateRecords)
             .GreaterThan(0)
             .Default(100000);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TMultiplexedFileChangelogConfig)
 
 class TFileChangelogCatalogConfig
     : public TYsonSerializable
@@ -85,7 +91,7 @@ public:
     Stroka Path;
 
     //! Multiplexed changelogs configuration.
-    TMutiplexedFileChangelogConfigPtr Multiplexed;
+    TMultiplexedFileChangelogConfigPtr Multiplexed;
 
     //! Split changelogs configuration.
     TFileChangelogConfigPtr Split;
@@ -119,6 +125,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TFileChangelogCatalogConfig)
+
 class TLocalSnapshotStoreConfig
     : public TYsonSerializable
 {
@@ -136,6 +144,8 @@ public:
             .Default(NCompression::ECodec::Lz4);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
 
 class TRemoteSnapshotStoreConfig
     : public TYsonSerializable
@@ -160,6 +170,8 @@ public:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
+
 class TSnapshotDownloaderConfig
     : public TYsonSerializable
 {
@@ -176,6 +188,8 @@ public:
             .Default((i64) 32 * 1024 * 1024);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotDownloaderConfig)
 
 class TChangelogDownloaderConfig
     : public TYsonSerializable
@@ -194,6 +208,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TChangelogDownloaderConfig)
+
 class TFollowerTrackerConfig
     : public TYsonSerializable
 {
@@ -209,6 +225,8 @@ public:
             .Default(TDuration::MilliSeconds(1000));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TFollowerTrackerConfig)
 
 class TLeaderCommitterConfig
     : public TYsonSerializable
@@ -240,6 +258,8 @@ public:
             .GreaterThan(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TLeaderCommitterConfig)
 
 class TDistributedHydraManagerConfig
     : public TYsonSerializable
@@ -299,6 +319,8 @@ public:
             .DefaultNew();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TDistributedHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

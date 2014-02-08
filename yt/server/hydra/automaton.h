@@ -21,6 +21,8 @@ struct IAutomaton
     virtual void ApplyMutation(TMutationContext* context) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IAutomaton)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra

@@ -12,86 +12,44 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IAutomaton)
+DECLARE_REFCOUNTED_STRUCT(IHydraManager)
+
 struct TChangelogCreateParams;
-
-struct IChangelog;
-typedef TIntrusivePtr<IChangelog> IChangelogPtr;
-
-struct IChangelogStore;
-typedef TIntrusivePtr<IChangelogStore> IChangelogStorePtr;
-
-struct IChangelogCatalog;
-typedef TIntrusivePtr<IChangelogCatalog> IChangelogCatalogPtr;
-
-struct ISnapshotReader;
-typedef TIntrusivePtr<ISnapshotReader> ISnapshotReaderPtr;
-
-struct ISnapshotWriter;
-typedef TIntrusivePtr<ISnapshotWriter> ISnapshotWriterPtr;
+DECLARE_REFCOUNTED_STRUCT(IChangelog)
+DECLARE_REFCOUNTED_STRUCT(IChangelogStore)
+DECLARE_REFCOUNTED_STRUCT(IChangelogCatalog)
 
 struct TSnapshotParams;
 struct TSnapshotCreateParams;
-
-struct ISnapshotStore;
-typedef TIntrusivePtr<ISnapshotStore> ISnapshotStorePtr;
-
-class TFileSnapshotStore;
-typedef TIntrusivePtr<TFileSnapshotStore> TFileSnapshotStorePtr;
+DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)
+DECLARE_REFCOUNTED_STRUCT(ISnapshotWriter)
+DECLARE_REFCOUNTED_STRUCT(ISnapshotStore)
+DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
 
 struct TMutationRequest;
 struct TMutationResponse;
 class TMutationContext; 
 
-struct IAutomaton;
-typedef TIntrusivePtr<IAutomaton> IAutomatonPtr;
+DECLARE_REFCOUNTED_CLASS(TCompositeAutomaton)
+DECLARE_REFCOUNTED_CLASS(TCompositeAutomatonPart)
 
-struct IHydraManager;
-typedef TIntrusivePtr<IHydraManager> IHydraManagerPtr;
-
-class TCompositeAutomaton;
-typedef TIntrusivePtr<TCompositeAutomaton> TCompositeAutomatonPtr;
-
-class TCompositeAutomatonPart;
-typedef TIntrusivePtr<TCompositeAutomatonPart> TCompositeAutomatonPartPtr;
-
-class TMutation;
-typedef TIntrusivePtr<TMutation> TMutationPtr;
+DECLARE_REFCOUNTED_CLASS(TMutation)
 
 class TSaveContext;
 class TLoadContext;
 
-class TFileChangelogConfig;
-typedef TIntrusivePtr<TFileChangelogConfig> TFileChangelogConfigPtr;
-
-class TFileChangelogStoreConfig;
-typedef TIntrusivePtr<TFileChangelogStoreConfig> TFileChangelogStoreConfigPtr;
-
-class TMutiplexedFileChangelogConfig;
-typedef TIntrusivePtr<TMutiplexedFileChangelogConfig> TMutiplexedFileChangelogConfigPtr;
-
-class TFileChangelogCatalogConfig;
-typedef TIntrusivePtr<TFileChangelogCatalogConfig> TFileChangelogCatalogConfigPtr;
-
-class TLocalSnapshotStoreConfig;
-typedef TIntrusivePtr<TLocalSnapshotStoreConfig> TLocalSnapshotStoreConfigPtr;
-
-class TRemoteSnapshotStoreConfig;
-typedef TIntrusivePtr<TRemoteSnapshotStoreConfig> TRemoteSnapshotStoreConfigPtr;
-
-class TSnapshotDownloaderConfig;
-typedef TIntrusivePtr<TSnapshotDownloaderConfig> TSnapshotDownloaderConfigPtr;
-
-class TChangelogDownloaderConfig;
-typedef TIntrusivePtr<TChangelogDownloaderConfig> TChangelogDownloaderConfigPtr;
-
-class TFollowerTrackerConfig;
-typedef TIntrusivePtr<TFollowerTrackerConfig> TFollowerTrackerConfigPtr;
-
-class TLeaderCommitterConfig;
-typedef TIntrusivePtr<TLeaderCommitterConfig> TLeaderCommitterConfigPtr;
-
-class TDistributedHydraManagerConfig;
-typedef TIntrusivePtr<TDistributedHydraManagerConfig> TDistributedHydraManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
+DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiplexedFileChangelogConfig)
+DECLARE_REFCOUNTED_CLASS(TFileChangelogCatalogConfig)
+DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
+DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
+DECLARE_REFCOUNTED_CLASS(TSnapshotDownloaderConfig)
+DECLARE_REFCOUNTED_CLASS(TChangelogDownloaderConfig)
+DECLARE_REFCOUNTED_CLASS(TFollowerTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TLeaderCommitterConfig)
+DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
