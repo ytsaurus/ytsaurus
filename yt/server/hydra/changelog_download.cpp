@@ -144,7 +144,8 @@ private:
 
             return TError();
         } catch (const std::exception& ex) {
-            return ex;
+            return TError("Error downloading changelog %d", changelogId)
+                << ex;
         }
     }
 

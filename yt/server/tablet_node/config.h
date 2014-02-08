@@ -122,8 +122,8 @@ public:
     //! Changelog catalog.
     NHydra::TFileChangelogCatalogConfigPtr Changelogs;
 
-    //! Snapshot catalog.
-    NHydra::TFileSnapshotCatalogConfigPtr Snapshots;
+    //! Remote snapshots.
+    NHydra::TRemoteSnapshotStoreConfigPtr Snapshots;
 
     //! Generic configuration for all Hydra instances.
     NHydra::TDistributedHydraManagerConfigPtr HydraManager;
@@ -156,6 +156,12 @@ public:
             .DefaultNew();
         RegisterParameter("store_flusher", StoreFlusher)
             .DefaultNew();
+
+        RegisterInitializer([&] () {
+            // Tablet snapshots are stored in Cypress.
+            // Must not build multiple copies simultaneously.
+            HydraManager->BuildSnapshotsAtFollowers = false;
+        });
     }
 };
 

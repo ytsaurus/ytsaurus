@@ -2,13 +2,17 @@
 
 #include "public.h"
 
+#include <ytlib/election/public.h>
+
 namespace NYT {
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISnapshotCatalogPtr CreateFileSnapshotCatalog(
-    TFileSnapshotCatalogConfigPtr config);
+ISnapshotStorePtr CreateLocalSnapshotStore(
+    TDistributedHydraManagerConfigPtr config,
+    NElection::TCellManagerPtr cellManager,
+    TFileSnapshotStorePtr fileStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 

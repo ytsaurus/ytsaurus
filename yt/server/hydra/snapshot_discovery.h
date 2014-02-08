@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "snapshot.h"
 
 #include <core/actions/future.h>
 
@@ -11,21 +12,20 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSnapshotInfo
+struct TRemoteSnapshotParams
+    : public TSnapshotParams
 {
-    TSnapshotInfo();
+    TRemoteSnapshotParams();
 
     TPeerId PeerId;
     int SnapshotId;
-    i64 Length;
-    ui64 Checksum;
 };
 
 //! Looks for the latest snapshot within the cell up to a given id.
 /*!
  *  If none are found, then |NonexistingSegmentId| is returned in the info.
  */
-TFuture<TSnapshotInfo> DiscoverLatestSnapshot(
+TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int maxSnapshotId);
@@ -34,7 +34,7 @@ TFuture<TSnapshotInfo> DiscoverLatestSnapshot(
 /*!
  *  If the snapshot is not found, then |NonexistingSegmentId| is returned in the info.
  */
-TFuture<TSnapshotInfo> DiscoverSnapshot(
+TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int snapshotId);

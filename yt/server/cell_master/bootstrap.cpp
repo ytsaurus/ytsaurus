@@ -40,7 +40,9 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog.h>
 #include <server/hydra/snapshot.h>
-#include <server/hydra/file_snapshot.h>
+#include <server/hydra/file_snapshot_store.h>
+#include <server/hydra/local_snapshot_service.h>
+#include <server/hydra/local_snapshot_store.h>
 
 #include <server/hive/hive_manager.h>
 #include <server/hive/timestamp_manager.h>
@@ -267,9 +269,14 @@ void TBootstrap::Run()
         GetCellGuid(),
         Config->Changelogs);
 
-    SnapshotStore = CreateFileSnapshotStore(
+    auto fileSnapshotStore = New<TFileSnapshotStore>(
         GetCellGuid(),
         Config->Snapshots);
+
+    SnapshotStore = CreateLocalSnapshotStore(
+        Config->HydraManager,
+        CellManager,
+        fileSnapshotStore);
 
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
 
@@ -326,6 +333,7 @@ void TBootstrap::Run()
         TransactionManager,
         timestampProvider);
 
+    fileSnapshotStore->Initialize();
     HiveManager->Start();
     TransactionSupervisor->Start();
     ObjectManager->Initialize();
@@ -361,6 +369,7 @@ void TBootstrap::Run()
     
     SetBuildAttributes(orchidRoot, "master");
 
+    RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore));
     RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
     RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));

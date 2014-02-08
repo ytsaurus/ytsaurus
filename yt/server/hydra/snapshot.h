@@ -15,7 +15,10 @@ struct ISnapshotReader
     : public virtual TRefCounted
 {
     //! Returns the underlying stream.
-    virtual TInputStream* GetStream() const = 0;
+    virtual TInputStream* GetStream() = 0;
+
+    //! Returns the snapshot parameters.
+    virtual TSnapshotParams GetParams() const = 0;
 
 };
 
@@ -26,7 +29,7 @@ struct ISnapshotWriter
     : public virtual TRefCounted
 {
     //! Returns the underlying stream.
-    virtual TOutputStream* GetStream() const = 0;
+    virtual TOutputStream* GetStream() = 0;
 
     //! Closes the snapshot.
     /*!
@@ -64,57 +67,28 @@ struct ISnapshotStore
 {
     virtual const TCellGuid& GetCellGuid() const = 0;
 
-    //! Returns parameters of a given snapshot.
-    //! Returns |Null| if the snapshot is not found.
-    virtual TNullable<TSnapshotParams> TryGetSnapshotParams(int snapshotId) = 0;
-
     //! Creates a reader for a given snapshot id.
-    //! Returns |nullptr| is the snapshot is not found.
-    virtual ISnapshotReaderPtr TryCreateReader(int snapshotId) = 0;
-
-    //! Creates a raw reader for a given snapshot id.
-    //! The latter reader accesses the compressed snapshot image and
-    //! can be useful for, e.g., distributing snapshots among peers.
-    //! Throws on failure.
-    virtual ISnapshotReaderPtr TryCreateRawReader(
-        int snapshotId,
-        i64 offset) = 0;
+    //! This call always succeeds but the reader may throw exceptions at any time.
+    virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) = 0;
 
     //! Creates a writer for a given snapshot id.
+    //! Runs synchronously since it is typically called from a forked child.
     virtual ISnapshotWriterPtr CreateWriter(
         int snapshotId,
         const TSnapshotCreateParams& params) = 0;
 
-    //! Creates a writer for a given snapshot id.
-    //! Like #TryCreateRawReader, this method provides means to write the compressed snapshot image.
-    virtual ISnapshotWriterPtr CreateRawWriter(int snapshotId) = 0;
-
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist
     //! in the store or #NonexistingSnapshotId if no such snapshot is present.
-    virtual int GetLatestSnapshotId(int maxSnapshotId = std::numeric_limits<i32>::max()) = 0;
+    virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId = std::numeric_limits<i32>::max()) = 0;
 
     //! Confirms an earlier written and closed snapshot.
     /*!
      *  This call actually places the snapshot into the store.
      */
-    virtual void ConfirmSnapshot(int snapshotId) = 0;
+    virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) = 0;
 
-
-    // Extension methods.
-
-    //! Returns parameters of a given snapshot.
-    //! Throws if the snapshot is not found.
-    TSnapshotParams GetSnapshotParamsOrThrow(int snapshotId);
-
-    //! Creates a reader for a given snapshot id.
-    //! Throws on failure.
-    ISnapshotReaderPtr CreateReaderOrThrow(int snapshotId);
-
-    //! Creates a reader for a given snapshot id.
-    //! Throws on failure.
-    ISnapshotReaderPtr CreateRawReaderOrThrow(
-        int snapshotId,
-        i64 offset);
+    //! Returns the parameters of a given snapshot.
+    virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) = 0;
 
 };
 

@@ -177,8 +177,6 @@ public:
             New<TElectionCallbacks>(this),
             rpcServer);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LogMutations));
@@ -377,74 +375,6 @@ public:
     NProfiling::TProfiler Profiler;
 
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        int maxSnapshotId = request->max_snapshot_id();
-        bool exactId = request->exact_id();
-
-        context->SetRequestInfo("MaxSnapshotId: %d, ExactId: %s",
-            maxSnapshotId,
-            ~FormatBool(exactId));
-
-        int snapshotId;
-        if (exactId) {
-            snapshotId = maxSnapshotId;
-        } else {
-            snapshotId = SnapshotStore_->GetLatestSnapshotId(maxSnapshotId);
-            if (snapshotId == NonexistingSegmentId) {
-                THROW_ERROR_EXCEPTION(
-                    NHydra::EErrorCode::NoSuchSnapshot,
-                    "No appropriate snapshots in store");
-            }
-        } 
-
-        auto params = SnapshotStore_->GetSnapshotParamsOrThrow(snapshotId);
-        response->set_snapshot_id(snapshotId);
-        response->set_length(params.CompressedLength);
-        response->set_checksum(params.Checksum);
-
-        context->SetResponseInfo("SnapshotId: %d, Length: %" PRId64 ", Checksum: " PRIx64,
-            snapshotId,
-            params.CompressedLength,
-            params.Checksum);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, ReadSnapshot)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        UNUSED(response);
-
-        int snapshotId = request->snapshot_id();
-        i64 offset = request->offset();
-        i64 length = request->length();
-
-        context->SetRequestInfo("SnapshotId: %d, Offset: %" PRId64 ", Length: %" PRId64,
-            snapshotId,
-            offset,
-            length);
-
-        YCHECK(offset >= 0);
-        YCHECK(length >= 0);
-
-        SwitchTo(HydraIOQueue->GetInvoker());
-        VERIFY_THREAD_AFFINITY(IOThread);
-
-        auto reader = SnapshotStore_->CreateRawReaderOrThrow(snapshotId, offset);
-
-        struct TSnapshotBlockTag { };
-        auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
-        size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), length);
-        auto data = buffer.Slice(TRef(buffer.Begin(), bytesRead));
-        context->Response().Attachments().push_back(data);
-
-        context->SetResponseInfo("BytesRead: %" PRISZT, bytesRead);
-        context->Reply();
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -584,7 +514,7 @@ public:
 
         switch (ControlState_) {
             case EPeerState::Following:
-                epochContext->EpochSystemAutomatonInvoker->Invoke(
+                epochContext->EpochUserAutomatonInvoker->Invoke(
                     BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion));
                 break;
 
@@ -707,7 +637,7 @@ public:
 
             case EPeerState::FollowerRecovery:
                 if (epochContext->FollowerRecovery) {
-                    LOG_DEBUG("AdvanceSegment: postponing snapshot creation");
+                    LOG_DEBUG("AdvanceSegment: postponing changelog rotation");
 
                     auto error = epochContext->FollowerRecovery->PostponeChangelogRotation(version);
                     if (!error.IsOK()) {
@@ -819,39 +749,15 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(ControlState_ == EPeerState::Stopped);
+        ControlState_ = EPeerState::Initializing;
+
+        auto reachableVersion = WaitFor(ComputeReachableVersion());
+        DecoratedAutomaton_->SetLoggedVersion(reachableVersion);
+
+        if (ControlState_ != EPeerState::Initializing)
+            return;
         ControlState_ = EPeerState::Elections;
 
-        LOG_INFO("Computing reachable version");
-
-        SwitchTo(HydraIOQueue->GetInvoker());
-        VERIFY_THREAD_AFFINITY(IOThread);
-
-        int maxSnapshotId = SnapshotStore_->GetLatestSnapshotId();
-        if (maxSnapshotId == NonexistingSegmentId) {
-            LOG_INFO("No snapshots found");
-            // Let's pretend we have snapshot 0.
-            maxSnapshotId = 0;
-        } else {
-            LOG_INFO("The latest snapshot is %d", maxSnapshotId);
-        }
-
-        TVersion version;
-        int maxChangelogId = ChangelogStore_->GetLatestChangelogId(maxSnapshotId);
-        if (maxChangelogId == NonexistingSegmentId) {
-            LOG_INFO("No changelogs found");
-            version = TVersion(maxSnapshotId, 0);
-        } else {
-            LOG_INFO("The latest changelog is %d", maxChangelogId);
-            auto changelog = ChangelogStore_->OpenChangelogOrThrow(maxChangelogId);
-            version = TVersion(maxChangelogId, changelog->GetRecordCount());
-        }
-
-        LOG_INFO("Reachable version is %s", ~ToString(version));
-
-        SwitchTo(ControlInvoker_);
-        VERIFY_THREAD_AFFINITY(ControlThread);
-	
-        DecoratedAutomaton_->SetLoggedVersion(version);
         DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
             &TDecoratedAutomaton::Clear,
             DecoratedAutomaton_));
@@ -869,13 +775,67 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (ControlState_ == EPeerState::Stopped ||
+            ControlState_ == EPeerState::Initializing)
+            return;
+
         // NB: This will raise the needed callbacks
         // (OnElectionStopLeading or OnElectionStopFollowing).
         ElectionManager_->Stop();
 
         RpcServer->UnregisterService(this);
 
+        ControlState_ = EPeerState::Stopped;
+
         LOG_INFO("Hydra instance stopped");
+    }
+
+
+    TFuture<TVersion> ComputeReachableVersion()
+    {
+        return BIND(&TDistributedHydraManager::DoComputeReachableVersion, MakeStrong(this))
+            .AsyncVia(ControlInvoker_)
+            .Run();
+    }
+
+    TVersion DoComputeReachableVersion()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Computing reachable version");
+
+        while (true) {
+            try {
+                auto maxSnapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId());
+                THROW_ERROR_EXCEPTION_IF_FAILED(maxSnapshotIdOrError);
+                int maxSnapshotId = maxSnapshotIdOrError.GetValue();
+
+                if (maxSnapshotId == NonexistingSegmentId) {
+                    LOG_INFO("No snapshots found");
+                    // Let's pretend we have snapshot 0.
+                    maxSnapshotId = 0;
+                } else {
+                    LOG_INFO("The latest snapshot is %d", maxSnapshotId);
+                }
+
+                TVersion version;
+                int maxChangelogId = ChangelogStore_->GetLatestChangelogId(maxSnapshotId);
+                if (maxChangelogId == NonexistingSegmentId) {
+                    LOG_INFO("No changelogs found");
+                    version = TVersion(maxSnapshotId, 0);
+                } else {
+                    LOG_INFO("The latest changelog is %d", maxChangelogId);
+                    auto changelog = ChangelogStore_->OpenChangelogOrThrow(maxChangelogId);
+                    version = TVersion(maxChangelogId, changelog->GetRecordCount());
+                }
+
+                LOG_INFO("Reachable version is %s", ~ToString(version));
+                return version;
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Error computing reachable version, backing off and retrying");
+                WaitFor(MakeDelayed(Config_->BackoffTime));
+            }
+        }
     }
 
 
@@ -898,7 +858,7 @@ public:
         DoBuildSnapshotDistributed(epochContext);
     }
 
-    TFuture<TErrorOr<TSnapshotInfo>> DoBuildSnapshotDistributed(TEpochContextPtr epochContext) 
+    TFuture<TErrorOr<TRemoteSnapshotParams>> DoBuildSnapshotDistributed(TEpochContextPtr epochContext) 
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(GetAutomatonState() == EPeerState::Leading);
@@ -948,7 +908,7 @@ public:
             SnapshotStore_,
             epochContext->EpochId,
             epochContext->EpochControlInvoker,
-            epochContext->EpochSystemAutomatonInvoker);
+            epochContext->EpochUserAutomatonInvoker);
 
         epochContext->FollowerTracker->Start();
 
@@ -1027,7 +987,8 @@ public:
 
             LeaderActive_.Fire();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Leader recovery failed, restarting");
+            LOG_WARNING(ex, "Leader recovery failed, backing off and restarting");
+            WaitFor(MakeDelayed(Config_->BackoffTime));
             Restart();
         }
     }
@@ -1106,7 +1067,8 @@ public:
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Follower recovery failed, restarting");
+            LOG_WARNING(ex, "Follower recovery failed, backing off and restarting");
+            WaitFor(MakeDelayed(Config_->BackoffTime));
             Restart();
         }
     }

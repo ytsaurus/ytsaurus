@@ -42,7 +42,7 @@ Logging = {
 }
 
 MasterAddresses = opts.limit_iter('--masters',
-        ['%s:%d' % (socket.getfqdn(), port) for port in xrange(8001, 8004)])
+        ['%s:%d' % (socket.gethostname(), port) for port in xrange(8001, 8004)])
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')
@@ -140,10 +140,15 @@ class Holder(WinNode, Server):
                     'path' : r'%(work_dir)s\changelogs'
                 },
                 'snapshots' : {
-                    'path' : r'%(work_dir)s\snapshots'
+                    'temp_path' : r'%(work_dir)s\snapshots'
                 },
                 'tablet_manager' : {
                     'value_count_rotation_threshold' : 10
+                },
+                'hydra_manager' : {
+                    'leader_committer' : {
+                        'changelog_rotation_period' : 10
+                    }
                 }
             },
             'rpc_port' : r'%(port)d',
@@ -154,7 +159,7 @@ class Holder(WinNode, Server):
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['snapshots']['path']
+                print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['snapshots']['temp_path']
                 print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['changelogs']['path']
                 for location in cls.config['data_node']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']

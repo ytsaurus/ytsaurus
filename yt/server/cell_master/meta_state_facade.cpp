@@ -32,7 +32,6 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog.h>
 #include <server/hydra/snapshot.h>
-#include <server/hydra/file_snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
 
 #include <server/hive/transaction_supervisor.h>

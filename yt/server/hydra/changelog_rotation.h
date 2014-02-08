@@ -43,17 +43,17 @@ public:
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    TFuture<TErrorOr<TSnapshotInfo>> BuildSnapshot();
+    TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
 
 private:
-    TDistributedHydraManagerConfigPtr Config;
-    NElection::TCellManagerPtr CellManager;
-    TDecoratedAutomatonPtr DecoratedAutomaton;
-    TLeaderCommitterPtr LeaderCommitter;
-    ISnapshotStorePtr SnapshotStore;
-    TEpochId EpochId;
-    IInvokerPtr EpochControlInvoker;
-    IInvokerPtr EpochAutomatonInvoker;
+    TDistributedHydraManagerConfigPtr Config_;
+    NElection::TCellManagerPtr CellManager_;
+    TDecoratedAutomatonPtr DecoratedAutomaton_;
+    TLeaderCommitterPtr LeaderCommitter_;
+    ISnapshotStorePtr SnapshotStore_;
+    TEpochId EpochId_;
+    IInvokerPtr EpochControlInvoker_;
+    IInvokerPtr EpochAutomatonInvoker_;
 
     NLog::TTaggedLogger Logger;
 

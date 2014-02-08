@@ -73,7 +73,7 @@ public:
         const TSharedRef& recordData,
         TFuture<void>* logResult);
 
-    TFuture<TErrorOr<TSnapshotInfo>> BuildSnapshot();
+    TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
 
     TFuture<void> RotateChangelog();
 
@@ -116,7 +116,7 @@ private:
     TVersion AutomatonVersion_;
 
     TVersion SnapshotVersion_;
-    TPromise<TErrorOr<TSnapshotInfo>> SnapshotInfoPromise_;
+    TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotParamsPromise_;
 
     struct TPendingMutation
     {

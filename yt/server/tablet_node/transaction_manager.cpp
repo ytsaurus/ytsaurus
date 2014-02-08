@@ -152,7 +152,7 @@ public:
 
         TransactionPrepared_.Fire(transaction);
 
-        LOG_DEBUG("Transaction prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             ~FormatBool(persistent),
             prepareTimestamp);
@@ -304,6 +304,12 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        if (TransactionMap_.Contains(transactionId)) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already started, request ignored (TransactionId: %s)",
+                ~ToString(transactionId));
+            return;
+        }
+
         auto startTimestamp = TTimestamp(request.start_timestamp());
         auto timeout = TDuration::MilliSeconds(request.timeout());
 
@@ -314,7 +320,7 @@ private:
         transaction->SetStartTimestamp(startTimestamp);
         transaction->SetState(ETransactionState::Active);
 
-        LOG_DEBUG("Transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64 ")",
             ~ToString(transactionId),
             startTimestamp,
             timeout.MilliSeconds());

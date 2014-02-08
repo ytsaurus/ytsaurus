@@ -8,6 +8,8 @@
 
 #include <core/rpc/config.h>
 
+#include <ytlib/file_client/config.h>
+
 #include <server/election/config.h>
 
 namespace NYT {
@@ -111,14 +113,13 @@ public:
 
         RegisterInitializer([&] () {
             // Expect many splits -- adjust configuration.
-            // XXX(babenko): explicit "this" is needed due to VS2010 bug
-            this->Split->FlushBufferSize = (i64) 16 * 1024 * 1024;
-            this->Split->FlushPeriod = TDuration::Seconds(15);
+            Split->FlushBufferSize = (i64) 16 * 1024 * 1024;
+            Split->FlushPeriod = TDuration::Seconds(15);
         });
     }
 };
-    
-class TFileSnapshotStoreConfig
+
+class TLocalSnapshotStoreConfig
     : public TYsonSerializable
 {
 public:
@@ -128,12 +129,35 @@ public:
     //! Codec used to write snapshots.
     NCompression::ECodec Codec;
 
-    TFileSnapshotStoreConfig()
+    TLocalSnapshotStoreConfig()
     {
         RegisterParameter("path", Path);
         RegisterParameter("codec", Codec)
             .Default(NCompression::ECodec::Lz4);
     }
+};
+
+class TRemoteSnapshotStoreConfig
+    : public TYsonSerializable
+{
+public:
+    //! A temporary path where snapshots are written before being uploaded.
+    Stroka TempPath;
+
+    NFileClient::TFileReaderConfigPtr Reader;
+    NFileClient::TFileWriterConfigPtr Writer;
+
+    TRemoteSnapshotStoreConfig()
+    {
+        RegisterParameter("temp_path", TempPath)
+            .NonEmpty()
+            .Default("/tmp/yt/hydra/snapshots");
+        RegisterParameter("reader", Reader)
+            .DefaultNew();
+        RegisterParameter("writer", Writer)
+            .DefaultNew();
+    }
+
 };
 
 class TSnapshotDownloaderConfig
@@ -227,6 +251,12 @@ public:
     //! Maximum time allotted to construct a snapshot.
     TDuration SnapshotTimeout;
 
+    //! Backoff time for unrecoverable internal errors.
+    TDuration BackoffTime;
+
+    //! Should we build snapshots at followers?
+    bool BuildSnapshotsAtFollowers;
+
     //! Maximum number of bytes to read in a single RPC request.
     i64 MaxChangelogReadSize;
 
@@ -248,6 +278,10 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("snapshot_timeout", SnapshotTimeout)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("backoff_time", BackoffTime)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("build_snapshots_at_followers", BuildSnapshotsAtFollowers)
+            .Default(true);
         RegisterParameter("max_changelog_read_size", MaxChangelogReadSize)
             .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);

@@ -96,7 +96,7 @@ public:
     TAsyncError Run(TVersion targetVersion);
 
 private:
-    TError DoRun(TVersion targetVersion, int snapshotId);
+    TError DoRun(TVersion targetVersion);
 
     virtual bool IsLeader() const;
 

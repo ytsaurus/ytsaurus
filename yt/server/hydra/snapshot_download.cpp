@@ -4,6 +4,7 @@
 #include "config.h"
 #include "snapshot.h"
 #include "snapshot_discovery.h"
+#include "file_snapshot_store.h"
 
 #include <core/concurrency/fiber.h>
 
@@ -11,7 +12,7 @@
 
 #include <ytlib/election/cell_manager.h>
 
-#include <ytlib/hydra/hydra_service_proxy.h>
+#include <server/hydra/snapshot_service_proxy.h>
 
 namespace NYT {
 namespace NHydra {
@@ -28,18 +29,18 @@ public:
     TSnapshotDownloader(
         TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
-        ISnapshotStorePtr snapshotStore)
-        : Config(config)
-        , CellManager(cellManager)
-        , SnapshotStore(snapshotStore)
+        TFileSnapshotStorePtr fileStore)
+        : Config_(config)
+        , CellManager_(cellManager)
+        , FileStore_(fileStore)
         , Logger(HydraLogger)
     {
-        YCHECK(Config);
-        YCHECK(CellManager);
-        YCHECK(SnapshotStore);
+        YCHECK(Config_);
+        YCHECK(CellManager_);
+        YCHECK(FileStore_);
 
         Logger.AddTag(Sprintf("CellGuid: %s",
-            ~ToString(CellManager->GetCellGuid())));
+            ~ToString(CellManager_->GetCellGuid())));
     }
 
     TAsyncError Run(int snapshotId)
@@ -50,39 +51,39 @@ public:
     }
 
 private:
-    TDistributedHydraManagerConfigPtr Config;
-    TCellManagerPtr CellManager;
-    ISnapshotStorePtr SnapshotStore;
+    TDistributedHydraManagerConfigPtr Config_;
+    TCellManagerPtr CellManager_;
+    TFileSnapshotStorePtr FileStore_;
 
     NLog::TTaggedLogger Logger;
+
 
     TError DoRun(int snapshotId)
     {
         try {
-            auto asyncSnapshotInfo = DiscoverSnapshot(Config, CellManager, snapshotId);
-            auto snapshotInfo = WaitFor(asyncSnapshotInfo);
-            if (snapshotInfo.SnapshotId == NonexistingSegmentId) {
+            auto params = WaitFor(DiscoverSnapshot(Config_, CellManager_, snapshotId));
+            if (params.SnapshotId == NonexistingSegmentId) {
                 THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %d",
                     snapshotId);
             }
 
-            auto writer = SnapshotStore->CreateRawWriter(snapshotId);
+            auto writer = FileStore_->CreateRawWriter(snapshotId);
 
             LOG_INFO("Downloading %" PRId64 " bytes from peer %d",
-                snapshotInfo.Length,
-                snapshotInfo.PeerId);
+                params.CompressedLength,
+                params.PeerId);
 
-            THydraServiceProxy proxy(CellManager->GetPeerChannel(snapshotInfo.PeerId));
-            proxy.SetDefaultTimeout(Config->SnapshotDownloader->RpcTimeout);
+            TSnapshotServiceProxy proxy(CellManager_->GetPeerChannel(params.PeerId));
+            proxy.SetDefaultTimeout(Config_->SnapshotDownloader->RpcTimeout);
 
             i64 downloadedLength = 0;
-            while (downloadedLength < snapshotInfo.Length) {
+            while (downloadedLength < params.CompressedLength) {
                 auto req = proxy.ReadSnapshot();
                 req->set_snapshot_id(snapshotId);
                 req->set_offset(downloadedLength);
                 i64 blockSize = std::min(
-                    Config->SnapshotDownloader->BlockSize,
-                    snapshotInfo.Length - downloadedLength);
+                    Config_->SnapshotDownloader->BlockSize,
+                    params.CompressedLength - downloadedLength);
                 req->set_length(blockSize);
 
                 auto rsp = WaitFor(req->Invoke());
@@ -111,13 +112,14 @@ private:
 
             writer->Close();
 
-            SnapshotStore->ConfirmSnapshot(snapshotId);
+            FileStore_->ConfirmSnapshot(snapshotId);
 
             LOG_INFO("Snapshot downloaded successfully");
 
             return TError();
         } catch (const std::exception& ex) {
-            return ex;
+            return TError("Error downloading snapshot %d", snapshotId)
+                << ex;
         }
     }
 
@@ -126,13 +128,13 @@ private:
 TAsyncError DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
-    ISnapshotStorePtr snapshotStore,
+    TFileSnapshotStorePtr fileStore,
     int snapshotId)
 {
     auto downloader = New<TSnapshotDownloader>(
         config,
         cellManager,
-        snapshotStore);
+        fileStore);
     return downloader->Run(snapshotId);
 }
 

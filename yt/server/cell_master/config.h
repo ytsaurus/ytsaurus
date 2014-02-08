@@ -51,7 +51,7 @@ public:
     TMasterCellConfigPtr Masters;
 
     NHydra::TFileChangelogStoreConfigPtr Changelogs;
-    NHydra::TFileSnapshotStoreConfigPtr Snapshots;
+    NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
     NHydra::TDistributedHydraManagerConfigPtr HydraManager;
 
     NHive::TCellDirectoryConfigPtr CellDirectory;

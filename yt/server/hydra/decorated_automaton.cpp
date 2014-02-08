@@ -125,7 +125,7 @@ class TDecoratedAutomaton::TSnapshotBuilder
 public:
     TSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
-        TPromise<TErrorOr<TSnapshotInfo>> promise)
+        TPromise<TErrorOr<TRemoteSnapshotParams>> promise)
         : Owner_(owner)
         , Promise_(promise)
     {
@@ -140,12 +140,13 @@ public:
         SnapshotParams_.PrevRecordCount = Owner_->AutomatonVersion_.RecordId;
 
         TSnapshotBuilderBase::Run().Subscribe(
-            BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this)));
+            BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this))
+                .Via(Owner_->ControlInvoker_));
     }
 
 private:
     TDecoratedAutomatonPtr Owner_;
-    TPromise<TErrorOr<TSnapshotInfo>> Promise_;
+    TPromise<TErrorOr<TRemoteSnapshotParams>> Promise_;
 
     int SnapshotId_;
     TSnapshotCreateParams SnapshotParams_;
@@ -170,17 +171,18 @@ private:
             return;
         }
 
-        Owner_->SnapshotStore_->ConfirmSnapshot(SnapshotId_);
-
-        auto params = Owner_->SnapshotStore_->TryGetSnapshotParams(SnapshotId_);
-        YCHECK(params);
+        auto paramsOrError = WaitFor(Owner_->SnapshotStore_->ConfirmSnapshot(SnapshotId_));
+        if (!paramsOrError.IsOK()) {
+            Promise_.Set(TError("Error confirming snapshot")
+                << paramsOrError);
+            return;
+        }
         
-        TSnapshotInfo info;
-        info.PeerId = Owner_->CellManager_->GetSelfId();
-        info.SnapshotId = SnapshotId_;
-        info.Length = params->CompressedLength;
-        info.Checksum = params->Checksum;
-        Promise_.Set(info);
+        TRemoteSnapshotParams remoteParams;
+        remoteParams.PeerId = Owner_->CellManager_->GetSelfId();
+        remoteParams.SnapshotId = SnapshotId_;
+        static_cast<TSnapshotParams&>(remoteParams) = paramsOrError.GetValue();
+        Promise_.Set(remoteParams);
     }
 
 };
@@ -248,6 +250,7 @@ void TDecoratedAutomaton::OnLeaderRecoveryComplete()
 void TDecoratedAutomaton::OnStopLeading()
 {
     YCHECK(State_ == EPeerState::Leading || State_ == EPeerState::LeaderRecovery);
+    State_ = EPeerState::Stopped;
     Reset();
 }
 
@@ -266,6 +269,7 @@ void TDecoratedAutomaton::OnFollowerRecoveryComplete()
 void TDecoratedAutomaton::OnStopFollowing()
 {
     YCHECK(State_ == EPeerState::Following || State_ == EPeerState::FollowerRecovery);
+    State_ = EPeerState::Stopped;
     Reset();
 }
 
@@ -433,12 +437,12 @@ void TDecoratedAutomaton::LogMutationAtFollower(
     }
 }
 
-TFuture<TErrorOr<TSnapshotInfo>> TDecoratedAutomaton::BuildSnapshot()
+TFuture<TErrorOr<TRemoteSnapshotParams>> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     SnapshotVersion_ = LoggedVersion_;
-    auto promise = SnapshotInfoPromise_ = NewPromise<TErrorOr<TSnapshotInfo>>();
+    auto promise = SnapshotParamsPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
 
     LOG_INFO("Scheduled snapshot at version %s",
         ~ToString(LoggedVersion_));
@@ -547,9 +551,9 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
                 pendingMutation.CommitPromise.Set(context.Response());
             }
 
-            MaybeStartSnapshotBuilder();
-
             PendingMutations_.pop();
+
+            MaybeStartSnapshotBuilder();
         }
     }
 
@@ -713,11 +717,10 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 
 void TDecoratedAutomaton::Reset()
 {
-    State_ = EPeerState::Stopped;
     PendingMutations_.clear();
     CurrentChangelog_.Reset();
     SnapshotVersion_ = TVersion();
-    SnapshotInfoPromise_.Reset();
+    SnapshotParamsPromise_.Reset();
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
@@ -725,10 +728,10 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
     if (AutomatonVersion_ != SnapshotVersion_)
         return;
 
-    auto builder = New<TSnapshotBuilder>(this, SnapshotInfoPromise_);
+    auto builder = New<TSnapshotBuilder>(this, SnapshotParamsPromise_);
     builder->Run();
 
-    SnapshotInfoPromise_.Reset();
+    SnapshotParamsPromise_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

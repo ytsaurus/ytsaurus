@@ -29,11 +29,14 @@ typedef TIntrusivePtr<ISnapshotReader> ISnapshotReaderPtr;
 struct ISnapshotWriter;
 typedef TIntrusivePtr<ISnapshotWriter> ISnapshotWriterPtr;
 
+struct TSnapshotParams;
+struct TSnapshotCreateParams;
+
 struct ISnapshotStore;
 typedef TIntrusivePtr<ISnapshotStore> ISnapshotStorePtr;
 
-struct ISnapshotCatalog;
-typedef TIntrusivePtr<ISnapshotCatalog> ISnapshotCatalogPtr;
+class TFileSnapshotStore;
+typedef TIntrusivePtr<TFileSnapshotStore> TFileSnapshotStorePtr;
 
 struct TMutationRequest;
 struct TMutationResponse;
@@ -69,11 +72,11 @@ typedef TIntrusivePtr<TMutiplexedFileChangelogConfig> TMutiplexedFileChangelogCo
 class TFileChangelogCatalogConfig;
 typedef TIntrusivePtr<TFileChangelogCatalogConfig> TFileChangelogCatalogConfigPtr;
 
-class TFileSnapshotStoreConfig;
-typedef TIntrusivePtr<TFileSnapshotStoreConfig> TFileSnapshotStoreConfigPtr;
+class TLocalSnapshotStoreConfig;
+typedef TIntrusivePtr<TLocalSnapshotStoreConfig> TLocalSnapshotStoreConfigPtr;
 
-typedef TFileSnapshotStoreConfig TFileSnapshotCatalogConfig;
-typedef TIntrusivePtr<TFileSnapshotCatalogConfig> TFileSnapshotCatalogConfigPtr;
+class TRemoteSnapshotStoreConfig;
+typedef TIntrusivePtr<TRemoteSnapshotStoreConfig> TRemoteSnapshotStoreConfigPtr;
 
 class TSnapshotDownloaderConfig;
 typedef TIntrusivePtr<TSnapshotDownloaderConfig> TSnapshotDownloaderConfigPtr;

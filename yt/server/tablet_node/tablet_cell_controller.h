@@ -39,7 +39,7 @@ public:
     void RemoveSlot(TTabletSlotPtr slot);
 
     NHydra::IChangelogCatalogPtr GetChangelogCatalog();
-    NHydra::ISnapshotCatalogPtr GetSnapshotCatalog();
+    NHydra::ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid);
 
     IInvokerPtr GetCompactionInvoker();
 

@@ -12,7 +12,7 @@
 
 #include <ytlib/election/cell_manager.h>
 
-#include <ytlib/hydra/hydra_service_proxy.h>
+#include <server/hydra/snapshot_service_proxy.h>
 
 namespace NYT {
 namespace NHydra {
@@ -22,10 +22,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotInfo::TSnapshotInfo()
+TRemoteSnapshotParams::TRemoteSnapshotParams()
     : PeerId(InvalidPeerId)
     , SnapshotId(NonexistingSegmentId)
-    , Length(-1)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,19 +36,19 @@ public:
     TSnapshotDiscovery(
         TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager)
-        : Config(config)
-        , CellManager(cellManager)
-        , Promise(NewPromise<TSnapshotInfo>())
+        : Config_(config)
+        , CellManager_(cellManager)
+        , Promise_(NewPromise<TRemoteSnapshotParams>())
         , Logger(HydraLogger)
     {
-        YCHECK(Config);
-        YCHECK(CellManager);
+        YCHECK(Config_);
+        YCHECK(CellManager_);
 
         Logger.AddTag(Sprintf("CellGuid: %s",
-            ~ToString(CellManager->GetCellGuid())));
+            ~ToString(CellManager_->GetCellGuid())));
     }
 
-    TFuture<TSnapshotInfo> Run(int maxSnapshotId, bool exactId)
+    TFuture<TRemoteSnapshotParams> Run(int maxSnapshotId, bool exactId)
     {
         auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
 
@@ -59,15 +58,15 @@ public:
             LOG_INFO("Looking for the latest snapshot up to %d", maxSnapshotId);
         }
 
-        for (auto peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-            auto channel = CellManager->GetPeerChannel(peerId);
+        for (auto peerId = 0; peerId < CellManager_->GetPeerCount(); ++peerId) {
+            auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel)
                 continue;
 
             LOG_INFO("Requesting snapshot info from peer %d", peerId);
 
-            THydraServiceProxy proxy(CellManager->GetPeerChannel(peerId));
-            proxy.SetDefaultTimeout(Config->RpcTimeout);
+            TSnapshotServiceProxy proxy(CellManager_->GetPeerChannel(peerId));
+            proxy.SetDefaultTimeout(Config_->RpcTimeout);
 
             auto req = proxy.LookupSnapshot();
             req->set_max_snapshot_id(maxSnapshotId);
@@ -81,24 +80,24 @@ public:
         awaiter->Complete(
             BIND(&TSnapshotDiscovery::OnComplete, MakeStrong(this)));
 
-        return Promise;
+        return Promise_;
     }
 
 private:
-    TDistributedHydraManagerConfigPtr Config;
-    NElection::TCellManagerPtr CellManager;
+    TDistributedHydraManagerConfigPtr Config_;
+    NElection::TCellManagerPtr CellManager_;
 
-    TPromise<TSnapshotInfo> Promise;
+    TPromise<TRemoteSnapshotParams> Promise_;
 
-    TSpinLock SpinLock;
-    TSnapshotInfo SnapshotInfo;
+    TSpinLock SpinLock_;
+    TRemoteSnapshotParams Params_;
 
     NLog::TTaggedLogger Logger;
 
 
     void OnResponse(
         TPeerId peerId,
-        THydraServiceProxy::TRspLookupSnapshotPtr rsp)
+        TSnapshotServiceProxy::TRspLookupSnapshotPtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -108,18 +107,19 @@ private:
             return;
         }
 
-        LOG_INFO("Snapshot found on peer %d (SnapshotId: %d, Length: %" PRId64 ")",
-            peerId,
+        LOG_INFO("Found snapshot %d found on peer %d",
             rsp->snapshot_id(),
-            rsp->length());
+            peerId);
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (rsp->snapshot_id() > SnapshotInfo.SnapshotId) {
-                SnapshotInfo.PeerId = peerId;
-                SnapshotInfo.SnapshotId = rsp->snapshot_id();
-                SnapshotInfo.Length = rsp->length();
-                SnapshotInfo.Checksum = rsp->checksum();
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (rsp->snapshot_id() > Params_.SnapshotId) {
+                Params_.PeerId = peerId;
+                Params_.SnapshotId = rsp->snapshot_id();
+                Params_.PrevRecordCount = rsp->prev_record_count();
+                Params_.CompressedLength = rsp->compressed_length();
+                Params_.UncompressedLength = rsp->uncompressed_length();
+                Params_.Checksum = rsp->checksum();
             }
         }
     }
@@ -128,20 +128,20 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (SnapshotInfo.SnapshotId == NonexistingSegmentId) {
+        if (Params_.SnapshotId == NonexistingSegmentId) {
             LOG_INFO("Snapshot lookup failed, no suitable snapshot found");
         } else {
             LOG_INFO("Snapshot lookup succeeded (PeerId: %d, SnapshotId: %d)",
-                SnapshotInfo.PeerId,
-                SnapshotInfo.SnapshotId);
+                Params_.PeerId,
+                Params_.SnapshotId);
         }
 
-        Promise.Set(SnapshotInfo);
+        Promise_.Set(Params_);
     }
 
 };
 
-TFuture<TSnapshotInfo> DiscoverLatestSnapshot(
+TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int maxSnapshotId)
@@ -150,7 +150,7 @@ TFuture<TSnapshotInfo> DiscoverLatestSnapshot(
     return discovery->Run(maxSnapshotId, false);
 }
 
-TFuture<TSnapshotInfo> DiscoverSnapshot(
+TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int snapshotId)

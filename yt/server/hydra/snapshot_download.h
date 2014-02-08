@@ -14,7 +14,7 @@ namespace NHydra {
 TAsyncError DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
-    ISnapshotStorePtr snapshotStore,
+    TFileSnapshotStorePtr fileStore,
     int snapshotId);
 
 ////////////////////////////////////////////////////////////////////////////////

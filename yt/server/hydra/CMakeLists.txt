@@ -8,10 +8,8 @@ set( SRCS
   ${BASE}/sync_file_changelog_impl.cpp
   ${BASE}/file_changelog.cpp
   ${BASE}/changelog_catalog.cpp
-  ${BASE}/snapshot_catalog.cpp
   ${BASE}/file_changelog_catalog.cpp
-  ${BASE}/file_snapshot.cpp
-  ${BASE}/file_snapshot_catalog.cpp
+  ${BASE}/file_snapshot_store.cpp
   ${BASE}/mutation_context.cpp
   ${BASE}/decorated_automaton.cpp
   ${BASE}/serialize.cpp
@@ -31,6 +29,9 @@ set( SRCS
   ${BASE}/mutation.cpp
   ${BASE}/hydra_service.cpp
   ${BASE}/rpc_helpers.cpp
+  ${BASE}/local_snapshot_service.cpp
+  ${BASE}/local_snapshot_store.cpp
+  ${BASE}/remote_snapshot_store.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -43,11 +44,9 @@ set( HDRS
   ${BASE}/file_changelog.h
   ${BASE}/config.h
   ${BASE}/changelog_catalog.h
-  ${BASE}/snapshot_catalog.h
   ${BASE}/file_changelog_catalog.h
   ${BASE}/snapshot.h
-  ${BASE}/file_snapshot.h
-  ${BASE}/file_snapshot_catalog.h
+  ${BASE}/file_snapshot_store.h
   ${BASE}/automaton.h
   ${BASE}/mutation_context.h
   ${BASE}/decorated_automaton.h
@@ -70,9 +69,15 @@ set( HDRS
   ${BASE}/entity_map.h
   ${BASE}/hydra_service.h
   ${BASE}/rpc_helpers.h
+  ${BASE}/snapshot_service_proxy.h
+  ${BASE}/local_snapshot_service.h
+  ${BASE}/local_snapshot_store.h
+  ${BASE}/remote_snapshot_store.h
 )
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+protoc( ${BASE}/snapshot_service.proto YT_SOURCE_FILES )

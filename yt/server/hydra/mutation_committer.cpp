@@ -71,8 +71,6 @@ public:
 
     void AddMutation(const TSharedRef& recordData)
     {
-        VERIFY_THREAD_AFFINITY(Owner->AutomatonThread);
-
         TVersion currentVersion(
             StartVersion.SegmentId,
             StartVersion.RecordId + BatchedRecordsData.size());
@@ -93,13 +91,11 @@ public:
 
     void Flush()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        int mutationCount = static_cast<int>(BatchedRecordsData.size());
+        Logger.AddTag(Sprintf("MutationCount: %d", mutationCount));
+        CommittedVersion = TVersion(StartVersion.SegmentId, StartVersion.RecordId + mutationCount);
 
-        Logger.AddTag(Sprintf("MutationCount: %d",
-            static_cast<int>(BatchedRecordsData.size())));
-        CommittedVersion = TVersion(StartVersion.SegmentId, StartVersion.RecordId + BatchedRecordsData.size());
-
-        Owner->Profiler.Enqueue("/commit_batch_size", BatchedRecordsData.size());
+        Owner->Profiler.Enqueue("/commit_batch_size", mutationCount);
 
         Awaiter = New<TParallelAwaiter>(
             Owner->EpochControlInvoker,
@@ -112,8 +108,6 @@ public:
                 LocalFlushResult,
                 Owner->CellManager->GetPeerTags(Owner->CellManager->GetSelfId()),
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
-
-            LOG_DEBUG("Sending mutations to followers");
 
             for (auto followerId = 0; followerId < Owner->CellManager->GetPeerCount(); ++followerId) {
                 if (followerId == Owner->CellManager->GetSelfId())
@@ -151,8 +145,6 @@ public:
 
     int GetMutationCount() const
     {
-        VERIFY_THREAD_AFFINITY(Owner->AutomatonThread);
-
         return static_cast<int>(BatchedRecordsData.size());
     }
 
@@ -204,8 +196,6 @@ private:
 
     void OnLocalFlush()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-
         LOG_DEBUG("Mutations are flushed locally");
 
         ++FlushCount;
@@ -214,8 +204,6 @@ private:
 
     void OnCompleted()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-
         auto error = TError(
             NHydra::EErrorCode::MaybeCommitted,
             "Mutations are uncertain: %d out of %d commits were successful",

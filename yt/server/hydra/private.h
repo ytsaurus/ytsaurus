@@ -35,7 +35,7 @@ typedef TIntrusivePtr<TFollowerCommitter> TFollowerCommitterPtr;
 class TChangelogRotation;
 typedef TIntrusivePtr<TChangelogRotation> TChangelogRotationPtr;
 
-struct TSnapshotInfo;
+struct TRemoteSnapshotParams;
 
 ////////////////////////////////////////////////////////////////////////////////
 

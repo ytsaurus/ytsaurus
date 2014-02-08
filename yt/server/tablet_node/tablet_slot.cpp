@@ -29,7 +29,6 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/changelog_catalog.h>
 #include <server/hydra/snapshot.h>
-#include <server/hydra/snapshot_catalog.h>
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/distributed_hydra_manager.h>
 
@@ -197,7 +196,7 @@ public:
 
         auto tabletCellController = Bootstrap_->GetTabletCellController();
         ChangelogStore_ = tabletCellController->GetChangelogCatalog()->GetStore(CellGuid_);
-        SnapshotStore_ = tabletCellController->GetSnapshotCatalog()->GetStore(CellGuid_);
+        SnapshotStore_ = tabletCellController->GetSnapshotStore(CellGuid_);
 
         State_ = EPeerState::Stopped;
 
@@ -216,13 +215,15 @@ public:
 
         State_ = EPeerState::Initializing;
 
+        auto tabletCellController = Bootstrap_->GetTabletCellController();
+        SnapshotStore_ = tabletCellController->GetSnapshotStore(CellGuid_);
+
         auto this_ = MakeStrong(this);
         BIND([this, this_] () {
             SwitchToIOThread();
 
             auto tabletCellController = Bootstrap_->GetTabletCellController();
             ChangelogStore_ = tabletCellController->GetChangelogCatalog()->CreateStore(CellGuid_);
-            SnapshotStore_ = tabletCellController->GetSnapshotCatalog()->CreateStore(CellGuid_);
 
             SwitchToControlThread();
 
@@ -338,7 +339,6 @@ public:
 
             auto tabletCellController = Bootstrap_->GetTabletCellController();
             tabletCellController->GetChangelogCatalog()->RemoveStore(CellGuid_);
-            tabletCellController->GetSnapshotCatalog()->RemoveStore(CellGuid_);
 
             SwitchToControlThread();
 
@@ -452,7 +452,7 @@ private:
         Logger = NLog::TTaggedLogger(TabletNodeLogger);
         Logger.AddTag(Sprintf("Slot: %d", SlotIndex_));
         if (CellGuid_ != NullCellGuid) {
-            Logger.AddTag(Sprintf("CellGuid: %s", ~ToString(CellGuid_)));
+            Logger.AddTag(Sprintf("CellGuid_: %s", ~ToString(CellGuid_)));
         }
     }
 

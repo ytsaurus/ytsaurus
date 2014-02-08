@@ -26,69 +26,69 @@ public:
     TSession(
         TChangelogRotationPtr owner,
         bool buildSnapshot)
-        : Owner(owner)
-        , BuildSnapshot(buildSnapshot)
-        , LocalRotationFlag(false)
-        , RemoteRotationCount(0)
-        , SnapshotPromise(NewPromise<TErrorOr<TSnapshotInfo>>())
-        , ChangelogPromise(NewPromise<TError>())
-        , Logger(Owner->Logger)
+        : Owner_(owner)
+        , BuildSnapshot_(buildSnapshot)
+        , LocalRotationFlag_(false)
+        , RemoteRotationCount_(0)
+        , SnapshotPromise_(NewPromise<TErrorOr<TRemoteSnapshotParams>>())
+        , ChangelogPromise_(NewPromise<TError>())
+        , Logger(Owner_->Logger)
     { }
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(Owner->AutomatonThread);
+        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
-        Version = Owner->DecoratedAutomaton->GetLoggedVersion();
-        Owner->LeaderCommitter->Flush();
-        Owner->LeaderCommitter->SuspendLogging();
+        Version_ = Owner_->DecoratedAutomaton_->GetLoggedVersion();
+        Owner_->LeaderCommitter_->Flush();
+        Owner_->LeaderCommitter_->SuspendLogging();
 
-        LOG_INFO("Starting distributed changelog rotation at version %s", ~ToString(Version));
+        LOG_INFO("Starting distributed changelog rotation at version %s", ~ToString(Version_));
 
-        Owner->LeaderCommitter->GetQuorumFlushResult()
+        Owner_->LeaderCommitter_->GetQuorumFlushResult()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))
-                .Via(Owner->EpochAutomatonInvoker));
+                .Via(Owner_->EpochAutomatonInvoker_));
     }
 
-    TFuture<TErrorOr<TSnapshotInfo>> GetSnapshotResult()
+    TFuture<TErrorOr<TRemoteSnapshotParams>> GetSnapshotResult()
     {
-        return SnapshotPromise;
+        return SnapshotPromise_;
     }
 
     TFuture<TError> GetChangelogResult()
     {
-        return ChangelogPromise;
+        return ChangelogPromise_;
     }
 
 private:
-    TChangelogRotationPtr Owner;
-    bool BuildSnapshot;
+    TChangelogRotationPtr Owner_;
+    bool BuildSnapshot_;
     
-    bool LocalRotationFlag;
-    int RemoteRotationCount;
+    bool LocalRotationFlag_;
+    int RemoteRotationCount_;
 
-    TVersion Version;
-    TPromise<TErrorOr<TSnapshotInfo>> SnapshotPromise;
-    TPromise<TError> ChangelogPromise;
-    TParallelAwaiterPtr SnapshotAwaiter;
-    TParallelAwaiterPtr ChangelogAwaiter;
-    std::vector<TNullable<TChecksum>> SnapshotChecksums;
+    TVersion Version_;
+    TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotPromise_;
+    TPromise<TError> ChangelogPromise_;
+    TParallelAwaiterPtr SnapshotAwaiter_;
+    TParallelAwaiterPtr ChangelogAwaiter_;
+    std::vector<TNullable<TChecksum>> SnapshotChecksums_;
 
     NLog::TTaggedLogger& Logger;
 
 
     void OnQuorumFlushed()
     {
-        VERIFY_THREAD_AFFINITY(Owner->AutomatonThread);
-        YCHECK(Owner->DecoratedAutomaton->GetLoggedVersion() == Version);
+        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+        YCHECK(Owner_->DecoratedAutomaton_->GetLoggedVersion() == Version_);
 
-        if (BuildSnapshot) {
+        if (BuildSnapshot_) {
             RequestSnapshotCreation();
         }
 
         RequestChangelogRotation();
 
-        Owner->DecoratedAutomaton->CommitMutations(TVersion(Version.SegmentId + 1, 0));
+        Owner_->DecoratedAutomaton_->CommitMutations(TVersion(Version_.SegmentId + 1, 0));
     }
 
 
@@ -96,35 +96,37 @@ private:
     {
         LOG_INFO("Sending snapshot creation requests");
 
-        SnapshotChecksums.resize(Owner->CellManager->GetPeerCount());
+        SnapshotChecksums_.resize(Owner_->CellManager_->GetPeerCount());
 
-        auto awaiter = SnapshotAwaiter = New<TParallelAwaiter>(Owner->EpochControlInvoker);
+        auto awaiter = SnapshotAwaiter_ = New<TParallelAwaiter>(Owner_->EpochControlInvoker_);
         auto this_ = MakeStrong(this);
 
-        for (auto peerId = 0; peerId < Owner->CellManager->GetPeerCount(); ++peerId) {
-            if (peerId == Owner->CellManager->GetSelfId())
-                continue;
+        if (Owner_->Config_->BuildSnapshotsAtFollowers) {
+            for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
+                if (peerId == Owner_->CellManager_->GetSelfId())
+                    continue;
 
-            auto channel = Owner->CellManager->GetPeerChannel(peerId);
-            if (!channel)
-                continue;
+                auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
+                if (!channel)
+                    continue;
 
-            LOG_DEBUG("Requesting follower %d to build a snapshot", peerId);
+                LOG_DEBUG("Requesting follower %d to build a snapshot", peerId);
 
-            THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Owner->Config->SnapshotTimeout);
+                THydraServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(Owner_->Config_->SnapshotTimeout);
 
-            auto req = proxy.BuildSnapshotLocal();
-            ToProto(req->mutable_epoch_id(), Owner->EpochId);
-            req->set_revision(Version.ToRevision());
+                auto req = proxy.BuildSnapshotLocal();
+                ToProto(req->mutable_epoch_id(), Owner_->EpochId_);
+                req->set_revision(Version_.ToRevision());
 
-            awaiter->Await(
-                req->Invoke(),
-                BIND(&TSession::OnRemoteSnapshotBuilt, this_, peerId));
+                awaiter->Await(
+                    req->Invoke(),
+                    BIND(&TSession::OnRemoteSnapshotBuilt, this_, peerId));
+            }
         }
 
         awaiter->Await(
-            Owner->DecoratedAutomaton->BuildSnapshot(),
+            Owner_->DecoratedAutomaton_->BuildSnapshot(),
             BIND(&TSession::OnLocalSnapshotBuilt, this_));
 
         awaiter->Complete(
@@ -133,7 +135,7 @@ private:
 
     void OnRemoteSnapshotBuilt(TPeerId id, THydraServiceProxy::TRspBuildSnapshotLocalPtr rsp)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rsp->IsOK()) {
             LOG_WARNING(*rsp, "Error building snapshot at follower %d",
@@ -144,45 +146,45 @@ private:
         LOG_INFO("Remote snapshot built by follower %d",
             id);
 
-        SnapshotChecksums[id] = rsp->checksum();
+        SnapshotChecksums_[id] = rsp->checksum();
     }
 
-    void OnLocalSnapshotBuilt(TErrorOr<TSnapshotInfo> infoOrError)
+    void OnLocalSnapshotBuilt(TErrorOr<TRemoteSnapshotParams> paramsOrError)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        SnapshotPromise.Set(infoOrError);
+        SnapshotPromise_.Set(paramsOrError);
 
-        if (!infoOrError.IsOK()) {
-            LOG_WARNING(infoOrError, "Error building local snapshot");
+        if (!paramsOrError.IsOK()) {
+            LOG_WARNING(paramsOrError, "Error building local snapshot");
             return;
         }
 
         LOG_INFO("Local snapshot built");
 
-        const auto& info = infoOrError.GetValue();
-        SnapshotChecksums[Owner->CellManager->GetSelfId()] = info.Checksum;
+        const auto& params = paramsOrError.GetValue();
+        SnapshotChecksums_[Owner_->CellManager_->GetSelfId()] = params.Checksum;
     }
 
     void OnSnapshotsComplete()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         int successCount = 0;
-        for (TPeerId id1 = 0; id1 < SnapshotChecksums.size(); ++id1) {
-            auto& checksum1 = SnapshotChecksums[id1];
+        for (TPeerId id1 = 0; id1 < SnapshotChecksums_.size(); ++id1) {
+            auto& checksum1 = SnapshotChecksums_[id1];
             if (checksum1) {
                 ++successCount;
             }
-            for (TPeerId id2 = id1 + 1; id2 < SnapshotChecksums.size(); ++id2) {
-                const auto& checksum2 = SnapshotChecksums[id2];
+            for (TPeerId id2 = id1 + 1; id2 < SnapshotChecksums_.size(); ++id2) {
+                const auto& checksum2 = SnapshotChecksums_[id2];
                 if (checksum1 && checksum2 && checksum1 != checksum2) {
                     // TODO(babenko): consider killing followers
                     LOG_FATAL(
                         "Snapshot %d checksum mismatch: "
                         "peer %d reported %" PRIx64 ", "
                         "peer %d reported %" PRIx64,
-                        Version.SegmentId + 1,
+                        Version_.SegmentId + 1,
                         id1, *checksum1,
                         id2, *checksum2);
                 }
@@ -196,27 +198,25 @@ private:
 
     void RequestChangelogRotation()
     {
-        LOG_INFO("Sending changelog rotation requests");
-
-        auto awaiter = ChangelogAwaiter = New<TParallelAwaiter>(Owner->EpochControlInvoker);
+        auto awaiter = ChangelogAwaiter_ = New<TParallelAwaiter>(Owner_->EpochControlInvoker_);
         auto this_ = MakeStrong(this);
 
-        for (auto peerId = 0; peerId < Owner->CellManager->GetPeerCount(); ++peerId) {
-            if (peerId == Owner->CellManager->GetSelfId())
+        for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
+            if (peerId == Owner_->CellManager_->GetSelfId())
                 continue;
 
-            auto channel = Owner->CellManager->GetPeerChannel(peerId);
+            auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
             if (!channel)
                 continue;
 
             LOG_DEBUG("Requesting follower %d to rotate the changelog", peerId);
 
             THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Owner->Config->RpcTimeout);
+            proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
 
             auto req = proxy.RotateChangelog();
-            ToProto(req->mutable_epoch_id(), Owner->EpochId);
-            req->set_revision(Version.ToRevision());
+            ToProto(req->mutable_epoch_id(), Owner_->EpochId_);
+            req->set_revision(Version_.ToRevision());
 
             awaiter->Await(
                 req->Invoke(),
@@ -224,7 +224,7 @@ private:
         }
 
         awaiter->Await(
-            Owner->DecoratedAutomaton->RotateChangelog(),
+            Owner_->DecoratedAutomaton_->RotateChangelog(),
             BIND(&TSession::OnLocalChangelogRotated, this_));
 
         awaiter->Complete(
@@ -233,7 +233,7 @@ private:
 
     void OnRemoteChangelogRotated(TPeerId id, THydraServiceProxy::TRspRotateChangelogPtr rsp)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rsp->IsOK()) {
             LOG_WARNING(*rsp, "Error rotating changelog at follower %d",
@@ -244,47 +244,47 @@ private:
         LOG_INFO("Remote changelog rotated by follower %d",
             id);
 
-        ++RemoteRotationCount;
+        ++RemoteRotationCount_;
         CheckRotationQuorum();
     }
 
     void OnLocalChangelogRotated()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         LOG_INFO("Local changelog rotated");
 
-        YCHECK(!LocalRotationFlag);
-        LocalRotationFlag = true;
+        YCHECK(!LocalRotationFlag_);
+        LocalRotationFlag_ = true;
         CheckRotationQuorum();
     }
 
     void CheckRotationQuorum()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         // NB: It is vital to wait for the local rotation to complete.
         // Otherwise we risk assigning out-of-order versions.
-        if (!LocalRotationFlag || RemoteRotationCount < Owner->CellManager->GetQuorumCount() - 1)
+        if (!LocalRotationFlag_ || RemoteRotationCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
             return;
 
         LOG_INFO("Distributed changelog rotation complete");
 
-        ChangelogAwaiter->Cancel();
+        ChangelogAwaiter_->Cancel();
 
-        Owner->EpochAutomatonInvoker->Invoke(
-            BIND(&TLeaderCommitter::ResumeLogging, Owner->LeaderCommitter));
+        Owner_->EpochAutomatonInvoker_->Invoke(
+            BIND(&TLeaderCommitter::ResumeLogging, Owner_->LeaderCommitter_));
 
-        ChangelogPromise.Set(TError());
+        ChangelogPromise_.Set(TError());
     }
 
     void OnChangelogsComplete()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         TError error("Distributed changelog rotation failed");
         LOG_WARNING(error);
-        ChangelogPromise.Set(error);
+        ChangelogPromise_.Set(error);
     }
 
 };
@@ -300,28 +300,28 @@ TChangelogRotation::TChangelogRotation(
     const TEpochId& epochId,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochAutomatonInvoker)
-    : Config(config)
-    , CellManager(cellManager)
-    , DecoratedAutomaton(decoratedAutomaton)
-    , LeaderCommitter(leaderCommitter)
-    , SnapshotStore(snapshotStore)
-    , EpochId(epochId)
-    , EpochControlInvoker(epochControlInvoker)
-    , EpochAutomatonInvoker(epochAutomatonInvoker)
+    : Config_(config)
+    , CellManager_(cellManager)
+    , DecoratedAutomaton_(decoratedAutomaton)
+    , LeaderCommitter_(leaderCommitter)
+    , SnapshotStore_(snapshotStore)
+    , EpochId_(epochId)
+    , EpochControlInvoker_(epochControlInvoker)
+    , EpochAutomatonInvoker_(epochAutomatonInvoker)
     , Logger(HydraLogger)
 {
-    YCHECK(Config);
-    YCHECK(CellManager);
-    YCHECK(DecoratedAutomaton);
-    YCHECK(LeaderCommitter);
-    YCHECK(SnapshotStore);
-    YCHECK(EpochControlInvoker);
-    YCHECK(EpochAutomatonInvoker);
-    VERIFY_INVOKER_AFFINITY(EpochControlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(EpochAutomatonInvoker, AutomatonThread);
+    YCHECK(Config_);
+    YCHECK(CellManager_);
+    YCHECK(DecoratedAutomaton_);
+    YCHECK(LeaderCommitter_);
+    YCHECK(SnapshotStore_);
+    YCHECK(EpochControlInvoker_);
+    YCHECK(EpochAutomatonInvoker_);
+    VERIFY_INVOKER_AFFINITY(EpochControlInvoker_, ControlThread);
+    VERIFY_INVOKER_AFFINITY(EpochAutomatonInvoker_, AutomatonThread);
 
     Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(CellManager->GetCellGuid())));
+        ~ToString(CellManager_->GetCellGuid())));
 }
 
 TFuture<TError> TChangelogRotation::RotateChangelog()
@@ -333,7 +333,7 @@ TFuture<TError> TChangelogRotation::RotateChangelog()
     return session->GetChangelogResult();
 }
 
-TFuture<TErrorOr<TSnapshotInfo>> TChangelogRotation::BuildSnapshot()
+TFuture<TErrorOr<TRemoteSnapshotParams>> TChangelogRotation::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

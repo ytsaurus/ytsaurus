@@ -24,9 +24,7 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, ReadSnapshot);
     DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);
-    DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupChangelog);
     DEFINE_RPC_PROXY_METHOD(NProto, LogMutations);
     DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshotLocal);

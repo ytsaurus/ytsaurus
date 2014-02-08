@@ -265,8 +265,15 @@ public:
 
         auto cellNodeProxy = cypressManager->GetNodeProxy(cellNode);
         cellMapNodeProxy->AddChild(cellNodeProxy, ToString(id));
-        
-        cellNodeProxy->MutableAttributes()->Set("opaque", true);
+
+        SyncYPathSet(cellNodeProxy, "", BuildYsonStringFluently()
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .BeginMap()
+                .Item("snapshots").BeginMap()
+                .EndMap()
+            .EndMap());
      
         return cell;
     }

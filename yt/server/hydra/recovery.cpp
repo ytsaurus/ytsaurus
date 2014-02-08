@@ -4,8 +4,6 @@
 #include "decorated_automaton.h"
 #include "changelog.h"
 #include "snapshot.h"
-#include "snapshot_discovery.h"
-#include "snapshot_download.h"
 #include "changelog_download.h"
 
 #include <core/concurrency/fiber.h>
@@ -57,10 +55,11 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto asyncSnapshotInfo = DiscoverLatestSnapshot(Config, CellManager, targetVersion.SegmentId);
-    auto snapshotInfo = WaitFor(asyncSnapshotInfo);
+    auto latestSnapshotIdOrError = WaitFor(SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId));
+    THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
+    int latestSnapshotId = latestSnapshotIdOrError.GetValue();
 
-    RecoverToVersionWithSnapshot(targetVersion, snapshotInfo.SnapshotId);
+    RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
 }
 
 void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapshotId)
@@ -79,32 +78,17 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
         // Load the snapshot.
         LOG_DEBUG("Using snapshot %d for recovery", snapshotId);
 
-        auto reader = SnapshotStore->TryCreateReader(snapshotId);
-        if (!reader) {
-            {
-                auto asyncResult = DownloadSnapshot(
-                    Config,
-                    CellManager,
-                    SnapshotStore,
-                    snapshotId);
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            reader = SnapshotStore->TryCreateReader(snapshotId);
-            if (!reader) {
-                LOG_FATAL("Snapshot is not available after download");
-            }
-        }
+        auto readerOrError = WaitFor(SnapshotStore->CreateReader(snapshotId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(readerOrError, "Error creating snapshot reader");
+        auto reader = readerOrError.GetValue();
 
         DecoratedAutomaton->LoadSnapshot(snapshotId, reader->GetStream());
 
-        auto snapshotParams = SnapshotStore->TryGetSnapshotParams(snapshotId);
-        if (!snapshotParams) {
-            LOG_FATAL("Snapshot is not available after download");
-        }
+        auto snapshotParamsOrError = WaitFor(SnapshotStore->GetSnapshotParams(snapshotId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error getting snapshot parameters");
+        const auto& snapshotParams = snapshotParamsOrError.GetValue();
 
-        ReplayChangelogs(targetVersion, snapshotParams->PrevRecordCount);
+        ReplayChangelogs(targetVersion, snapshotParams.PrevRecordCount);
     } else {
         // Recover using changelogs only.
         LOG_INFO("Not using any snapshot for recovery");
@@ -178,9 +162,9 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
         YCHECK(currentVersion.SegmentId == changelog->GetId());
         if (currentVersion.RecordId > changelog->GetRecordCount()) {
             DecoratedAutomaton->Clear();
-            THROW_ERROR_EXCEPTION("Current version is %s while only %d mutations are expected, forcing clear restart",
+            THROW_ERROR_EXCEPTION("Current version is %s while only %d mutations are expected, forcing clean restart",
                 ~ToString(currentVersion),
-                targetVersion.RecordId);
+                changelog->GetRecordCount());
         }
 
         int targetRecordId = isLast ? targetVersion.RecordId : changelog->GetRecordCount();
@@ -321,18 +305,22 @@ TAsyncError TLeaderRecovery::Run(TVersion targetVersion)
     VERIFY_THREAD_AFFINITY_ANY();
     
     SyncVersion = targetVersion;
-    int snapshotId = SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId);
     return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochAutomatonInvoker)
-        .Run(targetVersion, snapshotId);
+        .Run(targetVersion);
 }
 
-TError TLeaderRecovery::DoRun(TVersion targetVersion, int snapshotId)
+TError TLeaderRecovery::DoRun(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     try {
-        RecoverToVersionWithSnapshot(targetVersion, snapshotId);
+        auto latestSnapshotIdOrError = WaitFor(SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
+        int latestSnapshotId = latestSnapshotIdOrError.GetValue();
+
+        RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
+        
         return TError();
     } catch (const std::exception& ex) {
         return ex;

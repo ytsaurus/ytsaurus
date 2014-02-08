@@ -4,20 +4,6 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqReadSnapshot
-{
-    required int32 snapshot_id = 1;
-    required int64 offset = 2;
-    required int64 length = 3;
-}
-
-message TRspReadSnapshot
-{
-    // Snapshot data is passed via attachment.
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqReadChangeLog
 {
     required int32 changelog_id = 1;
@@ -28,21 +14,6 @@ message TReqReadChangeLog
 message TRspReadChangeLog
 {
     // Changelog records are passed in the attachment and are packed with PackRefs.
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqLookupSnapshot
-{
-    required int32 max_snapshot_id = 1;
-    required bool exact_id = 2;
-}
-
-message TRspLookupSnapshot
-{
-    required int32 snapshot_id = 1;
-    required int64 length = 2;
-    required uint64 checksum = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
