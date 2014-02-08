@@ -29,7 +29,7 @@
 #include <ytlib/new_table_client/schemed_chunk_writer.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/schemed_reader.h>
 
 #include <ytlib/chunk_client/async_reader.h>
 
@@ -127,7 +127,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReaderPtr DelegateToPeer(
+ISchemedReaderPtr DelegateToPeer(
     const TPlanFragment& planFragment,
     TNodeDirectoryPtr nodeDirectory,
     IChannelPtr channel)
@@ -139,7 +139,8 @@ IReaderPtr DelegateToPeer(
     nodeDirectory->DumpTo(req->mutable_node_directory());
     ToProto(req->mutable_plan_fragment(), planFragment);
 
-    return CreateChunkReader(
+    return CreateSchemedChunkReader(
+    // TODO(babenko): make configurable
         New<TChunkReaderConfig>(),
         New<TRemoteReader>(req->Invoke()));
 }
@@ -192,7 +193,7 @@ public:
             .Run();
     }
 
-    virtual IReaderPtr Delegate(
+    virtual ISchemedReaderPtr Delegate(
         const TPlanFragment& fragment,
         const TDataSplit& colocatedDataSplit) override
     {
@@ -211,7 +212,7 @@ public:
         return DelegateToPeer(fragment, NodeDirectory_, channel);
     }
 
-    virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override
+    virtual ISchemedReaderPtr GetReader(const TDataSplit& dataSplit) override
     {
         YUNREACHABLE();
     }

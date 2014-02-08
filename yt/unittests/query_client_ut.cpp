@@ -15,7 +15,7 @@
 #include <ytlib/query_client/helpers.h>
 
 #include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/schemed_reader.h>
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schemed_chunk_reader.h>
 #include <ytlib/new_table_client/schemed_chunk_writer.h>
@@ -70,10 +70,10 @@ class TCoordinateCallbacksMock
     : public ICoordinateCallbacks
 {
 public:
-    MOCK_METHOD1(GetReader, IReaderPtr(const TDataSplit&));
+    MOCK_METHOD1(GetReader, ISchemedReaderPtr(const TDataSplit&));
     MOCK_METHOD1(CanSplit, bool(const TDataSplit&));
     MOCK_METHOD1(SplitFurther, TFuture<TErrorOr<std::vector<TDataSplit>>>(const TDataSplit&));
-    MOCK_METHOD2(Delegate, IReaderPtr(const TPlanFragment&, const TDataSplit&));
+    MOCK_METHOD2(Delegate, ISchemedReaderPtr(const TPlanFragment&, const TDataSplit&));
 };
 
 MATCHER_P(HasCounter, expectedCounter, "")

@@ -39,7 +39,7 @@ DECLARE_REFCOUNTED_STRUCT(IExecutor)
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 
-using NVersionedTableClient::IReaderPtr;
+using NVersionedTableClient::ISchemedReaderPtr;
 using NVersionedTableClient::IWriterPtr;
 
 using NVersionedTableClient::EValueType;
@@ -47,7 +47,6 @@ using NVersionedTableClient::EValueType;
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TKeyColumns;
 
-// TODO(sandello): Change me after migrating to TUnversionedValue in query_client.
 typedef NVersionedTableClient::TUnversionedRow TRow;
 typedef NVersionedTableClient::TUnversionedValue TValue;
 

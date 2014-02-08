@@ -7,16 +7,16 @@
 #include "plan_visitor.h"
 #include "plan_helpers.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/writer.h>
-#include <ytlib/new_table_client/schema.h>
-
 #include <core/concurrency/fiber.h>
 
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/chunked_memory_pool.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemed_reader.h>
+#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -129,8 +129,7 @@ void TEvaluateController::ScanRoutine(
     LOG_DEBUG("Opening reader");
 
     {
-        auto nameTable = New<TNameTable>();
-        auto error = WaitFor(reader->Open(nameTable, schema));
+        auto error = WaitFor(reader->Open(schema));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 

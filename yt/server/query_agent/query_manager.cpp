@@ -10,9 +10,9 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/writer.h>
+#include <ytlib/new_table_client/schemed_reader.h>
 #include <ytlib/new_table_client/schemed_chunk_reader.h>
+#include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 
@@ -64,7 +64,7 @@ TAsyncError TQueryManager::Execute(
     return Evaluator->Execute(fragment, std::move(writer));
 }
 
-IReaderPtr TQueryManager::GetReader(const TDataSplit& dataSplit)
+ISchemedReaderPtr TQueryManager::GetReader(const TDataSplit& dataSplit)
 {
     auto masterChannel = Bootstrap->GetMasterChannel();
     auto blockCache = Bootstrap->GetBlockStore()->GetBlockCache();
@@ -73,7 +73,7 @@ IReaderPtr TQueryManager::GetReader(const TDataSplit& dataSplit)
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
     switch (TypeFromId(objectId)) {
         case EObjectType::Chunk: {
-            return CreateChunkReader(
+            return CreateSchemedChunkReader(
                 // TODO(babenko): make configuable
                 New<TChunkReaderConfig>(),
                 dataSplit,

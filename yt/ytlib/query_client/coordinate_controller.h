@@ -23,7 +23,7 @@ public:
     ~TCoordinateController();
 
     int GetPeerIndex(const TDataSplit& dataSplit);
-    virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override;
+    virtual ISchemedReaderPtr GetReader(const TDataSplit& dataSplit) override;
 
     //! Actually evaluates query.
     //! NB: Does not throw.
@@ -73,9 +73,10 @@ private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
 
-    std::vector<std::tuple<TPlanFragment, IReaderPtr>> Peers_;
+    std::vector<std::tuple<TPlanFragment, ISchemedReaderPtr>> Peers_;
 
     NLog::TTaggedLogger Logger;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -34,7 +34,7 @@ public:
         const NQueryClient::TPlanFragment& fragment,
         NQueryClient::IWriterPtr writer) override;
 
-    virtual NQueryClient::IReaderPtr GetReader(
+    virtual NQueryClient::ISchemedReaderPtr GetReader(
         const NQueryClient::TDataSplit& dataSplit) override;
 
 private:

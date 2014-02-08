@@ -14,7 +14,7 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/schemed_reader.h>
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
@@ -52,7 +52,7 @@ int TCoordinateController::GetPeerIndex(const TDataSplit& dataSplit)
     return CounterFromId(objectId);
 }
 
-IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
+ISchemedReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
 {
     auto objectId = GetObjectIdFromDataSplit(dataSplit);
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));

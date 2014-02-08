@@ -1,16 +1,13 @@
-
 #pragma once
 
 #include "public.h"
 
+#include <core/rpc/public.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/read_limit.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-
 #include <ytlib/node_tracker_client/public.h>
-
-#include <core/rpc/public.h>
 
 namespace NYT {
 namespace NVersionedTableClient {

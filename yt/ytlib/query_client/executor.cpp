@@ -5,7 +5,6 @@
 #include "coordinate_controller.h"
 #include "evaluate_controller.h"
 
-#include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/writer.h>
 
 namespace NYT {
