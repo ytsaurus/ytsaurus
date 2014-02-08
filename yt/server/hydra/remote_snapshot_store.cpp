@@ -277,7 +277,7 @@ private:
                 TTransactionStartOptions options;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Snapshot upload for cell %s, snapshot %d",
-                    CellGuid_,
+                    ~ToString(CellGuid_),
                     snapshotId));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(TransactionManager_->Start(options));
@@ -309,7 +309,6 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
-            const size_t BufferSize = 1;
             struct TUploadBufferTag { };
             auto buffer = TSharedRef::Allocate<TUploadBufferTag>(Config_->Writer->BlockSize);
 
