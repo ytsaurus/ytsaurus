@@ -1092,7 +1092,7 @@ private:
                 ~node->GetAddress());
         }
 
-        if (ChunkReplciator && !cached) {
+        if (ChunkReplicator && !cached) {
             ChunkReplicator->ScheduleChunkRefresh(chunkWithIndex.GetPtr());
         }
 
