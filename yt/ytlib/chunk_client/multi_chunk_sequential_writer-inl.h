@@ -458,6 +458,7 @@ void TMultiChunkSequentialWriter<TProvider>::AttachChunks()
 
         State.Close();
         State.FinishOperation();
+        return;
     }
 
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
