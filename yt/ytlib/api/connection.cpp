@@ -17,14 +17,78 @@
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
+#include <ytlib/query_client/callbacks.h>
+
 namespace NYT {
 namespace NApi {
 
 using namespace NRpc;
+using namespace NYPath;
 using namespace NHive;
 using namespace NHydra;
 using namespace NChunkClient;
 using namespace NTabletClient;
+using namespace NQueryClient;
+using namespace NVersionedTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPrepareCallbacks
+    : public IPrepareCallbacks
+{
+public:
+    explicit TPrepareCallbacks(IConnectionPtr connection)
+        : Connection_(connection)
+    { }
+
+    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const TYPath& path) override
+    {
+        YUNIMPLEMENTED();
+    }
+
+private:
+    IConnectionPtr Connection_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCoordinateCallbacks
+    : public ICoordinateCallbacks
+{
+public:
+    explicit TCoordinateCallbacks(IConnectionPtr connection)
+        : Connection_(connection)
+    { }
+
+    virtual ISchemedReaderPtr GetReader(const TDataSplit& dataSplit) override
+    {
+        YUNIMPLEMENTED();
+    }
+
+    virtual bool CanSplit(
+        const TDataSplit& dataSplit) override
+    {
+        YUNIMPLEMENTED();
+    }
+
+    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
+        const TDataSplit& dataSplit) override
+    {
+        YUNIMPLEMENTED();
+    }
+
+    virtual ISchemedReaderPtr Delegate(
+        const TPlanFragment& fragment,
+        const TDataSplit& colocatedDataSplit) override
+    {
+        YUNIMPLEMENTED();
+    }
+
+private:
+    IConnectionPtr Connection_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +127,9 @@ public:
             Config_->TableMountCache,
             MasterChannel_,
             CellDirectory_);
+
+        PrepareCallbacks_.reset(new TPrepareCallbacks(this));
+        CoordinateCallbacks_.reset(new TCoordinateCallbacks(this));
     }
 
 
@@ -101,6 +168,16 @@ public:
         return CellDirectory_;
     }
 
+    virtual IPrepareCallbacks* GetQueryPrepareCallbacks() override
+    {
+        return PrepareCallbacks_.get();
+    }
+
+    virtual ICoordinateCallbacks* GetQueryCoordinateCallbacks() override
+    {
+        return CoordinateCallbacks_.get();
+    }
+
 private:
     TConnectionConfigPtr Config_;
 
@@ -110,6 +187,8 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
+    std::unique_ptr<TPrepareCallbacks> PrepareCallbacks_;
+    std::unique_ptr<TCoordinateCallbacks> CoordinateCallbacks_;
 
 };
 

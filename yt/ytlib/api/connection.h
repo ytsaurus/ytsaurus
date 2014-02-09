@@ -12,6 +12,8 @@
 
 #include <ytlib/tablet_client/public.h>
 
+#include <ytlib/query_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -27,6 +29,8 @@ struct IConnection
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NHive::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
+    virtual NQueryClient::IPrepareCallbacks* GetQueryPrepareCallbacks() = 0;
+    virtual NQueryClient::ICoordinateCallbacks* GetQueryCoordinateCallbacks() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
