@@ -20,6 +20,8 @@ struct IPrepareCallbacks
     virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const NYPath::TYPath& path) = 0;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IEvaluateCallbacks
 {
     virtual ~IEvaluateCallbacks()
@@ -28,6 +30,8 @@ struct IEvaluateCallbacks
     virtual ISchemedReaderPtr GetReader(const TDataSplit& dataSplit) = 0;
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct ICoordinateCallbacks
     : public IEvaluateCallbacks
