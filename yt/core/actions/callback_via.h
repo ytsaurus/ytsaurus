@@ -19,9 +19,6 @@ TClosure GetCurrentFiberCanceler();
 
 namespace NDetail {
 
-template <bool WrappedInFuture, class TSignature>
-struct TAsyncViaHelper;
-
 template <class T>
 void RegisterFiberCancelation(TPromise<T> promise)
 {
@@ -52,7 +49,12 @@ TCallback<R(TArgs...)>::Via(IInvokerPtr invoker)
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
+
+template <bool WrappedInFuture, class TSignature>
+struct TAsyncViaHelper;
 
 template <bool W, class U, class... TArgs>
 struct TAsyncViaHelper<W, U(TArgs...)>
@@ -168,6 +170,58 @@ TCallback<U(TArgs...)>::AsyncVia(IInvokerPtr invoker)
         NYT::NDetail::TFutureHelper<U>::WrappedInFuture,
         U(TArgs...)
     >::Do(*this, std::move(invoker));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail
+{
+
+template <class TSignature>
+struct TGuardedAsyncViaHelper;
+
+template <class U, class... TArgs>
+struct TGuardedAsyncViaHelper<U(TArgs...)>
+{
+    static TCallback<TErrorOr<U>(TArgs...)> Do(TCallback<U(TArgs...)> callback)
+    {
+        return
+            BIND([=] (TArgs... args) -> TErrorOr<U> {
+                try {
+                    return TErrorOr<U>(callback.Run(std::forward<TArgs>(args)...));
+                } catch (const std::exception& ex) {
+                    return ex;
+                }
+            });
+    }
+};
+
+template <class... TArgs>
+struct TGuardedAsyncViaHelper<void(TArgs...)>
+{
+    static TCallback<TErrorOr<void>(TArgs...)> Do(TCallback<void(TArgs...)> callback)
+    {
+        return
+            BIND([=] (TArgs... args) -> TErrorOr<void> {
+                try {
+                    callback.Run(std::forward<TArgs>(args)...);
+                    return TErrorOr<void>();
+                } catch (const std::exception& ex) {
+                    return ex;
+                }
+            });
+    }
+};
+
+} // namespace NDetail
+
+template <class U, class... TArgs>
+TCallback<TFuture<TErrorOr<U>>(TArgs...)>
+TCallback<U(TArgs...)>::GuardedAsyncVia(TIntrusivePtr<IInvoker> invoker)
+{
+    return NYT::NDetail::TGuardedAsyncViaHelper<
+        U(TArgs...)
+    >::Do(*this).AsyncVia(std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

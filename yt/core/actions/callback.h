@@ -125,6 +125,9 @@ class TPromise;
 template <>
 class TPromise<void>;
 
+template <class T>
+class TErrorOr;
+
 struct IInvoker;
 
 template <class T>
@@ -161,10 +164,7 @@ struct TFutureHelper
     typedef TFuture<R> TFutureType;
     typedef TPromise<R> TPromiseType;
     typedef R TValueType;
-    enum
-    {
-        WrappedInFuture = 0
-    };
+    static const bool WrappedInFuture = false;
 };
 
 template <class R>
@@ -173,10 +173,7 @@ struct TFutureHelper< TFuture<R> >
     typedef TFuture<R> TFutureType;
     typedef TPromise<R> TPromiseType;
     typedef R TValueType;
-    enum
-    {
-        WrappedInFuture = 1
-    };
+    static const bool WrappedInFuture = true;
 };
 
 template <class R>
@@ -185,10 +182,7 @@ struct TFutureHelper< TPromise<R> >
     typedef TFuture<R> TFutureType;
     typedef TPromise<R> TPromiseType;
     typedef R TValueType;
-    enum
-    {
-        WrappedInFuture = 1
-    };
+    static const bool WrappedInFuture = true;
 };
 
 } // namespace NDetail
@@ -251,10 +245,15 @@ public:
             std::forward<TArgs>(args)...);
     }
 
-    // XXX(sandello): This is legacy. Due to forced migration to new callbacks.
+
     TCallback Via(TIntrusivePtr<IInvoker> invoker);
+
     TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType(TArgs...)>
     AsyncVia(TIntrusivePtr<IInvoker> invoker);
+
+    // TODO(babenko): currently only implemented for simple return types (no TErrorOr, no TFuture, no TPromise).
+    TCallback<TFuture<TErrorOr<R>>(TArgs...)>
+    GuardedAsyncVia(TIntrusivePtr<IInvoker> invoker);
 
 private:
     typedef R(*TTypedInvokeFunction)(
