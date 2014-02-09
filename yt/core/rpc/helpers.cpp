@@ -149,5 +149,6 @@ IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, const TRealmId& re
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT
