@@ -252,7 +252,6 @@ struct IClientBase
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
     virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
-        const NYPath::TYPath& path,
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 

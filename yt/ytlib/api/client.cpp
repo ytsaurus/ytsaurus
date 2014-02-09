@@ -189,7 +189,6 @@ public:
     }
 
     virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
-        const TYPath& path,
         const Stroka& query,
         const TSelectRowsOptions& options) override
     {
@@ -932,10 +931,9 @@ public:
         const TLookupRowsOptions& options),
         (path, keys, options))
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (
-        const TYPath& path,
         const Stroka& query,
         const TSelectRowsOptions& options),
-        (path, query, options))
+        (query, options))
 
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TErrorOr<TYsonString>>, GetNode, (
