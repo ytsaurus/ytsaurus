@@ -274,8 +274,6 @@ void TCoordinateController::DistributeToPeers()
     LOG_DEBUG("Distributing plan to peers");
     YCHECK(Peers_.empty());
 
-    auto* context = Fragment_.GetContext().Get();
-
     int scanOperatorCount = 0;
     Visit(
         Fragment_.GetHead(),
