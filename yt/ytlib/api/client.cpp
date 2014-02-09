@@ -179,21 +179,15 @@ public:
         TKey key,
         const TLookupRowsOptions& options),
         (path, key, options))
-
-    virtual TFuture<TErrorOr<IRowsetPtr>> LookupRows(
+    IMPLEMENT_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRows, (
         const TYPath& path,
         const std::vector<NVersionedTableClient::TKey>& keys,
-        const TLookupRowsOptions& options) override
-    {
-        YUNIMPLEMENTED();
-    }
-
-    virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
+        const TLookupRowsOptions& options),
+        (path, keys, options))
+    IMPLEMENT_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (
         const Stroka& query,
-        const TSelectRowsOptions& options) override
-    {
-        YUNIMPLEMENTED();
-    }
+        const TSelectRowsOptions& options),
+        (query, options))
 
     IMPLEMENT_METHOD(TAsyncError, MountTable, (
         const TYPath& path,
@@ -427,6 +421,22 @@ private:
             return TError(ex);
         }
     }
+
+    TErrorOr<IRowsetPtr> DoLookupRows(
+        const TYPath& path,
+        const std::vector<TKey>& keys,
+        TLookupRowsOptions options)
+    {
+        YUNIMPLEMENTED();
+    }
+
+    TErrorOr<IRowsetPtr> DoSelectRows(
+        const Stroka& query,
+        TSelectRowsOptions options)
+    {
+        YUNIMPLEMENTED();
+    }
+
 
     TError DoMountTable(
         const TYPath& path,
