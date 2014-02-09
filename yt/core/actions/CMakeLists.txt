@@ -12,7 +12,6 @@ set( HDRS
   ${BASE}/callback.h
   ${BASE}/callback_forward.h
   ${BASE}/callback_internal.h
-  ${BASE}/callback_via.h
   ${BASE}/cancelable_context.h
   ${BASE}/common.h
   ${BASE}/future-inl.h

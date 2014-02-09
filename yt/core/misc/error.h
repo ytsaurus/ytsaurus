@@ -247,3 +247,8 @@ Stroka ToString(const TErrorOr<T>& valueOrError)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+
+#define ERROR_INL_H_
+#include "error-inl.h"
+#undef ERROR_INL_H_

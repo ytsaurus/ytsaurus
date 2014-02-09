@@ -300,7 +300,7 @@ private:
 
 
     template <class TResult, class TSignature>
-    typename TFuture<TErrorOr<TResult>> Execute(TCallback<TSignature> callback)
+    TFuture<TErrorOr<TResult>> Execute(TCallback<TSignature> callback)
     {
         return callback.GuardedAsyncVia(Invoker_).Run();
     }

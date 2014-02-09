@@ -269,4 +269,3 @@ typedef TCallback<void()> TClosure;
 } // namespace NYT
 
 #include "bind.h"
-#include "callback_via.h"
