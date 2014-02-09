@@ -28,10 +28,7 @@ public:
     TPlanFragment& operator=(TPlanFragment&& other);
 
     template <class TFunctor>
-    void Rewrite(const TFunctor& functor)
-    {
-        SetHead(Apply(GetContext().Get(), GetHead(), functor));
-    }
+    void Rewrite(const TFunctor& functor);
 
     DEFINE_BYVAL_RO_PROPERTY(TPlanContextPtr, Context);
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Head);
@@ -46,6 +43,15 @@ public:
 
 void ToProto(NProto::TPlanFragment* serialized, const TPlanFragment& original);
 TPlanFragment FromProto(const NProto::TPlanFragment& serialized);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): move to inl
+template <class TFunctor>
+void TPlanFragment::Rewrite(const TFunctor& functor)
+{
+    SetHead(Apply(GetContext().Get(), GetHead(), functor));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
