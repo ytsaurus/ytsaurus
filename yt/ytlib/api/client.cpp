@@ -41,6 +41,11 @@
 
 #include <ytlib/hydra/rpc_helpers.h>
 
+#include <ytlib/new_table_client/schemed_writer.h>
+
+#include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/executor.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -56,6 +61,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NSecurityClient;
 using namespace NHydra;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,96 +169,93 @@ public:
 
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_METHOD(returnType, method, signature, args) \
-    virtual returnType method signature override \
+    virtual TFuture<TErrorOr<returnType>> method signature override \
     { \
-        return \
-            BIND( \
-                &TClient::Do ## method, \
-                MakeStrong(this), \
-                DROP_BRACES args) \
-            .AsyncVia(Invoker_) \
-            .Run(); \
+        return Execute<returnType>(BIND( \
+            &TClient::Do ## method, \
+            MakeStrong(this), \
+            DROP_BRACES args)); \
     }
 
-    IMPLEMENT_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRow, (
+    IMPLEMENT_METHOD(IRowsetPtr, LookupRow, (
         const TYPath& path,
-        TKey key,
+        NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options),
         (path, key, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRows, (
+    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
         const TYPath& path,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, keys, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (
+    IMPLEMENT_METHOD(IRowsetPtr, SelectRows, (
         const Stroka& query,
         const TSelectRowsOptions& options),
         (query, options))
 
-    IMPLEMENT_METHOD(TAsyncError, MountTable, (
+    IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(TAsyncError, UnmountTable, (
+    IMPLEMENT_METHOD(void, UnmountTable, (
         const TYPath& path,
         const TUnmountTableOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(TAsyncError, ReshardTable, (
+    IMPLEMENT_METHOD(void, ReshardTable, (
         const TYPath& path,
-        const std::vector<TKey>& pivotKeys,
+        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options),
         (path, pivotKeys, options))
 
 
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TYsonString>>, GetNode, (
+    IMPLEMENT_METHOD(TYsonString, GetNode, (
         const TYPath& path,
         const TGetNodeOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(TFuture<TError>, SetNode, (
+    IMPLEMENT_METHOD(void, SetNode, (
         const TYPath& path,
         const TYsonString& value,
         const TSetNodeOptions& options),
         (path, value, options))
-    IMPLEMENT_METHOD(TFuture<TError>, RemoveNode, (
+    IMPLEMENT_METHOD(void, RemoveNode, (
         const TYPath& path,
         const TRemoveNodeOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TYsonString>>, ListNodes, (
+    IMPLEMENT_METHOD(TYsonString, ListNodes, (
         const TYPath& path,
         const TListNodesOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TNodeId>>, CreateNode, (
+    IMPLEMENT_METHOD(TNodeId, CreateNode, (
         const TYPath& path,
         EObjectType type,
         const TCreateNodeOptions& options),
         (path, type, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TLockId>>, LockNode, (
+    IMPLEMENT_METHOD(TLockId, LockNode, (
         const TYPath& path,
         ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TNodeId>>, CopyNode, (
+    IMPLEMENT_METHOD(TNodeId, CopyNode, (
         const TYPath& srcPath,
         const TYPath& dstPath,
         const TCopyNodeOptions& options),
         (srcPath, dstPath, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TNodeId>>, MoveNode, (
+    IMPLEMENT_METHOD(TNodeId, MoveNode, (
         const TYPath& srcPath,
         const TYPath& dstPath,
         const TMoveNodeOptions& options),
         (srcPath, dstPath, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TNodeId>>, LinkNode, (
+    IMPLEMENT_METHOD(TNodeId, LinkNode, (
         const TYPath& srcPath,
         const TYPath& dstPath,
         const TLinkNodeOptions& options),
         (srcPath, dstPath, options))
-    IMPLEMENT_METHOD(TFuture<TErrorOr<bool>>, NodeExists, (
+    IMPLEMENT_METHOD(bool, NodeExists, (
         const TYPath& path,
         const TNodeExistsOptions& options),
         (path, options))
 
 
-    IMPLEMENT_METHOD(TFuture<TErrorOr<TObjectId>>, CreateObject, (
+    IMPLEMENT_METHOD(TObjectId, CreateObject, (
         EObjectType type,
         const TCreateObjectOptions& options),
         (type, options))
@@ -269,12 +272,12 @@ public:
         TFileWriterConfigPtr config) override;
 
 
-    IMPLEMENT_METHOD(TAsyncError, AddMember, (
+    IMPLEMENT_METHOD(void, AddMember, (
         const Stroka& group,
         const Stroka& member,
         const TAddMemberOptions& options),
         (group, member, options))
-    IMPLEMENT_METHOD(TAsyncError, RemoveMember, (
+    IMPLEMENT_METHOD(void, RemoveMember, (
         const Stroka& group,
         const Stroka& member,
         const TRemoveMemberOptions& options),
@@ -295,6 +298,50 @@ private:
     IInvokerPtr Invoker_;
 
 
+    template <class TResult, class TSignature>
+    struct TExecuteTraits
+    {
+        static TFuture<TErrorOr<TResult>> Do(TCallback<TSignature> callback, IInvokerPtr invoker)
+        {
+            return
+                BIND([=] () -> TErrorOr<TResult> {
+                    try {
+                        return TErrorOr<TResult>(callback.Run());
+                    } catch (const std::exception& ex) {
+                        return ex;
+                    }
+                })
+                .AsyncVia(invoker)
+                .Run();
+        }
+    };
+
+    template <class TSignature>
+    struct TExecuteTraits<void, TSignature>
+    {
+        static TFuture<TError> Do(TCallback<TSignature> callback, IInvokerPtr invoker)
+        {
+            return
+                BIND([=] () -> TError {
+                    try {
+                        callback.Run();
+                        return TError();
+                    } catch (const std::exception& ex) {
+                        return ex;
+                    }
+                })
+                .AsyncVia(invoker)
+                .Run();
+        }
+    };
+
+    template <class TResult, class TSignature>
+    typename TFuture<TErrorOr<TResult>> Execute(TCallback<TSignature> callback)
+    {
+        return TExecuteTraits<TResult, TSignature>::Do(callback, Invoker_);
+    }
+
+
     TTableMountInfoPtr GetTableMountInfo(const TYPath& path)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
@@ -306,7 +353,7 @@ private:
     static const TTabletInfo& GetTabletInfo(
         TTableMountInfoPtr mountInfo,
         const TYPath& path,
-        TKey key)
+        NVersionedTableClient::TKey key)
     {
         if (mountInfo->Tablets.empty()) {
             THROW_ERROR_EXCEPTION("Table %s is not mounted",
@@ -379,380 +426,323 @@ private:
     }
 
 
-    TErrorOr<IRowsetPtr> DoLookupRow(
+    IRowsetPtr DoLookupRow(
         const TYPath& path,
-        TKey key,
+        NVersionedTableClient::TKey key,
         TLookupRowsOptions options)
     {
-        try {
-            auto mountInfo = GetTableMountInfo(path);
-            const auto& tabletInfo = GetTabletInfo(mountInfo, path, key);
+        auto mountInfo = GetTableMountInfo(path);
+        const auto& tabletInfo = GetTabletInfo(mountInfo, path, key);
 
-            const auto& cellDirectory = Connection_->GetCellDirectory();
-            auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
 
-            TTabletServiceProxy proxy(channel);
-            auto req = proxy.Read();
+        TTabletServiceProxy proxy(channel);
+        auto req = proxy.Read();
 
-            ToProto(req->mutable_tablet_id(), tabletInfo.TabletId);
-            req->set_timestamp(options.Timestamp);
+        ToProto(req->mutable_tablet_id(), tabletInfo.TabletId);
+        req->set_timestamp(options.Timestamp);
 
-            TProtocolWriter writer;
-            writer.WriteCommand(EProtocolCommand::LookupRow);
-            writer.WriteUnversionedRow(key);
-            writer.WriteColumnFilter(options.ColumnFilter);
-            req->set_encoded_request(writer.Finish());
+        TProtocolWriter writer;
+        writer.WriteCommand(EProtocolCommand::LookupRow);
+        writer.WriteUnversionedRow(key);
+        writer.WriteColumnFilter(options.ColumnFilter);
+        req->set_encoded_request(writer.Finish());
 
-            auto rsp = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto rsp = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-            std::unique_ptr<TProtocolReader> reader(new TProtocolReader(rsp->encoded_response()));
-            std::vector<TUnversionedRow> rows;
-            reader->ReadUnversionedRowset(&rows);
+        std::unique_ptr<TProtocolReader> reader(new TProtocolReader(rsp->encoded_response()));
+        std::vector<TUnversionedRow> rows;
+        reader->ReadUnversionedRowset(&rows);
 
-            if (rows.empty()) {
-                rows.push_back(TUnversionedRow());
-            }
-
-            return TErrorOr<IRowsetPtr>(New<TRowset>(
-                std::move(reader),
-                std::move(rows)));
-        } catch (const std::exception& ex) {
-            return TError(ex);
+        if (rows.empty()) {
+            rows.push_back(TUnversionedRow());
         }
+
+        return New<TRowset>(
+            std::move(reader),
+            std::move(rows));
     }
 
-    TErrorOr<IRowsetPtr> DoLookupRows(
+    IRowsetPtr DoLookupRows(
         const TYPath& path,
-        const std::vector<TKey>& keys,
+        const std::vector<NVersionedTableClient::TKey>& keys,
         TLookupRowsOptions options)
     {
         YUNIMPLEMENTED();
     }
 
-    TErrorOr<IRowsetPtr> DoSelectRows(
+    IRowsetPtr DoSelectRows(
         const Stroka& query,
         TSelectRowsOptions options)
     {
+        auto fragment = TPlanFragment::Prepare(
+            query,
+            Connection_->GetQueryPrepareCallbacks());
+
+        auto coordinator = CreateCoordinator(
+            GetCurrentInvoker(),
+            Connection_->GetQueryCoordinateCallbacks());
+
+        {
+            auto error = WaitFor(coordinator->Execute(fragment, nullptr));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
         YUNIMPLEMENTED();
     }
 
 
-    TError DoMountTable(
+    void DoMountTable(
         const TYPath& path,
         const TMountTableOptions& options)
     {
-        try {
-            auto req = TTableYPathProxy::Mount(path);
-            if (options.FirstTabletIndex) {
-                req->set_first_tablet_index(*options.FirstTabletIndex);
-            }
-            if (options.LastTabletIndex) {
-                req->set_first_tablet_index(*options.LastTabletIndex);
-            }
-
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return TError(ex);
+        auto req = TTableYPathProxy::Mount(path);
+        if (options.FirstTabletIndex) {
+            req->set_first_tablet_index(*options.FirstTabletIndex);
         }
+        if (options.LastTabletIndex) {
+            req->set_first_tablet_index(*options.LastTabletIndex);
+        }
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
-    TError DoUnmountTable(
+    void DoUnmountTable(
         const TYPath& path,
         const TUnmountTableOptions& options)
     {
-        try {
-            auto req = TTableYPathProxy::Unmount(path);
-            if (options.FirstTabletIndex) {
-                req->set_first_tablet_index(*options.FirstTabletIndex);
-            }
-            if (options.LastTabletIndex) {
-                req->set_first_tablet_index(*options.LastTabletIndex);
-            }
-
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return TError(ex);
+        auto req = TTableYPathProxy::Unmount(path);
+        if (options.FirstTabletIndex) {
+            req->set_first_tablet_index(*options.FirstTabletIndex);
         }
+        if (options.LastTabletIndex) {
+            req->set_first_tablet_index(*options.LastTabletIndex);
+        }
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
-    TError DoReshardTable(
+    void DoReshardTable(
         const TYPath& path,
-        const std::vector<TKey>& pivotKeys,
+        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options)
     {
-        try {
-            auto req = TTableYPathProxy::Reshard(path);
-            if (options.FirstTabletIndex) {
-                req->set_first_tablet_index(*options.FirstTabletIndex);
-            }
-            if (options.LastTabletIndex) {
-                req->set_last_tablet_index(*options.LastTabletIndex);
-            }
-            ToProto(req->mutable_pivot_keys(), pivotKeys);
-
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return TError(ex);
+        auto req = TTableYPathProxy::Reshard(path);
+        if (options.FirstTabletIndex) {
+            req->set_first_tablet_index(*options.FirstTabletIndex);
         }
+        if (options.LastTabletIndex) {
+            req->set_last_tablet_index(*options.LastTabletIndex);
+        }
+        ToProto(req->mutable_pivot_keys(), pivotKeys);
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
 
-    TErrorOr<TYsonString> DoGetNode(
+    TYsonString DoGetNode(
         const TYPath& path,
         TGetNodeOptions options)
     {
-        try {
-            auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, options, true);
-            SetSuppressAccessTracking(req, options);
+        auto req = TYPathProxy::Get(path);
+        SetTransactionId(req, options, true);
+        SetSuppressAccessTracking(req, options);
 
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, options.Attributes);
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
-            if (options.MaxSize) {
-                req->set_max_size(*options.MaxSize);
-            }
-            if (options.Options) {
-                ToProto(req->mutable_options(), *options.Options);
-            }
-
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TYsonString(rsp->value());
-        } catch (const std::exception& ex) {
-            return ex;
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, options.Attributes);
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        if (options.MaxSize) {
+            req->set_max_size(*options.MaxSize);
         }
+        if (options.Options) {
+            ToProto(req->mutable_options(), *options.Options);
+        }
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+        return TYsonString(rsp->value());
     }
 
-    TError DoSetNode(
+    void DoSetNode(
         const TYPath& path,
         const TYsonString& value,
         TSetNodeOptions options)
     {
-        try {
-            auto req = TYPathProxy::Set(path);
-            SetTransactionId(req, options, true);
-            GenerateMutationId(req, options);
-            req->set_value(value.Data());
+        auto req = TYPathProxy::Set(path);
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
+        req->set_value(value.Data());
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
-    TError DoRemoveNode(
+    void DoRemoveNode(
         const TYPath& path,
         TRemoveNodeOptions options)
     {
-        try {
-            auto req = TYPathProxy::Remove(path);
-            SetTransactionId(req, options, true);
-            GenerateMutationId(req, options);
-            req->set_recursive(options.Recursive);
-            req->set_force(options.Force);
+        auto req = TYPathProxy::Remove(path);
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
+        req->set_recursive(options.Recursive);
+        req->set_force(options.Force);
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
-    TErrorOr<TYsonString> DoListNodes(
+    TYsonString DoListNodes(
         const TYPath& path,
         TListNodesOptions options)
     {
-        try {
-            auto req = TYPathProxy::List(path);
-            SetTransactionId(req, options, true);
-            SetSuppressAccessTracking(req, options);
+        auto req = TYPathProxy::List(path);
+        SetTransactionId(req, options, true);
+        SetSuppressAccessTracking(req, options);
 
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, options.Attributes);
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
-            if (options.MaxSize) {
-                req->set_max_size(*options.MaxSize);
-            }
-
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TYsonString(rsp->keys());
-        } catch (const std::exception& ex) {
-            return ex;
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, options.Attributes);
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        if (options.MaxSize) {
+            req->set_max_size(*options.MaxSize);
         }
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+        return TYsonString(rsp->keys());
     }
 
-    TErrorOr<TNodeId> DoCreateNode(
+    TNodeId DoCreateNode(
         const TYPath& path,
         EObjectType type,
         TCreateNodeOptions options)
     {
-        try {
-            auto req = TCypressYPathProxy::Create(path);
-            SetTransactionId(req, options, true);
-            GenerateMutationId(req, options);
-            req->set_type(type);
-            req->set_recursive(options.Recursive);
-            req->set_ignore_existing(options.IgnoreExisting);
+        auto req = TCypressYPathProxy::Create(path);
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
+        req->set_type(type);
+        req->set_recursive(options.Recursive);
+        req->set_ignore_existing(options.IgnoreExisting);
 
-            if (options.Attributes) {
-                ToProto(req->mutable_node_attributes(), *options.Attributes);
-            }
-
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return FromProto<TNodeId>(rsp->node_id());
-        } catch (const std::exception& ex) {
-            return ex;
+        if (options.Attributes) {
+            ToProto(req->mutable_node_attributes(), *options.Attributes);
         }
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+        return FromProto<TNodeId>(rsp->node_id());
     }
 
-    TErrorOr<TLockId> DoLockNode(
+    TLockId DoLockNode(
         const TYPath& path,
         ELockMode mode,
         TLockNodeOptions options)
     {
-        try {
-            auto lockReq = TCypressYPathProxy::Lock(path);
-            SetTransactionId(lockReq, options, false);
-            GenerateMutationId(lockReq, options);
-            lockReq->set_mode(mode);
-            lockReq->set_waitable(options.Waitable);
+        auto lockReq = TCypressYPathProxy::Lock(path);
+        SetTransactionId(lockReq, options, false);
+        GenerateMutationId(lockReq, options);
+        lockReq->set_mode(mode);
+        lockReq->set_waitable(options.Waitable);
 
-            auto lockRsp = WaitFor(ObjectProxy_->Execute(lockReq));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*lockRsp);
+        auto lockRsp = WaitFor(ObjectProxy_->Execute(lockReq));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*lockRsp);
 
-            return FromProto<TLockId>(lockRsp->lock_id());
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        return FromProto<TLockId>(lockRsp->lock_id());
     }
 
-    TErrorOr<TNodeId> DoCopyNode(
+    TNodeId DoCopyNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
         TCopyNodeOptions options)
     {
-        try {
-            auto req = TCypressYPathProxy::Copy(dstPath);
-            SetTransactionId(req, options, true);
-            GenerateMutationId(req, options);
-            req->set_source_path(srcPath);
-            req->set_preserve_account(options.PreserveAccount);
+        auto req = TCypressYPathProxy::Copy(dstPath);
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
+        req->set_source_path(srcPath);
+        req->set_preserve_account(options.PreserveAccount);
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-            return FromProto<TNodeId>(rsp->object_id());
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        return FromProto<TNodeId>(rsp->object_id());
     }
 
-    TErrorOr<TNodeId> DoMoveNode(
+    TNodeId DoMoveNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
         TMoveNodeOptions options)
     {
-        try {
-            auto req = TCypressYPathProxy::Copy(dstPath);
-            SetTransactionId(req, options, true);
-            GenerateMutationId(req, options);
-            req->set_source_path(srcPath);
-            req->set_remove_source(true);
+        auto req = TCypressYPathProxy::Copy(dstPath);
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
+        req->set_source_path(srcPath);
+        req->set_remove_source(true);
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-            return FromProto<TNodeId>(rsp->object_id());
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        return FromProto<TNodeId>(rsp->object_id());
     }
 
-    TErrorOr<TNodeId> DoLinkNode(
+    TNodeId DoLinkNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
         TLinkNodeOptions options)
     {
-        try {
-            auto req = TCypressYPathProxy::Create(dstPath);
-            req->set_type(EObjectType::Link);
-            req->set_recursive(options.Recursive);
-            req->set_ignore_existing(options.IgnoreExisting);
-            SetTransactionId(req, options, true);
-            GenerateMutationId(req, options);
+        auto req = TCypressYPathProxy::Create(dstPath);
+        req->set_type(EObjectType::Link);
+        req->set_recursive(options.Recursive);
+        req->set_ignore_existing(options.IgnoreExisting);
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
 
-            auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes) : CreateEphemeralAttributes();
-            attributes->Set("target_path", srcPath);
-            ToProto(req->mutable_node_attributes(), *attributes);
+        auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes) : CreateEphemeralAttributes();
+        attributes->Set("target_path", srcPath);
+        ToProto(req->mutable_node_attributes(), *attributes);
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-            return FromProto<TNodeId>(rsp->node_id());
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        return FromProto<TNodeId>(rsp->node_id());
     }
 
-    TErrorOr<bool> DoNodeExists(
+    bool DoNodeExists(
         const TYPath& path,
         const TNodeExistsOptions& options)
     {
-        try {
-            auto req = TYPathProxy::Exists(path);
-            SetTransactionId(req, options, true);
+        auto req = TYPathProxy::Exists(path);
+        SetTransactionId(req, options, true);
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-            return rsp->value();
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        return rsp->value();
     }
 
 
-    TErrorOr<TObjectId> DoCreateObject(
+    TObjectId DoCreateObject(
         EObjectType type,
         TCreateObjectOptions options)
     {
-        try {
-            auto req = TMasterYPathProxy::CreateObjects();
-            GenerateMutationId(req, options);
-            if (options.TransactionId != NullTransactionId) {
-                ToProto(req->mutable_transaction_id(), options.TransactionId);
-            }
-            req->set_type(type);
-            if (options.Attributes) {
-                ToProto(req->mutable_object_attributes(), *options.Attributes);
-            }
-
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return FromProto<TObjectId>(rsp->object_ids(0));
-        } catch (const std::exception& ex) {
-            return ex;
+        auto req = TMasterYPathProxy::CreateObjects();
+        GenerateMutationId(req, options);
+        if (options.TransactionId != NullTransactionId) {
+            ToProto(req->mutable_transaction_id(), options.TransactionId);
         }
+        req->set_type(type);
+        if (options.Attributes) {
+            ToProto(req->mutable_object_attributes(), *options.Attributes);
+        }
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+        return FromProto<TObjectId>(rsp->object_ids(0));
     }
 
 
@@ -761,42 +751,30 @@ private:
         return "//sys/groups/" + ToYPathLiteral(name);
     }
 
-    TError DoAddMember(
+    void DoAddMember(
         const Stroka& group,
         const Stroka& member,
         TAddMemberOptions options)
     {
-        try {
-            auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
-            req->set_name(member);
-            GenerateMutationId(req, options);
+        auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
+        req->set_name(member);
+        GenerateMutationId(req, options);
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
-    TError DoRemoveMember(
+    void DoRemoveMember(
         const Stroka& group,
         const Stroka& member,
         TRemoveMemberOptions options)
     {
-        try {
-            auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
-            req->set_name(member);
-            GenerateMutationId(req, options);
+        auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
+        req->set_name(member);
+        GenerateMutationId(req, options);
 
-            auto rsp = WaitFor(ObjectProxy_->Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
 };
@@ -890,16 +868,16 @@ public:
 
     virtual void DeleteRow(
         const TYPath& path,
-        TKey key) override
+        NVersionedTableClient::TKey key) override
     {
         DeleteRows(
             path,
-            std::vector<TKey>(1, key));
+            std::vector<NVersionedTableClient::TKey>(1, key));
     }
 
     virtual void DeleteRows(
         const TYPath& path,
-        std::vector<TKey> keys) override
+        std::vector<NVersionedTableClient::TKey> keys) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
             this,
@@ -932,12 +910,12 @@ public:
 
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRow, (
         const TYPath& path,
-        TKey key,
+        NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options),
         (path, key, options));
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRows, (
         const TYPath& path,
-        const std::vector<TKey>& keys,
+        const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, keys, options))
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (
@@ -1074,7 +1052,7 @@ private:
         TDeleteRequest(
             TTransaction* transaction,
             const TYPath& path,
-            std::vector<TKey> keys)
+            std::vector<NVersionedTableClient::TKey> keys)
             : TRequestBase(transaction, path)
             , Keys_(std::move(keys))
         { }
