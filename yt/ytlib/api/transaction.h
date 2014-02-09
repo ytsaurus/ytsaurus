@@ -251,8 +251,9 @@ struct IClientBase
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
+    virtual TAsyncError SelectRows(
         const Stroka& query,
+        NVersionedTableClient::ISchemedWriterPtr writer,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     // TODO(babenko): batch read and batch write

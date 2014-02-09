@@ -63,17 +63,28 @@ class TPrepareCallbacksMock
     : public IPrepareCallbacks
 {
 public:
-    MOCK_METHOD1(GetInitialSplit, TFuture<TErrorOr<TDataSplit>>(const TYPath&));
+    MOCK_METHOD2(GetInitialSplit, TFuture<TErrorOr<TDataSplit>>(
+        const TYPath&,
+        TPlanContextPtr));
 };
 
 class TCoordinateCallbacksMock
     : public ICoordinateCallbacks
 {
 public:
-    MOCK_METHOD1(GetReader, ISchemedReaderPtr(const TDataSplit&));
+    MOCK_METHOD2(GetReader, ISchemedReaderPtr(
+        const TDataSplit&,
+        TPlanContextPtr));
+
     MOCK_METHOD1(CanSplit, bool(const TDataSplit&));
-    MOCK_METHOD1(SplitFurther, TFuture<TErrorOr<std::vector<TDataSplit>>>(const TDataSplit&));
-    MOCK_METHOD2(Delegate, ISchemedReaderPtr(const TPlanFragment&, const TDataSplit&));
+
+    MOCK_METHOD2(SplitFurther, TFuture<TErrorOr<std::vector<TDataSplit>>>(
+        const TDataSplit&,
+        TPlanContextPtr));
+
+    MOCK_METHOD2(Delegate, ISchemedReaderPtr(
+        const TPlanFragment&,
+        const TDataSplit&));
 };
 
 MATCHER_P(HasCounter, expectedCounter, "")
@@ -181,7 +192,9 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
     return dataSplit;
 }
 
-TFuture<TErrorOr<TDataSplit>> RaiseTableNotFound(const TYPath& path)
+TFuture<TErrorOr<TDataSplit>> RaiseTableNotFound(
+    const TYPath& path,
+    TPlanContextPtr)
 {
     return MakeFuture(TErrorOr<TDataSplit>(TError(Sprintf(
         "Could not find table %s",
@@ -221,7 +234,7 @@ protected:
 
 TEST_F(TQueryPrepareTest, Simple)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", TPlanContextPtr()))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
     TPlanFragment::Prepare("a, b FROM [//t] WHERE k > 3", &PrepareMock_);
@@ -238,7 +251,7 @@ TEST_F(TQueryPrepareTest, BadSyntax)
 
 TEST_F(TQueryPrepareTest, BadTableName)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//bad/table"))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//bad/table", TPlanContextPtr()))
         .WillOnce(Invoke(&RaiseTableNotFound));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -248,7 +261,7 @@ TEST_F(TQueryPrepareTest, BadTableName)
 
 TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", TPlanContextPtr()))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -258,7 +271,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 
 TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", TPlanContextPtr()))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -268,7 +281,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 
 TEST_F(TQueryPrepareTest, BadTypecheck)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", TPlanContextPtr()))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -284,7 +297,7 @@ class TQueryCoordinateTest
 protected:
     virtual void SetUp() override
     {
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", TPlanContextPtr()))
             .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
     }
 
@@ -329,7 +342,7 @@ TEST_F(TQueryCoordinateTest, EmptySplit)
 
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true));
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0)))
+    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), TPlanContextPtr()))
         .WillOnce(Return(WrapInFuture(emptySplit)));
 
     EXPECT_NO_THROW({
@@ -344,7 +357,7 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
 
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true));
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0)))
+    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), TPlanContextPtr()))
         .WillOnce(Return(WrapInFuture(singleSplit)));
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(1)))
         .WillOnce(Return(false));
@@ -1051,7 +1064,7 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true))
         .RetiresOnSaturation();
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0)))
+    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), TPlanContextPtr()))
         .WillOnce(Return(WrapInFuture(splits)));
     EXPECT_CALL(CoordinateMock_, Delegate(_, AllOf(
             HasCounter(2),

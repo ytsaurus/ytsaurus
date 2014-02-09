@@ -4,8 +4,12 @@
 #include <core/misc/error.h>
 #include <core/misc/zigzag.h>
 #include <core/misc/chunked_memory_pool.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/schemed_reader.h>
+#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/chunk_meta.pb.h>
 
 #include <ytlib/api/transaction.h>
 
@@ -23,6 +27,49 @@ using namespace NApi;
 static const ui32 CurrentProtocolVersion = 1;
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtocolWriter::TSchemedRowsetWriter
+    : public ISchemedWriter
+{
+public:
+    explicit TSchemedRowsetWriter(TProtocolWriter* writer)
+        : Writer_(writer)
+    { }
+
+    virtual TAsyncError Open(
+        const TTableSchema& schema,
+        const TNullable<TKeyColumns>& /*keyColumns*/) override
+    {
+        auto protoSchema = ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(schema);
+        Writer_->WriteMessage(protoSchema);
+
+        static auto result = MakeFuture(TError());
+        return result;
+    }
+
+    virtual TAsyncError Close() override
+    {
+        static auto result = MakeFuture(TError());
+        return result;
+    }
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    {
+        Writer_->WriteUnversionedRowset(rows);
+        return true;
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        YUNREACHABLE();
+    }
+
+private:
+    TProtocolWriter* Writer_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +98,11 @@ public:
                 WriteUInt32(index);
             }
         }
+    }
+
+    void WriteMessage(const ::google::protobuf::MessageLite& message)
+    {
+        message.SerializePartialToCodedStream(&CodedStream_);
     }
 
     void WriteUnversionedRow(TUnversionedRow row)
@@ -184,6 +236,11 @@ void TProtocolWriter::WriteColumnFilter(const TColumnFilter& filter)
     Impl_->WriteColumnFilter(filter);
 }
 
+void TProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& message)
+{
+    Impl_->WriteMessage(message);
+}
+
 void TProtocolWriter::WriteUnversionedRow(TUnversionedRow row)
 {
     Impl_->WriteUnversionedRow(row);
@@ -198,6 +255,41 @@ void TProtocolWriter::WriteUnversionedRowset(const std::vector<TUnversionedRow>&
 {
     Impl_->WriteUnversionedRowset(rowset);
 }
+
+ISchemedWriterPtr TProtocolWriter::CreateSchemedRowsetWriter()
+{
+    return New<TSchemedRowsetWriter>(this);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtocolReader::TSchemedRowsetReader
+    : public ISchemedReader
+{
+public:
+    explicit TSchemedRowsetReader(TProtocolReader* reader)
+        : Reader_(reader)
+    { }
+
+    virtual TAsyncError Open(const TTableSchema& schema) override
+    {
+        YUNIMPLEMENTED();
+    }
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        YUNIMPLEMENTED();
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        YUNREACHABLE();
+    }
+
+private:
+    TProtocolReader* Reader_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -380,6 +472,11 @@ TUnversionedRow TProtocolReader::ReadUnversionedRow()
 void TProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
 {
     Impl_->ReadUnversionedRowset(rowset);
+}
+
+ISchemedReaderPtr TProtocolReader::CreateSchemedRowsetReader()
+{
+    return New<TSchemedRowsetReader>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

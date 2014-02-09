@@ -16,12 +16,11 @@ namespace NNodeTrackerClient {
 //! Keeps a cached information about data node obtained by fetch request.
 struct TNodeDescriptor
 {
+    void Persist(TStreamPersistenceContext& context);
+
     bool IsLocal() const;
 
     Stroka Address;
-
-    void Persist(TStreamPersistenceContext& context);
-
 };
 
 Stroka ToString(const TNodeDescriptor& descriptor);
@@ -63,6 +62,8 @@ private:
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

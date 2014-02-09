@@ -16,7 +16,10 @@
 #include <ytlib/table_client/table_ypath_proxy.h>
 
 #include <ytlib/new_table_client/schema.h>
+
 #include <ytlib/chunk_client/read_limit.h>
+
+#include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
@@ -42,6 +45,7 @@ using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NTransactionServer;
 using namespace NTabletServer;
+using namespace NNodeTrackerServer;
 
 using NChunkClient::TChannel;
 using NChunkClient::TReadLimit;
@@ -377,11 +381,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     ToProto(response->mutable_table_id(), node->GetId());
     ToProto(response->mutable_key_columns()->mutable_names(), node->KeyColumns());
+    response->set_sorted(node->GetSorted());
 
     auto tabletManager = Bootstrap->GetTabletManager();
     auto schema = tabletManager->GetTableSchema(node);
     ToProto(response->mutable_schema(), schema);
 
+    TNodeDirectoryBuilder builder(response->mutable_node_directory());
+        
     for (auto* tablet : node->Tablets()) {
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
@@ -391,11 +398,19 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (cell) {
             ToProto(protoTablet->mutable_cell_id(), cell->GetId());
             protoTablet->mutable_cell_config()->CopyFrom(cell->Config());
+
+            for (const auto& peer : cell->Peers()) {
+                if (peer.Node) {
+                    const auto& slot = peer.Node->TabletSlots()[peer.SlotIndex];
+                    if (slot.PeerState == EPeerState::Leading) {
+                        builder.Add(peer.Node);
+                        protoTablet->add_replica_node_ids(peer.Node->GetId());
+                    }
+                }
+            }
         }
     }
 
-    context->SetRequestInfo("TabletCount: %d",
-        static_cast<int>(node->Tablets().size()));
     context->Reply();
 }
 

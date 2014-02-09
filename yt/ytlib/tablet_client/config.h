@@ -24,6 +24,10 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TTableMountConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TTableMountCacheConfig
     : public TYsonSerializable
 {
@@ -39,6 +43,8 @@ public:
             .Default(TDuration::Seconds(5));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

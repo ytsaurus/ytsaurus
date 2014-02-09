@@ -10,9 +10,6 @@ namespace NDriver {
 struct IDriver;
 typedef TIntrusivePtr<IDriver> IDriverPtr;
 
-class TQueryCallbacksProvider;
-typedef TIntrusivePtr<TQueryCallbacksProvider> TQueryCallbacksProviderPtr;
-
 class TDriverConfig;
 typedef TIntrusivePtr<TDriverConfig> TDriverConfigPtr;
 

@@ -1,6 +1,7 @@
 package NYT.NTableClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
 import "yt/ytlib/hydra/hydra_manager.proto";
 
@@ -65,6 +66,7 @@ message TTabletInfo
     required bytes pivot_key = 3;
     optional NYT.NProto.TGuid cell_id = 4;
     optional NYT.NHydra.NProto.TCellConfig cell_config = 5;
+    repeated int32 replica_node_ids = 6;
 }
 
 message TRspGetMountInfo
@@ -73,6 +75,8 @@ message TRspGetMountInfo
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
     repeated TTabletInfo tablets = 4;
+    required bool sorted = 5;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

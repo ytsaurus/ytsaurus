@@ -52,10 +52,14 @@ int TCoordinateController::GetPeerIndex(const TDataSplit& dataSplit)
     return CounterFromId(objectId);
 }
 
-ISchemedReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
+ISchemedReaderPtr TCoordinateController::GetReader(
+    const TDataSplit& split,
+    TPlanContextPtr context)
 {
-    auto objectId = GetObjectIdFromDataSplit(dataSplit);
-    LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
+    auto objectId = GetObjectIdFromDataSplit(split);
+    LOG_DEBUG("Creating split reader (ObjectId: %s)",
+        ~ToString(objectId));
+
     switch (TypeFromId(objectId)) {
         case EObjectType::QueryPlan: {
             auto peerIndex = CounterFromId(objectId);
@@ -64,8 +68,9 @@ ISchemedReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
             YASSERT(peer);
             return peer;
         }
+
         default:
-            return GetCallbacks()->GetReader(dataSplit);
+            return Callbacks_->GetReader(split, std::move(context));
     }
 }
 
@@ -132,18 +137,19 @@ void TCoordinateController::SplitFurther()
     //   S
     // to
     //   U -> { S1 ... Sk }
-    Rewrite(
-    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+    Rewrite([this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         if (auto* scanOp = op->As<TScanOperator>()) {
             auto objectId = GetObjectIdFromDataSplit(scanOp->DataSplit());
-            if (GetCallbacks()->CanSplit(scanOp->DataSplit())) {
-                LOG_DEBUG("Splitting input %s", ~ToString(objectId));
+            if (Callbacks_->CanSplit(scanOp->DataSplit())) {
+                LOG_DEBUG("Splitting input (ObjectId: %s)",
+                    ~ToString(objectId));
             } else {
                 return scanOp;
             }
 
-            auto dataSplitsOrError = WaitFor(
-                GetCallbacks()->SplitFurther(scanOp->DataSplit()));
+            auto dataSplitsOrError = WaitFor(Callbacks_->SplitFurther(
+                scanOp->DataSplit(),
+                Fragment_.GetContext()));
             auto dataSplits = dataSplitsOrError.GetValueOrThrow();
             LOG_DEBUG(
                 "Got %" PRISZT " splits for input %s",
@@ -165,8 +171,7 @@ void TCoordinateController::SplitFurther()
 void TCoordinateController::PushdownFilters()
 {
     LOG_DEBUG("Pushing down filter operators");
-    Rewrite(
-    [] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+    Rewrite([] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         // Rewrite
         //   F -> U -> { O1 ... Ok }
         // to
@@ -190,8 +195,7 @@ void TCoordinateController::PushdownFilters()
 void TCoordinateController::PushdownProjects()
 {
     LOG_DEBUG("Pushing down project operators");
-    Rewrite(
-    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+    Rewrite([this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         // Rewrite
         //   P -> U -> { O1 ... Ok }
         // to
@@ -215,8 +219,7 @@ void TCoordinateController::PushdownProjects()
 void TCoordinateController::PushdownGroups()
 {
     LOG_DEBUG("Pushing down group operators");
-    Rewrite(
-    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+    Rewrite([this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         // Rewrite
         //   G -> U -> { O1 ... Ok }
         // to
@@ -271,21 +274,24 @@ void TCoordinateController::DistributeToPeers()
     LOG_DEBUG("Distributing plan to peers");
     YCHECK(Peers_.empty());
 
-    int numberOfScanOperators = 0;
-    Visit(GetHead(), [&] (const TOperator* op) {
-        if (op->IsA<TScanOperator>()) {
-            ++numberOfScanOperators;
-        }
-    });
+    auto* context = Fragment_.GetContext().Get();
 
-    LOG_DEBUG("Got %d scan operators in plan fragment", numberOfScanOperators);
-    if (numberOfScanOperators == 0) {
+    int scanOperatorCount = 0;
+    Visit(
+        Fragment_.GetHead(),
+        [&] (const TOperator* op) {
+            if (op->IsA<TScanOperator>()) {
+                ++scanOperatorCount;
+            }
+        });
+
+    LOG_DEBUG("Got %d scan operators in plan fragment", scanOperatorCount);
+    if (scanOperatorCount == 0) {
         LOG_DEBUG("Nothing to distribute");
         return;
     }
 
-    Rewrite(
-    [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+    Rewrite([this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
         // Rewrite
         //   U -> { O1 ... Ok }
         // to
@@ -295,15 +301,17 @@ void TCoordinateController::DistributeToPeers()
             return op;
         }
 
-        auto* facadeUnionOp = new (GetContext()) TUnionOperator(GetContext());
+        auto* facadeUnionOp = new (context) TUnionOperator(context);
 
         for (const auto& sourceOp : unionOp->Sources()) {
-            auto fragment = TPlanFragment(GetContext(), sourceOp);
-            LOG_DEBUG("Created subfragment (SubfragmentId: %s)", ~ToString(fragment.Id()));
+            TPlanFragment fragment(context, sourceOp);
+            LOG_DEBUG("Created subfragment (SubfragmentId: %s)",
+                ~ToString(fragment.Id()));
 
             auto inferredKeyRange = InferKeyRange(fragment.GetHead());
             if (IsEmpty(inferredKeyRange)) {
-                LOG_DEBUG("Subfragment is empty (SubfragmentId: %s)", ~ToString(fragment.Id()));
+                LOG_DEBUG("Subfragment is empty (SubfragmentId: %s)",
+                    ~ToString(fragment.Id()));
                 continue;
             } else {
                 LOG_DEBUG("Inferred key range %s ... %s (SubfragmentId: %s)",
@@ -332,7 +340,7 @@ void TCoordinateController::DistributeToPeers()
 
             Peers_.emplace_back(fragment, nullptr);
 
-            auto* facadeScanOp = new (GetContext()) TScanOperator(GetContext());
+            auto* facadeScanOp = new (context) TScanOperator(context);
             auto* facadeDataSplit = &facadeScanOp->DataSplit();
 
             SetObjectId(
@@ -354,10 +362,16 @@ void TCoordinateController::DistributeToPeers()
 void TCoordinateController::InitializeReaders()
 {
     for (auto& peer : Peers_) {
-        std::get<1>(peer) = GetCallbacks()->Delegate(
+        std::get<1>(peer) = Callbacks_->Delegate(
             std::get<0>(peer),
             GetHeaviestSplit(std::get<0>(peer).GetHead()));
     }
+}
+
+template <class TFunctor>
+void TCoordinateController::Rewrite(const TFunctor& functor)
+{
+    Fragment_.Rewrite(functor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

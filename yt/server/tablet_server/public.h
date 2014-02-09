@@ -24,8 +24,6 @@ DECLARE_ENUM(ETabletCellHealth,
     ((Failed)      (3))
 );
 
-static const int TypicalCellSize = 5;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletManagerConfig;
@@ -49,6 +47,7 @@ using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
 using NTabletClient::ETabletState;
+using NTabletClient::TypicalCellSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 

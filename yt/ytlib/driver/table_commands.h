@@ -177,10 +177,13 @@ struct TSelectRequest
     : public TRequest
 {
     Stroka Query;
+    NVersionedTableClient::TTimestamp Timestamp;
 
     TSelectRequest()
     {
         RegisterParameter("query", Query);
+        RegisterParameter("timestamp", Timestamp)
+            .Default(NVersionedTableClient::LastCommittedTimestamp);
     }
 };
 

@@ -21,8 +21,7 @@ const TNodeId MaxNodeId = (1 << 28) - 1; // TNodeId must fit into 28 bits (see T
 
 struct TNodeDescriptor;
 
-class TNodeDirectory;
-typedef TIntrusivePtr<TNodeDirectory> TNodeDirectoryPtr;
+DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
 
 class TNodeDirectoryBuilder;
 

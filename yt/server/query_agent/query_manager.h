@@ -2,12 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/node_tracker_client/public.h>
+#include <core/concurrency/public.h>
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/executor.h>
-
-#include <core/concurrency/action_queue.h>
 
 #include <server/cell_node/public.h>
 
@@ -27,23 +25,21 @@ public:
 
     ~TQueryManager();
 
-    void UpdateNodeDirectory(
-        const NNodeTrackerClient::NProto::TNodeDirectory& proto);
-
     virtual TAsyncError Execute(
         const NQueryClient::TPlanFragment& fragment,
         NQueryClient::ISchemedWriterPtr writer) override;
 
     virtual NQueryClient::ISchemedReaderPtr GetReader(
-        const NQueryClient::TDataSplit& dataSplit) override;
+        const NQueryClient::TDataSplit& dataSplit,
+        NQueryClient::TPlanContextPtr context) override;
 
 private:
-    TQueryAgentConfigPtr Config;
-    NConcurrency::TThreadPoolPtr WorkerPool;
-    NCellNode::TBootstrap* Bootstrap;
+    TQueryAgentConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
-    NQueryClient::IExecutorPtr Evaluator;
+    NConcurrency::TThreadPoolPtr WorkerPool_;
+
+    NQueryClient::IExecutorPtr Evaluator_;
 
 };
 

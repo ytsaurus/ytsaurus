@@ -5,6 +5,8 @@
 #include <core/misc/nullable.h>
 #include <core/misc/small_vector.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <util/memory/pool.h>
 
 #include <unordered_set>
@@ -45,14 +47,14 @@ public:
         virtual ~TTrackedObject();
 
         // Bound objects have to be allocated through the context.
-        void* operator new(size_t, TPlanContext*);
-        void operator delete(void*, TPlanContext*) throw();
+        void* operator new(size_t size, TPlanContext* context);
+        void operator delete(void* pointer, TPlanContext* context) throw();
 
     protected:
         TPlanContext* Context_;
 
-    protected:
-        // Bound objects could not be instatiated without the context.
+
+        // Bound objects could not be instantiated without the context.
         TTrackedObject();
         TTrackedObject(const TTrackedObject&);
         TTrackedObject(TTrackedObject&&);
@@ -62,6 +64,7 @@ public:
         // Bound objects could not be allocated nor freed with regular operators.
         void* operator new(size_t);
         void operator delete(void*) throw();
+
     };
 
     TPlanContext();
@@ -74,7 +77,9 @@ public:
     void SetDebugInformation(TDebugInformation&& debugInformation);
     const TDebugInformation* GetDebugInformation() const;
 
-    TTableDescriptor& GetTableDescriptor();
+    TTableDescriptor& TableDescriptor();
+
+    NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
 
 private:
     TMemoryPool MemoryPool_;
@@ -82,8 +87,11 @@ private:
 
     std::unordered_set<TTrackedObject*> TrackedObjects_;
     TTableDescriptor TableDescriptor_;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TPlanContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

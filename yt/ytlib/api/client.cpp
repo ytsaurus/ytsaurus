@@ -187,10 +187,11 @@ public:
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, keys, options))
-    IMPLEMENT_METHOD(IRowsetPtr, SelectRows, (
+    IMPLEMENT_METHOD(void, SelectRows, (
         const Stroka& query,
+        ISchemedWriterPtr writer,
         const TSelectRowsOptions& options),
-        (query, options))
+        (query, writer, options))
 
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
@@ -299,72 +300,35 @@ private:
 
 
     template <class TResult, class TSignature>
-    struct TExecuteTraits
-    {
-        static TFuture<TErrorOr<TResult>> Do(TCallback<TSignature> callback, IInvokerPtr invoker)
-        {
-            return
-                BIND([=] () -> TErrorOr<TResult> {
-                    try {
-                        return TErrorOr<TResult>(callback.Run());
-                    } catch (const std::exception& ex) {
-                        return ex;
-                    }
-                })
-                .AsyncVia(invoker)
-                .Run();
-        }
-    };
-
-    template <class TSignature>
-    struct TExecuteTraits<void, TSignature>
-    {
-        static TFuture<TError> Do(TCallback<TSignature> callback, IInvokerPtr invoker)
-        {
-            return
-                BIND([=] () -> TError {
-                    try {
-                        callback.Run();
-                        return TError();
-                    } catch (const std::exception& ex) {
-                        return ex;
-                    }
-                })
-                .AsyncVia(invoker)
-                .Run();
-        }
-    };
-
-    template <class TResult, class TSignature>
     typename TFuture<TErrorOr<TResult>> Execute(TCallback<TSignature> callback)
     {
-        return TExecuteTraits<TResult, TSignature>::Do(callback, Invoker_);
+        return callback.GuardedAsyncVia(Invoker_).Run();
     }
 
 
     TTableMountInfoPtr GetTableMountInfo(const TYPath& path)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
-        auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(path));
-        THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
-        return mountInfoOrError.GetValue();
+        auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(path));
+        THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
+        return tableInfoOrError.GetValue();
     }
 
-    static const TTabletInfo& GetTabletInfo(
-        TTableMountInfoPtr mountInfo,
+    static TTabletInfoPtr GetTabletInfo(
+        TTableMountInfoPtr tableInfo,
         const TYPath& path,
         NVersionedTableClient::TKey key)
     {
-        if (mountInfo->Tablets.empty()) {
+        if (tableInfo->Tablets.empty()) {
             THROW_ERROR_EXCEPTION("Table %s is not mounted",
                 ~path);
         }
-        const auto& tabletInfo = mountInfo->GetTablet(key);
-        if (tabletInfo.State != ETabletState::Mounted) {
+        auto tabletInfo = tableInfo->GetTablet(key);
+        if (tabletInfo->State != ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Tablet %s of table %s is in %s state",
-                ~ToString(tabletInfo.TabletId),
+                ~ToString(tabletInfo->TabletId),
                 ~path,
-                ~FormatEnum(tabletInfo.State).Quote());
+                ~FormatEnum(tabletInfo->State).Quote());
         }
         return tabletInfo;
     }
@@ -431,16 +395,16 @@ private:
         NVersionedTableClient::TKey key,
         TLookupRowsOptions options)
     {
-        auto mountInfo = GetTableMountInfo(path);
-        const auto& tabletInfo = GetTabletInfo(mountInfo, path, key);
+        auto tableInfo = GetTableMountInfo(path);
+        auto tabletInfo = GetTabletInfo(tableInfo, path, key);
 
         const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
+        auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
 
         TTabletServiceProxy proxy(channel);
         auto req = proxy.Read();
 
-        ToProto(req->mutable_tablet_id(), tabletInfo.TabletId);
+        ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
         req->set_timestamp(options.Timestamp);
 
         TProtocolWriter writer;
@@ -473,8 +437,9 @@ private:
         YUNIMPLEMENTED();
     }
 
-    IRowsetPtr DoSelectRows(
+    void DoSelectRows(
         const Stroka& query,
+        ISchemedWriterPtr writer,
         TSelectRowsOptions options)
     {
         auto fragment = TPlanFragment::Prepare(
@@ -485,12 +450,8 @@ private:
             GetCurrentInvoker(),
             Connection_->GetQueryCoordinateCallbacks());
 
-        {
-            auto error = WaitFor(coordinator->Execute(fragment, nullptr));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-
-        YUNIMPLEMENTED();
+        auto error = WaitFor(coordinator->Execute(fragment, writer));
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
 
@@ -918,10 +879,11 @@ public:
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, keys, options))
-    DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (
+    DELEGATE_TIMESTAMPTED_METHOD(TAsyncError, SelectRows, (
         const Stroka& query,
+        ISchemedWriterPtr writer,
         const TSelectRowsOptions& options),
-        (query, options))
+        (query, writer, options))
 
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TErrorOr<TYsonString>>, GetNode, (
@@ -1031,10 +993,10 @@ private:
 
         virtual void Run() override
         {
-            const auto& mountInfo = Transaction_->Client_->GetTableMountInfo(path_);
+            const auto& tableInfo = Transaction_->Client_->GetTableMountInfo(path_);
             for (auto row : Rows_) {
-                const auto& tabletInfo = Transaction_->Client_->GetTabletInfo(mountInfo, path_, row);
-                auto* writer = Transaction_->AddTabletParticipant(tabletInfo);
+                auto tabletInfo = Transaction_->Client_->GetTabletInfo(tableInfo, path_, row);
+                auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EProtocolCommand::WriteRow);
                 writer->WriteUnversionedRow(row);
             }
@@ -1059,10 +1021,10 @@ private:
 
         virtual void Run() override
         {
-            const auto& mountInfo = Transaction_->Client_->GetTableMountInfo(path_);
+            const auto& tableInfo = Transaction_->Client_->GetTableMountInfo(path_);
             for (auto key : Keys_) {
-                const auto& tabletInfo = Transaction_->Client_->GetTabletInfo(mountInfo, path_, key);
-                auto* writer = Transaction_->AddTabletParticipant(tabletInfo);
+                auto tabletInfo = Transaction_->Client_->GetTabletInfo(tableInfo, path_, key);
+                auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EProtocolCommand::DeleteRow);
                 writer->WriteUnversionedRow(key);
             }
@@ -1075,17 +1037,17 @@ private:
 
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
 
-    std::map<const TTabletInfo*, std::unique_ptr<TProtocolWriter>> TabletToWriter_;
+    std::map<TTabletInfoPtr, std::unique_ptr<TProtocolWriter>> TabletToWriter_;
     TIntrusivePtr<TParallelCollector<void>> TransactionStartCollector_;
 
 
-    TProtocolWriter* AddTabletParticipant(const TTabletInfo& tabletInfo)
+    TProtocolWriter* AddTabletParticipant(TTabletInfoPtr tabletInfo)
     {
-        auto it = TabletToWriter_.find(&tabletInfo);
+        auto it = TabletToWriter_.find(tabletInfo);
         if (it == TabletToWriter_.end()) {
-            TransactionStartCollector_->Collect(Transaction_->AddTabletParticipant(tabletInfo.CellId));
+            TransactionStartCollector_->Collect(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             it = TabletToWriter_.insert(std::make_pair(
-                &tabletInfo,
+                tabletInfo,
                 std::make_unique<TProtocolWriter>())).first;
         }
         return it->second.get();
@@ -1106,15 +1068,15 @@ private:
             auto writeCollector = New<TParallelCollector<void>>();
 
             for (const auto& pair : TabletToWriter_) {
-                const auto& tabletInfo = *pair.first;
+                const auto& tabletInfo = pair.first;
                 auto* writer = pair.second.get();
 
-                auto channel = cellDirectory->GetChannelOrThrow(tabletInfo.CellId);
+                auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
 
                 TTabletServiceProxy tabletProxy(channel);
                 auto writeReq = tabletProxy.Write();
                 ToProto(writeReq->mutable_transaction_id(), Transaction_->GetId());
-                ToProto(writeReq->mutable_tablet_id(), tabletInfo.TabletId);
+                ToProto(writeReq->mutable_tablet_id(), tabletInfo->TabletId);
                 writeReq->set_encoded_request(writer->Finish());
 
                 writeCollector->Collect(
@@ -1123,11 +1085,15 @@ private:
                     })));
             }
 
-            auto writeResult = WaitFor(writeCollector->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(writeResult);
+            {
+                auto result = WaitFor(writeCollector->Complete());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
-            auto commitResult = WaitFor(Transaction_->Commit());
-            THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
+            {
+                auto result = WaitFor(Transaction_->Commit());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
             return TError();
         } catch (const std::exception& ex) {

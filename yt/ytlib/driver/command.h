@@ -3,7 +3,6 @@
 #include "private.h"
 #include "public.h"
 #include "driver.h"
-#include "query_callbacks_provider.h"
 
 #include <core/misc/error.h>
 #include <core/misc/mpl.h>
@@ -111,7 +110,6 @@ struct ICommandContext
 {
     virtual TDriverConfigPtr GetConfig() = 0;
     virtual NApi::IClientPtr GetClient() = 0;
-    virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() = 0;
 
     virtual const TDriverRequest& Request() const = 0;
 

@@ -149,7 +149,7 @@ from-where-clause
 from-clause
     : KwFrom YPathLiteral[path]
         {
-            context->GetTableDescriptor().Path = $path;
+            context->TableDescriptor().Path = $path;
 
             auto scanOp = new (context) TScanOperator(context);
 

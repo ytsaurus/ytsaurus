@@ -9,7 +9,6 @@
 #include "file_commands.h"
 #include "table_commands.h"
 #include "scheduler_commands.h"
-#include "query_callbacks_provider.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -22,7 +21,6 @@
 
 #include <core/yson/parser.h>
 
-//#include <core/rpc/helpers.h>
 #include <core/rpc/scoped_channel.h>
 
 #include <ytlib/hive/timestamp_provider.h>
@@ -89,10 +87,6 @@ public:
         YCHECK(Config);
 
         Connection_ = CreateConnection(Config);
-
-        QueryCallbacksProvider = New<TQueryCallbacksProvider>(
-            Connection_->GetMasterChannel(),
-            Connection_->GetTableMountCache());
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -170,8 +164,7 @@ public:
         auto context = New<TCommandContext>(
             this,
             entry.Descriptor,
-            request,
-            QueryCallbacksProvider);
+            request);
 
         auto command = entry.Factory.Run();
 
@@ -230,7 +223,6 @@ private:
     TDriverConfigPtr Config;
 
     IConnectionPtr Connection_;
-    TQueryCallbacksProviderPtr QueryCallbacksProvider;
 
     struct TCommandEntry
     {
@@ -258,12 +250,10 @@ private:
         TCommandContext(
             TDriverPtr driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest& request,
-            TQueryCallbacksProviderPtr queryCallbacksProvider)
+            const TDriverRequest& request)
             : Driver_(driver)
             , Descriptor_(descriptor)
             , Request_(request)
-            , QueryCallbacksProvider_(std::move(queryCallbacksProvider))
             , SyncInputStream_(CreateSyncInputStream(request.InputStream))
             , SyncOutputStream_(CreateSyncOutputStream(request.OutputStream))
         {
@@ -286,11 +276,6 @@ private:
         virtual IClientPtr GetClient() override
         {
             return Client_;
-        }
-
-        virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() override
-        {
-            return QueryCallbacksProvider_;
         }
 
         virtual const TDriverRequest& Request() const override
@@ -344,7 +329,6 @@ private:
         const TDriverPtr Driver_;
         const TCommandDescriptor Descriptor_;
         const TDriverRequest Request_;
-        const TQueryCallbacksProviderPtr QueryCallbacksProvider_;
 
         TDriverResponse Response_;
 

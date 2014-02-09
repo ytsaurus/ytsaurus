@@ -2,12 +2,14 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/api )
 set( SRCS
   ${BASE}/public.cpp
+  ${BASE}/private.cpp
   ${BASE}/client.cpp
   ${BASE}/connection.cpp
   ${BASE}/transaction.cpp
 )
 set( HDRS
   ${BASE}/public.h
+  ${BASE}/private.h
   ${BASE}/config.h
   ${BASE}/client.h
   ${BASE}/transaction.h

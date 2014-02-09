@@ -63,14 +63,19 @@ public:
 
     void WriteColumnFilter(const NApi::TColumnFilter& filter);
 
+    void WriteMessage(const ::google::protobuf::MessageLite& message);
+
     void WriteUnversionedRow(NVersionedTableClient::TUnversionedRow row);
     void WriteUnversionedRow(const std::vector<NVersionedTableClient::TUnversionedValue>& row);
     void WriteUnversionedRowset(const std::vector<NVersionedTableClient::TUnversionedRow>& rowset);
+    NVersionedTableClient::ISchemedWriterPtr CreateSchemedRowsetWriter();
 
     Stroka Finish();
 
 private:
     class TImpl;
+    class TSchemedRowsetWriter;
+
     std::unique_ptr<TImpl> Impl_;
 
 };
@@ -89,9 +94,12 @@ public:
 
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
     void ReadUnversionedRowset(std::vector<NVersionedTableClient::TUnversionedRow>* rowset);
+    NVersionedTableClient::ISchemedReaderPtr CreateSchemedRowsetReader();
 
 private:
     class TImpl;
+    class TSchemedRowsetReader;
+
     std::unique_ptr<TImpl> Impl_;
 
 };

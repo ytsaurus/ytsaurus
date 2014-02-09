@@ -52,13 +52,14 @@ TError TEvaluateController::Run()
     try {
         LOG_DEBUG("Evaluating plan fragment");
 
-        auto producer = CreateProducer(GetHead());
+        auto* head = Fragment_.GetHead();
+        auto producer = CreateProducer(head);
 
         LOG_DEBUG("Opening writer");
         {
             auto result = WaitFor(Writer_->Open(
-                GetHead()->GetTableSchema(),
-                GetHead()->GetKeyColumns()));
+                head->GetTableSchema(),
+                head->GetKeyColumns()));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
@@ -126,7 +127,9 @@ void TEvaluateController::ScanRoutine(
 
     LOG_DEBUG("Creating producer for scan operator (Op: %p)", op);
 
-    auto reader = GetCallbacks()->GetReader(op->DataSplit());
+    auto reader = Callbacks_->GetReader(
+        op->DataSplit(),
+        Fragment_.GetContext());
     auto schema = GetTableSchemaFromDataSplit(op->DataSplit());
 
     LOG_DEBUG("Opening reader");

@@ -41,21 +41,6 @@ public:
 
     TError Run();
 
-    IEvaluateCallbacks* GetCallbacks()
-    {
-        return Callbacks_;
-    }
-
-    TPlanContext* GetContext()
-    {
-        return Fragment_.GetContext().Get();
-    }
-
-    const TOperator* GetHead()
-    {
-        return Fragment_.GetHead();
-    }
-
 private:
     typedef NConcurrency::TCoroutine<void(std::vector<TRow>*)> TProducer;
 

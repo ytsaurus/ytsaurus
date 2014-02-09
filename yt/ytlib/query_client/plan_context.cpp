@@ -1,7 +1,11 @@
 #include "plan_context.h"
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 namespace NYT {
 namespace NQueryClient {
+
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +49,11 @@ void TPlanContext::TTrackedObject::operator delete(void*) throw()
     YUNREACHABLE();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TPlanContext::TPlanContext()
     : MemoryPool_(InitialMemoryPoolSize)
+    , NodeDirectory_(New<TNodeDirectory>())
 { }
 
 TPlanContext::~TPlanContext()
@@ -80,9 +87,14 @@ const TDebugInformation* TPlanContext::GetDebugInformation() const
     return DebugInformation_.GetPtr();
 }
 
-TTableDescriptor& TPlanContext::GetTableDescriptor()
+TTableDescriptor& TPlanContext::TableDescriptor()
 {
     return TableDescriptor_;
+}
+
+TNodeDirectoryPtr TPlanContext::GetNodeDirectory() const
+{
+    return NodeDirectory_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

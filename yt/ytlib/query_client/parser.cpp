@@ -1353,7 +1353,7 @@ namespace NYT { namespace NQueryClient {
   case 8:
 #line 151 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
     {
-            context->GetTableDescriptor().Path = yystack_[0].value.as< TStringBuf > ();
+            context->TableDescriptor().Path = yystack_[0].value.as< TStringBuf > ();
 
             auto scanOp = new (context) TScanOperator(context);
 

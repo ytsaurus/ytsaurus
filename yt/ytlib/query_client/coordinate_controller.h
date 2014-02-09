@@ -23,7 +23,10 @@ public:
     ~TCoordinateController();
 
     int GetPeerIndex(const TDataSplit& dataSplit);
-    virtual ISchemedReaderPtr GetReader(const TDataSplit& dataSplit) override;
+
+    virtual ISchemedReaderPtr GetReader(
+        const TDataSplit& split,
+        TPlanContextPtr context) override;
 
     //! Actually evaluates query.
     //! NB: Does not throw.
@@ -35,40 +38,6 @@ public:
     //! Returns plan fragments to be evaluated by peers.
     std::vector<TPlanFragment> GetPeerFragments() const;
 
-    ICoordinateCallbacks* GetCallbacks()
-    {
-        return Callbacks_;
-    }
-
-    TPlanContext* GetContext()
-    {
-        return Fragment_.GetContext().Get();
-    }
-
-    const TOperator* GetHead()
-    {
-        return Fragment_.GetHead();
-    }
-
-private:
-    void SplitFurther();
-    void PushdownFilters();
-    void PushdownGroups();
-    void PushdownProjects();
-    void DistributeToPeers();
-    void InitializeReaders();
-
-    void SetHead(const TOperator* head)
-    {
-        Fragment_.SetHead(head);
-    }
-
-    template <class TFunctor>
-    void Rewrite(const TFunctor& functor)
-    {
-        Fragment_.Rewrite(functor);
-    }
-
 private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
@@ -76,6 +45,17 @@ private:
     std::vector<std::tuple<TPlanFragment, ISchemedReaderPtr>> Peers_;
 
     NLog::TTaggedLogger Logger;
+
+
+    void SplitFurther();
+    void PushdownFilters();
+    void PushdownGroups();
+    void PushdownProjects();
+    void DistributeToPeers();
+    void InitializeReaders();
+
+    template <class TFunctor>
+    void Rewrite(const TFunctor& functor);
 
 };
 

@@ -62,9 +62,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        Bootstrap->GetQueryManager()->UpdateNodeDirectory(request->node_directory());
-
-        auto planFragment = NQueryClient::FromProto(request->plan_fragment());
+        auto planFragment = FromProto(request->plan_fragment());
+        planFragment.GetContext()->GetNodeDirectory()->MergeFrom(request->node_directory());
 
         auto memoryWriter = New<TMemoryWriter>();
         auto chunkWriter = CreateSchemedChunkWriter(
@@ -72,7 +71,8 @@ private:
             EncodingWriterOptions_,
             memoryWriter);
 
-        Bootstrap->GetQueryManager()
+        Bootstrap
+            ->GetQueryManager()
             ->Execute(planFragment, chunkWriter)
             .Apply(BIND([=] (TError error) {
                 if (error.IsOK()) {

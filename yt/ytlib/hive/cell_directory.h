@@ -31,11 +31,23 @@ public:
 
     typedef NHydra::NProto::TCellConfig TCellConfig;
 
+
     //! Returns a leader channel for a given cell GUID (|nullptr| if none is known).
     NRpc::IChannelPtr FindChannel(const TCellGuid& cellGuid);
 
     //! Similar to #FindChannel but throws an exception if no channel is known.
     NRpc::IChannelPtr GetChannelOrThrow(const TCellGuid& cellGuid);
+
+
+    //! Returns the registered cell by its id (or |nullptr| if none is known).
+    TNullable<TCellConfig> FindCellConfig(const TCellGuid& cellGuid);
+
+    //! Returns the registered cell by its id (throws if none is known).
+    TCellConfig GetCellConfigOrThrow(const TCellGuid& cellGuid);
+
+
+    //! Returns the list of all registered cells and their configurations.
+    std::vector<std::pair<TCellGuid, TCellConfig>> GetRegisteredCells();
 
 
     //! Registers a new cell or updates the configuration of an existing cell
@@ -56,12 +68,9 @@ public:
     void Clear();
 
 
-    //! Returns the list of all registered cells and their configurations.
-    std::vector<std::pair<TCellGuid, TCellConfig>> GetRegisteredCells();
-
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl_;
 
 };
 

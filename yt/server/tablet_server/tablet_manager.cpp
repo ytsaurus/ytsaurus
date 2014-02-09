@@ -307,6 +307,9 @@ public:
         TabletMap_.Insert(id, tablet);
         objectManager->RefObject(tablet);
 
+        // Once the first table is created, table is no longer sorted.
+        table->SetSorted(false);
+
         LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %s, TabletId: %s)",
             ~ToString(table->GetId()),
             ~ToString(tablet->GetId()));

@@ -248,14 +248,14 @@ void TInsertCommand::DoExecute()
         Request->GetOptions());
 
     auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
-    auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
-    const auto& mountInfo = mountInfoOrError.GetValue();
+    auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(Request->Path.GetPath()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
+    const auto& tableInfo = tableInfoOrError.GetValue();
 
     // Parse input data.
     TBuildingTableConsumer consumer(
-        mountInfo->Schema,
-        mountInfo->KeyColumns);
+        tableInfo->Schema,
+        tableInfo->KeyColumns);
     consumer.SetTreatMissingAsNull(!Request->Update);
     consumer.SetAllowNonSchemaColumns(false);
 
@@ -306,13 +306,8 @@ void TInsertCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
-    auto fragment = TPlanFragment::Prepare(
-        Request->Query,
-        Context->GetQueryCallbacksProvider()->GetPrepareCallbacks());
-
-    auto coordinator = CreateCoordinator(
-        GetCurrentInvoker(),
-        Context->GetQueryCallbacksProvider()->GetCoordinateCallbacks());
+    TSelectRowsOptions options;
+    options.Timestamp = Request->Timestamp;
 
     auto memoryWriter = New<TMemoryWriter>();
     auto chunkWriter = CreateSchemedChunkWriter(
@@ -321,7 +316,10 @@ void TSelectCommand::DoExecute()
         memoryWriter);
 
     {
-        auto error = WaitFor(coordinator->Execute(fragment, chunkWriter));
+        auto error = WaitFor(Context->GetClient()->SelectRows(
+            Request->Query,
+            chunkWriter,
+            options));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
@@ -401,17 +399,17 @@ void TSelectCommand::DoExecute()
 void TLookupCommand::DoExecute()
 {
     auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
-    auto mountInfoOrError = WaitFor(tableMountCache->LookupInfo(Request->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(mountInfoOrError);
-    const auto& mountInfo = mountInfoOrError.GetValue();
-    auto nameTable = TNameTable::FromSchema(mountInfo->Schema);
+    auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(Request->Path.GetPath()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
+    const auto& tableInfo = tableInfoOrError.GetValue();
+    auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
 
     TLookupRowsOptions options;
     options.Timestamp = Request->Timestamp;
     if (Request->Columns) {
         options.ColumnFilter.All = false;
         for (const auto& name : *Request->Columns) {
-            int index = mountInfo->Schema.GetColumnIndexOrThrow(name);
+            int index = tableInfo->Schema.GetColumnIndexOrThrow(name);
             options.ColumnFilter.Indexes.push_back(index);
         }
     }

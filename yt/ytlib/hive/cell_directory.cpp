@@ -48,6 +48,34 @@ public:
         return channel;
     }
 
+    TNullable<TCellConfig> FindCellConfig(const TCellGuid& cellGuid)
+    {
+        TGuard<TSpinLock> guard(Spinlock);
+        auto it = CellMap.find(cellGuid);
+        return it == CellMap.end() ? TNullable<TCellConfig>(Null) : it->second.Config;
+    }
+
+    TCellConfig GetCellConfigOrThrow(const TCellGuid& cellGuid)
+    {
+        auto config = FindCellConfig(cellGuid);
+        if (!config) {
+            THROW_ERROR_EXCEPTION("Unknown cell %s",
+                ~ToString(cellGuid));
+        }
+        return *config;
+    }
+
+    std::vector<std::pair<TCellGuid, TCellConfig>> GetRegisteredCells()
+    {
+        TGuard<TSpinLock> guard(Spinlock);
+        std::vector<std::pair<TCellGuid, TCellConfig>> result;
+        result.reserve(CellMap.size());
+        for (const auto& pair : CellMap) {
+            result.push_back(std::make_pair(pair.first, pair.second.Config));
+        }
+        return result;
+    }
+
     bool RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
     {
         bool result = false;
@@ -93,17 +121,6 @@ public:
     {
         TGuard<TSpinLock> guard(Spinlock);
         CellMap.clear();
-    }
-
-    std::vector<std::pair<TCellGuid, TCellConfig>> GetRegisteredCells()
-    {
-        TGuard<TSpinLock> guard(Spinlock);
-        std::vector<std::pair<TCellGuid, TCellConfig>> result;
-        result.reserve(CellMap.size());
-        for (const auto& pair : CellMap) {
-            result.push_back(std::make_pair(pair.first, pair.second.Config));
-        }
-        return result;
     }
 
 private:
@@ -153,7 +170,7 @@ private:
 TCellDirectory::TCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory)
-    : Impl(new TImpl(
+    : Impl_(new TImpl(
         config,
         channelFactory))
 { }
@@ -163,42 +180,52 @@ TCellDirectory::~TCellDirectory()
 
 IChannelPtr TCellDirectory::FindChannel(const TCellGuid& cellGuid)
 {
-    return Impl->FindChannel(cellGuid);
+    return Impl_->FindChannel(cellGuid);
 }
 
 IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellGuid& cellGuid)
 {
-    return Impl->GetChannelOrThrow(cellGuid);
+    return Impl_->GetChannelOrThrow(cellGuid);
 }
 
-bool TCellDirectory::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
+TNullable<TCellDirectory::TCellConfig> TCellDirectory::FindCellConfig(const TCellGuid& cellGuid)
 {
-    return Impl->RegisterCell(cellGuid, config);
+    return Impl_->FindCellConfig(cellGuid);
 }
 
-bool TCellDirectory::RegisterCell(TPeerDiscoveryConfigPtr config)
+TCellDirectory::TCellConfig TCellDirectory::GetCellConfigOrThrow(const TCellGuid& cellGuid)
 {
-    return Impl->RegisterCell(config);
-}
-
-bool TCellDirectory::RegisterCell(TCellConfigPtr config)
-{
-    return Impl->RegisterCell(config);
-}
-
-bool TCellDirectory::UnregisterCell(const TCellGuid& cellGuid)
-{
-    return Impl->UnregisterCell(cellGuid);
-}
-
-void TCellDirectory::Clear()
-{
-    Impl->Clear();
+    return Impl_->GetCellConfigOrThrow(cellGuid);
 }
 
 std::vector<std::pair<TCellGuid, TCellDirectory::TCellConfig>> TCellDirectory::GetRegisteredCells()
 {
-    return Impl->GetRegisteredCells();
+    return Impl_->GetRegisteredCells();
+}
+
+bool TCellDirectory::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
+{
+    return Impl_->RegisterCell(cellGuid, config);
+}
+
+bool TCellDirectory::RegisterCell(TPeerDiscoveryConfigPtr config)
+{
+    return Impl_->RegisterCell(config);
+}
+
+bool TCellDirectory::RegisterCell(TCellConfigPtr config)
+{
+    return Impl_->RegisterCell(config);
+}
+
+bool TCellDirectory::UnregisterCell(const TCellGuid& cellGuid)
+{
+    return Impl_->UnregisterCell(cellGuid);
+}
+
+void TCellDirectory::Clear()
+{
+    Impl_->Clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

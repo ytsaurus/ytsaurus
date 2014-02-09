@@ -145,10 +145,10 @@ TPlanFragment TPrepareController::Run()
 void TPrepareController::ParseSource()
 {
     // Hook up with debug information for better error messages.
-    GetContext()->SetDebugInformation(TDebugInformation(Source_));
+    Context_->SetDebugInformation(TDebugInformation(Source_));
 
-    TLexer lexer(GetContext(), Source_);
-    TParser parser(lexer, GetContext(), &Head_);
+    TLexer lexer(Context_.Get(), Source_);
+    TParser parser(lexer, Context_.Get(), &Head_);
 
     int result = parser.parse();
     if (result != 0) {
@@ -158,22 +158,24 @@ void TPrepareController::ParseSource()
 
 void TPrepareController::GetInitialSplits()
 {
-    Visit(Head_, [this] (const TOperator* op)
-    {
-        if (auto* scanOp = op->AsMutable<TScanOperator>()) {
-            auto& tableDescriptor = GetContext()->GetTableDescriptor();
-            LOG_DEBUG("Getting initial data split for %s", ~tableDescriptor.Path);
-            // XXX(sandello): We have just one table at the moment.
-            // Will put TParallelAwaiter here in case of multiple tables.
-            auto dataSplitOrError = WaitFor(
-                GetCallbacks()->GetInitialSplit(tableDescriptor.Path));
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                dataSplitOrError,
-                "Failed to get initial data split for table %s",
-                ~tableDescriptor.Path);
-            scanOp->DataSplit() = dataSplitOrError.GetValue();
-        }
-    });
+    Visit(
+        Head_,
+        [this] (const TOperator* op) {
+            if (auto* scanOp = op->AsMutable<TScanOperator>()) {
+                auto& tableDescriptor = Context_->TableDescriptor();
+                LOG_DEBUG("Getting initial data split for %s", ~tableDescriptor.Path);
+                // XXX(sandello): We have just one table at the moment.
+                // Will put TParallelAwaiter here in case of multiple tables.
+                auto dataSplitOrError = WaitFor(Callbacks_->GetInitialSplit(
+                    tableDescriptor.Path,
+                    Context_));
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    dataSplitOrError,
+                    "Failed to get initial data split for table %s",
+                    ~tableDescriptor.Path);
+                scanOp->DataSplit() = dataSplitOrError.GetValue();
+            }
+        });
 }
 
 void TPrepareController::CheckAndPruneReferences()
@@ -207,74 +209,74 @@ void TPrepareController::MoveAggregateExpressions()
 {
     // Extract aggregate functions from projections and delegate
     // aggregation to the group operator.
-    Head_ = Apply(GetContext(), Head_,
-    [&] (TPlanContext* context, const TOperator* op) -> const TOperator*
-    {
-        auto* projectOp = op->As<TProjectOperator>();
-        if (!projectOp) {
-            return op;
-        }
-        auto* groupOp = projectOp->GetSource()->As<TGroupOperator>();
-        if (!groupOp) {
-            return op;
-        }
+    Head_ = Apply(
+        Context_.Get(),
+        Head_,
+        [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+            auto* projectOp = op->As<TProjectOperator>();
+            if (!projectOp) {
+                return op;
+            }
+            auto* groupOp = projectOp->GetSource()->As<TGroupOperator>();
+            if (!groupOp) {
+                return op;
+            }
 
-        auto* newGroupOp = new (context) TGroupOperator(context, groupOp->GetSource());
-        auto* newProjectOp = new (context) TProjectOperator(context, newGroupOp);
+            auto* newGroupOp = new (context) TGroupOperator(context, groupOp->GetSource());
+            auto* newProjectOp = new (context) TProjectOperator(context, newGroupOp);
 
-        newGroupOp->GroupItems() = groupOp->GroupItems();
+            newGroupOp->GroupItems() = groupOp->GroupItems();
 
-        auto& newProjections = newProjectOp->Projections();
-        auto& newAggregateItems = newGroupOp->AggregateItems();
+            auto& newProjections = newProjectOp->Projections();
+            auto& newAggregateItems = newGroupOp->AggregateItems();
 
-        for (auto& projection : projectOp->Projections()) {
-            auto newExpr = Apply(
-                context,
-                projection.Expression,
-                [&] (TPlanContext* context, const TExpression* expr) -> const TExpression*
-            {
-                if (auto* functionExpr = expr->As<TFunctionExpression>()) {
-                    auto name = functionExpr->GetFunctionName();
-                    EAggregateFunctions aggregateFunction;
+            for (auto& projection : projectOp->Projections()) {
+                auto newExpr = Apply(
+                    context,
+                    projection.Expression,
+                    [&] (TPlanContext* context, const TExpression* expr) -> const TExpression* {
+                        if (auto* functionExpr = expr->As<TFunctionExpression>()) {
+                            auto name = functionExpr->GetFunctionName();
+                            EAggregateFunctions aggregateFunction;
 
-                    if (name == "SUM") {
-                        aggregateFunction = EAggregateFunctions::Sum;
-                    } else if (name == "MIN") {
-                        aggregateFunction = EAggregateFunctions::Min;
-                    } else if (name == "MAX") {
-                        aggregateFunction = EAggregateFunctions::Max;
-                    } else if (name == "AVG") {
-                        aggregateFunction = EAggregateFunctions::Average;
-                    } else if (name == "COUNT") {
-                        aggregateFunction = EAggregateFunctions::Count;
-                    } else {
+                            if (name == "SUM") {
+                                aggregateFunction = EAggregateFunctions::Sum;
+                            } else if (name == "MIN") {
+                                aggregateFunction = EAggregateFunctions::Min;
+                            } else if (name == "MAX") {
+                                aggregateFunction = EAggregateFunctions::Max;
+                            } else if (name == "AVG") {
+                                aggregateFunction = EAggregateFunctions::Average;
+                            } else if (name == "COUNT") {
+                                aggregateFunction = EAggregateFunctions::Count;
+                            } else {
+                                return expr;
+                            }
+
+                            if (functionExpr->GetArgumentCount() != 1) {
+                                THROW_ERROR_EXCEPTION(
+                                    "Aggregate function %s must have exactly one argument",
+                                    ~aggregateFunction.ToString())
+                                    << TErrorAttribute("source", functionExpr->GetSource());
+                            }
+
+                            Stroka subexprName = functionExpr->GetName();
+                            auto referenceExpr = new (context) TReferenceExpression(
+                                context,
+                                NullSourceLocation,
+                                subexprName);
+                            newAggregateItems.push_back(TAggregateItem(
+                                functionExpr->GetArgument(0),
+                                aggregateFunction,
+                                subexprName));
+                            return referenceExpr;
+                        }
                         return expr;
-                    }
+                    });
+                newProjections.push_back(TNamedExpression(newExpr, projection.Name));
+            }
 
-                    if (functionExpr->GetArgumentCount() != 1) {
-                        THROW_ERROR_EXCEPTION(
-                            "Aggregate function %s must have exactly one argument",
-                            ~aggregateFunction.ToString())
-                            << TErrorAttribute("source", functionExpr->GetSource());
-                    }
-
-                    Stroka subexprName = functionExpr->GetName();
-                    auto referenceExpr = new (context) TReferenceExpression(
-                        context,
-                        NullSourceLocation,
-                        subexprName);
-                    newAggregateItems.push_back(TAggregateItem(
-                        functionExpr->GetArgument(0),
-                        aggregateFunction,
-                        subexprName));
-                    return referenceExpr;
-                }
-                return expr;
-            });
-            newProjections.push_back(TNamedExpression(newExpr, projection.Name));
-        }
-
-        return newProjectOp;
+            return newProjectOp;
     });
 }
 

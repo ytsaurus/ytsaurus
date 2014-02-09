@@ -18,6 +18,8 @@ DECLARE_ENUM(ETabletState,
     ((Unmounted)       (3))
 );
 
+static const int TypicalCellSize = 5;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 typedef NHydra::TCellGuid TTabletCellId;
@@ -31,17 +33,12 @@ extern const TStoreId NullStoreId;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TTableMountInfo;
-typedef TIntrusivePtr<TTableMountInfo> TTableMountInfoPtr;
+DECLARE_REFCOUNTED_STRUCT(TTableMountInfo)
+DECLARE_REFCOUNTED_STRUCT(TTabletInfo)
+DECLARE_REFCOUNTED_CLASS(TTableMountCache)
 
-class TTableMountCache;
-typedef TIntrusivePtr<TTableMountCache> TTableMountCachePtr;
-
-class TTableMountCacheConfig;
-typedef TIntrusivePtr<TTableMountCacheConfig> TTableMountCacheConfigPtr;
-
-class TTableMountConfig;
-typedef TIntrusivePtr<TTableMountConfig> TTableMountConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 
 class TProtocolReader;
 class TProtocolWriter;

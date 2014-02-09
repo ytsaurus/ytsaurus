@@ -17,16 +17,6 @@ public:
 
     TPlanFragment Run();
 
-    IPrepareCallbacks* GetCallbacks()
-    {
-        return Callbacks_;
-    }
-
-    TPlanContext* GetContext()
-    {
-        return Context_.Get();
-    }
-
 private:
     void ParseSource();
     void GetInitialSplits();

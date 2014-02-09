@@ -25,8 +25,7 @@ class TOperator;
 class TOperator;
 class TExpression;
 
-class TPlanContext;
-typedef TIntrusivePtr<TPlanContext> TPlanContextPtr;
+DECLARE_REFCOUNTED_CLASS(TPlanContext)
 
 class TPlanFragment;
 
