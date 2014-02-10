@@ -359,7 +359,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         v8::ReadOnly);
     result->Set(
         DescriptorInputType,
-        String::New(to_lower(descriptor.InputType.ToString()).c_str()),
+        String::New(to_lower(ToString(descriptor.InputType)).c_str()),
         v8::ReadOnly);
     result->Set(
         DescriptorInputTypeAsInteger,
@@ -367,7 +367,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
         DescriptorOutputType,
-        String::New(to_lower(descriptor.OutputType.ToString()).c_str()),
+        String::New(to_lower(ToString(descriptor.OutputType)).c_str()),
         v8::ReadOnly);
     result->Set(
         DescriptorOutputTypeAsInteger,
