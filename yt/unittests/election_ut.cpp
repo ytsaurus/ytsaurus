@@ -31,8 +31,6 @@ using testing::_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _win_
-
 class TElectionTest
     : public testing::Test
 {
@@ -180,12 +178,32 @@ struct TStatus
     TPeerId VoteId;
     TEpochId VoteEpochId;
     TPeerPriority Priority;
+
+    TStatus(EPeerState state, TPeerId voteId, TEpochId voteEpochId, TPeerPriority priority)
+        : State(state)
+        , VoteId(voteId)
+        , VoteEpochId(voteEpochId)
+        , Priority(priority)
+    { }
 };
 
 struct TElectionTestData
 {
     TNullable<TStatus> Statuses[2];
     int ExpectedLeader;
+
+    TElectionTestData(int expectedLeader, TStatus status)
+        : ExpectedLeader(expectedLeader)
+    {
+        Statuses[0] = status;
+    }
+
+    TElectionTestData(int expectedLeader, TStatus status, TStatus otherStatus)
+        : ExpectedLeader(expectedLeader)
+    {
+        Statuses[0] = status;
+        Statuses[1] = otherStatus;
+    }
 };
 
 class TElectionGenericTest
@@ -241,51 +259,37 @@ INSTANTIATE_TEST_CASE_P(
     ValueParametrized,
     TElectionGenericTest,
     ::testing::Values(
-        TElectionTestData{
-            {
-                TStatus{ EPeerState::Following, 0, TEpochId(), 1 },
-                TStatus{ EPeerState::Following, 0, TEpochId(), 2 }
-            },
-            -1
-        },
-        TElectionTestData{
-            {
-                TStatus{ EPeerState::Leading, 1, OtherEpoch, 1 },
-                TNullable<TStatus>()
-            },
-            1
-        },
-        TElectionTestData{
-            {
-                TStatus{ EPeerState::Leading, 1, OtherEpoch, -1 },
-                TNullable<TStatus>()
-            },
-            -1
-        },
+        TElectionTestData(
+            -1,
+            TStatus(EPeerState::Following, 0, TEpochId(), 1),
+            TStatus(EPeerState::Following, 0, TEpochId(), 2)
+        ),
+        TElectionTestData(
+            1,
+            TStatus(EPeerState::Leading, 1, OtherEpoch, 1)
+        ),
+        TElectionTestData(
+            -1,
+            TStatus(EPeerState::Leading, 1, OtherEpoch, -1)
+        ),
         // all followers
-        TElectionTestData{
-            {
-                TStatus{ EPeerState::Following, 1, OtherEpoch, 1 },
-                TStatus{ EPeerState::Following, 2, OtherEpoch, 2 },
-            },
-            -1
-        },
+        TElectionTestData(
+            -1,
+            TStatus(EPeerState::Following, 1, OtherEpoch, 1),
+            TStatus(EPeerState::Following, 2, OtherEpoch, 2)
+        ),
         // all leaders
-        TElectionTestData{
-            {
-                TStatus{ EPeerState::Leading, 1, OtherEpoch, 1 },
-                TStatus{ EPeerState::Leading, 2, OtherEpoch, 2 },
-            },
-            2
-        },
+        TElectionTestData(
+            2,
+            TStatus(EPeerState::Leading, 1, OtherEpoch, 1),
+            TStatus(EPeerState::Leading, 2, OtherEpoch, 2)
+        ),
         // potential leader should recognize itself as a leader
-        TElectionTestData{
-            {
-                TStatus{ EPeerState::Following, 2, OtherEpoch, 1 },
-                TStatus{ EPeerState::Following, 2, OtherEpoch, 2 },
-            },
-            -1
-        }
+        TElectionTestData(
+            -1,
+            TStatus(EPeerState::Following, 2, OtherEpoch, 1),
+            TStatus(EPeerState::Following, 2, OtherEpoch, 2)
+        )
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -343,8 +347,6 @@ INSTANTIATE_TEST_CASE_P(
         TDuration::MilliSeconds(10),
         TDuration::MilliSeconds(60)));
 
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
