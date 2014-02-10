@@ -41,6 +41,7 @@ public:
         , CallbacksMock(New<TElectionCallbacksMock>())
         , RpcServer(CreateLocalServer())
         , ChannelFactory(New<TStaticChannelFactory>())
+        , RpcTimeout(TDuration::MilliSeconds(40))
     { }
 
     void Configure(int peerCount, TPeerId selfId)
@@ -64,7 +65,7 @@ public:
         auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, selfId);
 
         auto electionConfig = New<TElectionManagerConfig>();
-        electionConfig->RpcTimeout = TDuration::MilliSeconds(40);
+        electionConfig->RpcTimeout = RpcTimeout;
         electionConfig->VotingRoundInterval = TDuration::MilliSeconds(10);
         ElectionManager = New<TElectionManager>(
             electionConfig,
@@ -99,6 +100,8 @@ protected:
     TStaticChannelFactoryPtr ChannelFactory;
     TElectionManagerPtr ElectionManager;
     std::vector<TIntrusivePtr<TElectionServiceMock>> PeerMocks;
+
+    const TDuration RpcTimeout;
 
 private:
     static Stroka GetPeerAddress(TPeerId id)
@@ -223,8 +226,8 @@ TEST_P(TElectionGenericTest, Basic)
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                const TStatus* status = data.Statuses[id - 1].GetPtr();
-                if (status != nullptr) {
+                const auto* status = data.Statuses[id - 1].GetPtr();
+                if (status) {
                     response->set_state(status->State);
                     response->set_vote_id(status->VoteId);
                     ToProto(response->mutable_vote_epoch_id(), status->VoteEpochId);
@@ -322,7 +325,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
             }));
     }
 
-    if (delay < TDuration::MilliSeconds(40)) {
+    if (delay < RpcTimeout) {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartFollowing());
         EXPECT_CALL(*CallbacksMock, OnStopFollowing());
