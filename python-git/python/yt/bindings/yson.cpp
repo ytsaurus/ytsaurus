@@ -284,7 +284,7 @@ private:
                 NYTree::Consume(Py::Object(item, true), &writer);
             }
         } else {
-            throw Py::RuntimeError(ysonType.ToString() + " is not supported");
+            throw Py::RuntimeError(ToString(ysonType) + " is not supported");
         }
     }
 };
