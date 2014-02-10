@@ -251,9 +251,8 @@ public:
     TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType(TArgs...)>
     AsyncVia(TIntrusivePtr<IInvoker> invoker);
 
-    // TODO(babenko): currently only implemented for simple return types (no TErrorOr, no TFuture, no TPromise).
-    TCallback<TFuture<TErrorOr<R>>(TArgs...)>
-    GuardedAsyncVia(TIntrusivePtr<IInvoker> invoker);
+    // TODO(babenko): currently only implemented for simple return types (no TErrorOr).
+    TCallback<TErrorOr<R>(TArgs...)> Guarded();
 
 private:
     typedef R(*TTypedInvokeFunction)(

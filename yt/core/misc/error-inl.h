@@ -10,10 +10,10 @@ namespace NYT {
 namespace NDetail {
 
 template <class TSignature>
-struct TGuardedAsyncViaHelper;
+struct TGuardedHelper;
 
 template <class U, class... TArgs>
-struct TGuardedAsyncViaHelper<U(TArgs...)>
+struct TGuardedHelper<U(TArgs...)>
 {
     static TCallback<TErrorOr<U>(TArgs...)> Do(TCallback<U(TArgs...)> callback)
     {
@@ -29,7 +29,7 @@ struct TGuardedAsyncViaHelper<U(TArgs...)>
 };
 
 template <class... TArgs>
-struct TGuardedAsyncViaHelper<void(TArgs...)>
+struct TGuardedHelper<void(TArgs...)>
 {
     static TCallback<TErrorOr<void>(TArgs...)> Do(TCallback<void(TArgs...)> callback)
     {
@@ -48,12 +48,10 @@ struct TGuardedAsyncViaHelper<void(TArgs...)>
 } // namespace NDetail
 
 template <class U, class... TArgs>
-TCallback<TFuture<TErrorOr<U>>(TArgs...)>
-TCallback<U(TArgs...)>::GuardedAsyncVia(TIntrusivePtr<IInvoker> invoker)
+TCallback<TErrorOr<U>(TArgs...)>
+TCallback<U(TArgs...)>::Guarded()
 {
-    return NYT::NDetail::TGuardedAsyncViaHelper<
-        U(TArgs...)
-    >::Do(*this).AsyncVia(std::move(invoker));
+    return NYT::NDetail::TGuardedHelper<U(TArgs...)>::Do(*this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -232,10 +232,10 @@ public:
         const TYPath& path,
         TPlanContextPtr context) override
     {
-        return
-            BIND(&TConnection::DoGetInitialSplit, MakeStrong(this))
-                .GuardedAsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
-                .Run(path, std::move(context));
+        return BIND(&TConnection::DoGetInitialSplit, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
+            .Run(path, std::move(context));
     }
 
 
@@ -261,7 +261,8 @@ public:
     {
         return
             BIND(&TConnection::DoSplitFurther, MakeStrong(this))
-                .GuardedAsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
+                .Guarded()
+                .AsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
                 .Run(split, std::move(context));
     }
 
