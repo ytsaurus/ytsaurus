@@ -269,7 +269,7 @@ void Deserialize(Py::Object& obj, INodePtr node)
         }
         obj = CreateYsonObject("YsonList", list, attributes);
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported node type %s", ~type.ToString());
+        THROW_ERROR_EXCEPTION("Unsupported node type %s", ~ToString(type));
     }
 }
 
