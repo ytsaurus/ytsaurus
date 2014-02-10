@@ -36,8 +36,7 @@ class TElectionTest
 {
 public:
     TElectionTest()
-        : DelayedExecutor()
-        , ActionQueue(New<TActionQueue>("Main"))
+        : ActionQueue(New<TActionQueue>("Main"))
         , CallbacksMock(New<TElectionCallbacksMock>())
         , RpcServer(CreateLocalServer())
         , ChannelFactory(New<TStaticChannelFactory>())
@@ -93,7 +92,6 @@ public:
     }
 
 protected:
-    TDelayedExecutor DelayedExecutor;
     TActionQueuePtr ActionQueue;
     TIntrusivePtr<TElectionCallbacksMock> CallbacksMock;
     IServerPtr RpcServer;
@@ -314,7 +312,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                DelayedExecutor.Submit(BIND([=] () {
+                TDelayedExecutor::Submit(BIND([=] () {
                     response->set_state(id == 2 ? EPeerState::Leading : EPeerState::Following);
                     response->set_vote_id(2);
                     ToProto(response->mutable_vote_epoch_id(), TEpochId());
