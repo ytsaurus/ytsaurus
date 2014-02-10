@@ -172,7 +172,7 @@ IJobPtr TJobController::CreateJob(
 
     LOG_INFO("Job created (JobId: %s, Type: %s)",
         ~ToString(jobId),
-        ~type.ToString());
+        ~ToString(type));
 
     YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
     ScheduleStart();

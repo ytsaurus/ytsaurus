@@ -131,7 +131,7 @@ void TFollowerTracker::OnPingResponse(TPeerId followerId, THydraServiceProxy::TR
     auto state = EPeerState(rsp->state());
     LOG_DEBUG("Ping reply received from follower %d (State: %s)",
         followerId,
-        ~state.ToString());
+        ~ToString(state));
 
     SetFollowerState(followerId, state);
 }
@@ -144,8 +144,8 @@ void TFollowerTracker::SetFollowerState(TPeerId followerId, EPeerState state)
 
     LOG_INFO("Follower %d state changed: %s->%s",
         followerId,
-        ~oldState.ToString(),
-        ~state.ToString());
+        ~ToString(oldState),
+        ~ToString(state));
 
     if (state == EPeerState::Following && oldState != EPeerState::Following) {
         OnPeerActivated();

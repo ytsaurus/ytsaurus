@@ -392,7 +392,7 @@ private:
 
         LOG_DEBUG("Received status from peer %d (State: %s, VoteId: %d, Priority: %s)",
             id,
-            ~state.ToString(),
+            ~ToString(state),
             vote,
             ~Owner->ElectionCallbacks->FormatPriority(priority));
 
@@ -875,8 +875,8 @@ void TElectionManager::TImpl::SetState(EPeerState newState)
 
     // This generic message logged to simplify tracking state changes.
     LOG_INFO("State changed: %s->%s",
-        ~State.ToString(),
-        ~newState.ToString());
+        ~ToString(State),
+        ~ToString(newState));
     State = newState;
 }
 
@@ -957,7 +957,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
     response->set_self_id(CellManager->GetSelfId());
 
     context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpochId: %s",
-        ~State.ToString(),
+        ~ToString(State),
         VoteId,
         ~ElectionCallbacks->FormatPriority(priority),
         ~ToString(VoteEpochId));

@@ -821,7 +821,7 @@ private:
                 ~node->GetAddress(),
                 ~ToString(slot.Cell->GetId()),
                 slot.PeerId,
-                ~slot.PeerState.ToString(),
+                ~ToString(slot.PeerState),
                 slotInfo.config_version());
 
             // Request slot reconfiguration if states are appropriate and versions differ.
@@ -961,8 +961,8 @@ private:
         cell->SetState(newState);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell state changed: %s->%s (CellId: %s)",
-            ~oldState.ToString(),
-            ~newState.ToString(),
+            ~ToString(oldState),
+            ~ToString(newState),
             ~ToString(cellId));
     }
 

@@ -1071,7 +1071,7 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
                 ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
-                ~reason.ToString(),
+                ~ToString(reason),
                 nodeId,
                 ~node->GetAddress());
             return;
@@ -1119,7 +1119,7 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
                 ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
-                ~reason.ToString(),
+                ~ToString(reason),
                 nodeId,
                 ~node->GetAddress());
             return;
@@ -1148,7 +1148,7 @@ private:
                 "Chunk replica removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
                 ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
-                ~reason.ToString(),
+                ~ToString(reason),
                 nodeId,
                 ~node->GetAddress());
         }
@@ -1382,7 +1382,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ~ToString(preferredHostName),
             chunk->GetReplicationFactor(),
             uploadReplicationFactor,
-            ~erasureCodecId.ToString(),
+            ~ToString(erasureCodecId),
             ~FormatBool(requestExt->movable()),
             ~FormatBool(requestExt->vital()));
     }

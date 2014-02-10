@@ -47,14 +47,14 @@ TEST(TEnumTest, Basic)
 
 TEST(TEnumTest, ToString)
 {
-    EXPECT_EQ("EColor(0)", EColor( ).ToString());
-    EXPECT_EQ("EColor(5)", EColor(5).ToString());
+    EXPECT_EQ("EColor(0)", ToString(EColor( )));
+    EXPECT_EQ("EColor(5)", ToString(EColor(5)));
 
-    EXPECT_EQ("Red",   EColor(EColor::Red  ).ToString());
-    EXPECT_EQ("Green", EColor(EColor::Green).ToString());
-    EXPECT_EQ("Blue",  EColor(EColor::Blue ).ToString());
-    EXPECT_EQ("Black", EColor(EColor::Black).ToString());
-    EXPECT_EQ("White", EColor(EColor::White).ToString());
+    EXPECT_EQ("Red",   ToString(EColor(EColor::Red  )));
+    EXPECT_EQ("Green", ToString(EColor(EColor::Green)));
+    EXPECT_EQ("Blue",  ToString(EColor(EColor::Blue )));
+    EXPECT_EQ("Black", ToString(EColor(EColor::Black)));
+    EXPECT_EQ("White", ToString(EColor(EColor::White)));
 }
 
 TEST(TEnumTest, FromString)

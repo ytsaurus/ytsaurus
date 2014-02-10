@@ -240,7 +240,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, StartChunk)
 
     context->SetRequestInfo("ChunkId: %s, SessionType: %s, SyncOnClose: %s",
         ~ToString(chunkId),
-        ~sessionType.ToString(),
+        ~ToString(sessionType),
         ~FormatBool(syncOnClose));
 
     ValidateNoSession(chunkId);
@@ -351,7 +351,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         ~ToString(chunkId),
         ~JoinToString(request->block_indexes()),
         ~FormatBool(enableCaching),
-        ~sessionType.ToString());
+        ~ToString(sessionType));
 
     bool isThrottling = IsOutThrottling();
 

@@ -231,7 +231,7 @@ private:
             if (key == "chunk_type") {
                 auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
-                    .Value(CamelCaseToUnderscoreCase(type.ToString()));
+                    .Value(CamelCaseToUnderscoreCase(ToString(type)));
                 return true;
             }
 
@@ -261,7 +261,7 @@ private:
 
             if (key == "compression_codec") {
                 BuildYsonFluently(consumer)
-                    .Value(CamelCaseToUnderscoreCase(NCompression::ECodec(miscExt.compression_codec()).ToString()));
+                    .Value(CamelCaseToUnderscoreCase(ToString(NCompression::ECodec(miscExt.compression_codec()))));
                 return true;
             }
 

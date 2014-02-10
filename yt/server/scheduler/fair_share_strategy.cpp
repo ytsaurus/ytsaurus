@@ -906,10 +906,10 @@ public:
             "Scheduling = {Status: %s, Rank: %d+%d, DominantResource: %s, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s, Weight: %lf, "
             "PreemptableRunningJobs: %" PRISZT "}",
-            ~element->GetStatus().ToString(),
+            ~ToString(element->GetStatus()),
             element->GetPool()->Attributes().Rank,
             attributes.Rank,
-            ~attributes.DominantResource.ToString(),
+            ~ToString(attributes.DominantResource),
             attributes.DemandRatio,
             element->GetUsageRatio(),
             attributes.FairShareRatio,
@@ -1353,7 +1353,7 @@ private:
             element->SetStarving(true);
             LOG_INFO("Operation starvation timeout (OperationId: %s, Status: %s)",
                 ~ToString(element->GetOperation()->GetOperationId()),
-                ~status.ToString());
+                ~ToString(status));
         }
     }
 

@@ -540,7 +540,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         "Approximate: %s, DataSize: %" PRId64 " (%" PRId64 " local), RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
-        ~jobType.ToString(),
+        ~ToString(jobType),
         ~context->GetNode()->GetAddress(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,

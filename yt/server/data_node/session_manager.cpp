@@ -77,7 +77,7 @@ void TSession::Start()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_DEBUG("Session started (SessionType: %s)",
-        ~Type.ToString());
+        ~ToString(Type));
 
     WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }

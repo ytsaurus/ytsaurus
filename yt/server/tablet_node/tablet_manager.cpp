@@ -703,7 +703,7 @@ private:
 
             default:
                 THROW_ERROR_EXCEPTION("Unknown read command %s",
-                    ~command.ToString());
+                    ~ToString(command));
         }
 
         return true;
@@ -746,7 +746,7 @@ private:
 
             default:
                 THROW_ERROR_EXCEPTION("Unknown write command %s",
-                    ~command.ToString());
+                    ~ToString(command));
         }
 
         return true;

@@ -692,7 +692,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     }
 
     context->SetRequestInfo("Mode: %s, Waitable: %s",
-        ~mode.ToString(),
+        ~ToString(mode),
         ~FormatBool(waitable));
 
     ValidateTransaction();
@@ -723,7 +723,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     const auto& path = GetRequestYPath(context);
 
     context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
-        ~type.ToString(),
+        ~ToString(type),
         ~FormatBool(request->ignore_existing()),
         ~FormatBool(request->recursive()));
 

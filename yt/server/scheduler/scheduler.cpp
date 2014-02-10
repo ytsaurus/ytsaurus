@@ -281,7 +281,7 @@ public:
         operation->SetState(EOperationState::Initializing);
 
         LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, MutationId: %s, User: %s)",
-            ~type.ToString(),
+            ~ToString(type),
             ~ToString(operationId),
             ~ToString(transactionId),
             ~ToString(mutationId),
@@ -320,20 +320,20 @@ public:
         if (operation->IsFinishingState()) {
             LOG_INFO(error, "Operation is already finishing (OperationId: %s, State: %s)",
                 ~ToString(operation->GetOperationId()),
-                ~operation->GetState().ToString());
+                ~ToString(operation->GetState()));
             return operation->GetFinished();
         }
 
         if (operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already finished (OperationId: %s, State: %s)",
                 ~ToString(operation->GetOperationId()),
-                ~operation->GetState().ToString());
+                ~ToString(operation->GetState()));
             return operation->GetFinished();
         }
 
         LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
             ~ToString(operation->GetOperationId()),
-            ~operation->GetState().ToString());
+            ~ToString(operation->GetState()));
 
         TerminateOperation(
             operation,
@@ -1313,7 +1313,7 @@ private:
 
         LOG_DEBUG("Job registered (JobId: %s, JobType: %s, OperationId: %s)",
             ~ToString(job->GetId()),
-            ~job->GetType().ToString(),
+            ~ToString(job->GetType()),
             ~ToString(operation->GetOperationId()));
     }
 
@@ -1762,8 +1762,8 @@ private:
         auto operation = job->GetOperation();
 
         Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
-            ~job->GetType().ToString(),
-            ~state.ToString(),
+            ~ToString(job->GetType()),
+            ~ToString(state),
             ~ToString(operation->GetOperationId())));
 
         // Check if the job is running on a proper node.
@@ -1812,7 +1812,7 @@ private:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_INFO("Aborting job (Address: %s, JobType: %s, JobId: %s, OperationId: %s)",
                         ~jobAddress,
-                        ~job->GetType().ToString(),
+                        ~ToString(job->GetType()),
                         ~ToString(jobId),
                         ~ToString(operation->GetOperationId()));
                     ToProto(response->add_jobs_to_abort(), jobId);

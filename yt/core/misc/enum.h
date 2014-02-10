@@ -80,16 +80,6 @@ class TEnumBase
             return Value; \
         } \
         \
-        Stroka ToString() const \
-        { \
-            Stroka str(GetLiteralByValue(Value)); \
-            if (LIKELY(!str.empty())) { \
-                return str; \
-            } else { \
-                return Stroka(PP_STRINGIZE(name)) + "(" + ::ToString(static_cast<int>(Value)) + ")"; \
-            } \
-        } \
-        \
         friend TOutputStream& operator << (TOutputStream& stream, name value) \
         { \
             auto* literal = GetLiteralByValue(value.Value); \

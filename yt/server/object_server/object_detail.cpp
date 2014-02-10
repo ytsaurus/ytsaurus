@@ -223,7 +223,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     auto permission = EPermission(request->permission());
     context->SetRequestInfo("User: %s, Permission: %s",
         ~userName,
-        ~permission.ToString());
+        ~ToString(permission));
 
     auto securityManager = Bootstrap->GetSecurityManager();
     auto objectManager = Bootstrap->GetObjectManager();
@@ -244,7 +244,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     }
 
     context->SetResponseInfo("Action: %s, Object: %s, Subject: %s",
-        ~permission.ToString(),
+        ~ToString(permission),
         result.Object ? ~ToString(result.Object->GetId()) : "<Null>",
         result.Subject ? ~ToString(result.Subject->GetId()) : "<Null>");
     context->Reply();
@@ -619,7 +619,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "type") {
         BuildYsonFluently(consumer)
-            .Value(CamelCaseToUnderscoreCase(TypeFromId(GetId()).ToString()));
+            .Value(CamelCaseToUnderscoreCase(ToString(TypeFromId(GetId()))));
         return true;
     }
 

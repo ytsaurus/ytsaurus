@@ -90,7 +90,7 @@ bool TPacketDecoder::EndHeaderPhase()
             return true;
 
         default:
-            LOG_ERROR("Invalid packet type %s", ~EPacketType(Header.Type).ToString());
+            LOG_ERROR("Invalid packet type %s", ~ToString(EPacketType(Header.Type)));
             return false;
     }
 }

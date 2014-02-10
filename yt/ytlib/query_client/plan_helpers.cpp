@@ -381,15 +381,15 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                 THROW_ERROR_EXCEPTION(
                     "Type mismatch between left- and right-hand sides in expression %s",
                     ~typedExpr->GetSource().Quote())
-                    << TErrorAttribute("lhs_type", lhsType.ToString())
-                    << TErrorAttribute("rhs_type", rhsType.ToString());
+                    << TErrorAttribute("lhs_type", ToString(lhsType))
+                    << TErrorAttribute("rhs_type", ToString(rhsType));
             }
             if (lhsType != EValueType::Integer && lhsType != EValueType::Double) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %s require either integral or floating-point operands",
                     ~typedExpr->GetSource().Quote())
-                    << TErrorAttribute("lhs_type", lhsType.ToString())
-                    << TErrorAttribute("rhs_type", rhsType.ToString());
+                    << TErrorAttribute("lhs_type", ToString(lhsType))
+                    << TErrorAttribute("rhs_type", ToString(rhsType));
             }
             switch (typedExpr->GetOpcode()) {
                 // For arithmetic operations resulting type matches operands' type.
@@ -406,8 +406,8 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                         THROW_ERROR_EXCEPTION(
                             "Operands must be integral in expression %s",
                             ~typedExpr->GetSource().Quote())
-                            << TErrorAttribute("lhs_type", lhsType.ToString())
-                            << TErrorAttribute("rhs_type", rhsType.ToString());
+                            << TErrorAttribute("lhs_type", ToString(lhsType))
+                            << TErrorAttribute("rhs_type", ToString(rhsType));
                     }
                     return EValueType::Integer;
                 // For comparsion operations resulting type is integer type

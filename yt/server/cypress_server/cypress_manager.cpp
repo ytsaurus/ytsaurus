@@ -914,7 +914,7 @@ void TCypressManager::UpdateNodeLockState(
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %s, Mode: %s)",
             ~ToString(versionedId),
-            ~request.Mode.ToString());
+            ~ToString(request.Mode));
     } else {
         lockState = &it->second;
         if (lockState->Mode < request.Mode) {
@@ -922,7 +922,7 @@ void TCypressManager::UpdateNodeLockState(
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
                 ~ToString(versionedId),
-                ~lockState->Mode.ToString());
+                ~ToString(lockState->Mode));
         }
     }
 
@@ -968,7 +968,7 @@ TLock* TCypressManager::DoCreateLock(
      
     LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %s, Mode: %s, NodeId: %s)",
         ~ToString(id),
-        ~request.Mode.ToString(),
+        ~ToString(request.Mode),
         ~ToString(TVersionedNodeId(trunkNode->GetId(), transaction->GetId())));
 
     return lock;
@@ -1191,7 +1191,7 @@ TCypressNodeBase* TCypressManager::BranchNode(
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %s, Mode: %s)",
         ~ToString(TVersionedNodeId(id, transaction->GetId())),
-        ~mode.ToString());
+        ~ToString(mode));
 
     return branchedNode_;
 }
@@ -1351,7 +1351,7 @@ void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
         ~ToString(nodeId),
-        ~TypeFromId(nodeId).ToString());
+        ~ToString(TypeFromId(nodeId)));
 }
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)

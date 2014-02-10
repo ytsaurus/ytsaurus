@@ -639,7 +639,7 @@ void TReplicationWriter::Open()
     LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s, SessionType: %s)",
         ~JoinToString(Targets),
         ~FormatBool(Config->EnableNodeCaching),
-        ~SessionType.ToString());
+        ~ToString(SessionType));
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     for (auto node : Nodes) {

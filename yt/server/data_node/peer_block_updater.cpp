@@ -78,7 +78,7 @@ void TPeerBlockUpdater::Update()
     for (const auto& pair : requests) {
         LOG_DEBUG("Sending peer block update request (Address: %s, ExpirationTime: %s)",
             ~pair.first,
-            ~expirationTime.ToString());
+            ~ToString(expirationTime));
         pair.second->Invoke();
     }
 }

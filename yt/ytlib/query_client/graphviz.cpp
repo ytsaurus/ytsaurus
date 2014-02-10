@@ -274,7 +274,7 @@ public:
         {
             AddHeader(expr);
             WithRow(
-                "Type: " + expr->GetType(sourceSchema).ToString() + "<BR/>" +
+                "Type: " + ToString(expr->GetType(sourceSchema)) + "<BR/>" +
                 "Name: " + NDot::EscapeHtml(expr->GetName()));
         }
 
@@ -285,7 +285,7 @@ public:
             Value_ += Sprintf(
                 "<TR><TD BGCOLOR=\"//%d\">%s</TD></TR>",
                 TGraphVizTraits<TNode>::UniqueId,
-                ~node->GetKind().ToString());
+                ~ToString(node->GetKind()));
         }
 
         void AddFooter()
@@ -329,7 +329,7 @@ public:
                 .WithRow(Stroka() +
                     "Split: {" +
                     "<BR/>Id: " + ToString(objectId) +
-                    "<BR/>Type: " + TypeFromId(objectId).ToString() +
+                    "<BR/>Type: " + ToString(TypeFromId(objectId)) +
                     "<BR/>Sorted: " + (IsSorted(op->DataSplit()) ? "true" : "false") +
                     "<BR/>}")
                 .Build());
@@ -380,7 +380,7 @@ public:
             label.WithPortAndRow(
                 ToString(i),
                 Sprintf("A_%d[%s]: ", j, item.Name.c_str()) +
-                    item.AggregateFunction.ToString() +
+                    ToString(item.AggregateFunction) +
                     "(" +
                     NDot::EscapeHtml(item.Expression->GetSource()) +
                     ")");
@@ -470,7 +470,7 @@ public:
         WriteNode(
             expr,
             TLabel(expr, CurrentSourceSchema_)
-                .WithRow("Opcode: " + expr->GetOpcode().ToString())
+                .WithRow("Opcode: " + ToString(expr->GetOpcode()))
                 .Build());
         WriteEdge(expr, expr->GetLhs());
         WriteEdge(expr, expr->GetRhs());

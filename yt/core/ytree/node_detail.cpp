@@ -48,7 +48,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
     bool ignoreOpaque = request->ignore_opaque();
 
     context->SetRequestInfo("AttributeFilterMode: %s, IgnoreOpaque: %s",
-        ~attributeFilter.Mode.ToString(),
+        ~ToString(attributeFilter.Mode),
         ~FormatBool(ignoreOpaque));
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);

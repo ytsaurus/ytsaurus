@@ -427,11 +427,11 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
         LOG_INFO("Type registered (Type: %s, SchemaObjectId: %s)",
-            ~type.ToString(),
+            ~ToString(type),
             ~ToString(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
     } else {
         LOG_INFO("Type registered (Type: %s)",
-            ~type.ToString());
+            ~ToString(type));
     }
 }
 
@@ -491,7 +491,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     ++CreatedObjectCount;
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %s, Id: %s)",
-        ~type.ToString(),
+        ~ToString(type),
         ~ToString(id));
 
     return id;
@@ -849,7 +849,7 @@ TObjectBase* TObjectManager::CreateObject(
     auto handler = FindHandler(type);
     if (!handler) {
         THROW_ERROR_EXCEPTION("Unknown object type %s",
-            ~type.ToString());
+            ~ToString(type));
     }
 
     auto options = handler->GetCreationOptions();
@@ -1044,7 +1044,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         ++DestroyedObjectCount;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
-            ~type.ToString(),
+            ~ToString(type),
             ~ToString(id));
     }
 

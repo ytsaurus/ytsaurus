@@ -256,7 +256,7 @@ void TPrepareController::MoveAggregateExpressions()
                             if (functionExpr->GetArgumentCount() != 1) {
                                 THROW_ERROR_EXCEPTION(
                                     "Aggregate function %s must have exactly one argument",
-                                    ~aggregateFunction.ToString())
+                                    ~ToString(aggregateFunction))
                                     << TErrorAttribute("source", functionExpr->GetSource());
                             }
 

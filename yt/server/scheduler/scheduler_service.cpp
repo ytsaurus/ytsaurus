@@ -64,7 +64,7 @@ private:
         }
 
         context->SetRequestInfo("Type: %s, TransactionId: %s, MutationId: %s",
-            ~type.ToString(),
+            ~ToString(type),
             ~ToString(transactionId),
             ~ToString(mutationId));
 

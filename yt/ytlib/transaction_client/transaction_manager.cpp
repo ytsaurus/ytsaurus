@@ -450,7 +450,7 @@ private:
 
         LOG_INFO("Starting transaction (StartTimestamp: %" PRIu64 ", Type: %s)",
             StartTimestamp_,
-            ~Type_.ToString());
+            ~ToString(Type_));
 
         switch (options.Type) {
             case ETransactionType::Master:

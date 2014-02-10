@@ -146,7 +146,7 @@ void TToken::CheckType(ETokenType expectedType) const
     if (Type_ != expectedType) {
         if (Type_ == ETokenType::EndOfStream) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %s)",
-                ~expectedType.ToString());
+                ~ToString(expectedType));
         } else {
             THROW_ERROR_EXCEPTION("Unexpected token (Token: %s, Type: %s, ExpectedType: %s)",
                 ~ToString(*this).Quote(),

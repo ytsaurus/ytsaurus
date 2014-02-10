@@ -136,11 +136,11 @@ protected:
             "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
             ~ToString(originatingNode->GetVersionedId()),
             ~ToString(originatingChunkListId),
-            ~originatingUpdateMode.ToString(),
+            ~ToString(originatingUpdateMode),
             originatingNode->GetReplicationFactor(),
             ~ToString(branchedNode->GetVersionedId()),
             ~ToString(branchedChunkListId),
-            ~branchedUpdateMode.ToString(),
+            ~ToString(branchedUpdateMode),
             branchedNode->GetReplicationFactor(),
             ~ToString(originatingNode->GetChunkList()->GetId()),
             ~FormatEnum(originatingNode->GetUpdateMode()));

@@ -67,7 +67,7 @@ private:
         if (key == "type") {
             auto type = TypeFromSchemaType(TypeFromId(GetId()));
             BuildYsonFluently(consumer)
-                .Value(Sprintf("schema:%s", ~CamelCaseToUnderscoreCase(type.ToString())));
+                .Value(Sprintf("schema:%s", ~CamelCaseToUnderscoreCase(ToString(type))));
             return true;
         }
 

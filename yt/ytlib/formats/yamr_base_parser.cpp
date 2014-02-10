@@ -95,7 +95,7 @@ Stroka TYamrDelimitedBaseParser::GetDebugInfo() const
     return Sprintf("Offset: %" PRId64 ", Record: %" PRId64 ", State: %s, Context: %s",
             Offset,
             Record,
-            ~State.ToString(),
+            ~ToString(State),
             ~context.Quote());
 }
 

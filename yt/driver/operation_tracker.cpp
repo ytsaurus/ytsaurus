@@ -137,10 +137,10 @@ void TOperationTracker::DumpProgress()
     if (!PrevProgress || *PrevProgress != progress) {
         if (state == EOperationState::Running) {
             printf("%s: %s\n",
-                ~state.ToString(),
+                ~ToString(state),
                 ~FormatProgress(progress));
         } else {
-            printf("%s\n", ~state.ToString());
+            printf("%s\n", ~ToString(state));
         }
         PrevProgress = progress;
     }
@@ -262,7 +262,7 @@ EExitCode TOperationTracker::DumpResult()
         for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
             if (totalJobCount[jobType] > 0) {
                 printf("%-16s %10d %10d %10d %10d\n",
-                    ~EJobType(jobType).ToString(),
+                    ~ToString(EJobType(jobType)),
                     totalJobCount[jobType],
                     completedJobCount[jobType],
                     failedJobCount[jobType],

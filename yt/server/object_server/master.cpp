@@ -85,7 +85,7 @@ private:
 
         context->SetRequestInfo("TransactionId: %s, Type: %s, Account: %s, ObjectCount: %d",
             ~ToString(transactionId),
-            ~type.ToString(),
+            ~ToString(type),
             request->has_account() ? ~request->account() : "<Null>",
             request->object_count());
 

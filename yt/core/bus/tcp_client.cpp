@@ -69,7 +69,7 @@ public:
         LOG_DEBUG("Connecting to %s (ConnectionId: %s, InterfaceType: %s)",
             ~Config->Address,
             ~ToString(Id),
-            ~interfaceType.ToString());
+            ~ToString(interfaceType));
 
         Connection = New<TTcpConnection>(
             Config,

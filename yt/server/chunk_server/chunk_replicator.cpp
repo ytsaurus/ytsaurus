@@ -1280,7 +1280,7 @@ void TChunkReplicator::RegisterJob(TJobPtr job)
 
     LOG_INFO("Job registered (JobId: %s, JobType: %s, Address: %s)",
         ~ToString(job->GetJobId()),
-        ~job->GetType().ToString(),
+        ~ToString(job->GetType()),
         ~job->GetNode()->GetAddress());
 }
 

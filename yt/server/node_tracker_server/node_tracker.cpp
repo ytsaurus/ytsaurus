@@ -336,7 +336,7 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
                 nodeId,
                 ~node->GetAddress(),
-                ~node->GetState().ToString(),
+                ~ToString(node->GetState()),
                 ~ToString(statistics));
 
             YCHECK(node->GetState() == ENodeState::Registered);
@@ -372,7 +372,7 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
                 nodeId,
                 ~node->GetAddress(),
-                ~node->GetState().ToString(),
+                ~ToString(node->GetState()),
                 ~ToString(statistics));
 
             YCHECK(node->GetState() == ENodeState::Online);
