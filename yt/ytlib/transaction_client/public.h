@@ -15,14 +15,11 @@ DECLARE_ENUM(ETransactionType,
     (Tablet) // accepted by tablets only
 );
 
-struct TTransaction;
-typedef TIntrusivePtr<TTransaction> TTransactionPtr;
 
-class TTransactionManager;
-typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TTransaction)
+DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
-class TTransactionManagerConfig;
-typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
