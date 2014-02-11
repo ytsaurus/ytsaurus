@@ -19,6 +19,8 @@ public:
         const TCellGuid& cellGuid,
         TLocalSnapshotStoreConfigPtr config);
 
+    ~TFileSnapshotStore();
+
     void Initialize();
 
     const TCellGuid& GetCellGuid() const;

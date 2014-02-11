@@ -529,6 +529,9 @@ TFileSnapshotStore::TFileSnapshotStore(
         config))
 { }
 
+TFileSnapshotStore::~TFileSnapshotStore()
+{ }
+
 void TFileSnapshotStore::Initialize()
 {
     Impl_->Initialize();
