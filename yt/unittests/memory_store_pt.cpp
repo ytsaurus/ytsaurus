@@ -15,11 +15,11 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStorePerfTest
+class TMemoryStorePerfTest
     : public TMemoryStoreTestBase
 {
 public:
-    TDynamicMemoryStorePerfTest()
+    TMemoryStorePerfTest()
     {
         auto config = New<TTabletManagerConfig>();
         DynamicStore = New<TDynamicMemoryStore>(
@@ -108,21 +108,21 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TDynamicMemoryStorePerfTest, DynamicWrite)
+TEST_F(TMemoryStorePerfTest, DynamicWrite)
 {
     RunDynamic(
         1000000,
         100);
 }
 
-TEST_F(TDynamicMemoryStorePerfTest, DynamicRead)
+TEST_F(TMemoryStorePerfTest, DynamicRead)
 {
     RunDynamic(
         1000000,
         0);
 }
 
-TEST_F(TDynamicMemoryStorePerfTest, DynamicReadWrite)
+TEST_F(TMemoryStorePerfTest, DynamicReadWrite)
 {
     RunDynamic(
         1000000,
