@@ -454,6 +454,9 @@ private:
 
         auto nodeDirectory = context->GetNodeDirectory();
 
+        auto keyColumns = FromProto<Stroka>(GetProtoExtension<TProtoKeyColumns>(split.chunk_meta().extensions()).names());
+        auto schema = FromProto<TTableSchema>(GetProtoExtension<TProtoTableSchema>(split.chunk_meta().extensions()));
+
         std::vector<TDataSplit> subsplits;
         for (auto it = lowerIt; it != tableInfo->Tablets.end(); ++it) {
             const auto& tabletInfo = *it;
@@ -468,8 +471,8 @@ private:
 
             TDataSplit subsplit;
             SetObjectId(&subsplit, tabletInfo->TabletId);   
-            SetKeyColumns(&subsplit, tableInfo->KeyColumns);
-            SetTableSchema(&subsplit, tableInfo->Schema);
+            SetKeyColumns(&subsplit, keyColumns);
+            SetTableSchema(&subsplit, schema);
             
             SetLowerBound(&subsplit, tabletInfo->PivotKey);
             auto jt = it + 1;
