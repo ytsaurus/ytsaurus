@@ -168,8 +168,8 @@ bool TSkipList<TKey, TComparer>::Insert(const TKey& key)
     bool result = true;
     Insert(
         key,
-        [&]() { return key; },
-        [&](const TKey& /*key*/) { result = false; });
+        [&] () { return key; },
+        [&] (const TKey& /*key*/) { result = false; });
     return result;
 }
 
