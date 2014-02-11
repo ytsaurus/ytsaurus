@@ -85,6 +85,8 @@ def export_table(object, args):
 
 
 def main():
+    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+
     parser = ArgumentParser()
     parser.add_argument("--tables-queue")
     parser.add_argument("--destination-dir")
