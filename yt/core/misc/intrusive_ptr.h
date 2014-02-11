@@ -294,12 +294,20 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
  *  are subsequently defined afterwards.
  */
 
+#ifdef __GNUC__
+    // Prevent GCC from throwing out our precious Ref/Unref functions in
+    // release builds.
+    #define REF_UNREF_DECLARATION_ATTRIBUTES __attribute__((used))
+#else
+    #define REF_UNREF_DECLARATION_ATTRIBUTES
+#endif
+
 #define DECLARE_REFCOUNTED_TYPE(kind, type) \
     kind type; \
     typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
     \
-    void Ref(type* obj); \
-    void Unref(type* obj);
+    void Ref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void Unref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 
 //! Forward-declares a class type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
