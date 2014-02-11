@@ -203,6 +203,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static auto PresetResult = MakeFuture(TError());
+
 template <class TBlockReader>
 TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     TChunkReaderConfigPtr config,
@@ -212,16 +214,16 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
-    : Config_(config)
-    , CachedChunkMeta_(chunkMeta)
-    , AsyncReader_(asyncReader)
+    : Config_(std::move(config))
+    , CachedChunkMeta_(std::move(chunkMeta))
+    , AsyncReader_(std::move(asyncReader))
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , Timestamp_(timestamp)
     , CurrentBlockIndex_(0)
     , CurrentRowIndex_(0)
     , RowCount_(0)
-    , NextBlockFuture_(MakeFuture(TError()))
+    , NextBlockFuture_(PresetResult)
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
@@ -232,9 +234,10 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
         SchemaIdMapping_ = CachedChunkMeta_->SchemaIdMapping();
     } else {
         SchemaIdMapping_.reserve(CachedChunkMeta_->SchemaIdMapping().size());
+        int keyColumnCount = static_cast<int>(CachedChunkMeta_->KeyColumns().size());
         for (auto index : columnFilter.Indexes) {
-            if (index >= CachedChunkMeta_->KeyColumns().size()) {
-                auto mappingIndex = index - CachedChunkMeta_->KeyColumns().size();
+            if (index >= keyColumnCount) {
+                auto mappingIndex = index - keyColumnCount;
                 SchemaIdMapping_.push_back(CachedChunkMeta_->SchemaIdMapping()[mappingIndex]);
             }
         }
