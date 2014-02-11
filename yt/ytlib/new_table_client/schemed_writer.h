@@ -31,6 +31,8 @@ struct ISchemedWriter
 
 };
 
+DEFINE_REFCOUNTED_TYPE(ISchemedWriter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

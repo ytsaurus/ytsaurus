@@ -32,6 +32,8 @@ struct IVersionedChunkWriter
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IVersionedChunkWriter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedChunkWriterProvider
@@ -74,6 +76,8 @@ private:
     yhash_set<IVersionedChunkWriterPtr> ActiveWriters_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TVersionedChunkWriterProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

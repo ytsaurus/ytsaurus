@@ -58,6 +58,12 @@ TValue MakeAnyValue(const TStringBuf& value, int id = 0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+int GetKeyComparerValueCount(const T&, int prefixLength)
+{
+    return prefixLength;
+}
+
 //! Provides a comparer functor for row-like entities
 //! trimmed to a given length.
 class TKeyComparer
@@ -70,13 +76,16 @@ public:
     template <class TLhs, class TRhs>
     int operator () (TLhs lhs, TRhs rhs) const
     {
-        for (int index = 0; index < PrefixLength_; ++index) {
+        int lhsLength = GetKeyComparerValueCount(lhs, PrefixLength_);
+        int rhsLength = GetKeyComparerValueCount(rhs, PrefixLength_);
+        int minLength = std::min(lhsLength, rhsLength);
+        for (int index = 0; index < minLength; ++index) {
             int result = CompareRowValues(lhs[index], rhs[index]);
             if (result != 0) {
                 return result;
             }
         }
-        return 0;
+        return lhsLength - rhsLength;
     }
 
 private:

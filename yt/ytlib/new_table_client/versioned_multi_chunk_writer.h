@@ -35,6 +35,8 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TVersionedMultiChunkWriter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

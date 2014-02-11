@@ -58,6 +58,8 @@ struct IVersionedReader
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IVersionedReader)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

@@ -36,6 +36,8 @@ struct ISchemedReader
 
 };
 
+DEFINE_REFCOUNTED_TYPE(ISchemedReader)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

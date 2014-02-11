@@ -90,29 +90,17 @@ typedef TIntrusivePtr<IReader> IReaderPtr;
 struct IWriter;
 typedef TIntrusivePtr<IWriter> IWriterPtr;
 
-struct ISchemedReader;
-typedef TIntrusivePtr<ISchemedReader> ISchemedReaderPtr;
+DECLARE_REFCOUNTED_STRUCT(ISchemedReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemedWriter)
 
-struct ISchemedWriter;
-typedef TIntrusivePtr<ISchemedWriter> ISchemedWriterPtr;
+DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
+DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
-struct IVersionedReader;
-typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
+DECLARE_REFCOUNTED_STRUCT(IVersionedChunkWriter)
+DECLARE_REFCOUNTED_CLASS(TVersionedChunkWriterProvider)
+DECLARE_REFCOUNTED_CLASS(TVersionedMultiChunkWriter)
 
-struct IVersionedWriter;
-typedef TIntrusivePtr<IVersionedWriter> IVersionedWriterPtr;
-
-struct IVersionedChunkWriter;
-typedef TIntrusivePtr<IVersionedChunkWriter> IVersionedChunkWriterPtr;
-
-class TVersionedChunkWriterProvider;
-typedef TIntrusivePtr<TVersionedChunkWriterProvider> TVersionedChunkWriterProviderPtr;
-
-struct IVersionedMultiChunkWriter;
-typedef TIntrusivePtr<IVersionedMultiChunkWriter> IVersionedMultiChunkWriterPtr;
-
-struct IVersionedReader;
-typedef TIntrusivePtr<IVersionedReader> IVersionedReaderPtr;
+DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;

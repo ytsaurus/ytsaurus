@@ -245,6 +245,12 @@ private:
 
 };
 
+// For TKeyComparer.
+inline int GetKeyComparerValueCount(TUnversionedRow row, int prefixLength)
+{
+    return std::min(row.GetCount(), prefixLength);
+}
+
 static_assert(
     sizeof(TUnversionedRow) == sizeof(intptr_t),
     "TUnversionedRow size must match that of a pointer.");
@@ -481,6 +487,12 @@ private:
     }
 
 };
+
+// For TKeyComparer.
+inline int GetKeyComparerValueCount(const TUnversionedOwningRow& row, int prefixLength)
+{
+    return std::min(row.GetCount(), prefixLength);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

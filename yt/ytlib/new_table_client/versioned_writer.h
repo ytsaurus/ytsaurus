@@ -19,11 +19,6 @@ namespace NVersionedTableClient {
 struct IVersionedWriter
     : public virtual NChunkClient::IWriterBase
 {
-    //! Initializes the writer. Must be called (and its result must be waited for)
-    //! before making any other calls.
-    // Inherited from IWriterBase.
-    // virtual TAsyncError Open() override = 0;
-
     //! Enqueues more rows into the writer.
     /*!
      *  Value ids must correspond to column indexes in schema.
@@ -35,19 +30,9 @@ struct IVersionedWriter
      */
     virtual bool Write(const std::vector<TVersionedRow>& rows) = 0;
 
-    //! Closes the writer.
-    /*!
-     *  Must be the last call to the writer.
-     */
-    // Inherited from IWriterBase.
-    // virtual TAsyncError Close() override = 0;
-
-    //! Returns an asynchronous flag enabling to wait until data is written.
-    //! \see #Read.
-    // Inherited from IWriterBase.
-    // virtual TAsyncError GetReadyEvent() override = 0;
-
 };
+
+DEFINE_REFCOUNTED_TYPE(IVersionedWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
