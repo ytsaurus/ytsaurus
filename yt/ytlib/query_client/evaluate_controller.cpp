@@ -140,10 +140,10 @@ void TEvaluateController::ScanRoutine(
     }
 
     while (true) {
-        bool hasMoreData = reader->Read(rows);
+        bool hasMoreRows = reader->Read(rows);
         bool shouldWait = rows->empty();
         std::tie(rows) = self.Yield();
-        if (!hasMoreData) {
+        if (!hasMoreRows) {
             break;
         }
         if (shouldWait) {
