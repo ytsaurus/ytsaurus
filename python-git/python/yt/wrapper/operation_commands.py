@@ -1,6 +1,6 @@
 import config
 from common import require, prefix, execute_handling_sigint, get_value
-from errors import YtError, YtOperationFailedError, format_error
+from errors import YtError, YtOperationFailedError, YtResponseError, format_error
 from driver import make_request
 from tree_commands import get_attribute, exists, search
 from file_commands import download_file
@@ -198,13 +198,21 @@ def get_jobs_errors(operation, limit=None):
         output.write(format_error(path.attributes["error"]))
         output.write("\n")
 
-        stderr_path = os.path.join(path, "stderr")
-        if exists(stderr_path):
-            output.write("Stderr:\n")
-            for line in download_file(stderr_path):
-                output.write(line)
+        try:
+            stderr_path = os.path.join(path, "stderr")
+            if exists(stderr_path):
+                output.write("Stderr:\n")
+                for line in download_file(stderr_path):
+                    output.write(line)
+                output.write("\n")
             output.write("\n")
-        output.write("\n")
+        except YtResponseError:
+            if config.IGNORE_STDERR_IF_DOWNLOAD_FAILED:
+                break
+            else:
+                raise
+
+
     return output.getvalue()
 
 def get_stderrs(operation, limit=None):

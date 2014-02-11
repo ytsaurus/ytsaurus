@@ -236,6 +236,8 @@ def import_table(object, args):
         return -1
 
 def main():
+    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+
     parser = ArgumentParser()
     parser.add_argument("--tables-queue", help="YT path to list with tables")
     parser.add_argument("--destination-dir")

@@ -16,6 +16,7 @@ import traceback
 
 from argparse import ArgumentParser
 
+
 def export_table(object, args):
     object = copy.deepcopy(object)
     if isinstance(object, dict):
@@ -38,9 +39,9 @@ def export_table(object, args):
     if params.yt_proxy is None:
         logger.error("You should specify yt proxy")
         return -1
-    
+
     old_proxy = yt.config.http.PROXY
-    try: 
+    try:
         yt.config.set_proxy(params.yt_proxy)
         if yt.exists(dst) and yt.records_count(dst) != 0:
             if params.force:
@@ -51,26 +52,29 @@ def export_table(object, args):
         yt.create_table(dst, recursive=True, ignore_existing=True)
     finally:
         yt.config.set_proxy(old_proxy)
-    
-    record_count = yt.records_count(src)
 
-    is_sorted = yt.is_sorted(src)
-    if is_sorted:
-        sorted_by = get_sorted_by(src)
+    with yt.Transaction():
+        yt.lock(src, mode="snapshot")
 
-    hosts = "hosts/fb" if params.fastbone else "hosts"
+        record_count = yt.records_count(src)
 
-    command = "YT_TOKEN={} YT_HOSTS={} yt2 write --proxy {} --format '<format=binary>yson' '<append=true>{}'"\
-            .format(params.yt_token, hosts, params.yt_proxy, dst)
-    
-    logger.info("Running map '%s'", command)
-    yt.run_map(command, src, yt.create_temp_table(),
-               format=yt.YsonFormat(format="binary"),
-               memory_limit=3500 * yt.config.MB,
-               spec={"pool": params.yt_pool,
-                     "data_size_per_job": 2 * 1024 * yt.config.MB})
+        is_sorted = yt.is_sorted(src)
+        if is_sorted:
+            sorted_by = get_sorted_by(src)
 
-    try: 
+        hosts = "hosts/fb" if params.fastbone else "hosts"
+
+        command = "YT_TOKEN={} YT_HOSTS={} yt2 write --proxy {} --format '<format=binary>yson' '<append=true>{}'"\
+                .format(params.yt_token, hosts, params.yt_proxy, dst)
+
+        logger.info("Running map '%s'", command)
+        yt.run_map(command, src, yt.create_temp_table(),
+                   format=yt.YsonFormat(format="binary"),
+                   memory_limit=3500 * yt.config.MB,
+                   spec={"pool": params.yt_pool,
+                         "data_size_per_job": 2 * 1024 * yt.config.MB})
+
+    try:
         yt.config.set_proxy(params.yt_proxy)
         result_record_count = yt.records_count(dst)
         if record_count != result_record_count:
@@ -84,10 +88,12 @@ def export_table(object, args):
 
     finally:
         yt.config.set_proxy(old_proxy)
-    
+
 
 
 def main():
+    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+
     parser = ArgumentParser()
     parser.add_argument("--tables-queue")
     parser.add_argument("--destination-dir")
