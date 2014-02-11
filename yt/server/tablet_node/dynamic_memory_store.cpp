@@ -262,7 +262,9 @@ private:
             }
         } else {
             for (int index : ColumnFilter_.Indexes) {
-                fillValue(index - KeyCount_);
+                if (index >= KeyCount_) {
+                    fillValue(index - KeyCount_);
+                }
             }
         }
 
