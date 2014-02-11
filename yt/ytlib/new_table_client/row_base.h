@@ -74,7 +74,7 @@ public:
     { }
 
     template <class TLhs, class TRhs>
-    int operator () (TLhs lhs, TRhs rhs) const
+    int operator () (const TLhs& lhs, const TRhs& rhs) const
     {
         int lhsLength = GetKeyComparerValueCount(lhs, PrefixLength_);
         int rhsLength = GetKeyComparerValueCount(rhs, PrefixLength_);
