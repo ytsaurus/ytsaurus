@@ -19,6 +19,7 @@ set( SRCS
   ${BASE}/store_flusher.cpp
 #  ${BASE}/compaction.cpp
   ${BASE}/dynamic_memory_store_bits.cpp
+  ${BASE}/query_executor.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -42,6 +43,7 @@ set( HDRS
   ${BASE}/store_manager.h
   ${BASE}/store_flusher.h
 #  ${BASE}/compaction.h
+  ${BASE}/query_executor.h
 )
 
 list(APPEND YT_SOURCE_FILES

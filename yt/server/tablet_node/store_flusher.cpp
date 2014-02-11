@@ -232,8 +232,8 @@ private:
             LOG_INFO("Writing flushed chunk");
         
             auto reader = store->CreateReader(
-                MinKey().Get(),
-                MaxKey().Get(),
+                MinKey(),
+                MaxKey(),
                 AllCommittedTimestamp,
                 TColumnFilter());
         

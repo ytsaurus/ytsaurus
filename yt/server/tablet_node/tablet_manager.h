@@ -35,7 +35,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TTabletManager();
 
-    void Initialize();
+    void Start();
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
     void ValidateTabletMounted(TTablet* tablet);
@@ -66,6 +66,8 @@ private:
     TIntrusivePtr<TImpl> Impl_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TTabletManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

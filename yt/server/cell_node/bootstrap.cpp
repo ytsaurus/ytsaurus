@@ -82,7 +82,7 @@
 #include <server/tablet_node/tablet_cell_controller.h>
 #include <server/tablet_node/store_flusher.h>
 
-#include <server/query_agent/query_manager.h>
+#include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
 
 namespace NYT {
@@ -160,6 +160,10 @@ void TBootstrap::Run()
         MasterChannel);
 
     ControlQueue = New<TActionQueue>("Control");
+
+    QueryWorkerPool = New<TThreadPool>(
+        Config->QueryAgent->ThreadPoolSize,
+        "Query");
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
@@ -301,11 +305,14 @@ void TBootstrap::Run()
 
     TabletCellController = New<TTabletCellController>(Config, this);
 
-    QueryManager = New<TQueryManager>(Config->QueryAgent, this);
+    auto queryExecutor = CreateQueryExecutor(this);
 
     StoreFlusher = New<TStoreFlusher>(Config->TabletNode->StoreFlusher, this);
 
-    RpcServer->RegisterService(CreateQueryService(this));
+    RpcServer->RegisterService(CreateQueryService(
+        CellGuid,
+        GetControlInvoker(),
+        queryExecutor));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
@@ -374,6 +381,11 @@ TCellNodeConfigPtr TBootstrap::GetConfig() const
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return ControlQueue->GetInvoker();
+}
+
+IInvokerPtr TBootstrap::GetQueryWorkerInvoker() const
+{
+    return QueryWorkerPool->GetInvoker();
 }
 
 IChannelPtr TBootstrap::GetMasterChannel() const
@@ -484,11 +496,6 @@ ITimestampProviderPtr TBootstrap::GetTimestampProvider() const
 NTransactionClient::TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
     return TransactionManager;
-}
-
-TQueryManagerPtr TBootstrap::GetQueryManager() const
-{
-    return QueryManager;
 }
 
 TStoreFlusherPtr TBootstrap::GetStoreFlusher() const

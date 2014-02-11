@@ -214,8 +214,8 @@ protected:
     {
         auto keySuccessor = GetKeySuccessor(key.Get());
         auto reader = store->CreateReader(
-            key.Get(),
-            keySuccessor.Get(),
+            key,
+            keySuccessor,
             timestamp,
             TColumnFilter());
 

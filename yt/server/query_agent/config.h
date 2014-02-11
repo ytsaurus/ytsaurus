@@ -13,11 +13,12 @@ class TQueryAgentConfig
     : public TYsonSerializable
 {
 public:
-    int PoolSize;
+    int ThreadPoolSize;
 
     TQueryAgentConfig()
     {
-        RegisterParameter("pool_size", PoolSize)
+        RegisterParameter("thread_pool_size", ThreadPoolSize)
+            .GreaterThan(0)
             .Default(4);
     }
 };

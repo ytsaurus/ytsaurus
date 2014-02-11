@@ -1,6 +1,8 @@
 #include "query_service.h"
 #include "private.h"
 
+#include <core/concurrency/fiber.h>
+
 #include <core/compression/public.h>
 
 #include <core/rpc/service_detail.h>
@@ -13,11 +15,10 @@
 #include <ytlib/new_table_client/schemed_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/query_service_proxy.h>
 
-#include <server/cell_node/bootstrap.h>
-
-#include <server/query_agent/query_manager.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -32,17 +33,20 @@ using namespace NVersionedTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryService
-    : public NRpc::TServiceBase
+    : public TServiceBase
 {
 public:
-    explicit TQueryService(NCellNode::TBootstrap* bootstrap)
+    explicit TQueryService(
+        const TRealmId& realmId,
+        IInvokerPtr invoker,
+        IExecutorPtr executor)
         : TServiceBase(
-            CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
-            TQueryServiceProxy::GetServiceName(),
+            CreatePrioritizedInvoker(invoker),
+            TServiceId(TQueryServiceProxy::GetServiceName(), realmId),
             QueryAgentLogger.GetCategory())
-        , Bootstrap(bootstrap)
+        , Executor_(executor)
     {
-        YCHECK(bootstrap);
+        YCHECK(Executor_);
 
         ChunkWriterConfig_ = New<TChunkWriterConfig>();
 
@@ -57,7 +61,7 @@ private:
     NVersionedTableClient::TChunkWriterConfigPtr ChunkWriterConfig_;
     NChunkClient::TEncodingWriterOptionsPtr EncodingWriterOptions_;
 
-    NCellNode::TBootstrap* Bootstrap;
+    IExecutorPtr Executor_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
@@ -71,25 +75,25 @@ private:
             EncodingWriterOptions_,
             memoryWriter);
 
-        Bootstrap
-            ->GetQueryManager()
-            ->Execute(planFragment, chunkWriter)
-            .Apply(BIND([=] (TError error) {
-                if (error.IsOK()) {
-                    response->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());
-                    response->Attachments() = std::move(memoryWriter->GetBlocks());
-                    context->Reply();
-                } else {
-                    context->Reply(error);
-                }
-            }));
+        auto result = WaitFor(Executor_->Execute(planFragment, chunkWriter));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+        response->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());
+        response->Attachments() = std::move(memoryWriter->GetBlocks());
+        context->Reply();
     }
 
 };
 
-IServicePtr CreateQueryService(NCellNode::TBootstrap* bootstrap)
+IServicePtr CreateQueryService(
+    const TRealmId& realmId,
+    IInvokerPtr invoker,
+    IExecutorPtr executor)
 {
-    return New<TQueryService>(bootstrap);
+    return New<TQueryService>(
+        realmId,
+        invoker,
+        executor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

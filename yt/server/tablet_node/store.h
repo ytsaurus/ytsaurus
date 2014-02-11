@@ -30,14 +30,16 @@ struct IStore
     *  filtered by |columnFilter|.
     */
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        NVersionedTableClient::TKey lowerKey,
-        NVersionedTableClient::TKey upperKey,
+        NVersionedTableClient::TOwningKey lowerKey,
+        NVersionedTableClient::TOwningKey upperKey,
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) = 0;
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(IStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -18,7 +18,7 @@
 
 #include <ytlib/hive/public.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/public.h>
 
 #include <server/data_node/public.h>
 
@@ -33,8 +33,6 @@
 #include <server/tablet_node/public.h>
 
 #include <server/hive/public.h>
-
-#include <server/query_agent/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -51,6 +49,7 @@ public:
 
     TCellNodeConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
+    IInvokerPtr GetQueryWorkerInvoker() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
     NRpc::IServerPtr GetRpcServer() const;
@@ -73,7 +72,6 @@ public:
     NHive::TCellDirectoryPtr GetCellDirectory() const;
     NHive::ITimestampProviderPtr GetTimestampProvider() const;
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
-    NQueryAgent::TQueryManagerPtr GetQueryManager() const;
     NTabletNode::TStoreFlusherPtr GetStoreFlusher() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
@@ -96,6 +94,7 @@ private:
     TCellNodeConfigPtr Config;
 
     NConcurrency::TActionQueuePtr ControlQueue;
+    NConcurrency::TThreadPoolPtr QueryWorkerPool;
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;
@@ -120,7 +119,6 @@ private:
     NHive::TCellDirectoryPtr CellDirectory;
     NHive::ITimestampProviderPtr TimestampProvider;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
-    NQueryAgent::TQueryManagerPtr QueryManager;
     NTabletNode::TStoreFlusherPtr StoreFlusher;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;

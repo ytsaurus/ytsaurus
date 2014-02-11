@@ -70,8 +70,8 @@ void TChunkStore::SetState(EStoreState state)
 }
 
 IVersionedReaderPtr TChunkStore::CreateReader(
-    TKey lowerKey,
-    TKey upperKey,
+    TOwningKey lowerKey,
+    TOwningKey upperKey,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
@@ -98,10 +98,10 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     }
 
     TReadLimit lowerLimit;
-    lowerLimit.SetKey(TOwningKey(lowerKey));
+    lowerLimit.SetKey(std::move(lowerKey));
 
     TReadLimit upperLimit;
-    upperLimit.SetKey(TOwningKey(upperKey));
+    upperLimit.SetKey(std::move(upperKey));
 
     return CreateVersionedChunkReader(
         Config_->ChunkReader,

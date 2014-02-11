@@ -125,13 +125,13 @@ class TDynamicMemoryStore::TReader
 public:
     TReader(
         TDynamicMemoryStorePtr store,
-        NVersionedTableClient::TKey lowerKey,
-        NVersionedTableClient::TKey upperKey,
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
         : Store_(store)
-        , LowerKey_(lowerKey)
-        , UpperKey_(upperKey)
+        , LowerKey_(std::move(lowerKey))
+        , UpperKey_(std::move(upperKey))
         , Timestamp_(timestamp)
         , ColumnFilter_(columnFilter)
         , KeyCount_(Store_->Tablet_->GetKeyColumnCount())
@@ -190,8 +190,8 @@ public:
 
 private:
     TDynamicMemoryStorePtr Store_;
-    NVersionedTableClient::TKey LowerKey_;
-    NVersionedTableClient::TKey UpperKey_;
+    TOwningKey LowerKey_;
+    TOwningKey UpperKey_;
     TTimestamp Timestamp_;
     TColumnFilter ColumnFilter_;
 
@@ -856,15 +856,15 @@ void TDynamicMemoryStore::SetState(EStoreState state)
 }
 
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
-    NVersionedTableClient::TKey lowerKey,
-    NVersionedTableClient::TKey upperKey,
+    TOwningKey lowerKey,
+    TOwningKey upperKey,
     TTimestamp timestamp,
     const NApi::TColumnFilter& columnFilter)
 {
     return New<TReader>(
         this,
-        lowerKey,
-        upperKey,
+        std::move(lowerKey),
+        std::move(upperKey),
         timestamp,
         columnFilter);
 }

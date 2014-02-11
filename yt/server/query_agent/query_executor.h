@@ -1,19 +1,20 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include "public.h"
+
+#include <ytlib/query_client/public.h>
+
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryExecutor;
-typedef TIntrusivePtr<TQueryExecutor> TQueryManagerPtr;
-
-class TQueryAgentConfig;
-typedef TIntrusivePtr<TQueryAgentConfig> TQueryAgentConfigPtr;
+NQueryClient::IExecutorPtr CreateQueryExecutor(NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryAgent
 } // namespace NYT
+

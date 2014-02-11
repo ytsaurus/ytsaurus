@@ -38,8 +38,8 @@ public:
     virtual void SetState(EStoreState state) override;
 
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        NVersionedTableClient::TKey lowerKey,
-        NVersionedTableClient::TKey upperKey,
+        NVersionedTableClient::TOwningKey lowerKey,
+        NVersionedTableClient::TOwningKey upperKey,
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
 
@@ -59,6 +59,8 @@ private:
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

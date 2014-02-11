@@ -2,9 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/tablet_client/tablet_service.pb.h>
-
-#include <server/hydra/hydra_service.h>
+#include <core/rpc/public.h>
 
 #include <server/cell_node/public.h>
 
@@ -13,26 +11,9 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletService
-    : public NHydra::THydraServiceBase
-{
-public:
-    TTabletService(
-        TTabletSlot* slot,
-        NCellNode::TBootstrap* bootstrap);
-
-    void Start();
-    void Stop();
-
-private:
-    TTabletSlot* Slot_;
-    NCellNode::TBootstrap* Bootstrap_;
-
-    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, StartTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read);
-    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write);
-
-};
+NRpc::IServicePtr CreateTabletService(
+    TTabletSlot* slot,
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

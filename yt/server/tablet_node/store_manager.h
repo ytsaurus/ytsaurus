@@ -49,8 +49,8 @@ public:
      *  is used.
      */
     NVersionedTableClient::ISchemedReaderPtr CreateReader(
-        NVersionedTableClient::TKey lowerBound,
-        NVersionedTableClient::TKey upperBound,
+        NVersionedTableClient::TOwningKey lowerBound,
+        NVersionedTableClient::TOwningKey upperBound,
         TTimestamp timestamp);
     
     void WriteRow(
@@ -104,6 +104,8 @@ private:
     void CheckForUnlockedStore(const TDynamicMemoryStorePtr& store);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

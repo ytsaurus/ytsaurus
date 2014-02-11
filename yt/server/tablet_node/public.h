@@ -59,56 +59,30 @@ DECLARE_ENUM(EStoreState,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-    
-class TTransactionManagerConfig;
-typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 
-class TTabletManagerConfig;
-typedef TIntrusivePtr<TTabletManagerConfig> TTabletManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TStoreFlusherConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 
-class TStoreFlusherConfig;
-typedef TIntrusivePtr<TStoreFlusherConfig> TStoreFlusherConfigPtr;
-
-class TTabletNodeConfig;
-typedef TIntrusivePtr<TTabletNodeConfig> TTabletNodeConfigPtr;
-
-class TTabletCellController;
-typedef TIntrusivePtr<TTabletCellController> TTabletCellControllerPtr;
-
-class TTabletSlot;
-typedef TIntrusivePtr<TTabletSlot> TTabletSlotPtr;
-
-class TTabletAutomaton;
-typedef TIntrusivePtr<TTabletAutomaton> TTabletAutomatonPtr;
+DECLARE_REFCOUNTED_CLASS(TTabletCellController)
+DECLARE_REFCOUNTED_CLASS(TTabletSlot)
+DECLARE_REFCOUNTED_CLASS(TTabletAutomaton)
 
 class TSaveContext;
 class TLoadContext;
 
-class TTabletManager;
-typedef TIntrusivePtr<TTabletManager> TTabletManagerPtr;
-
-class TTransactionManager;
-typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
-
-class TTabletService;
-typedef TIntrusivePtr<TTabletService> TTabletServicePtr;
+DECLARE_REFCOUNTED_CLASS(TTabletManager)
+DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
 class TTablet;
 class TTransaction;
 
-struct IStore;
-typedef TIntrusivePtr<IStore> IStorePtr;
+DECLARE_REFCOUNTED_STRUCT(IStore)
 
-class TDynamicMemoryStore;
-typedef TIntrusivePtr<TDynamicMemoryStore> TDynamicMemoryStorePtr;
-
-//class TStaticMemoryStoreBuilder;
-
-//class TStaticMemoryStore;
-//typedef TIntrusivePtr<TStaticMemoryStore> TStaticMemoryStorePtr;
-
-class TStoreManager;
-typedef TIntrusivePtr<TStoreManager> TStoreManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TDynamicMemoryStore)
+DECLARE_REFCOUNTED_CLASS(TChunkStore)
+DECLARE_REFCOUNTED_CLASS(TStoreManager)
 
 struct TDynamicRowHeader;
 class TDynamicRow;
@@ -120,16 +94,7 @@ class TEditList;
 typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
 typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
-//struct TStaticRowHeader;
-//class TStaticRow;
-
-//class TMemoryCompactor;
-
-class TChunkStore;
-typedef TIntrusivePtr<TChunkStore> TChunkStorePtr;
-
-class TStoreFlusher;
-typedef TIntrusivePtr<TStoreFlusher> TStoreFlusherPtr;
+DECLARE_REFCOUNTED_CLASS(TStoreFlusher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

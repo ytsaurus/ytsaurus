@@ -2,23 +2,20 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
-
 #include <ytlib/query_client/public.h>
 
-#include <server/cell_node/public.h>
-
 namespace NYT {
-namespace NQueryAgent {
+namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateQueryService(
-    const NRpc::TRealmId& realmId,
-    IInvokerPtr invoker,
-    NQueryClient::IExecutorPtr executor);
+NQueryClient::IExecutorPtr CreateQueryExecutor(
+    IInvokerPtr automatonInvoker,
+    IInvokerPtr workerInvoker,
+    TTabletManagerPtr tabletManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
+} // namespace NTabletNode
 } // namespace NYT
+

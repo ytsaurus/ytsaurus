@@ -880,7 +880,7 @@ TTabletManager::TTabletManager(
 TTabletManager::~TTabletManager()
 { }
 
-void TTabletManager::Initialize()
+void TTabletManager::Start()
 {
     Impl_->Initialize();
 }
