@@ -361,20 +361,14 @@ private:
 
     bool TryRefillSession(TSession* session)
     {
-        if (!session->Reader->Read(&session->Rows)) {
-            // EOF reached by the reader.
-            return true;
+        bool hasMoreRows = session->Reader->Read(&session->Rows);
+        if (session->Rows.empty()) {
+            return !hasMoreRows;
         }
-
-        if (!session->Rows.empty()) {
-            // More rows were read.
-            session->CurrentRow = session->Rows.begin();
-            *SessionHeapEnd_++ = session;
-            AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
-            return true;
-        }
-
-        return false;
+        session->CurrentRow = session->Rows.begin();
+        *SessionHeapEnd_++ = session;
+        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
+        return true;
     }
 
     void RefillSessions()
