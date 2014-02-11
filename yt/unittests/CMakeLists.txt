@@ -69,7 +69,7 @@ set( SRCS
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
-  ${BASE}/rcu_tree_ut.cpp
+  ${BASE}/skip_list_ut.cpp
   ${BASE}/query_client_ut.cpp
   ${BASE}/row_ut.cpp
   ${BASE}/memory_store_ut.h

@@ -4,7 +4,7 @@
 #include "store.h"
 #include "dynamic_memory_store_bits.h"
 
-#include <core/misc/rcu_tree.h>
+#include <core/misc/public.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -96,7 +96,7 @@ private:
     TChunkedMemoryPool UnalignedPool_;
 
     std::unique_ptr<NVersionedTableClient::TKeyComparer> Comparer_;
-    std::unique_ptr<TRcuTree<TDynamicRow, NVersionedTableClient::TKeyComparer>> Tree_;
+    std::unique_ptr<TSkipList<TDynamicRow, NVersionedTableClient::TKeyComparer>> Rows_;
 
 
     TDynamicRow AllocateRow();

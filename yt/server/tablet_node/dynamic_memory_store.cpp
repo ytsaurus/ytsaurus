@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <core/misc/small_vector.h>
+#include <core/misc/skip_list.h>
 
 #include <core/concurrency/fiber.h>
 
@@ -43,6 +44,7 @@ static auto& Logger = TabletNodeLogger;
 static const int InitialEditListCapacity = 2;
 static const int EditListCapacityMultiplier = 2;
 static const int MaxEditListCapacity = 256;
+static const int ReaderPoolSize = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,8 +138,7 @@ public:
         , ColumnFilter_(columnFilter)
         , KeyCount_(Store_->Tablet_->GetKeyColumnCount())
         , SchemaColumnCount_(Store_->Tablet_->GetSchemaColumnCount())
-        , TreeScanner_(Store_->Tree_.get())
-        , Pool_(1024)
+        , Pool_(ReaderPoolSize)
         , Finished_(false)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
@@ -145,7 +146,7 @@ public:
 
     virtual TAsyncError Open() override
     {
-        TreeScanner_->BeginScan(LowerKey_);
+        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(LowerKey_);
         static auto result = MakeFuture(TError());
         return result;
     }
@@ -162,8 +163,8 @@ public:
 
         TKeyComparer keyComparer(KeyCount_);
 
-        while (TreeScanner_->IsValid() && rows->size() < rows->capacity()) {
-            const auto* rowKeys = TreeScanner_->GetCurrent().GetKeys();
+        while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
+            const auto* rowKeys = Iterator_.GetCurrent().GetKeys();
             if (CompareRows(rowKeys, rowKeys + KeyCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
                 break;
 
@@ -172,7 +173,7 @@ public:
                 rows->push_back(row);
             }
 
-            TreeScanner_->Advance();
+            Iterator_.MoveNext();
         }
 
         if (rows->empty()) {
@@ -198,7 +199,7 @@ private:
     int KeyCount_;
     int SchemaColumnCount_;
 
-    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> TreeScanner_;
+    TSkipList<TDynamicRow, TKeyComparer>::TIterator Iterator_;
 
     TChunkedMemoryPool Pool_;
     
@@ -206,7 +207,7 @@ private:
 
     TVersionedRow ProduceRow()
     {
-        auto dynamicRow = TreeScanner_->GetCurrent();
+        auto dynamicRow = Iterator_.GetCurrent();
         return
             Timestamp_ == AllCommittedTimestamp
             ? ProduceAllRowVersions(dynamicRow)
@@ -359,7 +360,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , Comparer_(new TKeyComparer(KeyColumnCount_))
-    , Tree_(new TRcuTree<TDynamicRow, TKeyComparer>(&AlignedPool_, Comparer_.get()))
+    , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(&AlignedPool_, Comparer_.get()))
 {
     LOG_DEBUG("Dynamic memory store created (TabletId: %s, StoreId: %s)",
         ~ToString(Tablet_->GetId()),
@@ -495,7 +496,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         writeValues(dynamicRow);
     };
 
-    Tree_->Insert(
+    Rows_->Insert(
         row,
         newKeyProvider,
         existingKeyConsumer);
@@ -565,7 +566,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
         writeTombstone(dynamicRow);
     };
 
-    Tree_->Insert(
+    Rows_->Insert(
         key,
         newKeyProvider,
         existingKeyConsumer);
@@ -636,7 +637,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         YUNREACHABLE();
     };
 
-    migrateTo->Tree_->Insert(
+    migrateTo->Rows_->Insert(
         row,
         newKeyProvider,
         existingKeyConsumer);
@@ -650,11 +651,12 @@ TDynamicRow TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(
     ERowLockMode mode,
     const TDynamicMemoryStorePtr& migrateTo)
 {
-    TDynamicRow row;
-    TRcuTreeScannerPtr<TDynamicRow, TKeyComparer> scanner(Tree_.get());
-    if (!scanner->Find(key, &row)) {
+    auto it = Rows_->FindEqualTo(key);
+    if (!it.IsValid()) {
         return TDynamicRow();
     }
+
+    auto row = it.GetCurrent();
 
     CheckRowLock(row, transaction, mode);
 
@@ -872,7 +874,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
 void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("key_count").Value(Tree_->Size())
+        .Item("key_count").Value(Rows_->Size())
         .Item("lock_count").Value(GetLockCount())
         .Item("allocated_string_space").Value(GetAllocatedStringSpace())
         .Item("allocated_value_count").Value(GetAllocatedValueCount());

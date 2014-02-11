@@ -108,8 +108,8 @@ set( HDRS
   ${BASE}/sync.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
-  ${BASE}/rcu_tree.h
-  ${BASE}/rcu_tree-inl.h
+  ${BASE}/skip_list.h
+  ${BASE}/skip_list-inl.h
   ${BASE}/varint.h
   ${BASE}/zigzag.h
   ${BASE}/collection_helpers.h

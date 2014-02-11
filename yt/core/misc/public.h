@@ -11,6 +11,9 @@ class TStreamLoadContext;
 
 class TChunkedMemoryPool;
 
+template <class TKey, class TComparer>
+class TSkipList;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
