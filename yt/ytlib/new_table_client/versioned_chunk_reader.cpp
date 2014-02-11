@@ -233,7 +233,10 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     } else {
         SchemaIdMapping_.reserve(CachedChunkMeta_->SchemaIdMapping().size());
         for (auto index : columnFilter.Indexes) {
-            SchemaIdMapping_.push_back(CachedChunkMeta_->SchemaIdMapping()[index]);
+            if (index >= CachedChunkMeta_->KeyColumns().size()) {
+                auto mappingIndex = index - CachedChunkMeta_->KeyColumns().size();
+                SchemaIdMapping_.push_back(CachedChunkMeta_->SchemaIdMapping()[mappingIndex]);
+            }
         }
     }
 }
