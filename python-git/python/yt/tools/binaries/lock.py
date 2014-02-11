@@ -43,6 +43,8 @@ def main():
 
             time.sleep(args.step)
 
+        sys.exit(proc.returncode)
+
 if __name__ == "__main__":
     main()
 
