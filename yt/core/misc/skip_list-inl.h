@@ -111,10 +111,16 @@ TSkipList<TKey, TComparer>::TSkipList(
     , Height_(1)
 { }
 
+#if defined(__GNUC_MINOR__) && __GNUC_MINOR__ == 7
+  template<typename T> using is_trivially_destructible = std::has_trivial_destructor<T>;
+#else
+  template<typename T> using is_trivially_destructible = std::is_trivially_destructible<T>;
+#endif
+
 template <class TKey, class TComparer>
 TSkipList<TKey, TComparer>::~TSkipList()
 {
-    if (!std::has_trivial_destructor<TKey>::value) {
+    if (!is_trivially_destructible<TKey>::value) {
         auto* current = Head_;
         while (current) {
             auto* next = current->GetNext(0);
