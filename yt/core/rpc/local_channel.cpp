@@ -4,6 +4,7 @@
 #include "server.h"
 #include "client.h"
 #include "service.h"
+#include "message.h"
 
 #include <core/concurrency/delayed_executor.h>
 
@@ -99,8 +100,14 @@ private:
 
         virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
         {
+            NProto::TResponseHeader header;
+            YCHECK(ParseResponseHeader(message, &header));
             if (AcquireLock()) {
-                Handler_->OnResponse(std::move(message));
+                if (header.has_error()) {
+                    Handler_->OnError(FromProto(header.error()));
+                } else {
+                    Handler_->OnResponse(std::move(message));
+                }
             }
             return MakeFuture(TError());
         }
