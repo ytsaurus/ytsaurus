@@ -361,8 +361,9 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , AllocatedValueCount_(0)
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
-    , Comparer_(new TKeyComparer(KeyColumnCount_))
-    , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(&AlignedPool_, Comparer_.get()))
+    , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(
+        &AlignedPool_,
+        TKeyComparer(KeyColumnCount_)))
 {
     LOG_DEBUG("Dynamic memory store created (TabletId: %s, StoreId: %s)",
         ~ToString(Tablet_->GetId()),

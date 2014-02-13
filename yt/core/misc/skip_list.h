@@ -22,7 +22,7 @@ private:
 public:
     TSkipList(
         TChunkedMemoryPool* pool,
-        const TComparer* comparer);
+        const TComparer& comparer);
 
     ~TSkipList();
 
@@ -103,7 +103,7 @@ private:
     };
 
     TChunkedMemoryPool* const Pool_;
-    const TComparer* const Comparer_;
+    const TComparer Comparer_;
     TNode* const Head_;
 
     TAtomic Size_;

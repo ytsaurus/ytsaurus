@@ -95,7 +95,6 @@ private:
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
 
-    std::unique_ptr<NVersionedTableClient::TKeyComparer> Comparer_;
     std::unique_ptr<TSkipList<TDynamicRow, NVersionedTableClient::TKeyComparer>> Rows_;
 
 
