@@ -19,6 +19,8 @@
 #include <ytlib/yson/lexer.h>
 #include <ytlib/yson/varint.h>
 
+#include <ytlib/misc/ref_counted_tracker.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -180,6 +182,10 @@ public:
 
             i64 totalRowCount = rowIndexHeap.size();
             LOG_INFO("Total row count: %" PRId64, totalRowCount);
+
+            LOG_DEBUG(
+                "RefCountedTracker: %s",
+                ~TRefCountedTracker::Get()->GetDebugInfo(2));
 
             if (!schedulerJobSpecExt.is_approximate()) {
                 YCHECK(totalRowCount == estimatedRowCount);
