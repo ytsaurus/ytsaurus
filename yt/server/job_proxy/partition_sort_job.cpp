@@ -5,6 +5,11 @@
 #include "partition_sort_job.h"
 #include "small_key.h"
 
+#include <core/misc/ref_counted_tracker.h>
+
+#include <core/yson/lexer.h>
+#include <core/yson/varint.h>
+
 #include <ytlib/table_client/value.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
@@ -15,11 +20,6 @@
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/table_client/sync_writer.h>
-
-#include <core/yson/lexer.h>
-#include <core/yson/varint.h>
-
-#include <ytlib/misc/ref_counted_tracker.h>
 
 namespace NYT {
 namespace NJobProxy {

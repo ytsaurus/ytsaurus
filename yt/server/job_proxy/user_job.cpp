@@ -20,7 +20,6 @@
 #include <core/actions/invoker_util.h>
 
 #include <core/misc/proc.h>
-#include <core/misc/ioprio.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/pattern_formatter.h>
 
@@ -40,7 +39,7 @@
 #include <errno.h>
 
 #ifdef _linux_
-    #include <ytlib/misc/ioprio.h>
+    #include <core/misc/ioprio.h>
 
     #include <unistd.h>
     #include <signal.h>
