@@ -19,7 +19,7 @@
 #include <core/yson/lexer.h>
 #include <core/yson/varint.h>
 
-#include <ytlib/misc/ref_counted_tracker.h>
+#include <core/misc/ref_counted_tracker.h>
 
 namespace NYT {
 namespace NJobProxy {
