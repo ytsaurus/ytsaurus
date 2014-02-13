@@ -71,6 +71,8 @@ public:
         electionConfig->RpcTimeout = RpcTimeout;
         electionConfig->VotingRoundInterval = TDuration::MilliSeconds(10);
         electionConfig->FollowerPingTimeout = TDuration::MilliSeconds(60);
+        electionConfig->FollowerGracePeriod = TDuration::MilliSeconds(30);
+        electionConfig->FollowerPingInterval = TDuration::MilliSeconds(50);
         ElectionManager = New<TElectionManager>(
             electionConfig,
             cellManager,
@@ -176,7 +178,48 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
     RunElections();
 }
 
-TEST_F(TElectionTest, BecomeLeaderHealthyFollowers)
+TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
+{
+    Configure(3, 0);
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(0));
+
+    for (int id = 1; id < 3; id++) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+                auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
+                TElectionServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(RpcTimeout);
+
+                auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
+
+                response->set_state(EPeerState::Following);
+                response->set_vote_id(0);
+                ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
+                response->set_priority(id);
+                response->set_self_id(id);
+                context->Reply();
+            }));
+        if (id < 2) {
+            EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
+                .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
+                    context->Reply();
+                }));
+        }
+    }
+
+    {
+        InSequence dummy;
+        EXPECT_CALL(*CallbacksMock, OnStartLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+    }
+
+    RunElections();
+}
+
+TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
 {
     Configure(3, 0);
 
@@ -259,6 +302,47 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
             .WillOnce(::testing::Invoke([&] {
                 ++startLeadingCounter;
             }));
+        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+    }
+
+    RunElections();
+}
+
+TEST_F(TElectionTest, BecomeLeaderGracePeriod)
+{
+    Configure(3, 0);
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(0));
+
+    for (int id = 1; id < 3; id++) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+                auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
+                TElectionServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(RpcTimeout);
+
+                auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
+
+                response->set_state(EPeerState::Following);
+                response->set_vote_id(0);
+                ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
+                response->set_priority(id);
+                response->set_self_id(id);
+                context->Reply();
+            }));
+        EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [], {
+                THROW_ERROR_EXCEPTION(NElection::EErrorCode::InvalidLeader, "");
+            }));
+    }
+
+    {
+        InSequence dummy;
+        EXPECT_CALL(*CallbacksMock, OnStartLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStartLeading());
         EXPECT_CALL(*CallbacksMock, OnStopLeading());
     }
 
