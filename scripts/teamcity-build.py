@@ -81,6 +81,8 @@ def prepare(options):
         shutil.rmtree(options.sandbox_directory)
     mkdirp(options.sandbox_directory)
 
+    os.chdir(options.sandbox_directory)
+
     teamcity_message(pprint.pformat(options.__dict__))
 
 
