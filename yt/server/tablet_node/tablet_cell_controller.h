@@ -41,8 +41,6 @@ public:
     NHydra::IChangelogCatalogPtr GetChangelogCatalog();
     NHydra::ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid);
 
-    IInvokerPtr GetCompactionInvoker();
-
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:

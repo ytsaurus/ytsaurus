@@ -5,7 +5,6 @@
 
 #include <core/misc/fs.h>
 
-#include <core/concurrency/action_queue.h>
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/ytree/ypath_service.h>
@@ -51,7 +50,6 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , UsedSlotCount_(0)
-        , CompactionQueue_(New<TActionQueue>("Compaction"))
     { }
 
     void Initialize()
@@ -189,11 +187,6 @@ public:
     }
 
 
-    IInvokerPtr GetCompactionInvoker()
-    {
-        return CompactionQueue_->GetInvoker();
-    }
-
     IYPathServicePtr GetOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -210,8 +203,6 @@ private:
 
     int UsedSlotCount_;
     std::vector<TTabletSlotPtr> Slots_;
-
-    TActionQueuePtr CompactionQueue_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -289,11 +280,6 @@ IChangelogCatalogPtr TTabletCellController::GetChangelogCatalog()
 ISnapshotStorePtr TTabletCellController::GetSnapshotStore(const TCellGuid& cellGuid)
 {
     return Impl_->GetSnapshotStore(cellGuid);
-}
-
-IInvokerPtr TTabletCellController::GetCompactionInvoker()
-{
-    return Impl_->GetCompactionInvoker();
 }
 
 IYPathServicePtr TTabletCellController::GetOrchidService()
