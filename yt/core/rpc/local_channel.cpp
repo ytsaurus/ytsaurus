@@ -103,10 +103,11 @@ private:
             NProto::TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));
             if (AcquireLock()) {
-                if (header.has_error()) {
-                    Handler_->OnError(FromProto(header.error()));
-                } else {
+                TError error = FromProto(header.error());
+                if (error.IsOK()) {
                     Handler_->OnResponse(std::move(message));
+                } else {
+                    Handler_->OnError(error);
                 }
             }
             return MakeFuture(TError());
