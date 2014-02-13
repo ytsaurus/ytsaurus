@@ -8,6 +8,7 @@
 #include "job_resources.h"
 #include "chunk_splits_fetcher.h"
 #include "chunk_info_collector.h"
+#include "helpers.h"
 
 #include <core/concurrency/fiber.h>
 
@@ -1404,7 +1405,7 @@ public:
         TSortedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
             .Item("reducer").BeginMap()
-                .Item("command").Value(Spec->Reducer->Command)
+                .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
             .EndMap();
     }
 

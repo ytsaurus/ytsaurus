@@ -78,6 +78,15 @@ i64 Clamp(i64 value, i64 minValue, i64 maxValue)
     return value;
 }
 
+Stroka TrimCommandForBriefSpec(const Stroka& command)
+{
+    const int MaxBriefSpecCommandLength = 256;
+    return
+        command.length() <= MaxBriefSpecCommandLength
+        ? command
+        : command.substr(0, MaxBriefSpecCommandLength) + "...";
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

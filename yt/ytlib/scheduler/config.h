@@ -655,7 +655,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-class TPooledOperationSpec
+class TFairShareOperationSpec
     : public TYsonSerializable
 {
 public:
@@ -669,7 +669,7 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
 
-    TPooledOperationSpec()
+    TFairShareOperationSpec()
     {
         RegisterParameter("pool", Pool)
             .Default()
@@ -691,6 +691,22 @@ public:
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
             .Default();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TFairShareOperationRuntimeParams
+    : public TYsonSerializable
+{
+public:
+    double Weight;
+
+    TFairShareOperationRuntimeParams()
+    {
+        RegisterParameter("weight", Weight)
+            .Default(1.0)
+            .GreaterThanOrEqual(0.0);
     }
 };
 

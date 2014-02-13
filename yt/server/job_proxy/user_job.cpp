@@ -39,15 +39,17 @@
 #include <errno.h>
 
 #ifdef _linux_
+    #include <ytlib/misc/ioprio.h>
+
     #include <unistd.h>
     #include <signal.h>
+    #include <fcntl.h>
+
     #include <sys/types.h>
     #include <sys/time.h>
     #include <sys/wait.h>
     #include <sys/resource.h>
-
     #include <sys/stat.h>
-    #include <fcntl.h>
     #include <sys/epoll.h>
 #endif
 

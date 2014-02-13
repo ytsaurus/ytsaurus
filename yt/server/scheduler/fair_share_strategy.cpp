@@ -184,11 +184,15 @@ class TOperationElement
 public:
     explicit TOperationElement(
         TFairShareStrategyConfigPtr config,
+        TFairShareOperationSpecPtr spec,
+        TFairShareOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
         TOperationPtr operation)
         : THostedElementBase(host)
         , TSchedulableElementBase(host)
         , Operation_(operation)
+        , Spec_(spec)
+        , RuntimeParams_(runtimeParams)
         , Pool_(nullptr)
         , Starving_(false)
         , ResourceUsage_(ZeroNodeResources())
@@ -212,7 +216,7 @@ public:
 
     virtual double GetWeight() const override
     {
-        return Spec_->Weight;
+        return RuntimeParams_->Weight;
     }
 
     virtual double GetMinShareRatio() const override
@@ -271,7 +275,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
-    DEFINE_BYVAL_RW_PROPERTY(TPooledOperationSpecPtr, Spec);
+    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationSpecPtr, Spec);
+    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationRuntimeParamsPtr, RuntimeParams);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
@@ -907,6 +912,14 @@ public:
     }
 
 
+    virtual void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer) override
+    {
+        auto element = GetOperationElement(operation);
+        auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
+        BuildYsonMapFluently(consumer)
+            .Items(*serializedParams);
+    }
+
     virtual void BuildOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
     {
         auto element = GetOperationElement(operation);
@@ -1023,24 +1036,29 @@ private:
     }
 
 
-    TPooledOperationSpecPtr ParseSpec(TOperationPtr operation, INodePtr specNode)
+    TFairShareOperationSpecPtr ParseSpec(TOperationPtr operation, INodePtr specNode)
     {
         try {
-            return ConvertTo<TPooledOperationSpecPtr>(specNode);
+            return ConvertTo<TFairShareOperationSpecPtr>(specNode);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
                 ~ToString(operation->GetOperationId()));
-            return New<TPooledOperationSpec>();
+            return New<TFairShareOperationSpec>();
         }
+    }
+
+    TFairShareOperationRuntimeParamsPtr BuildInitialRuntimeParams(TFairShareOperationSpecPtr spec)
+    {
+        auto params = New<TFairShareOperationRuntimeParams>();
+        params->Weight = spec->Weight;
+        return params;
     }
 
 
     void OnOperationRegistered(TOperationPtr operation)
     {
-        auto operationElement = New<TOperationElement>(Config, Host, operation);
-        YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
-
         auto spec = ParseSpec(operation, operation->GetSpec());
+        auto params = BuildInitialRuntimeParams(spec);
 
         auto poolId = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolId);
@@ -1049,7 +1067,13 @@ private:
             RegisterPool(pool);
         }
 
-        operationElement->SetSpec(spec);
+        auto operationElement = New<TOperationElement>(
+            Config,
+            spec,
+            params,
+            Host,
+            operation);
+        YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
 
         operationElement->SetPool(~pool);
         pool->AddChild(operationElement);
@@ -1057,10 +1081,10 @@ private:
 
         Host->GetMasterConnector()->AddOperationWatcherRequester(
             operation,
-            BIND(&TFairShareStrategy::RequestOperationSpec, this, operation));
+            BIND(&TFairShareStrategy::RequestOperationRuntimeParams, this, operation));
         Host->GetMasterConnector()->AddOperationWatcherHandler(
             operation,
-            BIND(&TFairShareStrategy::HandleOperationSpec, this, operation));
+            BIND(&TFairShareStrategy::HandleOperationRuntimeParams, this, operation));
 
         LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetOperationId()),
@@ -1086,16 +1110,20 @@ private:
     }
 
 
-    void RequestOperationSpec(
+    void RequestOperationRuntimeParams(
         TOperationPtr operation,
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        auto operationPath = GetOperationPath(operation->GetOperationId());
-        auto req = TYPathProxy::Get(operationPath + "/@spec");
-        batchReq->AddRequest(req, "get_spec");
+        static auto runtimeParamsTemplate = New<TFairShareOperationRuntimeParams>();
+        auto req = TYPathProxy::Get(GetOperationPath(operation->GetOperationId()));
+        TAttributeFilter attributeFilter(
+            EAttributeFilterMode::MatchingOnly,
+            runtimeParamsTemplate->GetRegisteredKeys());
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        batchReq->AddRequest(req, "get_runtime_params");
     }
 
-    void HandleOperationSpec(
+    void HandleOperationRuntimeParams(
         TOperationPtr operation,
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
@@ -1106,20 +1134,22 @@ private:
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
 
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_spec");
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
         if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error updating operation spec");
+            LOG_ERROR(*rsp, "Error updating operation runtime parameters");
             return;
         }
 
         try {
-            if (!ReconfigureYsonSerializable(element->GetSpec(), TYsonString(rsp->value())))
+            auto operationNode = ConvertToNode(TYsonString(rsp->value()));
+            auto attributesNode = ConvertToNode(operationNode->Attributes());
+            if (!ReconfigureYsonSerializable(element->GetRuntimeParams(), attributesNode))
                 return;
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing updated operation spec");
+            LOG_ERROR(ex, "Error parsing operation runtime parameters");
         }
 
-        LOG_INFO("Operation spec updated");
+        LOG_INFO("Operation runtime parameters updated");
     }
 
 

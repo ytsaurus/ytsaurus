@@ -104,16 +104,18 @@ public:
             ~ToString(id));
 
         auto* list = CreateUpdateList(operation);
+        auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
         auto batchReq = StartBatchRequest(list);
         {
             auto req = TYPathProxy::Set(GetOperationPath(id));
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operation))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
                     .Item("brief_spec").BeginMap()
                         .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
-                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Bootstrap->GetScheduler()->GetStrategy(), operation))
+                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operation))
                     .EndMap()
                     .Item("progress").BeginMap().EndMap()
                     .Item("brief_progress").BeginMap().EndMap()

@@ -41,7 +41,7 @@ YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
         suffix = url.parse(req.url).pathname;
         suffix = suffix.replace(/\/+/, "-").replace(/-+$/, "")
         if (suffix === "-all") {
-            return self._dispatchBasic(req, rsp, "");
+            return self._dispatchExtended(req, rsp);
         } else {
             return self._dispatchBasic(req, rsp, suffix);
         }

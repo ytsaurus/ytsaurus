@@ -173,6 +173,13 @@ bool TChunk::IsConfirmed() const
     return ChunkMeta_.type() != EChunkType::Unknown;
 }
 
+void TChunk::ValidateConfirmed()
+{
+    if (!IsConfirmed()) {
+        THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~ToString(Id));
+    }
+}
+
 bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const
 {
     if (ChunkInfo_.disk_space() == UnknownDiskSpace)
