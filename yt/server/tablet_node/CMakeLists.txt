@@ -13,13 +13,10 @@ set( SRCS
   ${BASE}/tablet_service.cpp
   ${BASE}/store.cpp
   ${BASE}/dynamic_memory_store.cpp
-#  ${BASE}/static_memory_store.cpp
   ${BASE}/chunk_store.cpp
   ${BASE}/store_manager.cpp
   ${BASE}/store_flusher.cpp
-#  ${BASE}/compaction.cpp
   ${BASE}/dynamic_memory_store_bits.cpp
-  ${BASE}/query_executor.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -37,13 +34,9 @@ set( HDRS
   ${BASE}/store.h
   ${BASE}/dynamic_memory_store.h
   ${BASE}/dynamic_memory_store_bits.h
-#  ${BASE}/static_memory_store.h
-#  ${BASE}/static_memory_store_bits.h
   ${BASE}/chunk_store.h
   ${BASE}/store_manager.h
   ${BASE}/store_flusher.h
-#  ${BASE}/compaction.h
-  ${BASE}/query_executor.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -310,7 +310,6 @@ void TBootstrap::Run()
     StoreFlusher = New<TStoreFlusher>(Config->TabletNode->StoreFlusher, this);
 
     RpcServer->RegisterService(CreateQueryService(
-        CellGuid,
         GetControlInvoker(),
         queryExecutor));
 

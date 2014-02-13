@@ -1,11 +1,15 @@
 #include "tablet_cell_controller.h"
 #include "config.h"
+#include "tablet.h"
 #include "tablet_slot.h"
+#include "tablet_manager.h"
 #include "private.h"
 
 #include <core/misc/fs.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/fluent.h>
@@ -37,6 +41,7 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = TabletNodeLogger;
+static auto TabletScanPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +55,11 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , UsedSlotCount_(0)
+        , TabletScanExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::OnScanTablets, Unretained(this)),
+            TabletScanPeriod,
+            EPeriodicExecutorMode::Manual))
     { }
 
     void Initialize()
@@ -91,6 +101,8 @@ public:
         for (const auto& cellGuid : cellGuids) {
             Slots_[UsedSlotCount_++]->Load(cellGuid);
         }
+
+        TabletScanExecutor_->Start();
 
         LOG_INFO("Tablet node initialized");
     }
@@ -171,6 +183,15 @@ public:
     }
 
 
+    TTabletCellId FindCellByTablet(const TTabletId& tabletId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = TabletIdToCellIds_.find(tabletId);
+        return it == TabletIdToCellIds_.end() ? NullTabletCellId : it->second;
+    }
+
+    
     IChangelogCatalogPtr GetChangelogCatalog()
     {
         return ChangelogCatalog_;
@@ -204,6 +225,10 @@ private:
     int UsedSlotCount_;
     std::vector<TTabletSlotPtr> Slots_;
 
+    TPeriodicExecutorPtr TabletScanExecutor_;
+    yhash_map<TTabletId, TTabletCellId> TabletIdToCellIds_;
+
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -215,6 +240,86 @@ private:
             .DoListFor(Slots_, [&] (TFluentList fluent, TTabletSlotPtr slot) {
                 slot->BuildOrchidYson(fluent);
             });
+    }
+
+
+    class TTabletScanner
+        : public TRefCounted
+    {
+    public:
+        explicit TTabletScanner(TIntrusivePtr<TImpl> owner)
+            : Owner_(owner)
+        { }
+
+        TFuture<void> Run()
+        {
+            auto awaiter = New<TParallelAwaiter>(Owner_->Bootstrap_->GetControlInvoker());
+            auto this_ = MakeStrong(this);
+
+            for (auto slot : Owner_->Slots_) {
+                auto invoker = slot->GetGuardedAutomatonInvoker();
+                if (!invoker)
+                    continue;
+                auto result = NewPromise();
+                auto callback = BIND(&TTabletScanner::ScanCell, this_, slot, result);
+                if (!invoker->Invoke(callback))
+                    continue;
+                awaiter->Await(result);
+            }
+
+            return awaiter->Complete();
+        }
+
+        const yhash_map<TTabletId, TTabletCellId>& GetResult() const
+        {
+            return TabletIdToCellIds_;
+        }
+
+
+    private:
+        TIntrusivePtr<TImpl> Owner_;
+
+        TSpinLock SpinLock_;
+        yhash_map<TTabletId, TTabletCellId> TabletIdToCellIds_;
+
+        void ScanCell(TTabletSlotPtr slot, TPromise<void> result)
+        {
+            auto tabletManager = slot->GetTabletManager();
+
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                for (auto* tablet : tabletManager->Tablets().GetValues()) {
+                    if (tablet->GetState() == ETabletState::Mounted) {
+                        // NB: Allow collisions.
+                        TabletIdToCellIds_[tablet->GetId()] = slot->GetCellGuid();
+                    }
+                }
+            }
+
+            result.Set();
+        }
+
+    };
+
+    void OnScanTablets()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_DEBUG("Tablet scan started");
+
+        auto scanner = New<TTabletScanner>(this);
+
+        auto this_ = MakeStrong(this);
+        scanner->Run().Subscribe(BIND([this, this_, scanner] () {
+            VERIFY_THREAD_AFFINITY(ControlThread);
+
+            const auto& result = scanner->GetResult();
+            LOG_DEBUG("Tablet scan completed, %d tablet(s) found",
+                static_cast<int>(result.size()));
+
+            TabletIdToCellIds_ = result;
+            TabletScanExecutor_->ScheduleNext();
+        }));
     }
 
 };
@@ -270,6 +375,11 @@ void TTabletCellController::ConfigureSlot(TTabletSlotPtr slot, const TConfigureT
 void TTabletCellController::RemoveSlot(TTabletSlotPtr slot)
 {
     Impl_->RemoveSlot(slot);
+}
+
+TTabletCellId TTabletCellController::FindCellByTablet(const TTabletId& tabletId)
+{
+    return Impl_->FindCellByTablet(tabletId);
 }
 
 IChangelogCatalogPtr TTabletCellController::GetChangelogCatalog()

@@ -14,7 +14,6 @@ namespace NQueryAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateQueryService(
-    const NRpc::TRealmId& realmId,
     IInvokerPtr invoker,
     NQueryClient::IExecutorPtr executor);
 

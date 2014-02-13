@@ -7,7 +7,6 @@
 
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/caching_channel_factory.h>
-#include <core/rpc/helpers.h>
 
 #include <ytlib/hydra/peer_channel.h>
 
@@ -286,11 +285,6 @@ public:
             ~nodeDescriptor.Address);
 
         auto channel = NodeChannelFactory_->CreateChannel(nodeDescriptor.Address);
-        auto objectId = GetObjectIdFromDataSplit(colocatedSplit);
-        if (TypeFromId(objectId) == EObjectType::Tablet) {
-            auto tabletInfo = TableMountCache_->GetTabletInfoOrThrow(objectId);
-            channel = CreateRealmChannel(channel, tabletInfo->CellId);
-        }
 
         TQueryServiceProxy proxy(channel);
         auto req = proxy.Execute();

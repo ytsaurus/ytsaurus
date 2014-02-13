@@ -6,7 +6,6 @@
 #include "tablet_manager.h"
 #include "transaction_manager.h"
 #include "tablet_service.h"
-#include "query_executor.h"
 #include "private.h"
 
 #include <core/concurrency/thread_affinity.h>
@@ -42,8 +41,6 @@
 
 #include <server/data_node/config.h>
 
-#include <server/query_agent/query_service.h>
-
 namespace NYT {
 namespace NTabletNode {
 
@@ -55,7 +52,6 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
-using namespace NQueryAgent;
 
 using NHydra::EPeerState;
 
@@ -137,6 +133,11 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker() const
     {
         return EpochAutomatonInvoker_;
+    }
+
+    IInvokerPtr GetGuardedAutomatonInvoker() const
+    {
+        return GuardedAutomatonInvoker_;
     }
 
     THiveManagerPtr GetHiveManager() const
@@ -319,22 +320,12 @@ public:
                 Owner_,
                 Bootstrap_);
 
-            //auto queryExecutor = CreateQueryExecutor(
-            //    Bootstrap_->GetQueryWorkerInvoker(),
-            //    TabletManager_);
-
-            //QueryService_ = CreateQueryService(
-            //    GetCellGuid(),
-            //    EpochAutomatonInvoker_,
-            //    queryExecutor);
-
             TransactionSupervisor_->Start();
             TabletManager_->Start();
             HydraManager_->Start();
             HiveManager_->Start();
 
             rpcServer->RegisterService(TabletService_);
-            //rpcServer->RegisterService(QueryService_);
         }
 
         CellConfig_ = configureInfo.config();
@@ -405,7 +396,6 @@ private:
     TTransactionSupervisorPtr TransactionSupervisor_;
 
     NRpc::IServicePtr TabletService_;
-    NRpc::IServicePtr QueryService_;
 
     TTabletAutomatonPtr Automaton_;
     TActionQueuePtr AutomatonQueue_;
@@ -457,11 +447,6 @@ private:
             TabletService_.Reset();
         }
 
-        //if (QueryService_) {
-        //    rpcServer->UnregisterService(QueryService_);
-        //    QueryService_.Reset();
-        //}
-
         Automaton_.Reset();
 
         EpochAutomatonInvoker_.Reset();
@@ -502,27 +487,11 @@ private:
             ->GetEpochContext()
             ->CancelableContext
             ->CreateInvoker(GetAutomatonInvoker());
-
-        auto queryExecutor = CreateQueryExecutor(
-            EpochAutomatonInvoker_,
-            Bootstrap_->GetQueryWorkerInvoker(),
-            TabletManager_);
-
-        QueryService_ = CreateQueryService(
-            GetCellGuid(),
-            EpochAutomatonInvoker_,
-            queryExecutor);
-        Bootstrap_->GetRpcServer()->RegisterService(QueryService_);
     }
 
     void OnStopEpoch()
     {
         EpochAutomatonInvoker_.Reset();
-
-        if (QueryService_) {
-            Bootstrap_->GetRpcServer()->UnregisterService(QueryService_);
-            QueryService_.Reset();
-        }
     }
 
 
@@ -635,6 +604,11 @@ IInvokerPtr TTabletSlot::GetAutomatonInvoker() const
 IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker() const
 {
     return Impl_->GetEpochAutomatonInvoker();
+}
+
+IInvokerPtr TTabletSlot::GetGuardedAutomatonInvoker() const
+{
+    return Impl_->GetGuardedAutomatonInvoker();
 }
 
 THiveManagerPtr TTabletSlot::GetHiveManager() const

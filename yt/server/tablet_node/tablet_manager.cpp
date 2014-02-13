@@ -349,19 +349,19 @@ private:
 
     void HydraMountTablet(const TReqMountTablet& request)
     {
-        auto id = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<Stroka>(request.key_columns().names());
 
         auto* tablet = new TTablet(
-            id,
+            tabletId,
             Slot_,
             schema,
             keyColumns,
             New<TTableMountConfig>());
         InitTablet(tablet);
         tablet->SetState(ETabletState::Mounted);
-        TabletMap_.Insert(id, tablet);
+        TabletMap_.Insert(tabletId, tablet);
 
         for (const auto& protoChunkId: request.chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
@@ -374,12 +374,12 @@ private:
 
         {
             TRspMountTablet response;
-            ToProto(response.mutable_tablet_id(), id);
+            ToProto(response.mutable_tablet_id(), tabletId);
             PostMasterMutation(response);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkCount: %d)",
-            ~ToString(id),
+            ~ToString(tabletId),
             request.chunk_ids_size());
     }
 

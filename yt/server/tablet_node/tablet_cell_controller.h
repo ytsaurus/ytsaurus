@@ -38,6 +38,8 @@ public:
     void ConfigureSlot(TTabletSlotPtr slot, const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void RemoveSlot(TTabletSlotPtr slot);
 
+    TTabletCellId FindCellByTablet(const TTabletId& tabletId);
+
     NHydra::IChangelogCatalogPtr GetChangelogCatalog();
     NHydra::ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid);
 

@@ -42,6 +42,7 @@ public:
     TTabletAutomatonPtr GetAutomaton() const;
     IInvokerPtr GetAutomatonInvoker() const;
     IInvokerPtr GetEpochAutomatonInvoker() const;
+    IInvokerPtr GetGuardedAutomatonInvoker() const;
 
     NHive::THiveManagerPtr GetHiveManager() const;
     NHive::TMailbox* GetMasterMailbox();

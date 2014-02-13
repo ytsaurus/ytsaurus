@@ -37,12 +37,11 @@ class TQueryService
 {
 public:
     explicit TQueryService(
-        const TRealmId& realmId,
         IInvokerPtr invoker,
         IExecutorPtr executor)
         : TServiceBase(
             CreatePrioritizedInvoker(invoker),
-            TServiceId(TQueryServiceProxy::GetServiceName(), realmId),
+            TQueryServiceProxy::GetServiceName(),
             QueryAgentLogger.GetCategory())
         , Executor_(executor)
     {
@@ -86,12 +85,10 @@ private:
 };
 
 IServicePtr CreateQueryService(
-    const TRealmId& realmId,
     IInvokerPtr invoker,
     IExecutorPtr executor)
 {
     return New<TQueryService>(
-        realmId,
         invoker,
         executor);
 }
