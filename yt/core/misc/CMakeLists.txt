@@ -105,6 +105,7 @@ set( HDRS
   ${BASE}/tclap_helpers.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
+  ${BASE}/ioprio.h
 )
 
 list(APPEND YT_SOURCE_FILES
