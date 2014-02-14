@@ -17,6 +17,8 @@ namespace NTabletServer {
 
 using namespace NYPath;
 using namespace NRpc;
+using namespace NYson;
+using namespace NYTree;
 using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NTransactionServer;
@@ -48,6 +50,14 @@ public:
         return TResolveResult::There(
             GetTargetProxy(),
             "/@" + path);
+    }
+
+    virtual void SerializeAttributes(
+        IYsonConsumer* consumer,
+        const TAttributeFilter& filter,
+        bool sortKeys) override
+    {
+        GetTargetProxy()->SerializeAttributes(consumer, filter, sortKeys);
     }
 
 private:
