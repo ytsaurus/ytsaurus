@@ -544,8 +544,9 @@ TElectionManager::TImpl::TImpl(
     YCHECK(RpcServer);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
-    Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(CellManager->GetCellGuid())));
+    Logger.AddTag(Sprintf("CellGuid: %s, SelfId: %s",
+        ~ToString(CellManager->GetCellGuid()),
+        ~ToString(CellManager->GetSelfId())));
 
     Reset();
 
