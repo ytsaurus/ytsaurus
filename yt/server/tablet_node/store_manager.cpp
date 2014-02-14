@@ -158,6 +158,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static auto PresetResult = MakeFuture(TError());
+
 class TStoreManager::TReader
     : public ISchemedReader
 {
@@ -171,6 +173,7 @@ public:
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
+        , ReadyEvent_(PresetResult)
     { }
 
     virtual TAsyncError Open(const TTableSchema& schema) override
@@ -373,7 +376,6 @@ private:
 
     void RefillSessions()
     {
-        YCHECK(!ReadyEvent_);
         YCHECK(RefillingSessions_.empty());
         
         TIntrusivePtr<TParallelCollector<void>> refillCollector;
@@ -402,6 +404,8 @@ private:
                     RefillingSessions_.clear();
                     return error;
                 }));
+        } else {
+            ReadyEvent_ = PresetResult;
         }
     }
 
