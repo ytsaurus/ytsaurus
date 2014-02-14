@@ -9,6 +9,7 @@ message TPlanFragment
 {
     required TOperator head = 1;
     required NYT.NProto.TGuid id = 2;
+    required uint64 timestamp = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

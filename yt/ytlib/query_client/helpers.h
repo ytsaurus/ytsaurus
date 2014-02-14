@@ -21,6 +21,8 @@ TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit);
 
 TKeyRange GetBothBoundsFromDataSplit(const TDataSplit& dataSplit);
 
+TTimestamp GetTimestampFromDataSplit(const TDataSplit& dataSplit);
+
 bool IsSorted(const TDataSplit& dataSplit);
 
 void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId);
@@ -34,6 +36,8 @@ void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound);
 void SetUpperBound(TDataSplit* dataSplit, const TKey& upperBound);
 
 void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange);
+
+void SetTimestamp(TDataSplit* dataSplit, TTimestamp timestamp);
 
 // XXX(sandello): For testing purposes only.
 void SetSorted(TDataSplit* dataSplit, bool isSorted);

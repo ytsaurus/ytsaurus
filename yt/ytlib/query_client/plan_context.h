@@ -67,7 +67,7 @@ public:
 
     };
 
-    TPlanContext();
+    explicit TPlanContext(TTimestamp timestamp = NullTimestamp);
     ~TPlanContext();
 
     void* Allocate(size_t size);
@@ -81,7 +81,11 @@ public:
 
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
 
+    TTimestamp GetTimestamp() const;
+
 private:
+    TTimestamp Timestamp_;
+
     TMemoryPool MemoryPool_;
     TNullable<TDebugInformation> DebugInformation_;
 

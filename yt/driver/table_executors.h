@@ -132,6 +132,7 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<Stroka> QueryArg;
+    TCLAP::ValueArg<NTransactionClient::TTimestamp> TimestampArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

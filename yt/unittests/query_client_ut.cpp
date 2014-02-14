@@ -224,7 +224,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { TPlanFragment::Prepare(query, &PrepareMock_); },
+            [&] { TPlanFragment::Prepare(query, NullTimestamp, &PrepareMock_); },
             matcher);
     }
 
@@ -237,7 +237,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    TPlanFragment::Prepare("a, b FROM [//t] WHERE k > 3", &PrepareMock_);
+    TPlanFragment::Prepare("a, b FROM [//t] WHERE k > 3", NullTimestamp, &PrepareMock_);
 
     SUCCEED();
 }
@@ -306,7 +306,7 @@ protected:
         YCHECK(!Controller_);
         Controller_.Emplace(
             &CoordinateMock_,
-            TPlanFragment::Prepare(source, &PrepareMock_));
+            TPlanFragment::Prepare(source, NullTimestamp, &PrepareMock_));
 
         auto error = Controller_->Run();
         THROW_ERROR_EXCEPTION_IF_FAILED(error);

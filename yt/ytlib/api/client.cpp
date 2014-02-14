@@ -447,6 +447,7 @@ private:
     {
         auto fragment = TPlanFragment::Prepare(
             query,
+            options.Timestamp,
             Connection_->GetQueryPrepareCallbacks());
 
         auto coordinator = CreateCoordinator(

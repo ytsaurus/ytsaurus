@@ -11,7 +11,10 @@ namespace NQueryClient {
 class TPrepareController
 {
 public:
-    TPrepareController(IPrepareCallbacks* callbacks, const Stroka& source);
+    TPrepareController(
+        IPrepareCallbacks* callbacks,
+        TTimestamp timestamp,
+        const Stroka& source);
 
     ~TPrepareController();
 

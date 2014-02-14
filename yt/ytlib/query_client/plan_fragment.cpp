@@ -55,9 +55,10 @@ TPlanFragment& TPlanFragment::operator=(TPlanFragment&& other)
 
 TPlanFragment TPlanFragment::Prepare(
     const Stroka& source,
+    TTimestamp timestamp,
     IPrepareCallbacks* callbacks)
 {
-    return TPrepareController(callbacks, source).Run();
+    return TPrepareController(callbacks, timestamp, source).Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,11 +67,12 @@ void ToProto(NProto::TPlanFragment* serialized, const TPlanFragment& fragment)
 {
     ToProto(serialized->mutable_head(), fragment.GetHead());
     ToProto(serialized->mutable_id(), fragment.Id());
+    serialized->set_timestamp(fragment.GetContext()->GetTimestamp());
 }
 
 TPlanFragment FromProto(const NProto::TPlanFragment& serialized)
 {
-    auto context = New<TPlanContext>();
+    auto context = New<TPlanContext>(serialized.timestamp());
     return TPlanFragment(
         context,
         FromProto(serialized.head(), context.Get()),

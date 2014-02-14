@@ -36,6 +36,7 @@ public:
 
     static TPlanFragment Prepare(
         const Stroka& source,
+        TTimestamp timestamp,
         IPrepareCallbacks* callbacks);
 };
 

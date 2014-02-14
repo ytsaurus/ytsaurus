@@ -72,6 +72,11 @@ TKeyRange GetBothBoundsFromDataSplit(const TDataSplit& dataSplit)
         GetUpperBoundFromDataSplit(dataSplit));
 }
 
+TTimestamp GetTimestampFromDataSplit(const TDataSplit& dataSplit)
+{
+    return dataSplit.has_timestamp() ? dataSplit.timestamp() : NullTimestamp;
+}
+
 bool IsSorted(const TDataSplit& dataSplit)
 {
     auto miscProto = FindProtoExtension<TMiscProto>(
@@ -134,6 +139,15 @@ void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange)
     SetUpperBound(dataSplit, keyRange.second);
 }
 
+void SetTimestamp(TDataSplit* dataSplit, TTimestamp timestamp)
+{
+    if (timestamp == NullTimestamp) {
+        dataSplit->clear_timestamp();
+    } else {
+        dataSplit->set_timestamp(timestamp);
+    }
+}
+
 void SetSorted(TDataSplit* dataSplit, bool isSorted)
 {
     auto miscProto = FindProtoExtension<TMiscProto>(
@@ -146,7 +160,6 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted)
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
         *miscProto);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

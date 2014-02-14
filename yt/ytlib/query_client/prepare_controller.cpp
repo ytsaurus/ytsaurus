@@ -31,10 +31,11 @@ static auto& Logger = QueryClientLogger;
 
 TPrepareController::TPrepareController(
     IPrepareCallbacks* callbacks,
+    TTimestamp timestamp,
     const Stroka& source)
     : Callbacks_(callbacks)
     , Source_(source)
-    , Context_(New<TPlanContext>())
+    , Context_(New<TPlanContext>(timestamp))
     , Head_(nullptr)
 { }
 

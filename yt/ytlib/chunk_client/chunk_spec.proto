@@ -36,6 +36,9 @@ message TChunkSpec
     optional int64 table_row_index = 10 [default = 0];
 
     required TChunkMeta chunk_meta = 11;
+
+    // Only makes sense as a part of data split.
+    optional uint64 timestamp = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

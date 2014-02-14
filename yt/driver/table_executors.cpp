@@ -205,14 +205,19 @@ Stroka TInsertExecutor::GetCommandName() const
 
 TSelectExecutor::TSelectExecutor()
     : QueryArg("query", "query to execute", true, "", "QUERY")
+    , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
 {
     CmdLine.add(QueryArg);
+    CmdLine.add(TimestampArg);
 }
 
 void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("query").Value(QueryArg.getValue());
+        .Item("query").Value(QueryArg.getValue())
+        .DoIf(TimestampArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("timestamp").Value(TimestampArg.getValue());
+        });
 }
 
 Stroka TSelectExecutor::GetCommandName() const 

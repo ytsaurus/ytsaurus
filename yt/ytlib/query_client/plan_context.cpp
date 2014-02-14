@@ -51,8 +51,9 @@ void TPlanContext::TTrackedObject::operator delete(void*) throw()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPlanContext::TPlanContext()
-    : MemoryPool_(InitialMemoryPoolSize)
+TPlanContext::TPlanContext(TTimestamp timestamp)
+    : Timestamp_(timestamp)
+    , MemoryPool_(InitialMemoryPoolSize)
     , NodeDirectory_(New<TNodeDirectory>())
 { }
 
@@ -95,6 +96,11 @@ TTableDescriptor& TPlanContext::TableDescriptor()
 TNodeDirectoryPtr TPlanContext::GetNodeDirectory() const
 {
     return NodeDirectory_;
+}
+
+TTimestamp TPlanContext::GetTimestamp() const
+{
+    return Timestamp_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

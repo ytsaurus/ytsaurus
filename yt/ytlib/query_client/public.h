@@ -46,6 +46,9 @@ using NVersionedTableClient::EValueType;
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TKeyColumns;
 
+using NTransactionClient::TTimestamp;
+using NTransactionClient::NullTimestamp;
+
 typedef NVersionedTableClient::TUnversionedRow TRow;
 typedef NVersionedTableClient::TUnversionedValue TValue;
 

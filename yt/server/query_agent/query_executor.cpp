@@ -205,11 +205,11 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         auto lowerBound = GetLowerBoundFromDataSplit(split);
         auto upperBound = GetUpperBoundFromDataSplit(split);
-        // TODO(babenko): timestamp
+        auto timestamp = GetTimestampFromDataSplit(split);
         return storeManager->CreateReader(
             std::move(lowerBound),
             std::move(upperBound),
-            NVersionedTableClient::LastCommittedTimestamp);
+            timestamp);
     }
 
 };

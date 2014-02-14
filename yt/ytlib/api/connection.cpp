@@ -316,7 +316,7 @@ private:
 
     TDataSplit DoGetInitialSplit(
         const TYPath& path,
-        TPlanContextPtr /*context*/)
+        TPlanContextPtr context)
     {
         LOG_DEBUG("Getting initial split (Path: %s)",
             ~path);
@@ -330,6 +330,7 @@ private:
         SetObjectId(&result, info->TableId);
         SetTableSchema(&result, info->Schema);
         SetKeyColumns(&result, info->KeyColumns);
+        SetTimestamp(&result, context->GetTimestamp());
         return result;
     }
 
@@ -471,6 +472,8 @@ private:
             SetLowerBound(&subsplit, tabletInfo->PivotKey);
             auto jt = it + 1;
             SetUpperBound(&subsplit, jt == tableInfo->Tablets.end() ? MaxKey() : (*jt)->PivotKey);
+
+            SetTimestamp(&subsplit, context->GetTimestamp());
 
             for (const auto& tabletReplica : tabletInfo->Replicas) {
                 nodeDirectory->AddDescriptor(tabletReplica.Id, tabletReplica.Descriptor);
