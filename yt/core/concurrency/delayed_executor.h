@@ -45,6 +45,8 @@ public:
     static void Shutdown();
 
 private:
+    TDelayedExecutor();
+
     class TImpl;
 
 };
