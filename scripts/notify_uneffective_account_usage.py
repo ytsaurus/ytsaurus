@@ -73,9 +73,8 @@ def main():
                  "\n"
                  "You are responsible for account '{}' on kant.yt.yandex.net. "
                  "More than 10% of data in your account is stored inefficiently. "
-                 "Please compress it or convert it into erasure.\n"
-                 "\n"
-                 "See more details at http://wiki.yandex-team.ru/IgnatijjKolesnichenko/yt/erasureusage\n"
+                 "Please compress it or convert it into erasure."
+                 "It can be done using yt_convert_to_erasure.py from package yandex-yt-python-tools\n"
                  "\n"
                  "Top {} tables to consider:\n".format(account, args.top_tables) +
                  "\n".join(sorted(tables, reverse=True, key=get_space)[:args.top_tables]),
