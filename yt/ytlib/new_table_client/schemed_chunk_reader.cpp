@@ -306,7 +306,7 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
 
             for (int index = FixedColumns.size() + VariableColumns.size(); index < row.GetCount(); ++index) {
                 TUnversionedValue value;
-                YASSERT(variableIt.ParseNext(&value));
+                YCHECK(variableIt.ParseNext(&value));
                 value.Id = ChunkIndexToOutputIndex[value.Id];
                 row[index] = value;
             }
