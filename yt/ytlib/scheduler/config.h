@@ -184,7 +184,8 @@ public:
             .DefaultNew();
         RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
         RegisterParameter("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -344,7 +345,8 @@ public:
             .DefaultNew();
         RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
 
@@ -528,7 +530,8 @@ public:
 
     TMapReduceOperationSpec()
     {
-        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
         // Mapper can be absent -- leave it Null by default.
