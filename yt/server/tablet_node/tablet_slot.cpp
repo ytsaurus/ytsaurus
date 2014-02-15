@@ -183,7 +183,7 @@ public:
 
         return TObjectId(
             random ^ CellGuid_.Parts[0],
-            (CellGuid_.Parts[1] & 0xff00) + typeValue,
+            (CellGuid_.Parts[1] & 0xffff0000) + typeValue,
             version.RecordId,
             version.SegmentId);
     }
@@ -296,6 +296,8 @@ public:
                 HydraManager_,
                 Automaton_);
 
+            // NB: Tablet Manager must register before Transaction Manager since the latter
+            // will be writing and deleting rows during snapshot loading.
             TabletManager_ = New<TTabletManager>(
                 Config_->TabletNode->TabletManager,
                 Owner_,
@@ -321,7 +323,7 @@ public:
                 Bootstrap_);
 
             TransactionSupervisor_->Start();
-            TabletManager_->Start();
+            TabletManager_->Initialize();
             HydraManager_->Start();
             HiveManager_->Start();
 

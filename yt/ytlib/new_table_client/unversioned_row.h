@@ -94,6 +94,14 @@ static_assert(
 int GetByteSize(const TUnversionedValue& value);
 int WriteValue(char* output, const TUnversionedValue& value);
 int ReadValue(const char* input, TUnversionedValue* value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Save(TStreamSaveContext& context, const TUnversionedValue& value);
+void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka ToString(const TUnversionedValue& value);
 
 //! Ternary comparison predicate for TUnversionedValue-s.
@@ -108,7 +116,7 @@ bool IsValueSuccessor(
     const TUnversionedValue& value,
     const TUnversionedValue& successor);
 
-//! Ternary comparison predicate for ranges ot TUnversionedValue-s.
+//! Ternary comparison predicate for ranges of TUnversionedValue-s.
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
@@ -505,6 +513,7 @@ public:
 
     void AddValue(const TUnversionedValue& value);
     TUnversionedRow GetRow();
+    void Reset();
 
 private:
     int ValueCapacity_;
@@ -525,7 +534,8 @@ public:
     explicit TUnversionedOwningRowBuilder(int initialValueCapacity = 16);
 
     void AddValue(const TUnversionedValue& value);
-    TUnversionedOwningRow Finish();
+    TUnversionedOwningRow GetRowAndReset();
+    void Reset();
 
 private:
     int InitialValueCapacity_;
@@ -534,7 +544,6 @@ private:
     TBlob RowData_;
     Stroka StringData_;
 
-    void Init();
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(int index);
 

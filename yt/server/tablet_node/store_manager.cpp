@@ -425,8 +425,6 @@ TStoreManager::TStoreManager(
     YCHECK(Tablet_);
 
     VersionedPooledRows_.reserve(MaxRowsPerRead);
-
-    CreateNewStore();
 }
 
 TStoreManager::~TStoreManager()
@@ -635,21 +633,6 @@ void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
     CheckForUnlockedStore(rowRef.Store);
 }
 
-void TStoreManager::CreateNewStore()
-{
-    auto* slot = Tablet_->GetSlot();
-    // NB: For tests mostly.
-    auto id = slot ? slot->GenerateId(EObjectType::TabletStore) : TStoreId::Create();
-    
-    auto store = New<TDynamicMemoryStore>(
-        Config_,
-        id,
-        Tablet_);
-
-    Tablet_->AddStore(store);
-    Tablet_->SetActiveStore(store);
-}
-
 TDynamicRow TStoreManager::MaybeMigrateRow(const TDynamicRowRef& rowRef)
 {
     if (rowRef.Store->GetState() == EStoreState::ActiveDynamic) {
@@ -730,6 +713,7 @@ void TStoreManager::Rotate(bool createNew)
     RotationScheduled_ = false;
 
     auto activeStore = Tablet_->GetActiveStore();
+    YCHECK(activeStore);
     activeStore->SetState(EStoreState::PassiveDynamic);
 
     if (activeStore->GetLockCount() > 0) {
@@ -741,7 +725,7 @@ void TStoreManager::Rotate(bool createNew)
     }
 
     if (createNew) {
-        CreateNewStore();
+        CreateActiveStore();
     } else {
         Tablet_->SetActiveStore(nullptr);
     }
@@ -749,6 +733,21 @@ void TStoreManager::Rotate(bool createNew)
     LOG_INFO("Tablet stores rotated (TabletId: %s, StoreCount: %d)",
         ~ToString(Tablet_->GetId()),
         static_cast<int>(Tablet_->Stores().size()));
+}
+
+void TStoreManager::CreateActiveStore()
+{
+    auto* slot = Tablet_->GetSlot();
+    // NB: For tests mostly.
+    auto id = slot ? slot->GenerateId(EObjectType::DynamicMemoryTabletStore) : TStoreId::Create();
+ 
+    auto store = New<TDynamicMemoryStore>(
+        Config_,
+        id,
+        Tablet_);
+
+    Tablet_->AddStore(store);
+    Tablet_->SetActiveStore(store);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

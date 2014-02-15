@@ -35,7 +35,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TTabletManager();
 
-    void Start();
+    void Initialize();
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
     void ValidateTabletMounted(TTablet* tablet);
@@ -54,6 +54,9 @@ public:
         TTablet* tablet,
         TTransaction* transaction,
         const Stroka& encodedRequest);
+
+
+    IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId);
 
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);

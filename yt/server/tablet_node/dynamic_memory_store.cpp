@@ -3,6 +3,9 @@
 #include "tablet.h"
 #include "transaction.h"
 #include "config.h"
+#include "automaton.h"
+#include "tablet_slot.h"
+#include "transaction_manager.h"
 #include "private.h"
 
 #include <core/misc/small_vector.h>
@@ -44,6 +47,7 @@ static auto& Logger = TabletNodeLogger;
 static const int InitialEditListCapacity = 2;
 static const int EditListCapacityMultiplier = 2;
 static const int MaxEditListCapacity = 256;
+static const int TypicalEditListCount = 16;
 static const int ReaderPoolSize = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +108,7 @@ std::tuple<T*, TEditList<T>> FindVersionedValue(
 }
 
 template <class T>
-bool AllocateListIfNeeded(TEditList<T>* list, TChunkedMemoryPool* pool)
+bool AllocateListForPushIfNeeded(TEditList<T>* list, TChunkedMemoryPool* pool)
 {
     if (list->GetSize() < list->GetCapacity()) {
         return false;
@@ -115,6 +119,17 @@ bool AllocateListIfNeeded(TEditList<T>* list, TChunkedMemoryPool* pool)
     newList.SetNext(*list);
     *list = newList;
     return true;
+}
+
+template <class T>
+void EnumerateListsAndReverse(TEditList<T> list, SmallVector<TEditList<T>, TypicalEditListCount>* result)
+{
+    result->clear();
+    while (list) {
+        result->push_back(list);
+        list = list.GetNext();
+    }
+    std::reverse(result->begin(), result->end());
 }
 
 } // namespace
@@ -136,7 +151,7 @@ public:
         , UpperKey_(std::move(upperKey))
         , Timestamp_(timestamp)
         , ColumnFilter_(columnFilter)
-        , KeyCount_(Store_->Tablet_->GetKeyColumnCount())
+        , KeyColumnCount_(Store_->Tablet_->GetKeyColumnCount())
         , SchemaColumnCount_(Store_->Tablet_->GetSchemaColumnCount())
         , Pool_(ReaderPoolSize)
         , Finished_(false)
@@ -161,11 +176,11 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        TKeyComparer keyComparer(KeyCount_);
+        TKeyComparer keyComparer(KeyColumnCount_);
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
             const auto* rowKeys = Iterator_.GetCurrent().GetKeys();
-            if (CompareRows(rowKeys, rowKeys + KeyCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
+            if (CompareRows(rowKeys, rowKeys + KeyColumnCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
                 break;
 
             auto row = ProduceRow();
@@ -186,7 +201,8 @@ public:
 
     virtual TAsyncError GetReadyEvent() override
     {
-        YUNREACHABLE();
+        static auto presetResult = MakeFuture(TError());
+        return presetResult;
     }
 
 private:
@@ -196,7 +212,7 @@ private:
     TTimestamp Timestamp_;
     TColumnFilter ColumnFilter_;
 
-    int KeyCount_;
+    int KeyColumnCount_;
     int SchemaColumnCount_;
 
     TSkipList<TDynamicRow, TKeyComparer>::TIterator Iterator_;
@@ -220,7 +236,7 @@ private:
             WaitFor(dynamicRow.GetTransaction()->GetFinished());
         }
 
-        auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
+        auto timestampList = dynamicRow.GetTimestampList(KeyColumnCount_);
         const auto* minTimestampPtr = std::get<0>(FindVersionedValue(
             timestampList,
             Timestamp_,
@@ -232,8 +248,8 @@ private:
             return TVersionedRow();
         }
 
-        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyCount_, SchemaColumnCount_ - KeyCount_, 1);
-        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyCount_ * sizeof (TUnversionedValue));
+        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyColumnCount_, SchemaColumnCount_ - KeyColumnCount_, 1);
+        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyColumnCount_ * sizeof (TUnversionedValue));
 
         auto minTimestamp = *minTimestampPtr;
         if (minTimestamp & TombstoneTimestampMask) {
@@ -244,7 +260,7 @@ private:
 
         auto* currentRowValue = versionedRow.BeginValues();
         auto fillValue = [&] (int index) {
-            auto list = dynamicRow.GetFixedValueList(index, KeyCount_);
+            auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_);
             auto* value = std::get<0>(FindVersionedValue(
                 list,
                 Timestamp_,
@@ -257,13 +273,13 @@ private:
         };
 
         if (ColumnFilter_.All) {
-            for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
+            for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
                 fillValue(index);
             }
         } else {
             for (int index : ColumnFilter_.Indexes) {
-                if (index >= KeyCount_) {
-                    fillValue(index - KeyCount_);
+                if (index >= KeyColumnCount_) {
+                    fillValue(index - KeyColumnCount_);
                 }
             }
         }
@@ -279,7 +295,7 @@ private:
 
     TVersionedRow ProduceAllRowVersions(TDynamicRow dynamicRow)
     {
-        auto timestampList = dynamicRow.GetTimestampList(KeyCount_);
+        auto timestampList = dynamicRow.GetTimestampList(KeyColumnCount_);
         if (!timestampList) {
             return TVersionedRow();
         }
@@ -294,8 +310,8 @@ private:
         }
 
         int valueCount = 0;
-        for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
-            auto list = dynamicRow.GetFixedValueList(index, KeyCount_);
+        for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
+            auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_);
             if (list) {
                 valueCount += list.GetSize() + list.GetSuccessorsSize();
                 if ((list.Back().Timestamp & TimestampValueMask) == UncommittedTimestamp) {
@@ -304,15 +320,15 @@ private:
             }
         }
 
-        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyCount_, valueCount, timestampCount);
+        auto versionedRow = TVersionedRow::Allocate(&Pool_, KeyColumnCount_, valueCount, timestampCount);
 
         // Keys.
-        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyCount_ * sizeof (TUnversionedValue));
+        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyColumnCount_ * sizeof (TUnversionedValue));
 
         // Fixed values.
         auto* currentValue = versionedRow.BeginValues();
-        for (int index = 0; index < SchemaColumnCount_ - KeyCount_; ++index) {
-            auto currentList = dynamicRow.GetFixedValueList(index, KeyCount_);
+        for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
+            auto currentList = dynamicRow.GetFixedValueList(index, KeyColumnCount_);
             while (currentList) {
                 for (const auto* it = &currentList.Back(); it >= &currentList.Front(); --it) {
                     const auto& value = *it;
@@ -405,63 +421,10 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
     TDynamicRow result;
 
-    auto writeFixedValue = [&] (TDynamicRow dynamicRow, const TUnversionedValue& srcValue) {
-        int listIndex = srcValue.Id - KeyColumnCount_;
-        auto list = dynamicRow.GetFixedValueList(listIndex, KeyColumnCount_);
-
-        if (list) {
-            auto& lastValue = list.Back();
-            if ((lastValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                CopyValue(&lastValue, srcValue);
-                return;
-            }
-
-            if (AllocateListIfNeeded(&list, &AlignedPool_)) {
-                dynamicRow.SetFixedValueList(listIndex, list, KeyColumnCount_);
-            }
-        } else {
-            list = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            dynamicRow.SetFixedValueList(listIndex, list, KeyColumnCount_);
-        }
-
-        list.Push([&] (TVersionedValue* dstValue) {
-            CopyValue(dstValue, srcValue);
-            dstValue->Timestamp = UncommittedTimestamp;
-        });
-
-        ++AllocatedValueCount_;
-    };
-
-    auto writeValues = [&] (TDynamicRow dynamicRow) {
+    auto addValues = [&] (TDynamicRow dynamicRow) {
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
-            writeFixedValue(dynamicRow, value);
-        }
-    };
-
-    auto writeTimestamp = [&] (TDynamicRow dynamicRow) {
-        bool pushTimestamp = false;
-        auto timestampList = dynamicRow.GetTimestampList(KeyColumnCount_);
-        if (timestampList) {
-            auto lastTimestamp = timestampList.Back();
-            if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
-                YASSERT(!(lastTimestamp & TombstoneTimestampMask));
-            } else {
-                if (lastTimestamp & TombstoneTimestampMask) {
-                    pushTimestamp = true;
-                }
-            }
-        } else {
-            timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            dynamicRow.SetTimestampList(timestampList, KeyColumnCount_);
-            pushTimestamp = true;
-        }
-
-        if (pushTimestamp) {
-            if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-                dynamicRow.SetTimestampList(timestampList, KeyColumnCount_);
-            }
-            timestampList.Push(UncommittedTimestamp);
+            AddUncommittedFixedValue(dynamicRow, value.Id - KeyColumnCount_, value);
         }
     };
 
@@ -471,17 +434,17 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Write, prewrite));
 
         // Add timestamp.
-        writeTimestamp(dynamicRow);
+        AddUncommittedTimestamp(dynamicRow, UncommittedTimestamp);
 
         // Copy keys.
         for (int id = 0; id < KeyColumnCount_; ++id) {
             auto& dstValue = dynamicRow.GetKeys()[id];
-            CopyValue(&dstValue, row[id]);
+            CaptureValue(&dstValue, row[id]);
             dstValue.Id = id;
         }
 
         // Copy values.
-        writeValues(dynamicRow);
+        addValues(dynamicRow);
 
         return dynamicRow;
     };
@@ -493,10 +456,10 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         }
 
         // Add timestamp, if needed.
-        writeTimestamp(dynamicRow);
+        AddUncommittedTimestamp(dynamicRow, UncommittedTimestamp);
 
         // Copy values.
-        writeValues(dynamicRow);
+        addValues(dynamicRow);
     };
 
     Rows_->Insert(
@@ -516,42 +479,18 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 
     TDynamicRow result;
 
-    auto writeTombstone = [&] (TDynamicRow dynamicRow) {
-        bool pushTimestamp = false;
-        auto timestampList = dynamicRow.GetTimestampList(KeyColumnCount_);
-        if (timestampList) {
-            auto lastTimestamp = timestampList.Back();
-            if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
-                YASSERT(lastTimestamp & TombstoneTimestampMask);
-            } else {
-                pushTimestamp = true;
-            }
-        } else {
-            timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
-            dynamicRow.SetTimestampList(timestampList, KeyColumnCount_);
-            pushTimestamp = true;
-        }
-
-        if (pushTimestamp) {
-            if (AllocateListIfNeeded(&timestampList, &AlignedPool_)) {
-                dynamicRow.SetTimestampList(timestampList, KeyColumnCount_);
-            }
-            timestampList.Push(UncommittedTimestamp | TombstoneTimestampMask);
-        }
-    };
-
     auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
         auto dynamicRow = result = AllocateRow();
         YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Delete, prewrite));
 
         // Add tombstone.
-        writeTombstone(dynamicRow);
+        AddUncommittedTimestamp(dynamicRow, UncommittedTimestamp | TombstoneTimestampMask);
 
         // Copy keys.
         for (int id = 0; id < KeyColumnCount_; ++id) {
             auto& internedValue = dynamicRow.GetKeys()[id];
-            CopyValue(&internedValue, key[id]);
+            CaptureValue(&internedValue, key[id]);
             internedValue.Id = id;
         }
 
@@ -566,7 +505,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
         }
 
         // Add tombstone.
-        writeTombstone(dynamicRow);
+        AddUncommittedTimestamp(dynamicRow, UncommittedTimestamp | TombstoneTimestampMask);
     };
 
     Rows_->Insert(
@@ -592,7 +531,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         int lockIndex = row.GetLockIndex();
         migratedRow.Lock(transaction, lockIndex, row.GetLockMode());
         migratedRow.SetPrepareTimestamp(row.GetPrepareTimestamp());
-        if (lockIndex != -1) {
+        if (lockIndex != TDynamicRow::InvalidLockIndex) {
             transaction->LockedRows()[lockIndex] = TDynamicRowRef(migrateTo.Get(), migratedRow);
         }
 
@@ -600,7 +539,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         const auto* srcKeys = row.GetKeys();
         auto* dstKeys = migratedRow.GetKeys();
         for (int index = 0; index < KeyColumnCount_; ++index) {
-            migrateTo->CopyValue(&dstKeys[index], srcKeys[index]);
+            migrateTo->CaptureValue(&dstKeys[index], srcKeys[index]);
         }
 
         // Migrate fixed values.
@@ -612,7 +551,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
                     auto migratedList = TValueList::Allocate(&migrateTo->AlignedPool_, InitialEditListCapacity);
                     migratedRow.SetFixedValueList(index, migratedList, KeyColumnCount_);
                     migratedList.Push([&] (TVersionedValue* dstValue) {
-                        migrateTo->CopyValue(dstValue, srcValue);
+                        migrateTo->CaptureValue(dstValue, srcValue);
                     });
                     ++AllocatedValueCount_;
                 }
@@ -726,32 +665,7 @@ void TDynamicMemoryStore::CommitRow(TDynamicRow row)
 
 void TDynamicMemoryStore::AbortRow(TDynamicRow row)
 {
-    if (State_ == EStoreState::ActiveDynamic) {
-        // Timestamps.
-        auto timestampList = row.GetTimestampList(KeyColumnCount_);
-        if (timestampList) {
-            auto lastTimestamp = timestampList.Back();
-            if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
-                if (timestampList.Pop() == 0) {
-                    row.SetTimestampList(timestampList.GetNext(), KeyColumnCount_);
-                }
-            }
-        }
-
-        // Fixed values.
-        for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
-            auto list = row.GetFixedValueList(index, KeyColumnCount_);
-            if (list) {
-                const auto& lastValue = list.Back();
-                if ((lastValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                    if (list.Pop() == 0) {
-                        row.SetFixedValueList(index, list.GetNext(), KeyColumnCount_);
-                    }
-                }
-            }
-        }
-    }
-
+    DropUncommittedValues(row);
     Unlock();
     row.Unlock();
 }
@@ -802,7 +716,7 @@ bool TDynamicMemoryStore::LockRow(
         return false;
     }
 
-    int lockIndex = -1;
+    int lockIndex = TDynamicRow::InvalidLockIndex;
     if (!prewrite) {
         lockIndex = static_cast<int>(transaction->LockedRows().size());
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
@@ -814,19 +728,126 @@ bool TDynamicMemoryStore::LockRow(
     return true;
 }
 
-void TDynamicMemoryStore::CopyValue(TUnversionedValue* dst, const TUnversionedValue& src)
+void TDynamicMemoryStore::DropUncommittedValues(TDynamicRow row)
 {
-    *dst = src;
-    CopyValueData(dst, src);
+    // Timestamps.
+    auto timestampList = row.GetTimestampList(KeyColumnCount_);
+    if (timestampList) {
+        auto lastTimestamp = timestampList.Back();
+        if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
+            if (timestampList.Pop() == 0) {
+                row.SetTimestampList(timestampList.GetNext(), KeyColumnCount_);
+            }
+        }
+    }
+
+    // Fixed values.
+    for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
+        auto list = row.GetFixedValueList(index, KeyColumnCount_);
+        if (list) {
+            const auto& lastValue = list.Back();
+            if ((lastValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
+                if (list.Pop() == 0) {
+                    row.SetFixedValueList(index, list.GetNext(), KeyColumnCount_);
+                }
+            }
+        }
+    }
 }
 
-void TDynamicMemoryStore::CopyValue(TVersionedValue* dst, const TVersionedValue& src)
+void TDynamicMemoryStore::AddFixedValue(
+    TDynamicRow row,
+    int listIndex,
+    const TVersionedValue& value)
 {
-    *dst = src;
-    CopyValueData(dst, src);
+    auto list = row.GetFixedValueList(listIndex, KeyColumnCount_);
+
+    if (list) {
+        auto& lastValue = list.Back();
+        if ((lastValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
+            CaptureValue(&lastValue, value);
+            return;
+        }
+
+        if (AllocateListForPushIfNeeded(&list, &AlignedPool_)) {
+            row.SetFixedValueList(listIndex, list, KeyColumnCount_);
+        }
+    } else {
+        list = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
+        row.SetFixedValueList(listIndex, list, KeyColumnCount_);
+    }
+
+    list.Push([&] (TVersionedValue* dstValue) {
+        CaptureValue(dstValue, value);
+    });
+
+    ++AllocatedValueCount_;
 }
 
-void TDynamicMemoryStore::CopyValueData(TUnversionedValue* dst, const TUnversionedValue& src)
+void TDynamicMemoryStore::AddUncommittedFixedValue(
+    TDynamicRow row,
+    int listIndex,
+    const TUnversionedValue& value)
+{
+    AddFixedValue(row, listIndex, MakeVersionedValue(value, UncommittedTimestamp));
+}
+
+void TDynamicMemoryStore::AddTimestamp(TDynamicRow row, TTimestamp timestamp)
+{
+    auto timestampList = row.GetTimestampList(KeyColumnCount_);
+    if (timestampList) {
+        if (AllocateListForPushIfNeeded(&timestampList, &AlignedPool_)) {
+            row.SetTimestampList(timestampList, KeyColumnCount_);
+        }
+    } else {
+        timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
+        row.SetTimestampList(timestampList, KeyColumnCount_);
+    }
+    timestampList.Push(timestamp);
+}
+
+void TDynamicMemoryStore::AddUncommittedTimestamp(TDynamicRow row, TTimestamp timestamp)
+{
+    YASSERT((timestamp & TimestampValueMask) == UncommittedTimestamp);
+
+    bool pushTimestamp = false;
+    auto timestampList = row.GetTimestampList(KeyColumnCount_);
+    if (timestampList) {
+        auto lastTimestamp = timestampList.Back();
+        if ((lastTimestamp & TimestampValueMask) == UncommittedTimestamp) {
+            YASSERT((timestamp & TombstoneTimestampMask) == (lastTimestamp & TombstoneTimestampMask));
+        } else {
+            if ((lastTimestamp & TombstoneTimestampMask) != (timestamp & TombstoneTimestampMask)) {
+                pushTimestamp = true;
+            }
+        }
+    } else {
+        timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
+        row.SetTimestampList(timestampList, KeyColumnCount_);
+        pushTimestamp = true;
+    }
+
+    if (pushTimestamp) {
+        if (AllocateListForPushIfNeeded(&timestampList, &AlignedPool_)) {
+            row.SetTimestampList(timestampList, KeyColumnCount_);
+        }
+        timestampList.Push(timestamp);
+    }
+}
+
+void TDynamicMemoryStore::CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src)
+{
+    *dst = src;
+    CaptureValueData(dst, src);
+}
+
+void TDynamicMemoryStore::CaptureValue(TVersionedValue* dst, const TVersionedValue& src)
+{
+    *dst = src;
+    CaptureValueData(dst, src);
+}
+
+void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     if (src.Type == EValueType::String || src.Type == EValueType::Any) {
         dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
@@ -864,7 +885,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
-    const NApi::TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter)
 {
     return New<TReader>(
         this,
@@ -874,13 +895,122 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         columnFilter);
 }
 
+void TDynamicMemoryStore::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, State_);
+
+    SmallVector<TValueList, TypicalEditListCount> valueLists;
+    SmallVector<TTimestampList, TypicalEditListCount> timestampLists;
+
+    // Rows
+    Save(context, Rows_->Size());
+    for (auto rowIt = Rows_->FindGreaterThanOrEqualTo(MinKey()); rowIt.IsValid(); rowIt.MoveNext()) {
+        auto row = rowIt.GetCurrent();
+
+        const auto* keyBegin = row.GetKeys();
+        const auto* keyEnd = keyBegin + KeyColumnCount_;
+        for (const auto* keyIt = keyBegin; keyIt != keyEnd; ++keyIt) {
+            NVersionedTableClient::Save(context, *keyIt);
+        }
+
+        for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
+            auto topList = row.GetFixedValueList(listIndex, KeyColumnCount_);
+            if (topList) {
+                int valueCount = topList.GetSize() + topList.GetSuccessorsSize();
+                if (topList && (topList.Back().Timestamp & TimestampValueMask) == UncommittedTimestamp) {
+                    --valueCount;
+                }
+                Save(context, valueCount);
+
+                EnumerateListsAndReverse(topList, &valueLists);
+                for (auto list : valueLists) {
+                    for (const auto* valueIt = list.Begin(); valueIt != list.End(); ++valueIt) {
+                        const auto& value = *valueIt;
+                        if ((value.Timestamp & TimestampValueMask) != UncommittedTimestamp) {
+                            NVersionedTableClient::Save(context, *valueIt);
+                        }
+                    }
+                }
+            } else {
+                Save(context, static_cast<int>(0));
+            }
+        }
+
+        {
+            auto topList = row.GetTimestampList(KeyColumnCount_);
+            if (topList) {
+                int timestampCount = topList.GetSize() + topList.GetSuccessorsSize();
+                if (topList && (topList.Back() & TimestampValueMask) == UncommittedTimestamp) {
+                    --timestampCount;
+                }
+                Save(context, timestampCount);
+
+                EnumerateListsAndReverse(topList, &timestampLists);
+                for (auto list : timestampLists) {
+                    for (const auto* timestampIt = list.Begin(); timestampIt != list.End(); ++timestampIt) {
+                        auto timestamp = *timestampIt;
+                        if ((timestamp & TimestampValueMask) != UncommittedTimestamp) {
+                            Save(context, timestamp);
+                        }
+                    }
+                }
+            } else {
+                Save(context, static_cast<int>(0));
+            }
+        }
+    }
+}
+
+void TDynamicMemoryStore::Load(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, State_);
+
+    auto* slot = context.GetSlot();
+    auto transactionManager = slot->GetTransactionManager();
+
+    // Rows
+    int rowCount = Load<int>(context);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        auto row = AllocateRow();
+
+        auto* keyBegin = row.GetKeys();
+        auto* keyEnd = keyBegin + KeyColumnCount_;
+        for (auto* keyIt = keyBegin; keyIt != keyEnd; ++keyIt) {
+            NVersionedTableClient::Load(context, *keyIt, &UnalignedPool_);
+        }
+
+        for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
+            int valueCount = Load<int>(context);
+            for (int valueIndex = 0; valueIndex < valueCount; ++valueIndex) {
+                TVersionedValue value;
+                NVersionedTableClient::Load(context, value, &UnalignedPool_);
+                AddFixedValue(row, listIndex, value);
+            }
+        }
+
+        {
+            int timestampCount = Load<int>(context);
+            for (int timestampIndex = 0; timestampIndex < timestampCount; ++timestampIndex) {
+                auto timestamp = Load<TTimestamp>(context);
+                AddTimestamp(row, timestamp);
+            }
+        }
+
+        Rows_->Insert(row);
+    }
+}
+
 void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("key_count").Value(Rows_->Size())
-        .Item("lock_count").Value(GetLockCount())
-        .Item("allocated_string_space").Value(GetAllocatedStringSpace())
-        .Item("allocated_value_count").Value(GetAllocatedValueCount());
+        .Item("lock_count").Value(LockCount_)
+        .Item("allocated_string_space").Value(AllocatedStringSpace_)
+        .Item("allocated_value_count").Value(AllocatedValueCount_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

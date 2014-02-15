@@ -771,7 +771,7 @@ void TBuildingTableConsumer::OnValue(const TUnversionedValue& value)
 
 void TBuildingTableConsumer::OnEndRow()
 {
-    auto row = Builder_.Finish();
+    auto row = Builder_.GetRowAndReset();
     std::sort(
         row.Begin(),
         row.End(),

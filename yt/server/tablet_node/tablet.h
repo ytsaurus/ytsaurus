@@ -37,12 +37,12 @@ public:
         const TTabletId& id,
         TTabletSlot* slot,
         const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        NTabletClient::TTableMountConfigPtr config);
+        const NVersionedTableClient::TKeyColumns& keyColumns);
 
     ~TTablet();
 
     const NTabletClient::TTableMountConfigPtr& GetConfig() const;
+    void SetConfig(NTabletClient::TTableMountConfigPtr config);
 
     const NVersionedTableClient::TNameTablePtr& GetNameTable() const;
 

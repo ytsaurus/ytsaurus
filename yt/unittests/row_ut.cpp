@@ -30,7 +30,7 @@ void CheckSerialize(const TUnversionedOwningRow& original)
 TEST(TUnversionedRowTest, Serialize1)
 {
     TUnversionedOwningRowBuilder builder;
-    auto row = builder.Finish();
+    auto row = builder.GetRowAndReset();
     CheckSerialize(row);
 }
 
@@ -40,7 +40,7 @@ TEST(TUnversionedRowTest, Serialize2)
     builder.AddValue(MakeSentinelValue<TUnversionedValue>(EValueType::Null, 0));
     builder.AddValue(MakeIntegerValue<TUnversionedValue>(42, 1));
     builder.AddValue(MakeDoubleValue<TUnversionedValue>(0.25, 2));
-    CheckSerialize(builder.Finish());
+    CheckSerialize(builder.GetRowAndReset());
 }
 
 TEST(TUnversionedRowTest, Serialize3)
@@ -53,7 +53,7 @@ TEST(TUnversionedRowTest, Serialize3)
     builder.AddValue(MakeStringValue<TUnversionedValue>("string2", 30));
     builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
     builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
-    CheckSerialize(builder.Finish());
+    CheckSerialize(builder.GetRowAndReset());
 }
 
 TEST(TUnversionedRowTest, Serialize4)

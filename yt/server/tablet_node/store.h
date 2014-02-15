@@ -35,6 +35,9 @@ struct IStore
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) = 0;
 
+    virtual void Save(TSaveContext& context) const = 0;
+    virtual void Load(TLoadContext& context) = 0;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
 
 };

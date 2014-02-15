@@ -43,6 +43,9 @@ public:
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
 
+    virtual void Save(TSaveContext& context) const override;
+    virtual void Load(TLoadContext& context) override;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:

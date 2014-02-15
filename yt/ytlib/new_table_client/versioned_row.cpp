@@ -25,6 +25,22 @@ int ReadValue(const char* input, TVersionedValue* value)
     return result;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void Save(TStreamSaveContext& context, const TVersionedValue& value)
+{
+    NYT::Save(context, value.Timestamp);
+    NVersionedTableClient::Save(context, static_cast<const TUnversionedValue&>(value));
+}
+
+void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPool* pool)
+{
+    NYT::Load(context, value.Timestamp);
+    NVersionedTableClient::Load(context, static_cast<TUnversionedValue&>(value), pool);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka ToString(const TVersionedValue& value)
 {
     return Sprintf("%s@%" PRIu64,

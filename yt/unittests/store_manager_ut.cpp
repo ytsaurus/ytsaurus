@@ -22,7 +22,9 @@ protected:
         , StoreManager(New<TStoreManager>(
             New<TTabletManagerConfig>(),
             Tablet.get()))
-    { }
+    {
+        StoreManager->CreateActiveStore();
+    }
 
     void Rotate()
     {

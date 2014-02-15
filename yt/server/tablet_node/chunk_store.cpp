@@ -2,6 +2,7 @@
 #include "chunk_store.h"
 #include "tablet.h"
 #include "config.h"
+#include "automaton.h"
 
 #include <core/concurrency/fiber.h>
 
@@ -111,6 +112,20 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         upperLimit,
         columnFilter,
         timestamp);
+}
+
+void TChunkStore::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, State_);
+}
+
+void TChunkStore::Load(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, State_);
 }
 
 void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)

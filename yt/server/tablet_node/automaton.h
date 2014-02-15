@@ -3,6 +3,10 @@
 #include "public.h"
 #include "serialize.h"
 
+#include <core/misc/public.h>
+
+#include <ytlib/new_table_client/public.h>
+
 #include <server/hydra/composite_automaton.h>
 
 #include <server/cell_node/public.h>
@@ -20,7 +24,20 @@ class TSaveContext
 
 class TLoadContext
     : public NHydra::TLoadContext
-{ };
+{
+public:
+    TLoadContext();
+
+    DEFINE_BYVAL_RW_PROPERTY(TTabletSlot*, Slot);
+
+    TChunkedMemoryPool* GetTempPool() const;
+    NVersionedTableClient::TUnversionedRowBuilder* GetRowBuilder() const;
+
+private:
+    std::unique_ptr<TChunkedMemoryPool> TempPool_;
+    std::unique_ptr<NVersionedTableClient::TUnversionedRowBuilder> RowBuilder_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

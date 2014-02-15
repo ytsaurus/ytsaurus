@@ -73,6 +73,9 @@ public:
         TTimestamp timestamp,
         const NApi::TColumnFilter& columnFilter) override;
 
+    virtual void Save(TSaveContext& context) const override;
+    virtual void Load(TLoadContext& context) override;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
@@ -110,13 +113,27 @@ private:
         ERowLockMode mode,
         bool prewrite);
 
-    void CopyValue(
+    void DropUncommittedValues(TDynamicRow row);
+
+    void AddFixedValue(
+        TDynamicRow row,
+        int listIndex,
+        const NVersionedTableClient::TVersionedValue& value);
+    void AddUncommittedFixedValue(
+        TDynamicRow row,
+        int listIndex,
+        const NVersionedTableClient::TUnversionedValue& value);
+
+    void AddTimestamp(TDynamicRow row, TTimestamp timestamp);
+    void AddUncommittedTimestamp(TDynamicRow row, TTimestamp timestamp);
+
+    void CaptureValue(
         NVersionedTableClient::TUnversionedValue* dst,
         const NVersionedTableClient::TUnversionedValue& src);
-    void CopyValue(
+    void CaptureValue(
         NVersionedTableClient::TVersionedValue* dst,
         const NVersionedTableClient::TVersionedValue& src);
-    void CopyValueData(
+    void CaptureValueData(
         NVersionedTableClient::TUnversionedValue* dst,
         const NVersionedTableClient::TUnversionedValue& src);
 

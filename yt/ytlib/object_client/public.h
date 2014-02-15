@@ -117,7 +117,7 @@ DECLARE_ENUM(EObjectType,
     ((TabletCellNode)             (701))
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
-    ((TabletStore)                (704))
+    ((DynamicMemoryTabletStore)   (704))
 
     // Query stuff
     // A special type reserved for marking data splits for delegated subfragments

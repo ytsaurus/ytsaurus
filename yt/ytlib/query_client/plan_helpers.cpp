@@ -120,7 +120,7 @@ TKeyRange RefineKeyRange(
             for (size_t index = 0; index < keySize; ++index) {
                 builder.AddValue(key[index]);
             }
-            key = builder.Finish();
+            key = builder.GetRowAndReset();
             AdvanceToValueSuccessor(key[keySize - 1]);
         }
     };

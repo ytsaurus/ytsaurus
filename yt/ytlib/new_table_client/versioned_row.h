@@ -3,6 +3,8 @@
 #include "public.h"
 #include "unversioned_row.h"
 
+#include <core/misc/public.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -30,35 +32,35 @@ inline TVersionedValue MakeVersionedValue(const TUnversionedValue& value, TTimes
 
 inline TVersionedValue MakeVersionedSentinelValue(EValueType type, TTimestamp timestamp, int id = 0)
 {
-    TVersionedValue result = MakeSentinelValue<TVersionedValue>(type, id);
+    auto result = MakeSentinelValue<TVersionedValue>(type, id);
     result.Timestamp = timestamp;
     return result;
 }
 
 inline TVersionedValue MakeVersionedIntegerValue(i64 value, TTimestamp timestamp, int id = 0)
 {
-    TVersionedValue result = MakeIntegerValue<TVersionedValue>(value, id);
+    auto result = MakeIntegerValue<TVersionedValue>(value, id);
     result.Timestamp = timestamp;
     return result;
 }
 
 inline TVersionedValue MakeVersionedDoubleValue(double value, TTimestamp timestamp, int id = 0)
 {
-    TVersionedValue result = MakeDoubleValue<TVersionedValue>(value, id);
+    auto result = MakeDoubleValue<TVersionedValue>(value, id);
     result.Timestamp = timestamp;
     return result;
 }
 
 inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
 {
-    TVersionedValue result = MakeStringValue<TVersionedValue>(value, id);
+    auto result = MakeStringValue<TVersionedValue>(value, id);
     result.Timestamp = timestamp;
     return result;
 }
 
 inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
 {
-    TVersionedValue result = MakeAnyValue<TVersionedValue>(value, id);
+    auto result = MakeAnyValue<TVersionedValue>(value, id);
     result.Timestamp = timestamp;
     return result;
 }
@@ -80,9 +82,15 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetByteSize(const TVersionedValue& value);
-
 int WriteValue(char* output, const TVersionedValue& value);
 int ReadValue(const char* input, TVersionedValue* value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Save(TStreamSaveContext& context, const TVersionedValue& value);
+void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPool* pool);
+
+////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TVersionedValue& value);
 

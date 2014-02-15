@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "guid.h"
 #include "ref.h"
 #include "assert.h"
@@ -183,16 +184,6 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
         input.Skip(partSize);
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations.
-struct TValueBoundComparer;
-
-struct TValueBoundSerializer;
-
-template <class T, class C, class = void>
-struct TSerializerTraits;
 
 ////////////////////////////////////////////////////////////////////////////////
 

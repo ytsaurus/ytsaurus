@@ -73,8 +73,7 @@ protected:
             NullTabletId,
             nullptr,
             schema,
-            keyColumns,
-            New<TTableMountConfig>()));
+            keyColumns));
     }
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
@@ -125,7 +124,7 @@ protected:
             }
         }
 
-        return rowBuilder.Finish();
+        return rowBuilder.GetRowAndReset();
     }
 
 
@@ -264,7 +263,7 @@ protected:
             }
         }
 
-        return builder.Finish();
+        return builder.GetRowAndReset();
     }
 
 

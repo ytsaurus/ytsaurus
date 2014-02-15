@@ -4,6 +4,10 @@
 #include "serialize.h"
 #include "private.h"
 
+#include <core/misc/chunked_memory_pool.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <server/hydra/hydra_manager.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -12,7 +16,26 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NHydra;
+using namespace NVersionedTableClient;
 using namespace NCellNode;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoadContext::TLoadContext()
+    : Slot_(nullptr)
+    , TempPool_(new TChunkedMemoryPool())
+    , RowBuilder_(new TUnversionedRowBuilder())
+{ }
+
+TChunkedMemoryPool* TLoadContext::GetTempPool() const
+{
+    return TempPool_.get();
+}
+
+TUnversionedRowBuilder* TLoadContext::GetRowBuilder() const
+{
+    return RowBuilder_.get();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +46,8 @@ TTabletAutomaton::TTabletAutomaton(
 {
     Logger.AddTag(Sprintf("CellGuid: %s",
         ~ToString(Slot_->GetCellGuid())));
+
+    LoadContext_.SetSlot(Slot_);
 }
 
 TSaveContext& TTabletAutomaton::SaveContext()

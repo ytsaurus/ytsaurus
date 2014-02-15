@@ -3,9 +3,12 @@
 #include "automaton.h"
 #include "store_manager.h"
 #include "dynamic_memory_store.h"
+#include "tablet_slot.h"
+#include "tablet_manager.h"
 
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
+#include <core/misc/collection_helpers.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -25,20 +28,19 @@ using namespace NChunkClient;
 
 TTablet::TTablet(const TTabletId& id)
     : Id_(id)
+    , Slot_(nullptr)
 { }
 
 TTablet::TTablet(
     const TTabletId& id,
     TTabletSlot* slot,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    NTabletClient::TTableMountConfigPtr config)
+    const TKeyColumns& keyColumns)
     : Id_(id)
     , Slot_(slot)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , State_(ETabletState::Mounted)
-    , Config_(config)
     , NameTable_(TNameTable::FromSchema(Schema_))
 { }
 
@@ -49,27 +51,64 @@ void TTablet::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, Id_);
     Save(context, ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(Schema_));
+    Save(context, ToProto<NVersionedTableClient::NProto::TNameTableExt>(NameTable_));
     Save(context, KeyColumns_);
+    Save(context, State_);
 
-    // TODO(babenko)
+    auto saveStore = [&] (IStorePtr store) {
+        Save(context, store->GetId());
+        store->Save(context);
+    };
+
+    Save(context, Stores_.size());
+    for (const auto& pair : Stores_) {
+        saveStore(pair.second);
+    }
+
+    Save(context, ActiveStore_ ? ActiveStore_->GetId() : NullStoreId);
 }
 
 void TTablet::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, Id_);
-    Schema_ = FromProto<TTableSchema>(Load<NVersionedTableClient::NProto::TTableSchemaExt>(context));
-    Load(context, KeyColumns_);
+    Slot_ = context.GetSlot();
 
-    // TODO(babenko)
+    Schema_ = FromProto<TTableSchema>(Load<NVersionedTableClient::NProto::TTableSchemaExt>(context));
+    NameTable_ = FromProto<TNameTablePtr>(Load<NVersionedTableClient::NProto::TNameTableExt>(context));
+    Load(context, KeyColumns_);
+    Load(context, State_);
+
+    auto loadStore = [&] () -> IStorePtr {
+        auto storeId = Load<TStoreId>(context);
+        auto tabletManager = Slot_->GetTabletManager();
+        auto store = tabletManager->CreateStore(this, storeId);
+        store->Load(context);
+        return store;
+    };
+
+    size_t storeCount = Load<size_t>(context);
+    for (size_t index = 0; index < storeCount; ++index) {
+        auto store = loadStore();
+        YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
+    }
+
+    auto activeStoreId = Load<TStoreId>(context);
+    if (activeStoreId != NullStoreId) {
+        ActiveStore_ = dynamic_cast<TDynamicMemoryStore*>(GetStore(activeStoreId).Get());
+        YCHECK(ActiveStore_);
+    }
 }
 
 const TTableMountConfigPtr& TTablet::GetConfig() const
 {
     return Config_;
+}
+
+void TTablet::SetConfig(TTableMountConfigPtr config)
+{
+    Config_ = config;
 }
 
 const TNameTablePtr& TTablet::GetNameTable() const

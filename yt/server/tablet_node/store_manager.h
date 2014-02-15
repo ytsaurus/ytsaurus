@@ -74,7 +74,8 @@ public:
     void SetRotationScheduled();
     void ResetRotationScheduled();
     void Rotate(bool createNew);
-
+    void CreateActiveStore();
+    
 private:
     class TRowMerger;
     class TReader;
@@ -85,15 +86,11 @@ private:
     bool RotationScheduled_;
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
 
-    NVersionedTableClient::TNameTablePtr NameTable_;
-
     TChunkedMemoryPool LookupPool_;
     std::vector<NVersionedTableClient::TUnversionedRow> UnversionedPooledRow_;
     std::vector<NVersionedTableClient::TVersionedRow> VersionedPooledRows_;
 
 
-    void CreateNewStore();
-    
     TDynamicRow MaybeMigrateRow(const TDynamicRowRef& rowRef);
 
     void CheckLockAndMaybeMigrateRow(

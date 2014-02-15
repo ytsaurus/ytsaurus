@@ -135,6 +135,39 @@ int ReadValue(const char* input, TUnversionedValue* value)
     return current - input;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void Save(TStreamSaveContext& context, const TUnversionedValue& value)
+{
+    auto* output = context.GetOutput();
+    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+        output->Write(&value, sizeof (ui16) + sizeof (ui16) + sizeof (ui32)); // Id, Type, Length
+        if (value.Length != 0) {
+            output->Write(value.Data.String, value.Length);
+        }
+    } else {
+        output->Write(&value, sizeof (TUnversionedValue));
+    }
+}
+
+void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool)
+{
+    auto* input = context.GetInput();
+    input->Load(&value, sizeof (ui16) + sizeof (ui16) + sizeof (ui32)); // Id, Type, Length
+    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+        if (value.Length != 0) {
+            value.Data.String = pool->Allocate(value.Length);
+            input->Load(const_cast<char*>(value.Data.String), value.Length);
+        } else {
+            value.Data.String = nullptr;
+        }
+    } else {
+        input->Load(&value.Data, sizeof (value.Data));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka ToString(const TUnversionedValue& value)
 {
     switch (value.Type) {
@@ -152,6 +185,7 @@ Stroka ToString(const TUnversionedValue& value)
 
         case EValueType::String:
         case EValueType::Any:
+            // TODO(babenko): handle Any separately
             return Stroka(value.Data.String, value.Length).Quote();
 
         default:
@@ -441,7 +475,7 @@ TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelTy
         builder.AddValue(key[index]);
     }
     builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
-    return builder.Finish();
+    return builder.GetRowAndReset();
 }
 
 TOwningKey GetKeySuccessor(TKey key)
@@ -467,7 +501,7 @@ static TOwningKey MakeSentinelKey(EValueType type)
 {
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedSentinelValue(type));
-    return builder.Finish();
+    return builder.GetRowAndReset();
 }
 
 static const TOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
@@ -486,7 +520,7 @@ const TOwningKey MaxKey()
 static TOwningKey MakeEmptyKey()
 {
     TUnversionedOwningRowBuilder builder;
-    return builder.Finish();
+    return builder.GetRowAndReset();
 }
 
 static const TOwningKey CachedEmptyKey = MakeEmptyKey();
@@ -636,7 +670,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
         }
     }
 
-    *row = rowBuilder.Finish();
+    *row = rowBuilder.GetRowAndReset();
 }
 
 void Serialize(const TKey& key, IYsonConsumer* consumer)
@@ -714,7 +748,7 @@ void Deserialize(TOwningKey& key, INodePtr node)
         }
         ++id;
     }
-    key = builder.Finish();
+    key = builder.GetRowAndReset();
 }
 
 void TUnversionedOwningRow::Save(TStreamSaveContext& context) const
@@ -735,9 +769,7 @@ TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/
 {
     ValueCapacity_ = initialValueCapacity;
     RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
-
-    auto* header = GetHeader();
-    header->Count = 0;
+    Reset();
 }
 
 void TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
@@ -757,6 +789,12 @@ TUnversionedRow TUnversionedRowBuilder::GetRow()
     return TUnversionedRow(GetHeader());
 }
 
+void TUnversionedRowBuilder::Reset()
+{
+    auto* header = GetHeader();
+    header->Count = 0;   
+}
+
 TUnversionedRowHeader* TUnversionedRowBuilder::GetHeader()
 {
     return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
@@ -772,7 +810,7 @@ TUnversionedValue* TUnversionedRowBuilder::GetValue(int index)
 TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapacity /*= 16*/)
     : InitialValueCapacity_(initialValueCapacity)
 {
-    Init();
+    Reset();
 }
 
 void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
@@ -807,22 +845,23 @@ void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
     ++header->Count;
 }
 
-TUnversionedOwningRow TUnversionedOwningRowBuilder::Finish()
+TUnversionedOwningRow TUnversionedOwningRowBuilder::GetRowAndReset()
 {
     auto row = TUnversionedOwningRow(
         TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
         std::move(StringData_));
-    Init();
+    Reset();
     return row;
 }
 
-void TUnversionedOwningRowBuilder::Init()
+
+void TUnversionedOwningRowBuilder::Reset()
 {
     ValueCapacity_ = InitialValueCapacity_;
     RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
 
     auto* header = GetHeader();
-    header->Count = 0;
+    header->Count = 0;   
 }
 
 TUnversionedRowHeader* TUnversionedOwningRowBuilder::GetHeader()

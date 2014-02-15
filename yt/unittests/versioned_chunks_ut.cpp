@@ -143,10 +143,10 @@ protected:
 
         ChunkWriter->Write(rows);
 
-        FinishWriter();
+        GetRowAndResetWriter();
     }
 
-    void FinishWriter()
+    void GetRowAndResetWriter()
     {
         EXPECT_TRUE(ChunkWriter->Close().Get().IsOK());
 
@@ -187,7 +187,7 @@ protected:
             ChunkWriter->Write(rows);
         }
 
-        FinishWriter();
+        GetRowAndResetWriter();
     }
 
 };
@@ -343,7 +343,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;
-    lowerLimit.SetKey(lowerKeyBuilder.Finish());
+    lowerLimit.SetKey(lowerKeyBuilder.GetRowAndReset());
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -381,7 +381,7 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;
-    lowerLimit.SetKey(lowerKeyBuilder.Finish());
+    lowerLimit.SetKey(lowerKeyBuilder.GetRowAndReset());
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),

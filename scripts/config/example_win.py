@@ -143,11 +143,11 @@ class Holder(WinNode, Server):
                     'temp_path' : r'%(work_dir)s\snapshots'
                 },
                 'tablet_manager' : {
-                    'value_count_rotation_threshold' : 10
+                    'value_count_rotation_threshold' : 100
                 },
                 'hydra_manager' : {
                     'leader_committer' : {
-                        'changelog_rotation_period' : 1000
+                        'changelog_rotation_period' : 10
                     }
                 }
             },

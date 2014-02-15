@@ -25,6 +25,8 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/mutation_context.h>
@@ -54,6 +56,7 @@ using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +116,8 @@ public:
 
     TTablet* GetTabletOrThrow(const TTabletId& id)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto* tablet = FindTablet(id);
         if (!tablet) {
             THROW_ERROR_EXCEPTION("No such tablet %s",
@@ -123,6 +128,8 @@ public:
 
     void ValidateTabletMounted(TTablet* tablet)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (tablet->GetState() != ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Tablet %s is not in \"mounted\" state",
                 ~ToString(tablet->GetId()));
@@ -132,11 +139,18 @@ public:
 
     void SetStoreFailed(TTablet* tablet, IStorePtr store, EStoreState state)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         store->SetState(state);
-        TDelayedExecutor::Submit(
-            BIND(&TImpl::RestoreStoreState, MakeStrong(this), store)
-                .Via(tablet->GetEpochAutomatonInvoker()),
-            Config_->StoreErrorBackoffTime);
+
+        auto this_ = MakeStrong(this);
+        auto callback = BIND([this, this_, store] () {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+            store->SetState(store->GetPersistentState());
+        }).Via(tablet->GetEpochAutomatonInvoker());
+
+        TDelayedExecutor::Submit(callback, Config_->StoreErrorBackoffTime);
     }
 
 
@@ -146,6 +160,8 @@ public:
         const Stroka& encodedRequest,
         Stroka* encodedResponse)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         ValidateTabletMounted(tablet);
         ValidateReadTimestamp(timestamp);
 
@@ -167,6 +183,8 @@ public:
         TTransaction* transaction,
         const Stroka& encodedRequest)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         ValidateTabletMounted(tablet);
 
         const auto& store = tablet->GetActiveStore();
@@ -212,6 +230,24 @@ public:
 
         if (IsLeader()) {
             CheckIfRotationNeeded(tablet);
+        }
+    }
+
+
+    IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        switch (TypeFromId(storeId)) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+                return CreateChunkStore(tablet, storeId);
+
+            case EObjectType::DynamicMemoryTabletStore:
+                return CreateDynamicMemoryStore(tablet, storeId);
+
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -288,6 +324,7 @@ private:
         TabletMap_.LoadValues(context);
     }
 
+
     virtual void OnBeforeSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -297,13 +334,17 @@ private:
 
     virtual void OnAfterSnapshotLoaded() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
+            InitializeTablet(tablet);
             if (tablet->GetState() >= ETabletState::Unmounting) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
         }
     }
+
 
     virtual void Clear() override
     {
@@ -314,24 +355,29 @@ private:
 
     void DoClear()
     {
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            StopTablet(tablet);
+        }
+
         TabletMap_.Clear();
         UnmountingTablets_.clear();
     }
 
 
-    virtual void OnStartLeading()
+    virtual void OnLeaderRecoveryComplete() override
     {
         YCHECK(PrewrittenRows_.empty());
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            InitTablet(tablet);
+            StartTablet(tablet);
             CheckIfFullyUnlocked(tablet);
             CheckIfAllStoresFlushed(tablet);
         }
     }
 
-    virtual void OnStopLeading()
+    virtual void OnStopLeading() override
     {
         while (!PrewrittenRows_.empty()) {
             auto rowRef = PrewrittenRows_.front();
@@ -341,8 +387,28 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            FiniTablet(tablet);
-            tablet->GetStoreManager()->ResetRotationScheduled();
+            StopTablet(tablet);
+        }
+    }
+
+
+    virtual void OnStartFollowing() override
+    {
+        YCHECK(PrewrittenRows_.empty());
+
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            StartTablet(tablet);
+        }
+    }
+
+    virtual void OnStopFollowing() override
+    {
+        YCHECK(PrewrittenRows_.empty());
+
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            StopTablet(tablet);
         }
     }
 
@@ -357,9 +423,9 @@ private:
             tabletId,
             Slot_,
             schema,
-            keyColumns,
-            New<TTableMountConfig>());
-        InitTablet(tablet);
+            keyColumns);
+        InitializeTablet(tablet);
+        tablet->GetStoreManager()->CreateActiveStore();
         tablet->SetState(ETabletState::Mounted);
         TabletMap_.Insert(tabletId, tablet);
 
@@ -369,13 +435,14 @@ private:
             tablet->AddStore(store);
         }
 
-        auto storeManager = New<TStoreManager>(Config_, tablet);
-        tablet->SetStoreManager(std::move(storeManager));
-
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             PostMasterMutation(response);
+        }
+    
+        if (!IsRecovery()) {
+            StartTablet(tablet);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkCount: %d)",
@@ -445,7 +512,11 @@ private:
 
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %s)",
                     ~ToString(tabletId));
-                tablet->GetCancelableContext()->Cancel();
+
+                if (!IsRecovery()) {
+                    StopTablet(tablet);
+                }
+
                 TabletMap_.Remove(tabletId);
                 YCHECK(UnmountingTablets_.erase(tablet) == 1);
 
@@ -823,32 +894,43 @@ private:
     }
 
 
-    void InitTablet(TTablet* tablet)
+    void InitializeTablet(TTablet* tablet)
+    {
+        auto storeManager = New<TStoreManager>(Config_, tablet);
+        tablet->SetStoreManager(storeManager);
+
+        // TODO(babenko): make configurable
+        tablet->SetConfig(New<TTableMountConfig>());
+    }
+
+
+    void StartTablet(TTablet* tablet)
     {
         auto context = New<TCancelableContext>();
         tablet->SetCancelableContext(context);
+
         auto hydraManager = Slot_->GetHydraManager();
         tablet->SetEpochAutomatonInvoker(context->CreateInvoker(Slot_->GetEpochAutomatonInvoker()));
     }
 
-    void FiniTablet(TTablet* tablet)
+    void StopTablet(TTablet* tablet)
     {
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
             store->SetState(store->GetPersistentState());
         }
 
-        tablet->SetCancelableContext(nullptr);
+        auto context = tablet->GetCancelableContext();
+        if (context) {
+            context->Cancel();
+            tablet->SetCancelableContext(nullptr);
+        }
+
         tablet->SetEpochAutomatonInvoker(nullptr);
+        
+        tablet->GetStoreManager()->ResetRotationScheduled();
     }
 
-
-    void RestoreStoreState(IStorePtr store)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        store->SetState(store->GetPersistentState());
-    }
 
     IStorePtr CreateChunkStore(TTablet* tablet, const TChunkId& chunkId)
     {
@@ -859,6 +941,14 @@ private:
             Bootstrap_->GetBlockStore()->GetBlockCache(),
             Bootstrap_->GetMasterChannel(),
             Bootstrap_->GetLocalDescriptor());
+    }
+
+    IStorePtr CreateDynamicMemoryStore(TTablet* tablet, const TStoreId& storeId)
+    {
+        return New<TDynamicMemoryStore>(
+            Config_,
+            storeId,
+            tablet);
     }
 
 };
@@ -880,7 +970,7 @@ TTabletManager::TTabletManager(
 TTabletManager::~TTabletManager()
 { }
 
-void TTabletManager::Start()
+void TTabletManager::Initialize()
 {
     Impl_->Initialize();
 }
@@ -922,6 +1012,11 @@ void TTabletManager::Write(
         tablet,
         transaction,
         encodedRequest);
+}
+
+IStorePtr TTabletManager::CreateStore(TTablet* tablet, const TStoreId& storeId)
+{
+    return Impl_->CreateStore(tablet, storeId);
 }
 
 void TTabletManager::BuildOrchidYson(IYsonConsumer* consumer)

@@ -231,7 +231,7 @@ public:
             keyCount * sizeof (NVersionedTableClient::TUnversionedValue) +
             listCount * sizeof(TEditListHeader*)));
         header->Transaction = nullptr;
-        header->LockIndex = -1;
+        header->LockIndex = InvalidLockIndex;
         header->LockMode = ERowLockMode::None;
         header->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
         header->LastCommitTimestamp = NVersionedTableClient::NullTimestamp;
@@ -253,6 +253,14 @@ public:
         return Header_->Transaction;
     }
 
+    void SetTransaction(TTransaction* transaction)
+    {
+        Header_->Transaction = transaction;
+    }
+
+
+    static const int InvalidLockIndex = -1;
+
     int GetLockIndex() const
     {
         return Header_->LockIndex;
@@ -260,14 +268,20 @@ public:
 
     void SetLockIndex(int index)
     {
-        YASSERT(Header_->LockIndex == -1);
         Header_->LockIndex = index;
     }
+
 
     ERowLockMode GetLockMode() const
     {
         return ERowLockMode(Header_->LockMode);
     }
+
+    void SetLockMode(ERowLockMode mode)
+    {
+        Header_->LockMode = mode;
+    }
+
 
     void Lock(TTransaction* transaction, int index, ERowLockMode mode)
     {
@@ -279,7 +293,7 @@ public:
     void Unlock()
     {
         Header_->Transaction = nullptr;
-        Header_->LockIndex = -1;
+        Header_->LockIndex = InvalidLockIndex;
         Header_->LockMode = ERowLockMode::None;
         Header_->PrepareTimestamp = NTransactionClient::MaxTimestamp;
     }
