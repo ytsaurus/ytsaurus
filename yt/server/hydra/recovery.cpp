@@ -162,7 +162,7 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
         YCHECK(currentVersion.SegmentId == changelog->GetId());
         if (currentVersion.RecordId > changelog->GetRecordCount()) {
             DecoratedAutomaton->Clear();
-            THROW_ERROR_EXCEPTION("Current version is %s while only %d mutations are expected, forcing clean restart",
+            THROW_ERROR_EXCEPTION("Current version is %s while only %d mutations are expected in this segment, forcing clean restart",
                 ~ToString(currentVersion),
                 changelog->GetRecordCount());
         }
