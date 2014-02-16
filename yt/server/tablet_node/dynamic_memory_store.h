@@ -92,8 +92,8 @@ private:
     int KeyColumnCount_;
     int SchemaColumnCount_;
 
-    i64 AllocatedStringSpace_;
-    int AllocatedValueCount_;
+    i64 StringSpace_;
+    int ValueCount_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;

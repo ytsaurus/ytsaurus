@@ -373,8 +373,8 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , State_(EStoreState::ActiveDynamic)
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
-    , AllocatedStringSpace_(0)
-    , AllocatedValueCount_(0)
+    , StringSpace_(0)
+    , ValueCount_(0)
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(
@@ -553,7 +553,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
                     migratedList.Push([&] (TVersionedValue* dstValue) {
                         migrateTo->CaptureValue(dstValue, srcValue);
                     });
-                    ++AllocatedValueCount_;
+                    ++ValueCount_;
                 }
             }
         }
@@ -781,7 +781,7 @@ void TDynamicMemoryStore::AddFixedValue(
         CaptureValue(dstValue, value);
     });
 
-    ++AllocatedValueCount_;
+    ++ValueCount_;
 }
 
 void TDynamicMemoryStore::AddUncommittedFixedValue(
@@ -852,18 +852,18 @@ void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnvers
     if (src.Type == EValueType::String || src.Type == EValueType::Any) {
         dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
         memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
-        AllocatedStringSpace_ += src.Length;
+        StringSpace_ += src.Length;
     }
 }
 
 i64 TDynamicMemoryStore::GetAllocatedStringSpace() const
 {
-    return AllocatedStringSpace_;
+    return StringSpace_;
 }
 
 int TDynamicMemoryStore::GetAllocatedValueCount() const
 {
-    return AllocatedValueCount_;
+    return ValueCount_;
 }
 
 TStoreId TDynamicMemoryStore::GetId() const
@@ -1009,8 +1009,8 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("key_count").Value(Rows_->Size())
         .Item("lock_count").Value(LockCount_)
-        .Item("allocated_string_space").Value(AllocatedStringSpace_)
-        .Item("allocated_value_count").Value(AllocatedValueCount_);
+        .Item("value_count").Value(ValueCount_)
+        .Item("string_space").Value(StringSpace_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
