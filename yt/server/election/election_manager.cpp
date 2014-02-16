@@ -916,20 +916,20 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
             ~FormatEnum(State).Quote());
     }
 
-    if (leaderId != EpochContext->LeaderId) {
-        THROW_ERROR_EXCEPTION(
-            NElection::EErrorCode::InvalidLeader,
-            "Ping from an invalid leader: expected %d, received %d",
-            EpochContext->LeaderId,
-            leaderId);
-    }
-
     if (epochId != EpochContext->EpochId) {
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidEpoch,
             "Received ping with invalid epoch: expected %s, received %s",
             ~ToString(EpochContext->EpochId),
             ~ToString(epochId));
+    }
+
+    if (leaderId != EpochContext->LeaderId) {
+        THROW_ERROR_EXCEPTION(
+            NElection::EErrorCode::InvalidLeader,
+            "Ping from an invalid leader: expected %d, received %d",
+            EpochContext->LeaderId,
+            leaderId);
     }
 
     TDelayedExecutor::Cancel(PingTimeoutCookie);
