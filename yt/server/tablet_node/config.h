@@ -52,6 +52,7 @@ public:
     size_t UnalignedPoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
+    int KeyCountRotationThreshold;
     int ValueCountRotationThreshold;
     i64 StringSpaceRotationThreshold;
 
@@ -71,12 +72,15 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.25);
 
-        RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
+        RegisterParameter("key_count_rotation_threshold", KeyCountRotationThreshold)
             .GreaterThan(0)
             .Default(1000000);
+        RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
+            .GreaterThan(0)
+            .Default(10000000);
         RegisterParameter("string_space_rotation_threshold", StringSpaceRotationThreshold)
             .GreaterThan(0)
-            .Default((i64) 100 * 1024 * 1024);
+            .Default((i64) 256 * 1024 * 1024);
 
         RegisterParameter("store_error_backoff_time", StoreErrorBackoffTime)
             .Default(TDuration::Minutes(1));

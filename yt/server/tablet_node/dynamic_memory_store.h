@@ -58,8 +58,9 @@ public:
     void CommitRow(TDynamicRow row);
     void AbortRow(TDynamicRow row);
 
-    i64 GetAllocatedStringSpace() const;
-    int GetAllocatedValueCount() const;
+    i64 GetStringSpace() const;
+    int GetValueCount() const;
+    int GetKeyCount() const;
 
     // IStore implementation.
     virtual TStoreId GetId() const override;

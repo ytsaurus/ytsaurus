@@ -856,14 +856,19 @@ void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnvers
     }
 }
 
-i64 TDynamicMemoryStore::GetAllocatedStringSpace() const
+i64 TDynamicMemoryStore::GetStringSpace() const
 {
     return StringSpace_;
 }
 
-int TDynamicMemoryStore::GetAllocatedValueCount() const
+int TDynamicMemoryStore::GetValueCount() const
 {
     return ValueCount_;
+}
+
+int TDynamicMemoryStore::GetKeyCount() const
+{
+    return Rows_->Size();
 }
 
 TStoreId TDynamicMemoryStore::GetId() const

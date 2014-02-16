@@ -681,14 +681,10 @@ void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
 bool TStoreManager::IsRotationNeeded() const
 {
     const auto& store = Tablet_->GetActiveStore();
-    if (store->GetAllocatedValueCount() >= Config_->ValueCountRotationThreshold) {
-        return true;
-    }
-    if (store->GetAllocatedStringSpace() >= Config_->StringSpaceRotationThreshold) {
-        return true;
-    }
-
-    return false;
+    return
+        store->GetKeyCount() >= Config_->KeyCountRotationThreshold ||
+        store->GetValueCount() >= Config_->ValueCountRotationThreshold ||
+        store->GetStringSpace() >= Config_->StringSpaceRotationThreshold;
 }
 
 void TStoreManager::SetRotationScheduled()
