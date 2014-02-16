@@ -1,4 +1,4 @@
- #pragma once
+#pragma once
 
 #include "guid.h"
 #include "ref.h"
