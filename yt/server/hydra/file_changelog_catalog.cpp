@@ -580,13 +580,14 @@ private:
             auto key = std::make_pair(cellGuid, changelogId);
             auto it = SplitChangelogMap.find(key);
             if (it == SplitChangelogMap.end()) {
-                auto changelog = OpenFileChangelog(
-                    Catalog->GetSplitChangelogPath(cellGuid, changelogId),
-                    changelogId,
-                    Catalog->Config->Split);
-                if (!changelog) {
+                auto path = Catalog->GetSplitChangelogPath(cellGuid, changelogId);
+                if (!isexist(~path)) {
                     return nullptr;
                 }
+                auto changelog = OpenFileChangelog(
+                    path,
+                    changelogId,
+                    Catalog->Config->Split);
                 it = SplitChangelogMap.insert(std::make_pair(
                     key,
                     TSplitEntry(changelog))).first;
