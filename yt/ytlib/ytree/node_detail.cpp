@@ -69,7 +69,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         attributeFilter,
         false,
         ignoreOpaque);
-    
+
     response->set_value(stream.Str());
 
     context->Reply();
@@ -252,16 +252,33 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
+    size_t maxSize = request->has_max_size() ? request->max_size() : Max<size_t>();
+
     TStringStream stream;
     TYsonWriter writer(&stream);
 
+    auto children = GetChildren();
+    if (children.size() > maxSize) {
+        writer.OnBeginAttributes();
+        writer.OnKeyedItem("incomplete");
+        writer.OnStringScalar("true");
+        writer.OnEndAttributes();
+    }
+
+    size_t counter = 0;
+
     writer.OnBeginList();
-    FOREACH (const auto& pair, GetChildren()) {
+    FOREACH (const auto& pair, children) {
         const auto& key = pair.first;
         const auto& node = pair.second;
         writer.OnListItem();
         node->SerializeAttributes(&writer, attributeFilter, false);
         writer.OnStringScalar(key);
+
+        counter += 1;
+        if (counter == maxSize) {
+            break;
+        }
     }
     writer.OnEndList();
 
