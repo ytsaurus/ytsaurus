@@ -109,7 +109,7 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
 {
     YCHECK(Schema_.Columns().size() > 0);
     YCHECK(KeyColumns_.size() > 0);
-    YCHECK(ValidateKeyColumns(Schema_, KeyColumns_).IsOK());
+    YCHECK(Schema_.CheckKeyColumns(KeyColumns_).IsOK());
 }
 
 template <class TBlockWriter>

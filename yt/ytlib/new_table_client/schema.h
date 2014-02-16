@@ -56,6 +56,9 @@ public:
 
     int GetColumnIndex(const TColumnSchema& column) const;
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
+
+    TError CheckKeyColumns(const TKeyColumns& keyColumns) const;
+
 };
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
@@ -69,10 +72,6 @@ bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);
 
 bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TError ValidateKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

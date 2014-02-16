@@ -47,7 +47,7 @@ TAsyncError TCachedVersionedChunkMeta::Load()
 {
     TAsyncError asyncError;
 
-    auto error = ValidateKeyColumns(ReaderSchema_, KeyColumns_);
+    auto error = ReaderSchema_.CheckKeyColumns(KeyColumns_);
     if (!error.IsOK()) {
         asyncError = MakeFuture(error);
     } else {

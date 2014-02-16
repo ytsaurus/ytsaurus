@@ -128,6 +128,22 @@ int TTableSchema::GetColumnIndexOrThrow(const TStringBuf& name) const
     return GetColumnIndex(GetColumnOrThrow(name));
 }
 
+TError TTableSchema::CheckKeyColumns(const TKeyColumns& keyColumns) const
+{
+    // ToDo(psushin): provide ToString for TTableSchema and make better error messages.
+    if (Columns_.size() < keyColumns.size()) {
+        return TError("Schema doesn't contain all key columns");
+    }
+
+    for (int index = 0; index < static_cast<int>(keyColumns.size()); ++index) {
+        if (Columns_[index].Name != keyColumns[index]) {
+            return TError("Key columns must form a prefix of schema");;
+        }
+    }
+
+    return TError();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -180,24 +196,6 @@ bool operator == (const TTableSchema& lhs, const TTableSchema& rhs)
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs)
 {
     return !(lhs == rhs);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TError ValidateKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns)
-{
-    // ToDo(psushin): provide ToString for TTableSchema and make better error messages.
-    if (schema.Columns().size() < keyColumns.size()) {
-        return TError("Schema doesn't contain all key columns");
-    }
-
-    for (int i = 0; i < keyColumns.size(); ++i) {
-        if (schema.Columns()[i].Name != keyColumns[i]) {
-            return TError("Key columns must form a prefix of schema");;
-        }
-    }
-
-    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
