@@ -63,6 +63,8 @@ public:
 
     void WriteColumnFilter(const NApi::TColumnFilter& filter);
 
+    void WriteTableSchema(const NVersionedTableClient::TTableSchema& schema);
+
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
     void WriteUnversionedRow(NVersionedTableClient::TUnversionedRow row);
@@ -91,6 +93,10 @@ public:
     EProtocolCommand ReadCommand();
     
     NApi::TColumnFilter ReadColumnFilter();
+
+    NVersionedTableClient::TTableSchema ReadTableSchema();
+
+    void ReadMessage(::google::protobuf::MessageLite* message);
 
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
     void ReadUnversionedRowset(std::vector<NVersionedTableClient::TUnversionedRow>* rowset);

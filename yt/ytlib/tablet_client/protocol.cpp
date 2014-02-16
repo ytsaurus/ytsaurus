@@ -28,6 +28,8 @@ static const ui32 CurrentProtocolVersion = 1;
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
 
+static auto PresetResult = MakeFuture(TError());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProtocolWriter::TSchemedRowsetWriter
@@ -42,17 +44,13 @@ public:
         const TTableSchema& schema,
         const TNullable<TKeyColumns>& /*keyColumns*/) override
     {
-        auto protoSchema = ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(schema);
-        Writer_->WriteMessage(protoSchema);
-
-        static auto result = MakeFuture(TError());
-        return result;
+        Writer_->WriteTableSchema(schema);
+        return PresetResult;
     }
 
     virtual TAsyncError Close() override
     {
-        static auto result = MakeFuture(TError());
-        return result;
+        return PresetResult;
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
@@ -63,7 +61,7 @@ public:
 
     virtual TAsyncError GetReadyEvent() override
     {
-        YUNREACHABLE();
+        return PresetResult;
     }
 
 private:
@@ -100,8 +98,15 @@ public:
         }
     }
 
+    void WriteTableSchema(const TTableSchema& schema)
+    {
+        WriteMessage(ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(schema));
+    }
+
     void WriteMessage(const ::google::protobuf::MessageLite& message)
     {
+        WriteUInt32(message.ByteSize());
+
         message.SerializePartialToCodedStream(&CodedStream_);
     }
 
@@ -236,6 +241,11 @@ void TProtocolWriter::WriteColumnFilter(const TColumnFilter& filter)
     Impl_->WriteColumnFilter(filter);
 }
 
+void TProtocolWriter::WriteTableSchema(const TTableSchema& schema)
+{
+    Impl_->WriteTableSchema(schema);
+}
+
 void TProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& message)
 {
     Impl_->WriteMessage(message);
@@ -269,25 +279,36 @@ class TProtocolReader::TSchemedRowsetReader
 public:
     explicit TSchemedRowsetReader(TProtocolReader* reader)
         : Reader_(reader)
+        , Finished_(false)
     { }
 
     virtual TAsyncError Open(const TTableSchema& schema) override
     {
-        YUNIMPLEMENTED();
+        auto actualSchema = Reader_->ReadTableSchema();
+        if (schema != actualSchema) {
+            return MakeFuture(TError("Schema mismatch while parsing wire protocol"));
+        }
+        return PresetResult;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        YUNIMPLEMENTED();
+        if (Finished_) {
+            return false;
+        }
+        Reader_->ReadUnversionedRowset(rows);
+        Finished_ = true;
+        return true;
     }
 
     virtual TAsyncError GetReadyEvent() override
     {
-        YUNREACHABLE();
+        return PresetResult;
     }
 
 private:
     TProtocolReader* Reader_;
+    bool Finished_;
 
 };
 
@@ -304,18 +325,16 @@ public:
     {
         ProtocolVersion_ = ReadUInt32();
         if (ProtocolVersion_ != 1) {
-            THROW_ERROR_EXCEPTION("Unsupported protocol version %d",
+            THROW_ERROR_EXCEPTION("Unsupported wire protocol version %d",
                 ProtocolVersion_);
         }
     }
-
 
     EProtocolCommand ReadCommand()
     {
         return EProtocolCommand(ReadUInt32());
     }
 
-    
     TColumnFilter ReadColumnFilter()
     {
         TColumnFilter filter;
@@ -330,6 +349,29 @@ public:
         return filter;
     }
 
+    TTableSchema ReadTableSchema()
+    {
+        NVersionedTableClient::NProto::TTableSchemaExt protoSchema;
+        ReadMessage(&protoSchema);
+        return FromProto<TTableSchema>(protoSchema);
+    }
+
+    void ReadMessage(::google::protobuf::MessageLite* message)
+    {
+        ui32 messageSize = ReadUInt32();
+
+        const void* chunk;
+        intptr_t chunkSize;
+        CheckResult(CodedStream_.GetDirectBufferPointer(&chunk, &chunkSize));
+        CheckResult(chunkSize >= messageSize);
+
+        ::google::protobuf::io::CodedInputStream chunkStream(
+            reinterpret_cast<const ui8*>(chunk),
+            messageSize);
+        message->ParsePartialFromCodedStream(&chunkStream);
+
+        CodedStream_.Skip(messageSize);
+    }
 
     TUnversionedRow ReadUnversionedRow()
     {
@@ -359,7 +401,7 @@ private:
     void CheckResult(bool result)
     {
         if (!result) {
-            THROW_ERROR_EXCEPTION("Error parsing protocol");
+            THROW_ERROR_EXCEPTION("Error parsing wire protocol");
         }
     }
 
@@ -462,6 +504,16 @@ EProtocolCommand TProtocolReader::ReadCommand()
 TColumnFilter TProtocolReader::ReadColumnFilter()
 {
     return Impl_->ReadColumnFilter();
+}
+
+TTableSchema TProtocolReader::ReadTableSchema()
+{
+    return Impl_->ReadTableSchema();
+}
+
+void TProtocolReader::ReadMessage(::google::protobuf::MessageLite* message)
+{
+    Impl_->ReadMessage(message);
 }
 
 TUnversionedRow TProtocolReader::ReadUnversionedRow()

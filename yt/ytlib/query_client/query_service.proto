@@ -14,7 +14,7 @@ message TReqExecute
 
 message TRspExecute
 {
-    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 1;
+    required bytes encoded_response = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

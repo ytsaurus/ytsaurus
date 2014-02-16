@@ -21,6 +21,7 @@
 #include <ytlib/hive/remote_timestamp_provider.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
+#include <ytlib/tablet_client/protocol.h>
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
@@ -36,14 +37,12 @@
 
 #include <util/random/random.h>
 
-// TODO(babenko): killme
+// TODO(babenko): consider removing
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client//chunk_meta_extensions.h>
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/schemed_chunk_reader.h>
 
 namespace NYT {
 namespace NApi {
@@ -58,7 +57,7 @@ using namespace NTabletClient;
 using namespace NQueryClient;
 using namespace NVersionedTableClient;
 using namespace NObjectClient;
-using namespace NTableClient;  // TODO(babenko): killme
+using namespace NTableClient;  // TODO(babenko): consider removing
 using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,64 +66,58 @@ static auto& Logger = ApiLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteReader
-    : public NChunkClient::IAsyncReader
+class TQueryResponseReader
+    : public ISchemedReader
 {
 public:
-    explicit TRemoteReader(TFuture<TQueryServiceProxy::TRspExecutePtr> response)
-        : Response_(std::move(response))
+    explicit TQueryResponseReader(TQueryServiceProxy::TInvExecute asyncResponse)
+        : AsyncResponse_(std::move(asyncResponse))
     { }
 
-    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TAsyncError Open(const TTableSchema& schema) override
     {
-        return Response_.Apply(BIND(
-            &TRemoteReader::ReadBlocks,
-            blockIndexes));
+        return AsyncResponse_.Apply(BIND(
+            &TQueryResponseReader::OnResponse,
+            MakeStrong(this),
+            schema));
     }
 
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
-        const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* tags = nullptr) override
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return Response_.Apply(BIND(
-            &TRemoteReader::GetChunkMeta,
-            partitionTag,
-            MakeNullable(tags)));
+        return RowsetReader_->Read(rows);
     }
 
-    virtual TChunkId GetChunkId() const override
+    virtual TAsyncError GetReadyEvent() override
     {
-        return NullChunkId;
+        return RowsetReader_->GetReadyEvent();
     }
 
 private:
-    TFuture<TQueryServiceProxy::TRspExecutePtr> Response_;
+    TQueryServiceProxy::TInvExecute AsyncResponse_;
 
-    static TReadResult ReadBlocks(
-        const std::vector<int>& blockIndexes,
-        TQueryServiceProxy::TRspExecutePtr rsp)
+    std::unique_ptr<TProtocolReader> ProtocolReader_;
+    ISchemedReaderPtr RowsetReader_;
+
+    
+    TError OnResponse(
+        const TTableSchema& schema,
+        TQueryServiceProxy::TRspExecutePtr response)
     {
-        if (!rsp->IsOK()) {
-            return rsp->GetError();
+        if (!response->IsOK()) {
+            return response->GetError();
         }
-        std::vector<TSharedRef> blocks;
-        for (auto index : blockIndexes) {
-            YCHECK(index < rsp->Attachments().size());
-            blocks.push_back(rsp->Attachments()[index]);
-        }
-        return std::move(blocks);
+
+        YCHECK(!ProtocolReader_);
+        ProtocolReader_.reset(new TProtocolReader(response->encoded_response()));
+
+        YCHECK(!RowsetReader_);
+        RowsetReader_ = ProtocolReader_->CreateSchemedRowsetReader();
+
+        auto asyncResult = RowsetReader_->Open(schema);
+        YCHECK(asyncResult.IsSet()); // this reader is sync
+        return asyncResult.Get();
     }
 
-    static TGetMetaResult GetChunkMeta(
-        const TNullable<int>& partitionTag,
-        const TNullable<std::vector<int>> extensionTags,
-        TQueryServiceProxy::TRspExecutePtr rsp)
-    {
-        if (!rsp->IsOK()) {
-            return rsp->GetError();
-        }
-        return rsp->chunk_meta();
-    }
 
 };
 
@@ -291,10 +284,7 @@ public:
         // TODO(sandello): Send only relevant part of nodeDirectory.
         nodeDirectory->DumpTo(req->mutable_node_directory());
         ToProto(req->mutable_plan_fragment(), fragment);
-
-        return CreateSchemedChunkReader(
-            New<TChunkReaderConfig>(),
-            New<TRemoteReader>(req->Invoke()));
+        return New<TQueryResponseReader>(req->Invoke());
     }
 
 private:
@@ -311,7 +301,6 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
-
 
 
     TDataSplit DoGetInitialSplit(
