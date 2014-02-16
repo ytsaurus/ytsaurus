@@ -162,14 +162,24 @@ void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
+bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs)
 {
     return lhs.Name == rhs.Name && lhs.Type == rhs.Type;
 }
 
-bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
+bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool operator == (const TTableSchema& lhs, const TTableSchema& rhs)
 {
     return lhs.Columns() == rhs.Columns();
+}
+
+bool operator != (const TTableSchema& lhs, const TTableSchema& rhs)
+{
+    return !(lhs == rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

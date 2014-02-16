@@ -64,8 +64,11 @@ void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema);
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema);
 
-bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs);
-bool operator==(const TTableSchema& lhs, const TTableSchema& rhs);
+bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs);
+bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);
+
+bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
+bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
