@@ -55,32 +55,32 @@ static const int ReaderPoolSize = 1024;
 namespace {
 
 template <class T, class TTimestampExtractor>
-std::tuple<T*, TEditList<T>> FindVersionedValue(
+T* SearchList(
     TEditList<T> list,
     TTimestamp maxTimestamp,
-    TTimestampExtractor timestampExtractor)
+    const TTimestampExtractor& timestampExtractor)
 {
     if (!list) {
-        return std::make_tuple(nullptr, list);
+        return nullptr;
     }
 
     if (maxTimestamp == LastCommittedTimestamp) {
         auto& value = list.Back();
         if (timestampExtractor(value) != UncommittedTimestamp) {
-            return std::make_tuple(&value, list);
+            return &value;
         }
         if (list.GetSize() > 1) {
-            return std::make_tuple(&value - 1, list);
+            return &value - 1;
         }
         auto nextList = list.GetNext();
         if (!nextList) {
-            return std::make_tuple(nullptr, nextList);
+            return nullptr;
         }
-        return std::make_tuple(&nextList.Back(), nextList);
+        return &nextList.Back();
     } else {
         while (true) {
             if (!list) {
-                return std::make_tuple(nullptr, list);
+                return nullptr;
             }
             if (timestampExtractor(list.Front()) <= maxTimestamp) {
                 break;
@@ -100,15 +100,16 @@ std::tuple<T*, TEditList<T>> FindVersionedValue(
             }
         }
 
-        return
-            left && timestampExtractor(*left) <= maxTimestamp
-            ? std::make_tuple(left, list)
-            : std::make_tuple(nullptr, list);
+        return left && timestampExtractor(*left) <= maxTimestamp
+            ? left
+            : nullptr;
     }
 }
 
 template <class T>
-bool AllocateListForPushIfNeeded(TEditList<T>* list, TChunkedMemoryPool* pool)
+bool AllocateListForPushIfNeeded(
+    TEditList<T>* list,
+    TChunkedMemoryPool* pool)
 {
     if (list->GetSize() < list->GetCapacity()) {
         return false;
@@ -122,7 +123,9 @@ bool AllocateListForPushIfNeeded(TEditList<T>* list, TChunkedMemoryPool* pool)
 }
 
 template <class T>
-void EnumerateListsAndReverse(TEditList<T> list, SmallVector<TEditList<T>, TypicalEditListCount>* result)
+void EnumerateListsAndReverse(
+    TEditList<T> list,
+    SmallVector<TEditList<T>, TypicalEditListCount>* result)
 {
     result->clear();
     while (list) {
@@ -237,12 +240,12 @@ private:
         }
 
         auto timestampList = dynamicRow.GetTimestampList(KeyColumnCount_);
-        const auto* minTimestampPtr = std::get<0>(FindVersionedValue(
+        const auto* minTimestampPtr = SearchList(
             timestampList,
             Timestamp_,
             [] (TTimestamp value) {
                 return value & TimestampValueMask;
-            }));
+            });
 
         if (!minTimestampPtr) {
             return TVersionedRow();
@@ -261,12 +264,12 @@ private:
         auto* currentRowValue = versionedRow.BeginValues();
         auto fillValue = [&] (int index) {
             auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_);
-            auto* value = std::get<0>(FindVersionedValue(
+            const auto* value = SearchList(
                 list,
                 Timestamp_,
                 [] (const TVersionedValue& value) {
                     return value.Timestamp;
-                }));
+                });
             if (value && value->Timestamp >= minTimestamp) {
                 *currentRowValue++ = *value;
             }
@@ -868,7 +871,7 @@ int TDynamicMemoryStore::GetValueCount() const
 
 int TDynamicMemoryStore::GetKeyCount() const
 {
-    return Rows_->Size();
+    return Rows_->GetSize();
 }
 
 TStoreId TDynamicMemoryStore::GetId() const
@@ -910,7 +913,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
     SmallVector<TTimestampList, TypicalEditListCount> timestampLists;
 
     // Rows
-    Save(context, Rows_->Size());
+    Save(context, Rows_->GetSize());
     for (auto rowIt = Rows_->FindGreaterThanOrEqualTo(MinKey()); rowIt.IsValid(); rowIt.MoveNext()) {
         auto row = rowIt.GetCurrent();
 
@@ -1012,10 +1015,10 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("key_count").Value(Rows_->Size())
-        .Item("lock_count").Value(LockCount_)
-        .Item("value_count").Value(ValueCount_)
-        .Item("string_space").Value(StringSpace_);
+        .Item("key_count").Value(GetKeyCount())
+        .Item("lock_count").Value(GetLockCount())
+        .Item("value_count").Value(GetValueCount())
+        .Item("string_space").Value(GetStringSpace());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

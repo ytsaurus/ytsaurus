@@ -37,7 +37,7 @@ public:
 
 TEST_F(TSkipListTest, Empty)
 {
-    EXPECT_EQ(List.Size(), 0);
+    EXPECT_EQ(List.GetSize(), 0);
 
     EXPECT_FALSE(List.FindEqualTo(1).IsValid());
 
@@ -47,7 +47,7 @@ TEST_F(TSkipListTest, Empty)
 TEST_F(TSkipListTest, Singleton)
 {
     EXPECT_TRUE(List.Insert(0));
-    EXPECT_EQ(List.Size(), 1);
+    EXPECT_EQ(List.GetSize(), 1);
 
     EXPECT_FALSE(List.FindEqualTo(1).IsValid());
 
@@ -75,7 +75,7 @@ TEST_F(TSkipListTest, 1to10)
     for (int i = 0; i < 10; ++i) {
         EXPECT_TRUE(List.Insert(i));
     }
-    EXPECT_EQ(List.Size(), 10);
+    EXPECT_EQ(List.GetSize(), 10);
 
     for (int i = 0; i < 10; ++i) {
         auto it = List.FindGreaterThanOrEqualTo(i);
@@ -103,7 +103,7 @@ TEST_F(TSkipListTest, Random1000000)
         int value = rand();
         EXPECT_EQ(List.Insert(value), set.insert(value).second);
     }
-    EXPECT_EQ(List.Size(), set.size());
+    EXPECT_EQ(List.GetSize(), set.size());
 
     for (int value : set) {
         EXPECT_TRUE(List.FindEqualTo(value).IsValid());

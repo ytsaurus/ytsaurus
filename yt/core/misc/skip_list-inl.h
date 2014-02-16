@@ -131,7 +131,7 @@ TSkipList<TKey, TComparer>::~TSkipList()
 }
 
 template <class TKey, class TComparer>
-int TSkipList<TKey, TComparer>::Size() const
+int TSkipList<TKey, TComparer>::GetSize() const
 {
     return Size_;
 }

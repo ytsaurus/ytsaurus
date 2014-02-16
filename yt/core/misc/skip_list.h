@@ -27,7 +27,7 @@ public:
     ~TSkipList();
 
     //! Returns the number of distinct keys in the list.
-    int Size() const;
+    int GetSize() const;
 
     //! Tries to insert a new key.
     //! If a key equivalent to |pivot| is already present then invokes |existingKeyConsumer| passing that key.
@@ -75,7 +75,7 @@ public:
     TIterator FindEqualTo(const TPivot& pivot) const;
 
     //! Returns an iterator pointing to the smallest key that compares greater than or
-    //! equal to |pivot|.
+    //! equal to |pivot|. If no such key is found then returns an invalid iterator.
     template <class TPivot>
     TIterator FindGreaterThanOrEqualTo(const TPivot& pivot) const;
 
@@ -85,20 +85,19 @@ private:
 
     class TNode
     {
-    private:
-        const TKey Key_;
-        TAtomic Next_[1]; // variable-size array with actual size up to MaxHeight
-
     public:
         TNode(const TKey& key, int height);
 
         const TKey& GetKey() const;
 
         TNode* GetNext(int height) const;
-
         void SetNext(int height, TNode* next);
 
         void InsertAfter(int height, TNode** prevs);
+
+    private:
+        const TKey Key_;
+        TAtomic Next_[1]; // variable-size array with actual size up to MaxHeight
 
     };
 
