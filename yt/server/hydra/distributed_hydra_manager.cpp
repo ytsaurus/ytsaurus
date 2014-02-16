@@ -146,7 +146,7 @@ public:
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
         , ReadOnly_(false)
-        , ControlState_(EPeerState::Stopped)
+        , ControlState_(EPeerState::None)
         , Logger(HydraLogger)
         , Profiler(HydraProfiler)
     {
@@ -748,14 +748,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(ControlState_ == EPeerState::Stopped);
+        YCHECK(ControlState_ == EPeerState::None);
         ControlState_ = EPeerState::Initializing;
 
         auto reachableVersion = WaitFor(ComputeReachableVersion());
         DecoratedAutomaton_->SetLoggedVersion(reachableVersion);
 
+        // Check if we were canceled while initializing.
         if (ControlState_ != EPeerState::Initializing)
             return;
+
         ControlState_ = EPeerState::Elections;
 
         DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
@@ -775,15 +777,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (ControlState_ == EPeerState::Stopped ||
-            ControlState_ == EPeerState::Initializing)
+        if (ControlState_ == EPeerState::Stopped)
             return;
 
-        // NB: This will raise the needed callbacks
-        // (OnElectionStopLeading or OnElectionStopFollowing).
-        ElectionManager_->Stop();
-
-        RpcServer->UnregisterService(this);
+        if (ControlState_ == EPeerState::Elections ||
+            ControlState_ == EPeerState::LeaderRecovery ||
+            ControlState_ == EPeerState::Leading ||
+            ControlState_ == EPeerState::FollowerRecovery ||
+            ControlState_ == EPeerState::Following)
+        {
+            ElectionManager_->Stop();
+            RpcServer->UnregisterService(this);
+        }
 
         ControlState_ = EPeerState::Stopped;
 
@@ -871,6 +876,9 @@ public:
     void OnElectionStartLeading()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (ControlState_ == EPeerState::Stopped)
+            return;
 
         LOG_INFO("Starting leader recovery");
 
@@ -997,6 +1005,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (ControlState_ == EPeerState::Stopped)
+            return;
+
         LOG_INFO("Stopped leading");
 
         StopEpoch();
@@ -1015,6 +1026,9 @@ public:
     void OnElectionStartFollowing()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (ControlState_ == EPeerState::Stopped)
+            return;
 
         LOG_INFO("Starting follower recovery");
 
@@ -1076,6 +1090,9 @@ public:
     void OnElectionStopFollowing()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (ControlState_ == EPeerState::Stopped)
+            return;
 
         LOG_INFO("Stopped following");
 
