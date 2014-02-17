@@ -13,6 +13,8 @@
 #include <core/misc/string.h>
 #include <core/misc/error.h>
 
+#include <numeric>
+
 namespace NYT {
 namespace NYTree {
 

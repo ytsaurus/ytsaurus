@@ -85,11 +85,13 @@ public:
         auto* resultExt = result->MutableExtension(TReduceJobResultExt::reduce_job_result_ext);
         PopulateUserJobResult(resultExt->mutable_reducer_result());
 
-        // This code is required for proper handling of intermediate chunks, when
-        // PartitionReduce job is run as ReduceCombiner in MapReduce operation.
-        auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        Outputs[0]->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
-        ToProto(schedulerResultExt->mutable_chunks(), Outputs[0]->GetWrittenChunks());
+        if (!Outputs.empty()) {
+            // This code is required for proper handling of intermediate chunks, when
+            // PartitionReduce job is run as ReduceCombiner in MapReduce operation.
+            auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            Outputs[0]->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
+            ToProto(schedulerResultExt->mutable_chunks(), Outputs[0]->GetWrittenChunks());            
+        }
     }
 
 };
