@@ -37,7 +37,7 @@ def send(msg, recipients):
     smtp.quit()
 
 def main():
-    parser = argparse.ArgumentParser(description='Clean operations from cypress.')
+    parser = argparse.ArgumentParser(description='Analyze account space usage and notify responsibles if necessary.')
     parser.add_argument('--min-size', type=int, default=2 * 1024 ** 4)
     parser.add_argument('--min-ratio', type=int, default=0.1)
     parser.add_argument('--days', type=int, default=14)
