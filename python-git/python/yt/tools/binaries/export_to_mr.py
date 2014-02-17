@@ -24,9 +24,9 @@ def export_table(object, args):
         del object["dst"]
         params = update_args(args, object)
     else:
+        params = args
         src = object
         dst = os.path.join(params.destination_dir, src.strip("/"))
-        params = args
 
     mr = Mr(binary=params.mapreduce_binary,
             server=params.mr_server,
