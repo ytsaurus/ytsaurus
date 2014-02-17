@@ -13,6 +13,8 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/error.h>
 
+#include <numeric>
+
 namespace NYT {
 namespace NYTree {
 
@@ -162,7 +164,7 @@ void Deserialize(std::unique_ptr<T>& value, INodePtr node)
 template <class T>
 T CheckedStaticCast(i64 value)
 {
-    if (value < Min<T>() || value > Max<T>()) {
+    if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) {
         THROW_ERROR_EXCEPTION("Argument is out of integral range: %" PRId64 ")", value);
     }
     return static_cast<T>(value);

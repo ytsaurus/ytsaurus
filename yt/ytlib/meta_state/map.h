@@ -122,10 +122,10 @@ public:
     int GetSize() const;
 
     //! Returns all keys that are present in the map.
-    std::vector<TKey> GetKeys(size_t sizeLimit = Max<size_t>()) const;
+    std::vector<TKey> GetKeys(size_t sizeLimit = std::numeric_limits<size_t>::max()) const;
 
     //! Returns all values that are present in the map.
-    std::vector<TValue*> GetValues(size_t sizeLimit = Max<size_t>()) const;
+    std::vector<TValue*> GetValues(size_t sizeLimit = std::numeric_limits<size_t>::max()) const;
 
     //! (Unordered) begin()-iterator.
     /*!
@@ -207,7 +207,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 #define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
     entityType* Find ## entityName(const idType& id); \
     entityType* Get ## entityName(const idType& id); \
-    std::vector<entityType*> Get ## entityName ## s(size_t sizeLimit = Max<size_t>()); \
+    std::vector<entityType*> Get ## entityName ## s(size_t sizeLimit = std::numeric_limits<size_t>::max()); \
     int Get ## entityName ## Count() const;
 
 #define DEFINE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \

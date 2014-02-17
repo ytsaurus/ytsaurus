@@ -65,7 +65,7 @@ int ReadVarInt32(TInputStream* input, i32* value)
 {
     ui64 varInt;
     int bytesRead = ReadVarUInt64(input, &varInt);
-    if (varInt > Max<ui32>()) {
+    if (varInt > std::numeric_limits<ui32>::max()) {
         ythrow yexception() << "The data is too long to read ui64";
     }
     *value = ZigZagDecode32(static_cast<ui32> (varInt));

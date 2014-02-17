@@ -113,7 +113,7 @@ void CleanTempFiles(const Stroka& path)
         return;
 
     TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
+    fileList.Fill(path, TStringBuf(), TStringBuf(), std::numeric_limits<int>::max());
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = NFS::CombinePaths(path, fileList.Next());
@@ -137,7 +137,7 @@ void CleanFiles(const Stroka& path)
         return;
 
     TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
+    fileList.Fill(path, TStringBuf(), TStringBuf(), std::numeric_limits<int>::max());
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = NFS::CombinePaths(path, fileList.Next());

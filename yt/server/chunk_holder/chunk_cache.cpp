@@ -49,7 +49,7 @@ public:
     typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
 
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-        : TBase(config->CacheLocation->Quota.Get(Max<i64>()))
+        : TBase(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max()))
         , Config(config)
         , Bootstrap(bootstrap)
     { }

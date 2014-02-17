@@ -252,7 +252,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    size_t maxSize = request->has_max_size() ? request->max_size() : Max<size_t>();
+    int maxSize = request->has_max_size() ? request->max_size() : std::numeric_limits<int>::max();
 
     TStringStream stream;
     TYsonWriter writer(&stream);
