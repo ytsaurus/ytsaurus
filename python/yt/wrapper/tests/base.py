@@ -1,3 +1,4 @@
+import yt.logger as logger
 import yt.wrapper as yt
 
 import os
@@ -9,6 +10,7 @@ class YtTestBase(object):
     @classmethod
     def _setup_class(cls, test_class):
         logging.basicConfig(level=logging.WARNING)
+        logger.LOGGER.setLevel(logging.WARNING)
 
         test_class.NUM_MASTERS = 1
         test_class.NUM_NODES = 5
