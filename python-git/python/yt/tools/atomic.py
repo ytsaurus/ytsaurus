@@ -4,6 +4,7 @@ import yt.wrapper as yt
 import __builtin__
 
 import random
+import sys
 from time import sleep
 
 def atomic_pop(list, retries_count=10, delay=5.0):
@@ -39,8 +40,9 @@ def is_hashable(obj):
     except:
         return False
 
-def process_tasks_from_list(list, action):
+def process_tasks_from_list(list, action, limit=10000):
     processed_values = set()
+    counter = 0
     while True:
         value = None
         try:
@@ -72,5 +74,10 @@ def process_tasks_from_list(list, action):
             logger.exception("Process interrupted or error occured, processing stopped")
             if value is not None:
                 atomic_push(list, value)
+            break
+
+        counter += 1
+        if counter == limit:
+            logger.warning("Too many values are processed (%d), aborting", limit)
             break
 
