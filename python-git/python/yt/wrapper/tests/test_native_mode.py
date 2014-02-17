@@ -3,7 +3,6 @@
 import yt.yson as yson
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
-import yt.logger as logger
 import yt.wrapper as yt
 
 import os
