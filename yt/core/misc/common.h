@@ -113,8 +113,8 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 }
 #endif
 
-#if defined(__GNUC__) && __GNUC__ == 3 && __GNUC_MINOR__ == 7
-// GCC 3.7 defines has_trivial_destructor instead of is_trivially_destructible.
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7
+// GCC 4.7 defines has_trivial_destructor instead of is_trivially_destructible.
 template<typename T>
 using is_trivially_destructible = std::has_trivial_destructor<T>;
 #endif
