@@ -15,6 +15,7 @@ import subprocess
 import sys
 import simplejson as json
 
+GEN_PORT_ATTEMPTS = 10
 
 def init_logging(node, path, name):
     for key, suffix in [('file', '.log'), ('raw', '.debug.log')]:
@@ -29,12 +30,21 @@ def write_with_flush(data):
     sys.stdout.flush()
 
 def get_open_port():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("",0))
-    s.listen(1)
-    port = s.getsockname()[1]
-    s.close()
-    return port
+    for _ in xrange(GEN_PORT_ATTEMPTS):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("",0))
+        s.listen(1)
+        port = s.getsockname()[1]
+        s.close()
+
+        if port in get_open_port.busy_ports:
+            continue
+
+        get_open_port.busy_ports.add(port)
+
+        return port
+    
+    raise RuntimeError("Failed to generate random port")
 
 class YTEnv(object):
     failureException = Exception
@@ -74,6 +84,8 @@ class YTEnv(object):
 
         self._pids_filename = pids_filename
         self._kill_previously_run_services()
+
+        get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
             if ports is not None and service_name in ports:
@@ -364,7 +376,7 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports["scheduler"][2 * i + 1]
 
             config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
-            
+
             logs.append(config['logging']['writers']['file']['file_name'])
 
             self.modify_scheduler_config(config)
