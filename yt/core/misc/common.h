@@ -103,19 +103,23 @@
     #define TLS_STATIC static __declspec(thread)
 #endif
 
-#ifdef __GNUC__
-
 namespace std {
 
-template <typename T, typename ...Args>
-std::unique_ptr<T> make_unique(Args&& ...args)
+#ifdef __GNUC__
+template <typename TResult, typename ...TArgs>
+std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
+#endif
+
+#if defined(__GNUC__) && __GNUC__ == 3 && __GNUC_MINOR__ == 7
+// GCC 3.7 defines has_trivial_destructor instead of is_trivially_destructible.
+template<typename T>
+using is_trivially_destructible = std::has_trivial_destructor<T>;
+#endif
 
 } // namespace std
-
-#endif
 
 #include "enum.h"
 #include "assert.h"
