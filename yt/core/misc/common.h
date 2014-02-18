@@ -109,7 +109,7 @@ namespace std {
 template <typename TResult, typename ...TArgs>
 std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
-    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+    return std::unique_ptr<TResult>(new T(std::forward<TArgs>(args)...));
 }
 #endif
 
