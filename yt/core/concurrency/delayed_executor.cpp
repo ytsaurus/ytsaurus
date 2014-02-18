@@ -131,7 +131,7 @@ private:
     void ThreadMain()
     {
         SetCurrentThreadName("DelayedInvoker");
-        while (AtomicGet(Finished)) {
+        while (!AtomicGet(Finished)) {
             auto now = TInstant::Now();
             while (true) {
                 TClosure action;
