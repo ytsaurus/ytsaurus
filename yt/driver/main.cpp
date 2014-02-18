@@ -6,27 +6,15 @@
 #include "scheduler_executors.h"
 #include "etc_executors.h"
 
-#include <core/misc/address.h>
-
-#include <core/logging/log_manager.h>
-
-#include <core/profiling/profiling_manager.h>
-
-#include <core/concurrency/delayed_executor.h>
-
-#include <ytlib/driver/private.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/config.h>
-#include <ytlib/driver/dispatcher.h>
-
-#include <core/bus/tcp_dispatcher.h>
-
-#include <core/rpc/dispatcher.h>
-#include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/driver/private.h>
 
 #include <core/yson/parser.h>
 
 #include <core/misc/crash_handler.h>
+
+#include <ytlib/shutdown.h>
 
 #include <server/exec_agent/config.h>
 
@@ -138,23 +126,7 @@ public:
             ExitCode = EExitCode::Error;
         }
 
-        // TODO(sandello): Refactor this.
-        // XXX(sandello): Keep in sync with...
-        //   server/main.cpp
-        //   driver/main.cpp
-        //   unittests/utmain.cpp
-        //   nodejs/src/common.cpp
-        //   ../python/yt/bindings/shutdown.cpp
-        // Feel free to add your cpp here. Welcome to the Shutdown Club!
-
-        NDriver::TDispatcher::Get()->Shutdown();
-        NBus::TTcpDispatcher::Get()->Shutdown();
-        NRpc::TDispatcher::Get()->Shutdown();
-        NChunkClient::TDispatcher::Get()->Shutdown();
-        NProfiling::TProfilingManager::Get()->Shutdown();
-        NConcurrency::TDelayedExecutor::Shutdown();
-        TAddressResolver::Get()->Shutdown();
-        NLog::TLogManager::Get()->Shutdown();
+        Shutdown();
 
         return ExitCode;
     }
@@ -186,15 +158,7 @@ private:
         static volatile sig_atomic_t inProgress = false;
         if (!inProgress) {
             inProgress = true;
-            // TODO: refactor system shutdown
-            // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
-            NDriver::TDispatcher::Get()->Shutdown();
-            NBus::TTcpDispatcher::Get()->Shutdown();
-            NRpc::TDispatcher::Get()->Shutdown();
-            NChunkClient::TDispatcher::Get()->Shutdown();
-            NProfiling::TProfilingManager::Get()->Shutdown();
-            NConcurrency::TDelayedExecutor::Shutdown();
-            NLog::TLogManager::Get()->Shutdown();
+            Shutdown();
             exit(0);
         }
     }

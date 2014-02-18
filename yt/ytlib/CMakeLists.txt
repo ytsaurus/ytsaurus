@@ -17,6 +17,19 @@ set( DIRS
   monitoring
 )
 
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )
+set( SRCS
+  ${BASE}/shutdown.cpp
+)
+set( HDRS
+  ${BASE}/shutdown.h
+)
+
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")

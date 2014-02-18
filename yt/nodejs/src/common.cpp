@@ -2,19 +2,13 @@
 #include "config.h"
 #include "node.h"
 
-#include <core/misc/address.h>
-
 #include <core/logging/log_manager.h>
 
-#include <core/profiling/profiling_manager.h>
-
-#include <core/bus/tcp_dispatcher.h>
-
-#include <core/rpc/dispatcher.h>
+#include <core/misc/address.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
 
-#include <ytlib/driver/dispatcher.h>
+#include <ytlib/shutdown.h>
 
 extern "C" {
     // XXX(sandello): This is extern declaration of eio's internal functions.
@@ -129,23 +123,7 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
 
     YASSERT(args.Length());
 
-    // TODO(sandello): Refactor this.
-    // XXX(sandello): Keep in sync with...
-    //   server/main.cpp
-    //   driver/main.cpp
-    //   unittests/utmain.cpp
-    //   nodejs/src/common.cpp
-    //   ../python/yt/bindings/shutdown.cpp
-    // Feel free to add your cpp here. Welcome to the Shutdown Club!
-
-    NDriver::TDispatcher::Get()->Shutdown();
-    NChunkClient::TDispatcher::Get()->Shutdown();
-    NRpc::TDispatcher::Get()->Shutdown();
-    NBus::TTcpDispatcher::Get()->Shutdown();
-    NConcurrency::TDelayedExecutor::Shutdown();
-    NProfiling::TProfilingManager::Get()->Shutdown();
-    TAddressResolver::Get()->Shutdown();
-    NLog::TLogManager::Get()->Shutdown();
+    Shutdown();
 
     return Undefined();
 }
