@@ -15,6 +15,13 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFailureModel::TFailureModel()
+    : ShouldRequestFail(false)
+    , ShouldResponseFail(false)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEmptyResponseHandler
     : public IClientResponseHandler
 {
@@ -54,7 +61,7 @@ class TFailingChannel
     : public IChannel
 {
 public:
-    explicit TFailingChannel(IChannelPtr underlyingChannel, IFailureModelPtr failureModel)
+    explicit TFailingChannel(IChannelPtr underlyingChannel, TFailureModelPtr failureModel)
         : UnderlyingChannel_(underlyingChannel)
         , FailureModel_(failureModel)
     { }
@@ -76,14 +83,14 @@ public:
         bool requestAck) override
     {
         auto actualTimeout = timeout ? timeout.Get() : UnderlyingChannel_->GetDefaultTimeout().Get();
-        if (FailureModel_->IsRequestFailing()) {
+        if (FailureModel_->ShouldRequestFail) {
             WaitFor(MakeDelayed(actualTimeout));
             auto error = TError(
                 EErrorCode::Timeout,
                 "No request: this link is disabled");
             responseHandler->OnError(error);
         } else {
-            if (FailureModel_->IsResponseFailing()) {
+            if (FailureModel_->ShouldResponseFail) {
                 UnderlyingChannel_->Send(request, New<TEmptyResponseHandler>(responseHandler, actualTimeout), timeout, requestAck);
             } else {
                 UnderlyingChannel_->Send(request, responseHandler, timeout, requestAck);
@@ -98,12 +105,12 @@ public:
 
 private:
     IChannelPtr UnderlyingChannel_;
-    IFailureModelPtr FailureModel_;
+    TFailureModelPtr FailureModel_;
 };
 
 IChannelPtr CreateFailingChannel(
     IChannelPtr underlyingChannel,
-    IFailureModelPtr failureModel)
+    TFailureModelPtr failureModel)
 {
     return New<TFailingChannel>(underlyingChannel, failureModel);
 }
