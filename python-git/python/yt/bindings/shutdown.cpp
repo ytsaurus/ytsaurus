@@ -14,7 +14,7 @@ void RegisterShutdown()
     static bool registered = false;
     if (!registered) {
         registered = true;
-        Py_AtExit(Shutdown);
+        Py_AtExit(NYT::Shutdown);
     }
 }
 
