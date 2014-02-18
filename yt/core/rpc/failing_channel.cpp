@@ -33,7 +33,7 @@ private:
         WaitFor(MakeDelayed(Timeout_));
         auto error = TError(
             EErrorCode::Timeout,
-            "This link is disabled");
+            "No response: this link is disabled");
         ResponseHandler_->OnError(error);
     }
 
@@ -71,12 +71,12 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        auto actualTimeout = timeout ? timeout.Get() : TDuration::MilliSeconds(500);
+        auto actualTimeout = timeout ? timeout.Get() : UnderlyingChannel_->GetDefaultTimeout().Get();
         if (FailureModel_->IsRequestFailing()) {
             WaitFor(MakeDelayed(actualTimeout));
             auto error = TError(
                 EErrorCode::Timeout,
-                "This link is disabled");
+                "No request: this link is disabled");
             responseHandler->OnError(error);
         } else {
             if (FailureModel_->IsResponseFailing()) {
