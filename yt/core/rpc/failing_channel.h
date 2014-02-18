@@ -5,6 +5,10 @@
 namespace NYT {
 namespace NRpc {
 
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IFailureModel)
+
 struct IFailureModel
     : public virtual TRefCounted
 {
@@ -12,8 +16,9 @@ struct IFailureModel
     virtual bool IsResponseFailing() const = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(IFailureModel)
-DECLARE_REFCOUNTED_CLASS(TFailingChannel)
+DEFINE_REFCOUNTED_TYPE(IFailureModel)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TBlackHoleFailureModel
     : public IFailureModel
@@ -49,7 +54,9 @@ private:
     bool IsResponseFailing_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TBlackHoleFailureModel)
+typedef TIntrusivePtr<TBlackHoleFailureModel> TBlackHoleFailureModelPtr;
+
+DEFINE_REFCOUNTED_TYPE(TBlackHoleFailureModel)
 
 IChannelPtr CreateFailingChannel(
     IChannelPtr underlyingChannel,

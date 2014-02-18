@@ -3,15 +3,17 @@
 
 #include <core/rpc/channel.h>
 #include <core/rpc/client.h>
+
 #include <core/concurrency/fiber.h>
 
 namespace NYT {
 namespace NRpc {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NConcurrency;
 
-DEFINE_REFCOUNTED_TYPE(IFailureModel)
-DEFINE_REFCOUNTED_TYPE(TBlackHoleFailureModel)
+////////////////////////////////////////////////////////////////////////////////
 
 class TEmptyResponseHandler
     : public IClientResponseHandler
@@ -45,6 +47,8 @@ private:
     TDuration Timeout_;
     IClientResponseHandlerPtr ResponseHandler_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFailingChannel
     : public IChannel
@@ -96,8 +100,6 @@ private:
     IChannelPtr UnderlyingChannel_;
     IFailureModelPtr FailureModel_;
 };
-
-DEFINE_REFCOUNTED_TYPE(TFailingChannel)
 
 IChannelPtr CreateFailingChannel(
     IChannelPtr underlyingChannel,
