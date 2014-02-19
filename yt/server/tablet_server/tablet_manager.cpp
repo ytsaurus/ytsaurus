@@ -382,14 +382,21 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = tablets[index];
             if (tablet->GetState() == ETabletState::Unmounting) {
-                THROW_ERROR_EXCEPTION("Tablet %s is currently unmounting",
-                    ~ToString(tablet->GetId()));
+                THROW_ERROR_EXCEPTION("Tablet %s is in %s state",
+                    ~ToString(tablet->GetId()),
+                    ~FormatEnum(tablet->GetState()).Quote());
             }
         }
 
         // Parse and prepare mount config.
         auto tableProxy = objectManager->GetProxy(table);
-        auto mountConfig = ConvertTo<TTableMountConfigPtr>(tableProxy->Attributes());
+        TTableMountConfigPtr mountConfig;
+        try {
+            mountConfig = ConvertTo<TTableMountConfigPtr>(tableProxy->Attributes());
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
+                << ex;
+        }
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
 
         // When mounting a table with no tablets, create the tablet automatically.
@@ -478,8 +485,9 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             if (tablet->GetState() == ETabletState::Mounting) {
-                THROW_ERROR_EXCEPTION("Tablet %s is currently mounting",
-                    ~ToString(tablet->GetId()));
+                THROW_ERROR_EXCEPTION("Tablet %s is in %s state",
+                    ~ToString(tablet->GetId()),
+                    ~FormatEnum(tablet->GetState()).Quote());
             }
         }
 

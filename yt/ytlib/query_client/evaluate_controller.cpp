@@ -85,7 +85,7 @@ TError TEvaluateController::Run()
         LOG_DEBUG("Finished evaluating plan fragment");
         return TError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to evaluate plan fragment") << ex;
+        auto error = TError("Failed to evaluate query fragment") << ex;
         LOG_ERROR(error);
         return error;
     }

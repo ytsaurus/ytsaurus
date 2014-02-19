@@ -109,7 +109,7 @@ TError TCoordinateController::Run()
 
         return TError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to coordinate plan fragment") << ex;
+        auto error = TError("Failed to coordinate query fragment") << ex;
         LOG_ERROR(error);
         return error;
     }

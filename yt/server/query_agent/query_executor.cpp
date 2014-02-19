@@ -134,7 +134,7 @@ private:
 
     void ThrowNoSuchTablet(const TTabletId& tabletId)
     {
-        THROW_ERROR_EXCEPTION("No such tablet %s",
+        THROW_ERROR_EXCEPTION("Tablet %s is not known",
             ~ToString(tabletId));
     }
 
