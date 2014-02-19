@@ -7,6 +7,7 @@
 #include "chunk_store.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
+#include "config.h"
 
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
@@ -30,9 +31,11 @@ using namespace NChunkClient;
 TTablet::TTablet(const TTabletId& id)
     : Id_(id)
     , Slot_(nullptr)
+    , Config_(New<TTableMountConfig>())
 { }
 
 TTablet::TTablet(
+    TTableMountConfigPtr config,
     const TTabletId& id,
     TTabletSlot* slot,
     const TTableSchema& schema,
@@ -46,6 +49,7 @@ TTablet::TTablet(
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , State_(ETabletState::Mounted)
+    , Config_(config)
     , Eden_(std::make_unique<TPartition>(this, TPartition::EdenIndex))
 { }
 
@@ -61,6 +65,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, PivotKey_);
     Save(context, NextPivotKey_);
     Save(context, State_);
+    Save(context, *Config_);
 
     auto saveStore = [&] (IStorePtr store) {
         Save(context, store->GetId());
@@ -93,6 +98,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
     Load(context, State_);
+    Load(context, *Config_);
 
     auto loadStore = [&] () -> IStorePtr {
         auto storeId = Load<TStoreId>(context);
@@ -130,16 +136,6 @@ void TTablet::Load(TLoadContext& context)
         auto partition = loadPartition(index);
         Partitions_.push_back(std::move(partition));
     }
-}
-
-const TTableMountConfigPtr& TTablet::GetConfig() const
-{
-    return Config_;
-}
-
-void TTablet::SetConfig(TTableMountConfigPtr config)
-{
-    Config_ = config;
 }
 
 const TStoreManagerPtr& TTablet::GetStoreManager() const

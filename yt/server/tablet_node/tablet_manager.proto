@@ -16,6 +16,7 @@ message TReqMountTablet
 	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor chunk_stores = 4;
     required bytes pivot_key = 5;
     required bytes next_pivot_key = 6;
+    required string mount_config = 7;
 }
 
 message TReqSetTabletState

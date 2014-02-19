@@ -19,6 +19,8 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/tablet_client/config.h>
+
 #include <server/object_server/type_handler_detail.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -56,6 +58,7 @@ using namespace NObjectServer;
 using namespace NYTree;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NTabletClient;
 using namespace NHydra;
 using namespace NTransactionServer;
 using namespace NTabletServer::NProto;
@@ -384,6 +387,11 @@ public:
             }
         }
 
+        // Parse and prepare mount config.
+        auto tableProxy = objectManager->GetProxy(table);
+        auto mountConfig = ConvertTo<TTableMountConfigPtr>(tableProxy->Attributes());
+        auto serializedMountConfig = ConvertToYsonString(mountConfig);
+
         // When mounting a table with no tablets, create the tablet automatically.
         if (table->Tablets().empty()) {
             auto* tablet = CreateTablet(table);
@@ -431,6 +439,7 @@ public:
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
             ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
             ToProto(req.mutable_next_pivot_key(), nextTablet ? nextTablet->GetPivotKey() : MaxKey());
+            req.set_mount_config(serializedMountConfig.Data());
 
             auto* chunkList = chunkLists[index]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);

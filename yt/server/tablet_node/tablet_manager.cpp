@@ -412,8 +412,10 @@ private:
         auto keyColumns = FromProto<Stroka>(request.key_columns().names());
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
         auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
+        auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
 
         auto* tablet = new TTablet(
+            mountConfig,
             tabletId,
             Slot_,
             schema,
@@ -897,9 +899,6 @@ private:
     {
         auto storeManager = New<TStoreManager>(Config_, tablet);
         tablet->SetStoreManager(storeManager);
-
-        // TODO(babenko): make configurable
-        tablet->SetConfig(New<TTableMountConfig>());
     }
 
 

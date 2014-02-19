@@ -70,6 +70,7 @@ protected:
         }
 
         Tablet.reset(new TTablet(
+            New<TTableMountConfig>(),
             NullTabletId,
             nullptr,
             schema,

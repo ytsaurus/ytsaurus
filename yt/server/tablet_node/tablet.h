@@ -23,6 +23,7 @@ class TTablet
     : public TNonCopyable
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
     
@@ -40,6 +41,7 @@ public:
 public:
     explicit TTablet(const TTabletId& id);
     TTablet(
+        NTabletClient::TTableMountConfigPtr config,
         const TTabletId& id,
         TTabletSlot* slot,
         const NVersionedTableClient::TTableSchema& schema,
@@ -48,9 +50,6 @@ public:
         NVersionedTableClient::TOwningKey nextPivotKey);
 
     ~TTablet();
-
-    const NTabletClient::TTableMountConfigPtr& GetConfig() const;
-    void SetConfig(NTabletClient::TTableMountConfigPtr config);
 
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr manager);
@@ -77,7 +76,6 @@ public:
     int GetKeyColumnCount() const;
 
 private:
-    NTabletClient::TTableMountConfigPtr Config_;
     TStoreManagerPtr StoreManager_;
 
     std::unique_ptr<TPartition> Eden_;
