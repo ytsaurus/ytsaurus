@@ -15,7 +15,7 @@
 
 #include <errno.h>
 
-#ifndef _WIN32
+#ifndef _win_
     #include <netinet/tcp.h>
 #endif
 
@@ -316,7 +316,7 @@ void TTcpConnection::SyncClose(const TError& error)
 
 void TTcpConnection::InitFd()
 {
-#ifdef _WIN32
+#ifdef _win_
     Fd = _open_osfhandle(Socket, 0);
 #else
     Fd = Socket;
@@ -386,7 +386,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 
     {
-#ifdef _WIN32
+#ifdef _win_
         unsigned long value = 1;
         int result = ioctlsocket(Socket, FIONBIO, &value);
 #else
@@ -789,7 +789,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     {
         const auto& fragment = *fragmentIt;
         size_t size = std::min(fragment.Size(), bytesAvailable);
-#ifdef _WIN32
+#ifdef _win_
         WSABUF item;
         item.buf = fragment.Begin();
         item.len = static_cast<ULONG>(size);
@@ -805,7 +805,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     }
 
     ssize_t result;
-#ifdef _WIN32
+#ifdef _win_
     DWORD bytesWritten_ = 0;
     PROFILE_AGGREGATED_TIMING (SendTime) {
         result = WSASend(Socket, SendVector.data(), SendVector.size(), &bytesWritten_, 0, NULL, NULL);
@@ -1112,7 +1112,7 @@ int TTcpConnection::GetSocketError() const
 
 bool TTcpConnection::IsSocketError(ssize_t result)
 {
-#ifdef _WIN32
+#ifdef _win_
     return
         result != WSAEWOULDBLOCK &&
         result != WSAEINPROGRESS;
