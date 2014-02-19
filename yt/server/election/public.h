@@ -1,7 +1,6 @@
 #pragma once
 
 #include <core/misc/common.h>
-#include <core/misc/guid.h>
 
 #include <ytlib/election/public.h>
 
@@ -10,17 +9,12 @@ namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TElectionManagerConfig;
-typedef TIntrusivePtr<TElectionManagerConfig> TElectionManagerConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(IElectionCallbacks)
 
-struct IElectionCallbacks;
-typedef TIntrusivePtr<IElectionCallbacks> IElectionCallbacksPtr;
+DECLARE_REFCOUNTED_CLASS(TEpochContext)
+DECLARE_REFCOUNTED_CLASS(TElectionManager)
 
-struct TEpochContext;
-typedef TIntrusivePtr<TEpochContext> TEpochContextPtr;
-
-class TElectionManager;
-typedef TIntrusivePtr<TElectionManager> TElectionManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TElectionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

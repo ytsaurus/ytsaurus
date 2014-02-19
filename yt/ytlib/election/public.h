@@ -8,11 +8,8 @@ namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellManager;
-typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
-
-class TCellConfig;
-typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TCellManager)
+DECLARE_REFCOUNTED_CLASS(TCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

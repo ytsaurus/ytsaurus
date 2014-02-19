@@ -25,6 +25,8 @@ struct IElectionCallbacks
     virtual Stroka FormatPriority(TPeerPriority priority) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TEpochContext
@@ -38,6 +40,8 @@ struct TEpochContext
     TCancelableContextPtr CancelableContext;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TEpochContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +73,8 @@ private:
     TImplPtr Impl;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TElectionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

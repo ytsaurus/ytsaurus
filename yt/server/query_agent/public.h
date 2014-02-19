@@ -7,11 +7,7 @@ namespace NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryExecutor;
-typedef TIntrusivePtr<TQueryExecutor> TQueryManagerPtr;
-
-class TQueryAgentConfig;
-typedef TIntrusivePtr<TQueryAgentConfig> TQueryAgentConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TQueryAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
