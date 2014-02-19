@@ -22,31 +22,47 @@ public:
 
     //! Allocates and default-constructs an instance of |T|.
     template <class T>
-    T* Allocate()
-    {
-        char* buffer = Allocate(sizeof (T));
-        new (buffer) T();
-        return reinterpret_cast<T*>(buffer);
-    }
+    T* Allocate();
 
-    //! Marks all previously allocated chunks as free for subsequent allocations.
-    //! Does not deallocate them.
+    //! Marks all previously allocated small chunks as free for subsequent allocations but
+    //! does not deallocate them.
+    //! Disposes all large blocks.
     void Clear();
 
+    //! Returns the number of allocated bytes.
+    i64 GetSize() const;
+
+    //! Returns the number of reserved bytes.
+    i64 GetCapacity() const;
+
 private:
-    const size_t ChunkSize;
-    const size_t MaxSmallBlockSize;
+    const size_t ChunkSize_;
+    const size_t MaxSmallBlockSize_;
 
-    int ChunkIndex;
-    size_t Offset;
+    int CurrentChunkIndex_;
+    size_t CurrentOffset_;
 
-    std::vector<TSharedRef> Chunks;
-    std::vector<TSharedRef> LargeBlocks;
+    i64 Size_;
+    i64 Capacity_;
 
-    void AllocateNewChunk();
-    TSharedRef AllocateBlock(size_t size);
+    std::vector<TSharedRef> Chunks_;
+    std::vector<TSharedRef> LargeBlocks_;
+
+    void AllocateChunk();
+    TSharedRef AllocateLargeBlock(size_t size);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): move to inl
+template <class T>
+T* TChunkedMemoryPool::Allocate()
+{
+    char* buffer = Allocate(sizeof (T));
+    new (buffer)T();
+    return reinterpret_cast<T*>(buffer);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
