@@ -36,6 +36,11 @@
 #include <util/string/cast.h>
 #include <util/string/split.h>
 
+// Check platform bitness.
+#if !defined(__x86_64__) && !defined(_M_X64)
+    #error YT requires 64-bit platform
+#endif
+
 // This define enables tracking of reference-counted objects to provide
 // various insightful information on memory usage and object creation patterns.
 #define ENABLE_REF_COUNTED_TRACKING
