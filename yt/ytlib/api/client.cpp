@@ -24,7 +24,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/tablet_client/protocol.h>
+#include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/table_mount_cache.h>
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -80,7 +80,7 @@ class TRowset
     : public IRowset
 {
 public:
-    TRowset(std::unique_ptr<TProtocolReader> reader, std::vector<TUnversionedRow> rows)
+    TRowset(std::unique_ptr<TWireProtocolReader> reader, std::vector<TUnversionedRow> rows)
         : Reader_(std::move(reader))
         , Rows_(std::move(rows))
     { }
@@ -91,7 +91,7 @@ public:
     }
 
 private:
-    std::unique_ptr<TProtocolReader> Reader_;
+    std::unique_ptr<TWireProtocolReader> Reader_;
     std::vector<TUnversionedRow> Rows_;
 
 };
@@ -410,7 +410,7 @@ private:
         ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
         req->set_timestamp(options.Timestamp);
 
-        TProtocolWriter writer;
+        TWireProtocolWriter writer;
         writer.WriteCommand(EProtocolCommand::LookupRow);
         writer.WriteUnversionedRow(key);
         writer.WriteColumnFilter(options.ColumnFilter);
@@ -419,7 +419,7 @@ private:
         auto rsp = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        std::unique_ptr<TProtocolReader> reader(new TProtocolReader(rsp->encoded_response()));
+        std::unique_ptr<TWireProtocolReader> reader(new TWireProtocolReader(rsp->encoded_response()));
         std::vector<TUnversionedRow> rows;
         reader->ReadUnversionedRowset(&rows);
 
@@ -1041,18 +1041,18 @@ private:
 
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
 
-    std::map<TTabletInfoPtr, std::unique_ptr<TProtocolWriter>> TabletToWriter_;
+    std::map<TTabletInfoPtr, std::unique_ptr<TWireProtocolWriter>> TabletToWriter_;
     TIntrusivePtr<TParallelCollector<void>> TransactionStartCollector_;
 
 
-    TProtocolWriter* AddTabletParticipant(TTabletInfoPtr tabletInfo)
+    TWireProtocolWriter* AddTabletParticipant(TTabletInfoPtr tabletInfo)
     {
         auto it = TabletToWriter_.find(tabletInfo);
         if (it == TabletToWriter_.end()) {
             TransactionStartCollector_->Collect(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             it = TabletToWriter_.insert(std::make_pair(
                 tabletInfo,
-                std::make_unique<TProtocolWriter>())).first;
+                std::make_unique<TWireProtocolWriter>())).first;
         }
         return it->second.get();
     }

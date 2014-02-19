@@ -73,7 +73,9 @@ protected:
             NullTabletId,
             nullptr,
             schema,
-            keyColumns));
+            keyColumns,
+            MinKey(),
+            MaxKey()));
     }
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)

@@ -1,12 +1,14 @@
 #pragma once
 
 #include "public.h"
+#include "partition.h"
 
 #include <core/misc/property.h>
 
 #include <core/actions/cancelable_context.h>
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -23,8 +25,12 @@ class TTablet
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
+    
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
+    
+    DEFINE_BYVAL_RO_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(NVersionedTableClient::TOwningKey, NextPivotKey);
     
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
 
@@ -37,20 +43,25 @@ public:
         const TTabletId& id,
         TTabletSlot* slot,
         const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns);
+        const NVersionedTableClient::TKeyColumns& keyColumns,
+        NVersionedTableClient::TOwningKey pivotKey,
+        NVersionedTableClient::TOwningKey nextPivotKey);
 
     ~TTablet();
 
     const NTabletClient::TTableMountConfigPtr& GetConfig() const;
     void SetConfig(NTabletClient::TTableMountConfigPtr config);
 
-    const NVersionedTableClient::TNameTablePtr& GetNameTable() const;
-
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr manager);
 
-    const yhash_map<TStoreId, IStorePtr>& Stores() const;
+    const std::vector<std::unique_ptr<TPartition>>& Partitions() const;
+    TPartition* GetEden() const;
+    TPartition* AddPartition(NVersionedTableClient::TOwningKey pivotKey);
+    void MergePartitions(int firstIndex, int lastIndex);
+    void SplitPartition(int index, const std::vector<NVersionedTableClient::TOwningKey>& pivotKeys);
 
+    const yhash_map<TStoreId, IStorePtr>& Stores() const;
     void AddStore(IStorePtr store);
     void RemoveStore(const TStoreId& id);
     IStorePtr FindStore(const TStoreId& id);
@@ -67,11 +78,16 @@ public:
 
 private:
     NTabletClient::TTableMountConfigPtr Config_;
-    NVersionedTableClient::TNameTablePtr NameTable_;
     TStoreManagerPtr StoreManager_;
-    
-    TDynamicMemoryStorePtr ActiveStore_;
+
+    std::unique_ptr<TPartition> Eden_;
+    std::vector<std::unique_ptr<TPartition>> Partitions_;
+
     yhash_map<TStoreId, IStorePtr> Stores_;
+    TDynamicMemoryStorePtr ActiveStore_;
+
+
+    TPartition* FindRelevantPartition(IStorePtr store);
 
 };
 

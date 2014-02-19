@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "protocol.h"
+#include "wire_protocol.h"
 
 #include <core/misc/error.h>
 #include <core/misc/zigzag.h>
@@ -32,11 +32,11 @@ static auto PresetResult = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtocolWriter::TSchemedRowsetWriter
+class TWireProtocolWriter::TSchemedRowsetWriter
     : public ISchemedWriter
 {
 public:
-    explicit TSchemedRowsetWriter(TProtocolWriter* writer)
+    explicit TSchemedRowsetWriter(TWireProtocolWriter* writer)
         : Writer_(writer)
     { }
 
@@ -65,13 +65,13 @@ public:
     }
 
 private:
-    TProtocolWriter* Writer_;
+    TWireProtocolWriter* Writer_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtocolWriter::TImpl
+class TWireProtocolWriter::TImpl
 {
 public:
     TImpl()
@@ -219,65 +219,65 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtocolWriter::TProtocolWriter()
+TWireProtocolWriter::TWireProtocolWriter()
     : Impl_(new TImpl())
 { }
 
-TProtocolWriter::~TProtocolWriter()
+TWireProtocolWriter::~TWireProtocolWriter()
 { }
 
-Stroka TProtocolWriter::Finish()
+Stroka TWireProtocolWriter::Finish()
 {
     return Impl_->Finish();
 }
 
-void TProtocolWriter::WriteCommand(EProtocolCommand command)
+void TWireProtocolWriter::WriteCommand(EProtocolCommand command)
 {
     Impl_->WriteCommand(command);
 }
 
-void TProtocolWriter::WriteColumnFilter(const TColumnFilter& filter)
+void TWireProtocolWriter::WriteColumnFilter(const TColumnFilter& filter)
 {
     Impl_->WriteColumnFilter(filter);
 }
 
-void TProtocolWriter::WriteTableSchema(const TTableSchema& schema)
+void TWireProtocolWriter::WriteTableSchema(const TTableSchema& schema)
 {
     Impl_->WriteTableSchema(schema);
 }
 
-void TProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& message)
+void TWireProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& message)
 {
     Impl_->WriteMessage(message);
 }
 
-void TProtocolWriter::WriteUnversionedRow(TUnversionedRow row)
+void TWireProtocolWriter::WriteUnversionedRow(TUnversionedRow row)
 {
     Impl_->WriteUnversionedRow(row);
 }
 
-void TProtocolWriter::WriteUnversionedRow(const std::vector<TUnversionedValue>& row)
+void TWireProtocolWriter::WriteUnversionedRow(const std::vector<TUnversionedValue>& row)
 {
     Impl_->WriteUnversionedRow(row);
 }
 
-void TProtocolWriter::WriteUnversionedRowset(const std::vector<TUnversionedRow>& rowset)
+void TWireProtocolWriter::WriteUnversionedRowset(const std::vector<TUnversionedRow>& rowset)
 {
     Impl_->WriteUnversionedRowset(rowset);
 }
 
-ISchemedWriterPtr TProtocolWriter::CreateSchemedRowsetWriter()
+ISchemedWriterPtr TWireProtocolWriter::CreateSchemedRowsetWriter()
 {
     return New<TSchemedRowsetWriter>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtocolReader::TSchemedRowsetReader
+class TWireProtocolReader::TSchemedRowsetReader
     : public ISchemedReader
 {
 public:
-    explicit TSchemedRowsetReader(TProtocolReader* reader)
+    explicit TSchemedRowsetReader(TWireProtocolReader* reader)
         : Reader_(reader)
         , Finished_(false)
     { }
@@ -307,14 +307,14 @@ public:
     }
 
 private:
-    TProtocolReader* Reader_;
+    TWireProtocolReader* Reader_;
     bool Finished_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtocolReader::TImpl
+class TWireProtocolReader::TImpl
 {
 public:
     explicit TImpl(const Stroka& data)
@@ -489,44 +489,44 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtocolReader::TProtocolReader(const Stroka& data)
+TWireProtocolReader::TWireProtocolReader(const Stroka& data)
     : Impl_(new TImpl(data))
 { }
 
-TProtocolReader::~TProtocolReader()
+TWireProtocolReader::~TWireProtocolReader()
 { }
 
-EProtocolCommand TProtocolReader::ReadCommand()
+EProtocolCommand TWireProtocolReader::ReadCommand()
 {
     return Impl_->ReadCommand();
 }
 
-TColumnFilter TProtocolReader::ReadColumnFilter()
+TColumnFilter TWireProtocolReader::ReadColumnFilter()
 {
     return Impl_->ReadColumnFilter();
 }
 
-TTableSchema TProtocolReader::ReadTableSchema()
+TTableSchema TWireProtocolReader::ReadTableSchema()
 {
     return Impl_->ReadTableSchema();
 }
 
-void TProtocolReader::ReadMessage(::google::protobuf::MessageLite* message)
+void TWireProtocolReader::ReadMessage(::google::protobuf::MessageLite* message)
 {
     Impl_->ReadMessage(message);
 }
 
-TUnversionedRow TProtocolReader::ReadUnversionedRow()
+TUnversionedRow TWireProtocolReader::ReadUnversionedRow()
 {
     return Impl_->ReadUnversionedRow();
 }
 
-void TProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
+void TWireProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
 {
     Impl_->ReadUnversionedRowset(rowset);
 }
 
-ISchemedReaderPtr TProtocolReader::CreateSchemedRowsetReader()
+ISchemedReaderPtr TWireProtocolReader::CreateSchemedRowsetReader()
 {
     return New<TSchemedRowsetReader>(this);
 }

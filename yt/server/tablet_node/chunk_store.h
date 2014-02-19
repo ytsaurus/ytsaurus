@@ -1,13 +1,13 @@
 #pragma once
 
 #include "public.h"
-#include "store.h"
+#include "store_detail.h"
 
 #include <core/misc/nullable.h>
 
 #include <core/rpc/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/public.h>
 
@@ -19,23 +19,23 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore
-    : public IStore
+    : public TStoreBase
 {
 public:
     TChunkStore(
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet,
+        NVersionedTableClient::TOwningKey minKey,
+        NVersionedTableClient::TOwningKey maxKey,
         NChunkClient::IBlockCachePtr blockCache,
         NRpc::IChannelPtr masterChannel,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor);
     ~TChunkStore();
 
     // IStore implementation.
-    virtual TStoreId GetId() const override;
-
-    virtual EStoreState GetState() const override;
-    virtual void SetState(EStoreState state) override;
+    virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
+    virtual NVersionedTableClient::TOwningKey GetMaxKey() const override;
 
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TOwningKey lowerKey,
@@ -50,13 +50,12 @@ public:
 
 private:
     TTabletManagerConfigPtr Config_;
-    TStoreId Id_;
-    TTablet* Tablet_;
     NChunkClient::IBlockCachePtr BlockCache_;
     NRpc::IChannelPtr MasterChannel_;
     TNullable<NNodeTrackerClient::TNodeDescriptor> LocalDescriptor_;
 
-    EStoreState State_;
+    NVersionedTableClient::TOwningKey MinKey_;
+    NVersionedTableClient::TOwningKey MaxKey_;
 
     NChunkClient::IAsyncReaderPtr ChunkReader_;
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;

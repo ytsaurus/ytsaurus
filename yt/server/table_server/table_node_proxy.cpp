@@ -206,7 +206,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
                     .Item().BeginMap()
                         .Item("tablet_id").Value(tablet->GetId())
                         .Item("state").Value(tablet->GetState())
-                        .Item("pivot_key").Value(tablet->PivotKey())
+                        .Item("pivot_key").Value(tablet->GetPivotKey())
                         .DoIf(cell, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("cell_id").Value(cell->GetId());
@@ -394,7 +394,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
         protoTablet->set_state(tablet->GetState());
-        ToProto(protoTablet->mutable_pivot_key(), tablet->PivotKey());
+        ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
         if (cell) {
             ToProto(protoTablet->mutable_cell_id(), cell->GetId());
             protoTablet->mutable_cell_config()->CopyFrom(cell->Config());

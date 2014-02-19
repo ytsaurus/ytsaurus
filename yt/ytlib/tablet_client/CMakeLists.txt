@@ -3,13 +3,13 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/tablet_client )
 set( SRCS
   ${BASE}/public.cpp
   ${BASE}/private.cpp
-  ${BASE}/protocol.cpp
+  ${BASE}/wire_protocol.cpp
   ${BASE}/table_mount_cache.cpp
 )
 set( HDRS
   ${BASE}/public.h
   ${BASE}/private.h
-  ${BASE}/protocol.h
+  ${BASE}/wire_protocol.h
   ${BASE}/config.h
   ${BASE}/tablet_service_proxy.h
   ${BASE}/table_mount_cache.h

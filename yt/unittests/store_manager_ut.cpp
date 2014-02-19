@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <ytlib/tablet_client/protocol.h>
+#include <ytlib/tablet_client/wire_protocol.h>
 
 #include <server/tablet_node/store_manager.h>
 
@@ -70,7 +70,7 @@ protected:
     {
         Stroka request;
         {
-            TProtocolWriter writer;
+            TWireProtocolWriter writer;
             writer.WriteUnversionedRow(key.Get());
             writer.WriteColumnFilter(TColumnFilter());
             request = writer.Finish();
@@ -78,14 +78,14 @@ protected:
         
         Stroka response;
         {
-            TProtocolReader reader(request);
-            TProtocolWriter writer;
+            TWireProtocolReader reader(request);
+            TWireProtocolWriter writer;
             StoreManager->LookupRow(timestamp, &reader, &writer);
             response = writer.Finish();
         }
 
         {
-            TProtocolReader reader(response);
+            TWireProtocolReader reader(response);
             std::vector<TUnversionedRow> rows;
             reader.ReadUnversionedRowset(&rows);
             return rows.empty() ? TUnversionedOwningRow() : TUnversionedOwningRow(rows[0]);

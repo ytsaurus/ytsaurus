@@ -32,17 +32,23 @@ message TRspUnmountTablet
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TStoreDescriptor
+message TAddStoreDescriptor
 {
     required NYT.NProto.TGuid store_id = 1;
-	optional int32 partition_index = 2; // null means Eden
+    optional bytes min_key = 2;
+    optional bytes max_key = 3;
+}
+
+message TRemoveStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
 }
 
 message TReqUpdateTabletStores
 {
     required NYT.NProto.TGuid tablet_id = 1;
-	repeated TStoreDescriptor stores_to_add = 2;	
-	repeated TStoreDescriptor stores_to_remove = 3;	
+	repeated TAddStoreDescriptor stores_to_add = 2;	
+	repeated TRemoveStoreDescriptor stores_to_remove = 3;	
 }
 
 ////////////////////////////////////////////////////////////////////////////////

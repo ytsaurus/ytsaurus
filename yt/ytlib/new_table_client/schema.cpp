@@ -144,6 +144,18 @@ TError TTableSchema::CheckKeyColumns(const TKeyColumns& keyColumns) const
     return TError();
 }
 
+void TTableSchema::Save(TStreamSaveContext& context) const
+{
+    NYT::Save(context, NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(*this));
+}
+
+void TTableSchema::Load(TStreamLoadContext& context)
+{
+    NVersionedTableClient::NProto::TTableSchemaExt protoSchema;
+    NYT::Load(context, protoSchema);
+    *this = NYT::FromProto<TTableSchema>(protoSchema);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 

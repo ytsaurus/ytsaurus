@@ -253,23 +253,30 @@ private:
                 tablet->KeyColumns(),
                 chunkWriter);
         
-            int rowCount = 0;
             std::vector<TVersionedRow> rows;
             rows.reserve(MaxRowsPerRead);
+
+            TOwningKey minKey;
+            TOwningKey maxKey;
 
             while (true) {
                 // NB: Memory store reader is always synchronous.
                 reader->Read(&rows);
                 if (rows.empty())
                     break;
-                rowCount += rows.size();
+                
+                if (!minKey) {
+                    minKey = TOwningKey(rows.front().BeginKeys(), rows.front().EndKeys());
+                }
+                maxKey = TOwningKey(rows.back().BeginKeys(), rows.back().EndKeys());
+
                 if (!rowsetWriter->Write(rows)) {
                     auto result = WaitFor(rowsetWriter->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
             }
 
-            if (rowCount == 0) {
+            if (!minKey) {
                 LOG_INFO("Store is empty, requesting drop");
 
                 SwitchTo(automatonInvoker);
@@ -290,13 +297,13 @@ private:
 
             LOG_INFO("Confirming flushed chunk");
             {
-                auto req = TChunkYPathProxy::Confirm(FromObjectId(chunkId));
-                *req->mutable_chunk_info() = chunkWriter->GetChunkInfo();
+                auto request = TChunkYPathProxy::Confirm(FromObjectId(chunkId));
+                *request->mutable_chunk_info() = chunkWriter->GetChunkInfo();
                 for (int index : chunkWriter->GetWrittenIndexes()) {
-                    req->add_replicas(ToProto<ui32>(replicas[index]));
+                    request->add_replicas(ToProto<ui32>(replicas[index]));
                 }
-                *req->mutable_chunk_meta() = rowsetWriter->GetMasterMeta();
-                auto rsp = WaitFor(proxy.Execute(req));
+                *request->mutable_chunk_meta() = rowsetWriter->GetMasterMeta();
+                auto rsp = WaitFor(proxy.Execute(request));
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
             }
 
@@ -307,6 +314,8 @@ private:
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
                 ToProto(request.mutable_store_id(), store->GetId());
                 ToProto(request.mutable_chunk_id(), chunkId);
+                ToProto(request.mutable_min_key(), minKey);
+                ToProto(request.mutable_max_key(), maxKey);
                 CreateMutation(slot->GetHydraManager(), request)
                     ->Commit();
             }

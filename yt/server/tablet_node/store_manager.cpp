@@ -15,7 +15,7 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/tablet_client/protocol.h>
+#include <ytlib/tablet_client/wire_protocol.h>
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/versioned_row.h>
@@ -462,8 +462,8 @@ bool TStoreManager::HasUnflushedStores() const
 
 void TStoreManager::LookupRow(
     TTimestamp timestamp,
-    NTabletClient::TProtocolReader* reader,
-    NTabletClient::TProtocolWriter* writer)
+    NTabletClient::TWireProtocolReader* reader,
+    NTabletClient::TWireProtocolWriter* writer)
 {
     auto key = TOwningKey(reader->ReadUnversionedRow());
     auto columnFilter = reader->ReadColumnFilter();

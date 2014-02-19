@@ -78,6 +78,7 @@ class TLoadContext;
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
+class TPartition;
 class TTablet;
 class TTransaction;
 

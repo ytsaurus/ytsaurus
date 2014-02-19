@@ -71,8 +71,8 @@ message TKeyColumnsExt
 
 message TBoundaryKeysExt
 {
-    required bytes first = 1;
-    required bytes last = 2;
+    required bytes min = 1;
+    required bytes max = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

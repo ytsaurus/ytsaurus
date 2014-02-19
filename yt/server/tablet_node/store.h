@@ -18,9 +18,19 @@ struct IStore
 {
     virtual TStoreId GetId() const = 0;
 
+    virtual TTablet* GetTablet() const = 0;
+
     virtual EStoreState GetState() const = 0;
     EStoreState GetPersistentState() const;
     virtual void SetState(EStoreState state) = 0;
+
+    virtual TPartition* GetPartition() const = 0;
+    virtual void SetPartition(TPartition* partition) = 0;
+
+    //! Returns the minimum key in the store, inclusive.
+    virtual NVersionedTableClient::TOwningKey GetMinKey() const = 0;
+    //! Returns the maximum key in the chunk, inclusive.
+    virtual NVersionedTableClient::TOwningKey GetMaxKey() const = 0;
 
     //! Returns a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!

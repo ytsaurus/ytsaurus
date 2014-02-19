@@ -40,8 +40,8 @@ DECLARE_REFCOUNTED_CLASS(TTableMountCache)
 DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 
-class TProtocolReader;
-class TProtocolWriter;
+class TWireProtocolReader;
+class TWireProtocolWriter;
 
 ///////////////////////////////////////////////////////////////////////////////
 

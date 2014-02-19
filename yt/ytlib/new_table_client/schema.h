@@ -9,6 +9,7 @@
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
+#include <core/misc/serialize.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -58,6 +59,9 @@ public:
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
     TError CheckKeyColumns(const TKeyColumns& keyColumns) const;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
 };
 

@@ -15,6 +15,7 @@
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -387,7 +388,7 @@ public:
         if (table->Tablets().empty()) {
             auto* tablet = CreateTablet(table);
             tablet->SetIndex(0);
-            tablet->PivotKey() = EmptyKey();
+            tablet->SetPivotKey(EmptyKey());
             table->Tablets().push_back(tablet);
             firstTabletIndex = 0;
             lastTabletIndex = 0;
@@ -412,6 +413,7 @@ public:
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index];
+            auto* nextTablet = index + 1 == static_cast<int>(tablets.size()) ? nullptr : tablets[index + 1];
             if (tablet->GetCell())
                 continue;
 
@@ -427,11 +429,19 @@ public:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
+            ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
+            ToProto(req.mutable_next_pivot_key(), nextTablet ? nextTablet->GetPivotKey() : MaxKey());
 
             auto* chunkList = chunkLists[index]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
             for (auto* chunk : chunks) {
-                ToProto(req.add_chunk_ids(), chunk->GetId());
+                auto* descriptor = req.add_chunk_stores();
+                ToProto(descriptor->mutable_store_id(), chunk->GetId());
+
+                // TODO(babenko): validate that chunk is confirmed
+                auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+                descriptor->set_min_key(boundaryKeysExt.min());
+                descriptor->set_max_key(boundaryKeysExt.max());
             }
 
             auto hiveManager = Bootstrap->GetHiveManager();
@@ -517,7 +527,7 @@ public:
                     THROW_ERROR_EXCEPTION("First pivot key must be empty");
                 }
             } else {
-                if (CompareRows(pivotKeys[0], tablets[firstTabletIndex]->PivotKey()) != 0) {
+                if (CompareRows(pivotKeys[0], tablets[firstTabletIndex]->GetPivotKey()) != 0) {
                     THROW_ERROR_EXCEPTION(
                         "First pivot key must match that of the first tablet "
                         "in the resharded range");
@@ -532,7 +542,7 @@ public:
         }
 
         if (lastTabletIndex != tablets.size() - 1) {
-            if (CompareRows(pivotKeys.back(), tablets[lastTabletIndex + 1]->PivotKey()) >= 0) {
+            if (CompareRows(pivotKeys.back(), tablets[lastTabletIndex + 1]->GetPivotKey()) >= 0) {
                 THROW_ERROR_EXCEPTION(
                     "Last pivot key must be strictly less than that of the tablet "
                     "which follows the resharded range");
@@ -559,7 +569,7 @@ public:
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
             auto* tablet = CreateTablet(table);
-            tablet->PivotKey() = pivotKeys[index];
+            tablet->SetPivotKey(pivotKeys[index]);
             newTablets.push_back(tablet);
         }
 
@@ -1077,21 +1087,25 @@ private:
             auto chunkManager = Bootstrap->GetChunkManager();
 
             // Collect all changes first.
-            auto decodeStoreDescriptors = [&] (const google::protobuf::RepeatedPtrField<TStoreDescriptor>& descriptors) -> std::vector<TChunkTree*> {
-                std::vector<TChunkTree*> results;
-                for (const auto& descriptor : descriptors) {
-                    auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                    if (TypeFromId(storeId) == EObjectType::Chunk ||
-                        TypeFromId(storeId) == EObjectType::ErasureChunk)
-                    {
-                        results.push_back(chunkManager->GetChunkOrThrow(storeId));
-                    }
+            std::vector<TChunkTree*> chunksToAttach;
+            for (const auto& descriptor : request.stores_to_add()) {
+                auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                if (TypeFromId(storeId) == EObjectType::Chunk ||
+                    TypeFromId(storeId) == EObjectType::ErasureChunk)
+                {
+                    chunksToAttach.push_back(chunkManager->GetChunkOrThrow(storeId));
                 }
-                return results;
-            };
+            }
 
-            auto chunksToAttach = decodeStoreDescriptors(request.stores_to_add());
-            auto chunksToDetach = decodeStoreDescriptors(request.stores_to_remove());
+            std::vector<TChunkTree*> chunksToDetach;
+            for (const auto& descriptor : request.stores_to_remove()) {
+                auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                if (TypeFromId(storeId) == EObjectType::Chunk ||
+                    TypeFromId(storeId) == EObjectType::ErasureChunk)
+                {
+                    chunksToDetach.push_back(chunkManager->GetChunkOrThrow(storeId));
+                }
+            }
 
             // Apply all requested changes.
             auto* table = tablet->GetTable();

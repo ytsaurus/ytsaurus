@@ -21,7 +21,7 @@
 #include <ytlib/hive/remote_timestamp_provider.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
-#include <ytlib/tablet_client/protocol.h>
+#include <ytlib/tablet_client/wire_protocol.h>
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
@@ -95,7 +95,7 @@ public:
 private:
     TQueryServiceProxy::TInvExecute AsyncResponse_;
 
-    std::unique_ptr<TProtocolReader> ProtocolReader_;
+    std::unique_ptr<TWireProtocolReader> ProtocolReader_;
     ISchemedReaderPtr RowsetReader_;
 
     
@@ -108,7 +108,7 @@ private:
         }
 
         YCHECK(!ProtocolReader_);
-        ProtocolReader_.reset(new TProtocolReader(response->encoded_response()));
+        ProtocolReader_.reset(new TWireProtocolReader(response->encoded_response()));
 
         YCHECK(!RowsetReader_);
         RowsetReader_ = ProtocolReader_->CreateSchemedRowsetReader();
@@ -428,7 +428,7 @@ private:
         auto upperBound = GetUpperBoundFromDataSplit(split);
 
         // Run binary search to find the relevant tablets.
-        auto lowerIt = std::upper_bound(
+        auto tabletIt = std::upper_bound(
             tableInfo->Tablets.begin(),
             tableInfo->Tablets.end(),
             lowerBound,
@@ -442,7 +442,7 @@ private:
         auto schema = FromProto<TTableSchema>(GetProtoExtension<TProtoTableSchema>(split.chunk_meta().extensions()));
 
         std::vector<TDataSplit> subsplits;
-        for (auto it = lowerIt; it != tableInfo->Tablets.end(); ++it) {
+        for (auto it = tabletIt; it != tableInfo->Tablets.end(); ++it) {
             const auto& tabletInfo = *it;
             if (upperBound <= tabletInfo->PivotKey)
                 break;

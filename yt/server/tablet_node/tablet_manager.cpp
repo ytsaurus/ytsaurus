@@ -3,6 +3,7 @@
 #include "tablet_slot.h"
 #include "automaton.h"
 #include "tablet.h"
+#include "partition.h"
 #include "transaction.h"
 #include "transaction_manager.h"
 #include "config.h"
@@ -21,7 +22,7 @@
 #include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/tablet_client/config.h>
-#include <ytlib/tablet_client/protocol.h>
+#include <ytlib/tablet_client/wire_protocol.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 
@@ -165,8 +166,8 @@ public:
         ValidateTabletMounted(tablet);
         ValidateReadTimestamp(timestamp);
 
-        TProtocolReader reader(encodedRequest);
-        TProtocolWriter writer;
+        TWireProtocolReader reader(encodedRequest);
+        TWireProtocolWriter writer;
 
         while (ExecuteSingleRead(
             tablet,
@@ -189,7 +190,7 @@ public:
 
         const auto& store = tablet->GetActiveStore();
 
-        TProtocolReader reader(encodedRequest);
+        TWireProtocolReader reader(encodedRequest);
 
         PooledRows_.clear();
         int commandsSucceded = 0;
@@ -241,7 +242,7 @@ public:
         switch (TypeFromId(storeId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return CreateChunkStore(tablet, storeId);
+                return CreateChunkStore(tablet, storeId, MinKey(), MaxKey());
 
             case EObjectType::DynamicMemoryTabletStore:
                 return CreateDynamicMemoryStore(tablet, storeId);
@@ -260,17 +261,8 @@ public:
             .DoMapFor(TabletMap_, [&] (TFluentMap fluent, const std::pair<TTabletId, TTablet*>& pair) {
                 auto* tablet = pair.second;
                 fluent
-                    .Item(ToString(tablet->GetId())).BeginMap()
-                        .Item("state").Value(tablet->GetState())
-                        .Item("stores").DoMapFor(tablet->Stores(), [&] (TFluentMap fluent, const std::pair<TStoreId, IStorePtr>& pair) {
-                            auto store = pair.second;
-                            fluent
-                                .Item(ToString(store->GetId())).BeginMap()
-                                    .Item("state").Value(store->GetState())
-                                    .Do(BIND(&IStore::BuildOrchidYson, store))
-                                .EndMap();
-                        })
-                    .EndMap();
+                    .Item(ToString(tablet->GetId()))
+                    .Do(BIND(&TImpl::BuildTabletOrchidYson, Unretained(this), tablet));
             });
     }
 
@@ -418,21 +410,25 @@ private:
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<Stroka>(request.key_columns().names());
+        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
+        auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
 
         auto* tablet = new TTablet(
             tabletId,
             Slot_,
             schema,
-            keyColumns);
+            keyColumns,
+            pivotKey,
+            nextPivotKey);
+        tablet->AddPartition(pivotKey);
         InitializeTablet(tablet);
         tablet->GetStoreManager()->CreateActiveStore();
         tablet->SetState(ETabletState::Mounted);
         TabletMap_.Insert(tabletId, tablet);
 
-        for (const auto& protoChunkId: request.chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
-            auto store = CreateChunkStore(tablet, chunkId);
-            tablet->AddStore(store);
+        for (const auto& descriptor : request.chunk_stores()) {
+            auto store = CreateChunkStore(tablet, descriptor);
+            tablet->AddStore(std::move(store));
         }
 
         {
@@ -447,7 +443,7 @@ private:
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkCount: %d)",
             ~ToString(tabletId),
-            request.chunk_ids_size());
+            request.chunk_stores_size());
     }
 
     void HydraSetTabletState(const TReqSetTabletState& request)
@@ -557,7 +553,7 @@ private:
 
         int commandsSucceded = request.commands_succeded();
 
-        TProtocolReader reader(request.encoded_request());
+        TWireProtocolReader reader(request.encoded_request());
 
         try {
             for (int index = 0; index < commandsSucceded; ++index) {
@@ -611,6 +607,8 @@ private:
 
         if (request.has_chunk_id()) {
             auto chunkId = FromProto<TChunkId>(request.chunk_id());
+            auto minKey = FromProto<TOwningKey>(request.min_key());
+            auto maxKey = FromProto<TOwningKey>(request.max_key());
 
             LOG_INFO_UNLESS(IsRecovery(), "Committing flushed chunk (TabletId: %s, StoreId: %s, ChunkId: %s)",
                 ~ToString(tabletId),
@@ -625,6 +623,8 @@ private:
                 {
                     auto* descriptor = request.add_stores_to_add();
                     ToProto(descriptor->mutable_store_id(), chunkId);
+                    ToProto(descriptor->mutable_min_key(), minKey);
+                    ToProto(descriptor->mutable_max_key(), minKey);
                 }
                 {
                     auto* descriptor = request.add_stores_to_remove();
@@ -673,8 +673,7 @@ private:
         } else {
             std::vector<TStoreId> addedStoreIds;
             for (const auto& descriptor : response.stores_to_add()) {
-                auto chunkId = FromProto<TChunkId>(descriptor.store_id());
-                auto store = CreateChunkStore(tablet, chunkId);
+                auto store = CreateChunkStore(tablet, descriptor);
                 tablet->AddStore(store);
             }
 
@@ -754,8 +753,8 @@ private:
     bool ExecuteSingleRead(
         TTablet* tablet,
         TTimestamp timestamp,
-        TProtocolReader* reader,
-        TProtocolWriter* writer)
+        TWireProtocolReader* reader,
+        TWireProtocolWriter* writer)
     {
         auto command = reader->ReadCommand();
         if (command == EProtocolCommand::End) {
@@ -783,7 +782,7 @@ private:
     bool ExecuteSingleWrite(
         TTablet* tablet,
         TTransaction* transaction,
-        TProtocolReader* reader,
+        TWireProtocolReader* reader,
         bool prewrite,
         std::vector<TDynamicRow>* lockedRows)
     {
@@ -932,12 +931,32 @@ private:
     }
 
 
-    IStorePtr CreateChunkStore(TTablet* tablet, const TChunkId& chunkId)
+    IStorePtr CreateChunkStore(
+        TTablet* tablet,
+        const NTabletServer::NProto::TAddStoreDescriptor& descriptor)
+    {
+        auto chunkId = FromProto<TChunkId>(descriptor.store_id());
+        auto minKey = FromProto<TOwningKey>(descriptor.min_key());
+        auto maxKey = FromProto<TOwningKey>(descriptor.max_key());
+        return CreateChunkStore(
+            tablet,
+            chunkId,
+            std::move(minKey),
+            std::move(maxKey));
+    }
+
+    IStorePtr CreateChunkStore(
+        TTablet* tablet,
+        const TChunkId& chunkId,
+        TOwningKey minKey,
+        TOwningKey maxKey)
     {
         return New<TChunkStore>(
             Config_,
             chunkId,
             tablet,
+            std::move(minKey),
+            std::move(maxKey),
             Bootstrap_->GetBlockStore()->GetBlockCache(),
             Bootstrap_->GetMasterChannel(),
             Bootstrap_->GetLocalDescriptor());
@@ -949,6 +968,45 @@ private:
             Config_,
             storeId,
             tablet);
+    }
+
+
+    void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("state").Value(tablet->GetState())
+                .Item("pivot_key").Value(tablet->GetPivotKey())
+                .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
+                .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
+                .Item("partitions").DoListFor(tablet->Partitions(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                    fluent
+                        .Item()
+                        .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                })
+            .EndMap();
+    }
+
+    void BuildPartitionOrchidYson(TPartition* partition, IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("pivot_key").Value(partition->GetPivotKey())
+                .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
+                    fluent
+                        .Item(ToString(store->GetId()))
+                        .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+                })
+            .EndMap();
+    }
+
+    void BuildStoreOrchidYson(IStorePtr store, IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("state").Value(store->GetState())
+                .Do(BIND(&IStore::BuildOrchidYson, store))
+            .EndMap();
     }
 
 };

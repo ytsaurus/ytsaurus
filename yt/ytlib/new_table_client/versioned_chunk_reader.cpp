@@ -327,8 +327,8 @@ int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
             LowerLimit_.GetRowIndex(),
             [] (int index, const TBlockMeta& blockMeta) {
                 // Global (chunkwide) index of last row in block.
-                auto lastRowIndex = blockMeta.chunk_row_count() - 1;
-                return index > lastRowIndex;
+                auto maxRowIndex = blockMeta.chunk_row_count() - 1;
+                return index > maxRowIndex;
             });
 
         if (it != rend) {
@@ -377,8 +377,8 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
             end,
             UpperLimit_.GetRowIndex(),
             [] (const TBlockMeta& blockMeta, int index) {
-                auto lastRowIndex = blockMeta.chunk_row_count() - 1;
-                return index < lastRowIndex;
+                auto maxRowIndex = blockMeta.chunk_row_count() - 1;
+                return index < maxRowIndex;
             });
 
         if (it != end) {
@@ -414,9 +414,8 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
 {
     // Check sensible lower limit.
     if (LowerLimit_.HasKey()) {
-        TOwningKey lastKey;
-        FromProto(&lastKey, CachedChunkMeta_->BoundaryKeys().last());
-        if (LowerLimit_.GetKey() > lastKey) {
+        auto maxKey = NYT::FromProto<TOwningKey>(CachedChunkMeta_->BoundaryKeys().max());
+        if (LowerLimit_.GetKey() > maxKey) {
             return TError();
         }
     }

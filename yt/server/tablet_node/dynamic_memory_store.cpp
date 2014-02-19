@@ -369,11 +369,11 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet)
-    : Config_(config)
-    , Id_(id)
-    , Tablet_(tablet)
+    : TStoreBase(
+        id,
+        tablet)
+    , Config_(config)
     , LockCount_(0)
-    , State_(EStoreState::ActiveDynamic)
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
     , StringSpace_(0)
@@ -384,6 +384,8 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         &AlignedPool_,
         TKeyComparer(KeyColumnCount_)))
 {
+    State_ = EStoreState::ActiveDynamic;
+
     LOG_DEBUG("Dynamic memory store created (TabletId: %s, StoreId: %s)",
         ~ToString(Tablet_->GetId()),
         ~ToString(Id_));
@@ -393,11 +395,6 @@ TDynamicMemoryStore::~TDynamicMemoryStore()
 {
     LOG_DEBUG("Dynamic memory store destroyed (StoreId: %s)",
         ~ToString(Id_));
-}
-
-TTablet* TDynamicMemoryStore::GetTablet() const
-{
-    return Tablet_;
 }
 
 int TDynamicMemoryStore::GetLockCount() const
@@ -874,19 +871,14 @@ int TDynamicMemoryStore::GetKeyCount() const
     return Rows_->GetSize();
 }
 
-TStoreId TDynamicMemoryStore::GetId() const
+TOwningKey TDynamicMemoryStore::GetMinKey() const
 {
-    return Id_;
+    return MinKey();
 }
 
-EStoreState TDynamicMemoryStore::GetState() const
+TOwningKey TDynamicMemoryStore::GetMaxKey() const
 {
-    return State_;
-}
-
-void TDynamicMemoryStore::SetState(EStoreState state)
-{
-    State_ = state;
+    return MaxKey();
 }
 
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(

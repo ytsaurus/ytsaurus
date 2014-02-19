@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "store.h"
+#include "store_detail.h"
 #include "dynamic_memory_store_bits.h"
 
 #include <core/misc/public.h>
@@ -18,7 +18,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicMemoryStore
-    : public IStore
+    : public TStoreBase
 {
 public:
     TDynamicMemoryStore(
@@ -27,8 +27,6 @@ public:
         TTablet* tablet);
 
     ~TDynamicMemoryStore();
-
-    TTablet* GetTablet() const;
 
     int GetLockCount() const;
     int Lock();
@@ -63,10 +61,8 @@ public:
     int GetKeyCount() const;
 
     // IStore implementation.
-    virtual TStoreId GetId() const override;
-
-    virtual EStoreState GetState() const override;
-    virtual void SetState(EStoreState state) override;
+    virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
+    virtual NVersionedTableClient::TOwningKey GetMaxKey() const override;
 
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TOwningKey lowerKey,
@@ -83,12 +79,8 @@ private:
     class TReader;
 
     TTabletManagerConfigPtr Config_;
-    TStoreId Id_;
-    TTablet* Tablet_;
 
     int LockCount_;
-
-    EStoreState State_;
 
     int KeyColumnCount_;
     int SchemaColumnCount_;

@@ -13,7 +13,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/tablet_client/protocol.h>
+#include <ytlib/tablet_client/wire_protocol.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -55,7 +55,7 @@ private:
         auto planFragment = FromProto(request->plan_fragment());
         planFragment.GetContext()->GetNodeDirectory()->MergeFrom(request->node_directory());
 
-        TProtocolWriter protocolWriter;
+        TWireProtocolWriter protocolWriter;
         auto rowsetWriter = protocolWriter.CreateSchemedRowsetWriter();
 
         auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));

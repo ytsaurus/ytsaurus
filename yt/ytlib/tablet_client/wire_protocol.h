@@ -53,11 +53,11 @@ DECLARE_ENUM(EProtocolCommand,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtocolWriter
+class TWireProtocolWriter
 {
 public:
-    TProtocolWriter();
-    ~TProtocolWriter();
+    TWireProtocolWriter();
+    ~TWireProtocolWriter();
 
     void WriteCommand(EProtocolCommand command);
 
@@ -84,11 +84,11 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TProtocolReader
+class TWireProtocolReader
 {
 public:
-    explicit TProtocolReader(const Stroka& data); 
-    ~TProtocolReader();
+    explicit TWireProtocolReader(const Stroka& data); 
+    ~TWireProtocolReader();
 
     EProtocolCommand ReadCommand();
     

@@ -13,7 +13,9 @@ message TReqMountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
-    repeated NYT.NProto.TGuid chunk_ids = 4;
+	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor chunk_stores = 4;
+    required bytes pivot_key = 5;
+    required bytes next_pivot_key = 6;
 }
 
 message TReqSetTabletState
@@ -40,14 +42,16 @@ message TReqCommitFlushedChunk
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid store_id = 2;
     optional NYT.NProto.TGuid chunk_id = 3; // null indicates empty store
+    optional bytes min_key = 4;
+    optional bytes max_key = 5;
 }
 
 message TRspUpdateTabletStores
 {
     required NYT.NProto.TGuid tablet_id = 1;
 	optional NYT.NProto.TError error = 2;
-	repeated NYT.NTabletServer.NProto.TStoreDescriptor stores_to_add = 3;
-	repeated NYT.NTabletServer.NProto.TStoreDescriptor stores_to_remove = 4;
+	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 3;
+	repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,8 +39,8 @@ public:
     //! response is written into #writer.
     void LookupRow(
         TTimestamp timestamp,
-        NTabletClient::TProtocolReader* reader,
-        NTabletClient::TProtocolWriter* writer);
+        NTabletClient::TWireProtocolReader* reader,
+        NTabletClient::TWireProtocolWriter* writer);
 
     //! Creates a reader that merges data from all stores.
     //! Used by query engine.

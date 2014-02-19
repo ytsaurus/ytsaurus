@@ -37,16 +37,22 @@ TChunkStore::TChunkStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet,
+    TOwningKey minKey,
+    TOwningKey maxKey,
     IBlockCachePtr blockCache,
     IChannelPtr masterChannel,
     const TNullable<TNodeDescriptor>& localDescriptor)
-    : Config_(config)
-    , Id_(id)
-    , Tablet_(tablet)
-    , BlockCache_(blockCache)
-    , MasterChannel_(masterChannel)
-    , State_(EStoreState::Persistent)
+    : TStoreBase(
+        id,
+        tablet)
+    , Config_(std::move(config))
+    , BlockCache_(std::move(blockCache))
+    , MasterChannel_(std::move(masterChannel))
+    , MinKey_(std::move(minKey))
+    , MaxKey_(std::move(maxKey))
 {
+    State_ = EStoreState::Persistent;
+
     YCHECK(
         TypeFromId(Id_) == EObjectType::Chunk ||
         TypeFromId(Id_) == EObjectType::ErasureChunk);
@@ -55,19 +61,14 @@ TChunkStore::TChunkStore(
 TChunkStore::~TChunkStore()
 { }
 
-TStoreId TChunkStore::GetId() const
+TOwningKey TChunkStore::GetMinKey() const
 {
-    return Id_;
+    return MinKey_;
 }
 
-EStoreState TChunkStore::GetState() const
+TOwningKey TChunkStore::GetMaxKey() const
 {
-    return State_;
-}
-
-void TChunkStore::SetState(EStoreState state)
-{
-    State_ = state;
+    return MaxKey_;
 }
 
 IVersionedReaderPtr TChunkStore::CreateReader(
@@ -119,6 +120,8 @@ void TChunkStore::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, State_);
+    Save(context, MinKey_);
+    Save(context, MaxKey_);
 }
 
 void TChunkStore::Load(TLoadContext& context)
@@ -126,6 +129,8 @@ void TChunkStore::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, State_);
+    Load(context, MinKey_);
+    Load(context, MaxKey_);
 }
 
 void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)

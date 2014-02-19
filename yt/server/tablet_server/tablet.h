@@ -25,7 +25,7 @@ class TTablet
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
-    DEFINE_BYREF_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
+    DEFINE_BYVAL_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
 
 public:
     explicit TTablet(const TTabletId& id);

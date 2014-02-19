@@ -125,7 +125,7 @@ bool TVersionedChunkWriter<TBlockWriter>::Write(const std::vector<TVersionedRow>
 
     if (RowCount_ == 0) {
         ToProto(
-            BoundaryKeysExt_.mutable_first(),
+            BoundaryKeysExt_.mutable_min(),
             TOwningKey(rows.front().BeginKeys(), rows.front().EndKeys()));
     }
 
@@ -253,7 +253,7 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
         FinishBlock();
     }
 
-    ToProto(BoundaryKeysExt_.mutable_last(), LastKey_);
+    ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
 
     auto& meta = EncodingChunkWriter_->Meta();
     FillCommonMeta(&meta);
@@ -300,8 +300,8 @@ TVersionedChunkWriterProvider::TVersionedChunkWriterProvider(
     , CreatedWriterCount_(0)
     , FinishedWriterCount_(0)
 {
-    BoundaryKeysExt_.mutable_first();
-    BoundaryKeysExt_.mutable_last();
+    BoundaryKeysExt_.mutable_min();
+    BoundaryKeysExt_.mutable_max();
 }
 
 IVersionedChunkWriterPtr TVersionedChunkWriterProvider::CreateChunkWriter(IAsyncWriterPtr asyncWriter)
@@ -332,7 +332,7 @@ void TVersionedChunkWriterProvider::OnChunkFinished()
         BoundaryKeysExt_ = CurrentWriter_->GetBoundaryKeys();
     } else {
         auto boundaryKeys = CurrentWriter_->GetBoundaryKeys();
-        BoundaryKeysExt_.set_last(boundaryKeys.last());
+        BoundaryKeysExt_.set_max(boundaryKeys.min());
     }
 }
 
