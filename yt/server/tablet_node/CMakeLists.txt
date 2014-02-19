@@ -15,10 +15,11 @@ set( SRCS
   ${BASE}/store.cpp
   ${BASE}/store_detail.cpp
   ${BASE}/dynamic_memory_store.cpp
+  ${BASE}/dynamic_memory_store_bits.cpp
   ${BASE}/chunk_store.cpp
   ${BASE}/store_manager.cpp
   ${BASE}/store_flusher.cpp
-  ${BASE}/dynamic_memory_store_bits.cpp
+  ${BASE}/store_compactor.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -41,6 +42,7 @@ set( HDRS
   ${BASE}/chunk_store.h
   ${BASE}/store_manager.h
   ${BASE}/store_flusher.h
+  ${BASE}/store_compactor.h
 )
 
 list(APPEND YT_SOURCE_FILES

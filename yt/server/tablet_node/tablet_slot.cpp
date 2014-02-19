@@ -90,7 +90,7 @@ public:
         return CellGuid_;
     }
 
-    EPeerState GetState() const
+    EPeerState GetControlState() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -99,6 +99,13 @@ public:
         }
 
         return State_;
+    }
+
+    EPeerState GetAutomatonState() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState::None;
     }
 
     TPeerId GetPeerId() const
@@ -502,8 +509,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildYsonMapFluently(consumer)
-            .Item("state").Value(GetState())
-            .DoIf(GetState() != EPeerState::None, [&] (TFluentMap fluent) {
+            .Item("state").Value(GetControlState())
+            .DoIf(GetControlState() != EPeerState::None, [&] (TFluentMap fluent) {
                 fluent
                     .Item("cell_guid").Value(CellGuid_);
             });
@@ -573,9 +580,14 @@ const TCellGuid& TTabletSlot::GetCellGuid() const
     return Impl_->GetCellGuid();
 }
 
-EPeerState TTabletSlot::GetState() const
+EPeerState TTabletSlot::GetControlState() const
 {
-    return Impl_->GetState();
+    return Impl_->GetControlState();
+}
+
+EPeerState TTabletSlot::GetAutomatonState() const
+{
+    return Impl_->GetAutomatonState();
 }
 
 TPeerId TTabletSlot::GetPeerId() const

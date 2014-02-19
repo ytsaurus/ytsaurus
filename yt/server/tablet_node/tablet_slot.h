@@ -34,7 +34,8 @@ public:
     ~TTabletSlot();
 
     const NHydra::TCellGuid& GetCellGuid() const;
-    NHydra::EPeerState GetState() const;
+    NHydra::EPeerState GetControlState() const;
+    NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
     const NHydra::NProto::TCellConfig& GetCellConfig() const;
     

@@ -376,7 +376,6 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , LockCount_(0)
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
-    , StringSpace_(0)
     , ValueCount_(0)
     , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
     , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
@@ -852,13 +851,7 @@ void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnvers
     if (src.Type == EValueType::String || src.Type == EValueType::Any) {
         dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
         memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
-        StringSpace_ += src.Length;
     }
-}
-
-i64 TDynamicMemoryStore::GetStringSpace() const
-{
-    return StringSpace_;
 }
 
 int TDynamicMemoryStore::GetValueCount() const
@@ -869,6 +862,26 @@ int TDynamicMemoryStore::GetValueCount() const
 int TDynamicMemoryStore::GetKeyCount() const
 {
     return Rows_->GetSize();
+}
+
+i64 TDynamicMemoryStore::GetAlignedPoolSize() const
+{
+    return AlignedPool_.GetSize();
+}
+
+i64 TDynamicMemoryStore::GetAlignedPoolCapacity() const
+{
+    return AlignedPool_.GetCapacity();
+}
+
+i64 TDynamicMemoryStore::GetUnalignedPoolSize() const
+{
+    return UnalignedPool_.GetSize();
+}
+
+i64 TDynamicMemoryStore::GetUnalignedPoolCapacity() const
+{
+    return UnalignedPool_.GetCapacity();
 }
 
 TOwningKey TDynamicMemoryStore::GetMinKey() const
@@ -1010,7 +1023,10 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("key_count").Value(GetKeyCount())
         .Item("lock_count").Value(GetLockCount())
         .Item("value_count").Value(GetValueCount())
-        .Item("string_space").Value(GetStringSpace());
+        .Item("aligned_pool_size").Value(GetAlignedPoolSize())
+        .Item("aligned_pool_capacity").Value(GetAlignedPoolCapacity())
+        .Item("unaligned_pool_size").Value(GetUnalignedPoolSize())
+        .Item("unaligned_pool_capacity").Value(GetUnalignedPoolCapacity());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

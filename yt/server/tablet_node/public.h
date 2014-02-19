@@ -66,6 +66,7 @@ DECLARE_ENUM(EStoreState,
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreFlusherConfig)
+DECLARE_REFCOUNTED_CLASS(TStoreCompactorConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTabletCellController)
@@ -99,6 +100,7 @@ typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
 typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
 DECLARE_REFCOUNTED_CLASS(TStoreFlusher)
+DECLARE_REFCOUNTED_CLASS(TStoreCompactor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

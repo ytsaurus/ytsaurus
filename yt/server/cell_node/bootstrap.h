@@ -72,7 +72,6 @@ public:
     NHive::TCellDirectoryPtr GetCellDirectory() const;
     NHive::ITimestampProviderPtr GetTimestampProvider() const;
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
-    NTabletNode::TStoreFlusherPtr GetStoreFlusher() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -119,7 +118,6 @@ private:
     NHive::TCellDirectoryPtr CellDirectory;
     NHive::ITimestampProviderPtr TimestampProvider;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
-    NTabletNode::TStoreFlusherPtr StoreFlusher;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;

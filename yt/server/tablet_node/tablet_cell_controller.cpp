@@ -216,6 +216,9 @@ public:
         return IYPathService::FromProducer(producer);
     }
 
+    
+    DEFINE_SIGNAL(void(TTabletSlotPtr), SlotScan);
+
 private:
     NCellNode::TCellNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
@@ -261,7 +264,7 @@ private:
                 if (!invoker)
                     continue;
                 auto result = NewPromise();
-                auto callback = BIND(&TTabletScanner::ScanCell, this_, slot, result);
+                auto callback = BIND(&TTabletScanner::ScanSlot, this_, slot, result);
                 if (!invoker->Invoke(callback))
                     continue;
                 awaiter->Await(result);
@@ -282,7 +285,7 @@ private:
         TSpinLock SpinLock_;
         yhash_map<TTabletId, TTabletCellId> TabletIdToCellIds_;
 
-        void ScanCell(TTabletSlotPtr slot, TPromise<void> result)
+        void ScanSlot(TTabletSlotPtr slot, TPromise<void> result)
         {
             auto tabletManager = slot->GetTabletManager();
 
@@ -295,6 +298,8 @@ private:
                     }
                 }
             }
+
+            Owner_->SlotScan_.Fire(slot);
 
             result.Set();
         }
@@ -396,6 +401,8 @@ IYPathServicePtr TTabletCellController::GetOrchidService()
 {
     return Impl_->GetOrchidService();
 }
+
+DELEGATE_SIGNAL(TTabletCellController, void(TTabletSlotPtr), SlotScan, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

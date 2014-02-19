@@ -143,13 +143,13 @@ private:
         TPlanContextPtr context)
     {
         auto tabletId = FromProto<TTabletId>(split.chunk_id());
-        auto cellController = Bootstrap_->GetTabletCellController();
-        auto cellId = cellController->FindCellByTablet(tabletId);
+        auto tabletCellController = Bootstrap_->GetTabletCellController();
+        auto cellId = tabletCellController->FindCellByTablet(tabletId);
         if (cellId == NullTabletCellId) {
             ThrowNoSuchTablet(tabletId);
         }
 
-        auto slot = cellController->FindSlot(cellId);
+        auto slot = tabletCellController->FindSlot(cellId);
         if (!slot) {
             ThrowNoSuchTablet(tabletId);
         }

@@ -13,8 +13,6 @@
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
 
 #include <core/ytree/attribute_helpers.h>
 
@@ -69,7 +67,6 @@ using namespace NTabletNode::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = TabletNodeLogger;
-static const TDuration ScanPeriod = TDuration::Seconds(1);
 static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,17 +81,12 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreFlush"))
-        , ScanExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
-            BIND(&TImpl::ScanSlots, Unretained(this)),
-            ScanPeriod))
-    {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
-    }
+    { }
 
     void Start()
     {
-        ScanExecutor_->Start();
+        auto tabletCellController = Bootstrap_->GetTabletCellController();
+        tabletCellController->SubscribeSlotScan(BIND(&TImpl::ScanSlot, MakeStrong(this)));
     }
 
 private:
@@ -103,29 +95,12 @@ private:
 
     TThreadPoolPtr ThreadPool_;
 
-    TPeriodicExecutorPtr ScanExecutor_;
 
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-
-    void ScanSlots()
+    void ScanSlot(TTabletSlotPtr slot)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        if (slot->GetAutomatonState() != EPeerState::Leading)
+            return;
 
-        // Post ScanSlot callback to each leading slot.
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        const auto& slots = tabletCellController->Slots();
-        for (const auto& slot : slots) {
-            if (slot->GetState() == EPeerState::Leading) {
-                slot->GetEpochAutomatonInvoker()->Invoke(
-                    BIND(&TImpl::ScanSlot, MakeStrong(this), slot));
-            }
-        }
-    }
-
-    void ScanSlot(const TTabletSlotPtr& slot)
-    {
         auto tabletManager = slot->GetTabletManager();
         auto tablets = tabletManager->Tablets().GetValues();
         for (auto* tablet : tablets) {

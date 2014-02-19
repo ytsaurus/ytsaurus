@@ -329,7 +329,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     for (auto slot : tabletCellController->Slots()) {
         auto* info = request->add_tablet_slots();
         ToProto(info->mutable_cell_guid(), slot->GetCellGuid());
-        info->set_peer_state(slot->GetState());
+        info->set_peer_state(slot->GetControlState());
         info->set_peer_id(slot->GetPeerId());
         info->set_config_version(slot->GetCellConfig().version());
     }
@@ -472,10 +472,10 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
                 ~ToString(cellGuid));
             continue;
         }
-        if (slot->GetState() == EPeerState::Initializing || slot->GetState() == EPeerState::Finalizing) {
+        if (slot->GetControlState() == EPeerState::Initializing || slot->GetControlState() == EPeerState::Finalizing) {
             LOG_WARNING("Requested to configure slot %s in invalid state %s, ignored",
                 ~ToString(cellGuid),
-                ~FormatEnum(slot->GetState()));
+                ~FormatEnum(slot->GetControlState()));
             continue;
         }
         tabletCellController->ConfigureSlot(slot, info);

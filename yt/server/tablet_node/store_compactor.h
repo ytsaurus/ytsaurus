@@ -9,14 +9,14 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreFlusher
+class TStoreCompactor
     : public TRefCounted
 {
 public:
-    TStoreFlusher(
-        TStoreFlusherConfigPtr config,
+    TStoreCompactor(
+        TStoreCompactorConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
-    ~TStoreFlusher();
+    ~TStoreCompactor();
 
     void Start();
 
@@ -26,7 +26,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TStoreFlusher)
+DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

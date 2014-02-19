@@ -54,7 +54,8 @@ public:
 
     int KeyCountRotationThreshold;
     int ValueCountRotationThreshold;
-    i64 StringSpaceRotationThreshold;
+    i64 AlignedPoolSizeRotationThreshold;
+    i64 UnalignedPoolSizeRotationThreshold;
 
     TDuration StoreErrorBackoffTime;
 
@@ -78,7 +79,10 @@ public:
         RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
             .GreaterThan(0)
             .Default(10000000);
-        RegisterParameter("string_space_rotation_threshold", StringSpaceRotationThreshold)
+        RegisterParameter("aligned_pool_size_rotation_threshold", AlignedPoolSizeRotationThreshold)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("unaligned_pool_size_rotation_threshold", UnalignedPoolSizeRotationThreshold)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
 
@@ -94,7 +98,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreFlushWriterConfig
+class TStoreWriterConfig
     : public NVersionedTableClient::TChunkWriterConfig
     , public NChunkClient::TReplicationWriterConfig
 { };
@@ -105,7 +109,7 @@ class TStoreFlusherConfig
 public:
     int ThreadPoolSize;
 
-    TIntrusivePtr<TStoreFlushWriterConfig> Writer;
+    TIntrusivePtr<TStoreWriterConfig> Writer;
 
     TStoreFlusherConfig()
     {
@@ -119,6 +123,27 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
+
+class TStoreCompactorConfig
+    : public TYsonSerializable
+{
+public:
+    int ThreadPoolSize;
+
+    TIntrusivePtr<TStoreWriterConfig> Writer;
+
+    TStoreCompactorConfig()
+    {
+        RegisterParameter("thread_pool_size", ThreadPoolSize)
+            .GreaterThan(0)
+            .Default(1);
+
+        RegisterParameter("writer", Writer)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +171,7 @@ public:
 
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;
+    TStoreCompactorConfigPtr StoreCompactor;
 
     TTabletNodeConfig()
     {
@@ -165,6 +191,8 @@ public:
         RegisterParameter("tablet_manager", TabletManager)
             .DefaultNew();
         RegisterParameter("store_flusher", StoreFlusher)
+            .DefaultNew();
+        RegisterParameter("store_compactor", StoreCompactor)
             .DefaultNew();
 
         RegisterInitializer([&] () {

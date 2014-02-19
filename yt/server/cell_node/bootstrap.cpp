@@ -81,6 +81,7 @@
 
 #include <server/tablet_node/tablet_cell_controller.h>
 #include <server/tablet_node/store_flusher.h>
+#include <server/tablet_node/store_compactor.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -307,7 +308,9 @@ void TBootstrap::Run()
 
     auto queryExecutor = CreateQueryExecutor(this);
 
-    StoreFlusher = New<TStoreFlusher>(Config->TabletNode->StoreFlusher, this);
+    auto storeFlusher = New<TStoreFlusher>(Config->TabletNode->StoreFlusher, this);
+
+    auto storeCompactor = New<TStoreCompactor>(Config->TabletNode->StoreCompactor, this);
 
     RpcServer->RegisterService(CreateQueryService(
         GetControlInvoker(),
@@ -365,7 +368,8 @@ void TBootstrap::Run()
     PeerBlockUpdater->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
-    StoreFlusher->Start();
+    storeFlusher->Start();
+    storeCompactor->Start();
     RpcServer->Start();
     httpServer.Start();
 
@@ -495,11 +499,6 @@ ITimestampProviderPtr TBootstrap::GetTimestampProvider() const
 NTransactionClient::TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
     return TransactionManager;
-}
-
-TStoreFlusherPtr TBootstrap::GetStoreFlusher() const
-{
-    return StoreFlusher;
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const

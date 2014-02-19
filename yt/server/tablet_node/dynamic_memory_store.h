@@ -56,9 +56,14 @@ public:
     void CommitRow(TDynamicRow row);
     void AbortRow(TDynamicRow row);
 
-    i64 GetStringSpace() const;
     int GetValueCount() const;
     int GetKeyCount() const;
+    
+    i64 GetAlignedPoolSize() const;
+    i64 GetAlignedPoolCapacity() const;
+
+    i64 GetUnalignedPoolSize() const;
+    i64 GetUnalignedPoolCapacity() const;
 
     // IStore implementation.
     virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
@@ -85,7 +90,6 @@ private:
     int KeyColumnCount_;
     int SchemaColumnCount_;
 
-    i64 StringSpace_;
     int ValueCount_;
 
     TChunkedMemoryPool AlignedPool_;

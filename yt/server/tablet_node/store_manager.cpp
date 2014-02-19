@@ -684,7 +684,8 @@ bool TStoreManager::IsRotationNeeded() const
     return
         store->GetKeyCount() >= Config_->KeyCountRotationThreshold ||
         store->GetValueCount() >= Config_->ValueCountRotationThreshold ||
-        store->GetStringSpace() >= Config_->StringSpaceRotationThreshold;
+        store->GetAlignedPoolSize() >= Config_->AlignedPoolSizeRotationThreshold ||
+        store->GetUnalignedPoolSize() >= Config_->UnalignedPoolSizeRotationThreshold;
 }
 
 void TStoreManager::SetRotationScheduled()

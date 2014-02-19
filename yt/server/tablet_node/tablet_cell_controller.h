@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/signal.h>
+
 #include <core/ytree/public.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
@@ -44,6 +46,8 @@ public:
     NHydra::ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid);
 
     NYTree::IYPathServicePtr GetOrchidService();
+
+    DECLARE_SIGNAL(void(TTabletSlotPtr), SlotScan);
 
 private:
     class TImpl;
