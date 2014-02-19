@@ -14,8 +14,6 @@ class TVersionedMultiChunkWriter
     : public NChunkClient::TMultiChunkSequentialWriter<TVersionedChunkWriterProvider>
     , public IVersionedWriter
 {
-    typedef NChunkClient::TMultiChunkSequentialWriter<TVersionedChunkWriterProvider> TBase;
-
 public:
     TVersionedMultiChunkWriter(
         NChunkClient::TMultiChunkWriterConfigPtr config,
@@ -28,6 +26,8 @@ public:
     virtual bool Write(const std::vector<TVersionedRow>& rows) override;
 
 private:
+    typedef NChunkClient::TMultiChunkSequentialWriter<TVersionedChunkWriterProvider> TBase;
+
     IVersionedWriter* CurrentWriter_;
 
     // Hides method in base class.
