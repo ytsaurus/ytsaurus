@@ -28,13 +28,14 @@ public:
         const TPlanFragment& fragment,
         ISchemedWriterPtr writer) override
     {
-        return BIND([=] () -> TError {
+        auto impl = [=] () -> TError {
 #ifdef YT_USE_LLVM
             return CodegenController_.Run(Callbacks_, fragment, std::move(writer));
 #else
             return TError("Query evaluation is not supported in this build");
 #endif
-        })
+        };
+        return BIND(impl)
         .AsyncVia(Invoker_)
         .Run();
     }
@@ -66,7 +67,7 @@ public:
         const TPlanFragment& fragment,
         ISchemedWriterPtr writer) override
     {
-        return BIND([=] () -> TError {
+        auto impl = [=] () -> TError {
             TCoordinateController coordinator(Callbacks_, fragment);
 
             auto error = coordinator.Run();
@@ -80,7 +81,8 @@ public:
 #else
             return TError("Query evaluation is not supported in this build");
 #endif
-        })
+        };
+        return BIND(impl)
         .AsyncVia(Invoker_)
         .Run();
     }
