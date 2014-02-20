@@ -105,7 +105,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState::None;
+        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState(EPeerState::None);
     }
 
     TPeerId GetPeerId() const
