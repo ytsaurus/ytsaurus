@@ -96,7 +96,7 @@ public:
     TAsyncError Run(TVersion targetVersion);
 
 private:
-    TError DoRun(TVersion targetVersion);
+    void DoRun(TVersion targetVersion);
 
     virtual bool IsLeader() const;
 
@@ -164,7 +164,7 @@ private:
     TPostponedMutations PostponedMutations;
     TVersion PostponedVersion;
 
-    TError DoRun(TVersion syncVersion);
+    void DoRun(TVersion syncVersion);
 
     virtual bool IsLeader() const;
 

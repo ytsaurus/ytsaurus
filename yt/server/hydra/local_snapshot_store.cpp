@@ -40,6 +40,7 @@ public:
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoCreateReader, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
@@ -54,6 +55,7 @@ public:
     virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(maxSnapshotId);
     }
@@ -61,6 +63,7 @@ public:
     virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoConfirmSnapshot, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
@@ -68,6 +71,7 @@ public:
     virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoGetSnapshotParams, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
@@ -78,50 +82,38 @@ private:
     TFileSnapshotStorePtr FileStore_;
 
 
-    TErrorOr<ISnapshotReaderPtr> DoCreateReader(int snapshotId)
+    ISnapshotReaderPtr DoCreateReader(int snapshotId)
     {
-        try {
-            auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
-            if (!maybeParams) {
-                auto downloadResult = WaitFor(DownloadSnapshot(
-                    Config_,
-                    CellManager_,
-                    FileStore_,
-                    snapshotId));
-                THROW_ERROR_EXCEPTION_IF_FAILED(downloadResult);
-            }
-            return FileStore_->CreateReader(snapshotId);
-        } catch (const std::exception& ex) {
-            return ex;
+        auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
+        if (!maybeParams) {
+            auto downloadResult = WaitFor(DownloadSnapshot(
+                Config_,
+                CellManager_,
+                FileStore_,
+                snapshotId));
+            THROW_ERROR_EXCEPTION_IF_FAILED(downloadResult);
         }
+        return FileStore_->CreateReader(snapshotId);
     }
 
-    TErrorOr<int> DoGetLatestSnapshotId(int maxSnapshotId)
+    int DoGetLatestSnapshotId(int maxSnapshotId)
     {
         auto snapshotInfo = WaitFor(DiscoverLatestSnapshot(Config_, CellManager_, maxSnapshotId));
         return snapshotInfo.SnapshotId;
     }
 
-    TErrorOr<TSnapshotParams> DoConfirmSnapshot(int snapshotId)
+    TSnapshotParams DoConfirmSnapshot(int snapshotId)
     {
-        try {
-            return FileStore_->ConfirmSnapshot(snapshotId);
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        return FileStore_->ConfirmSnapshot(snapshotId);
     }
 
-    TErrorOr<TSnapshotParams> DoGetSnapshotParams(int snapshotId)
+    TSnapshotParams DoGetSnapshotParams(int snapshotId)
     {
-        try {
-            auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
-            if (!maybeParams) {
-                THROW_ERROR_EXCEPTION("No such snapshot %d", snapshotId);
-            }
-            return *maybeParams;
-        } catch (const std::exception& ex) {
-            return ex;
+        auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
+        if (!maybeParams) {
+            THROW_ERROR_EXCEPTION("No such snapshot %d", snapshotId);
         }
+        return *maybeParams;
     }
 
 };

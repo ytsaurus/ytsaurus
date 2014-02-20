@@ -179,6 +179,7 @@ public:
     virtual TAsyncError Open(const TTableSchema& schema) override
     {
         return BIND(&TReader::DoOpen, MakeStrong(this), schema)
+            .Guarded()
             .AsyncVia(Owner_->Tablet_->GetEpochAutomatonInvoker())
             .Run();
     }
@@ -286,79 +287,73 @@ private:
             rhsRow.EndKeys()) < 0;
     }
 
-    TError DoOpen(const TTableSchema& schema)
+    void DoOpen(const TTableSchema& schema)
     {
-        try {
-            auto* tablet = Owner_->Tablet_;
-            const auto& tabletSchema = tablet->Schema();
+        auto* tablet = Owner_->Tablet_;
+        const auto& tabletSchema = tablet->Schema();
 
-            // Infer column filter.
-            TColumnFilter columnFilter;
-            columnFilter.All = false;
-            for (const auto& column : schema.Columns()) {
-                const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
-                if (tabletColumn.Type != column.Type) {
-                    THROW_ERROR_EXCEPTION("Invalid type of schema column %s: expected %s, actual %s",
-                        ~column.Name.Quote(),
-                        ~FormatEnum(tabletColumn.Type).Quote(),
-                        ~FormatEnum(column.Type).Quote());
+        // Infer column filter.
+        TColumnFilter columnFilter;
+        columnFilter.All = false;
+        for (const auto& column : schema.Columns()) {
+            const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
+            if (tabletColumn.Type != column.Type) {
+                THROW_ERROR_EXCEPTION("Invalid type of schema column %s: expected %s, actual %s",
+                    ~column.Name.Quote(),
+                    ~FormatEnum(tabletColumn.Type).Quote(),
+                    ~FormatEnum(column.Type).Quote());
+            }
+            columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
+        }
+
+        // Initialize merger.
+        RowMerger_.reset(new TRowMerger(
+            &Pool_,
+            tablet->GetSchemaColumnCount(),
+            tablet->GetKeyColumnCount(),
+            columnFilter));
+
+
+        // Construct readers.
+        for (const auto& pair : Owner_->Tablet_->Stores()) {
+            const auto& store = pair.second;
+            auto reader = store->CreateReader(
+                LowerBound_,
+                UpperBound_,
+                Timestamp_,
+                columnFilter);
+            if (reader) {
+                Sessions_.push_back(TSession());
+                auto& session = Sessions_.back();
+                session.Reader = std::move(reader);
+                session.Rows.reserve(MaxRowsPerRead);
+            }
+        }
+
+        // Open readers.
+        TIntrusivePtr<TParallelCollector<void>> openCollector;
+        for (const auto& session : Sessions_) {
+            auto asyncResult = session.Reader->Open();
+            if (asyncResult.IsSet()) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
+            } else {
+                if (!openCollector) {
+                    openCollector = New<TParallelCollector<void>>();
                 }
-                columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
+                openCollector->Collect(asyncResult);
             }
+        }
 
-            // Initialize merger.
-            RowMerger_.reset(new TRowMerger(
-                &Pool_,
-                tablet->GetSchemaColumnCount(),
-                tablet->GetKeyColumnCount(),
-                columnFilter));
+        if (openCollector) {
+            auto result = WaitFor(openCollector->Complete());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
-
-            // Construct readers.
-            for (const auto& pair : Owner_->Tablet_->Stores()) {
-                const auto& store = pair.second;
-                auto reader = store->CreateReader(
-                    LowerBound_,
-                    UpperBound_,
-                    Timestamp_,
-                    columnFilter);
-                if (reader) {
-                    Sessions_.push_back(TSession());
-                    auto& session = Sessions_.back();
-                    session.Reader = std::move(reader);
-                    session.Rows.reserve(MaxRowsPerRead);
-                }
-            }
-
-            // Open readers.
-            TIntrusivePtr<TParallelCollector<void>> openCollector;
-            for (const auto& session : Sessions_) {
-                auto asyncResult = session.Reader->Open();
-                if (asyncResult.IsSet()) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
-                } else {
-                    if (!openCollector) {
-                        openCollector = New<TParallelCollector<void>>();
-                    }
-                    openCollector->Collect(asyncResult);
-                }
-            }
-
-            if (openCollector) {
-                auto result = WaitFor(openCollector->Complete());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            // Construct session heap.
-            SessionHeap_.reserve(Sessions_.size());
-            SessionHeapBegin_ = SessionHeapEnd_ = SessionHeap_.begin();
-            for (auto& session : Sessions_) {
-                TryRefillSession(&session);
-            }
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return ex;
+        // Construct session heap.
+        SessionHeap_.reserve(Sessions_.size());
+        SessionHeapBegin_ = SessionHeapEnd_ = SessionHeap_.begin();
+        for (auto& session : Sessions_) {
+            TryRefillSession(&session);
         }
     }
 

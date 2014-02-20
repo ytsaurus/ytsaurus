@@ -80,6 +80,7 @@ public:
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoCreateReader, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
@@ -99,6 +100,7 @@ public:
     virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(maxSnapshotId);
     }
@@ -106,6 +108,7 @@ public:
     virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoConfirmSnapshot, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
@@ -113,6 +116,7 @@ public:
     virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetSnapshotParams, MakeStrong(this))
+            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(snapshotId);
     }
@@ -218,155 +222,139 @@ private:
     };
 
 
-    TErrorOr<ISnapshotReaderPtr> DoCreateReader(int snapshotId)
+    ISnapshotReaderPtr DoCreateReader(int snapshotId)
     {
-        try {
-            auto params = DoGetSnapshotParams(snapshotId).GetValueOrThrow();
-            auto reader = New<TReader>(this, snapshotId, params);
-            reader->Open();
-            return TErrorOr<ISnapshotReaderPtr>(reader);
-        } catch (const std::exception& ex) {
-            return ex;
-        }
+        auto params = DoGetSnapshotParams(snapshotId);
+        auto reader = New<TReader>(this, snapshotId, params);
+        reader->Open();
+        return reader;
     }
 
-    TErrorOr<int> DoGetLatestSnapshotId(int maxSnapshotId)
+    int DoGetLatestSnapshotId(int maxSnapshotId)
     {
-        try {
-            LOG_DEBUG("Requesting snapshot list from the remote store");
-            auto req = TYPathProxy::List(RemotePath_);
+        LOG_DEBUG("Requesting snapshot list from the remote store");
+        auto req = TYPathProxy::List(RemotePath_);
 
-            auto rsp = WaitFor(Proxy_.Execute(req));
-            if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
-                return NonexistingSegmentId;
-            }
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-            LOG_DEBUG("Snapshot list received");
+        auto rsp = WaitFor(Proxy_.Execute(req));
+        if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
+            return NonexistingSegmentId;
+        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        LOG_DEBUG("Snapshot list received");
 
-            auto keys = ConvertTo<std::vector<Stroka>>(TYsonString(rsp->keys()));
-            int lastestSnapshotId = NonexistingSegmentId;
-            for (const auto& key : keys) {
-                try {
-                    int id = FromString<int>(key);
-                    if (id <= maxSnapshotId && id > lastestSnapshotId) {
-                        lastestSnapshotId = id;
-                    }
-                } catch (const std::exception& ex) {
-                    LOG_WARNING("Unrecognized item %s in remote snapshot store",
-                        ~key.Quote());
+        auto keys = ConvertTo<std::vector<Stroka>>(TYsonString(rsp->keys()));
+        int lastestSnapshotId = NonexistingSegmentId;
+        for (const auto& key : keys) {
+            try {
+                int id = FromString<int>(key);
+                if (id <= maxSnapshotId && id > lastestSnapshotId) {
+                    lastestSnapshotId = id;
                 }
+            } catch (const std::exception& ex) {
+                LOG_WARNING("Unrecognized item %s in remote snapshot store",
+                    ~key.Quote());
             }
-
-            return lastestSnapshotId;
-        } catch (const std::exception& ex) {
-            return ex;
         }
+
+        return lastestSnapshotId;
     }
 
-    TErrorOr<TSnapshotParams> DoConfirmSnapshot(int snapshotId)
+    TSnapshotParams DoConfirmSnapshot(int snapshotId)
     {
-        try {
-            LOG_DEBUG("Uploading snapshot %d to the remote store", snapshotId);
+        LOG_DEBUG("Uploading snapshot %d to the remote store", snapshotId);
 
-            auto reader = CreateFileSnapshotReader(
-                GetLocalPath(snapshotId),
-                snapshotId,
-                false);
-            auto params = reader->GetParams();
+        auto reader = CreateFileSnapshotReader(
+            GetLocalPath(snapshotId),
+            snapshotId,
+            false);
+        auto params = reader->GetParams();
 
-            LOG_DEBUG("Starting transaction");
-            TTransactionPtr transaction;
-            {
-                TTransactionStartOptions options;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Snapshot upload for cell %s, snapshot %d",
-                    ~ToString(CellGuid_),
-                    snapshotId));
-                options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(TransactionManager_->Start(options));
-                transaction = transactionOrError.GetValueOrThrow();
-            }
-
-            LOG_DEBUG("Creating snapshot node");
-            {
-                auto req = TCypressYPathProxy::Create(GetRemotePath(snapshotId));
-                req->set_type(EObjectType::File);
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("prev_record_count", params.PrevRecordCount);
-                ToProto(req->mutable_node_attributes(), *attributes);
-                auto rsp = WaitFor(Proxy_.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-            }
-
-            LOG_DEBUG("Writing snapshot data");
-
-            auto writer = New<NFileClient::TAsyncWriter>(
-                Config_->Writer,
-                MasterChannel_,
-                transaction,
-                TransactionManager_,
-                GetRemotePath(snapshotId));
-
-            {
-                auto result = WaitFor(writer->Open());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            struct TUploadBufferTag { };
-            auto buffer = TSharedRef::Allocate<TUploadBufferTag>(Config_->Writer->BlockSize);
-
-            while (true) {
-                size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), buffer.Size());
-                if (bytesRead == 0)
-                    break;
-                auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            {
-                auto result = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            LOG_DEBUG("Committing transaction");
-            {
-                auto result = WaitFor(transaction->Commit());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            LOG_DEBUG("Snapshot uploaded successfully");
-
-            return params;
-        } catch (const std::exception& ex) {
-            return ex;
+        LOG_DEBUG("Starting transaction");
+        TTransactionPtr transaction;
+        {
+            TTransactionStartOptions options;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Snapshot upload for cell %s, snapshot %d",
+                ~ToString(CellGuid_),
+                snapshotId));
+            options.Attributes = attributes.get();
+            auto transactionOrError = WaitFor(TransactionManager_->Start(options));
+            transaction = transactionOrError.GetValueOrThrow();
         }
-    }
 
-    TErrorOr<TSnapshotParams> DoGetSnapshotParams(int snapshotId)
-    {
-        try {
-            LOG_DEBUG("Requesting parameters for snapshot %d from the remote store",
-                snapshotId);
-            auto req = TYPathProxy::Get(GetRemotePath(snapshotId));
-            TAttributeFilter filter(EAttributeFilterMode::MatchingOnly);
-            filter.Keys.push_back("prev_record_count");
-            ToProto(req->mutable_attribute_filter(), filter);
-
+        LOG_DEBUG("Creating snapshot node");
+        {
+            auto req = TCypressYPathProxy::Create(GetRemotePath(snapshotId));
+            req->set_type(EObjectType::File);
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("prev_record_count", params.PrevRecordCount);
+            ToProto(req->mutable_node_attributes(), *attributes);
             auto rsp = WaitFor(Proxy_.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-            LOG_DEBUG("Snapshot parameters received");
-
-            auto node = ConvertToNode(TYsonString(rsp->value()));
-            const auto& attributes = node->Attributes();
-
-            TSnapshotParams params;
-            params.PrevRecordCount = attributes.Get<i64>("prev_record_count");
-            params.Checksum = 0;
-            params.CompressedLength = params.UncompressedLength = -1;
-            return params;
-        } catch (const std::exception& ex) {
-            return ex;
         }
+
+        LOG_DEBUG("Writing snapshot data");
+
+        auto writer = New<NFileClient::TAsyncWriter>(
+            Config_->Writer,
+            MasterChannel_,
+            transaction,
+            TransactionManager_,
+            GetRemotePath(snapshotId));
+
+        {
+            auto result = WaitFor(writer->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        struct TUploadBufferTag { };
+        auto buffer = TSharedRef::Allocate<TUploadBufferTag>(Config_->Writer->BlockSize);
+
+        while (true) {
+            size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), buffer.Size());
+            if (bytesRead == 0)
+                break;
+            auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        {
+            auto result = WaitFor(writer->Close());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        LOG_DEBUG("Committing transaction");
+        {
+            auto result = WaitFor(transaction->Commit());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        LOG_DEBUG("Snapshot uploaded successfully");
+
+        return params;
+    }
+
+    TSnapshotParams DoGetSnapshotParams(int snapshotId)
+    {
+        LOG_DEBUG("Requesting parameters for snapshot %d from the remote store",
+            snapshotId);
+        auto req = TYPathProxy::Get(GetRemotePath(snapshotId));
+        TAttributeFilter filter(EAttributeFilterMode::MatchingOnly);
+        filter.Keys.push_back("prev_record_count");
+        ToProto(req->mutable_attribute_filter(), filter);
+
+        auto rsp = WaitFor(Proxy_.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        LOG_DEBUG("Snapshot parameters received");
+
+        auto node = ConvertToNode(TYsonString(rsp->value()));
+        const auto& attributes = node->Attributes();
+
+        TSnapshotParams params;
+        params.PrevRecordCount = attributes.Get<i64>("prev_record_count");
+        params.Checksum = 0;
+        params.CompressedLength = params.UncompressedLength = -1;
+        return params;
     }
 
 

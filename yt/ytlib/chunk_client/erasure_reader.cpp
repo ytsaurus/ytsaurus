@@ -693,68 +693,63 @@ public:
         }
 
         return BIND(&TRepairAllPartsSession::DoRun, MakeStrong(this))
+            .Guarded()
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
 
 private:
-    TError DoRun()
+    void DoRun()
     {
-        try {
-            // Prepare reader.
-            {
-                auto result = WaitFor(Reader_->Prepare());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        // Prepare reader.
+        {
+            auto result = WaitFor(Reader_->Prepare());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        // Open writers.
+        for (auto writer : Writers_) {
+            writer->Open();
+        }
+
+        // Repair all blocks with the help of TRepairReader and push them to the
+        // corresponding writers.
+        while (Reader_->HasNextBlock()) {
+            auto blockOrError = WaitFor(Reader_->RepairNextBlock());
+            THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
+
+            const auto& block = blockOrError.GetValue();
+            RepairedDataSize_ += block.Data.Size();
+
+            if (OnProgress_) {
+                double progress = static_cast<double>(RepairedDataSize_) / Reader_->GetErasedDataSize();
+                OnProgress_.Run(progress);
             }
 
-            // Open writers.
+            auto writer = GetWriterForIndex(block.Index);
+            if (!writer->WriteBlock(block.Data)) {
+                auto result = WaitFor(writer->GetReadyEvent());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+        }
+
+        // Fetch chunk meta.
+        TChunkMeta meta;
+        {
+            auto reader = Readers_.front(); // an arbitrary one will do
+            auto metaOrError = WaitFor(reader->AsyncGetChunkMeta());
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
+            meta = metaOrError.GetValue();
+        }
+
+        // Close all writers.
+        {
+            auto collector = New<TParallelCollector<void>>();
             for (auto writer : Writers_) {
-                writer->Open();
+                collector->Collect(writer->AsyncClose(meta));
             }
-
-            // Repair all blocks with the help of TRepairReader and push them to the
-            // corresponding writers.
-            while (Reader_->HasNextBlock()) {
-                auto blockOrError = WaitFor(Reader_->RepairNextBlock());
-                THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
-
-                const auto& block = blockOrError.GetValue();
-                RepairedDataSize_ += block.Data.Size();
-
-                if (OnProgress_) {
-                    double progress = static_cast<double>(RepairedDataSize_) / Reader_->GetErasedDataSize();
-                    OnProgress_.Run(progress);
-                }
-
-                auto writer = GetWriterForIndex(block.Index);
-                if (!writer->WriteBlock(block.Data)) {
-                    auto result = WaitFor(writer->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                }
-            }
-
-            // Fetch chunk meta.
-            TChunkMeta meta;
-            {
-                auto reader = Readers_.front(); // an arbitrary one will do
-                auto metaOrError = WaitFor(reader->AsyncGetChunkMeta());
-                THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
-                meta = metaOrError.GetValue();
-            }
-
-            // Close all writers.
-            {
-                auto collector = New<TParallelCollector<void>>();
-                for (auto writer : Writers_) {
-                    collector->Collect(writer->AsyncClose(meta));
-                }
-                auto result = WaitFor(collector->Complete());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return ex;
+            auto result = WaitFor(collector->Complete());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
 

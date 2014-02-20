@@ -306,25 +306,20 @@ TAsyncError TLeaderRecovery::Run(TVersion targetVersion)
     
     SyncVersion = targetVersion;
     return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
+        .Guarded()
         .AsyncVia(EpochAutomatonInvoker)
         .Run(targetVersion);
 }
 
-TError TLeaderRecovery::DoRun(TVersion targetVersion)
+void TLeaderRecovery::DoRun(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    try {
-        auto latestSnapshotIdOrError = WaitFor(SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
-        int latestSnapshotId = latestSnapshotIdOrError.GetValue();
+    auto latestSnapshotIdOrError = WaitFor(SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId));
+    THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
+    int latestSnapshotId = latestSnapshotIdOrError.GetValue();
 
-        RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
-        
-        return TError();
-    } catch (const std::exception& ex) {
-        return ex;
-    }
+    RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
 }
 
 bool TLeaderRecovery::IsLeader() const
@@ -366,54 +361,49 @@ TAsyncError TFollowerRecovery::Run(TVersion syncVersion)
     PostponedMutations.clear();
 
     return BIND(&TFollowerRecovery::DoRun, MakeStrong(this))
+        .Guarded()
         .AsyncVia(EpochAutomatonInvoker)
         .Run(syncVersion);
 }
 
-TError TFollowerRecovery::DoRun(TVersion syncVersion)
+void TFollowerRecovery::DoRun(TVersion syncVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    try {
-        RecoverToVersion(syncVersion);
+    RecoverToVersion(syncVersion);
 
-        LOG_INFO("Checkpoint reached");
+    LOG_INFO("Checkpoint reached");
 
-        while (true) {
-            TPostponedMutations mutations;
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                if (PostponedMutations.empty()) {
-                    break;
-                }
-                mutations.swap(PostponedMutations);
+    while (true) {
+        TPostponedMutations mutations;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (PostponedMutations.empty()) {
+                break;
             }
-
-            LOG_INFO("Logging %" PRISZT " postponed mutations",
-                mutations.size());
-
-            for (const auto& mutation : mutations) {
-                switch (mutation.Type) {
-                    case TPostponedMutation::EType::Mutation:
-                        DecoratedAutomaton->LogMutationAtFollower(mutation.RecordData, nullptr);
-                        break;
-
-                    case TPostponedMutation::EType::ChangelogRotation:
-                        DecoratedAutomaton->RotateChangelog();
-                        break;
-
-                    default:
-                        YUNREACHABLE();
-                }
-            }
+            mutations.swap(PostponedMutations);
         }
 
-        LOG_INFO("Finished logging postponed mutations");
+        LOG_INFO("Logging %" PRISZT " postponed mutations",
+            mutations.size());
 
-        return TError();
-    } catch (const std::exception& ex) {
-        return ex;
+        for (const auto& mutation : mutations) {
+            switch (mutation.Type) {
+                case TPostponedMutation::EType::Mutation:
+                    DecoratedAutomaton->LogMutationAtFollower(mutation.RecordData, nullptr);
+                    break;
+
+                case TPostponedMutation::EType::ChangelogRotation:
+                    DecoratedAutomaton->RotateChangelog();
+                    break;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
     }
+
+    LOG_INFO("Finished logging postponed mutations");
 }
 
 TError TFollowerRecovery::PostponeChangelogRotation(

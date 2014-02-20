@@ -65,9 +65,9 @@ private:
     NCypressClient::TNodeId NodeId;
 
 
-    TError DoOpen();
-    TError DoWrite(const TRef& data);
-    TError DoClose();
+    void DoOpen();
+    void DoWrite(const TRef& data);
+    void DoClose();
 
 };
 

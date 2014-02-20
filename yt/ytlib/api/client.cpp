@@ -788,10 +788,8 @@ public:
 
     virtual TAsyncError Commit() override
     {
-        return
-            BIND(
-                &TTransaction::DoCommit,
-                MakeStrong(this))
+        return BIND(&TTransaction::DoCommit, MakeStrong(this))
+            .Guarded()
             .AsyncVia(Client_->Invoker_)
             .Run();
     }
@@ -1057,51 +1055,45 @@ private:
         return it->second.get();
     }
 
-    TError DoCommit()
+    void DoCommit()
     {
-        try {
-            for (const auto& request : Requests_) {
-                request->Run();
-            }
+        for (const auto& request : Requests_) {
+            request->Run();
+        }
 
-            auto startResult = WaitFor(TransactionStartCollector_->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(startResult);
+        auto startResult = WaitFor(TransactionStartCollector_->Complete());
+        THROW_ERROR_EXCEPTION_IF_FAILED(startResult);
 
-            auto cellDirectory = Client_->Connection_->GetCellDirectory();
+        auto cellDirectory = Client_->Connection_->GetCellDirectory();
 
-            auto writeCollector = New<TParallelCollector<void>>();
+        auto writeCollector = New<TParallelCollector<void>>();
 
-            for (const auto& pair : TabletToWriter_) {
-                const auto& tabletInfo = pair.first;
-                auto* writer = pair.second.get();
+        for (const auto& pair : TabletToWriter_) {
+            const auto& tabletInfo = pair.first;
+            auto* writer = pair.second.get();
 
-                auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
+            auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
 
-                TTabletServiceProxy tabletProxy(channel);
-                auto writeReq = tabletProxy.Write();
-                ToProto(writeReq->mutable_transaction_id(), Transaction_->GetId());
-                ToProto(writeReq->mutable_tablet_id(), tabletInfo->TabletId);
-                writeReq->set_encoded_request(writer->Finish());
+            TTabletServiceProxy tabletProxy(channel);
+            auto writeReq = tabletProxy.Write();
+            ToProto(writeReq->mutable_transaction_id(), Transaction_->GetId());
+            ToProto(writeReq->mutable_tablet_id(), tabletInfo->TabletId);
+            writeReq->set_encoded_request(writer->Finish());
 
-                writeCollector->Collect(
-                    writeReq->Invoke().Apply(BIND([] (TTabletServiceProxy::TRspWritePtr rsp) {
-                        return rsp->GetError();
-                    })));
-            }
+            writeCollector->Collect(
+                writeReq->Invoke().Apply(BIND([] (TTabletServiceProxy::TRspWritePtr rsp) {
+                    return rsp->GetError();
+                })));
+        }
 
-            {
-                auto result = WaitFor(writeCollector->Complete());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+        {
+            auto result = WaitFor(writeCollector->Complete());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
-            {
-                auto result = WaitFor(Transaction_->Commit());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            return TError();
-        } catch (const std::exception& ex) {
-            return ex;
+        {
+            auto result = WaitFor(Transaction_->Commit());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
 
