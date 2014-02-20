@@ -4,13 +4,12 @@
 #include "plan_context.h"
 #include "helpers.h"
 
-#include <yt/ytlib/query_client/operator.pb.h>
+#include <core/misc/protobuf_helpers.h>
 
+#include <ytlib/query_client/operator.pb.h>
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
-
-#include <core/misc/protobuf_helpers.h>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -23,10 +22,10 @@
 namespace NYT {
 namespace NQueryClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using NYT::ToProto;
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperator* TOperator::CloneImpl(TPlanContext* context) const
 {
