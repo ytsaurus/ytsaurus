@@ -150,14 +150,14 @@ private:
 
         void Open()
         {
-            auto result = WaitFor(Reader_->Open());
+            auto result = Reader_->Open().Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
         virtual size_t DoRead(void* buf, size_t len) override
         {
             if (!CurrentBlock_ || CurrentOffset_ >= CurrentBlock_.Size()) {
-                auto result = WaitFor(Reader_->Read());
+                auto result = Reader_->Read().Get();
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 CurrentBlock_ = result.GetValue();
                 if (!CurrentBlock_) {
