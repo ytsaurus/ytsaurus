@@ -30,9 +30,6 @@ private:
 
     IVersionedWriter* CurrentWriter_;
 
-    // Hides method in base class.
-    IVersionedWriter* GetCurrentWriter();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TVersionedMultiChunkWriter)
