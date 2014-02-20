@@ -10,11 +10,14 @@
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/versioned_writer.h>
+#include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
 
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
 
 #include <ytlib/transaction_client/public.h>
+
+#include <ytlib/api/transaction.h>
 
 #include <core/compression/public.h>
 

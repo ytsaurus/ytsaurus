@@ -12,6 +12,7 @@
 
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_chunk_reader.h>
+#include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
