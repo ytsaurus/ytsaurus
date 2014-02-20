@@ -5,19 +5,6 @@
 
 #include <ytlib/object_client/public.h>
 
-///////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations.
-// TODO(babenko): move to public.h
-namespace NYT {
-
-class TBlobOutput;
-class TFakeStringBufStore;
-
-} // namespace NYT
-
-///////////////////////////////////////////////////////////////////////////////
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -26,6 +13,7 @@ namespace NChunkClient {
 namespace NProto {
 
 class TChunkSpec;
+class TChunkMeta;
 
 } // namespace NProto
 

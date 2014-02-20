@@ -20,6 +20,9 @@ class TChunkedMemoryPool;
 template <class TKey, class TComparer>
 class TSkipList;
 
+class TBlobOutput;
+class TFakeStringBufStore;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
