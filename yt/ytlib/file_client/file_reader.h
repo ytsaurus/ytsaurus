@@ -60,6 +60,7 @@ private:
     TNullable<i64> Length;
 
     bool IsFirstBlock;
+    bool IsFinished;
     TIntrusivePtr<TReader> Reader;
 
     i64 Size;
@@ -67,8 +68,8 @@ private:
     NLog::TTaggedLogger Logger;
 
 
-    TError DoOpen();
-    TReadResult DoRead();
+    void DoOpen();
+    TSharedRef DoRead();
 
 };
 
