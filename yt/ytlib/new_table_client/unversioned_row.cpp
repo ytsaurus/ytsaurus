@@ -153,16 +153,17 @@ void Save(TStreamSaveContext& context, const TUnversionedValue& value)
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool)
 {
     auto* input = context.GetInput();
-    input->Load(&value, sizeof (ui16) + sizeof (ui16) + sizeof (ui32)); // Id, Type, Length
+    const size_t fixedSize = sizeof (ui16) + sizeof (ui16) + sizeof (ui32); // Id, Type, Length
+    YCHECK(input->Load(&value, fixedSize) == fixedSize); 
     if (value.Type == EValueType::String || value.Type == EValueType::Any) {
         if (value.Length != 0) {
             value.Data.String = pool->Allocate(value.Length);
-            input->Load(const_cast<char*>(value.Data.String), value.Length);
+            YCHECK(input->Load(const_cast<char*>(value.Data.String), value.Length) == value.Length);
         } else {
             value.Data.String = nullptr;
         }
     } else {
-        input->Load(&value.Data, sizeof (value.Data));
+        YCHECK(input->Load(&value.Data, sizeof (value.Data)) == sizeof (value.Data));
     }
 }
 
