@@ -70,8 +70,8 @@ protected:
         TChunkId ChunkId;
 
         TSession()
-            : ChunkWriter(NULL)
-            , AsyncWriter(NULL)
+            : ChunkWriter(nullptr)
+            , AsyncWriter(nullptr)
         { }
 
         bool IsNull() const

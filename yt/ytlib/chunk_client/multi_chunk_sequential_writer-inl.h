@@ -89,8 +89,9 @@ TAsyncError TMultiChunkSequentialWriter<TProvider>::Open()
 template <class TProvider>
 auto TMultiChunkSequentialWriter<TProvider>::GetCurrentWriter() -> TFacade*
 {
-    if (!CurrentSession.ChunkWriter)
+    if (!CurrentSession.ChunkWriter) {
         return nullptr;
+    }
 
     if (CurrentSession.ChunkWriter->GetMetaSize() > Config->MaxMetaSize) {
         LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %" PRId64 ")",
