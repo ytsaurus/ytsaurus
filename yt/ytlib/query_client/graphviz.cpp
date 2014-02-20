@@ -160,6 +160,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using ::ToString;
+
 template <class T, class = void>
 struct TGraphVizTraits;
 

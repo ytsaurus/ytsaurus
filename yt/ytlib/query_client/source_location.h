@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/string/printf.h>
+#include "public.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -9,27 +9,18 @@ namespace NQueryClient {
 
 struct TSourceLocation
 {
-    inline int GetOffset() const
-    {
-        return begin;
-    }
+    TSourceLocation();
 
-    inline int GetLength() const
-    {
-        return end - begin;
-    }
-
-    Stroka ToString() const
-    {
-        return Sprintf("%d-%d", begin, end - 1);
-    }
+    int GetOffset() const;
+    int GetLength() const;
 
     // Naming is to confirm to Bison interface.
     int begin;
     int end;
 };
 
-// Instatiated in parser.yy.
+Stroka ToString(const TSourceLocation& location);
+
 extern const TSourceLocation NullSourceLocation;
 
 ////////////////////////////////////////////////////////////////////////////////

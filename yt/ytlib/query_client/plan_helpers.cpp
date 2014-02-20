@@ -13,6 +13,8 @@ namespace NQueryClient {
 
 using namespace NVersionedTableClient;
 
+using ::ToString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDataSplit& GetHeaviestSplit(const TOperator* op)
@@ -491,13 +493,13 @@ TValue GetConstantValue(const TExpression* expr)
 {
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral:
-            return NVersionedTableClient::MakeUnversionedIntegerValue(
+            return MakeUnversionedIntegerValue(
                 expr->As<TIntegerLiteralExpression>()->GetValue(),
-                NVersionedTableClient::NullTimestamp);
+                NullTimestamp);
         case EExpressionKind::DoubleLiteral:
-            return NVersionedTableClient::MakeUnversionedIntegerValue(
+            return MakeUnversionedIntegerValue(
                 expr->As<TDoubleLiteralExpression>()->GetValue(),
-                NVersionedTableClient::NullTimestamp);
+                NullTimestamp);
         default:
             YUNREACHABLE();
     }

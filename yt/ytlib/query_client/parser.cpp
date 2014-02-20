@@ -2136,7 +2136,7 @@ namespace NQueryClient {
 void TParser::error(const location_type& location, const std::string& message)
 {
     THROW_ERROR_EXCEPTION("Error while parsing query: %s", message.c_str())
-        << TErrorAttribute("location", location.ToString());
+        << TErrorAttribute("query_range", ToString(location));
 }
 
 } // namespace NQueryClient

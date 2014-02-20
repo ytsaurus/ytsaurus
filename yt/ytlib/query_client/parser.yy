@@ -358,12 +358,10 @@ function-expr-args
 namespace NYT {
 namespace NQueryClient {
 
-const TSourceLocation NullSourceLocation = { 0, 0 };
-
 void TParser::error(const location_type& location, const std::string& message)
 {
     THROW_ERROR_EXCEPTION("Error while parsing query: %s", message.c_str())
-        << TErrorAttribute("location", location.ToString());
+        << TErrorAttribute("query_range", ToString(location));
 }
 
 } // namespace NQueryClient
