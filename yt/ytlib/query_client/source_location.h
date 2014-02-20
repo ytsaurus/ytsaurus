@@ -21,7 +21,7 @@ struct TSourceLocation
 
     Stroka ToString() const
     {
-        return Sprintf("%d:%d", begin, end);
+        return Sprintf("%d-%d", begin, end - 1);
     }
 
     // Naming is to confirm to Bison interface.
