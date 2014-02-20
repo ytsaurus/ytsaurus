@@ -70,7 +70,7 @@ void TTransaction::Save(TSaveContext& context) const
         }
 
         // Sentinel
-        NVersionedTableClient::Save(context, MakeUnversionedSentinelValue(EValueType::TheBottom));
+        NVersionedTableClient::Save(context, MakeVersionedSentinelValue(EValueType::Null, NullTimestamp));
     }
 }
 
@@ -109,9 +109,9 @@ void TTransaction::Load(TLoadContext& context)
         rowBuilder->Reset();
 
         while (true) {
-            TUnversionedValue value;
+            TVersionedValue value;
             Load(context, value, tempPool);
-            if (value.Type == EValueType::TheBottom)
+            if (value.Timestamp == NullTimestamp)
                 break;
             rowBuilder->AddValue(value);
         }
