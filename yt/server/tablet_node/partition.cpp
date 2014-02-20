@@ -13,6 +13,8 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const int TPartition::EdenIndex = -1;
+
 TPartition::TPartition(TTablet* tablet, int index)
     : Tablet_(tablet)
     , Index_(index)

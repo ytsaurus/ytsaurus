@@ -14,7 +14,7 @@ namespace NTabletNode {
 class TPartition
 {
 public:
-    static const int EdenIndex = -1;
+    static const int EdenIndex;
 
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
