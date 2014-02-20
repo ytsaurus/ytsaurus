@@ -33,6 +33,7 @@
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_writer.h>
 #include <ytlib/new_table_client/versioned_chunk_writer.h>
+#include <ytlib/new_table_client/versioned_multi_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -55,6 +56,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NVersionedTableClient;
+using namespace NVersionedTableClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NApi;
 using namespace NObjectClient;
@@ -169,43 +171,7 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.GetValue();
             }
-
-            TChunkId chunkId;
-            auto nodeDirectory = New<TNodeDirectory>();
-            std::vector<TChunkReplica> replicas;
-            std::vector<TNodeDescriptor> targets;
-            {
-                // TODO(babenko): make configurable
-                LOG_INFO("Creating flushed chunk");
-                auto req = TMasterYPathProxy::CreateObjects();
-                req->set_type(EObjectType::Chunk);
-                req->set_account("tmp");
-                ToProto(req->mutable_transaction_id(), transaction->GetId());
-                auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
-                reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-                reqExt->set_replication_factor(3);
-                reqExt->set_upload_replication_factor(2);
-                reqExt->set_movable(true);
-                reqExt->set_vital(true);
-                reqExt->set_erasure_codec(NErasure::ECodec::None);
-
-                auto rsp = WaitFor(proxy.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-                chunkId = FromProto<TChunkId>(rsp->object_ids(0));
-                const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk_ext);
-                nodeDirectory->MergeFrom(rspExt.node_directory());
-                replicas = FromProto<TChunkReplica>(rspExt.replicas());
-                if (replicas.size() < 2) {
-                    THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
-                        static_cast<int>(replicas.size()),
-                        2);
-                    return;
-                }
-                targets = nodeDirectory->GetDescriptors(replicas);
-            }
-                            
-            LOG_INFO("Writing flushed chunk");
-        
+       
             auto reader = store->CreateReader(
                 MinKey(),
                 MaxKey(),
@@ -215,54 +181,40 @@ private:
             // NB: Memory store reader is always synchronous.
             reader->Open().Get();
 
-            auto chunkWriter = CreateReplicationWriter(
-                Config_->Writer,
-                chunkId,
-                targets);
-            chunkWriter->Open();
-
-            auto rowsetWriter = CreateVersionedChunkWriter(
+            auto writerProvider = New<TVersionedChunkWriterProvider>(
                 Config_->Writer,
                 New<TChunkWriterOptions>(), // TODO(babenko): make configurable
                 tablet->Schema(),
-                tablet->KeyColumns(),
-                chunkWriter);
+                tablet->KeyColumns());
+
+             // TODO(babenko): make configurable
+            auto multiChunkWriterOptions = New<TMultiChunkWriterOptions>();
+            multiChunkWriterOptions->Account = "tmp";
+
+            auto rowsetWriter = New<TVersionedMultiChunkWriter>(
+                Config_->Writer,
+                multiChunkWriterOptions,
+                writerProvider,
+                Bootstrap_->GetMasterChannel(),
+                transaction->GetId());
+
+            {
+                auto result = WaitFor(rowsetWriter->Open());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
         
             std::vector<TVersionedRow> rows;
             rows.reserve(MaxRowsPerRead);
-
-            TOwningKey minKey;
-            TOwningKey maxKey;
 
             while (true) {
                 // NB: Memory store reader is always synchronous.
                 reader->Read(&rows);
                 if (rows.empty())
                     break;
-                
-                if (!minKey) {
-                    minKey = TOwningKey(rows.front().BeginKeys(), rows.front().EndKeys());
-                }
-                maxKey = TOwningKey(rows.back().BeginKeys(), rows.back().EndKeys());
-
                 if (!rowsetWriter->Write(rows)) {
                     auto result = WaitFor(rowsetWriter->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
-            }
-
-            if (!minKey) {
-                LOG_INFO("Store is empty, requesting drop");
-
-                SwitchTo(automatonInvoker);
-
-                // Simulate master response.
-                TReqCommitFlushedChunk request;
-                ToProto(request.mutable_tablet_id(), tablet->GetId());
-                ToProto(request.mutable_store_id(), store->GetId());
-                CreateMutation(slot->GetHydraManager(), request)
-                    ->Commit();
-                return;
             }
 
             {
@@ -270,27 +222,19 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
-            LOG_INFO("Confirming flushed chunk");
-            {
-                auto request = TChunkYPathProxy::Confirm(FromObjectId(chunkId));
-                *request->mutable_chunk_info() = chunkWriter->GetChunkInfo();
-                for (int index : chunkWriter->GetWrittenIndexes()) {
-                    request->add_replicas(ToProto<ui32>(replicas[index]));
-                }
-                *request->mutable_chunk_meta() = rowsetWriter->GetMasterMeta();
-                auto rsp = WaitFor(proxy.Execute(request));
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-            }
-
             SwitchTo(automatonInvoker);
 
             {
-                TReqCommitFlushedChunk request;
+                TReqCommitFlushedChunks request;
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
                 ToProto(request.mutable_store_id(), store->GetId());
-                ToProto(request.mutable_chunk_id(), chunkId);
-                ToProto(request.mutable_min_key(), minKey);
-                ToProto(request.mutable_max_key(), maxKey);
+                for (const auto& chunkSpec : rowsetWriter->GetWrittenChunks()) {
+                    auto* descriptor = request.add_chunks();
+                    descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
+                    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
+                    descriptor->set_min_key(boundaryKeysExt.min());
+                    descriptor->set_max_key(boundaryKeysExt.max());
+                }
                 CreateMutation(slot->GetHydraManager(), request)
                     ->Commit();
             }

@@ -100,7 +100,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 class TStoreWriterConfig
     : public NVersionedTableClient::TChunkWriterConfig
-    , public NChunkClient::TReplicationWriterConfig
+    , public NChunkClient::TMultiChunkWriterConfig
 { };
 
 class TStoreFlusherConfig

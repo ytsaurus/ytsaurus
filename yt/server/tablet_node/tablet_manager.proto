@@ -38,13 +38,11 @@ message TReqRotateStore
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TReqCommitFlushedChunk
+message TReqCommitFlushedChunks
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid store_id = 2;
-    optional NYT.NProto.TGuid chunk_id = 3; // null indicates empty store
-    optional bytes min_key = 4;
-    optional bytes max_key = 5;
+	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor chunks = 3;
 }
 
 message TRspUpdateTabletStores

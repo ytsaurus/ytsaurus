@@ -586,14 +586,14 @@ private:
         RotateStore(tablet, true);
     }
 
-    void HydraCommitFlushedChunk(const TReqCommitFlushedChunk& request)
+    void HydraCommitFlushedChunk(const TReqCommitFlushedChunks& flushRequest)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(flushRequest.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet)
             return;
 
-        auto storeId = FromProto<TStoreId>(request.store_id());
+        auto storeId = FromProto<TStoreId>(flushRequest.store_id());
         auto store = tablet->FindStore(storeId);
         if (!store)
             return;
@@ -607,46 +607,23 @@ private:
             return;
         }
 
-        if (request.has_chunk_id()) {
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            auto minKey = FromProto<TOwningKey>(request.min_key());
-            auto maxKey = FromProto<TOwningKey>(request.max_key());
+        LOG_INFO_UNLESS(IsRecovery(), "Committing flushed chunks (TabletId: %s, StoreId: %s, ChunkCount: %d)",
+            ~ToString(tabletId),
+            ~ToString(storeId),
+            flushRequest.chunks_size());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Committing flushed chunk (TabletId: %s, StoreId: %s, ChunkId: %s)",
-                ~ToString(tabletId),
-                ~ToString(storeId),
-                ~ToString(chunkId));
+        store->SetState(EStoreState::FlushCommitting);
 
-            store->SetState(EStoreState::FlushCommitting);
-
-            {
-                TReqUpdateTabletStores request;
-                ToProto(request.mutable_tablet_id(), tabletId);
-                {
-                    auto* descriptor = request.add_stores_to_add();
-                    ToProto(descriptor->mutable_store_id(), chunkId);
-                    ToProto(descriptor->mutable_min_key(), minKey);
-                    ToProto(descriptor->mutable_max_key(), minKey);
-                }
-                {
-                    auto* descriptor = request.add_stores_to_remove();
-                    ToProto(descriptor->mutable_store_id(), storeId);
-                }
-                auto* slot = tablet->GetSlot();
-                auto hiveManager = slot->GetHiveManager();
-                hiveManager->PostMessage(slot->GetMasterMailbox(), request);
-            }
-        } else {
-            LOG_INFO_UNLESS(IsRecovery(), "Dropping empty store (TabletId: %s, StoreId: %s)",
-                ~ToString(tabletId),
-                ~ToString(storeId));
-
-            tablet->RemoveStore(storeId);
-
-            if (IsLeader()) {
-                CheckIfAllStoresFlushed(tablet);
-            }
+        TReqUpdateTabletStores updateRequest;
+        ToProto(updateRequest.mutable_tablet_id(), tabletId);
+        updateRequest.mutable_stores_to_add()->MergeFrom(flushRequest.chunks());
+        {
+            auto* descriptor = updateRequest.add_stores_to_remove();
+            ToProto(descriptor->mutable_store_id(), storeId);
         }
+        auto* slot = tablet->GetSlot();
+        auto hiveManager = slot->GetHiveManager();
+        hiveManager->PostMessage(slot->GetMasterMailbox(), updateRequest);
     }
 
     void HydraOnTabletStoresUpdated(const TRspUpdateTabletStores& response)
