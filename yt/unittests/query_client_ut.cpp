@@ -1192,7 +1192,7 @@ TUnversionedOwningRow BuildRow(
         }
     }
 
-    return rowBuilder.Finish();
+    return rowBuilder.GetRowAndReset();
 }
 
 class TQueryCodegenTest
@@ -1220,6 +1220,12 @@ protected:
             owningSource.begin(),
             owningSource.end(),
             source.begin(),
+            std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
+
+        std::transform(
+            owningResult.begin(),
+            owningResult.end(),
+            result.begin(),
             std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
 
         YCHECK(!Controller_);

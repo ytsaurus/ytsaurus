@@ -159,6 +159,10 @@ class TypeBuilder<std::vector<TRow>*, cross>
 { };
 
 template <bool cross>
+class TypeBuilder<std::pair<std::vector<TRow>, TChunkedMemoryPool*>*, cross>
+    : public TypeBuilder<void*, cross>
+{ };
+template <bool cross>
 class TypeBuilder<TGroupedRows*, cross>
     : public TypeBuilder<void*, cross>
 { };
@@ -700,7 +704,7 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
 typedef void (*TCodegenedFunction)(
     TRow constants,
     TPassedFragmentParams* passedFragmentParams,
-    std::vector<TRow>* batch,
+    std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch,
     ISchemedWriter* writer);
 
 class TCodegenedFragment
@@ -883,17 +887,27 @@ namespace NRoutines {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TRow row, std::vector<TRow>* batch, ISchemedWriter* writer)
+void WriteRow(TRow row, std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch, ISchemedWriter* writer)
 {
-    YASSERT(batch->size() < batch->capacity());
-    batch->push_back(row);
+    std::vector<TRow>* batchArray = &batch->first;
+    TChunkedMemoryPool* memoryPool = batch->second;
 
-    if (batch->size() == batch->capacity()) {
-        if (!writer->Write(*batch)) {
+    YASSERT(batchArray->size() < batchArray->capacity());
+
+    TRow rowCopy = TRow::Allocate(memoryPool, row.GetCount());
+
+    for (int i = 0; i < row.GetCount(); ++i) {
+        rowCopy[i] = row[i];
+    }
+
+    batchArray->push_back(rowCopy);
+
+    if (batchArray->size() == batchArray->capacity()) {
+        if (!writer->Write(*batchArray)) {
             auto error = WaitFor(writer->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
-        batch->clear();
+        batchArray->clear();
     }
 }
 
@@ -1372,7 +1386,7 @@ TCodegenedFunction TCodegenControllerImpl::CodegenEvaluate(
     FunctionPassManager_->run(*function);
     ModulePassManager_->run(*Module_);
 
-    Module_->dump();
+    //Module_->dump();
 
     TCodegenedFunction codegenedFunction = reinterpret_cast<TCodegenedFunction>(
         ExecutionEngine_->getPointerToFunction(function));
@@ -1736,8 +1750,13 @@ TError TCodegenControllerImpl::EvaluateViaCache(
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
 
-        std::vector<TRow> batch;
-        batch.reserve(MaxRowsPerWrite);
+        //std::vector<TRow> batch;
+        //batch.reserve(MaxRowsPerWrite);
+
+
+        std::pair<std::vector<TRow>, TChunkedMemoryPool*> batch;
+        batch.second = &memoryPool;
+        batch.first.reserve(MaxRowsPerWrite);
 
         TPassedFragmentParams passedFragmentParams;
         passedFragmentParams.Callbacks = callbacks;
@@ -1751,8 +1770,8 @@ TError TCodegenControllerImpl::EvaluateViaCache(
             writer.Get());
 
         LOG_DEBUG("Flusing writer");
-        if (!batch.empty()) {
-            if (!writer->Write(batch)) {
+        if (!batch.first.empty()) {
+            if (!writer->Write(batch.first)) {
                 auto error = WaitFor(writer->GetReadyEvent());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
