@@ -88,9 +88,7 @@ protected:
 
             auto chunkManager = Bootstrap->GetChunkManager();
             auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-            if (!chunk->IsConfirmed()) {
-                THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~ToString(chunkId));
-            }
+            chunk->ValidateConfirmed();
 
             auto* chunkList = node->GetChunkList();
             chunkManager->AttachToChunkList(chunkList, chunk);
