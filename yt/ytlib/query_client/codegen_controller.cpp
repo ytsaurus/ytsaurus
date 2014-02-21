@@ -938,6 +938,7 @@ void ScanOpHelper(
             bool shouldWait = rows.empty();
 
             consumeRows(consumeRowsClosure, rows.data(), rows.size());
+            rows.clear();
 
             if (!hasMoreData) {
                 break;
