@@ -77,7 +77,7 @@ def main():
 
     if is_raw:
         sys.stdout.writelines(__result)
-    elif isinstance(__input_format, yt.YsonFormat):
+    elif isinstance(__output_format, yt.YsonFormat):
         yson.dump(process_output_table_index(__result), sys.stdout, yson_type="list_fragment")
     else:
         sys.stdout.writelines(itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result))
