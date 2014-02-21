@@ -82,10 +82,10 @@ protected:
     {
         // NB: Validate everything before calling TBase::DoCreate to ensure atomicity.
         TChunk* chunk = nullptr;
+        auto chunkManager = Bootstrap->GetChunkManager();
         if (request->HasExtension(TReqCreateFileExt::create_file_ext)) {
             const auto& requestExt = request->GetExtension(TReqCreateFileExt::create_file_ext);
             auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
-            auto chunkManager = Bootstrap->GetChunkManager();
             chunk = chunkManager->GetChunkOrThrow(chunkId);
             chunk->ValidateConfirmed();
         }
