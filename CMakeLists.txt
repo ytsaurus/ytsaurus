@@ -173,6 +173,10 @@ add_custom_target( install-debian-yandex-yt-http-proxy
 )
 
 set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-arcadia-library-blockcodecs PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-arcadia-library-lwtrace PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-arcadia-library-messagebus PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-httpserver PROPERTIES FOLDER "Contrib")
 set_target_properties(protobuf PROPERTIES FOLDER "Contrib")
 set_target_properties(protoc PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-ev PROPERTIES FOLDER "Contrib")
@@ -184,8 +188,9 @@ set_target_properties(ytext-snappy PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-zlib PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-jerasure PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-lfalloc-impl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc-fake PROPERTIES FOLDER "Contrib")
- 
+set_target_properties(ytext-lfalloc-fake-impl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-yajl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
 
