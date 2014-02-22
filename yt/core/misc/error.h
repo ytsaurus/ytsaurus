@@ -225,7 +225,21 @@ public:
         return Value_;
     }
 
+    T& GetValue()
+    {
+        YCHECK(IsOK());
+        return Value_;
+    }
+
     const T& GetValueOrThrow() const
+    {
+        if (!IsOK()) {
+            THROW_ERROR *this;
+        }
+        return Value_;
+    }
+
+    T& GetValueOrThrow()
     {
         if (!IsOK()) {
             THROW_ERROR *this;
