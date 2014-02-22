@@ -445,7 +445,7 @@ class YTEnv(object):
 
         driver_config = configs.get_driver_config()
         driver_config['masters']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        driver_config['timestamp_provider']['addresses'] = config['masters']['addresses']
+        driver_config['timestamp_provider']['addresses'] = driver_config['masters']['addresses']
         init_logging(driver_config['logging'], current, 'node')
 
         proxy_config = configs.get_proxy_config()
