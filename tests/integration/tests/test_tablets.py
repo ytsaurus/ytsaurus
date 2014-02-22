@@ -43,9 +43,10 @@ class TestTablets(YTEnvSetup):
     def _find_tablet_orchid(self, address, tablet_id):
         slots = get('//sys/nodes/' + address + '/orchid/tablet_slots')
         for slot in slots:
-            tablets = slot['tablets']
-            if tablet_id in tablets:
-                return tablets[tablet_id]
+            if slot['state'] == 'leading':
+                tablets = slot['tablets']
+                if tablet_id in tablets:
+                    return tablets[tablet_id]
         return None
 
     def _sync_mount_table(self, path):
