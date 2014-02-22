@@ -1,6 +1,6 @@
 import http_config
 import yt.logger as logger
-from common import require
+from common import require, get_backoff
 from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnavailable
 
 import os
@@ -9,6 +9,7 @@ import time
 import httplib
 import yt.packages.requests
 import simplejson as json
+from datetime import datetime
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
@@ -69,11 +70,14 @@ class Response(object):
 
 def make_request_with_retries(request, make_retries=False, retry_unavailable_proxy=True,
                               description="", return_raw_response=False):
+    yt.packages.requests.adapters.DEFAULT_TIMEOUT = http_config.REQUEST_TIMEOUT
+
     network_errors = list(NETWORK_ERRORS)
     if retry_unavailable_proxy:
         network_errors.append(YtProxyUnavailable)
 
-    for attempt in xrange(http_config.HTTP_RETRIES_COUNT):
+    for attempt in xrange(http_config.REQUEST_RETRY_COUNT):
+        current_time = datetime.now()
         try:
             response = request()
             # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
@@ -88,9 +92,12 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
             return response
         except tuple(network_errors) as error:
             message =  "HTTP request (%s) has failed with error '%s'" % (description, str(error))
-            if make_retries and attempt + 1 < http_config.HTTP_RETRIES_COUNT:
-                logger.warning("%s. Retrying...", message)
-                time.sleep(http_config.HTTP_RETRY_TIMEOUT)
+            if make_retries and attempt + 1 < http_config.RETRIES_COUNT:
+                backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
+                if backoff:
+                    logger.warning("%s. Sleep for %.2lf seconds...", message, backoff)
+                    time.sleep(backoff)
+                logger.warning("New retry (%d) ...", attempt + 2)
             elif not isinstance(error, YtError):
                 # We wrapping network errors to simplify catching such errors later.
                 raise YtNetworkError(message)

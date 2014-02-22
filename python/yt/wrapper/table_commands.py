@@ -3,7 +3,7 @@ import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
                    is_prefix, get_value, compose, execute_handling_sigint, bool_to_string, \
                    chunk_iter_lines
-from errors import YtError
+from errors import YtError, YtNetworkError
 from version import VERSION
 from driver import read_content, get_host_for_heavy_operation
 from table import TablePath, to_table, to_name, prepare_path
@@ -16,7 +16,6 @@ from transaction import PingableTransaction
 from format import Format
 from lock import lock
 from heavy_commands import make_heavy_request
-from http import NETWORK_ERRORS
 import yt.logger as logger
 
 from yt.yson import yson_to_json
@@ -351,7 +350,7 @@ def read_table(table, format=None, table_reader=None, response_type=None):
         return read_content(response, get_value(response_type, "iter_lines"))
     else:
         title = "Python wrapper: read {0}".format(to_name(table))
-        tx = PingableTransaction(timeout=config.HEAVY_COMMAND_TRANSACTION_TIMEOUT,
+        tx = PingableTransaction(timeout=config.http.REQUEST_TIMEOUT,
                                  attributes={"title": title})
         tx.__enter__()
 
@@ -366,24 +365,26 @@ def read_table(table, format=None, table_reader=None, response_type=None):
                 self.index += 1
 
         def run_with_retries(func):
-            for i in xrange(config.READ_RETRY_COUNT):
+            for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                 try:
                     return func()
-                except tuple(list(NETWORK_ERRORS)) as err:
-                    logger.warning("Retry %d failed with message %s", i + 1, str(err))
-                    if i + 1 == config.READ_RETRY_COUNT:
+                except YtNetworkError as err:
+                    if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                         raise
+                    logger.warning(err.message)
+                    logger.warning("New retry (%d) ...", attempt + 2)
 
         def iter_with_retries(iter):
             try:
-                for i in xrange(config.READ_RETRY_COUNT):
+                for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                     try:
                         for elem in iter:
                             yield elem
-                    except tuple(list(NETWORK_ERRORS)) as err:
-                        logger.warning("Retry %d failed with message %s", i + 1, str(err))
-                        if i + 1 == config.READ_RETRY_COUNT:
+                    except YtNetworkError as err:
+                        if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
+                        logger.warning(err.message)
+                        logger.warning("New retry (%d) ...", attempt + 2)
             except exceptions.GeneratorExit:
                 tx.__exit__(None, None, None)
             except:

@@ -28,6 +28,7 @@ from .auth import _basic_auth_str
 DEFAULT_POOLBLOCK = False
 DEFAULT_POOLSIZE = 10
 DEFAULT_RETRIES = 0
+DEFAULT_TIMEOUT = None
 
 
 class BaseAdapter(object):
@@ -268,6 +269,9 @@ class HTTPAdapter(BaseAdapter):
         :param vert: (optional) Any user-provided SSL certificate to be trusted.
         :param proxies: (optional) The proxies dictionary to apply to the request.
         """
+
+        if timeout is None:
+            timeout = DEFAULT_TIMEOUT
 
         conn = self.get_connection(request.url, proxies)
 

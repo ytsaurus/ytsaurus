@@ -40,7 +40,7 @@ class YtTestBase(object):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
         yt.mkdir(TEST_DIR, recursive=True)
 
-        yt.config.WAIT_TIMEOUT = 0.2
+        yt.config.OPERATION_GET_STATE_BACKOFF = 0.2
         yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
 
     def teardown(self):
