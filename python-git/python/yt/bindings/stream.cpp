@@ -48,9 +48,10 @@ TOutputStreamWrap::~TOutputStreamWrap() throw()
 
 void TOutputStreamWrap::DoWrite(const void* buf, size_t len)
 {
-    TGILLock lock;
-
-    WriteFunction_.apply(Py::TupleN(Py::String((const char*)buf, len)));
+    TGilGuard guard;
+    WriteFunction_.apply(Py::TupleN(Py::String(
+        reinterpret_cast<const char*>(buf),
+        len)));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
