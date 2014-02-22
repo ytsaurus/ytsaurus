@@ -99,6 +99,7 @@ public:
             BIND(&TImpl::SaveValues, MakeStrong(this)));
 
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
@@ -454,6 +455,54 @@ private:
             ~ToString(nextPivotKey));
     }
 
+    void HydraUnmountTablet(const TReqUnmountTablet& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        if (request.force()) {
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet is forcefully unmounted (TabletId: %s)",
+                ~ToString(tabletId));
+
+            // Just a formality.
+            tablet->SetState(ETabletState::Unmounted);
+
+            if (!IsRecovery()) {
+                StopTablet(tablet);
+            }
+
+            TabletMap_.Remove(tabletId);
+            UnmountingTablets_.erase(tablet); // don't check the result
+            return;
+        }
+
+        if (tablet->GetState() != ETabletState::Mounted) {
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %s state, ignored (TabletId: %s)",
+                ~FormatEnum(tablet->GetState()).Quote(),
+                ~ToString(tabletId));
+            return;
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TabletId: %s)",
+            ~ToString(tabletId));
+
+        // Just a formality.
+        YCHECK(tablet->GetState() == ETabletState::Mounted);
+        tablet->SetState(ETabletState::Unmounting);
+        YCHECK(UnmountingTablets_.insert(tablet).second);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Waiting for all tablet locks to be released (TabletId: %s)",
+            ~ToString(tabletId));
+        YCHECK(tablet->GetState() == ETabletState::Unmounting);
+        tablet->SetState(ETabletState::WaitingForLocks);
+
+        if (IsLeader()) {
+            CheckIfFullyUnlocked(tablet);
+        }
+    }
+
     void HydraSetTabletState(const TReqSetTabletState& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
@@ -464,32 +513,6 @@ private:
         auto requestedState = ETabletState(request.state());
 
         switch (requestedState) {
-            case ETabletState::Unmounting: {
-                if (tablet->GetState() != ETabletState::Mounted) {
-                    LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %s state, ignored (TabletId: %s)",
-                        ~FormatEnum(tablet->GetState()).Quote(),
-                        ~ToString(tabletId));
-                    return;
-                }
-
-                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TabletId: %s)",
-                    ~ToString(tabletId));
-                // Just a formality.
-                YCHECK(tablet->GetState() == ETabletState::Mounted);
-                tablet->SetState(ETabletState::Unmounting);
-                YCHECK(UnmountingTablets_.insert(tablet).second);
-
-                LOG_INFO_UNLESS(IsRecovery(), "Waiting for all tablet locks to be released (TabletId: %s)",
-                    ~ToString(tabletId));
-                YCHECK(tablet->GetState() == ETabletState::Unmounting);
-                tablet->SetState(ETabletState::WaitingForLocks);
-
-                if (IsLeader()) {
-                    CheckIfFullyUnlocked(tablet);
-                }
-                break;
-            }
-
             case ETabletState::RotatingStore: {
                 // Just a formality.
                 YCHECK(tablet->GetState() == ETabletState::WaitingForLocks);

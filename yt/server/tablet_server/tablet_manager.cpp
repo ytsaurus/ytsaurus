@@ -470,6 +470,7 @@ public:
 
     void UnmountTable(
         TTableNode* table,
+        bool force,
         int firstTabletIndex,
         int lastTabletIndex)
     {
@@ -487,21 +488,23 @@ public:
             }
         }
 
-        DoUnmountTable(table, firstTabletIndex, lastTabletIndex);
+        DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
     }
 
-    void ForceUnmountTable(TTableNode* table)
+    void ClearTablets(TTableNode* table)
     {
+        if (table->Tablets().empty())
+            return;
+
         DoUnmountTable(
             table,
+            true,
             0,
             static_cast<int>(table->Tablets().size()) - 1);
 
         auto objectManager = Bootstrap->GetObjectManager();
         for (auto* tablet : table->Tablets()) {
-            if (tablet->GetState() != ETabletState::Unmounted) {
-                DoTabletUnmounted(tablet);
-            }
+            YCHECK(tablet->GetState() == ETabletState::Unmounted);
             objectManager->UnrefObject(tablet);
         }
 
@@ -1238,31 +1241,37 @@ private:
 
     void DoUnmountTable(
         TTableNode* table,
+        bool force,
         int firstTableIndex,
         int lastTabletIndex)
     {
         for (int index = firstTableIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
-            if (tablet->GetState() != ETabletState::Mounted)
-                continue;
 
-            tablet->SetState(ETabletState::Unmounting);
-
-            auto hiveManager = Bootstrap->GetHiveManager();
-
-            {
-                TReqSetTabletState request;
-                ToProto(request.mutable_tablet_id(), tablet->GetId());
-                request.set_state(NTabletNode::ETabletState::Unmounting);
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                hiveManager->PostMessage(mailbox, request);
-            }
-
-            LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %s, TabletId: %s, CellId: %s, Force: %s)",
                 ~ToString(table->GetId()),
                 ~ToString(tablet->GetId()),
-                ~ToString(cell->GetId()));
+                ~ToString(cell->GetId()),
+                ~FormatBool(force));
+
+            if (tablet->GetState() == ETabletState::Mounted) {
+                tablet->SetState(ETabletState::Unmounting);
+
+                auto hiveManager = Bootstrap->GetHiveManager();
+
+                {
+                    TReqUnmountTablet request;
+                    ToProto(request.mutable_tablet_id(), tablet->GetId());
+                    request.set_force(force);
+                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                    hiveManager->PostMessage(mailbox, request);
+                }
+            }
+
+            if (force && tablet->GetState() != ETabletState::Unmounted) {
+                DoTabletUnmounted(tablet);
+            }
         }
     }
 
@@ -1406,18 +1415,20 @@ void TTabletManager::MountTable(
 
 void TTabletManager::UnmountTable(
     TTableNode* table,
+    bool force,
     int firstTabletIndex,
     int lastTabletIndex)
 {
     Impl_->UnmountTable(
         table,
+        force,
         firstTabletIndex,
         lastTabletIndex);
 }
 
-void TTabletManager::ForceUnmountTable(TTableNode* table)
+void TTabletManager::ClearTablets(TTableNode* table)
 {
-    Impl_->ForceUnmountTable(table);
+    Impl_->ClearTablets(table);
 }
 
 void TTabletManager::ReshardTable(

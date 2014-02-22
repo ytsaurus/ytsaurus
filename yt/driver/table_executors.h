@@ -82,6 +82,8 @@ public:
     TUnmountTableExecutor();
 
 private:
+    TCLAP::SwitchArg ForceArg;
+
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };

@@ -34,7 +34,13 @@ struct TMountTableOptions
 
 struct TUnmountTableOptions
     : public TTabletRangeOptions
-{ };
+{
+    TUnmountTableOptions()
+        : Force(false)
+    { }
+
+    bool Force;
+};
 
 struct TReshardTableOptions
     : public TTabletRangeOptions

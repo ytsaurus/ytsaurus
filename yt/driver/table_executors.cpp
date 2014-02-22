@@ -123,11 +123,17 @@ Stroka TMountTableExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnmountTableExecutor::TUnmountTableExecutor()
-{ }
+    : ForceArg("", "force", "unmount immediately, don't flush", false)
+{
+    CmdLine.add(ForceArg);
+}
 
 void TUnmountTableExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     TTabletExecutor::BuildArgs(consumer);
+
+    BuildYsonMapFluently(consumer)
+        .Item("force").Value(ForceArg.getValue());
 }
 
 Stroka TUnmountTableExecutor::GetCommandName() const 

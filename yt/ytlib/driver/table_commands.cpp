@@ -189,49 +189,61 @@ void TWriteCommand::DoExecute()
 
 void TMountTableCommand::DoExecute()
 {
-    auto req = TTableYPathProxy::Mount(Request->Path.GetPath());
+    TMountTableOptions options;
     if (Request->FirstTabletIndex) {
-        req->set_first_tablet_index(*Request->FirstTabletIndex);
+        options.FirstTabletIndex = *Request->FirstTabletIndex;
     }
     if (Request->LastTabletIndex) {
-        req->set_first_tablet_index(*Request->LastTabletIndex);
+        options.LastTabletIndex = *Request->LastTabletIndex;
     }
 
-    auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto result = WaitFor(Context->GetClient()->MountTable(
+        Request->Path.GetPath(),
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TUnmountTableCommand::DoExecute()
 {
-    auto req = TTableYPathProxy::Unmount(Request->Path.GetPath());
+    TUnmountTableOptions options;
     if (Request->FirstTabletIndex) {
-        req->set_first_tablet_index(*Request->FirstTabletIndex);
+        options.FirstTabletIndex = *Request->FirstTabletIndex;
     }
     if (Request->LastTabletIndex) {
-        req->set_first_tablet_index(*Request->LastTabletIndex);
+        options.LastTabletIndex = *Request->LastTabletIndex;
     }
+    options.Force = Request->Force;
 
-    auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto result = WaitFor(Context->GetClient()->UnmountTable(
+        Request->Path.GetPath(),
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TReshardTableCommand::DoExecute()
 {
-    auto req = TTableYPathProxy::Reshard(Request->Path.GetPath());
+    TReshardTableOptions options;
     if (Request->FirstTabletIndex) {
-        req->set_first_tablet_index(*Request->FirstTabletIndex);
+        options.FirstTabletIndex = *Request->FirstTabletIndex;
     }
     if (Request->LastTabletIndex) {
-        req->set_last_tablet_index(*Request->LastTabletIndex);
+        options.LastTabletIndex = *Request->LastTabletIndex;
     }
-    ToProto(req->mutable_pivot_keys(), Request->PivotKeys);
-
-    auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    
+    std::vector<TUnversionedRow> pivotKeys;
+    for (const auto& key : Request->PivotKeys) {
+        pivotKeys.push_back(key.Get());
+    }
+    
+    auto result = WaitFor(Context->GetClient()->ReshardTable(
+        Request->Path.GetPath(),
+        pivotKeys,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

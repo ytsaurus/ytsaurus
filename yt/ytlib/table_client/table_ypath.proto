@@ -36,6 +36,7 @@ message TReqUnmount
     // If omitted then all tablets are affected.
     required int32 first_tablet_index = 1 [default = -1];
     required int32 last_tablet_index = 2 [default = -1];
+    required bool force = 3 [default = false];
 }
 
 message TRspUnmount

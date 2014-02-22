@@ -49,10 +49,12 @@ public:
 
     void UnmountTable(
         NTableServer::TTableNode* table,
+        bool force,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
 
-    void ForceUnmountTable(NTableServer::TTableNode* table);
+    void ClearTablets(
+        NTableServer::TTableNode* table);
 
     void ReshardTable(
         NTableServer::TTableNode* table,

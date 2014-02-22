@@ -96,6 +96,7 @@ struct TUnmountTableRequest
     NYPath::TRichYPath Path;
     TNullable<int> FirstTabletIndex;
     TNullable<int> LastTabletIndex;
+    bool Force;
 
     TUnmountTableRequest()
     {
@@ -104,6 +105,8 @@ struct TUnmountTableRequest
             .Default(Null);
         RegisterParameter("last_tablet_index", LastTabletIndex)
             .Default(Null);
+        RegisterParameter("force", Force)
+            .Default(false);
     }
 };
 

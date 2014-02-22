@@ -326,9 +326,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
 
     int firstTabletIndex = request->first_tablet_index();
     int lastTabletIndex = request->first_tablet_index();
-    context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+    bool force = request->force();
+    context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d, Force: %s",
         firstTabletIndex,
-        lastTabletIndex);
+        lastTabletIndex,
+        ~FormatBool(force));
 
     ValidateNoTransaction();
 
@@ -337,6 +339,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
     auto tabletManager = Bootstrap->GetTabletManager();
     tabletManager->UnmountTable(
         impl,
+        force,
         firstTabletIndex,
         lastTabletIndex);
 
