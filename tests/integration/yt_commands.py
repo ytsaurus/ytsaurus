@@ -2,6 +2,8 @@ import yt.yson as yson
 from yt.bindings.driver import Driver, Request, make_request
 from yt.common import YtError, flatten, update
 
+import pytest
+
 import os
 import sys
 
