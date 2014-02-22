@@ -58,7 +58,7 @@ def read_content(response, type):
     if type == "iter_lines":
         return iter_lines(response)
     elif type == "iter_content":
-        return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
+        return response.iter_content(chunk_size=config.http.CONTENT_CHUNK_SIZE)
     elif type == "string":
         return response.text
     elif type == "raw":
@@ -93,13 +93,6 @@ def make_request(command_name, params,
             # We don't use kwargs because python doesn't support such kind of formatting
             print >>sys.stderr, msg % args
         logger.debug(msg, *args, **kwargs)
-
-    # Trying to set http retries in requests
-    requests.adapters.DEFAULT_RETRIES = config.http.REQUESTS_RETRIES
-    
-    # Set timeout for requests. Unfortunately, requests param timeout works incorrectly
-    # when data is a generator.
-    socket.setdefaulttimeout(config.http.CONNECTION_TIMEOUT)
 
     # Prepare request url.
     if proxy is None:

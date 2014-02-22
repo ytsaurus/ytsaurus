@@ -5,6 +5,7 @@ import yt.yson as yson
 import os
 import sys
 import random
+from datetime import datetime
 from functools import partial
 from itertools import ifilter
 import simplejson as json
@@ -122,6 +123,11 @@ def die(message=None, return_code=1):
     if "YT_LOG_EXIT_CODE" in os.environ:
         logger.error("Exiting with code %d", return_code)
     sys.exit(return_code)
+
+def get_backoff(timeout, start_time):
+    def get_total_seconds(timedelta):
+        return timedelta.microseconds * 1e-6 + timedelta.seconds + timedelta.days * (24 * 3600)
+    return max(0.0, timeout / 1000.0, - get_total_seconds(datetime.now() - start_time))
 
 def generate_uuid():
     def get_int():

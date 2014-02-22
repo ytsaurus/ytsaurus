@@ -81,15 +81,15 @@ class OperationProgressFormatter(logging.Formatter):
 
 
 def get_operation_state(operation):
-    old_retries_count = config.http.HTTP_RETRIES_COUNT
-    config.HTTP_RETRIES_COUNT = config.WAIT_OPERATION_RETRIES_COUNT
+    old_request_timeout = config.http.REQUEST_TIMEOUT
+    config.http.REQUEST_TIMEOUT = config.OPERATION_GET_STATE_BACKOFF
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     require(exists(operation_path),
             YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state"))
 
-    config.http.HTTP_RETRIES_COUNT = old_retries_count
+    config.http.REQUEST_TIMEOUT = old_request_timeout
 
     return state
 
@@ -163,7 +163,7 @@ def wait_final_state(operation, timeout, print_info, action=lambda: None):
 def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda state: None):
     """ Wait operation and abort operation in case of keyboard interrupt """
     if timeout is None:
-        timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
+        timeout = Timeout(config.OPERATION_GET_STATE_BACKOFF / 5.0, config.OPERATION_GET_STATE_BACKOFF, 0.1)
     print_info = PrintOperationInfo(operation) if print_progress else lambda state: None
 
     def wait():
