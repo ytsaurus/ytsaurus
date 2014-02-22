@@ -125,6 +125,7 @@ public:
 
     bool UseYamrDescriptors;
     bool EnableCoreDump;
+    bool EnableIOPrio;
 
     i64 MaxStderrSize;
 
@@ -155,6 +156,8 @@ public:
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
+        RegisterParameter("enable_io_prio", EnableIOPrio)
+            .Default(true);
         RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
@@ -182,7 +185,8 @@ public:
             .DefaultNew();
         RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
         RegisterParameter("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -342,7 +346,8 @@ public:
             .DefaultNew();
         RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
 
@@ -526,7 +531,8 @@ public:
 
     TMapReduceOperationSpec()
     {
-        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
         // Mapper can be absent -- leave it Null by default.
@@ -652,7 +658,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-class TPooledOperationSpec
+class TFairShareOperationSpec
     : public TYsonSerializable
 {
 public:
@@ -666,7 +672,7 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
 
-    TPooledOperationSpec()
+    TFairShareOperationSpec()
     {
         RegisterParameter("pool", Pool)
             .Default()
@@ -688,6 +694,22 @@ public:
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
             .Default();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TFairShareOperationRuntimeParams
+    : public TYsonSerializable
+{
+public:
+    double Weight;
+
+    TFairShareOperationRuntimeParams()
+    {
+        RegisterParameter("weight", Weight)
+            .Default(1.0)
+            .GreaterThanOrEqual(0.0);
     }
 };
 

@@ -13,6 +13,8 @@
 #include <core/misc/error.h>
 #include <core/misc/collection_helpers.h>
 
+#include <numeric>
+
 namespace NYT {
 namespace NYTree {
 

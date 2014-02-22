@@ -211,6 +211,13 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
         Offsets.push_back(RowBuffer.Size());
         RowBuffer.Write(name);
 
+        if (RowBuffer.Size() > NTableClient::MaxRowWeightLimit) {
+            THROW_ERROR_EXCEPTION(
+                "Row weight is too large (%d > %" PRId64 ")",
+                RowBuffer.Size(),
+                NTableClient::MaxRowWeightLimit);
+        }
+
         Offsets.push_back(RowBuffer.Size());
     } else {
         ValueWriter.OnKeyedItem(name);

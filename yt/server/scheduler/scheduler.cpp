@@ -146,6 +146,13 @@ public:
     }
 
 
+    ISchedulerStrategy* GetStrategy()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Strategy.get();
+    }
+
     IYPathServicePtr GetOrchidService()
     {
         auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
@@ -257,6 +264,11 @@ public:
             }
         }
 
+        if (static_cast<int>(IdToOperation.size()) >= Config->MaxOperationCount) {
+            THROW_ERROR_EXCEPTION("Limit for the number of concurrent operations %d has been reached",
+                Config->MaxOperationCount);
+        }
+
         // Attach user transaction if any. Don't ping it.
         TTransactionAttachOptions userAttachOptions(transactionId);
         userAttachOptions.AutoAbort = false;
@@ -286,6 +298,11 @@ public:
             ~ToString(transactionId),
             ~ToString(mutationId),
             ~user);
+
+
+        LOG_INFO("Total resource limits (OperationId: %s, ResourceLimits: {%s})", 
+            ~ToString(operationId), 
+            ~FormatResources(GetTotalResourceLimits()));
 
         IOperationControllerPtr controller;
         try {
@@ -1661,7 +1678,7 @@ private:
                 .Item("nodes").DoMapFor(AddressToNode, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
-                .DoIf(Strategy.get(), BIND(&ISchedulerStrategy::BuildOrchidYson, Strategy.get()))
+                .DoIf(Strategy != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, Strategy.get()))
             .EndMap();
     }
 
@@ -1671,10 +1688,15 @@ private:
         bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetOperationId())).BeginMap()
-                .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
+                // Include the complete list of attributes.
+                .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasProgress, BIND(&IOperationController::BuildProgressYson, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, Strategy.get(), operation))
+                    .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy.get(), operation))
+                .EndMap()
+                .Item("brief_progress").BeginMap()
+                    .DoIf(hasProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy.get(), operation))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
@@ -1947,6 +1969,11 @@ TScheduler::~TScheduler()
 void TScheduler::Initialize()
 {
     Impl->Initialize();
+}
+
+ISchedulerStrategy* TScheduler::GetStrategy()
+{
+    return Impl->GetStrategy();
 }
 
 IYPathServicePtr TScheduler::GetOrchidService()

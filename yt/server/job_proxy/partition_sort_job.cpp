@@ -187,6 +187,10 @@ public:
             i64 totalRowCount = rowIndexHeap.size();
             LOG_INFO("Total row count: %" PRId64, totalRowCount);
 
+            LOG_DEBUG(
+                "RefCountedTracker: %s",
+                ~TRefCountedTracker::Get()->GetDebugInfo(2));
+
             if (!schedulerJobSpecExt.is_approximate()) {
                 YCHECK(totalRowCount == estimatedRowCount);
             }

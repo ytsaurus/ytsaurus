@@ -25,14 +25,27 @@ set( DIRS
   api
 )
 
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )
+set( SRCS
+  ${BASE}/shutdown.cpp
+)
+set( HDRS
+  ${BASE}/shutdown.h
+)
+
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
 add_msvc_precompiled_header(
-  stdafx.h
-  stdafx.cpp
+  "stdafx.h"
+  "stdafx.cpp"
   YT_SOURCE_FILES
 )
 
@@ -63,17 +76,6 @@ if (HAVE_LIBUNWIND)
   target_link_libraries( ytlib unwind )
 endif()
 
-if (YT_BUILD_ENABLE_PYTHON)
-  add_library( ytlib-without-lfalloc STATIC
-      ${YT_SOURCE_FILES}
-      shutdown.cpp
-  )
-  target_link_libraries ( ytlib-without-lfalloc
-    ytcore-without-lfalloc
-    ${REQUIRED_LLVM_LIBRARIES}
-  )
-endif()
-
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt
@@ -82,3 +84,4 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include
   .
 )
+

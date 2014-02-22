@@ -8,6 +8,7 @@
 #include "job_resources.h"
 #include "chunk_splits_fetcher.h"
 #include "chunk_info_collector.h"
+#include "helpers.h"
 
 #include <core/concurrency/fiber.h>
 
@@ -723,6 +724,15 @@ public:
         , Spec(spec)
     { }
 
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) override
+    {
+        TOrderedMergeControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            // In addition to "input_table_paths" and "output_table_paths".
+            // Quite messy, only needed for consistency with the regular spec.
+            .Item("table_path").Value(Spec->TablePath);
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseController, 0x1cc6ba39);
 
@@ -1379,6 +1389,15 @@ public:
         , TeleportOutputTable(Null)
     { }
 
+    void BuildBriefSpec(IYsonConsumer* consumer) override
+    {
+        TSortedMergeControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("reducer").BeginMap()
+                .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
+            .EndMap();
+    }
+
     // Persistence.
     virtual void Persist(TPersistenceContext& context) override
     {
@@ -1387,6 +1406,7 @@ public:
         using NYT::Persist;
         Persist(context, StartRowIndex);
     }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
 

@@ -555,3 +555,8 @@ class TestTableCommands(YTEnvSetup):
 
         codec_info = get(tableB + '/@compression_statistics')
         assert codec_info.keys() == ['snappy']
+
+    def test_json_format(self):
+        create('table', '//tmp/t')
+        write('//tmp/t', '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
+        assert '{"x":"0"}\n{"x":"1"}\n' == read('//tmp/t', output_format="json")

@@ -9,34 +9,37 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////
 
 class TNullStrategy
     : public ISchedulerStrategy
 {
 public:
-    virtual void ScheduleJobs(ISchedulingContext* context) override
-    {
-        // Refuse to do anything.
-        UNUSED(context);
-    }
+    virtual void ScheduleJobs(ISchedulingContext* /*context*/) override
+    { }
 
-    virtual void BuildOperationProgressYson(TOperationPtr operation, NYson::IYsonConsumer* consumer) override
-    {
-        UNUSED(operation);
-        UNUSED(consumer);
-    }
+    virtual void BuildOperationAttributes(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
+    { }
 
-    virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) override
+    virtual void BuildOperationProgress(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
+    { }
+
+    virtual void BuildBriefOperationProgress(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
+    { }
+
+    virtual Stroka GetOperationLoggingProgress(TOperationPtr /*operation*/) override
     {
-        UNUSED(operation);
         return "";
     }
 
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override
-    {
-        UNUSED(consumer);
-    }
+    virtual void BuildOrchid(IYsonConsumer* /*consumer*/) override
+    { }
+
+    virtual void BuildBriefSpec(TOperationPtr /*operation*/, IYsonConsumer* /*consumer*/) override
+    { }
+
 };
 
 std::unique_ptr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)

@@ -183,21 +183,9 @@ public:
         }
 
         template <class T>
-        TUnwrappedParent Value(T value)
+        TUnwrappedParent Value(const T& value)
         {
             WriteValue(this->Consumer, value);
-            return this->GetUnwrappedParent();
-        }
-
-        TUnwrappedParent Node(const TYsonString& value)
-        {
-            Consume(value, this->Consumer);
-            return this->GetUnwrappedParent();
-        }
-
-        TUnwrappedParent Node(INodePtr node)
-        {
-            VisitTree(node, this->Consumer);
             return this->GetUnwrappedParent();
         }
 
@@ -214,6 +202,26 @@ public:
             for (const auto& item : collection) {
                 this->Consumer->OnListItem();
                 WriteValue(this->Consumer, item);
+            }
+            this->Consumer->OnEndList();
+            return this->GetUnwrappedParent();
+        }
+
+        template <class TCollection>
+        TUnwrappedParent ListLimited(const TCollection& collection, size_t maxSize)
+        {
+            this->Consumer->OnBeginAttributes();
+            this->Consumer->OnKeyedItem("count");
+            this->Consumer->OnIntegerScalar(collection.size());
+            this->Consumer->OnEndAttributes();
+            this->Consumer->OnBeginList();
+            size_t printedSize = 0;
+            for (const auto& item : collection) {
+                if (printedSize >= maxSize)
+                    break;
+                this->Consumer->OnListItem();
+                WriteValue(this->Consumer, item);
+                ++printedSize;
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
@@ -419,12 +427,12 @@ public:
             return *this;
         }
 
-        TThis& Items(IAttributeDictionary* attributes)
+        TThis& Items(const IAttributeDictionary& attributes)
         {
-            for (const auto& key : attributes->List()) {
-                const auto& yson = attributes->GetYson(key);
+            for (const auto& key : attributes.List()) {
+                const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                ParseYson(yson, this->Consumer);
+                this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
             }
             return *this;
         }

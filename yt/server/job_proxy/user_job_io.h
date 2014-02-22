@@ -57,13 +57,14 @@ public:
     NChunkClient::NProto::TDataStatistics GetOutputDataStatistics() const;
 
 protected:
-
     NScheduler::TJobIOConfigPtr IOConfig;
     IJobHost* Host;
 
     const NJobTrackerClient::NProto::TJobSpec& JobSpec;
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt;
 
+    // Protects Inputs and Outputs.
+    TSpinLock SpinLock;
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
     std::vector<NTableClient::TTableChunkSequenceWriterPtr> Outputs;
 

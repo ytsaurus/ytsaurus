@@ -2,6 +2,9 @@
 #include "delayed_executor.h"
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/thread.h>
+
+#include <util/datetime/base.h>
 
 #include <atomic>
 
@@ -48,6 +51,10 @@ public:
             cookie->Iterator = pair.first;
         }
 
+        if (Finished) {
+            PurgeEntries();
+        }
+
         return cookie;
     }
 
@@ -57,17 +64,11 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-
-            if (!entry) {
+            if (!entry || !entry->Action) {
                 return false;
             }
-
-            if (!entry->Valid) {
-                return false;
-            }
-
             Entries.erase(entry->Iterator);
-            entry->Valid = false;
+            entry->Action.Reset();
         }
 
         return true;
@@ -86,6 +87,7 @@ public:
     {
         Finished = true;
         Thread.Join();
+        PurgeEntries();
     }
 
 private:
@@ -107,14 +109,12 @@ private:
             }
         };
 
-        bool Valid;
         TInstant Deadline;
-        TClosure Action;
+        TClosure Action; // if null then the entry is invalidated
         std::set<TEntryPtr, TComparer>::iterator Iterator;
 
         TEntry(TClosure action, TInstant deadline)
-            : Valid(true)
-            , Deadline(deadline)
+            : Deadline(deadline)
             , Action(std::move(action))
         { }
     };
@@ -129,7 +129,7 @@ private:
     {
         auto* impl = reinterpret_cast<TImpl*>(param);
         impl->ThreadMain();
-        return NULL;
+        return nullptr;
     }
 
     void ThreadMain()
@@ -138,20 +138,22 @@ private:
         while (!Finished) {
             auto now = TInstant::Now();
             while (true) {
-                TEntryPtr entry;
+                TClosure action;
                 {
                     TGuard<TSpinLock> guard(SpinLock);
                     if (Entries.empty()) {
                         break;
                     }
-                    entry = *Entries.begin();
+                    auto entry = *Entries.begin();
                     if (entry->Deadline > now) {
                         break;
                     }
                     Entries.erase(entry->Iterator);
-                    entry->Valid = false;
+                    
+                    action = std::move(entry->Action);
+                    entry->Action.Reset(); // typically redundant
                 }
-                entry->Action.Run();
+                action.Run();
             }
             Sleep(SleepQuantum);
         }
@@ -160,6 +162,19 @@ private:
     static TEntryPtr CookieToEntry(TCookie cookie)
     {
         return static_cast<TEntry*>(cookie.Get());
+    }
+
+    void PurgeEntries()
+    {
+        std::vector<TClosure> actions;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            for (const auto& entry : Entries) {
+                actions.push_back(std::move(entry->Action)); // prevent destruction under spin lock
+                entry->Action.Reset(); // typically redundant
+            }            
+        }
+        // |actions| die here
     }
 };
 

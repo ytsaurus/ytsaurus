@@ -116,6 +116,7 @@ set( HDRS
   ${BASE}/collection_helpers-inl.h
   ${BASE}/lock_free.h
   ${BASE}/lock_free-inl.h
+  ${BASE}/ioprio.h
 )
 
 list(APPEND YT_SOURCE_FILES

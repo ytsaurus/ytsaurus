@@ -2,16 +2,13 @@ import yt.yson as yson
 from yt.bindings.driver import Driver, Request, make_request
 from yt.common import YtError, flatten, update
 
-import pytest
-
 import os
 import sys
+
 import time
 from datetime import datetime
 
 from cStringIO import StringIO
-
-only_linux = pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
 
 def get_driver():
     config_path = os.environ['YT_CONFIG']
@@ -143,11 +140,15 @@ def exists(path, **kwargs):
 
 def read(path, **kwargs):
     kwargs["path"] = path
-    if "output_format" not in kwargs:
+    has_output_format = "output_format" in kwargs
+    if not has_output_format:
         kwargs["output_format"] = yson.loads("<format=text>yson")
     output = StringIO()
     command('read', kwargs, output_stream=output)
-    return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
+    if not has_output_format:
+        return yson.loads(output.getvalue(), yson_type="list_fragment")
+    else:
+        return output.getvalue()
 
 def select(query, **kwargs):
     kwargs["query"] = query
@@ -279,7 +280,6 @@ def map(**kwargs):
 
 def merge(**kwargs):
     flat(kwargs, "merge_by")
-
     for opt in ["combine_chunks", "merge_by", "mode"]:
         change(kwargs, opt, ["spec", opt])
     return start_op('merge', **kwargs)

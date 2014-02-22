@@ -16,6 +16,8 @@
 
 #include <util/folder/dirut.h>
 
+#include <util/generic/singleton.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -408,8 +410,7 @@ public:
     }
 
 private:
-    friend TChangelogDispatcher* ::SingletonInt<TChangelogDispatcher>();
-    friend void ::Destroyer<TChangelogDispatcher>(void*);
+    DECLARE_SINGLETON_FRIEND(TChangelogDispatcher)
 
     TChangelogDispatcher()
         : Thread(ThreadFunc, static_cast<void*>(this))

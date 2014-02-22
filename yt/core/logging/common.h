@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/concurrency/thread.h>
 
 namespace NYT {
 namespace NLog {

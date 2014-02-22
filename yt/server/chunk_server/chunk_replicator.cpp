@@ -189,21 +189,25 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     if (replicaCount == 0 && decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
+        return result;
     }
     
+    if (replicaCount < replicationFactor) {
+        result.Status |= EChunkStatus::Underreplicated;
+        result.ReplicationRequests.push_back(TJobRequest(0, replicationFactor - replicaCount));
+        return result;
+    }
+
     if (replicaCount == replicationFactor && decommissionedReplicaCount > 0) {
         result.Status |= EChunkStatus::Overreplicated;
         result.DecommissionedRemovalRequests.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
+        return result;
     }
 
-    if (replicaCount > replicationFactor && decommissionedReplicaCount == 0) {
+    if (replicaCount > replicationFactor) {
         result.Status |= EChunkStatus::Overreplicated;
         result.BalancingRemovalRequests.push_back(TJobRequest(0, replicaCount - replicationFactor));
-    }
-
-    if (replicaCount < replicationFactor && replicaCount > 0) {
-        result.Status |= EChunkStatus::Underreplicated;
-        result.ReplicationRequests.push_back(TJobRequest(0, replicationFactor - replicaCount));
+        return result;
     }
 
     return result;
@@ -1107,7 +1111,6 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 {
-
     if (!IsObjectAlive(chunk) || chunk->GetPropertiesUpdateScheduled())
         return;
 

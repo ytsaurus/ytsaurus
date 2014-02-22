@@ -9,13 +9,15 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
+void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
+void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer);
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 Clamp(i64 value, i64 minValue, i64 maxValue);
+Stroka TrimCommandForBriefSpec(const Stroka& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 

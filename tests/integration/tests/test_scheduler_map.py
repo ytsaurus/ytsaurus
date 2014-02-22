@@ -160,6 +160,28 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         self._check_all_stderrs(op_id, 'stderr\n', 5)
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_stderr_of_failed_jobs(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"foo": "bar"} for i in xrange(110)])
+
+        command = '''cat > /dev/null;
+                     echo stderr 1>&2;
+                     if [ "$YT_START_ROW_INDEX" = "109" ]; then
+                         sleep 5;
+                         exit 125;
+                     else
+                         exit 0;
+                     fi;'''
+
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1', '/spec/job_count=110'])
+        with pytest.raises(YtError): track_op(op_id)
+
+        # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
+        # that is last one.
+        self._check_all_stderrs(op_id, 'stderr\n', 101)
+
     def test_invalid_output_record(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')

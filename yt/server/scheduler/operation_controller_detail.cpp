@@ -686,6 +686,9 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TNodeResources& neededResources)
 {
     auto nodes = Controller->Host->GetExecNodes();
+    if (nodes.size() < Controller->Config->SafeOnlineNodeCount)
+        return;
+
     for (auto node : nodes) {
         if (Dominates(node->ResourceLimits(), neededResources))
             return;
@@ -693,7 +696,7 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
 
     // It seems nobody can satisfy the demand.
     Controller->OnOperationFailed(
-        TError("No online exec node can satisfy the resource demand")
+        TError("No online node can satisfy the resource demand")
             << TErrorAttribute("task", GetId())
             << TErrorAttribute("needed_resources", neededResources));
 }
@@ -960,11 +963,8 @@ void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Spec->Title) {
-        LOG_INFO("Initializing operation (Title: %s)", ~(*Spec->Title));
-    } else {
-        LOG_INFO("Initializing operation");
-    }
+    LOG_INFO("Initializing operation (Title: %s)",
+        Spec->Title ? ~(*Spec->Title) : "<Null>");
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
@@ -1008,10 +1008,6 @@ void TOperationControllerBase::Initialize()
             "Too many output tables: maximum allowed %d, actual %" PRISZT,
             Config->MaxOutputTableCount,
             OutputTables.size());
-    }
-
-    if (Host->GetExecNodes().empty()) {
-        THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
     }
 
     Essentiate();
@@ -2743,7 +2739,7 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    LOG_INFO("Input totals collected (ChunkCount: %d, DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+    LOG_INFO("Input totals collected (ChunkCount: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ValueCount: %" PRId64 ")",
         TotalInputChunkCount,
         TotalInputDataSize,
         TotalInputRowCount,
@@ -3083,7 +3079,7 @@ void TOperationControllerBase::RemoveJoblet(TJobPtr job)
     YCHECK(JobletMap.erase(job->GetId()) == 1);
 }
 
-void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
+void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -3117,7 +3113,15 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
+void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    BuildYsonMapFluently(consumer)
+        .Item("jobs").Value(JobCounter);
+}
+
+void TOperationControllerBase::BuildResult(IYsonConsumer* consumer)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -3126,6 +3130,17 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
         .BeginMap()
             .Item("error").Value(error)
         .EndMap();
+}
+
+void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .DoIf(Spec->Title.HasValue(), [&] (TFluentMap fluent) {
+            fluent
+                .Item("title").Value(*Spec->Title);
+        })
+        .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
+        .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
@@ -3155,6 +3170,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
+    jobSpec->set_enable_io_prio(config->EnableIOPrio);
 
     {
         // Set input and output format.
@@ -3212,10 +3228,8 @@ void TOperationControllerBase::InitUserJobSpec(
     TJobletPtr joblet,
     i64 memoryReserve)
 {
-    if (Operation->GetStderrCount() < Operation->GetMaxStderrCount()) {
-        auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-        ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
-    }
+    auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
+    ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
 
     jobSpec->set_memory_reserve(memoryReserve);
 
@@ -3237,7 +3251,7 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable.Options->ErasureCodec);
-            double replicationFactor = (double) 2 * codec->GetTotalPartCount() / codec->GetDataPartCount();
+            double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
             result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
         }
     }
@@ -3271,6 +3285,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 {
     // Don't replicate intermediate output.
     config->TableWriter->UploadReplicationFactor = 1;
+    config->TableWriter->MinUploadReplicationFactor = 1;
 
     // Cache blocks on nodes.
     config->TableWriter->EnableNodeCaching = true;

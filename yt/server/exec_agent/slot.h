@@ -44,13 +44,7 @@ public:
         bool isExecutable);
 
     //! Writes data from producer to #fileName.
-    //! NB: used template here to generalize all possible types of callbacks.
-    template <class T>
-    void MakeFile(const Stroka& fileName, T dataProducer)
-    {
-        TFileOutput fileOutput(NFS::CombinePaths(SandboxPath, fileName));
-        dataProducer(&fileOutput);
-    }
+    void MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer);
 
     void MakeEmptyFile(const Stroka& fileName);
 

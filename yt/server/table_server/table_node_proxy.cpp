@@ -193,7 +193,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     if (node->GetSorted()) {
         if (key == "sorted_by") {
             BuildYsonFluently(consumer)
-                .List(node->KeyColumns());
+                .Value(node->KeyColumns());
             return true;
         }
     }

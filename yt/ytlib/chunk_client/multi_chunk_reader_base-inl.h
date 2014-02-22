@@ -1,4 +1,3 @@
-
 #ifndef MULTI_CHUNK_READER_BASE_INL_H_
 #error "Direct inclusion of this file is not allowed, include multi_chunk_reader_base.h"
 #endif
@@ -123,6 +122,10 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
 template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 {
+    if (!State.IsActive()) {
+        return;
+    }
+    
     int chunkSpecsCount = static_cast<int>(ChunkSpecs.size());
 
     int chunkIndex = -1;

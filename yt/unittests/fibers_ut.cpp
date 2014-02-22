@@ -446,11 +446,11 @@ TEST_F(TFiberTest, ThrowIsPropagated)
 
     try {
         fiber3->Run();
-        FAIL() << "Stack should be unwinding here.";
+        GTEST_FAIL() << "Stack should be unwinding here.";
     } catch (const std::runtime_error& ex) {
         EXPECT_STREQ("Hooray!", ex.what());
     } catch (...) {
-        FAIL() << "Unexpected exception was thrown.";
+        GTEST_FAIL() << "Unexpected exception was thrown.";
     }
 }
 
@@ -1243,7 +1243,7 @@ void GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestBody() {\
   auto startedAt = TInstant::Now();\
   while (weakFiber.Lock()) {\
     if (TInstant::Now() - startedAt > TDuration::Seconds(5)) {\
-      FAIL() << "Probably stuck.";\
+      GTEST_FAIL() << "Probably stuck.";\
       break;\
     } \
     Sleep(TDuration::MilliSeconds(1));\

@@ -71,7 +71,7 @@ std::vector<TChunkSlicePtr> TChunkSlice::SliceEvenly(i64 sliceDataSize) const
             auto chunkSlice = New<TChunkSlice>(*this);
             chunkSlice->StartLimit.SetRowIndex(sliceStartRowIndex);
             chunkSlice->EndLimit.SetRowIndex(sliceEndRowIndex);
-            chunkSlice->SizeOverrideExt.set_row_count(rowCount);
+            chunkSlice->SizeOverrideExt.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
             chunkSlice->SizeOverrideExt.set_uncompressed_data_size((dataSize + count - 1) / count);
             result.emplace_back(std::move(chunkSlice));
         }

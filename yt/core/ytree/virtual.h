@@ -13,7 +13,7 @@ class TVirtualMapBase
     , public ISystemAttributeProvider
 {
 protected:
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit = Max<size_t>()) const = 0;
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit = std::numeric_limits<size_t>::max()) const = 0;
     virtual size_t GetSize() const = 0;
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const = 0;
 

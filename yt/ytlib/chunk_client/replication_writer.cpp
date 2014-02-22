@@ -223,6 +223,8 @@ private:
     //! Number of nodes that are still alive.
     int AliveNodeCount;
 
+    const int MinUploadReplicationFactor;
+
     //! A new group of blocks that is currently being filled in by the client.
     //! All access to this field happens from client thread.
     TGroupPtr CurrentGroup;
@@ -594,6 +596,7 @@ TReplicationWriter::TReplicationWriter(
     , IsCloseRequested(false)
     , WindowSlots(config->SendWindowSize)
     , AliveNodeCount(targets.size())
+    , MinUploadReplicationFactor(std::min(Config->MinUploadReplicationFactor, AliveNodeCount))
     , BlockCount(0)
     , StartChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
@@ -798,13 +801,14 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
     node->MarkFailed(wrappedError);
     --AliveNodeCount;
 
-    if (State.IsActive() && AliveNodeCount < Config->MinUploadReplicationFactor) {
+    if (State.IsActive() && AliveNodeCount < MinUploadReplicationFactor) {
         TError cumulativeError(
             NChunkClient::EErrorCode::AllTargetNodesFailed,
             "Not enough target nodes to finish upload");
-        for (const auto node : Nodes) {
-            YCHECK(!node->IsAlive());
-            cumulativeError.InnerErrors().push_back(node->Error);
+        for (auto node : Nodes) {
+            if (!node->IsAlive()) {
+                cumulativeError.InnerErrors().push_back(node->Error);
+            }
         }
         LOG_WARNING(cumulativeError, "Chunk writer failed");
         CancelAllPings();
@@ -1017,8 +1021,10 @@ TAsyncError TReplicationWriter::GetReadyEvent()
     if (!WindowSlots.IsReady()) {
         State.StartOperation();
 
-        auto this_ = MakeStrong(this);
-        WindowSlots.GetReadyEvent().Subscribe(BIND([this, this_] () {
+        // No need to capture #this by strong reference, because
+        // WindowSlots are always released when Writer is alive,
+        // and callcack is called synchronously.
+        WindowSlots.GetReadyEvent().Subscribe(BIND([ = ] () {
             State.FinishOperation(TError());
         }));
     }

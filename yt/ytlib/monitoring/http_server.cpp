@@ -10,8 +10,9 @@
 
 #include <core/profiling/profiler.h>
 
-#include <util/server/http.h>
 #include <util/string/http.h>
+
+#include <library/httpserver/http.h>
 
 namespace NYT {
 namespace NHttp {
@@ -152,93 +153,100 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka FormatInternalServerErrorResponse(const Stroka& body)
+Stroka FormatInternalServerErrorResponse(const Stroka& body, const Stroka& type)
 {
     return Sprintf(
         "HTTP/1.1 500 Internal Server Error\r\n"
         "Connection: close\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }
 
-Stroka FormatNotImplementedResponse(const Stroka& body)
+Stroka FormatNotImplementedResponse(const Stroka& body, const Stroka& type)
 {
     return Sprintf(
         "HTTP/1.1 501 Not Implemented\r\n"
         "Connection: close\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }
 
-Stroka FormatBadGatewayResponse(const Stroka& body)
+Stroka FormatBadGatewayResponse(const Stroka& body, const Stroka& type)
 {
     return Sprintf(
         "HTTP/1.1 502 Bad Gateway\r\n"
         "Connection: close\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }
 
-Stroka FormatServiceUnavailableResponse(const Stroka& body)
+Stroka FormatServiceUnavailableResponse(const Stroka& body, const Stroka& type)
 {
     return Sprintf(
         "HTTP/1.1 503 Service Unavailable\r\n"
         "Connection: close\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }
 
-Stroka FormatGatewayTimeoutResponse(const Stroka& body)
+Stroka FormatGatewayTimeoutResponse(const Stroka& body, const Stroka& type)
 {
     return Sprintf(
         "HTTP/1.1 504 Gateway Timeout\r\n"
         "Connection: close\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }
 
-Stroka FormatBadRequestResponse(const Stroka& body)
+Stroka FormatBadRequestResponse(const Stroka& body, const Stroka& type)
 {
     return Sprintf(
         "HTTP/1.1 400 Bad Request\r\n"
         "Connection: close\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }
 
-Stroka FormatNotFoundResponse(const Stroka& body)
+Stroka FormatNotFoundResponse(const Stroka& body, const Stroka& type)
 {
     return Sprintf(
         "HTTP/1.1 404 Not Found\r\n"
         "Connection: close\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }
@@ -255,7 +263,7 @@ Stroka FormatRedirectResponse(const Stroka& location)
         ~location);
 }
 
-Stroka FormatOKResponse(const Stroka& body)
+Stroka FormatOKResponse(const Stroka& body, const Stroka& type)
 {
     // TODO(sandello): Unify headers across all these methods; also implement CRYT-61.
     return Sprintf(
@@ -265,10 +273,11 @@ Stroka FormatOKResponse(const Stroka& body)
         "Connection: close\r\n"
         "Cache-Control: no-cache, max-age=0\r\n"
         "Expires: Thu, 01 Jan 1970 00:00:01 GMT\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
+        ~type,
         body.length(),
         ~body);
 }

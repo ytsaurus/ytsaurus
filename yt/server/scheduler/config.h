@@ -59,11 +59,6 @@ public:
     //! Interval between consecutive master connection attempts.
     TDuration ConnectRetryPeriod;
 
-    //! Time to wait after connecting with master but before declaring itself "connected".
-    //! Needed to ensure that all available nodes have sent their initial heartbeats
-    //! and are thus available for the revival procedure.
-    TDuration ConnectGraceDelay;
-
     //! Timeout for node expiration.
     TDuration NodeHearbeatTimeout;
 
@@ -128,6 +123,13 @@ public:
     //! Maximum number of jobs per operation (an approximation!).
     int MaxJobCount;
 
+    //! Maximum number of partition jobs during map-reduce and sort operations.
+    //! Refines #MaxJobCount.
+    int MaxPartitionJobCount;
+
+    //! Maximum number of operations that can be run concurrently.
+    int MaxOperationCount;
+
     //! Maximum size of table allowed to be passed as a file to jobs.
     i64 MaxTableFileSize;
 
@@ -142,6 +144,10 @@ public:
 
     //! Whether to call a |setrlimit| to limit user job VM size.
     bool EnableVMLimit;
+
+    //! Don't check resource demand for sanity if the number of online
+    //! nodes is less than this bound.
+    int SafeOnlineNodeCount;
 
     NYTree::INodePtr MapOperationSpec;
     NYTree::INodePtr ReduceOperationSpec;
@@ -176,8 +182,6 @@ public:
     TSchedulerConfig()
     {
         RegisterParameter("connect_retry_period", ConnectRetryPeriod)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("connect_grace_delay", ConnectGraceDelay)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHearbeatTimeout)
             .Default(TDuration::Seconds(60));
@@ -273,6 +277,9 @@ public:
         RegisterParameter("enable_vm_limit", EnableVMLimit)
             .Default(true);
 
+        RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+            .Default(1);
+
         RegisterParameter("map_operation_spec", MapOperationSpec)
             .Default(nullptr);
         RegisterParameter("reduce_operation_spec", ReduceOperationSpec)
@@ -292,6 +299,12 @@ public:
 
         RegisterParameter("max_job_count", MaxJobCount)
             .Default(20000)
+            .GreaterThan(0);
+        RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
+            .Default(20000)
+            .GreaterThan(0);
+        RegisterParameter("max_operation_count", MaxOperationCount)
+            .Default(100)
             .GreaterThan(0);
 
         RegisterParameter("environment", Environment)

@@ -1481,7 +1481,10 @@ protected:
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
             int partitionCount = GetEmpiricalParitionCount(TotalInputDataSize);
-            return static_cast<int>(Clamp(partitionCount, 1, Config->MaxJobCount));
+            return static_cast<int>(Clamp(
+                partitionCount,
+                1,
+                std::min(Config->MaxJobCount, Config->MaxPartitionJobCount)));
         }
     }
 
@@ -1775,17 +1778,18 @@ private:
         auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
         sortJobCount = std::min(sortJobCount, static_cast<int>(stripes.size()));
 
-        // Initialize counters.
-        PartitionJobCounter.Set(0);
-        SortDataSizeCounter.Set(TotalInputDataSize);
-        InitSimpleSortPool(sortJobCount);
-
         // Create the fake partition.
+        InitSimpleSortPool(sortJobCount);
         auto partition = New<TPartition>(this, 0);
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
         partition->SortTask->FinishInput();
+
+        // Initialize counters.
+        PartitionJobCounter.Set(0);
+        // NB: Cannot use TotalInputDataSize due to slicing and rounding issues.
+        SortDataSizeCounter.Set(SimpleSortPool->GetTotalDataSize());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %d)",
             sortJobCount);
@@ -2111,9 +2115,9 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) override
     {
-        TSortControllerBase::BuildProgressYson(consumer);
+        TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
             .Item("partition_jobs").Value(PartitionJobCounter)
@@ -2158,6 +2162,30 @@ public:
         , MapStartRowIndex(0)
         , ReduceStartRowIndex(0)
     { }
+
+    void BuildBriefSpec(IYsonConsumer* consumer) override
+    {
+        TSortControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("mapper").BeginMap()
+                      .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
+                    .EndMap();
+            })
+            .DoIf(Spec->Reducer, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reducer").BeginMap()
+                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
+                    .EndMap();
+            })
+            .DoIf(Spec->ReduceCombiner, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reduce_combiner").BeginMap()
+                        .Item("command").Value(TrimCommandForBriefSpec(Spec->ReduceCombiner->Command))
+                    .EndMap();
+            });
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceController, 0xca7286bd);
@@ -2629,9 +2657,9 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) override
     {
-        TSortControllerBase::BuildProgressYson(consumer);
+        TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
             .Item(Spec->Mapper ? "partition_jobs" : "map_jobs").Value(PartitionJobCounter)

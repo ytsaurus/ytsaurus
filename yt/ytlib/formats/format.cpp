@@ -280,13 +280,11 @@ TYsonProducer CreateProducerForJson(
     const IAttributeDictionary& attributes,
     TInputStream* input)
 {
-    if (dataType != EDataType::Structured) {
-        THROW_ERROR_EXCEPTION("JSON is supported only for structured data");
-    }
+    auto ysonType = DataTypeToYsonType(dataType);
     auto config = New<TJsonFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
     return BIND([=] (IYsonConsumer* consumer) {
-        ParseJson(input, consumer, config);
+        ParseJson(input, consumer, config, ysonType);
     });
 }
 
@@ -328,7 +326,7 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
         case EFormatType::Json: {
             auto config = New<TJsonFormatConfig>();
             config->Load(ConvertToNode(&format.Attributes())->AsMap());
-            return std::unique_ptr<IParser>(new TJsonParser(consumer));
+            return std::unique_ptr<IParser>(new TJsonParser(consumer, config, DataTypeToYsonType(dataType)));
         }
         case EFormatType::Dsv: {
             auto config = New<TDsvFormatConfig>();

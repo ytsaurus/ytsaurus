@@ -13,14 +13,6 @@ set( DIRS
   profiling
 )
 
-set( LIBS
-  ytext-arcadia-util
-  ytext-ev
-  ytext-jerasure
-  ytext-json
-  protobuf
-)
-
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
@@ -46,26 +38,20 @@ add_library(ytcore STATIC
   ${YT_SOURCE_FILES}
 )
 
-target_link_libraries(ytcore
-  ytext-lfalloc
-  ${LIBS}
+target_link_libraries ( ytcore
+  ytext-arcadia-util
+  ytext-ev
+  ytext-jerasure
+  ytext-json
+  ytext-httpserver
+  protobuf
 )
 
 if (HAVE_LIBUNWIND)
-  target_link_libraries(ytcore unwind)
+  target_link_libraries( ytcore unwind )
 endif()
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Sanitizer")
-  add_library(ytcore-without-lfalloc STATIC
-    ${YT_SOURCE_FILES}
-  )
-  target_link_libraries(ytcore-without-lfalloc
-    ytext-lfalloc-fake
-    ${LIBS}
-  )
-endif()
-
-if (YT_BUILD_ENABLE_PYTHON)
   add_library(ytcore-without-lfalloc STATIC
     ${YT_SOURCE_FILES}
   )

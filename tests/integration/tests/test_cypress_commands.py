@@ -98,6 +98,21 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/list/begin', 'very_first')
         assert get('//tmp/list') == ["very_first","first",200,1,777,100,"last"]
 
+    def test_list_command(self):
+        def list(path, **kwargs):
+            kwargs["path"] = path
+            return yson.loads(command('list', kwargs))
+
+        set('//tmp/map', {"a": 1, "b": 2, "c": 3})
+        assert list('//tmp/map') == ["a", "b", "c"]
+
+        set('//tmp/map', {"a": 1, "a": 2})
+        assert list('//tmp/map', max_size=1) == ["a"]
+
+        list("//sys/chunks")
+        list("//sys/accounts")
+        list("//sys/transactions")
+
     def test_map(self):
         set('//tmp/map', {'hello': 'world', 'list':[0,'a',{}], 'n': 1})
         assert get('//tmp/map') == {"hello":"world","list":[0,"a",{}],"n":1}
@@ -375,7 +390,7 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_move_simple2(self):
         set('//tmp/a', 1)
-        
+
         tx = start_transaction()
         lock('//tmp/a', tx=tx)
 

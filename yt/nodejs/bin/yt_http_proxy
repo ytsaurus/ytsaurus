@@ -199,8 +199,13 @@ config = {
         failure_threshold: 5,
         failure_timeout: 60000,
     },
-    static: [
-    ],
+    min_python_wrapper_version: {
+        enable: true,
+        major: 0,
+        minor: 5,
+        patch: 0,
+    },
+    static: [],
 };
 
 /*

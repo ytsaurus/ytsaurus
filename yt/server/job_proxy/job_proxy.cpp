@@ -46,8 +46,6 @@
 
 #include <ytlib/hydra/peer_channel.h>
 
-#include <util/private/lfalloc/helpers.h>
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -115,7 +113,8 @@ void TJobProxy::RetrieveJobSpec()
     auto req = SupervisorProxy->GetJobSpec();
     ToProto(req->mutable_job_id(), JobId);
 
-    auto rsp = req->Invoke().Get();
+    auto asyncRsp = req->Invoke();
+    auto rsp = asyncRsp.Get();
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to get job spec");
         NLog::TLogManager::Get()->Shutdown();
@@ -289,7 +288,8 @@ void TJobProxy::ReportResult(const TJobResult& result)
     ToProto(req->mutable_job_id(), JobId);
     *req->mutable_result() = result;
 
-    auto rsp = req->Invoke().Get();
+    auto asyncRsp = req->Invoke();
+    auto rsp = asyncRsp.Get();
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to report job result");
         NLog::TLogManager::Get()->Shutdown();
@@ -362,14 +362,14 @@ void TJobProxy::CheckMemoryUsage()
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ")",
         memoryUsage,
         JobProxyMemoryLimit);
-    if (memoryUsage > JobProxyMemoryLimit) {
-        LOG_ERROR("lf_alloc counters (LargeBlocks: %" PRId64 ", SmallBlocks: %" PRId64 ", System: %" PRId64 ", Used: %" PRId64 ", MMaped: %" PRId64 ")",
+    LOG_DEBUG("lf_alloc counters (LargeBlocks: %" PRId64 ", SmallBlocks: %" PRId64 ", System: %" PRId64 ", Used: %" PRId64 ", MMaped: %" PRId64 ")",
             NLFAlloc::GetCurrentLargeBlocks(),
             NLFAlloc::GetCurrentSmallBlocks(),
             NLFAlloc::GetCurrentSystem(),
             NLFAlloc::GetCurrentUsed(),
             NLFAlloc::GetCurrentMmaped());
 
+    if (memoryUsage > JobProxyMemoryLimit) {
         LOG_FATAL(
             "Job proxy memory limit exceeded (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ", RefCountedTracker: %s)",
             memoryUsage,

@@ -94,6 +94,58 @@ TEST(TSchemedDsvWriterTest, TableIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TSchemedDsvWriterTest, FailMode)
+{
+    TStringStream outputStream;
+    auto config = New<TSchemedDsvFormatConfig>();
+    config->Columns.push_back("a");
+    config->MissingValueMode = TSchemedDsvFormatConfig::EMissingValueMode::Fail;
+    TSchemedDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("a");
+        writer.OnStringScalar("1");
+    writer.OnEndMap();
+    EXPECT_EQ("1\n", outputStream.Str());
+
+    EXPECT_ANY_THROW(
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem("b");
+            writer.OnStringScalar("10");
+        writer.OnEndMap();
+    );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSchemedDsvWriterTest, PrintSentinelMode)
+{
+    TStringStream outputStream;
+    auto config = New<TSchemedDsvFormatConfig>();
+    config->Columns.push_back("a");
+    config->MissingValueMode = TSchemedDsvFormatConfig::EMissingValueMode::PrintSentinel;
+    config->MissingValueSentinel = "null";
+    TSchemedDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("a");
+        writer.OnStringScalar("1");
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("b");
+        writer.OnStringScalar("10");
+    writer.OnEndMap();
+
+    EXPECT_EQ("1\nnull\n", outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NFormats
 } // namespace NYT

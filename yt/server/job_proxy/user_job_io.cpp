@@ -82,6 +82,7 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 
     auto writer = CreateSyncWriter<TTableChunkWriterProvider>(asyncWriter);
 
+    TGuard<TSpinLock> guard(SpinLock);
     YCHECK(Outputs.size() == index);
     Outputs.push_back(asyncWriter);
 
@@ -90,6 +91,8 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 
 double TUserJobIO::GetProgress() const
 {
+    TGuard<TSpinLock> guard(SpinLock);
+
     i64 total = 0;
     i64 current = 0;
 
@@ -110,6 +113,8 @@ double TUserJobIO::GetProgress() const
 
 TDataStatistics TUserJobIO::GetInputDataStatistics() const
 {
+    TGuard<TSpinLock> guard(SpinLock);
+
     TDataStatistics statistics = ZeroDataStatistics();
     for (const auto& input : Inputs) {
         statistics += input->GetDataStatistics();
@@ -119,6 +124,8 @@ TDataStatistics TUserJobIO::GetInputDataStatistics() const
 
 TDataStatistics TUserJobIO::GetOutputDataStatistics() const
 {
+    TGuard<TSpinLock> guard(SpinLock);
+
     TDataStatistics statistics = ZeroDataStatistics();
     for (const auto& output : Outputs) {
         statistics += output->GetProvider()->GetDataStatistics();

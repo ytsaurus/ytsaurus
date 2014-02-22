@@ -12,6 +12,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartition
+    : private TNonCopyable
 {
 public:
     static const int EdenIndex;

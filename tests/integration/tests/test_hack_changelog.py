@@ -29,16 +29,10 @@ class TestHackChangelog(YTEnvSetup):
 
     def prepare_changelog_path(self):
         # Search changelog
-        changelogs_path = self.Env._master_configs[0]["meta_state"]["changelogs"]["path"]
+        changelogs_path = self.Env.configs["master"][0]["meta_state"]["changelogs"]["path"]
         self.changelog = os.path.join(
             changelogs_path,
             filter(lambda f: not f.endswith("index"), os.listdir(changelogs_path))[0])
-
-    def stop_master(self):
-        # TODO(panin): make convenient way for this
-        # Stop master
-        self.kill_process(*self.Env.process_to_kill[0])
-        self.Env.process_to_kill.pop()
 
     def get_record_count(self):
         output = subprocess.check_output(
@@ -60,17 +54,19 @@ class TestHackChangelog(YTEnvSetup):
              "-t", str(record_count - 1)],
             stdin=subprocess.PIPE)
 
-    def SKIP_test_all(self):
+    def DISABLED_test_all(self):
         self.prepare_changelog_path()
         record_count = self.get_record_count()
 
         set("//home/@test_attribute", 123)
         assert "test_attribute" in get("//home/@")
 
-        self.stop_master()
+        self.Env._kill_service("master")
+
         self.truncate_changelog(record_count)
 
-        self.Env._run_masters(prepare_files=False)
+        self.Env.start_masters("master")
+
         assert "test_attribute" not in get("//home/@")
 
 

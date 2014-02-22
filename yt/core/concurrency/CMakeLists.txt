@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/throughput_throttler.cpp
   ${BASE}/async_stream.cpp
   ${BASE}/coroutine.cpp
+  ${BASE}/thread.cpp
   ${BASE}/fiber.cpp
 )
 set( HDRS
@@ -30,8 +31,9 @@ set( HDRS
   ${BASE}/event_count.h
   ${BASE}/rw_spinlock.h
   ${BASE}/coroutine.h
-  ${BASE}/fiber-inl.h
+  ${BASE}/thread.h
   ${BASE}/fiber.h
+  ${BASE}/fiber-inl.h
   ${BASE}/fls.h
   ${BASE}/fls-inl.h
   ${BASE}/public.h

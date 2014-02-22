@@ -182,7 +182,6 @@ void TWriteCommand::DoExecute()
     }
 
     parser->Finish();
-
     writer->Close();
 }
 

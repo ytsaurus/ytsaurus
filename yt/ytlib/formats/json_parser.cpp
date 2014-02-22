@@ -1,25 +1,33 @@
 #include "stdafx.h"
 #include "json_parser.h"
+#include "helpers.h"
 
 #include <core/misc/error.h>
 
 #include <library/json/json_reader.h>
 
-#include <util/string/base64.h>
-
 namespace NYT {
 namespace NFormats {
 
 using namespace NJson;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonParser::TJsonParser(NYson::IYsonConsumer* consumer, TJsonFormatConfigPtr config)
+TJsonParser::TJsonParser(
+    IYsonConsumer* consumer,
+    TJsonFormatConfigPtr config,
+    EYsonType type)
     : Consumer(consumer)
     , Config(config)
+    , Type(type)
 {
+    YCHECK(Type != EYsonType::MapFragment);
     if (!Config) {
         Config = New<TJsonFormatConfig>();
+    }
+    if (Config->Format == EJsonFormat::Pretty && Type == EYsonType::ListFragment) {
+        THROW_ERROR_EXCEPTION("Pretty json format isn't supported for list fragments");
     }
 }
 
@@ -33,11 +41,25 @@ void TJsonParser::Finish()
     Parse(&Stream);
 }
 
-void TJsonParser::Parse(TInputStream* input)
+void TJsonParser::ParseNode(TInputStream* input)
 {
     TJsonValue jsonValue;
     ReadJsonTree(input, &jsonValue);
     VisitAny(jsonValue);
+}
+
+void TJsonParser::Parse(TInputStream* input)
+{
+    if (Type == EYsonType::ListFragment) {
+        Stroka line;
+        while (input->ReadLine(line)) {
+            Consumer->OnListItem();
+            TStringInput stream(line);
+            ParseNode(&stream);
+        }
+    } else {
+        ParseNode(input);
+    }
 }
 
 void TJsonParser::VisitAny(const TJsonValue& value)
@@ -59,7 +81,11 @@ void TJsonParser::VisitAny(const TJsonValue& value)
             Consumer->OnEntity();
             break;
         case JSON_STRING:
-            Consumer->OnStringScalar(DecodeString(value.GetString()));
+            if (IsAscii(value.GetString())) {
+                Consumer->OnStringScalar(value.GetString());
+            } else {
+                Consumer->OnStringScalar(Utf8ToByteString(value.GetString()));
+            }
             break;
         case JSON_BOOLEAN:
             THROW_ERROR_EXCEPTION("Boolean values in JSON are not supported");
@@ -74,7 +100,11 @@ void TJsonParser::VisitAny(const TJsonValue& value)
 void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
 {
     for (const auto& pair : map) {
-        Consumer->OnKeyedItem(DecodeString(pair.first));
+        if (IsAscii(pair.first)) {
+            Consumer->OnKeyedItem(pair.first);
+        } else {
+            Consumer->OnKeyedItem(Utf8ToByteString(pair.first));
+        }
         VisitAny(pair.second);
     }
 }
@@ -111,20 +141,15 @@ void TJsonParser::VisitMap(const TJsonValue::TMap& map)
     }
 }
 
-Stroka TJsonParser::DecodeString(const Stroka& value)
-{
-    if (value.empty() || value[0] != '&') return value;
-    return Base64Decode(TStringBuf(value).Tail(1));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseJson(
     TInputStream* input,
-    NYson::IYsonConsumer* consumer,
-    TJsonFormatConfigPtr config)
+    IYsonConsumer* consumer,
+    TJsonFormatConfigPtr config,
+    EYsonType type)
 {
-    TJsonParser jsonParser(consumer, config);
+    TJsonParser jsonParser(consumer, config, type);
     jsonParser.Parse(input);
 }
 

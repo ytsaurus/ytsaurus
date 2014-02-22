@@ -8,27 +8,28 @@
 #include "table_output.h"
 #include "pipes.h"
 
-#include <ytlib/formats/format.h>
-#include <ytlib/formats/parser.h>
-
 #include <core/yson/writer.h>
 
 #include <core/ytree/convert.h>
-
-#include <ytlib/table_client/table_producer.h>
-#include <ytlib/table_client/table_consumer.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/sync_writer.h>
 
 #include <core/rpc/channel.h>
 
 #include <core/actions/invoker_util.h>
 
 #include <core/misc/proc.h>
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/action_queue.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/pattern_formatter.h>
+
+#include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/action_queue.h>
+
+#include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/table_consumer.h>
+#include <ytlib/table_client/sync_reader.h>
+#include <ytlib/table_client/sync_writer.h>
+
+#include <ytlib/formats/format.h>
+#include <ytlib/formats/parser.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -39,15 +40,18 @@
 #include <errno.h>
 
 #ifdef _linux_
+    #include <core/misc/ioprio.h>
+
     #include <unistd.h>
     #include <signal.h>
+    #include <fcntl.h>
+
     #include <sys/types.h>
     #include <sys/time.h>
     #include <sys/wait.h>
     #include <sys/resource.h>
-
     #include <sys/stat.h>
-    #include <fcntl.h>
+    #include <sys/epoll.h>
 #endif
 
 namespace NYT {
@@ -442,8 +446,13 @@ private:
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
+
                 YCHECK(setresgid(config->UserId, config->UserId, config->UserId) == 0);
                 YCHECK(setuid(config->UserId) == 0);
+                
+                if (UserJobSpec.enable_io_prio()) {
+                    YCHECK(ioprio_set(IOPRIO_WHO_USER, config->UserId, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_BE, 7)) == 0);
+                }
             }
 
             Stroka cmd = UserJobSpec.shell_command();

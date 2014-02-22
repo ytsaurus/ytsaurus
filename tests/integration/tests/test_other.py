@@ -39,6 +39,6 @@ class TestResourceLeak(YTEnvSetup):
             # now check that there are no temp files
             for i in xrange(self.NUM_NODES):
                 # TODO(panin): refactor
-                node_config = self.Env.node_configs[i]
+                node_config = self.Env.configs["node"][i]
                 chunk_store_path = node_config['data_node']['store_locations'][0]['path']
                 self._check_no_temp_file(chunk_store_path)

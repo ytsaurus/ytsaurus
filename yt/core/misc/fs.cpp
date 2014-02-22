@@ -16,8 +16,8 @@
     #include <sys/param.h>
     #include <sys/mount.h>
 #elif defined (_win_)
+    #include <comutil.h>
     #include <shlobj.h>
-    #include <windows.h>
 #endif
 
 // For JoinPaths
@@ -41,7 +41,7 @@ static NLog::TLogger Logger("FS");
 bool Remove(const Stroka& name)
 {
 #ifdef _win_
-    return DeleteFile(~name);
+    return DeleteFileA(~name);
 #else
     struct stat sb;
 

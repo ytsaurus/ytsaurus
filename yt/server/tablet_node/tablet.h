@@ -20,7 +20,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public TNonCopyable
+    : private TNonCopyable
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);

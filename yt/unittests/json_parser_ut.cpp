@@ -88,61 +88,27 @@ TEST(TJsonParserTest, EmptyString)
 }
 
 
-TEST(TJsonParserTest, ValidUtf8String)
+TEST(TJsonParserTest, OutOfRangeUnicodeSymbols)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
-    InSequence dummy;
 
-    Stroka s = Stroka("\xCF\x8F", 2); // (110)0 1111 (10)00 1111 -- valid code points
-    EXPECT_CALL(Mock, OnStringScalar(s));
-
-    Stroka input = SurroundWithQuotes(s);
-
+    Stroka input = SurroundWithQuotes("\\u0100");
     TStringInput stream(input);
-    ParseJson(&stream, &Mock);
+
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
 }
 
-TEST(TJsonParserTest, NotValidUtf8String)
+TEST(TJsonParserTest, EscapedUnicodeSymbols)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    Stroka s = Stroka("\x80\x01", 2); // second codepoint doesn't start with 10..
+    Stroka s = Stroka("\x80\n\xFF", 3);
     EXPECT_CALL(Mock, OnStringScalar(s));
 
-    Stroka input = SurroundWithQuotes("&" + Base64Encode(s));
-
-    TStringInput stream(input);
-    ParseJson(&stream, &Mock);
-}
-
-TEST(TJsonParserTest, StringStartingWithSpecailSymbol)
-{
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
-    InSequence dummy;
-
-    Stroka s = "&some_string";
-    EXPECT_CALL(Mock, OnStringScalar(s));
-
-    Stroka input = SurroundWithQuotes("&" + Base64Encode(s));
-
-    TStringInput stream(input);
-    ParseJson(&stream, &Mock);
-}
-
-TEST(TJsonParserTest, StringStartingWithSpecialSymbolAsKeyInMap)
-{
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
-    InSequence dummy;
-
-    Stroka s = "&hello";
-    EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem(s));
-        EXPECT_CALL(Mock, OnStringScalar("world"));
-    EXPECT_CALL(Mock, OnEndMap());
-
-    Stroka expectedS = SurroundWithQuotes("&" + Base64Encode(s));
-    Stroka input = Sprintf("{%s:\"world\"}", ~expectedS);
+    Stroka input = SurroundWithQuotes("\\u0080\\u000A\\u00FF");
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -344,6 +310,28 @@ TEST(TJsonParserTest, SomeHackyTest)
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, ListFragment)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("hello"));
+        EXPECT_CALL(Mock, OnStringScalar("world"));
+    EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("foo"));
+        EXPECT_CALL(Mock, OnStringScalar("bar"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

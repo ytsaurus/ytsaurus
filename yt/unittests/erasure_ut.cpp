@@ -19,7 +19,6 @@ namespace {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-
 using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////

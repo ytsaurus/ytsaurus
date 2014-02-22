@@ -43,7 +43,11 @@ void TFileWriter::Open()
 
     ui32 oMode = CreateAlways | WrOnly | Seq | CloseOnExec |
         AR | AWUser | AWGroup;
+
+    // NB! Races are possible between file creation and call to flock.
+    // Unfortunately in Linux we cannot make it atomically.
     DataFile.reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
+    DataFile->Flock(LOCK_EX);
 
     IsOpen = true;
 }

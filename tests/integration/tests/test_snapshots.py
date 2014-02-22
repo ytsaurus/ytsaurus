@@ -13,12 +13,7 @@ class TestSnapshot(YTEnvSetup):
 
         build_snapshot()
 
-        # TODO(panin): make convenient way for this
-        # Stop master
-        self.kill_process(*self.Env.process_to_kill[0])
-        self.Env.process_to_kill.pop()
-
-        # Restore master
-        self.Env._run_masters(prepare_files=False)
+        self.Env._kill_service("master")
+        self.Env.start_masters("master")
 
         assert get('//tmp/a') == 42

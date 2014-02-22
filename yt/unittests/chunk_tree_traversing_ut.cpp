@@ -98,7 +98,7 @@ public:
 
     virtual void OnError(const TError& error) override
     {
-        FAIL();
+        GTEST_FAIL();
     }
 
     virtual void OnFinish() override

@@ -80,18 +80,19 @@ protected:
         TReqCreate* request,
         TRspCreate* response) override
     {
-        auto node = TBase::DoCreate(id, transaction, request, response);
-
+        // NB: Validate everything before calling TBase::DoCreate to ensure atomicity.
+        TChunk* chunk = nullptr;
+        auto chunkManager = Bootstrap->GetChunkManager();
         if (request->HasExtension(TReqCreateFileExt::create_file_ext)) {
             const auto& requestExt = request->GetExtension(TReqCreateFileExt::create_file_ext);
             auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
+            chunk = chunkManager->GetChunkOrThrow(chunkId);
+            chunk->ValidateConfirmed();
+        }
 
-            auto chunkManager = Bootstrap->GetChunkManager();
-            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-            if (!chunk->IsConfirmed()) {
-                THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~ToString(chunkId));
-            }
+        auto node = TBase::DoCreate(id, transaction, request, response);
 
+        if (chunk) {
             auto* chunkList = node->GetChunkList();
             chunkManager->AttachToChunkList(chunkList, chunk);
         }
