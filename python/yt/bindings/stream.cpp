@@ -24,7 +24,7 @@ TInputStreamWrap::~TInputStreamWrap() throw()
 
 size_t TInputStreamWrap::DoRead(void* buf, size_t len)
 {
-    TGILLock lock;
+    TGilGuard guard;
 
     auto args = Py::TupleN(Py::Int(static_cast<long>(len)));
     Py::Object result = InputStream_.callMemberFunction("read", args);

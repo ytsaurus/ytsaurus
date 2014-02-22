@@ -12,8 +12,8 @@
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
 
-#include <core/formats/format.h>
-#include <core/formats/helpers.h>
+#include <ytlib/formats/format.h>
+#include <ytlib/formats/helpers.h>
 
 #include <util/stream/zlib.h>
 #include <util/stream/lz.h>
