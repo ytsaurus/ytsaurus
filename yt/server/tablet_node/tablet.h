@@ -54,11 +54,27 @@ public:
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr manager);
 
-    const std::vector<std::unique_ptr<TPartition>>& Partitions() const;
+    typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
+    typedef TPartitionList::iterator TPartitionListIterator;
+
+    const TPartitionList& Partitions() const;
     TPartition* GetEden() const;
     TPartition* AddPartition(NVersionedTableClient::TOwningKey pivotKey);
+    TPartition* FindPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey);
+    TPartition* GetPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey);
     void MergePartitions(int firstIndex, int lastIndex);
     void SplitPartition(int index, const std::vector<NVersionedTableClient::TOwningKey>& pivotKeys);
+
+    //! Finds a partition fully containing the range |[minKey, maxKey]|.
+    //! Returns the Eden if no such partition exists.
+    TPartition* GetContainingPartition(
+        const NVersionedTableClient::TOwningKey& minKey,
+        const NVersionedTableClient::TOwningKey& maxKey);
+
+    //! Returns a range of partitions intersecting with the range |[lowerBound, uppwerBound)|.
+    std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
+        const NVersionedTableClient::TOwningKey& lowerBound,
+        const NVersionedTableClient::TOwningKey& upperBound);
 
     const yhash_map<TStoreId, IStorePtr>& Stores() const;
     void AddStore(IStorePtr store);
@@ -79,13 +95,14 @@ private:
     TStoreManagerPtr StoreManager_;
 
     std::unique_ptr<TPartition> Eden_;
-    std::vector<std::unique_ptr<TPartition>> Partitions_;
+
+    TPartitionList  Partitions_;
 
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
 
 
-    TPartition* FindRelevantPartition(IStorePtr store);
+    TPartition* GetContainingPartition(IStorePtr store);
 
 };
 

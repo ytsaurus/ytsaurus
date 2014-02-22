@@ -884,6 +884,12 @@ i64 TDynamicMemoryStore::GetUnalignedPoolCapacity() const
     return UnalignedPool_.GetCapacity();
 }
 
+i64 TDynamicMemoryStore::GetDataSize() const
+{
+    // Ignore memory stores when deciding to compact.
+    return 0;
+}
+
 TOwningKey TDynamicMemoryStore::GetMinKey() const
 {
     return MinKey();

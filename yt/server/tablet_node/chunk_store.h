@@ -10,6 +10,7 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -26,14 +27,15 @@ public:
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet,
-        NVersionedTableClient::TOwningKey minKey,
-        NVersionedTableClient::TOwningKey maxKey,
+        const NChunkClient::NProto::TChunkMeta* chunkMeta,
         NChunkClient::IBlockCachePtr blockCache,
         NRpc::IChannelPtr masterChannel,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor);
     ~TChunkStore();
 
     // IStore implementation.
+    virtual i64 GetDataSize() const override;
+
     virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
     virtual NVersionedTableClient::TOwningKey GetMaxKey() const override;
 
@@ -54,11 +56,18 @@ private:
     NRpc::IChannelPtr MasterChannel_;
     TNullable<NNodeTrackerClient::TNodeDescriptor> LocalDescriptor_;
 
+    // Cached for fast retrieval from ChunkMeta_.
     NVersionedTableClient::TOwningKey MinKey_;
     NVersionedTableClient::TOwningKey MaxKey_;
+    i64 DataSize_;
+
+    NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
     NChunkClient::IAsyncReaderPtr ChunkReader_;
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
+
+
+    void PrecacheProperties();
 
 };
 

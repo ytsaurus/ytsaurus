@@ -42,17 +42,6 @@ public:
         NTabletClient::TWireProtocolReader* reader,
         NTabletClient::TWireProtocolWriter* writer);
 
-    //! Creates a reader that merges data from all stores.
-    //! Used by query engine.
-    /*!
-     *  #lowerBound and #upperBound are expected to stay alive for the whole time the reader
-     *  is used.
-     */
-    NVersionedTableClient::ISchemedReaderPtr CreateReader(
-        NVersionedTableClient::TOwningKey lowerBound,
-        NVersionedTableClient::TOwningKey upperBound,
-        TTimestamp timestamp);
-    
     void WriteRow(
         TTransaction* transaction,
         NVersionedTableClient::TUnversionedRow row,
@@ -77,9 +66,6 @@ public:
     void CreateActiveStore();
     
 private:
-    class TRowMerger;
-    class TReader;
-
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
 

@@ -7,6 +7,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <core/misc/property.h>
+#include <core/misc/error.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -14,8 +15,9 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedVersionedChunkMeta
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
+public:
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockIndexExt, BlockIndex);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBoundaryKeysExt, BoundaryKeys);
@@ -25,23 +27,23 @@ class TCachedVersionedChunkMeta
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
 
-public:
-    TCachedVersionedChunkMeta(
+    static TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> Load(
         NChunkClient::IAsyncReaderPtr asyncReader,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns);
 
-    TAsyncError Load();
-
 private:
-    NChunkClient::IAsyncReaderPtr AsyncReader_;
-    const TTableSchema ReaderSchema_;
+    TErrorOr<TCachedVersionedChunkMetaPtr> DoLoad(
+        NChunkClient::IAsyncReaderPtr asyncReader,
+        const TTableSchema& readerSchema,
+        const TKeyColumns& keyColumns);
 
-    TError DoLoad();
-    void ReleaseReader(TError error);
-    TError ValidateSchema();
+    void ValidateChunkMeta();
+    void ValidateSchema(const TTableSchema& readerSchema);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 

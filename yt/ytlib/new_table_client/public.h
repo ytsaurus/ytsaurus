@@ -13,6 +13,14 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TNameTableExt;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::MinTimestamp;
@@ -74,13 +82,9 @@ class TKeyComparer;
 struct TColumnSchema;
 class TTableSchema;
 
-class TNameTable;
-typedef TIntrusivePtr<TNameTable> TNameTablePtr;
+DECLARE_REFCOUNTED_CLASS(TNameTable)
 
 class TBlockWriter;
-
-class TChunkWriter;
-typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
 
 // TODO(babenko): deprecated, remove
 struct IReader;
@@ -99,20 +103,15 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedChunkWriter)
 DECLARE_REFCOUNTED_CLASS(TVersionedChunkWriterProvider)
 DECLARE_REFCOUNTED_CLASS(TVersionedMultiChunkWriter)
+DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 
-class TChunkWriterConfig;
-typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
+typedef NChunkClient::TEncodingWriterOptions    TChunkWriterOptions;
+typedef NChunkClient::TEncodingWriterOptionsPtr TChunkWriterOptionsPtr;
 
-typedef NChunkClient::TEncodingWriterOptions TChunkWriterOptions;
-typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
-
-class TChunkReaderConfig;
-typedef TIntrusivePtr<TChunkReaderConfig> TChunkReaderConfigPtr;
-
-class TCachedVersionedChunkMeta;
-typedef TIntrusivePtr<TCachedVersionedChunkMeta> TCachedVersionedChunkMetaPtr;
+DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

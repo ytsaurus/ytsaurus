@@ -38,6 +38,12 @@ using NTransactionClient::AllCommittedTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
     
+DECLARE_ENUM(EPartitionState,
+    (None)               // nothing special is happening
+    (Splitting)          // split mutation is submitted
+    (Merging)            // merge mutation is submitted
+);
+
 DECLARE_ENUM(ETabletState,
     // The only good state admitting read and write requests.
     (Mounted)
@@ -51,14 +57,19 @@ DECLARE_ENUM(ETabletState,
 );
 
 DECLARE_ENUM(EStoreState,
-    (ActiveDynamic)   // can receive updates
-    (PassiveDynamic)  // rotated and cannot receive more updates
+    (ActiveDynamic)         // dynamic, can receive updates
+    (PassiveDynamic)        // dynamic, rotated and cannot receive more updates
 
-    (Flushing)        // transient, flush is in progress
-    (FlushCommitting) // UpdateTabletStores request sent
-    (FlushFailed)     // transient, waiting for back off to complete
+    (Persistent)            // stored in a chunk
 
-    (Persistent)      // stored in a chunk
+    (Flushing)              // transient, flush is in progress
+    (FlushFailed)           // transient, waiting for back off to complete
+
+    (Compacting)            // transient, compaction is in progress
+    (CompactionFailed)      // transient, waiting for back off to complete
+
+    (RemoveCommitting)      // UpdateTabletStores request sent
+    (RemoveFailed)          // transient, waiting for back off to complete
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +78,7 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreFlusherConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreCompactorConfig)
+DECLARE_REFCOUNTED_CLASS(TPartitionBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTabletCellController)
@@ -99,8 +111,8 @@ class TEditList;
 typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
 typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
-DECLARE_REFCOUNTED_CLASS(TStoreFlusher)
-DECLARE_REFCOUNTED_CLASS(TStoreCompactor)
+class TUnversionedRowMerger;
+class TVersionedRowMerger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

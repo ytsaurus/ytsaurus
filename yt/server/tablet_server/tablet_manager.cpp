@@ -450,14 +450,10 @@ public:
 
             auto* chunkList = chunkLists[index]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
-            for (auto* chunk : chunks) {
+            for (const auto* chunk : chunks) {
                 auto* descriptor = req.add_chunk_stores();
                 ToProto(descriptor->mutable_store_id(), chunk->GetId());
-
-                // TODO(babenko): validate that chunk is confirmed
-                auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-                descriptor->set_min_key(boundaryKeysExt.min());
-                descriptor->set_max_key(boundaryKeysExt.max());
+                descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
             }
 
             auto hiveManager = Bootstrap->GetHiveManager();
@@ -540,11 +536,11 @@ public:
 
         if (!pivotKeys.empty()) {
             if (firstTabletIndex > lastTabletIndex) {
-                if (CompareRows(pivotKeys[0], EmptyKey()) != 0) {
+                if (pivotKeys[0] != EmptyKey()) {
                     THROW_ERROR_EXCEPTION("First pivot key must be empty");
                 }
             } else {
-                if (CompareRows(pivotKeys[0], tablets[firstTabletIndex]->GetPivotKey()) != 0) {
+                if (pivotKeys[0] != tablets[firstTabletIndex]->GetPivotKey()) {
                     THROW_ERROR_EXCEPTION(
                         "First pivot key must match that of the first tablet "
                         "in the resharded range");
@@ -553,13 +549,13 @@ public:
         }
 
         for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
-            if (CompareRows(pivotKeys[index], pivotKeys[index + 1]) >= 0) {
+            if (pivotKeys[index] >= pivotKeys[index + 1]) {
                 THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
             }
         }
 
         if (lastTabletIndex != tablets.size() - 1) {
-            if (CompareRows(pivotKeys.back(), tablets[lastTabletIndex + 1]->GetPivotKey()) >= 0) {
+            if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
                 THROW_ERROR_EXCEPTION(
                     "Last pivot key must be strictly less than that of the tablet "
                     "which follows the resharded range");
@@ -1130,7 +1126,7 @@ private:
             chunkManager->AttachToChunkList(chunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
 
-            LOG_INFO("Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s])",
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s])",
                 ~ToString(tabletId),
                 ~JoinToString(ToObjectIds(chunksToAttach)),
                 ~JoinToString(ToObjectIds(chunksToDetach)));

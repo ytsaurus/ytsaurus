@@ -57,7 +57,7 @@ public:
     i64 AlignedPoolSizeRotationThreshold;
     i64 UnalignedPoolSizeRotationThreshold;
 
-    TDuration StoreErrorBackoffTime;
+    TDuration ErrorBackoffTime;
 
     TIntrusivePtr<TTabletChunkReaderConfig> ChunkReader;
 
@@ -86,7 +86,7 @@ public:
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
 
-        RegisterParameter("store_error_backoff_time", StoreErrorBackoffTime)
+        RegisterParameter("error_backoff_time", ErrorBackoffTime)
             .Default(TDuration::Minutes(1));
 
         RegisterParameter("chunk_reader", ChunkReader)
@@ -145,6 +145,16 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
+class TPartitionBalancerConfig
+    : public TYsonSerializable
+{
+public:
+    TPartitionBalancerConfig()
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletNodeConfig
@@ -172,6 +182,7 @@ public:
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;
     TStoreCompactorConfigPtr StoreCompactor;
+    TPartitionBalancerConfigPtr PartitionBalancer;
 
     TTabletNodeConfig()
     {
@@ -193,6 +204,8 @@ public:
         RegisterParameter("store_flusher", StoreFlusher)
             .DefaultNew();
         RegisterParameter("store_compactor", StoreCompactor)
+            .DefaultNew();
+        RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();
 
         RegisterInitializer([&] () {

@@ -155,11 +155,8 @@ public:
     TMailbox* GetMasterMailbox()
     {
         // Create master mailbox lazily.
-        if (!MasterMailbox_) {
-            auto masterCellGuid = Bootstrap_->GetCellGuid();
-            MasterMailbox_ = HiveManager_->GetOrCreateMailbox(masterCellGuid);
-        }
-        return MasterMailbox_;
+        auto masterCellGuid = Bootstrap_->GetCellGuid();
+        return HiveManager_->GetOrCreateMailbox(masterCellGuid);
     }
 
     TTransactionManagerPtr GetTransactionManager() const
@@ -397,7 +394,6 @@ private:
     IHydraManagerPtr HydraManager_;
     
     THiveManagerPtr HiveManager_;
-    TMailbox* MasterMailbox_;
 
     TTabletManagerPtr TabletManager_;
 
@@ -437,8 +433,6 @@ private:
             HiveManager_->Stop();
             HiveManager_.Reset();
         }
-
-        MasterMailbox_ = nullptr;
 
         TabletManager_.Reset();
 

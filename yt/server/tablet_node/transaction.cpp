@@ -64,13 +64,13 @@ void TTransaction::Save(TSaveContext& context) const
             if (list) {
                 const auto& value = list.Back();
                 if ((value.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                    NVersionedTableClient::Save(context, value);
+                    NVersionedTableClient::Save(context, TUnversionedValue(value));
                 }
             }
         }
 
         // Sentinel
-        NVersionedTableClient::Save(context, MakeVersionedSentinelValue(EValueType::Null, NullTimestamp));
+        NVersionedTableClient::Save(context, MakeUnversionedSentinelValue(EValueType::TheBottom));
     }
 }
 
@@ -109,9 +109,9 @@ void TTransaction::Load(TLoadContext& context)
         rowBuilder->Reset();
 
         while (true) {
-            TVersionedValue value;
+            TUnversionedValue value;
             Load(context, value, tempPool);
-            if (value.Timestamp == NullTimestamp)
+            if (value.Type == EValueType::TheBottom)
                 break;
             rowBuilder->AddValue(value);
         }

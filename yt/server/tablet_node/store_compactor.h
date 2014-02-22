@@ -9,24 +9,9 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreCompactor
-    : public TRefCounted
-{
-public:
-    TStoreCompactor(
-        TStoreCompactorConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
-    ~TStoreCompactor();
-
-    void Start();
-
-private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
+void StartStoreCompactor(
+    TStoreCompactorConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

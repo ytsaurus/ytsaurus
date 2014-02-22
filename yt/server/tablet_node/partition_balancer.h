@@ -2,21 +2,16 @@
 
 #include "public.h"
 
-#include <core/logging/log.h>
-
-#include <core/profiling/profiler.h>
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int TypicalStoreCount = 64;
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern NLog::TLogger TabletNodeLogger;
-extern NProfiling::TProfiler TabletNodeProfiler;
+void StartPartitionBalancer(
+    TPartitionBalancerConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

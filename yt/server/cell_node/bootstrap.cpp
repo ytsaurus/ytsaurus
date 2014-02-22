@@ -82,6 +82,7 @@
 #include <server/tablet_node/tablet_cell_controller.h>
 #include <server/tablet_node/store_flusher.h>
 #include <server/tablet_node/store_compactor.h>
+#include <server/tablet_node/partition_balancer.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -308,10 +309,6 @@ void TBootstrap::Run()
 
     auto queryExecutor = CreateQueryExecutor(this);
 
-    auto storeFlusher = New<TStoreFlusher>(Config->TabletNode->StoreFlusher, this);
-
-    auto storeCompactor = New<TStoreCompactor>(Config->TabletNode->StoreCompactor, this);
-
     RpcServer->RegisterService(CreateQueryService(
         GetControlInvoker(),
         queryExecutor));
@@ -368,8 +365,10 @@ void TBootstrap::Run()
     PeerBlockUpdater->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
-    storeFlusher->Start();
-    storeCompactor->Start();
+    StartStoreFlusher(Config->TabletNode->StoreFlusher, this);
+    StartStoreCompactor(Config->TabletNode->StoreCompactor, this);
+    StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
+
     RpcServer->Start();
     httpServer.Start();
 

@@ -30,9 +30,9 @@
 
 #include <server/tablet_node/tablet_cell_controller.h>
 #include <server/tablet_node/tablet_manager.h>
-#include <server/tablet_node/store_manager.h>
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
+#include <server/tablet_node/tablet_reader.h>
 
 #include <server/hydra/hydra_manager.h>
 
@@ -202,11 +202,11 @@ private:
             ~ToString(tabletId),
             ~ToString(slot->GetCellGuid()));
 
-        const auto& storeManager = tablet->GetStoreManager();
         auto lowerBound = GetLowerBoundFromDataSplit(split);
         auto upperBound = GetUpperBoundFromDataSplit(split);
         auto timestamp = GetTimestampFromDataSplit(split);
-        return storeManager->CreateReader(
+        return CreateSchemedTabletReader(
+            tablet,
             std::move(lowerBound),
             std::move(upperBound),
             timestamp);

@@ -4,11 +4,10 @@
 #include "dynamic_memory_store.h"
 #include "config.h"
 #include "tablet_slot.h"
+#include "row_merger.h"
 #include "private.h"
 
-#include <core/misc/chunked_memory_pool.h>
 #include <core/misc/small_vector.h>
-#include <core/misc/heap.h>
 
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/parallel_collector.h>
@@ -43,369 +42,8 @@ using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TabletNodeLogger;
 static const size_t MaxRowsPerRead = 1024;
-static const size_t TypicalStoreCount = 64;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStoreManager::TRowMerger
-{
-public:
-    TRowMerger(
-        TChunkedMemoryPool* pool,
-        int schemaColumnCount,
-        int keyColumnCount,
-        const TColumnFilter& columnFilter)
-        : Pool_(pool)
-        , SchemaColumnCount_(schemaColumnCount)
-        , KeyColumnCount_(keyColumnCount)
-        , KeyComparer_(KeyColumnCount_)
-        , MergedValues_(SchemaColumnCount_)
-        , ColumnFlags_(SchemaColumnCount_)
-    {
-        if (columnFilter.All) {
-            for (int id = 0; id < schemaColumnCount; ++id) {
-                ColumnFlags_[id] = true;
-                ColumnIds_.push_back(id);
-            }
-        } else {
-            for (int id : columnFilter.Indexes) {
-                if (id < 0 || id >= schemaColumnCount) {
-                    THROW_ERROR_EXCEPTION("Invalid column id %d in column filter",
-                        id);
-                }
-                ColumnFlags_[id] = true;
-                ColumnIds_.push_back(id);
-            }
-        }
-    }
-
-    void Start(const TUnversionedValue* keyBegin)
-    {
-        CurrentTimestamp_ = NullTimestamp | TombstoneTimestampMask;
-        for (int id = 0; id < KeyColumnCount_; ++id) {
-            MergedValues_[id] = MakeVersionedValue(keyBegin[id], NullTimestamp);
-        }
-    }
-
-    void AddPartialRow(TVersionedRow row)
-    {
-        YASSERT(row.GetKeyCount() == KeyColumnCount_);
-        YASSERT(row.GetTimestampCount() == 1);
-        
-        auto rowTimestamp = row.BeginTimestamps()[0];
-        if ((rowTimestamp & TimestampValueMask) < (CurrentTimestamp_ & TimestampValueMask))
-            return;
-        
-        if (rowTimestamp & TombstoneTimestampMask) {
-            CurrentTimestamp_ = rowTimestamp;
-        } else {
-            if ((CurrentTimestamp_ & TombstoneTimestampMask) || !(rowTimestamp & IncrementalTimestampMask)) {
-                CurrentTimestamp_ = rowTimestamp & TimestampValueMask;
-                for (int id = KeyColumnCount_; id < SchemaColumnCount_; ++id) {
-                    MergedValues_[id] = MakeVersionedSentinelValue(EValueType::Null, CurrentTimestamp_);
-                }
-            }
-
-            const auto* rowValues = row.BeginValues();
-            for (int index = 0; index < row.GetValueCount(); ++index) {
-                const auto& value = rowValues[index];
-                int id = value.Id;
-                if (ColumnFlags_[id] && MergedValues_[id].Timestamp <= value.Timestamp) {
-                    MergedValues_[id] = value;
-                }
-            }
-        }
-    }
-
-    TUnversionedRow BuildMergedRow(bool skipNulls)
-    {
-        if (CurrentTimestamp_ & TombstoneTimestampMask) {
-            return TUnversionedRow();
-        }
-
-        auto row = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
-        auto* outputValue = row.Begin();
-        for (int id : ColumnIds_) {
-            const auto& mergedValue = MergedValues_[id];
-            if (!skipNulls || mergedValue.Type != EValueType::Null) {
-                *outputValue++ = mergedValue;
-            }
-        }
-
-        if (skipNulls) {
-            // Adjust row length.
-            row.SetCount(outputValue - row.Begin());
-        }
-
-        return row;
-    }
-
-private:
-    TChunkedMemoryPool* Pool_;
-    int SchemaColumnCount_;
-    int KeyColumnCount_;
-
-    TKeyComparer KeyComparer_;
-    SmallVector<TVersionedValue, TypicalColumnCount> MergedValues_;
-    SmallVector<bool, TypicalColumnCount> ColumnFlags_;
-    SmallVector<int, TypicalColumnCount> ColumnIds_;
-    
-    TTimestamp CurrentTimestamp_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-static auto PresetResult = MakeFuture(TError());
-
-class TStoreManager::TReader
-    : public ISchemedReader
-{
-public:
-    TReader(
-        TStoreManagerPtr owner,
-        TOwningKey lowerBound,
-        TOwningKey upperBound,
-        TTimestamp timestamp)
-        : Owner_(std::move(owner))
-        , LowerBound_(std::move(lowerBound))
-        , UpperBound_(std::move(upperBound))
-        , Timestamp_(timestamp)
-        , ReadyEvent_(PresetResult)
-    { }
-
-    virtual TAsyncError Open(const TTableSchema& schema) override
-    {
-        return BIND(&TReader::DoOpen, MakeStrong(this), schema)
-            .Guarded()
-            .AsyncVia(Owner_->Tablet_->GetEpochAutomatonInvoker())
-            .Run();
-    }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        rows->clear();
-
-        // Check for end-of-stream.
-        if (SessionHeapBegin_ == SessionHeapEnd_) {
-            return false;
-        }
-
-        while (ExhaustedSessions_.empty()) {
-            const TUnversionedValue* currentKeyBegin = nullptr;
-            const TUnversionedValue* currentKeyEnd = nullptr;
-
-            // Fetch rows from all sessions with a matching key and merge them.
-            // Advance current rows in sessions.
-            // Check for exhausted sessions.
-            while (SessionHeapBegin_ != SessionHeapEnd_) {
-                auto* session = *SessionHeapBegin_;
-                auto partialRow = *session->CurrentRow;
-
-                if (currentKeyBegin) {
-                    if (CompareRows(
-                            partialRow.BeginKeys(),
-                            partialRow.EndKeys(),
-                            currentKeyBegin,
-                            currentKeyEnd) != 0)
-                        break;
-                } else {
-                    currentKeyBegin = partialRow.BeginKeys();
-                    currentKeyEnd = partialRow.EndKeys();
-                    RowMerger_->Start(currentKeyBegin);
-                }
-
-                RowMerger_->AddPartialRow(partialRow);
-
-                if (++session->CurrentRow == session->Rows.end()) {
-                    ExhaustedSessions_.push_back(session);
-                    ExtractHeap(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
-                    --SessionHeapEnd_;
-                } else {
-                    AdjustHeapFront(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
-                }
-            }
-
-            // Save merged row.
-            auto mergedRow = RowMerger_->BuildMergedRow(false);
-            if (mergedRow) {
-                rows->push_back(mergedRow);
-            }
-        }
-        
-        if (rows->empty()) {
-            RefillSessions();
-        }
-
-        return true;
-    }
-
-    virtual TAsyncError GetReadyEvent() override
-    {
-        return ReadyEvent_;
-    }
-
-private:
-    TStoreManagerPtr Owner_;
-    TOwningKey LowerBound_;
-    TOwningKey UpperBound_;
-    TTimestamp Timestamp_;
-
-    TChunkedMemoryPool Pool_;
-    std::unique_ptr<TRowMerger> RowMerger_;
-
-    struct TSession
-    {
-        IVersionedReaderPtr Reader;
-        std::vector<TVersionedRow> Rows;
-        std::vector<TVersionedRow>::iterator CurrentRow;
-    };
-
-    SmallVector<TSession, TypicalStoreCount> Sessions_;
-
-    typedef SmallVector<TSession*, TypicalStoreCount> TSessionHeap; 
-    TSessionHeap SessionHeap_;
-    TSessionHeap::iterator SessionHeapBegin_;
-    TSessionHeap::iterator SessionHeapEnd_;
-
-    SmallVector<TSession*, TypicalStoreCount> ExhaustedSessions_;
-    SmallVector<TSession*, TypicalStoreCount> RefillingSessions_;
-
-    TAsyncError ReadyEvent_;
-
-
-    static bool CompareSessions(const TSession* lhsSession, const TSession* rhsSession)
-    {
-        auto lhsRow = *lhsSession->CurrentRow;
-        auto rhsRow = *rhsSession->CurrentRow;
-        return CompareRows(
-            lhsRow.BeginKeys(),
-            lhsRow.EndKeys(),
-            rhsRow.BeginKeys(),
-            rhsRow.EndKeys()) < 0;
-    }
-
-    void DoOpen(const TTableSchema& schema)
-    {
-        auto* tablet = Owner_->Tablet_;
-        const auto& tabletSchema = tablet->Schema();
-
-        // Infer column filter.
-        TColumnFilter columnFilter;
-        columnFilter.All = false;
-        for (const auto& column : schema.Columns()) {
-            const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
-            if (tabletColumn.Type != column.Type) {
-                THROW_ERROR_EXCEPTION("Invalid type of schema column %s: expected %s, actual %s",
-                    ~column.Name.Quote(),
-                    ~FormatEnum(tabletColumn.Type).Quote(),
-                    ~FormatEnum(column.Type).Quote());
-            }
-            columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
-        }
-
-        // Initialize merger.
-        RowMerger_.reset(new TRowMerger(
-            &Pool_,
-            tablet->GetSchemaColumnCount(),
-            tablet->GetKeyColumnCount(),
-            columnFilter));
-
-
-        // Construct readers.
-        for (const auto& pair : Owner_->Tablet_->Stores()) {
-            const auto& store = pair.second;
-            auto reader = store->CreateReader(
-                LowerBound_,
-                UpperBound_,
-                Timestamp_,
-                columnFilter);
-            if (reader) {
-                Sessions_.push_back(TSession());
-                auto& session = Sessions_.back();
-                session.Reader = std::move(reader);
-                session.Rows.reserve(MaxRowsPerRead);
-            }
-        }
-
-        // Open readers.
-        TIntrusivePtr<TParallelCollector<void>> openCollector;
-        for (const auto& session : Sessions_) {
-            auto asyncResult = session.Reader->Open();
-            if (asyncResult.IsSet()) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
-            } else {
-                if (!openCollector) {
-                    openCollector = New<TParallelCollector<void>>();
-                }
-                openCollector->Collect(asyncResult);
-            }
-        }
-
-        if (openCollector) {
-            auto result = WaitFor(openCollector->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        // Construct session heap.
-        SessionHeap_.reserve(Sessions_.size());
-        SessionHeapBegin_ = SessionHeapEnd_ = SessionHeap_.begin();
-        for (auto& session : Sessions_) {
-            TryRefillSession(&session);
-        }
-    }
-
-    bool TryRefillSession(TSession* session)
-    {
-        bool hasMoreRows = session->Reader->Read(&session->Rows);
-        if (session->Rows.empty()) {
-            return !hasMoreRows;
-        }
-        session->CurrentRow = session->Rows.begin();
-        *SessionHeapEnd_++ = session;
-        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
-        return true;
-    }
-
-    void RefillSessions()
-    {
-        YCHECK(RefillingSessions_.empty());
-        
-        TIntrusivePtr<TParallelCollector<void>> refillCollector;
-        for (auto* session : ExhaustedSessions_) {
-            // Try to refill the session right away.
-            if (!TryRefillSession(session)) {
-                // No data at the moment, must wait.
-                if (!refillCollector) {
-                    refillCollector = New<TParallelCollector<void>>();
-                }
-                refillCollector->Collect(session->Reader->GetReadyEvent());
-                RefillingSessions_.push_back(session);
-            }
-        }
-
-        if (refillCollector) {
-            auto this_ = MakeStrong(this);
-            ReadyEvent_ = refillCollector->Complete()
-                .Apply(BIND([this, this_] (TError error) -> TError {
-                    if (error.IsOK()) {
-                        for (auto* session : RefillingSessions_) {
-                            TryRefillSession(session);
-                        }
-                    }
-
-                    RefillingSessions_.clear();
-                    return error;
-                }));
-        } else {
-            ReadyEvent_ = PresetResult;
-        }
-    }
-
-
-};
+static auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -518,7 +156,7 @@ void TStoreManager::LookupRow(
 
     TKeyComparer keyComparer(keyColumnCount);
 
-    TRowMerger rowMerger(
+    TUnversionedRowMerger rowMerger(
         &LookupPool_,
         schemaColumnCount,
         keyColumnCount,
@@ -547,18 +185,6 @@ void TStoreManager::LookupRow(
         UnversionedPooledRow_.push_back(mergedRow);
     }
     writer->WriteUnversionedRowset(UnversionedPooledRow_);
-}
-
-ISchemedReaderPtr TStoreManager::CreateReader(
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
-    TTimestamp timestamp)
-{
-    return New<TReader>(
-        this,
-        std::move(lowerBound),
-        std::move(upperBound),
-        timestamp);
 }
 
 void TStoreManager::WriteRow(
@@ -668,8 +294,9 @@ void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
     if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;
 
-    LOG_INFO("Store unlocked and will be dropped (TabletId: %s)",
-        ~ToString(Tablet_->GetId()));
+    LOG_INFO("Store unlocked and will be dropped (TabletId: %s, StoreId: %s)",
+        ~ToString(Tablet_->GetId()),
+        ~ToString(store->GetId()));
     YCHECK(LockedStores_.erase(store) == 1);
 }
 

@@ -19,6 +19,8 @@ TPartition::TPartition(TTablet* tablet, int index)
     : Tablet_(tablet)
     , Index_(index)
     , PivotKey_(MinKey())
+    , NextPivotKey_(MaxKey())
+    , State_(EPartitionState::None)
 { }
 
 TPartition::~TPartition()
@@ -29,6 +31,7 @@ void TPartition::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, PivotKey_);
+    Save(context, NextPivotKey_);
 
     Save(context, Stores_.size());
     for (auto store : Stores_) {
@@ -41,6 +44,7 @@ void TPartition::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, PivotKey_);
+    Load(context, NextPivotKey_);
 
     size_t storeCount = Load<size_t>(context);
     for (size_t index = 0; index < storeCount; ++index) {
@@ -48,6 +52,15 @@ void TPartition::Load(TLoadContext& context)
         auto store = Tablet_->GetStore(storeId);
         YCHECK(Stores_.insert(store).second);
     }
+}
+
+i64 TPartition::GetTotalDataSize() const
+{
+    i64 result = 0;
+    for (const auto& store : Stores_) {
+        result += store->GetDataSize();
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

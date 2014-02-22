@@ -20,6 +20,8 @@ struct IStore
 
     virtual TTablet* GetTablet() const = 0;
 
+    virtual i64 GetDataSize() const = 0;
+
     virtual EStoreState GetState() const = 0;
     EStoreState GetPersistentState() const;
     virtual void SetState(EStoreState state) = 0;

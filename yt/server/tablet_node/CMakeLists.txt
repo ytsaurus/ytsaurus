@@ -20,6 +20,9 @@ set( SRCS
   ${BASE}/store_manager.cpp
   ${BASE}/store_flusher.cpp
   ${BASE}/store_compactor.cpp
+  ${BASE}/partition_balancer.cpp
+  ${BASE}/tablet_reader.cpp
+  ${BASE}/row_merger.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -43,6 +46,9 @@ set( HDRS
   ${BASE}/store_manager.h
   ${BASE}/store_flusher.h
   ${BASE}/store_compactor.h
+  ${BASE}/partition_balancer.h
+  ${BASE}/tablet_reader.h
+  ${BASE}/row_merger.h
 )
 
 list(APPEND YT_SOURCE_FILES

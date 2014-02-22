@@ -31,6 +31,10 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TChunkWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReaderConfig
     : public NChunkClient::TSequentialReaderConfig
 {
@@ -38,6 +42,8 @@ public:
     TChunkReaderConfig()
     { }
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -102,8 +102,10 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraCommitFlushedChunk, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraCommitTabletStoresUpdate, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletStoresUpdated, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSplitPartition, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraMergePartitions, Unretained(this)));
     }
 
     void Initialize()
@@ -138,7 +140,7 @@ public:
     }
 
 
-    void SetStoreFailed(TTablet* tablet, IStorePtr store, EStoreState state)
+    void BackoffStore(IStorePtr store, EStoreState state)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -149,9 +151,9 @@ public:
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
             store->SetState(store->GetPersistentState());
-        }).Via(tablet->GetEpochAutomatonInvoker());
+        }).Via(store->GetTablet()->GetEpochAutomatonInvoker());
 
-        TDelayedExecutor::Submit(callback, Config_->StoreErrorBackoffTime);
+        TDelayedExecutor::Submit(callback, Config_->ErrorBackoffTime);
     }
 
 
@@ -242,7 +244,7 @@ public:
         switch (TypeFromId(storeId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return CreateChunkStore(tablet, storeId, MinKey(), MaxKey());
+                return CreateChunkStore(tablet, storeId, nullptr);
 
             case EObjectType::DynamicMemoryTabletStore:
                 return CreateDynamicMemoryStore(tablet, storeId);
@@ -429,7 +431,9 @@ private:
         TabletMap_.Insert(tabletId, tablet);
 
         for (const auto& descriptor : request.chunk_stores()) {
-            auto store = CreateChunkStore(tablet, descriptor);
+            YCHECK(descriptor.has_chunk_meta());
+            auto chunkId = FromProto<TChunkId>(descriptor.store_id());
+            auto store = CreateChunkStore(tablet, chunkId, &descriptor.chunk_meta());
             tablet->AddStore(std::move(store));
         }
 
@@ -443,9 +447,11 @@ private:
             StartTablet(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, ChunkCount: %d)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, StoreCount: %d, Keys: %s .. %s)",
             ~ToString(tabletId),
-            request.chunk_stores_size());
+            request.chunk_stores_size(),
+            ~ToString(pivotKey),
+            ~ToString(nextPivotKey));
     }
 
     void HydraSetTabletState(const TReqSetTabletState& request)
@@ -586,41 +592,40 @@ private:
         RotateStore(tablet, true);
     }
 
-    void HydraCommitFlushedChunk(const TReqCommitFlushedChunks& flushRequest)
+    void HydraCommitTabletStoresUpdate(const TReqCommitTabletStoresUpdate& commitRequest)
     {
-        auto tabletId = FromProto<TTabletId>(flushRequest.tablet_id());
+        auto tabletId = FromProto<TTabletId>(commitRequest.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet)
             return;
 
-        auto storeId = FromProto<TStoreId>(flushRequest.store_id());
-        auto store = tablet->FindStore(storeId);
-        if (!store)
-            return;
-
-        auto state = store->GetState();
-        if (state != EStoreState::Flushing && state != EStoreState::PassiveDynamic) {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to commit a flushed chunk for store in %s state, ignored (TabletId: %s, StoreId: %s)",
-                ~FormatEnum(state).Quote(),
-                ~ToString(tabletId),
-                ~ToString(storeId));
-            return;
+        std::vector<TStoreId> storeIdsToAdd;
+        for (const auto& descriptor : commitRequest.stores_to_add()) {
+            storeIdsToAdd.push_back(FromProto<TStoreId>(descriptor.store_id()));
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Committing flushed chunks (TabletId: %s, StoreId: %s, ChunkCount: %d)",
-            ~ToString(tabletId),
-            ~ToString(storeId),
-            flushRequest.chunks_size());
+        std::vector<TStoreId> storeIdsToRemove;
+        for (const auto& descriptor : commitRequest.stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            storeIdsToRemove.push_back(storeId);
+            auto store = tablet->GetStore(storeId);
+            YCHECK(store->GetState() == EStoreState::PassiveDynamic ||
+                   store->GetState() == EStoreState::Persistent ||
+                   store->GetState() == EStoreState::Flushing ||
+                   store->GetState() == EStoreState::Compacting);
+            store->SetState(EStoreState::RemoveCommitting);
+        }
 
-        store->SetState(EStoreState::FlushCommitting);
+        LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update (TabletId: %s, StoreIdsToAdd: [%s], StoreIdsToRemove: [%s])",
+            ~ToString(tabletId),
+            ~JoinToString(storeIdsToAdd),
+            ~JoinToString(storeIdsToRemove));
 
         TReqUpdateTabletStores updateRequest;
         ToProto(updateRequest.mutable_tablet_id(), tabletId);
-        updateRequest.mutable_stores_to_add()->MergeFrom(flushRequest.chunks());
-        {
-            auto* descriptor = updateRequest.add_stores_to_remove();
-            ToProto(descriptor->mutable_store_id(), storeId);
-        }
+        updateRequest.mutable_stores_to_add()->MergeFrom(commitRequest.stores_to_add());
+        updateRequest.mutable_stores_to_remove()->MergeFrom(commitRequest.stores_to_remove());
+
         auto* slot = tablet->GetSlot();
         auto hiveManager = slot->GetHiveManager();
         hiveManager->PostMessage(slot->GetMasterMailbox(), updateRequest);
@@ -641,24 +646,23 @@ private:
             for (const auto& descriptor : response.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
-                switch (store->GetState()) {
-                    case EStoreState::FlushCommitting:
-                        SetStoreFailed(tablet, store, EStoreState::FlushFailed);
-                        break;
-                    default:
-                        YUNREACHABLE();
-                }
+                YCHECK(store->GetState() == EStoreState::RemoveCommitting);
+                BackoffStore(store, EStoreState::RemoveFailed);
             }
         } else {
             std::vector<TStoreId> addedStoreIds;
             for (const auto& descriptor : response.stores_to_add()) {
-                auto store = CreateChunkStore(tablet, descriptor);
+                auto storeId = FromProto<TChunkId>(descriptor.store_id());
+                addedStoreIds.push_back(storeId);
+                YCHECK(descriptor.has_chunk_meta());
+                auto store = CreateChunkStore(tablet, storeId, &descriptor.chunk_meta());
                 tablet->AddStore(store);
             }
 
             std::vector<TStoreId> removedStoreIds;
             for (const auto& descriptor : response.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                removedStoreIds.push_back(storeId);
                 tablet->RemoveStore(storeId);
             }
 
@@ -671,6 +675,48 @@ private:
                 CheckIfAllStoresFlushed(tablet);
             }
         }
+    }
+
+    void HydraSplitPartition(const TReqSplitPartition& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
+        auto* partition = tablet->GetPartitionByPivotKey(pivotKeys[0]);
+        int partitionIndex = partition->GetIndex();
+
+        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %s, PartitionIndex: %d, DataSize: %" PRId64 ", Keys: %s)",
+            ~ToString(tablet->GetId()),
+            partitionIndex,
+            partition->GetTotalDataSize(),
+            ~JoinToString(pivotKeys, Stroka(" .. ")));
+
+        tablet->SplitPartition(partitionIndex, pivotKeys);
+    }
+
+    void HydraMergePartitions(const TReqMergePartitions& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
+        auto* partition = tablet->GetPartitionByPivotKey(pivotKey);
+        int firstPartitionIndex = partition->GetIndex();
+        int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
+
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %s, PartitionIndexes: %d .. %d, Keys: %s .. %s)",
+            ~ToString(tablet->GetId()),
+            firstPartitionIndex,
+            lastPartitionIndex,
+            ~ToString(tablet->Partitions()[firstPartitionIndex]->GetPivotKey()),
+            ~ToString(tablet->Partitions()[lastPartitionIndex]->GetNextPivotKey()));
+
+        tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
     }
 
 
@@ -890,6 +936,10 @@ private:
 
     void StopTablet(TTablet* tablet)
     {
+        for (const auto& partition : tablet->Partitions()) {
+            partition->SetState(EPartitionState::None);
+        }
+
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
             store->SetState(store->GetPersistentState());
@@ -909,30 +959,14 @@ private:
 
     IStorePtr CreateChunkStore(
         TTablet* tablet,
-        const NTabletServer::NProto::TAddStoreDescriptor& descriptor)
-    {
-        auto chunkId = FromProto<TChunkId>(descriptor.store_id());
-        auto minKey = FromProto<TOwningKey>(descriptor.min_key());
-        auto maxKey = FromProto<TOwningKey>(descriptor.max_key());
-        return CreateChunkStore(
-            tablet,
-            chunkId,
-            std::move(minKey),
-            std::move(maxKey));
-    }
-
-    IStorePtr CreateChunkStore(
-        TTablet* tablet,
         const TChunkId& chunkId,
-        TOwningKey minKey,
-        TOwningKey maxKey)
+        const TChunkMeta* chunkMeta)
     {
         return New<TChunkStore>(
             Config_,
             chunkId,
             tablet,
-            std::move(minKey),
-            std::move(maxKey),
+            chunkMeta,
             Bootstrap_->GetBlockStore()->GetBlockCache(),
             Bootstrap_->GetMasterChannel(),
             Bootstrap_->GetLocalDescriptor());
@@ -967,7 +1001,9 @@ private:
     {
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("state").Value(partition->GetState())
                 .Item("pivot_key").Value(partition->GetPivotKey())
+                .Item("next_pivot_key").Value(partition->GetNextPivotKey())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
                     fluent
                         .Item(ToString(store->GetId()))
@@ -1019,9 +1055,9 @@ void TTabletManager::ValidateTabletMounted(TTablet* tablet)
     Impl_->ValidateTabletMounted(tablet);
 }
 
-void TTabletManager::SetStoreFailed(TTablet* tablet, IStorePtr store, EStoreState state)
+void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)
 {
-    Impl_->SetStoreFailed(tablet, store, state);
+    Impl_->BackoffStore(store, state);
 }
 
 void TTabletManager::Read(

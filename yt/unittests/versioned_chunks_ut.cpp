@@ -229,12 +229,10 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     WriteThreeRows();
 
-    auto chunkMeta = New<TCachedVersionedChunkMeta>(
+    auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns);
-
-    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+        KeyColumns).Get().GetValueOrThrow();
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -276,12 +274,10 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
 
     WriteThreeRows();
 
-    auto chunkMeta = New<TCachedVersionedChunkMeta>(
+    auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns);
-
-    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+        KeyColumns).Get().GetValueOrThrow();
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -333,12 +329,10 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
         TColumnSchema("v2", EValueType::Integer)
     };
 
-    auto chunkMeta = New<TCachedVersionedChunkMeta>(
+    auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         schema,
-        KeyColumns);
-
-    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+        KeyColumns).Get().GetValueOrThrow();
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
@@ -371,12 +365,10 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
     std::vector<TVersionedRow> expected;
     WriteThreeRows();
 
-    auto chunkMeta = New<TCachedVersionedChunkMeta>(
+    auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns);
-
-    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+        KeyColumns).Get().GetValueOrThrow();
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
@@ -416,12 +408,10 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
 
     WriteManyRows();
 
-    auto chunkMeta = New<TCachedVersionedChunkMeta>(
+    auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns);
-
-    EXPECT_TRUE(chunkMeta->Load().Get().IsOK());
+        KeyColumns).Get().GetValueOrThrow();
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),

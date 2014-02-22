@@ -41,7 +41,7 @@ public:
     void ValidateTabletMounted(TTablet* tablet);
 
 
-    void SetStoreFailed(TTablet* tablet, IStorePtr store, EStoreState state);
+    void BackoffStore(IStorePtr store, EStoreState state);
 
 
     void Read(

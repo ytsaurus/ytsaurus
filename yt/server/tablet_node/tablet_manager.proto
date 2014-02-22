@@ -38,11 +38,11 @@ message TReqRotateStore
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TReqCommitFlushedChunks
+message TReqCommitTabletStoresUpdate
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required NYT.NProto.TGuid store_id = 2;
-	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor chunks = 3;
+	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 2;
+	repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
 }
 
 message TRspUpdateTabletStores
@@ -51,6 +51,19 @@ message TRspUpdateTabletStores
 	optional NYT.NProto.TError error = 2;
 	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 3;
 	repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 4;
+}
+
+message TReqSplitPartition
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    repeated bytes pivot_keys = 3;
+}
+
+message TReqMergePartitions
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bytes pivot_key = 2;
+    required int32 partition_count = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

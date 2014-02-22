@@ -73,11 +73,11 @@ static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreFlusher::TImpl
+class TStoreFlusher
     : public TRefCounted
 {
 public:
-    TImpl(
+    TStoreFlusher(
         TStoreFlusherConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
@@ -88,7 +88,7 @@ public:
     void Start()
     {
         auto tabletCellController = Bootstrap_->GetTabletCellController();
-        tabletCellController->SubscribeSlotScan(BIND(&TImpl::ScanSlot, MakeStrong(this)));
+        tabletCellController->SubscribeSlotScan(BIND(&TStoreFlusher::ScanSlot, MakeStrong(this)));
     }
 
 private:
@@ -119,19 +119,18 @@ private:
 
     void ScanStore(TTablet* tablet, const IStorePtr& store)
     {
-        // Preliminary check.
         if (store->GetState() != EStoreState::PassiveDynamic)
             return;
+
+        store->SetState(EStoreState::Flushing);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(
-            BIND(&TImpl::FlushStore, MakeStrong(this), tablet, store));
+            BIND(&TStoreFlusher::FlushStore, MakeStrong(this), tablet, store));
     }
 
-    void FlushStore(TTablet* tablet, const IStorePtr& store)
+    void FlushStore(TTablet* tablet, IStorePtr store)
     {
-        // Final check.
-        if (store->GetState() != EStoreState::PassiveDynamic)
-            return;
+        YCHECK(store->GetState() == EStoreState::Flushing);
 
         NLog::TTaggedLogger Logger(TabletNodeLogger);
         Logger.AddTag(Sprintf("TabletId: %s, StoreId: %s",
@@ -150,11 +149,24 @@ private:
         try {
             LOG_INFO("Store flush started");
 
-            store->SetState(EStoreState::Flushing);
+            TReqCommitTabletStoresUpdate updateStoresRequest;
+            ToProto(updateStoresRequest.mutable_tablet_id(), tablet->GetId());
+            {
+                auto* descriptor = updateStoresRequest.add_stores_to_remove();
+                ToProto(descriptor->mutable_store_id(), store->GetId());
+            }
+
+            auto reader = store->CreateReader(
+                MinKey(),
+                MaxKey(),
+                AllCommittedTimestamp,
+                TColumnFilter());
+        
+            // NB: Memory store reader is always synchronous.
+            YCHECK(reader->Open().Get().IsOK());
 
             SwitchTo(poolInvoker);
 
-            // Write chunk.
             auto transactionManager = Bootstrap_->GetTransactionManager();
         
             TTransactionPtr transaction;
@@ -163,7 +175,7 @@ private:
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Flush of store %s, tablet %s",
+                attributes->Set("title", Sprintf("Flushing store %s, tablet %s",
                     ~ToString(store->GetId()),
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
@@ -172,15 +184,6 @@ private:
                 transaction = transactionOrError.GetValue();
             }
        
-            auto reader = store->CreateReader(
-                MinKey(),
-                MaxKey(),
-                AllCommittedTimestamp,
-                TColumnFilter());
-        
-            // NB: Memory store reader is always synchronous.
-            reader->Open().Get();
-
             auto writerProvider = New<TVersionedChunkWriterProvider>(
                 Config_->Writer,
                 New<TChunkWriterOptions>(), // TODO(babenko): make configurable
@@ -191,7 +194,7 @@ private:
             auto multiChunkWriterOptions = New<TMultiChunkWriterOptions>();
             multiChunkWriterOptions->Account = "tmp";
 
-            auto rowsetWriter = New<TVersionedMultiChunkWriter>(
+            auto writer = New<TVersionedMultiChunkWriter>(
                 Config_->Writer,
                 multiChunkWriterOptions,
                 writerProvider,
@@ -199,7 +202,7 @@ private:
                 transaction->GetId());
 
             {
-                auto result = WaitFor(rowsetWriter->Open());
+                auto result = WaitFor(writer->Open());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
         
@@ -211,35 +214,29 @@ private:
                 reader->Read(&rows);
                 if (rows.empty())
                     break;
-                if (!rowsetWriter->Write(rows)) {
-                    auto result = WaitFor(rowsetWriter->GetReadyEvent());
+                if (!writer->Write(rows)) {
+                    auto result = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
             }
 
             {
-                auto result = WaitFor(rowsetWriter->Close());
+                auto result = WaitFor(writer->Close());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+                auto* descriptor = updateStoresRequest.add_stores_to_add();
+                descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
+                descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
             }
 
             SwitchTo(automatonInvoker);
 
-            {
-                TReqCommitFlushedChunks request;
-                ToProto(request.mutable_tablet_id(), tablet->GetId());
-                ToProto(request.mutable_store_id(), store->GetId());
-                for (const auto& chunkSpec : rowsetWriter->GetWrittenChunks()) {
-                    auto* descriptor = request.add_chunks();
-                    descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
-                    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
-                    descriptor->set_min_key(boundaryKeysExt.min());
-                    descriptor->set_max_key(boundaryKeysExt.max());
-                }
-                CreateMutation(slot->GetHydraManager(), request)
-                    ->Commit();
-            }
+            CreateMutation(slot->GetHydraManager(), updateStoresRequest)
+                ->Commit();
 
-            LOG_INFO("Store flush finished");
+            LOG_INFO("Store flush completed");
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
@@ -248,7 +245,7 @@ private:
             SwitchTo(automatonInvoker);
 
             YCHECK(store->GetState() == EStoreState::Flushing);
-            tabletManager->SetStoreFailed(tablet, store, EStoreState::FlushFailed);
+            tabletManager->BackoffStore(store, EStoreState::FlushFailed);
         }
     }
 
@@ -256,20 +253,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreFlusher::TStoreFlusher(
+void StartStoreFlusher(
     TStoreFlusherConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
-        config,
-        bootstrap))
-{ }
-
-TStoreFlusher::~TStoreFlusher()
-{ }
-
-void TStoreFlusher::Start()
 {
-    Impl_->Start();
+    New<TStoreFlusher>(config, bootstrap)->Start();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

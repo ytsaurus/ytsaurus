@@ -13,6 +13,10 @@ EStoreState IStore::GetPersistentState() const
         case EStoreState::Flushing:
         case EStoreState::FlushFailed:
             return EStoreState::PassiveDynamic;
+
+        case EStoreState::Compacting:
+        case EStoreState::CompactionFailed:
+            return EStoreState::Persistent;
         default:
             return state;
     }

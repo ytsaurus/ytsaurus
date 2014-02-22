@@ -29,9 +29,9 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(const TTabletId& id)
-    : Id_(id)
+    : Config_(New<TTableMountConfig>())
+    , Id_(id)
     , Slot_(nullptr)
-    , Config_(New<TTableMountConfig>())
 { }
 
 TTablet::TTablet(
@@ -42,14 +42,14 @@ TTablet::TTablet(
     const TKeyColumns& keyColumns,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey)
-    : Id_(id)
+    : Config_(config)
+    , Id_(id)
     , Slot_(slot)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
-    , Config_(config)
     , Eden_(std::make_unique<TPartition>(this, TPartition::EdenIndex))
 { }
 
@@ -165,7 +165,27 @@ TPartition* TTablet::AddPartition(TOwningKey pivotKey)
         static_cast<int>(Partitions_.size()));
     auto* partition = partitionHolder.get();
     partition->SetPivotKey(std::move(pivotKey));
+    partition->SetNextPivotKey(NextPivotKey_);
     Partitions_.push_back(std::move(partitionHolder));
+    return partition;
+}
+
+TPartition* TTablet::FindPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey)
+{
+    auto it = std::lower_bound(
+        Partitions_.begin(),
+        Partitions_.end(),
+        pivotKey,
+        [] (const std::unique_ptr<TPartition>& partition, const TOwningKey& key) {
+            return partition->GetPivotKey() < key;
+        });
+    return it != Partitions_.end() && (*it)->GetPivotKey() == pivotKey ? it->get() : nullptr;
+}
+
+TPartition* TTablet::GetPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey)
+{
+    auto* partition = FindPartitionByPivotKey(pivotKey);
+    YCHECK(partition);
     return partition;
 }
 
@@ -177,6 +197,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
     auto mergedPartition = std::make_unique<TPartition>(this, firstIndex);
     mergedPartition->SetPivotKey(Partitions_[firstIndex]->GetPivotKey());
+    mergedPartition->SetNextPivotKey(Partitions_[lastIndex]->GetNextPivotKey());
 
     for (int i = firstIndex; i <= lastIndex; ++i) {
         const auto& existingPartition = Partitions_[i];
@@ -193,6 +214,9 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
 void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys)
 {
+    auto existingPartition = std::move(Partitions_[index]);
+    YCHECK(existingPartition->GetPivotKey() == pivotKeys[0]);
+
     for (int i = index + 1; i < static_cast<int>(Partitions_.size()); ++i) {
         Partitions_[i]->SetIndex(i + static_cast<int>(pivotKeys.size()) - 1);
     }
@@ -203,10 +227,13 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
             this,
             index + i);
         partition->SetPivotKey(pivotKeys[i]);
+        partition->SetNextPivotKey(
+            i == static_cast<int>(pivotKeys.size()) - 1
+            ? existingPartition->GetNextPivotKey()
+            : pivotKeys[i + 1]);
         splitPartitions.push_back(std::move(partition));
     }
 
-    const auto& existingPartition = Partitions_[index];
     Partitions_.erase(Partitions_.begin() + index);
 
     Partitions_.insert(
@@ -216,10 +243,73 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 
     for (auto store : existingPartition->Stores()) {
         YCHECK(store->GetPartition() == existingPartition.get());
-        auto* newPartition = FindRelevantPartition(store);
+        auto* newPartition = GetContainingPartition(store);
         store->SetPartition(newPartition);
         YCHECK(newPartition->Stores().insert(store).second);
     }
+}
+
+TPartition* TTablet::GetContainingPartition(
+    const TOwningKey& minKey,
+    const TOwningKey& maxKey)
+{
+    auto it = std::upper_bound(
+        Partitions_.begin(),
+        Partitions_.end(),
+        minKey,
+        [] (const TOwningKey& key, const std::unique_ptr<TPartition>& partition) {
+            return key < partition->GetPivotKey();
+        });
+
+    if (it != Partitions_.begin()) {
+        --it;
+    }
+
+    if (it + 1 == Partitions().end()) {
+        return it->get();
+    }
+
+    if ((*(it + 1))->GetPivotKey() > maxKey) {
+        return it->get();
+    }
+
+    return Eden_.get();
+}
+
+TPartition* TTablet::GetContainingPartition(IStorePtr store)
+{
+    // Dynamic stores must reside in Eden.
+    if (store->GetState() == EStoreState::ActiveDynamic ||
+        store->GetState() == EStoreState::PassiveDynamic)
+    {
+        return Eden_.get();
+    }
+
+    return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
+}
+
+std::pair<TTablet::TPartitionListIterator, TTablet::TPartitionListIterator> TTablet::GetIntersectingPartitions(
+    const TOwningKey& lowerBound,
+    const TOwningKey& upperBound)
+{
+    auto beginIt = std::upper_bound(
+        Partitions_.begin(),
+        Partitions_.end(),
+        lowerBound,
+        [] (const TOwningKey& key, const std::unique_ptr<TPartition>& partition) {
+            return key < partition->GetPivotKey();
+        });
+
+    if (beginIt != Partitions_.begin()) {
+        --beginIt;
+    }
+
+    auto endIt = beginIt;
+    while (endIt != Partitions_.end() && upperBound >= (*endIt)->GetPivotKey()) {
+        ++endIt;
+    }
+
+    return std::make_pair(beginIt, endIt);
 }
 
 const yhash_map<TStoreId, IStorePtr>& TTablet::Stores() const
@@ -229,7 +319,7 @@ const yhash_map<TStoreId, IStorePtr>& TTablet::Stores() const
 
 void TTablet::AddStore(IStorePtr store)
 {
-    auto* partition = FindRelevantPartition(store);
+    auto* partition = GetContainingPartition(store);
     store->SetPartition(partition);
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
     YCHECK(partition->Stores().insert(store).second);
@@ -273,39 +363,6 @@ int TTablet::GetSchemaColumnCount() const
 int TTablet::GetKeyColumnCount() const
 {
     return static_cast<int>(KeyColumns_.size());
-}
-
-TPartition* TTablet::FindRelevantPartition(IStorePtr store)
-{
-    // Dynamic stores must reside in Eden.
-    if (store->GetState() == EStoreState::ActiveDynamic ||
-        store->GetState() == EStoreState::PassiveDynamic)
-    {
-        return Eden_.get();
-    }
-
-    // NB: Store key range need not be completely inside the tablet's one.
-    const auto& minKey = ChooseMaxKey(store->GetMinKey(), PivotKey_);
-    const auto& maxKey = store->GetMaxKey();
-
-    // Run binary search to find the relevant partition.
-    auto partitionIt = std::upper_bound(
-        Partitions_.begin(),
-        Partitions_.end(),
-        minKey,
-        [] (const TOwningKey& key, const std::unique_ptr<TPartition>& partition) {
-            return key < partition->GetPivotKey();
-        }) - 1;
-
-    if (partitionIt + 1 == Partitions().end()) {
-        return partitionIt->get();
-    }
-
-    if (CompareRows((*(partitionIt + 1))->GetPivotKey(), maxKey) > 0) {
-        return partitionIt->get();
-    }
-
-    return Eden_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

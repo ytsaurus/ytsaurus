@@ -18,8 +18,13 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
+
     DEFINE_BYVAL_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
+    DEFINE_BYVAL_RW_PROPERTY(NVersionedTableClient::TOwningKey, NextPivotKey);
+
     DEFINE_BYREF_RW_PROPERTY(yhash_set<IStorePtr>, Stores);
+
+    DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State);
 
 public:
     TPartition(TTablet* tablet, int index);
@@ -27,6 +32,8 @@ public:
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    i64 GetTotalDataSize() const;
 
 };
 
