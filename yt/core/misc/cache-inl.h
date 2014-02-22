@@ -270,7 +270,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 
     YCHECK(maybeValueOrError);
     YCHECK(maybeValueOrError->IsOK());
-    auto value = maybeValueOrError->GetValue();
+    auto value = maybeValueOrError->Value();
 
     ItemMap.erase(it);
     --ItemMapSize;
@@ -335,7 +335,7 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         YCHECK(maybeValueOrError);
         YCHECK(maybeValueOrError->IsOK());
 
-        auto value = maybeValueOrError->GetValue();
+        auto value = maybeValueOrError->Value();
 
         YCHECK(ItemMap.erase(value->GetKey()) == 1);
         --ItemMapSize;

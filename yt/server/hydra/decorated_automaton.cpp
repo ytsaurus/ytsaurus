@@ -181,7 +181,7 @@ private:
         TRemoteSnapshotParams remoteParams;
         remoteParams.PeerId = Owner_->CellManager_->GetSelfId();
         remoteParams.SnapshotId = SnapshotId_;
-        static_cast<TSnapshotParams&>(remoteParams) = paramsOrError.GetValue();
+        static_cast<TSnapshotParams&>(remoteParams) = paramsOrError.Value();
         Promise_.Set(remoteParams);
     }
 

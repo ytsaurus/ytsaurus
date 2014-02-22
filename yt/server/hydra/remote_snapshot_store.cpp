@@ -163,7 +163,7 @@ private:
             if (!CurrentBlock_ || CurrentOffset_ >= CurrentBlock_.Size()) {
                 auto result = Reader_->Read().Get();
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                CurrentBlock_ = result.GetValue();
+                CurrentBlock_ = result.Value();
                 if (!CurrentBlock_) {
                     return 0;
                 }
@@ -279,7 +279,7 @@ private:
                 snapshotId));
             options.Attributes = attributes.get();
             auto transactionOrError = WaitFor(TransactionManager_->Start(options));
-            transaction = transactionOrError.GetValueOrThrow();
+            transaction = transactionOrError.ValueOrThrow();
         }
 
         LOG_DEBUG("Creating snapshot node");

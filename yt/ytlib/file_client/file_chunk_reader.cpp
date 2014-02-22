@@ -59,7 +59,7 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult resu
 
     LOG_INFO("Chunk meta received");
 
-    const auto& chunkMeta = result.GetValue();
+    const auto& chunkMeta = result.Value();
 
     if (chunkMeta.type() != EChunkType::File) {
         auto error = TError("Invalid chunk type: expected %s, actual %s",

@@ -106,7 +106,7 @@ public:
             // it is possible for a block to be put there more than once.
             // We shall reuse the cached copy but for sanity's sake let's
             // check that the content is the same.
-            auto block = result.GetValue();
+            auto block = result.Value();
 
             if (!TRef::AreBitwiseEqual(data, block->GetData())) {
                 LOG_FATAL("Trying to cache a block for which a different cached copy already exists: %s",
@@ -217,7 +217,7 @@ private:
     TGetBlockResult OnCacheHit(TGetBlockResult result)
     {
         if (result.IsOK()) {
-            LogCacheHit(result.GetValue());
+            LogCacheHit(result.Value());
         }
         return result;
     }
@@ -239,7 +239,7 @@ private:
             return;
         }
 
-        auto reader = readerResult.GetValue();
+        auto reader = readerResult.Value();
 
         if (blockSize < 0) {
             const auto& chunkMeta = reader->GetChunkMeta();

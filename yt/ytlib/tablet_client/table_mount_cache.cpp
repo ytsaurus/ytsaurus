@@ -196,7 +196,7 @@ private:
         if (!tableInfoOrError.IsOK())
             return;
 
-        auto tableInfo = tableInfoOrError.GetValue();
+        auto tableInfo = tableInfoOrError.Value();
         for (auto tabletInfo : tableInfo->Tablets) {
             UnrefTablet(std::move(tabletInfo));
         }

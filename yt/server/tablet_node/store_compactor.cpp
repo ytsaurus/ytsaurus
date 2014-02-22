@@ -182,7 +182,7 @@ private:
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(transactionManager->Start(options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
-                transaction = transactionOrError.GetValue();
+                transaction = transactionOrError.Value();
             }
 
             std::vector<TVersionedRow> writeRows;

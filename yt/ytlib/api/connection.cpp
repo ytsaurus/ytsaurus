@@ -313,7 +313,7 @@ private:
         auto asyncInfoOrError = TableMountCache_->LookupTableInfo(path);
         auto infoOrError = WaitFor(asyncInfoOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(infoOrError);
-        const auto& info = infoOrError.GetValue();
+        const auto& info = infoOrError.Value();
 
         TDataSplit result;
         SetObjectId(&result, info->TableId);
@@ -354,7 +354,7 @@ private:
         auto tableId = GetObjectIdFromDataSplit(split);
         auto tableInfoOrError = WaitFor(TableMountCache_->LookupTableInfo(FromObjectId(tableId)));
         THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-        const auto& tableInfo = tableInfoOrError.GetValue();
+        const auto& tableInfo = tableInfoOrError.Value();
 
         return tableInfo->Sorted
             ? DoSplitSortedTableFurther(split, std::move(context))

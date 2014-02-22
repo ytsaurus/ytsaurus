@@ -741,7 +741,7 @@ public:
             LOG_FATAL(ex, "Error creating changelog %d", id);
         }
 
-        return cookie.GetValue().Get().GetValue();
+        return cookie.GetValue().Get().Value();
     }
 
     virtual IChangelogPtr TryOpenChangelog(int id) override
@@ -771,7 +771,7 @@ public:
         }
 
         auto changelogOrError = cookie.GetValue().Get();
-        return changelogOrError.IsOK() ? changelogOrError.GetValue() : nullptr;
+        return changelogOrError.IsOK() ? changelogOrError.Value() : nullptr;
     }
 
     virtual int GetLatestChangelogId(int initialId) override

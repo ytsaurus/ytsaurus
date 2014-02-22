@@ -444,7 +444,7 @@ private:
         if (!timestampOrError.IsOK()) {
             return MakeFuture(TError(timestampOrError));
         }
-        StartTimestamp_ = timestampOrError.GetValue();
+        StartTimestamp_ = timestampOrError.Value();
 
         Register();
 

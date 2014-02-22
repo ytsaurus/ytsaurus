@@ -594,7 +594,7 @@ TEST(TFutureTest, ParallelCollectorEmpty)
     auto collector = New< TParallelCollector<int> >();
     auto resultOrError = collector->Complete().Get();
     EXPECT_TRUE(resultOrError.IsOK());
-    const auto& result = resultOrError.GetValue();
+    const auto& result = resultOrError.Value();
     EXPECT_TRUE(result.size() == 0);
 }
 
@@ -605,7 +605,7 @@ TEST(TFutureTest, ParallelCollectorSuccess)
     collector->Collect(AsyncDivide(30, 3, TDuration::Seconds(2)));
     auto resultOrError = collector->Complete().Get();
     EXPECT_TRUE(resultOrError.IsOK());
-    const auto& result = resultOrError.GetValue();
+    const auto& result = resultOrError.Value();
     EXPECT_TRUE(result.size() == 2);
     EXPECT_TRUE(result[0] == 2);
     EXPECT_TRUE(result[1] == 10);

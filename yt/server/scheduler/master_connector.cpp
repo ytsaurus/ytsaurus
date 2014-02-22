@@ -392,7 +392,7 @@ private:
         CancelableContext = New<TCancelableContext>();
         CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
 
-        const auto& result = resultOrError.GetValue();
+        const auto& result = resultOrError.Value();
         for (auto operation : result.Operations) {
             CreateUpdateList(operation);
         }

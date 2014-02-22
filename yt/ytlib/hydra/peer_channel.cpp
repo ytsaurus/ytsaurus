@@ -51,7 +51,7 @@ TErrorOr<IChannelPtr> OnPeerFound(
             ~formattedRole);
     }
 
-    const auto result = resultOrError.GetValue();
+    const auto& result = resultOrError.Value();
 
     LOG_INFO("Found %s at %s",
         ~formattedRole,

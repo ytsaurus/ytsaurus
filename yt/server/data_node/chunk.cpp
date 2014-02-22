@@ -151,7 +151,7 @@ void TChunk::DoReadMeta(TPromise<TError> promise)
             promise.Set(result);
             return;
         }
-        reader = result.GetValue();
+        reader = result.Value();
     }
 
     {

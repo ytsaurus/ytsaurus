@@ -347,7 +347,7 @@ private:
             ~ToString(ChunkId));
 
         LOG_INFO("Chunk meta received");
-        const auto& chunkMeta = metaOrError.GetValue();
+        const auto& chunkMeta = metaOrError.Value();
         const auto& blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
 
         auto targets = FromProto<TNodeDescriptor>(ReplicationJobSpecExt.target_descriptors());
@@ -371,7 +371,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError, "Error getting block %s for replication",
                 ~ToString(blockId));
 
-            auto block = blockOrError.GetValue()->GetData();
+            auto block = blockOrError.Value()->GetData();
             auto result = writer->WriteBlock(block);
             if (!result) {
                 auto error = WaitFor(writer->GetReadyEvent());

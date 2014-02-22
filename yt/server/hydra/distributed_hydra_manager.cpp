@@ -587,7 +587,7 @@ public:
         auto result = WaitFor(asyncResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
-        response->set_checksum(result.GetValue().Checksum);
+        response->set_checksum(result.Value().Checksum);
 
         context->Reply();
     }
@@ -716,7 +716,7 @@ public:
             return;
         }
 
-        const auto& info = result.GetValue();
+        const auto& info = result.Value();
         response->set_snapshot_id(info.SnapshotId);
 
         context->Reply();
@@ -813,7 +813,7 @@ public:
             try {
                 auto maxSnapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId());
                 THROW_ERROR_EXCEPTION_IF_FAILED(maxSnapshotIdOrError);
-                int maxSnapshotId = maxSnapshotIdOrError.GetValue();
+                int maxSnapshotId = maxSnapshotIdOrError.Value();
 
                 if (maxSnapshotId == NonexistingSegmentId) {
                     LOG_INFO("No snapshots found");

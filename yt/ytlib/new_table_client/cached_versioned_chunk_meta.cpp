@@ -45,7 +45,7 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
 
         auto chunkMetaOrError = WaitFor(asyncReader->AsyncGetChunkMeta());
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError)
-        ChunkMeta_.Swap(&chunkMetaOrError.GetValue());
+        ChunkMeta_.Swap(&chunkMetaOrError.Value());
 
         ValidateChunkMeta();
         ValidateSchema(readerSchema);

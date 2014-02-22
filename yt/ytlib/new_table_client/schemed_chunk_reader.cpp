@@ -174,7 +174,7 @@ void TChunkReader::DoOpen()
         return;
     }
 
-    const auto& meta = metaOrError.GetValue();
+    const auto& meta = metaOrError.Value();
     BlockMeta = GetProtoExtension<NProto::TBlockMetaExt>(meta.extensions());
     auto chunkNameTable = NYT::FromProto<TNameTablePtr>(GetProtoExtension<NProto::TNameTableExt>(meta.extensions()));
     auto chunkSchema = NYT::FromProto<TTableSchema>(GetProtoExtension<NProto::TTableSchemaExt>(meta.extensions()));

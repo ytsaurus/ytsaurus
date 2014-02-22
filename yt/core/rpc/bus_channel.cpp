@@ -103,7 +103,7 @@ public:
             return;
         }
 
-        sessionOrError.GetValue()->Send(
+        sessionOrError.Value()->Send(
             request,
             responseHandler,
             timeout,

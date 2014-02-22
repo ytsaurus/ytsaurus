@@ -96,7 +96,7 @@ public:
                     .Run(split, std::move(context));
                 auto resultOrError = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-                return resultOrError.GetValue();
+                return resultOrError.Value();
             }
 
             default:
@@ -170,7 +170,7 @@ private:
 
         auto resultOrError = WaitFor(asyncResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-        return resultOrError.GetValue();
+        return resultOrError.Value();
     }
 
     ISchemedReaderPtr DoGetTabletReaderAutomaton(

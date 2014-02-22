@@ -329,7 +329,7 @@ TYsonString SyncYPathGet(
             attributeFilter,
             ignoreOpaque)
         .Get()
-        .GetValueOrThrow();
+        .ValueOrThrow();
 }
 
 TFuture< TErrorOr<bool> > AsyncYPathExists(
@@ -354,7 +354,7 @@ bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)
             service,
             path)
         .Get()
-        .GetValueOrThrow();
+        .ValueOrThrow();
 }
 
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value)

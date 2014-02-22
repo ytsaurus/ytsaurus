@@ -46,7 +46,7 @@ void TDownloadCommand::DoExecute()
         auto blockOrError = WaitFor(reader->Read());
 
         THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
-        auto block = blockOrError.GetValue();
+        auto block = blockOrError.Value();
 
         if (!block)
             break;

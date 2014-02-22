@@ -87,7 +87,7 @@ void TAsyncWriter::DoOpen()
 
         auto transactionOrError = WaitFor(TransactionManager->Start(options));
         THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
-        UploadTransaction = transactionOrError.GetValue();
+        UploadTransaction = transactionOrError.Value();
     }
 
     LOG_INFO("Upload transaction created (TransactionId: %s)",

@@ -162,7 +162,7 @@ private:
 
         LOG_INFO("Local snapshot built");
 
-        const auto& params = paramsOrError.GetValue();
+        const auto& params = paramsOrError.Value();
         SnapshotChecksums_[Owner_->CellManager_->GetSelfId()] = params.Checksum;
     }
 

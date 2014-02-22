@@ -232,7 +232,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns).Get().GetValueOrThrow();
+        KeyColumns).Get().ValueOrThrow();
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -277,7 +277,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns).Get().GetValueOrThrow();
+        KeyColumns).Get().ValueOrThrow();
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -332,7 +332,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         schema,
-        KeyColumns).Get().GetValueOrThrow();
+        KeyColumns).Get().ValueOrThrow();
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
@@ -368,7 +368,7 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns).Get().GetValueOrThrow();
+        KeyColumns).Get().ValueOrThrow();
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
@@ -411,7 +411,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         Schema,
-        KeyColumns).Get().GetValueOrThrow();
+        KeyColumns).Get().ValueOrThrow();
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),

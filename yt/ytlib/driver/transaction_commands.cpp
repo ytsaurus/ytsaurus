@@ -41,7 +41,7 @@ void TStartTransactionCommand::DoExecute()
 
     auto transactionManager = Context->GetClient()->GetTransactionManager();
     auto transactionOrError = WaitFor(transactionManager->Start(options));
-    auto transaction = transactionOrError.GetValueOrThrow();
+    auto transaction = transactionOrError.ValueOrThrow();
     transaction->Detach();
 
     Reply(BuildYsonStringFluently()

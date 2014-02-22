@@ -257,7 +257,7 @@ void TTcpConnection::OnAddressResolved()
 
     LOG_DEBUG("Address resolved, connecting");
 
-    TNetworkAddress netAddress(result.GetValue(), Port);
+    TNetworkAddress netAddress(result.Value(), Port);
     OnAddressResolved(netAddress);
 }
 

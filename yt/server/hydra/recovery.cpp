@@ -57,7 +57,7 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
 
     auto latestSnapshotIdOrError = WaitFor(SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId));
     THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
-    int latestSnapshotId = latestSnapshotIdOrError.GetValue();
+    int latestSnapshotId = latestSnapshotIdOrError.Value();
 
     RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
 }
@@ -80,13 +80,13 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
 
         auto readerOrError = WaitFor(SnapshotStore->CreateReader(snapshotId));
         THROW_ERROR_EXCEPTION_IF_FAILED(readerOrError, "Error creating snapshot reader");
-        auto reader = readerOrError.GetValue();
+        auto reader = readerOrError.Value();
 
         DecoratedAutomaton->LoadSnapshot(snapshotId, reader->GetStream());
 
         auto snapshotParamsOrError = WaitFor(SnapshotStore->GetSnapshotParams(snapshotId));
         THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error getting snapshot parameters");
-        const auto& snapshotParams = snapshotParamsOrError.GetValue();
+        const auto& snapshotParams = snapshotParamsOrError.Value();
 
         ReplayChangelogs(targetVersion, snapshotParams.PrevRecordCount);
     } else {
@@ -317,7 +317,7 @@ void TLeaderRecovery::DoRun(TVersion targetVersion)
 
     auto latestSnapshotIdOrError = WaitFor(SnapshotStore->GetLatestSnapshotId(targetVersion.SegmentId));
     THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
-    int latestSnapshotId = latestSnapshotIdOrError.GetValue();
+    int latestSnapshotId = latestSnapshotIdOrError.Value();
 
     RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
 }

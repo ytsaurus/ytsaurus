@@ -261,7 +261,7 @@ void TInsertCommand::DoExecute()
     auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
     auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-    const auto& tableInfo = tableInfoOrError.GetValue();
+    const auto& tableInfo = tableInfoOrError.Value();
 
     // Parse input data.
     TBuildingTableConsumer consumer(
@@ -299,7 +299,7 @@ void TInsertCommand::DoExecute()
     startOptions.Type = ETransactionType::Tablet;
     auto transactionOrError = WaitFor(Context->GetClient()->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
-    auto transaction = transactionOrError.GetValue();
+    auto transaction = transactionOrError.Value();
 
     // Convert to non-owning.
     std::vector<TUnversionedRow> rows;
@@ -412,7 +412,7 @@ void TLookupCommand::DoExecute()
     auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
     auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-    const auto& tableInfo = tableInfoOrError.GetValue();
+    const auto& tableInfo = tableInfoOrError.Value();
     auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
 
     TLookupRowsOptions options;
@@ -431,7 +431,7 @@ void TLookupCommand::DoExecute()
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
     
-    auto rowset = lookupResult.GetValue();
+    auto rowset = lookupResult.Value();
     YCHECK(rowset->Rows().size() == 1);
     auto row = rowset->Rows()[0];
     if (row) {
@@ -481,7 +481,7 @@ void TDeleteCommand::DoExecute()
     startOptions.Type = ETransactionType::Tablet;
     auto transactionOrError = WaitFor(Context->GetClient()->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
-    auto transaction = transactionOrError.GetValue();
+    auto transaction = transactionOrError.Value();
 
     transaction->DeleteRow(Request->Path.GetPath(), Request->Key.Get());
 

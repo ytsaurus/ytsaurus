@@ -115,7 +115,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
             Tablet_->Schema(),
             Tablet_->KeyColumns()));
         THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
-        CachedMeta_ = cachedMetaOrError.GetValue();
+        CachedMeta_ = cachedMetaOrError.Value();
     }
 
     TReadLimit lowerLimit;

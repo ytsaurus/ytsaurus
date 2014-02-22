@@ -71,7 +71,7 @@ public:
         if (asyncResult) {
             auto result = asyncResult.Get();
             YCHECK(result.IsOK());
-            auto block = result.GetValue();
+            auto block = result.Value();
 
             LOG_DEBUG("Block cache hit (BlockId: %s)", ~ToString(id));
 

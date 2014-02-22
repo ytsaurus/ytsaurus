@@ -81,7 +81,7 @@ private:
                     context->Reply(result);
                     return;
                 }
-                auto operation = result.GetValue();
+                auto operation = result.Value();
                 auto id = operation->GetOperationId();
                 ToProto(response->mutable_operation_id(), id);
                 context->SetResponseInfo("OperationId: %s", ~ToString(id));

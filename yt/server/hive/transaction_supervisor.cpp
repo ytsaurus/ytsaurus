@@ -564,7 +564,7 @@ private:
             return;
         }
 
-        auto timestamp = timestampOrError.GetValue();
+        auto timestamp = timestampOrError.Value();
 
         if (commit->IsDistributed()) {
             TReqFinalizeDistributedCommit finalizeRequest;

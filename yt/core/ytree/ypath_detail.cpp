@@ -296,7 +296,7 @@ TErrorOr<TYsonString> TSupportsAttributes::DoGetAttributeFragment(
     if (!wholeYsonOrError.IsOK()) {
         return wholeYsonOrError;
     }
-    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.GetValue());
+    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.Value());
     try {
         return SyncYPathGet(node, path, TAttributeFilter::All);
     } catch (const std::exception& ex) {
@@ -373,7 +373,7 @@ void TSupportsAttributes::GetAttribute(
 {
     DoGetAttribute(path).Subscribe(BIND([=] (TErrorOr<TYsonString> ysonOrError) {
         if (ysonOrError.IsOK()) {
-            response->set_value(ysonOrError.GetValue().Data());
+            response->set_value(ysonOrError.Value().Data());
             context->Reply();
         } else {
             context->Reply(ysonOrError);
@@ -389,7 +389,7 @@ TErrorOr<TYsonString> TSupportsAttributes::DoListAttributeFragment(
         return wholeYsonOrError;
     }
 
-    auto node = ConvertToNode(wholeYsonOrError.GetValue());
+    auto node = ConvertToNode(wholeYsonOrError.Value());
 
     std::vector<Stroka> listedKeys;
     try {
@@ -472,7 +472,7 @@ void TSupportsAttributes::ListAttribute(
 {
     DoListAttribute(path).Subscribe(BIND([=] (TErrorOr<TYsonString> ysonOrError) {
         if (ysonOrError.IsOK()) {
-            response->set_keys(ysonOrError.GetValue().Data());
+            response->set_keys(ysonOrError.Value().Data());
             context->Reply();
         } else {
             context->Reply(ysonOrError);
@@ -487,7 +487,7 @@ bool TSupportsAttributes::DoExistsAttributeFragment(
     if (!wholeYsonOrError.IsOK()) {
         return false;
     }
-    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.GetValue());
+    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.Value());
     try {
         return SyncYPathExists(node, path);
     } catch (const std::exception&) {

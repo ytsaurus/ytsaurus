@@ -106,7 +106,7 @@ public:
     void OnBlocksRead(const TPartIndexList& indicesInPart, IAsyncReader::TReadResult readResult)
     {
         if (readResult.IsOK()) {
-            auto dataRefs = readResult.GetValue();
+            auto dataRefs = readResult.Value();
             for (int i = 0; i < dataRefs.size(); ++i) {
                 Result_[indicesInPart[i]] = dataRefs[i];
             }
@@ -207,7 +207,7 @@ private:
             BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TError {
                 RETURN_IF_ERROR(metaOrError);
 
-                auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.GetValue().extensions());
+                auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.Value().extensions());
                 PartInfos_ = FromProto<TPartInfo>(extension.part_infos());
 
                 // Check that part infos are correct.
@@ -318,8 +318,8 @@ private:
             return;
         }
 
-        YCHECK(readResult.GetValue().size() == 1);
-        auto block = readResult.GetValue().front();
+        YCHECK(readResult.Value().size() == 1);
+        auto block = readResult.Value().front();
 
         BlockIndex_ += 1;
         Blocks_.push_back(block);
@@ -564,7 +564,7 @@ TAsyncError TRepairReader::OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> r
 {
     RETURN_FUTURE_IF_ERROR(result, TError);
 
-    return BIND(&TRepairReader::Repair, MakeStrong(this), result.GetValue())
+    return BIND(&TRepairReader::Repair, MakeStrong(this), result.Value())
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
@@ -594,7 +594,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
 {
     RETURN_IF_ERROR(metaOrError);
     auto placementExt = GetProtoExtension<TErasurePlacementExt>(
-        metaOrError.GetValue().extensions());
+        metaOrError.Value().extensions());
 
     WindowCount_ = placementExt.parity_block_count();
     WindowSize_ = placementExt.parity_block_size();
@@ -718,7 +718,7 @@ private:
             auto blockOrError = WaitFor(Reader_->RepairNextBlock());
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
 
-            const auto& block = blockOrError.GetValue();
+            const auto& block = blockOrError.Value();
             RepairedDataSize_ += block.Data.Size();
 
             if (OnProgress_) {
@@ -739,7 +739,7 @@ private:
             auto reader = Readers_.front(); // an arbitrary one will do
             auto metaOrError = WaitFor(reader->AsyncGetChunkMeta());
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
-            meta = metaOrError.GetValue();
+            meta = metaOrError.Value();
         }
 
         // Close all writers.

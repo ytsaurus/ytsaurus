@@ -64,7 +64,7 @@ TErrorOr<TMutationResponse> TMutation::OnCommitted(TErrorOr<TMutationResponse> r
 {
     if (result.IsOK()) {
         if (OnSuccess_) {
-            OnSuccess_.Run(result.GetValue());
+            OnSuccess_.Run(result.Value());
         }
     } else {
         if (OnError_) {

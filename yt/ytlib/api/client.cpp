@@ -314,7 +314,7 @@ private:
         const auto& tableMountCache = Connection_->GetTableMountCache();
         auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(path));
         THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-        return tableInfoOrError.GetValue();
+        return tableInfoOrError.Value();
     }
 
     static TTabletInfoPtr GetTabletInfo(
@@ -1107,7 +1107,7 @@ TFuture<TErrorOr<ITransactionPtr>> TClient::StartTransaction(const TTransactionS
             if (!transactionOrError.IsOK()) {
                 return TError(transactionOrError);
             }
-            return TErrorOr<ITransactionPtr>(New<TTransaction>(this_, transactionOrError.GetValue()));
+            return TErrorOr<ITransactionPtr>(New<TTransaction>(this_, transactionOrError.Value()));
         }));
 }
 

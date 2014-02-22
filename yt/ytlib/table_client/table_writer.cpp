@@ -154,7 +154,7 @@ void TAsyncTableWriter::Open()
 
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
 
-    UploadTransaction = transactionOrError.GetValue();
+    UploadTransaction = transactionOrError.Value();
     ListenTransaction(UploadTransaction);
 
     LOG_INFO(

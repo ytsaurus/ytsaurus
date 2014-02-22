@@ -174,7 +174,7 @@ void TPrepareController::GetInitialSplits()
                     dataSplitOrError,
                     "Failed to get initial data split for table %s",
                     ~tableDescriptor.Path);
-                scanOp->DataSplit() = dataSplitOrError.GetValue();
+                scanOp->DataSplit() = dataSplitOrError.Value();
             }
         });
 }
