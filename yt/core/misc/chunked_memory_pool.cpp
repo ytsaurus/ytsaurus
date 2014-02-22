@@ -77,7 +77,7 @@ void TChunkedMemoryPool::AllocateChunk()
 TSharedRef TChunkedMemoryPool::AllocateLargeBlock(size_t size)
 {
     struct TChunkedMemoryPoolTag { };
-    auto block = TSharedRef::Allocate<TChunkedMemoryPoolTag>(size);
+    auto block = TSharedRef::Allocate<TChunkedMemoryPoolTag>(size, false);
     YCHECK((reinterpret_cast<intptr_t>(block.Begin()) & 7) == 0);
     LargeBlocks_.push_back(block);
     Capacity_ += size;
