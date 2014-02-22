@@ -220,7 +220,7 @@ private:
 
         LOG_DEBUG("Chunk meta received");
 
-        const auto& chunkMeta = result.GetValue();
+        const auto& chunkMeta = result.Value();
 
         if (chunkMeta.type() != EChunkType::Table) {
             auto error = TError("Invalid chunk type: expected %s, actual %s",
@@ -659,10 +659,10 @@ public:
         LOG_INFO("Chunk meta received");
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
-            result.GetValue().extensions());
+            result.Value().extensions());
         YCHECK(miscExt.row_count() > 0);
 
-        auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.GetValue().extensions());
+        auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
 
         YCHECK(channelsExt.items_size() == 1);
 

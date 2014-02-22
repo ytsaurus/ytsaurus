@@ -177,7 +177,7 @@ private:
             return;
         }
 
-        const auto& value = result.GetValue();
+        const auto& value = result.Value();
         Checksums[Owner->CellManager->GetSelfId()] = value.Checksum;
     }
 

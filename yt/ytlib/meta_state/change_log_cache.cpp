@@ -95,7 +95,7 @@ TCachedAsyncChangeLogPtr TChangeLogCache::Create(
         LOG_FATAL(ex, "Error creating changelog (ChangeLogId: %d)", id);
     }
 
-    return cookie.GetValue().Get().GetValue();
+    return cookie.GetValue().Get().Value();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

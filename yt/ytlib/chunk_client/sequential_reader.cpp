@@ -108,7 +108,7 @@ void TSequentialReader::OnGotBlocks(
         return;
     }
 
-    const auto& blocks = readResult.GetValue();
+    const auto& blocks = readResult.Value();
 
     LOG_DEBUG(
         "Got block group (FirstIndex: %d, BlockCount: %d)",
@@ -130,7 +130,7 @@ void TSequentialReader::DecompressBlock(
 {
     int globalIndex = firstSequenceIndex + blockIndex;
 
-    const auto& blocks = readResult.GetValue();
+    const auto& blocks = readResult.Value();
     const auto& block = blocks[blockIndex];
     auto data = Codec->Decompress(block);
     BlockWindow[globalIndex].Set(data);

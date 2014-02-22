@@ -123,7 +123,7 @@ TEST_F(TSnapshotTest, SnapshotStore)
 
     auto readerResult = store->GetReader(2);
     ASSERT_TRUE(readerResult.IsOK());
-    auto reader = readerResult.GetValue();
+    auto reader = readerResult.Value();
     reader->Open();
     EXPECT_EQ(1, reader->GetPrevRecordCount());
     EXPECT_EQ(TEpochId(), reader->GetEpoch());

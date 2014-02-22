@@ -370,7 +370,7 @@ public:
         context->SetRequestInfo("SnapshotId: %d", snapshotId);
 
         auto readerOrError = SnapshotStore->GetReader(snapshotId);
-        auto reader = readerOrError.GetValueOrThrow();
+        auto reader = readerOrError.ValueOrThrow();
         reader->Open();
 
         i64 length = reader->GetLength();
@@ -454,7 +454,7 @@ public:
             changeLogId);
 
         auto changelogOrError = ChangeLogCache->Get(changeLogId);
-        auto changeLog = changelogOrError.GetValueOrThrow();
+        auto changeLog = changelogOrError.ValueOrThrow();
 
         int recordCount = changeLog->GetRecordCount();
         response->set_record_count(recordCount);
@@ -481,7 +481,7 @@ public:
         YCHECK(recordCount >= 0);
 
         auto changelogOrError = ChangeLogCache->Get(changeLogId);
-        auto changelog = changelogOrError.GetValueOrThrow();
+        auto changelog = changelogOrError.ValueOrThrow();
 
         SwitchTo(IOQueue->GetInvoker());
         VERIFY_THREAD_AFFINITY(IOThread);
@@ -762,7 +762,7 @@ public:
             return;
         }
 
-        const auto& value = result.GetValue();
+        const auto& value = result.Value();
         response.set_checksum(value.Checksum);
         context->Reply();
     }
@@ -843,7 +843,7 @@ public:
             return;
         }
 
-        const auto& value = result.GetValue();
+        const auto& value = result.Value();
         auto& response = context->Response();
         response.set_snapshot_id(value.SnapshotId);
         context->Reply();

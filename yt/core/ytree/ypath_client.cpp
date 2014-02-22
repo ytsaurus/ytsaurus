@@ -318,7 +318,7 @@ TYsonString SyncYPathGet(
             attributeFilter,
             ignoreOpaque)
         .Get()
-        .GetValueOrThrow();
+        .ValueOrThrow();
 }
 
 bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)

@@ -230,7 +230,7 @@ TEST_F(TErasureMixture, ReaderTest)
         FOREACH (const auto& ref, dataRefs) {
             auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
             EXPECT_TRUE(result.IsOK());
-            auto resultRef = result.GetValueOrThrow().front();
+            auto resultRef = result.ValueOrThrow().front();
 
             EXPECT_EQ(ToString(ref), ToString(resultRef));
         }
@@ -243,7 +243,7 @@ TEST_F(TErasureMixture, ReaderTest)
         indices.push_back(3);
         auto result = erasureReader->AsyncReadBlocks(indices).Get();
         EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.GetValueOrThrow();
+        auto resultRef = result.ValueOrThrow();
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
         EXPECT_EQ(ToString(dataRefs[3]), ToString(resultRef[1]));
     }
@@ -300,7 +300,7 @@ TEST_F(TErasureMixture, RepairTest1)
     FOREACH (const auto& ref, dataRefs) {
         auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
         EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.GetValueOrThrow().front();
+        auto resultRef = result.ValueOrThrow().front();
 
         EXPECT_EQ(ToString(ref), ToString(resultRef));
     }
@@ -361,7 +361,7 @@ TEST_F(TErasureMixture, RepairTest2)
     FOREACH (const auto& ref, dataRefs) {
         auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
         EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.GetValueOrThrow().front();
+        auto resultRef = result.ValueOrThrow().front();
 
         EXPECT_EQ(ToString(ref), ToString(resultRef));
     }
@@ -392,7 +392,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
             auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, i)).Get();
             EXPECT_TRUE(result.IsOK());
 
-            auto resultRef = result.GetValue().front();
+            auto resultRef = result.Value().front();
             EXPECT_EQ(ToString(dataRefs[i]), ToString(resultRef));
         }
     }
@@ -435,7 +435,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
             auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, i)).Get();
             EXPECT_TRUE(result.IsOK());
 
-            auto resultRef = result.GetValue().front();
+            auto resultRef = result.Value().front();
             EXPECT_EQ(dataRefs[i].Size(), resultRef.Size());
             EXPECT_EQ(ToString(dataRefs[i]), ToString(resultRef));
         }
