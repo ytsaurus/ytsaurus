@@ -83,7 +83,6 @@ void AddChildStatistics(
 
 void ResetChunkListStatistics(TChunkList* chunkList)
 {
-    chunkList->Children().clear();
     chunkList->RowCountSums().clear();
     chunkList->ChunkCountSums().clear();
     chunkList->Statistics() = TChunkTreeStatistics();
