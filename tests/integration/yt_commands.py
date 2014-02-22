@@ -144,15 +144,11 @@ def exists(path, **kwargs):
 
 def read(path, **kwargs):
     kwargs["path"] = path
-    has_output_format = "output_format" in kwargs
-    if not has_output_format:
+    if "output_format" not in kwargs:
         kwargs["output_format"] = yson.loads("<format=text>yson")
     output = StringIO()
     command('read', kwargs, output_stream=output)
-    if not has_output_format:
-        return yson.loads(output.getvalue(), yson_type="list_fragment")
-    else:
-        return output.getvalue()
+    return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
 def select(query, **kwargs):
     kwargs["query"] = query
