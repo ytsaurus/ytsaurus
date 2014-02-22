@@ -1249,13 +1249,12 @@ private:
             auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
 
-            LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %s, TabletId: %s, CellId: %s, Force: %s)",
-                ~ToString(table->GetId()),
-                ~ToString(tablet->GetId()),
-                ~ToString(cell->GetId()),
-                ~FormatBool(force));
-
             if (tablet->GetState() == ETabletState::Mounted) {
+                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
+                    ~ToString(table->GetId()),
+                    ~ToString(tablet->GetId()),
+                    ~ToString(cell->GetId()));
+
                 tablet->SetState(ETabletState::Unmounting);
 
                 auto hiveManager = Bootstrap->GetHiveManager();
