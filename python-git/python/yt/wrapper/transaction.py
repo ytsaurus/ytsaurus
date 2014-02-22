@@ -84,7 +84,7 @@ class PingTransaction(Thread):
         self.transaction = transaction
         self.delay = delay
         self.is_running = True
-        self.step = 1.0
+        self.step = config.TRANSACTION_PING_BACKOFF / 1000.0
 
     def __enter__(self):
         self.start()
@@ -95,7 +95,7 @@ class PingTransaction(Thread):
 
     def stop(self):
         self.is_running = False
-        timeout = min(config.http.CONNECTION_TIMEOUT, config.http.HTTP_RETRIES_COUNT * config.http.HTTP_RETRY_TIMEOUT)
+        timeout = config.http.REQUEST_TIMEOUT
         # timeout should be enough to execute ping
         self.join(timeout + 2 * self.step)
         if self.is_alive():
