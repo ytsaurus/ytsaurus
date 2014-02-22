@@ -1220,7 +1220,7 @@ private:
                 cells.begin(),
                 cells.end(),
                 [] (const TTabletCell* cell) {
-                    return cell->GetHealth() != ETabletCellHealth::Good;
+                    return cell->IsAlive() && cell->GetHealth() != ETabletCellHealth::Good;
                 }),
             cells.end());
         
