@@ -232,7 +232,7 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
             config['masters']['addresses'] = self._master_addresses[master_name]
-            config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
+            config['timestamp_provider']['addresses'] = config['masters']['addresses']
             config['changelogs']['path'] = \
                 os.path.join(current, 'changelogs')
             config['snapshots']['path'] = \
@@ -295,7 +295,7 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
             config['masters']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['timestamp_provider']['addresses'] = config['masters']['addresses']
             config['data_node']['cache_location']['path'] = \
                 os.path.join(current, 'chunk_cache')
             config['data_node']['store_locations'].append(
@@ -382,7 +382,7 @@ class YTEnv(object):
 
             config = configs.get_scheduler_config()
             config['masters']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
-            config['timestamp_provider']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
+            config['timestamp_provider']['addresses'] = config['masters']['addresses']
             init_logging(config['logging'], current, 'scheduler-' + str(i))
 
             config['rpc_port'] = self._ports[scheduler_name][2 * i]
@@ -426,6 +426,7 @@ class YTEnv(object):
     def _prepare_driver(self, driver_name, set_driver):
         config = configs.get_driver_config()
         config['masters']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
+        config['timestamp_provider']['addresses'] = config['masters']['addresses']
         config_path = os.path.join(self.path_to_run, driver_name + '_config.yson')
         write_config(config, config_path)
 
@@ -444,7 +445,7 @@ class YTEnv(object):
 
         driver_config = configs.get_driver_config()
         driver_config['masters']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        driver_config['timestamp_provider']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
+        driver_config['timestamp_provider']['addresses'] = config['masters']['addresses']
         init_logging(driver_config['logging'], current, 'node')
 
         proxy_config = configs.get_proxy_config()
