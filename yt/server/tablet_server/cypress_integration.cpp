@@ -43,6 +43,16 @@ public:
             trunkNode)
     { }
 
+    virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
+    {
+        const auto& verb = context->GetVerb();
+        if (verb == "Remove") {
+            return TResolveResult::There(GetTargetProxy(), path);
+        } else {
+            return TMapNodeProxy::ResolveSelf(path, context);
+        }
+    }
+
     virtual IYPathService::TResolveResult ResolveAttributes(
         const TYPath& path,
         IServiceContextPtr /*context*/) override
