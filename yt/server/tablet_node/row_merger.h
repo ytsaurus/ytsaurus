@@ -28,7 +28,7 @@ public:
 
     void AddPartialRow(NVersionedTableClient::TVersionedRow row);
 
-    NVersionedTableClient::TUnversionedRow BuildMergedRow(bool skipNulls = false);
+    NVersionedTableClient::TUnversionedRow BuildMergedRow();
 
 private:
     TChunkedMemoryPool* Pool_;
@@ -40,7 +40,8 @@ private:
     SmallVector<bool, NVersionedTableClient::TypicalColumnCount> ColumnFlags_;
     SmallVector<int, NVersionedTableClient::TypicalColumnCount> ColumnIds_;
     
-    TTimestamp CurrentTimestamp_;
+    TTimestamp LatestWrite_;
+    TTimestamp LatestDelete_;
 
 };
 

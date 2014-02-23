@@ -40,9 +40,13 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 
 void TUnversionedRowMerger::Start(const TUnversionedValue* keyBegin)
 {
-    CurrentTimestamp_ = NullTimestamp | TombstoneTimestampMask;
+    LatestWrite_ = NullTimestamp;
+    LatestDelete_ = NullTimestamp;
     for (int id = 0; id < KeyColumnCount_; ++id) {
-        MergedValues_[id] = MakeVersionedValue(keyBegin[id], NullTimestamp);
+        MergedValues_[id] = MakeVersionedValue(keyBegin[id], MaxTimestamp);
+    }
+    for (int id = KeyColumnCount_; id < SchemaColumnCount_; ++id) {
+        MergedValues_[id] = MakeVersionedSentinelValue(EValueType::Null, NullTimestamp, id);
     }
 }
 
@@ -52,48 +56,46 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
     YASSERT(row.GetTimestampCount() == 1);
 
     auto rowTimestamp = row.BeginTimestamps()[0];
-    if ((rowTimestamp & TimestampValueMask) < (CurrentTimestamp_ & TimestampValueMask))
+    auto rowTimestampValue = rowTimestamp & TimestampValueMask;
+    
+    // Fast lane.
+    if (rowTimestampValue < LatestDelete_)
         return;
 
     if (rowTimestamp & TombstoneTimestampMask) {
-        CurrentTimestamp_ = rowTimestamp;
+        LatestDelete_ = std::max(LatestDelete_, rowTimestampValue);
     } else {
-        if ((CurrentTimestamp_ & TombstoneTimestampMask) || !(rowTimestamp & IncrementalTimestampMask)) {
-            CurrentTimestamp_ = rowTimestamp & TimestampValueMask;
-            for (int id = KeyColumnCount_; id < SchemaColumnCount_; ++id) {
-                MergedValues_[id] = MakeVersionedSentinelValue(EValueType::Null, CurrentTimestamp_);
-            }
+        LatestWrite_ = std::max(LatestWrite_, rowTimestampValue);
+
+        if (!(rowTimestamp & IncrementalTimestampMask)) {
+            LatestDelete_ = std::max(LatestDelete_, rowTimestampValue);
         }
 
         const auto* rowValues = row.BeginValues();
         for (int index = 0; index < row.GetValueCount(); ++index) {
             const auto& value = rowValues[index];
             int id = value.Id;
-            if (ColumnFlags_[id] && MergedValues_[id].Timestamp <= value.Timestamp) {
+            if (ColumnFlags_[id] && MergedValues_[id].Timestamp < value.Timestamp) {
                 MergedValues_[id] = value;
             }
         }
     }
 }
 
-TUnversionedRow TUnversionedRowMerger::BuildMergedRow(bool skipNulls)
+TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 {
-    if (CurrentTimestamp_ & TombstoneTimestampMask) {
+    if (LatestWrite_ < LatestDelete_) {
         return TUnversionedRow();
     }
 
     auto row = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
     auto* outputValue = row.Begin();
     for (int id : ColumnIds_) {
-        const auto& mergedValue = MergedValues_[id];
-        if (!skipNulls || mergedValue.Type != EValueType::Null) {
-            *outputValue++ = mergedValue;
+        auto& mergedValue = MergedValues_[id];
+        if (mergedValue.Timestamp < LatestDelete_) {
+            mergedValue.Type = EValueType::Null;
         }
-    }
-
-    if (skipNulls) {
-        // Adjust row length.
-        row.SetCount(outputValue - row.Begin());
+        *outputValue++ = mergedValue;
     }
 
     return row;

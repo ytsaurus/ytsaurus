@@ -117,8 +117,17 @@ void TStoreManager::LookupRows(
 
     reader->ReadUnversionedRowset(&PooledKeys_);
 
+    TUnversionedRowMerger rowMerger(
+        &LookupPool_,
+        schemaColumnCount,
+        keyColumnCount,
+        columnFilter);
+
+    TKeyComparer keyComparer(keyColumnCount);
+
     UnversionedPooledRows_.clear();
-    
+    LookupPool_.Clear();
+
     for (auto pooledKey : PooledKeys_) {
         auto key = TOwningKey(pooledKey);
         auto keySuccessor = GetKeySuccessor(key.Get());
@@ -155,14 +164,6 @@ void TStoreManager::LookupRows(
             auto result = WaitFor(openCollector->Complete());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
-
-        TKeyComparer keyComparer(keyColumnCount);
-
-        TUnversionedRowMerger rowMerger(
-            &LookupPool_,
-            schemaColumnCount,
-            keyColumnCount,
-            columnFilter);
 
         rowMerger.Start(key.Begin());
 
