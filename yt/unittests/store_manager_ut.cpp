@@ -74,7 +74,7 @@ protected:
             writer.WriteColumnFilter(TColumnFilter());
             std::vector<TUnversionedRow> keys(1, key.Get());
             writer.WriteUnversionedRowset(keys);
-            request = writer.Finish();
+            request = writer.GetData();
         }
         
         Stroka response;
@@ -82,7 +82,7 @@ protected:
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
             StoreManager->LookupRows(timestamp, &reader, &writer);
-            response = writer.Finish();
+            response = writer.GetData();
         }
 
         {

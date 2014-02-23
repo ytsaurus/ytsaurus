@@ -61,7 +61,7 @@ private:
         auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
-        response->set_encoded_response(protocolWriter.Finish());
+        response->set_encoded_response(protocolWriter.GetData());
         context->Reply();
     }
 

@@ -460,13 +460,14 @@ private:
             writer.WriteCommand(EProtocolCommand::LookupRows);
             writer.WriteColumnFilter(options.ColumnFilter);
             writer.WriteUnversionedRowset(subrequest.Keys);
+            writer.WriteCommand(EProtocolCommand::End);
 
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
             TTabletServiceProxy proxy(channel);
             auto req = proxy.Read();
             ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
             req->set_timestamp(options.Timestamp);
-            req->set_encoded_request(writer.Finish());
+            req->set_encoded_request(writer.GetData());
          
             subrequest.AsyncResponse = req->Invoke();
         }
@@ -1133,7 +1134,9 @@ private:
 
         for (const auto& pair : TabletToWriter_) {
             const auto& tabletInfo = pair.first;
+            
             auto* writer = pair.second.get();
+            writer->WriteCommand(EProtocolCommand::End);
 
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
 
@@ -1141,7 +1144,7 @@ private:
             auto writeReq = tabletProxy.Write();
             ToProto(writeReq->mutable_transaction_id(), Transaction_->GetId());
             ToProto(writeReq->mutable_tablet_id(), tabletInfo->TabletId);
-            writeReq->set_encoded_request(writer->Finish());
+            writeReq->set_encoded_request(writer->GetData());
 
             writeCollector->Collect(
                 writeReq->Invoke().Apply(BIND([] (TTabletServiceProxy::TRspWritePtr rsp) {

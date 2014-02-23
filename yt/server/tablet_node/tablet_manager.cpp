@@ -179,7 +179,7 @@ public:
             &writer))
         { }
 
-        *encodedResponse = writer.Finish();
+        *encodedResponse = writer.GetData();
     }
 
     void Write(

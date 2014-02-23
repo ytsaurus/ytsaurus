@@ -125,9 +125,8 @@ public:
         }
     }
 
-    Stroka Finish()
+    Stroka GetData() const
     {
-        WriteCommand(EProtocolCommand::End);
         return Data_;
     }
 
@@ -223,9 +222,9 @@ TWireProtocolWriter::TWireProtocolWriter()
 TWireProtocolWriter::~TWireProtocolWriter()
 { }
 
-Stroka TWireProtocolWriter::Finish()
+Stroka TWireProtocolWriter::GetData() const
 {
-    return Impl_->Finish();
+    return Impl_->GetData();
 }
 
 void TWireProtocolWriter::WriteCommand(EProtocolCommand command)

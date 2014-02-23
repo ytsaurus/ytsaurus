@@ -72,7 +72,7 @@ public:
     void WriteUnversionedRowset(const std::vector<NVersionedTableClient::TUnversionedRow>& rowset);
     NVersionedTableClient::ISchemedWriterPtr CreateSchemedRowsetWriter();
 
-    Stroka Finish();
+    Stroka GetData() const;
 
 private:
     class TImpl;
