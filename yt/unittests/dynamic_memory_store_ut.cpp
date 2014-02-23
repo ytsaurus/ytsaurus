@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <ytlib/api/transaction.h>
-
 #include <ytlib/new_table_client/versioned_reader.h>
 
 namespace NYT {
@@ -11,7 +9,6 @@ namespace {
 
 using namespace NTransactionClient;
 using namespace NConcurrency;
-using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

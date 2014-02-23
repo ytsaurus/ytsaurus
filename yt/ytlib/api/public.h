@@ -11,8 +11,21 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TColumnFilter;
+struct TTransactionStartOptions;
 struct TLookupRowsOptions;
+struct TSelectRowsOptions;
+struct TGetNodeOptions;
+struct TSetNodeOptions;
+struct TListNodesOptions;
+struct TCreateNodeOptions;
+struct TLockNodeOptions;
+struct TCopyNodeOptions;
+struct TMoveNodeOptions;
+struct TLinkNodeOptions;
+struct TNodeExistsOptions;
+struct TCreateObjectOptions;
+struct TFileReaderOptions;
+struct TFileWriterOptions;
 
 DECLARE_REFCOUNTED_STRUCT(IRowset)
 

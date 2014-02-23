@@ -17,15 +17,12 @@
 #include <ytlib/new_table_client/schemed_reader.h>
 #include <ytlib/new_table_client/versioned_reader.h>
 
-#include <ytlib/api/transaction.h>
-
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
-using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

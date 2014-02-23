@@ -18,8 +18,6 @@
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 
-#include <ytlib/api/transaction.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -27,7 +25,6 @@ using namespace NVersionedTableClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NApi;
 
 using NChunkClient::TReadLimit;
 
@@ -381,7 +378,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
-    const NApi::TColumnFilter& columnFilter,
+    const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
     switch (chunkMeta->ChunkMeta().version()) {

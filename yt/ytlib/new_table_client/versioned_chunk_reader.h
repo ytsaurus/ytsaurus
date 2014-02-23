@@ -17,7 +17,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TReadLimit lowerLimit,
     NChunkClient::TReadLimit upperLimit,
-    const NApi::TColumnFilter& columnFilter,
+    const TColumnFilter& columnFilter,
     TTimestamp timestamp = LastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

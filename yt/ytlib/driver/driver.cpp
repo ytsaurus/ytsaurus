@@ -48,8 +48,8 @@ using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NHive;
-using namespace NApi;
 using namespace NTabletClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

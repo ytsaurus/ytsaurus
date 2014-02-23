@@ -36,7 +36,6 @@ using namespace NVersionedTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NApi;
 
 using NChunkClient::TReadLimit;
 

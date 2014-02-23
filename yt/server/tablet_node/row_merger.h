@@ -22,7 +22,7 @@ public:
         TChunkedMemoryPool* pool,
         int schemaColumnCount,
         int keyColumnCount,
-        const NApi::TColumnFilter& columnFilter);
+        const NVersionedTableClient::TColumnFilter& columnFilter);
 
     void Start(const NVersionedTableClient::TUnversionedValue* keyBegin);
 

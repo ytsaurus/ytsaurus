@@ -7,7 +7,6 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NScheduler;
-using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

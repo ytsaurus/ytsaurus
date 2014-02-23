@@ -53,23 +53,13 @@ struct TTransactionStartOptions
     NYTree::IAttributeDictionary* Attributes;
 };
 
-struct TColumnFilter
-{
-    TColumnFilter()
-        : All(true)
-    { }
-
-    bool All;
-    SmallVector<int, NVersionedTableClient::TypicalColumnCount> Indexes;
-};
-
 struct TLookupRowsOptions
 {
     TLookupRowsOptions()
         : Timestamp(NTransactionClient::LastCommittedTimestamp)
     { }
 
-    TColumnFilter ColumnFilter;
+    NVersionedTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp;
 };

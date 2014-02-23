@@ -32,6 +32,8 @@ using NTableClient::TKeyColumns;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int TypicalColumnCount = 64;
+
 DECLARE_ENUM(EValueType,
     ((Min)         (0))
     ((TheBottom)   (1))
@@ -48,17 +50,21 @@ DECLARE_ENUM(ETableChunkFormat,
     ((SimpleVersioned)    (1))
 );
 
-static const int TypicalColumnCount = 64;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TColumnIdMapping
 {
     int ChunkSchemaIndex;
     int ReaderSchemaIndex;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+struct TColumnFilter
+{
+    TColumnFilter()
+        : All(true)
+    { }
+
+    bool All;
+    SmallVector<int, TypicalColumnCount> Indexes;
+};
 
 struct TUnversionedValue;
 struct TVersionedValue;

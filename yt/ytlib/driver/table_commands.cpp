@@ -43,8 +43,6 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
-#include <ytlib/api/transaction.h>
-
 namespace NYT {
 namespace NDriver {
 

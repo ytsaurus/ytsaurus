@@ -75,7 +75,7 @@ public:
         NVersionedTableClient::TOwningKey lowerKey,
         NVersionedTableClient::TOwningKey upperKey,
         TTimestamp timestamp,
-        const NApi::TColumnFilter& columnFilter) override;
+        const NVersionedTableClient::TColumnFilter& columnFilter) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;

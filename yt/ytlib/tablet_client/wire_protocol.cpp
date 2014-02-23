@@ -11,8 +11,6 @@
 #include <ytlib/new_table_client/schemed_writer.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
-#include <ytlib/api/transaction.h>
-
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
@@ -20,7 +18,6 @@ namespace NYT {
 namespace NTabletClient {
 
 using namespace NVersionedTableClient;
-using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -37,8 +37,6 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/api/transaction.h>
-
 #include <server/tablet_server/tablet_manager.pb.h>
 
 #include <server/tablet_node/tablet_manager.pb.h>
@@ -58,7 +56,6 @@ using namespace NTransactionClient;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NApi;
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;

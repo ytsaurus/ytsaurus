@@ -24,8 +24,6 @@
 
 #include <ytlib/tablet_client/config.h>
 
-#include <ytlib/api/transaction.h>
-
 namespace NYT {
 namespace NTabletNode {
 
@@ -36,7 +34,6 @@ using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
-using namespace NApi;
 
 using NVersionedTableClient::TKey;
 

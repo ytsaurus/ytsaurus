@@ -1,14 +1,11 @@
 #include "stdafx.h"
 #include "row_merger.h"
 
-#include <ytlib/api/transaction.h>
-
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
-using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,8 +17,6 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/api/transaction.h>
-
 #include <core/compression/public.h>
 
 namespace NYT {
@@ -27,7 +25,6 @@ namespace {
 
 using namespace NChunkClient;
 using namespace NTransactionClient;
-using NApi::TColumnFilter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

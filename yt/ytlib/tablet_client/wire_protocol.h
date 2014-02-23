@@ -61,7 +61,7 @@ public:
 
     void WriteCommand(EProtocolCommand command);
 
-    void WriteColumnFilter(const NApi::TColumnFilter& filter);
+    void WriteColumnFilter(const NVersionedTableClient::TColumnFilter& filter);
 
     void WriteTableSchema(const NVersionedTableClient::TTableSchema& schema);
 
@@ -92,7 +92,7 @@ public:
 
     EProtocolCommand ReadCommand();
     
-    NApi::TColumnFilter ReadColumnFilter();
+    NVersionedTableClient::TColumnFilter ReadColumnFilter();
 
     NVersionedTableClient::TTableSchema ReadTableSchema();
 

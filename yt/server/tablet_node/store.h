@@ -45,7 +45,7 @@ struct IStore
         NVersionedTableClient::TOwningKey lowerKey,
         NVersionedTableClient::TOwningKey upperKey,
         TTimestamp timestamp,
-        const NApi::TColumnFilter& columnFilter) = 0;
+        const NVersionedTableClient::TColumnFilter& columnFilter) = 0;
 
     virtual void Save(TSaveContext& context) const = 0;
     virtual void Load(TLoadContext& context) = 0;

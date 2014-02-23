@@ -33,15 +33,12 @@
 #include <yt/server/tablet_node/transaction.h>
 #include <yt/server/tablet_node/dynamic_memory_store.h>
 
-#include <ytlib/api/transaction.h>
-
 namespace NYT {
 namespace NTabletNode {
 namespace {
 
 using namespace NTabletClient;
 using namespace NVersionedTableClient;
-using namespace NApi;
 using namespace NYson;
 using namespace NYTree;
 
