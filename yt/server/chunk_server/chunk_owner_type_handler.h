@@ -4,6 +4,7 @@
 #include "chunk_list.h"
 
 #include <core/misc/property.h>
+
 #include <core/erasure/public.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -143,7 +144,7 @@ protected:
             ~ToString(branchedUpdateMode),
             branchedNode->GetReplicationFactor(),
             ~ToString(originatingNode->GetChunkList()->GetId()),
-            ~FormatEnum(originatingNode->GetUpdateMode()));
+            ~ToString(originatingNode->GetUpdateMode()));
     }
 
     void MergeChunkLists(TChunkOwner* originatingNode, TChunkOwner* branchedNode)
