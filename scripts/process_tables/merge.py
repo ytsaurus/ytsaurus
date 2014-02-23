@@ -73,6 +73,8 @@ def merge(table):
                     yt.lock(table)
                     if yt.get_attribute(table, "revision") == revision:
                         yt.run_merge(temp_table, table, mode=mode)
+                    else:
+                        logger.info("Table %s has changed while merge", table)
         finally:
             yt.remove(temp_table, force=True)
 
