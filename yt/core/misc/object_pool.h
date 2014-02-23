@@ -60,7 +60,7 @@ TObjectPool<T>& ObjectPool();
  *
  * |GetMaxLifetime| method is called to determine the maximum amount of
  * time a pooled instance is allowed to live (plus a random duration not
- * in the range from 0 to|GetMaxLifetimeSplay|).
+ * in the range from 0 to |GetMaxLifetimeSplay|).
  */
 template <class T, class = void>
 struct TPooledObjectTraits
