@@ -17,7 +17,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TFuture<void> PresetResult = MakePromise();
+static const auto PresetResult = MakeFuture();
 
 class TLimitedThroughputThrottler
     : public IThroughputThrottler

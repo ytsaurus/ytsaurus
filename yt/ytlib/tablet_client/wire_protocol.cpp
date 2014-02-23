@@ -25,7 +25,7 @@ static const ui32 CurrentProtocolVersion = 1;
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
 
-static auto PresetResult = MakeFuture(TError());
+static const auto PresetResult = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 

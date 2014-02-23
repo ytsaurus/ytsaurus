@@ -8,7 +8,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TFuture<void> PresetResult = MakePromise();
+static const auto PresetResult = MakeFuture();
 
 TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
