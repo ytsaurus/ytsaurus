@@ -398,6 +398,7 @@ struct IClient
     //! Returns a async flag indicating completion.
     virtual TFuture<void> Terminate() = 0;
 
+
     // Tables
     virtual TFuture<TErrorOr<NTabletClient::TTableMountInfoPtr>> GetTableInfo(
         const NYPath::TYPath& path,
