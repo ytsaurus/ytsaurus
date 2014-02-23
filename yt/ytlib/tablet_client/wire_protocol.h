@@ -21,15 +21,15 @@ DECLARE_ENUM(EProtocolCommand,
 
     // Read commands:
     
-    ((LookupRow)(1))
-    // Finds a row with a given key and fetches its components.
+    ((LookupRows)(1))
+    // Finds rows with given keys and fetches their components.
     //
     // Input:
-    //   * Key
     //   * Column filter
+    //   * Unversioned rowset containing keys
     //
     // Output:
-    //   * Unversioned rowset containing 0 or 1 rows
+    //   * Unversioned rowset containing rows (whose size matches the number of requested keys)
 
     // Write commands:
 

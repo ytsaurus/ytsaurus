@@ -71,8 +71,9 @@ protected:
         Stroka request;
         {
             TWireProtocolWriter writer;
-            writer.WriteUnversionedRow(key.Get());
             writer.WriteColumnFilter(TColumnFilter());
+            std::vector<TUnversionedRow> keys(1, key.Get());
+            writer.WriteUnversionedRowset(keys);
             request = writer.Finish();
         }
         
@@ -80,7 +81,7 @@ protected:
         {
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
-            StoreManager->LookupRow(timestamp, &reader, &writer);
+            StoreManager->LookupRows(timestamp, &reader, &writer);
             response = writer.Finish();
         }
 
@@ -88,7 +89,8 @@ protected:
             TWireProtocolReader reader(response);
             std::vector<TUnversionedRow> rows;
             reader.ReadUnversionedRowset(&rows);
-            return rows.empty() ? TUnversionedOwningRow() : TUnversionedOwningRow(rows[0]);
+            EXPECT_EQ(1, rows.size());
+            return TUnversionedOwningRow(rows[0]);
         }
     }
 

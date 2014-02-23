@@ -19,10 +19,10 @@ class TRowset
 {
 public:
     TRowset(
-        std::unique_ptr<TWireProtocolReader> reader,
+        std::vector<std::unique_ptr<TWireProtocolReader>> readers,
         const TTableSchema& schema,
         std::vector<TUnversionedRow> rows)
-        : Reader_(std::move(reader))
+        : Readers_(std::move(readers))
         , Schema_(schema)
         , Rows_(std::move(rows))
     { }
@@ -38,21 +38,19 @@ public:
     }
 
 private:
-    std::unique_ptr<TWireProtocolReader> Reader_;
+    std::vector<std::unique_ptr<TWireProtocolReader>> Readers_;
     TTableSchema Schema_;
     std::vector<TUnversionedRow> Rows_;
 
 };
 
 IRowsetPtr CreateRowset(
-    std::unique_ptr<TWireProtocolReader> reader,
+    std::vector<std::unique_ptr<NTabletClient::TWireProtocolReader>> readers,
     const TTableSchema& schema,
     std::vector<TUnversionedRow> rows)
 {   
-    YCHECK(reader);
-
     return New<TRowset>(
-        std::move(reader),
+        std::move(readers),
         schema,
         std::move(rows));
 }

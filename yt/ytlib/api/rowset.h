@@ -21,7 +21,7 @@ struct IRowset
 DEFINE_REFCOUNTED_TYPE(IRowset)
 
 IRowsetPtr CreateRowset(
-    std::unique_ptr<NTabletClient::TWireProtocolReader> reader,
+    std::vector<std::unique_ptr<NTabletClient::TWireProtocolReader>> readers,
     const NVersionedTableClient::TTableSchema& schema,
     std::vector<NVersionedTableClient::TUnversionedRow> rows);
 

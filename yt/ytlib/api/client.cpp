@@ -151,11 +151,17 @@ public:
             DROP_BRACES args)); \
     }
 
-    IMPLEMENT_METHOD(IRowsetPtr, LookupRow, (
+    virtual TFuture<TErrorOr<IRowsetPtr>> LookupRow(
         const TYPath& path,
         NVersionedTableClient::TKey key,
-        const TLookupRowsOptions& options),
-        (path, key, options))
+        const TLookupRowsOptions& options) override
+    {
+        return LookupRows(
+            path,
+            std::vector<NVersionedTableClient::TKey>(1, key),
+            options);
+    }
+    
     IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
         const TYPath& path,
         const std::vector<NVersionedTableClient::TKey>& keys,
@@ -381,52 +387,82 @@ private:
     }
 
 
-    IRowsetPtr DoLookupRow(
-        const TYPath& path,
-        NVersionedTableClient::TKey key,
-        TLookupRowsOptions options)
-    {
-        auto tableInfo = GetTableMountInfo(path);
-        auto tabletInfo = GetTabletInfo(tableInfo, path, key);
-
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
-
-        TTabletServiceProxy proxy(channel);
-        auto req = proxy.Read();
-
-        ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
-        req->set_timestamp(options.Timestamp);
-
-        TWireProtocolWriter writer;
-        writer.WriteCommand(EProtocolCommand::LookupRow);
-        writer.WriteUnversionedRow(key);
-        writer.WriteColumnFilter(options.ColumnFilter);
-        req->set_encoded_request(writer.Finish());
-
-        auto rsp = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-        std::unique_ptr<TWireProtocolReader> reader(new TWireProtocolReader(rsp->encoded_response()));
-        std::vector<TUnversionedRow> rows;
-        reader->ReadUnversionedRowset(&rows);
-
-        if (rows.empty()) {
-            rows.push_back(TUnversionedRow());
-        }
-
-        return CreateRowset(
-            std::move(reader),
-            tableInfo->Schema,
-            std::move(rows));
-    }
-
     IRowsetPtr DoLookupRows(
         const TYPath& path,
         const std::vector<NVersionedTableClient::TKey>& keys,
-        TLookupRowsOptions options)
+        const TLookupRowsOptions& options)
     {
-        YUNIMPLEMENTED();
+        struct TSubrequest
+        {
+            std::vector<NVersionedTableClient::TKey> Keys;
+            std::vector<int> Indexes;
+
+            TTabletServiceProxy::TInvRead AsyncResponse;
+        };
+
+        yhash_map<TTabletInfoPtr, TSubrequest> subrequests;
+
+        auto tableInfo = GetTableMountInfo(path);
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+
+        for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
+            auto key = keys[index];
+            auto tabletInfo = GetTabletInfo(tableInfo, path, key);
+            auto it = subrequests.find(tabletInfo);
+            if (it == subrequests.end()) {
+                it = subrequests.insert(std::make_pair(tabletInfo, TSubrequest())).first;
+            }
+            auto& subrequest = it->second;
+            subrequest.Keys.push_back(key);
+            subrequest.Indexes.push_back(index);
+        }
+
+        for (auto& subrequestPair : subrequests) {
+            const auto& tabletInfo = subrequestPair.first;
+            auto& subrequest = subrequestPair.second;
+
+            TWireProtocolWriter writer;
+            writer.WriteCommand(EProtocolCommand::LookupRows);
+            writer.WriteColumnFilter(options.ColumnFilter);
+            writer.WriteUnversionedRowset(subrequest.Keys);
+
+            auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
+            TTabletServiceProxy proxy(channel);
+            auto req = proxy.Read();
+            ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
+            req->set_timestamp(options.Timestamp);
+            req->set_encoded_request(writer.Finish());
+         
+            subrequest.AsyncResponse = req->Invoke();
+        }
+
+        std::vector<TUnversionedRow> mergedRows;
+        mergedRows.resize(keys.size());
+        
+        std::vector<TUnversionedRow> partialRows;
+        partialRows.reserve(keys.size());
+
+        std::vector<std::unique_ptr<TWireProtocolReader>> readers;
+
+        for (const auto& subrequestPair : subrequests) {
+            const auto& subrequest = subrequestPair.second;
+            auto rsp = WaitFor(subrequest.AsyncResponse);
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+            auto reader = std::make_unique<TWireProtocolReader>(rsp->encoded_response());
+            reader->ReadUnversionedRowset(&partialRows);
+
+            for (int index = 0; index < static_cast<int>(partialRows.size()); ++index) {
+                mergedRows[subrequest.Indexes[index]] = partialRows[index];
+            }
+
+            readers.push_back(std::move(reader));
+        }
+
+        return CreateRowset(
+            std::move(readers),
+            tableInfo->Schema,
+            std::move(mergedRows));
     }
 
     void DoSelectRows(

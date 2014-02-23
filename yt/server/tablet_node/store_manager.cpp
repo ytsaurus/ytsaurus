@@ -90,12 +90,11 @@ bool TStoreManager::HasUnflushedStores() const
     return false;
 }
 
-void TStoreManager::LookupRow(
+void TStoreManager::LookupRows(
     TTimestamp timestamp,
     NTabletClient::TWireProtocolReader* reader,
     NTabletClient::TWireProtocolWriter* writer)
 {
-    auto key = TOwningKey(reader->ReadUnversionedRow());
     auto columnFilter = reader->ReadColumnFilter();
 
     int keyColumnCount = Tablet_->GetKeyColumnCount();
@@ -116,72 +115,77 @@ void TStoreManager::LookupRow(
         }
     }
 
-    auto keySuccessor = GetKeySuccessor(key.Get());
+    reader->ReadUnversionedRowset(&PooledKeys_);
 
-    // Construct readers.
-    SmallVector<IVersionedReaderPtr, TypicalStoreCount> rowReaders;
-    for (const auto& pair : Tablet_->Stores()) {
-        const auto& store = pair.second;
-        auto rowReader = store->CreateReader(
-            key,
-            keySuccessor,
-            timestamp,
-            columnFilter);
-        if (rowReader) {
-            rowReaders.push_back(std::move(rowReader));
-        }
-    }
+    UnversionedPooledRows_.clear();
+    
+    for (auto pooledKey : PooledKeys_) {
+        auto key = TOwningKey(pooledKey);
+        auto keySuccessor = GetKeySuccessor(key.Get());
 
-    // Open readers.
-    TIntrusivePtr<TParallelCollector<void>> openCollector;
-    for (const auto& reader : rowReaders) {
-        auto asyncResult = reader->Open();
-        if (asyncResult.IsSet()) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
-        } else {
-            if (!openCollector) {
-                openCollector = New<TParallelCollector<void>>();
+        // Construct readers.
+        SmallVector<IVersionedReaderPtr, TypicalStoreCount> rowReaders;
+        for (const auto& pair : Tablet_->Stores()) {
+            const auto& store = pair.second;
+            auto rowReader = store->CreateReader(
+                key,
+                keySuccessor,
+                timestamp,
+                columnFilter);
+            if (rowReader) {
+                rowReaders.push_back(std::move(rowReader));
             }
-            openCollector->Collect(asyncResult);
         }
+
+        // Open readers.
+        TIntrusivePtr<TParallelCollector<void>> openCollector;
+        for (const auto& reader : rowReaders) {
+            auto asyncResult = reader->Open();
+            if (asyncResult.IsSet()) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
+            } else {
+                if (!openCollector) {
+                    openCollector = New<TParallelCollector<void>>();
+                }
+                openCollector->Collect(asyncResult);
+            }
+        }
+
+        if (openCollector) {
+            auto result = WaitFor(openCollector->Complete());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        TKeyComparer keyComparer(keyColumnCount);
+
+        TUnversionedRowMerger rowMerger(
+            &LookupPool_,
+            schemaColumnCount,
+            keyColumnCount,
+            columnFilter);
+
+        rowMerger.Start(key.Begin());
+
+        // Merge values.
+        for (const auto& reader : rowReaders) {
+            VersionedPooledRows_.clear();
+            // NB: Reading at most one row.
+            reader->Read(&VersionedPooledRows_);
+            if (VersionedPooledRows_.empty())
+                continue;
+
+            auto partialRow = VersionedPooledRows_[0];
+            if (keyComparer(key, partialRow.BeginKeys()) != 0)
+                continue;
+
+            rowMerger.AddPartialRow(partialRow);
+        }
+
+        auto mergedRow = rowMerger.BuildMergedRow(true);
+        UnversionedPooledRows_.push_back(mergedRow);
     }
-
-    if (openCollector) {
-        auto result = WaitFor(openCollector->Complete());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
-
-    TKeyComparer keyComparer(keyColumnCount);
-
-    TUnversionedRowMerger rowMerger(
-        &LookupPool_,
-        schemaColumnCount,
-        keyColumnCount,
-        columnFilter);
-
-    rowMerger.Start(key.Begin());
-
-    // Merge values.
-    for (const auto& reader : rowReaders) {
-        VersionedPooledRows_.clear();
-        // NB: Reading at most one row.
-        reader->Read(&VersionedPooledRows_);
-        if (VersionedPooledRows_.empty())
-            continue;
-
-        auto partialRow = VersionedPooledRows_[0];
-        if (keyComparer(key, partialRow.BeginKeys()) != 0)
-            continue;
-
-        rowMerger.AddPartialRow(partialRow);
-    }
-
-    auto mergedRow = rowMerger.BuildMergedRow(true);
-    UnversionedPooledRow_.clear();
-    if (mergedRow) {
-        UnversionedPooledRow_.push_back(mergedRow);
-    }
-    writer->WriteUnversionedRowset(UnversionedPooledRow_);
+    
+    writer->WriteUnversionedRowset(UnversionedPooledRows_);
 }
 
 void TStoreManager::WriteRow(

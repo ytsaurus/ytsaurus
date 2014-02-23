@@ -812,8 +812,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         switch (command) {
-            case EProtocolCommand::LookupRow:
-                storeManager->LookupRow(
+            case EProtocolCommand::LookupRows:
+                storeManager->LookupRows(
                     timestamp,
                     reader,
                     writer);

@@ -35,9 +35,9 @@ public:
     //! Returns |true| is there are some in-memory stores that are not flushed yet.
     bool HasUnflushedStores() const;
 
-    //! Executes a single row lookup request. Request parameters are parsed via #reader,
+    //! Executes a bunch of row lookup requests. Request parameters are parsed via #reader,
     //! response is written into #writer.
-    void LookupRow(
+    void LookupRows(
         TTimestamp timestamp,
         NTabletClient::TWireProtocolReader* reader,
         NTabletClient::TWireProtocolWriter* writer);
@@ -73,7 +73,8 @@ private:
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
 
     TChunkedMemoryPool LookupPool_;
-    std::vector<NVersionedTableClient::TUnversionedRow> UnversionedPooledRow_;
+    std::vector<NVersionedTableClient::TUnversionedRow> PooledKeys_;
+    std::vector<NVersionedTableClient::TUnversionedRow> UnversionedPooledRows_;
     std::vector<NVersionedTableClient::TVersionedRow> VersionedPooledRows_;
 
 
