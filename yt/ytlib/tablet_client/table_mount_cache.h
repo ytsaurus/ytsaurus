@@ -85,9 +85,6 @@ public:
 
     TFuture<TErrorOr<TTableMountInfoPtr>> LookupTableInfo(const NYPath::TYPath& path);
 
-    TTabletInfoPtr FindTabletInfo(const TTabletId& id);
-    TTabletInfoPtr GetTabletInfoOrThrow(const TTabletId& id);
-
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;

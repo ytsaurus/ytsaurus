@@ -107,7 +107,6 @@ public:
         } else {
             if (entry.Timestamp < now - Config_->FailureExpirationTime) {
                 // Evict and retry.
-                UnrefTablets(entry);
                 PathToEntry.erase(it);
                 guard.Release();
                 return LookupTableInfo(path);
@@ -115,24 +114,6 @@ public:
         }
 
         return entry.Promise;
-    }
-
-
-    TTabletInfoPtr FindTabletInfo(const TTabletId& id)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        auto it = TabletIdToEntry.find(id);
-        return it == TabletIdToEntry.end() ? nullptr : it->second.TabletInfo;
-    }
-
-    TTabletInfoPtr GetTabletInfoOrThrow(const TTabletId& id)
-    {
-        auto info = FindTabletInfo(id);
-        if (!info) {
-            THROW_ERROR_EXCEPTION("Unknown tablet %s",
-                ~ToString(id));
-        }
-        return info;
     }
 
 private:
@@ -149,58 +130,8 @@ private:
         TPromise<TErrorOr<TTableMountInfoPtr>> Promise;
     };
 
-    struct TTabletEntry
-    {
-        TTabletEntry()
-            : UseCounter(0)
-        { }
-
-        //! Number of tables referring to this tablet id.
-        int UseCounter; 
-        //! Some latest known info.
-        TTabletInfoPtr TabletInfo;
-    };
-
-
     TSpinLock SpinLock_;
     yhash<TYPath, TTableEntry> PathToEntry;
-    yhash<TTabletId, TTabletEntry> TabletIdToEntry;
-
-
-    void RefTablet(TTabletInfoPtr tabletInfo)
-    {
-        auto it = TabletIdToEntry.find(tabletInfo->TabletId);
-        if (it == TabletIdToEntry.end()) {
-            TTabletEntry entry;
-            it = TabletIdToEntry.insert(std::make_pair(tabletInfo->TabletId, entry)).first;
-        }
-
-        auto& entry = it->second;
-        ++entry.UseCounter;
-        entry.TabletInfo = std::move(tabletInfo);
-    }
-
-    void UnrefTablet(TTabletInfoPtr tabletInfo)
-    {
-        auto it = TabletIdToEntry.find(tabletInfo->TabletId);
-        YCHECK(it != TabletIdToEntry.end());
-        auto& entry = it->second;
-        if (--entry.UseCounter == 0) {
-            YCHECK(TabletIdToEntry.erase(tabletInfo->TabletId) == 1);
-        }
-    }
-
-    void UnrefTablets(const TTableEntry& entry)
-    {
-        auto tableInfoOrError = entry.Promise.Get();
-        if (!tableInfoOrError.IsOK())
-            return;
-
-        auto tableInfo = tableInfoOrError.Value();
-        for (auto tabletInfo : tableInfo->Tablets) {
-            UnrefTablet(std::move(tabletInfo));
-        }
-    }
 
 
     void RequestTableMountInfo(const TYPath& path)
@@ -225,7 +156,6 @@ private:
         auto setResult = [&] (TErrorOr<TTableMountInfoPtr> result) {
             entry.Timestamp = TInstant::Now();
             if (entry.Promise.IsSet()) {
-                UnrefTablets(entry);
                 entry.Promise = MakePromise(result);
             } else {
                 entry.Promise.Set(result);
@@ -271,7 +201,6 @@ private:
             }
 
             tableInfo->Tablets.push_back(tabletInfo);
-            RefTablet(tabletInfo);
         }
 
         setResult(tableInfo);
@@ -303,16 +232,6 @@ TTableMountCache::~TTableMountCache()
 TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::LookupTableInfo(const TYPath& path)
 {
     return Impl_->LookupTableInfo(path);
-}
-
-TTabletInfoPtr TTableMountCache::FindTabletInfo(const TTabletId& id)
-{
-    return Impl_->FindTabletInfo(id);
-}
-
-TTabletInfoPtr TTableMountCache::GetTabletInfoOrThrow(const TTabletId& id)
-{
-    return Impl_->GetTabletInfoOrThrow(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
