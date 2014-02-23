@@ -6,6 +6,8 @@ set( SRCS
   ${BASE}/client.cpp
   ${BASE}/connection.cpp
   ${BASE}/transaction.cpp
+  ${BASE}/file_reader.cpp
+  ${BASE}/file_writer.cpp
 )
 set( HDRS
   ${BASE}/public.h

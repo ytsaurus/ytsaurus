@@ -1,9 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "client.h"
 
 #include <core/misc/ref.h>
 #include <core/misc/error.h>
+
+#include <core/ypath/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -24,6 +27,12 @@ struct IFileReader
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileReader)
+
+IFileReaderPtr CreateFileReader(
+    IClientPtr client,
+    const NYPath::TYPath& path,
+    const TFileReaderOptions& options = TFileReaderOptions(),
+    TFileReaderConfigPtr config = TFileReaderConfigPtr());
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -248,7 +248,13 @@ struct TFileReaderOptions
 
 struct TFileWriterOptions
     : public TTransactionalOptions
-{ };
+{
+    TFileWriterOptions()
+        : Overwrite(false)
+    { }
+
+    bool Overwrite;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 

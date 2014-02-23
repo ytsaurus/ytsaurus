@@ -266,12 +266,26 @@ public:
     virtual IFileReaderPtr CreateFileReader(
         const TYPath& path,
         const TFileReaderOptions& options,
-        TFileReaderConfigPtr config) override;
+        TFileReaderConfigPtr config) override
+    {
+        return NApi::CreateFileReader(
+            this,
+            path,
+            options,
+            config);
+    }
 
     virtual IFileWriterPtr CreateFileWriter(
         const TYPath& path,
         const TFileWriterOptions& options,
-        TFileWriterConfigPtr config) override;
+        TFileWriterConfigPtr config) override
+    {
+        return NApi::CreateFileWriter(
+            this,
+            path,
+            options,
+            config);
+    }
 
 
     IMPLEMENT_METHOD(void, AddMember, (
@@ -1110,112 +1124,6 @@ TFuture<TErrorOr<ITransactionPtr>> TClient::StartTransaction(const TTransactionS
             }
             return TErrorOr<ITransactionPtr>(New<TTransaction>(this_, transactionOrError.Value()));
         }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFileReader
-    : public IFileReader
-{
-public:
-    TFileReader(
-        TClientPtr client,
-        const TYPath& path,
-        const TFileReaderOptions& options,
-        TFileReaderConfigPtr config)
-        : Client_(client)
-        , Path_(path)
-        , Options_(options)
-        , Config_(config ? config : New<TFileReaderConfig>())
-    { }
-
-    virtual TAsyncError Open() override
-    {
-        YUNIMPLEMENTED();
-    }
-
-    virtual TFuture<TErrorOr<TSharedRef>> Read() override
-    {
-        YUNIMPLEMENTED();
-    }
-
-    virtual i64 GetSize() const override
-    {
-        YUNIMPLEMENTED();
-    }
-
-private:
-    TClientPtr Client_;
-    TYPath Path_;
-    TFileReaderOptions Options_;
-
-    TFileReaderConfigPtr Config_;
-
-};
-
-IFileReaderPtr TClient::CreateFileReader(
-    const TYPath& path,
-    const TFileReaderOptions& options,
-    TFileReaderConfigPtr config)
-{
-    return New<TFileReader>(
-        this,
-        path,
-        options,
-        config);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFileWriter
-    : public IFileWriter
-{
-public:
-    TFileWriter(
-        TClientPtr client,
-        const TYPath& path,
-        const TFileWriterOptions& options,
-        TFileWriterConfigPtr config)
-        : Client_(client)
-        , Path_(path)
-        , Options_(options)
-        , Config_(config ? config : New<TFileWriterConfig>())
-    { }
-
-    virtual TAsyncError Open() override
-    {
-        YUNIMPLEMENTED();
-    }
-
-    virtual TAsyncError Write(const TRef& data) override
-    {
-        YUNIMPLEMENTED();
-    }
-
-    virtual TAsyncError Close() override
-    {
-        YUNIMPLEMENTED();
-    }
-
-private:
-    TClientPtr Client_;
-    TYPath Path_;
-    TFileWriterOptions Options_;
-
-    TFileWriterConfigPtr Config_;
-
-};
-
-IFileWriterPtr TClient::CreateFileWriter(
-    const TYPath& path,
-    const TFileWriterOptions& options,
-    TFileWriterConfigPtr config)
-{
-    return New<TFileWriter>(
-        this,
-        path,
-        options,
-        config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
