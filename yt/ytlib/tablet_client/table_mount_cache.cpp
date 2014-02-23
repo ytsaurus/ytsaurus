@@ -54,6 +54,10 @@ TTableMountInfo::TTableMountInfo()
 
 TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
 {
+    if (Tablets.empty()) {
+        THROW_ERROR_EXCEPTION("Table %s has no tablets",
+            ~Path);
+    }
     auto it = std::upper_bound(
         Tablets.begin(),
         Tablets.end(),
@@ -79,7 +83,7 @@ public:
         , CellDirectory_(cellDirectory)
     { }
 
-    TFuture<TErrorOr<TTableMountInfoPtr>> LookupTableInfo(const TYPath& path)
+    TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(const TYPath& path)
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
@@ -109,7 +113,7 @@ public:
                 // Evict and retry.
                 PathToEntry.erase(it);
                 guard.Release();
-                return LookupTableInfo(path);
+                return GetTableInfo(path);
             }
         }
 
@@ -172,6 +176,7 @@ private:
         }
 
         auto tableInfo = New<TTableMountInfo>();
+        tableInfo->Path = path;
         tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
         tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
         tableInfo->KeyColumns = FromProto<Stroka>(rsp->key_columns().names());
@@ -229,9 +234,9 @@ TTableMountCache::TTableMountCache(
 TTableMountCache::~TTableMountCache()
 { }
 
-TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::LookupTableInfo(const TYPath& path)
+TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::GetTableInfo(const TYPath& path)
 {
-    return Impl_->LookupTableInfo(path);
+    return Impl_->GetTableInfo(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -310,7 +310,7 @@ private:
         LOG_DEBUG("Getting initial split (Path: %s)",
             ~path);
 
-        auto asyncInfoOrError = TableMountCache_->LookupTableInfo(path);
+        auto asyncInfoOrError = TableMountCache_->GetTableInfo(path);
         auto infoOrError = WaitFor(asyncInfoOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(infoOrError);
         const auto& info = infoOrError.Value();
@@ -352,7 +352,7 @@ private:
         TPlanContextPtr context)
     {
         auto tableId = GetObjectIdFromDataSplit(split);
-        auto tableInfoOrError = WaitFor(TableMountCache_->LookupTableInfo(FromObjectId(tableId)));
+        auto tableInfoOrError = WaitFor(TableMountCache_->GetTableInfo(FromObjectId(tableId)));
         THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
         const auto& tableInfo = tableInfoOrError.Value();
 

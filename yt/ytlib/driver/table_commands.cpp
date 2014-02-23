@@ -260,7 +260,7 @@ void TInsertCommand::DoExecute()
         Request->GetOptions());
 
     auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(Request->Path.GetPath()));
+    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
     const auto& tableInfo = tableInfoOrError.Value();
 
@@ -411,7 +411,7 @@ void TSelectCommand::DoExecute()
 void TLookupCommand::DoExecute()
 {
     auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(Request->Path.GetPath()));
+    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
     const auto& tableInfo = tableInfoOrError.Value();
     auto nameTable = TNameTable::FromSchema(tableInfo->Schema);

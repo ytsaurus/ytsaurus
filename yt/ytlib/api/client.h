@@ -21,6 +21,8 @@
 
 #include <ytlib/new_table_client/public.h>
 
+#include <ytlib/tablet_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -61,6 +63,9 @@ struct TMutatingOptions
 {
     NHydra::TMutationId MutationId;
 };
+
+struct TGetTableInfoOptions
+{ };
 
 struct TMountTableOptions
     : public TTabletRangeOptions
@@ -394,6 +399,10 @@ struct IClient
     virtual TFuture<void> Terminate() = 0;
 
     // Tables
+    virtual TFuture<TErrorOr<NTabletClient::TTableMountInfoPtr>> GetTableInfo(
+        const NYPath::TYPath& path,
+        const TGetTableInfoOptions& options = TGetTableInfoOptions()) = 0;
+
     virtual TAsyncError MountTable(
         const NYPath::TYPath& path,
         const TMountTableOptions& options = TMountTableOptions()) = 0;

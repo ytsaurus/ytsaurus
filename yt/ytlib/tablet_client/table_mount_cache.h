@@ -59,11 +59,14 @@ struct TTableMountInfo
 {
     TTableMountInfo();
 
+    NYPath::TYPath Path;
+    NObjectClient::TObjectId TableId;
+
     NVersionedTableClient::TTableSchema Schema;
     NVersionedTableClient::TKeyColumns KeyColumns;
-    NObjectClient::TObjectId TableId;
-    std::vector<TTabletInfoPtr> Tablets;
     bool Sorted;
+
+    std::vector<TTabletInfoPtr> Tablets;
 
     TTabletInfoPtr GetTablet(NVersionedTableClient::TUnversionedRow row);
 
@@ -83,7 +86,7 @@ public:
         NHive::TCellDirectoryPtr cellDirectory);
     ~TTableMountCache();
 
-    TFuture<TErrorOr<TTableMountInfoPtr>> LookupTableInfo(const NYPath::TYPath& path);
+    TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(const NYPath::TYPath& path);
 
 private:
     class TImpl;

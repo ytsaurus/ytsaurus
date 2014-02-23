@@ -190,6 +190,14 @@ public:
     }
 
 
+    virtual TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(
+        const TYPath& path,
+        const TGetTableInfoOptions& /*options*/) override
+    {
+        auto tableMountCache = Connection_->GetTableMountCache();
+        return tableMountCache->GetTableInfo(path);
+    }
+
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
@@ -320,28 +328,23 @@ private:
     }
 
 
-    TTableMountInfoPtr GetTableMountInfo(const TYPath& path)
+    TTableMountInfoPtr SyncGetTableInfo(const TYPath& path)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
-        auto tableInfoOrError = WaitFor(tableMountCache->LookupTableInfo(path));
+        auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(path));
         THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
         return tableInfoOrError.Value();
     }
 
-    static TTabletInfoPtr GetTabletInfo(
+    static TTabletInfoPtr SyncGetTabletInfo(
         TTableMountInfoPtr tableInfo,
-        const TYPath& path,
         NVersionedTableClient::TKey key)
     {
-        if (tableInfo->Tablets.empty()) {
-            THROW_ERROR_EXCEPTION("Table %s is not mounted",
-                ~path);
-        }
         auto tabletInfo = tableInfo->GetTablet(key);
         if (tabletInfo->State != ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Tablet %s of table %s is in %s state",
                 ~ToString(tabletInfo->TabletId),
-                ~path,
+                ~tableInfo->Path,
                 ~FormatEnum(tabletInfo->State).Quote());
         }
         return tabletInfo;
@@ -419,7 +422,7 @@ private:
 
         yhash_map<TTabletInfoPtr, TSubrequest> subrequests;
 
-        auto tableInfo = GetTableMountInfo(path);
+        auto tableInfo = SyncGetTableInfo(path);
 
         TTableSchema resultSchema;
         const auto& tableSchema = tableInfo->Schema;
@@ -438,7 +441,7 @@ private:
 
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
-            auto tabletInfo = GetTabletInfo(tableInfo, path, key);
+            auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = subrequests.find(tabletInfo);
             if (it == subrequests.end()) {
                 it = subrequests.insert(std::make_pair(tabletInfo, TSubrequest())).first;
@@ -1026,9 +1029,6 @@ private:
     class TRequestBase
     {
     public:
-        ~TRequestBase()
-        { }
-
         virtual void Run() = 0;
 
     protected:
@@ -1036,11 +1036,11 @@ private:
             TTransaction* transaction,
             const TYPath& path)
             : Transaction_(transaction)
-            , path_(path)
+            , Path_(path)
         { }
 
         TTransaction* Transaction_;
-        TYPath path_;
+        TYPath Path_;
 
     };
 
@@ -1058,9 +1058,9 @@ private:
 
         virtual void Run() override
         {
-            const auto& tableInfo = Transaction_->Client_->GetTableMountInfo(path_);
+            const auto& tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
             for (auto row : Rows_) {
-                auto tabletInfo = Transaction_->Client_->GetTabletInfo(tableInfo, path_, row);
+                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(tableInfo, row);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EProtocolCommand::WriteRow);
                 writer->WriteUnversionedRow(row);
@@ -1086,9 +1086,9 @@ private:
 
         virtual void Run() override
         {
-            const auto& tableInfo = Transaction_->Client_->GetTableMountInfo(path_);
+            const auto& tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
             for (auto key : Keys_) {
-                auto tabletInfo = Transaction_->Client_->GetTabletInfo(tableInfo, path_, key);
+                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(tableInfo, key);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EProtocolCommand::DeleteRow);
                 writer->WriteUnversionedRow(key);
