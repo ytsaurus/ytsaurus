@@ -4,6 +4,7 @@
 #include "connection.h"
 #include "file_reader.h"
 #include "file_writer.h"
+#include "rowset.h"
 #include "config.h"
 
 #include <core/concurrency/fiber.h>
@@ -66,36 +67,8 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowset;
-typedef TIntrusivePtr<TRowset> TRowsetPtr;
-
-class TTransaction;
-typedef TIntrusivePtr<TTransaction> TTransactionPtr;
-
-class TClient;
-typedef TIntrusivePtr<TClient> TClientPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRowset
-    : public IRowset
-{
-public:
-    TRowset(std::unique_ptr<TWireProtocolReader> reader, std::vector<TUnversionedRow> rows)
-        : Reader_(std::move(reader))
-        , Rows_(std::move(rows))
-    { }
-
-    const std::vector<TUnversionedRow>& Rows() const
-    {
-        return Rows_;
-    }
-
-private:
-    std::unique_ptr<TWireProtocolReader> Reader_;
-    std::vector<TUnversionedRow> Rows_;
-
-};
+DECLARE_REFCOUNTED_CLASS(TClient)
+DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -442,8 +415,9 @@ private:
             rows.push_back(TUnversionedRow());
         }
 
-        return New<TRowset>(
+        return CreateRowset(
             std::move(reader),
+            tableInfo->Schema,
             std::move(rows));
     }
 
@@ -758,6 +732,8 @@ private:
     }
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TClient)
 
 IClientPtr CreateClient(
     IConnectionPtr connection,
@@ -1113,6 +1089,8 @@ private:
     }
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TTransaction)
 
 TFuture<TErrorOr<ITransactionPtr>> TClient::StartTransaction(const TTransactionStartOptions& options)
 {

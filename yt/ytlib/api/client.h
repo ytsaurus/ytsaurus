@@ -258,16 +258,6 @@ struct TFileWriterOptions
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct IRowset
-    : public virtual TRefCounted
-{
-    virtual const std::vector<NVersionedTableClient::TUnversionedRow>& Rows() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IRowset)
-
-///////////////////////////////////////////////////////////////////////////////
-
 //! Provides a basic set of functions that can be invoked
 //! both standalone and inside transaction.
 /*

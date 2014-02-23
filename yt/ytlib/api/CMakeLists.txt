@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/transaction.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
+  ${BASE}/rowset.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -18,6 +19,7 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/connection.h
+  ${BASE}/rowset.h
 )
 
 list(APPEND YT_SOURCE_FILES

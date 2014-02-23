@@ -44,6 +44,7 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/api/transaction.h>
+#include <ytlib/api/rowset.h>
 
 namespace NYT {
 namespace NDriver {
