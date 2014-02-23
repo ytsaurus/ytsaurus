@@ -19,6 +19,13 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents an established connection with a YT cluster.
+/*
+ *  IConnection instance caches most of the stuff needed for fast interaction
+ *  with the cluster (e.g. connection channels, mount info etc).
+ *  
+ *  Thread affinity: any
+ */
 struct IConnection
     : public virtual TRefCounted
 {

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "client.h"
+#include "transaction.h"
 #include "connection.h"
 #include "file_reader.h"
 #include "file_writer.h"
