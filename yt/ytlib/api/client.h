@@ -437,7 +437,7 @@ DEFINE_REFCOUNTED_TYPE(IClient)
 
 IClientPtr CreateClient(
     IConnectionPtr connection,
-    const TClientOptions& options);
+    const TClientOptions& options = TClientOptions());
 
 ///////////////////////////////////////////////////////////////////////////////
 
