@@ -469,6 +469,35 @@ size_t GetUnversionedRowDataSize(int valueCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int valueCount)
+{
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(alignedPool->Allocate(GetUnversionedRowDataSize(valueCount)));
+    header->Count = valueCount;
+    header->Padding = 0;
+    return TUnversionedRow(header);
+}
+
+TUnversionedRow TUnversionedRow::Capture(TChunkedMemoryPool* alignedPool, TChunkedMemoryPool* unalignedPool) const
+{
+    if (!*this) {
+        return TUnversionedRow();
+    }
+
+    auto dstRow = TUnversionedRow::Allocate(alignedPool, GetCount());
+    for (int index = 0; index < static_cast<int>(GetCount()); ++index) {
+        const auto& srcValue = (*this)[index];
+        auto& dstValue = dstRow[index];
+        dstValue = srcValue;
+        if (dstValue.Type == EValueType::String || dstValue.Type == EValueType::Any) {
+            dstValue.Data.String = unalignedPool->AllocateUnaligned(srcValue.Length);
+            memcpy(const_cast<char*>(dstValue.Data.String), srcValue.Data.String, srcValue.Length);
+        }
+    }
+    return dstRow;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType)
 {
     TUnversionedOwningRowBuilder builder(key.GetCount() + 1);

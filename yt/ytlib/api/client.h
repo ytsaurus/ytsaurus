@@ -289,6 +289,10 @@ struct IClientBase
         NVersionedTableClient::ISchemedWriterPtr writer,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
+    virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
+        const Stroka& query,
+        const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
+
     // TODO(babenko): batch read and batch write
 
     // Cypress

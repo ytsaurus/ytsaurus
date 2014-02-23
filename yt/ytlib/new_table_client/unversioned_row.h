@@ -178,14 +178,12 @@ public:
     { }
 
     static TUnversionedRow Allocate(
-        TChunkedMemoryPool* pool, 
-        int valueCount)
-    {
-        auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->Allocate(GetUnversionedRowDataSize(valueCount)));
-        header->Count = valueCount;
-        header->Padding = 0;
-        return TUnversionedRow(header);
-    }
+        TChunkedMemoryPool* alignedPool, 
+        int valueCount);
+    
+    TUnversionedRow Capture(
+        TChunkedMemoryPool* alignedPool,
+        TChunkedMemoryPool* unalignedPool) const;
 
 
     explicit operator bool() const

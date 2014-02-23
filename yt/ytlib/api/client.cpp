@@ -173,6 +173,23 @@ public:
         const TSelectRowsOptions& options),
         (query, writer, options))
 
+    virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
+        const Stroka& query,
+        const TSelectRowsOptions& options) override
+    {
+        ISchemedWriterPtr writer;
+        TPromise<TErrorOr<IRowsetPtr>> rowset;
+        std::tie(writer, rowset) = CreateSchemedRowsetWriter();
+        SelectRows(query, writer, options).Subscribe(BIND([=] (TError error) mutable {
+            if (!error.IsOK()) {
+                // It's uncommon to have the promise set here but let's be sloppy about it.
+                rowset.TrySet(error);
+            }
+        }));
+        return rowset;
+    }
+
+
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
@@ -403,7 +420,21 @@ private:
         yhash_map<TTabletInfoPtr, TSubrequest> subrequests;
 
         auto tableInfo = GetTableMountInfo(path);
-        const auto& cellDirectory = Connection_->GetCellDirectory();
+
+        TTableSchema resultSchema;
+        const auto& tableSchema = tableInfo->Schema;
+
+        if (options.ColumnFilter.All) {
+            resultSchema = tableSchema;
+        } else {
+            for (int index : options.ColumnFilter.Indexes) {
+                if (index < 0 || index >= tableSchema.Columns().size()) {
+                    THROW_ERROR_EXCEPTION("Invalid index %d in column filter",
+                        index);
+                }
+                resultSchema.Columns().push_back(tableSchema.Columns()[index]);
+            }
+        }
 
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
@@ -417,6 +448,7 @@ private:
             subrequest.Indexes.push_back(index);
         }
 
+        const auto& cellDirectory = Connection_->GetCellDirectory();
         for (auto& subrequestPair : subrequests) {
             const auto& tabletInfo = subrequestPair.first;
             auto& subrequest = subrequestPair.second;
@@ -436,11 +468,11 @@ private:
             subrequest.AsyncResponse = req->Invoke();
         }
 
-        std::vector<TUnversionedRow> mergedRows;
-        mergedRows.resize(keys.size());
+        std::vector<TUnversionedRow> resultRows;
+        resultRows.resize(keys.size());
         
-        std::vector<TUnversionedRow> partialRows;
-        partialRows.reserve(keys.size());
+        std::vector<TUnversionedRow> pooledRows;
+        pooledRows.reserve(keys.size());
 
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
@@ -450,10 +482,10 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             auto reader = std::make_unique<TWireProtocolReader>(rsp->encoded_response());
-            reader->ReadUnversionedRowset(&partialRows);
+            reader->ReadUnversionedRowset(&pooledRows);
 
-            for (int index = 0; index < static_cast<int>(partialRows.size()); ++index) {
-                mergedRows[subrequest.Indexes[index]] = partialRows[index];
+            for (int index = 0; index < static_cast<int>(pooledRows.size()); ++index) {
+                resultRows[subrequest.Indexes[index]] = pooledRows[index];
             }
 
             readers.push_back(std::move(reader));
@@ -461,8 +493,8 @@ private:
 
         return CreateRowset(
             std::move(readers),
-            tableInfo->Schema,
-            std::move(mergedRows));
+            resultSchema,
+            std::move(resultRows));
     }
 
     void DoSelectRows(
@@ -913,6 +945,10 @@ public:
         ISchemedWriterPtr writer,
         const TSelectRowsOptions& options),
         (query, writer, options))
+    DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (
+        const Stroka& query,
+        const TSelectRowsOptions& options),
+        (query, options))
 
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TErrorOr<TYsonString>>, GetNode, (

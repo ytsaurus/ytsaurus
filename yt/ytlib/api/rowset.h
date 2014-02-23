@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/error.h>
+
 #include <ytlib/new_table_client/public.h>
 
 #include <ytlib/tablet_client/public.h>
@@ -20,10 +22,15 @@ struct IRowset
 
 DEFINE_REFCOUNTED_TYPE(IRowset)
 
+///////////////////////////////////////////////////////////////////////////////
+
 IRowsetPtr CreateRowset(
     std::vector<std::unique_ptr<NTabletClient::TWireProtocolReader>> readers,
     const NVersionedTableClient::TTableSchema& schema,
     std::vector<NVersionedTableClient::TUnversionedRow> rows);
+
+std::tuple<NVersionedTableClient::ISchemedWriterPtr, TPromise<TErrorOr<IRowsetPtr>>>
+    CreateSchemedRowsetWriter();
 
 ///////////////////////////////////////////////////////////////////////////////
 

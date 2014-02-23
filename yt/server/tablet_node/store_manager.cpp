@@ -181,7 +181,7 @@ void TStoreManager::LookupRows(
             rowMerger.AddPartialRow(partialRow);
         }
 
-        auto mergedRow = rowMerger.BuildMergedRow(true);
+        auto mergedRow = rowMerger.BuildMergedRow();
         UnversionedPooledRows_.push_back(mergedRow);
     }
     
