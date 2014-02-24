@@ -158,7 +158,7 @@ TDataSplits TCoordinateController::SplitFurther(
         }
 
         auto newDataSplitsOrError = WaitFor(Callbacks_->SplitFurther(dataSplit, context));
-        auto newDataSplits = newDataSplitsOrError.GetValueOrThrow();
+        auto newDataSplits = newDataSplitsOrError.ValueOrThrow();
 
         LOG_DEBUG(
             "Got %" PRISZT " splits for input %s",
