@@ -121,7 +121,7 @@ struct TLookupRowsOptions
         : Timestamp(NTransactionClient::LastCommittedTimestamp)
     { }
 
-    NVersionedTableClient::TColumnFilter ColumnFilter;
+    TNullable<std::vector<Stroka>> ColumnNames;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp;
 };
@@ -400,10 +400,6 @@ struct IClient
 
 
     // Tables
-    virtual TFuture<TErrorOr<NTabletClient::TTableMountInfoPtr>> GetTableInfo(
-        const NYPath::TYPath& path,
-        const TGetTableInfoOptions& options = TGetTableInfoOptions()) = 0;
-
     virtual TAsyncError MountTable(
         const NYPath::TYPath& path,
         const TMountTableOptions& options = TMountTableOptions()) = 0;

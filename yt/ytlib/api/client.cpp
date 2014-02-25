@@ -190,14 +190,6 @@ public:
     }
 
 
-    virtual TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(
-        const TYPath& path,
-        const TGetTableInfoOptions& /*options*/) override
-    {
-        auto tableMountCache = Connection_->GetTableMountCache();
-        return tableMountCache->GetTableInfo(path);
-    }
-
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
@@ -412,6 +404,23 @@ private:
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
+        auto tableInfo = SyncGetTableInfo(path);
+
+        TTableSchema resultSchema;
+        const auto& tableSchema = tableInfo->Schema;
+
+        TColumnFilter columnFilter;
+        if (options.ColumnNames) {
+            columnFilter.All = false;
+            for (const auto& name : *options.ColumnNames) {
+                int index = tableSchema.GetColumnIndexOrThrow(name);
+                columnFilter.Indexes.push_back(index);
+                resultSchema.Columns().push_back(tableSchema.Columns()[index]);
+            }
+        } else {
+            resultSchema = tableSchema;
+        }
+
         struct TSubrequest
         {
             std::vector<NVersionedTableClient::TKey> Keys;
@@ -421,23 +430,6 @@ private:
         };
 
         yhash_map<TTabletInfoPtr, TSubrequest> subrequests;
-
-        auto tableInfo = SyncGetTableInfo(path);
-
-        TTableSchema resultSchema;
-        const auto& tableSchema = tableInfo->Schema;
-
-        if (options.ColumnFilter.All) {
-            resultSchema = tableSchema;
-        } else {
-            for (int index : options.ColumnFilter.Indexes) {
-                if (index < 0 || index >= tableSchema.Columns().size()) {
-                    THROW_ERROR_EXCEPTION("Invalid index %d in column filter",
-                        index);
-                }
-                resultSchema.Columns().push_back(tableSchema.Columns()[index]);
-            }
-        }
 
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
@@ -458,7 +450,7 @@ private:
 
             TWireProtocolWriter writer;
             writer.WriteCommand(EProtocolCommand::LookupRows);
-            writer.WriteColumnFilter(options.ColumnFilter);
+            writer.WriteColumnFilter(columnFilter);
             writer.WriteUnversionedRowset(subrequest.Keys);
             writer.WriteCommand(EProtocolCommand::End);
 

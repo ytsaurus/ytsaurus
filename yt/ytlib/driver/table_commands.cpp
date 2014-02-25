@@ -418,13 +418,7 @@ void TLookupCommand::DoExecute()
 
     TLookupRowsOptions options;
     options.Timestamp = Request->Timestamp;
-    if (Request->Columns) {
-        options.ColumnFilter.All = false;
-        for (const auto& name : *Request->Columns) {
-            int index = tableInfo->Schema.GetColumnIndexOrThrow(name);
-            options.ColumnFilter.Indexes.push_back(index);
-        }
-    }
+    options.ColumnNames = Request->ColumnNames;
 
     auto lookupResult = WaitFor(Context->GetClient()->LookupRow(
         Request->Path.GetPath(),

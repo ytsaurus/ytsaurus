@@ -34,13 +34,11 @@
 
 #include <server/hydra/file_changelog.h>
 
-#include <tclap/CmdLine.h>
-
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>
 #include <util/folder/dirut.h>
 
-#include <tclap/CmdLine.h>
+#include <contrib/tclap/tclap/CmdLine.h>
 
 namespace NYT {
 
@@ -56,11 +54,21 @@ static NLog::TLogger Logger("Server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define X(a) int a;
+
+PP_FOR_EACH(X, (u)(v)(w))
+
 DECLARE_ENUM(EExitCode,
     ((OK)(0))
     ((OptionsError)(1))
     ((BootstrapError)(2))
 );
+
+void foo()
+{
+    u = 1;
+    auto x = EExitCode::OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

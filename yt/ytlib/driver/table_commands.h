@@ -206,7 +206,7 @@ struct TLookupRequest
     NYPath::TRichYPath Path;
     NVersionedTableClient::TOwningKey Key;
     NTransactionClient::TTimestamp Timestamp;
-    TNullable<std::vector<Stroka>> Columns;
+    TNullable<std::vector<Stroka>> ColumnNames;
 
     TLookupRequest()
     {
@@ -214,7 +214,7 @@ struct TLookupRequest
         RegisterParameter("key", Key);
         RegisterParameter("timestamp", Timestamp)
             .Default(NTransactionClient::LastCommittedTimestamp);
-        RegisterParameter("columns", Columns)
+        RegisterParameter("column_names", ColumnNames)
             .Default(Null);
     }
 };
