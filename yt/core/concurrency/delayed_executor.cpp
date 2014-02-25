@@ -130,7 +130,7 @@ private:
 
     void ThreadMain()
     {
-        SetCurrentThreadName("DelayedInvoker");
+        SetCurrentThreadName("DelayedExecutor");
         while (!AtomicGet(Finished)) {
             auto now = TInstant::Now();
             while (true) {

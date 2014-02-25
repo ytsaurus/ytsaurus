@@ -544,7 +544,7 @@ private:
                         this_->DoAbort(wrappedError);
                         return;
                     }
-                    this_->CachedChunks.push_back(result.GetValue());
+                    this_->CachedChunks.push_back(result.Value());
                 }));
         }
 
@@ -601,7 +601,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %s",
             ~fileName.Quote());
 
-        auto chunk = chunkOrError.GetValue();
+        auto chunk = chunkOrError.Value();
         CachedChunks.push_back(chunk);
 
         try {

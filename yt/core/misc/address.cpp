@@ -194,7 +194,7 @@ TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
 {
     auto result = TryParse(address);
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    return result.GetValue();
+    return result.Value();
 }
 
 Stroka ToString(const TNetworkAddress& address, bool withPort)

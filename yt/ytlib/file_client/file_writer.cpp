@@ -82,7 +82,7 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
             << transactionOrError);
     }
 
-    UploadTransaction = transactionOrError.GetValue();
+    UploadTransaction = transactionOrError.Value();
     ListenTransaction(UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~ToString(UploadTransaction->GetId()));

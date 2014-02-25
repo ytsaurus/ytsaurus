@@ -74,7 +74,7 @@ void TSnapshotDownloader::Run()
         while (true) {
             auto blockOrError = WaitFor(reader->AsyncRead());
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
-            auto block = blockOrError.GetValue();
+            auto block = blockOrError.Value();
             if (!block)
                 break;
             blob.Append(block);

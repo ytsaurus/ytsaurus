@@ -79,7 +79,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
 
     LOG_INFO("Chunk meta received");
 
-    const auto& chunkMeta = result.GetValue();
+    const auto& chunkMeta = result.Value();
 
     if (chunkMeta.type() != EChunkType::Table) {
         LOG_FATAL("Invalid chunk type %d", chunkMeta.type());

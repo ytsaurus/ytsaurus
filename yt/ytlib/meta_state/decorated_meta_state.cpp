@@ -188,7 +188,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
             break;
         }
 
-        auto changeLog = result.GetValue();
+        auto changeLog = result.Value();
         bool isLast = !ChangeLogCache->Get(segmentId + 1).IsOK();
 
         LOG_DEBUG("Changelog found (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsLast: %s)",
@@ -326,7 +326,7 @@ TCachedAsyncChangeLogPtr TDecoratedMetaState::GetCurrentChangeLog()
         LOG_FATAL(result, "Cannot obtain the current changelog");
     }
 
-    CurrentChangeLog = result.GetValue();
+    CurrentChangeLog = result.Value();
     return CurrentChangeLog;
 }
 

@@ -216,16 +216,16 @@ public:
     template <class TOther>
     TErrorOr(const TErrorOr<TOther>& other)
         : TError(other)
-        , Value_(other.GetValue())
+        , Value_(other.Value())
     { }
 
-    const T& GetValue() const
+    const T& Value() const
     {
         YCHECK(IsOK());
         return Value_;
     }
 
-    const T& GetValueOrThrow() const
+    const T& ValueOrThrow() const
     {
         if (!IsOK()) {
             THROW_ERROR *this;

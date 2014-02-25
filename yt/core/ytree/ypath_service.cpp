@@ -170,7 +170,7 @@ private:
                 true)
                 .Apply(BIND([] (TErrorOr<TYsonString> result) -> TYsonString {
                     YCHECK(result.IsOK());
-                    return result.GetValue();
+                    return result.Value();
                 }));
     }
 

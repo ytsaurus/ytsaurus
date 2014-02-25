@@ -339,16 +339,13 @@ TError TErasureWriter::EncodeAndWriteParityBlocks()
             ParityBlocks_[windowIndex] = Codec_->Encode(slices);
             WindowEncodedPromise_[windowIndex].Set();
         }));
-
-        ++windowIndex;
-    }
-
-    for (windowIndex = 0; windowIndex < WindowEncodedPromise_.size(); ++windowIndex) {
+        
         WaitFor(WindowEncodedPromise_[windowIndex]);
-
         auto error = WaitFor(WriteParityBlocks(windowIndex));
         if (!error.IsOK())
             return error;
+
+        ++windowIndex;
     }
 
     return WaitFor(CloseParityWriters());
