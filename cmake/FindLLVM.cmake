@@ -12,103 +12,106 @@
 #  Usage: llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES core jit interpreter native ...)
 
 # First look in ENV{LLVM_ROOT} then system path.
-find_program(LLVM_CONFIG_EXECUTABLE llvm-config-3.5 llvm-config
+find_program(LLVM_CONFIG_EXECUTABLE
+  llvm-config-3.5
+  llvm-config-mp-3.5
+  llvm-config
   PATHS
   $ENV{LLVM_ROOT}/bin
 )
 
-if (NOT LLVM_CONFIG_EXECUTABLE)
-  message(FATAL_ERROR "LLVM package can't be found (could not find llvm-config). Set environment variable LLVM_ROOT.")
+if(NOT LLVM_CONFIG_EXECUTABLE)
+  message(FATAL_ERROR "LLVM cannot be found (could not find llvm-config). Set environment variable LLVM_ROOT.")
 else()
   SET(LLVM_FOUND TRUE)
-  
+
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --version
     OUTPUT_VARIABLE LLVM_VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  
-  if (NOT ${LLVM_VERSION} MATCHES "3.5")
-    message(FATAL_ERROR "Required LLVM version is 3.5")
+
+  if(NOT LLVM_VERSION MATCHES "3.5")
+    message(FATAL_ERROR "LLVM 3.5 is required.")
   endif()
-  
+
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --includedir
     OUTPUT_VARIABLE LLVM_INCLUDE_DIRS
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  
+
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --libdir
     OUTPUT_VARIABLE LLVM_LIBRARY_DIRS
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  
+
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --cppflags
     OUTPUT_VARIABLE LLVM_CPPFLAGS
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  
+
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --cxxflags
     OUTPUT_VARIABLE LLVM_CXXFLAGS
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  
+
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --ldflags
     OUTPUT_VARIABLE LLVM_LDFLAGS
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  
-  # Get the link libs we need.  llvm has many and we don't want to link all of the libs
-  # if we don't need them.   
-  function(llvm_map_components_to_libraries OUT_VAR)
-    
 
-    if (MSVC OR MSVC_IDE)
-      # Workarounds
+  # Get the link libs we need.
+  function(llvm_map_components_to_libraries RESULT)
+    if(MSVC OR MSVC_IDE)
+      # Workaround
       execute_process(
         COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs ${ARGN}
-        OUTPUT_VARIABLE LLVM_MODULE_LIBS
+        OUTPUT_VARIABLE _tmp
         OUTPUT_STRIP_TRAILING_WHITESPACE
       )
 
-      #string(REGEX REPLACE ".a " ".lib " LLVM_MODULE_LIBS "${LLVM_MODULE_LIBS}")
-      string(REGEX REPLACE "-l" "" LLVM_MODULE_LIBS "${LLVM_MODULE_LIBS}")
-      string(REPLACE " " ";" LIBS_LIST "${LLVM_MODULE_LIBS}")
-      set (LLVM_MODULE_LIBS "")
-      foreach (LIB ${LIBS_LIST})
-        set(LLVM_MODULE_LIBS ${LLVM_MODULE_LIBS} "${LLVM_LIBRARY_DIRS}/${LIB}.lib")
-      endforeach(LIB)
+      string(REPLACE "-l" " " _tmp "${_tmp}")
+      string(REPLACE "  " " " _tmp "${_tmp}")
+      string(REPLACE " "  ";" _tmp "${_tmp}")
+
+      set(_libs_module "")
+      foreach(_tmp_item ${_tmp})
+        list(APPEND _libs_module "${LLVM_LIBRARY_DIRS}/${_tmp_item}.lib")
+      endforeach()
     else()
       execute_process(
         COMMAND ${LLVM_CONFIG_EXECUTABLE} --libfiles ${ARGN}
-        OUTPUT_VARIABLE LLVM_MODULE_LIBS
+        OUTPUT_VARIABLE _tmp
         OUTPUT_STRIP_TRAILING_WHITESPACE
       )
-      string(REPLACE " " ";" LIBS_LIST "${LLVM_MODULE_LIBS}")
+
+      string(REPLACE " " ";" _libs_module "${_tmp}")
     endif()
 
-    message(STATUS "LLVM libs: ${LLVM_MODULE_LIBS}")
+    message(STATUS "LLVM Libraries for '${ARGN}': ${_libs_module}")
   
     execute_process(
       COMMAND ${LLVM_CONFIG_EXECUTABLE} --system-libs ${ARGN}
-      OUTPUT_VARIABLE LLVM_MODULE_SYSTEM_LIBS
+      OUTPUT_VARIABLE _libs_system
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
   
-    string(REPLACE "\n" "" LLVM_MODULE_SYSTEM_LIBS "${LLVM_MODULE_SYSTEM_LIBS}")
-    string(REPLACE " " ";" SYSTEM_LIBS_LIST "${LLVM_MODULE_SYSTEM_LIBS}")
+    string(REPLACE "\n" " " _libs_system "${_libs_system}")
+    string(REPLACE "  " " " _libs_system "${_libs_system}")
+    string(REPLACE " "  ";" _libs_system "${_libs_system}")
 
-    set( ${OUT_VAR} ${SYSTEM_LIBS_LIST} ${LIBS_LIST} PARENT_SCOPE )
+    set( ${RESULT} ${_libs_system} ${_libs_module} PARENT_SCOPE )
   endfunction(llvm_map_components_to_libraries)
   
-  message(STATUS "LLVM include dir: ${LLVM_INCLUDE_DIRS}")
-  message(STATUS "LLVM lib dir: ${LLVM_LIBRARY_DIRS}")
-  message(STATUS "LLVM C preprocessor: ${LLVM_CPPFLAGS}")
-  message(STATUS "LLVM C++ compiler: ${LLVM_CXXFLAGS}")
+  message(STATUS "LLVM Include Directory: ${LLVM_INCLUDE_DIRS}")
+  message(STATUS "LLVM Library Directory: ${LLVM_LIBRARY_DIRS}")
+  message(STATUS "LLVM C Preprocessor: ${LLVM_CPPFLAGS}")
+  message(STATUS "LLVM C++ Compiler: ${LLVM_CXXFLAGS}")
 
 endif (NOT LLVM_CONFIG_EXECUTABLE)
 
