@@ -399,6 +399,8 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
+            LOG_DEBUG("!!! Got %d chunks, actually", (int) stripe->ChunkSlices.size());
+
             RegisterIntermediate(
                 joblet,
                 stripe,
