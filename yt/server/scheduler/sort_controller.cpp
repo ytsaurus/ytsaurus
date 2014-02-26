@@ -1868,6 +1868,7 @@ private:
         PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
         RegisterTask(PartitionTask);
