@@ -1804,11 +1804,15 @@ private:
 
         switch (state) {
             case EJobState::Completed: {
-                const auto& statistics = jobStatus->result().statistics();
-                LOG_INFO("Job completed, removal scheduled (Input: {%s}, Output: {%s}, Time: %" PRId64 ")",
-                    ~ToString(statistics.input()),
-                    ~ToString(statistics.output()),
-                    statistics.time());
+                if (jobStatus->has_result()) {
+                    const auto& statistics = jobStatus->result().statistics();
+                    LOG_INFO("Job completed, removal scheduled (Input: {%s}, Output: {%s}, Time: %" PRId64 ")",
+                        ~ToString(statistics.input()),
+                        ~ToString(statistics.output()),
+                        statistics.time());
+                } else {
+                    LOG_INFO("Job completed, removal scheduled";
+                }
                 OnJobCompleted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
