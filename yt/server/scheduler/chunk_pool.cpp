@@ -1439,11 +1439,6 @@ private:
 
             list->IsApproximate = run.IsApproximate;
 
-            LOG_DEBUG("!!! Chunk stripe built from run %d %d %d %d\n",
-                (int) run.ElementaryIndexBegin,
-                (int) run.ElementaryIndexEnd,
-                (int) list->Stripes.size(),
-                (int) list->TotalChunkCount);
             return list;
         }
 
