@@ -55,10 +55,6 @@ message(STATUS "Configuring YT ${YT_VERSION}")
 ################################################################################
 # Setup targets.
 
-if ( YT_USE_FOLDERS )
-  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-endif()
-
 check_include_files(cxxabi.h       HAVE_CXXABI_H)
 check_include_files(dlfcn.h        HAVE_DLFCN_H)
 check_include_files(execinfo.h     HAVE_EXECINFO_H)
@@ -72,26 +68,26 @@ check_include_files(unistd.h       HAVE_UNISTD_H)
 
 include(PCFromUcontext)
 
-if (YT_BUILD_ENABLE_LLVM)
-  # Using CMake module FindLLVM.cmake form <yt_root>/cmake directory
-  find_package(LLVM)
-
-  link_directories( ${LLVM_LIBRARY_DIRS} )
-  include_directories( ${LLVM_INCLUDE_DIRS} )
-  add_definitions(-DYT_USE_LLVM)
+# For some reason this header cannot be reliably located with CMake.
+if(CMAKE_COMPILER_IS_GNUCXX)
+  set(HAVE_CXXABI_H 1)
 endif()
 
 find_library(HAVE_LIBUNWIND unwind)
-
-# For some reason this header cannot be reliably located with CMake.
-if (CMAKE_COMPILER_IS_GNUCXX)
-  set(HAVE_CXXABI_H 1)
-endif()
 
 configure_file(
   ${CMAKE_SOURCE_DIR}/yt/config.h.in
   ${CMAKE_BINARY_DIR}/yt/config.h
 )
+
+if(YT_BUILD_ENABLE_LLVM)
+  # Using CMake module FindLLVM.cmake form <root>/cmake directory.
+  find_package(LLVM)
+
+  link_directories(${LLVM_LIBRARY_DIRS})
+  include_directories(${LLVM_INCLUDE_DIRS})
+  add_definitions(-DYT_USE_LLVM)
+endif()
 
 # TODO(sandello): Check whether these two directories differ.
 exec_program(
@@ -116,7 +112,7 @@ add_subdirectory(library/lfalloc)
 
 add_subdirectory(yt)
 
-if (YT_BUILD_ENABLE_PYTHON)
+if(YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(cmake/deps-pycxx)
   add_subdirectory(python/yt/bindings)
 endif()
@@ -152,26 +148,31 @@ add_custom_target( package touch package-stamp
   COMMENT "Packaging YT..."
 )
 
-add_custom_target( version touch version-stamp
+add_custom_target(
+  version
+  touch version-stamp
   COMMAND echo "${YT_VERSION}" > ytversion
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Stamping YT..."
 )
 
-add_custom_target( install-debian-yandex-yt
+add_custom_target(
+  install-debian-yandex-yt
   ${CMAKE_COMMAND}
     -DCOMPONENT=Unspecified
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   COMMENT "Installing for package 'yandex-yt'..."
 )
 
-add_custom_target( install-debian-yandex-yt-http-proxy
+add_custom_target(
+  install-debian-yandex-yt-http-proxy
   ${CMAKE_COMMAND}
     -DCOMPONENT=nodejs
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   COMMENT "Installing for package 'yandex-yt-http-proxy'..."
 )
 
+# TODO(sandello): Move these properties closer to target definitions.
 set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-arcadia-library-blockcodecs PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-arcadia-library-lwtrace PROPERTIES FOLDER "Contrib")

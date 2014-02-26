@@ -44,8 +44,8 @@ foreach( _d_ ${DIRS} )
 endforeach()
 
 add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
+  stdafx.h
+  stdafx.cpp
   YT_SOURCE_FILES
 )
 
@@ -54,23 +54,12 @@ add_library( ytlib STATIC
   shutdown.cpp
 )
 
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Sanitizer")
-  target_link_libraries ( ytlib
-    ytcore-without-lfalloc
-  )
-else()
-  target_link_libraries ( ytlib
-    ytcore
-  )
-endif()
+target_link_libraries( ytlib ytcore )
 
 if (YT_BUILD_ENABLE_LLVM)
   llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES core jit interpreter native)
+  target_link_libraries( ytlib ${REQUIRED_LLVM_LIBRARIES} )
 endif()
-
-target_link_libraries ( ytlib
-  ${REQUIRED_LLVM_LIBRARIES}
-)
 
 if (HAVE_LIBUNWIND)
   target_link_libraries( ytlib unwind )

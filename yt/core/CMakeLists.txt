@@ -19,8 +19,8 @@ foreach( _d_ ${DIRS} )
 endforeach()
 
 add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
+  stdafx.h
+  stdafx.cpp
   YT_SOURCE_FILES
 )
 
@@ -49,16 +49,6 @@ target_link_libraries ( ytcore
 
 if (HAVE_LIBUNWIND)
   target_link_libraries( ytcore unwind )
-endif()
-
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Sanitizer")
-  add_library(ytcore-without-lfalloc STATIC
-    ${YT_SOURCE_FILES}
-  )
-  target_link_libraries(ytcore-without-lfalloc
-    ytext-lfalloc-fake
-    ${LIBS}
-  )
 endif()
 
 include_directories(
