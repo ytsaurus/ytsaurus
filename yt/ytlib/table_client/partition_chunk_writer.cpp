@@ -159,6 +159,9 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
     DataWeight += rowDataWeight;
     RowCount += 1;
 
+    CurrentUncompressedSize += channelWriter->GetCurrentSize() - channelSize;
+    CurrentSize = static_cast<i64>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
+
     AdjustBufferHeap(partitionTag);
 
     if (channelWriter->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
@@ -169,9 +172,6 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
     if (CurrentBufferCapacity > Config->MaxBufferSize) {
         PrepareBlock();
     }
-
-    CurrentUncompressedSize += channelWriter->GetCurrentSize() - channelSize;
-    CurrentSize = static_cast<i64>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 }
 
 void TPartitionChunkWriter::PrepareBlock()
