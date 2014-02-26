@@ -3,7 +3,7 @@
 #include <yt/core/actions/future.h>
 
 namespace ev {
-    class dynamic_loop;
+    struct dynamic_loop;
 }
 
 

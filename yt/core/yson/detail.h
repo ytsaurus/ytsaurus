@@ -229,10 +229,10 @@ private:
         if (BeginByte() + MaxVarint32Bytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
             // we can detect that and still use the fast path.
-            BeginByte() < EndByte() && !(EndByte()[-1] & 0x80)) 
+            (BeginByte() < EndByte() && !(EndByte()[-1] & 0x80)))
         {
             return ReadVarint32FromArray(value);
-        } else { 
+        } else {
             // Really slow case: we will incur the cost of an extra function call here,
             // but moving this out of line reduces the size of this function, which
             // improves the common case. In micro benchmarks, this is worth about 10-15%
@@ -250,7 +250,7 @@ private:
             return true;
         } else {
             return false;
-        }      
+        }
     }
 
     bool ReadVarint64Slow(ui64* value)
@@ -284,7 +284,7 @@ private:
         if (BeginByte() + MaxVarintBytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
             // we can detect that and still use the fast path.
-            BeginByte() < EndByte() && !(EndByte()[-1] & 0x80))
+            (BeginByte() < EndByte() && !(EndByte()[-1] & 0x80)))
         {
             // Fast path:  We have enough bytes left in the buffer to guarantee that
             // this read won't cross the end, so we can skip the checks.

@@ -101,25 +101,25 @@ typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
-struct TChunkWriterOptions;
+class TChunkWriterOptions;
 typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
 
 class TTableWriterConfig;
 typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 
-struct TTableWriterOptions;
+class TTableWriterOptions;
 typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
 
-struct TChunkReaderOptions;
+class TChunkReaderOptions;
 typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 
-struct TTableReaderConfig;
+class TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
-struct TAsyncTableReader;
+class TAsyncTableReader;
 typedef TIntrusivePtr<TAsyncTableReader> TAsyncTableReaderPtr;
 
-struct TAsyncWriter;
+class TAsyncWriter;
 typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
 class TTableProducer;

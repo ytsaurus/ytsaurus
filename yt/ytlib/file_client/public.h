@@ -33,10 +33,10 @@ typedef TIntrusivePtr<TSyncReader> TSyncReaderPtr;
 class TAsyncReader;
 typedef TIntrusivePtr<TAsyncReader> TAsyncReaderPtr;
 
-struct TFileChunkWriterConfig;
+class TFileChunkWriterConfig;
 typedef TIntrusivePtr<TFileChunkWriterConfig> TFileChunkWriterConfigPtr;
 
-struct TFileWriterConfig;
+class TFileWriterConfig;
 typedef TIntrusivePtr<TFileWriterConfig> TFileWriterConfigPtr;
 
 class TFileReaderConfig;

@@ -154,7 +154,7 @@ class TMultiChunkSequentialWriter;
 struct TRefCountedChunkSpec;
 typedef TIntrusivePtr<TRefCountedChunkSpec> TRefCountedChunkSpecPtr;
 
-struct TChunkSlice;
+class TChunkSlice;
 typedef TIntrusivePtr<TChunkSlice> TChunkSlicePtr;
 
 class TChannel;

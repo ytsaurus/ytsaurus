@@ -28,7 +28,7 @@ typedef TIntrusivePtr<TPeriodicExecutor> TPeriodicExecutorPtr;
 class TThroughputThrottlerConfig;
 typedef TIntrusivePtr<TThroughputThrottlerConfig> TThroughputThrottlerConfigPtr;
 
-class IThroughputThrottler;
+struct IThroughputThrottler;
 typedef TIntrusivePtr<IThroughputThrottler> IThroughputThrottlerPtr;
 
 class TAsyncSemaphore;
