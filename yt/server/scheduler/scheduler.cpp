@@ -40,6 +40,8 @@
 #include <ytlib/object_client/object_ypath_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/scheduler/helpers.h>
@@ -1801,11 +1803,20 @@ private:
         }
 
         switch (state) {
-            case EJobState::Completed:
-                LOG_INFO("Job completed, removal scheduled");
+            case EJobState::Completed: {
+                if (jobStatus->has_result()) {
+                    const auto& statistics = jobStatus->result().statistics();
+                    LOG_INFO("Job completed, removal scheduled (Input: {%s}, Output: {%s}, Time: %" PRId64 ")",
+                        ~ToString(statistics.input()),
+                        ~ToString(statistics.output()),
+                        statistics.time());
+                } else {
+                    LOG_INFO("Job completed, removal scheduled";
+                }
                 OnJobCompleted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
+            }
 
             case EJobState::Failed: {
                 auto error = FromProto(jobStatus->result().error());

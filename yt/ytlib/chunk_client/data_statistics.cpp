@@ -5,7 +5,6 @@
 
 namespace NYT {
 namespace NChunkClient {
-
 namespace NProto {
 
 using namespace NYTree;
@@ -72,10 +71,20 @@ void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer
         .EndMap();
 }
 
+Stroka ToString(const TDataStatistics& statistics)
+{
+    return Sprintf(
+        "UncompressedDataSize: %" PRId64 ", CompressedDataSize: %" PRId64
+        ", RowCount: %" PRId64 ", ChunkCount: %" PRId64,
+        statistics.uncompressed_data_size(),
+        statistics.compressed_data_size(),
+        statistics.row_count(),
+        statistics.chunk_count());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
-
 } // namespace NChunkClient
 } // namespace NYT
 
