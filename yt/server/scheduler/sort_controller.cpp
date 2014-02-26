@@ -399,6 +399,8 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
+            LOG_DEBUG("!!! Got %d chunks, actually", (int) stripe->ChunkSlices.size());
+
             RegisterIntermediate(
                 joblet,
                 stripe,
@@ -1868,6 +1870,7 @@ private:
         PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
         RegisterTask(PartitionTask);
