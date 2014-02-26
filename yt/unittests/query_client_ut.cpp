@@ -1109,6 +1109,8 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef YT_USE_LLVM
+
 class TEvaluateCallbacksMock
     : public IEvaluateCallbacks
 {
@@ -1317,6 +1319,8 @@ TEST_F(TQueryCodegenTest, Complex)
 
     SUCCEED();
 }
+
+#endif
 
 } // namespace
 

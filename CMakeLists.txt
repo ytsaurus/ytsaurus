@@ -10,7 +10,7 @@ option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
 option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
-option(YT_BUILD_ENABLE_LLVM        "Build LLVM extensions" FALSE)
+option(YT_BUILD_ENABLE_LLVM        "Build LLVM extensions" TRUE)
 option(YT_BUILD_HAVE_RAGEL         "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON         "Do you have Bison 3.0?" FALSE)
 option(YT_BUILD_YTCORE_SHARED      "Build ytcore as a shared lib" FALSE)
@@ -54,6 +54,10 @@ message(STATUS "Configuring YT ${YT_VERSION}")
 
 ################################################################################
 # Setup targets.
+
+if ( YT_USE_FOLDERS )
+  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+endif()
 
 check_include_files(cxxabi.h       HAVE_CXXABI_H)
 check_include_files(dlfcn.h        HAVE_DLFCN_H)
