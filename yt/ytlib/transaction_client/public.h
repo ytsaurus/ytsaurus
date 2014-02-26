@@ -15,7 +15,6 @@ DECLARE_ENUM(ETransactionType,
     (Tablet) // accepted by tablets only
 );
 
-
 DECLARE_REFCOUNTED_CLASS(TTransaction)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
