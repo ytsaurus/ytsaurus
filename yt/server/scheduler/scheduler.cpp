@@ -1811,7 +1811,7 @@ private:
                         ~ToString(statistics.output()),
                         statistics.time());
                 } else {
-                    LOG_INFO("Job completed, removal scheduled";
+                    LOG_INFO("Job completed, removal scheduled");
                 }
                 OnJobCompleted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
