@@ -44,6 +44,7 @@
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemed_reader.h>
 
+
 namespace NYT {
 namespace NApi {
 
@@ -232,7 +233,7 @@ public:
 
 
     // ICoordinateCallbacks implementation.
-    
+
     virtual ISchemedReaderPtr GetReader(
         const TDataSplit& /*split*/,
         TPlanContextPtr /*context*/) override
@@ -258,31 +259,44 @@ public:
                 .Run(split, std::move(context));
     }
 
-    virtual ISchemedReaderPtr Delegate(
-        const TPlanFragment& fragment,
-        const TDataSplit& colocatedSplit) override
+    virtual TLocationToDataSplits GroupByLocation(
+        const TDataSplits& dataSplits,
+        TPlanContextPtr context) override
     {
-        auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(colocatedSplit.replicas());
-        if (replicas.empty()) {
-            THROW_ERROR_EXCEPTION("No alive replicas for split %s",
-                ~ToString(GetObjectIdFromDataSplit(colocatedSplit)));
+        TLocationToDataSplits result;
+
+        auto nodeDirectory = context->GetNodeDirectory();
+
+        for (const auto& dataSplit : dataSplits) {
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(dataSplit.replicas());
+            if (replicas.empty()) {
+                auto objectId = GetObjectIdFromDataSplit(dataSplit);
+                THROW_ERROR_EXCEPTION("No alive replicas for split %s",
+                    ~ToString(objectId));
+            }
+            auto replica = replicas[RandomNumber(replicas.size())];
+            auto descriptor = nodeDirectory->GetDescriptor(replica);
+
+            result[descriptor.Address].push_back(dataSplit);
         }
 
-        auto replica = replicas[RandomNumber(replicas.size())];
+        return result;
+    }
 
-        auto nodeDirectory = fragment.GetContext()->GetNodeDirectory();
-        auto& nodeDescriptor = nodeDirectory->GetDescriptor(replica);
-
+    virtual ISchemedReaderPtr Delegate(
+        const TPlanFragment& fragment,
+        const Stroka& location) override
+    {
         LOG_DEBUG("Delegating fragment (FragmentId: %s, Address: %s)",
             ~ToString(fragment.Id()),
-            ~nodeDescriptor.Address);
+            ~location);
 
-        auto channel = NodeChannelFactory_->CreateChannel(nodeDescriptor.Address);
+        auto channel = NodeChannelFactory_->CreateChannel(location);
 
         TQueryServiceProxy proxy(channel);
         auto req = proxy.Execute();
-        // TODO(sandello): Send only relevant part of nodeDirectory.
-        nodeDirectory->DumpTo(req->mutable_node_directory());
+
+        fragment.GetContext()->GetNodeDirectory()->DumpTo(req->mutable_node_directory());
         ToProto(req->mutable_plan_fragment(), fragment);
         return New<TQueryResponseReader>(req->Invoke());
     }
@@ -301,7 +315,6 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
-
 
     TDataSplit DoGetInitialSplit(
         const TYPath& path,
@@ -322,7 +335,6 @@ private:
         SetTimestamp(&result, context->GetTimestamp());
         return result;
     }
-
 
     std::vector<TDataSplit> DoSplitFurther(
         const TDataSplit& split,

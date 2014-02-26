@@ -11,7 +11,6 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/helpers.cpp
   ${BASE}/coordinate_controller.cpp
-  ${BASE}/evaluate_controller.cpp
   ${BASE}/prepare_controller.cpp
   ${BASE}/executor.cpp
   ${BASE}/source_location.cpp
@@ -26,7 +25,6 @@ set( HDRS
   ${BASE}/plan_visitor.h
   ${BASE}/plan_helpers.h
   ${BASE}/coordinate_controller.h
-  ${BASE}/evaluate_controller.h
   ${BASE}/prepare_controller.h
   ${BASE}/executor.h
   ${BASE}/expression.h
@@ -42,7 +40,25 @@ set( HDRS
   ${BASE}/source_location.h
 )
 
-list(APPEND YT_SOURCE_FILES
+if (YT_BUILD_ENABLE_LLVM)
+  set( SRCS
+    ${SRCS}
+    ${BASE}/codegen_controller.cpp
+  )
+
+  set( HDRS
+    ${HDRS}
+    ${BASE}/codegen_controller.h
+  )
+
+  set_source_files_properties(
+    ${BASE}/codegen_controller.cpp
+    PROPERTIES
+    COMPILE_FLAGS ${LLVM_CPPFLAGS}
+  )
+endif()
+
+list( APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )

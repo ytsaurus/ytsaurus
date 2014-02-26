@@ -53,7 +53,10 @@ public:
 
         // Scan operators are always visited in the end,
         // because they are leaf nodes.
-        auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplit());
+
+        YCHECK(op->DataSplits().size() == 1);
+
+        auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplits()[0]);
         auto& columnSchemas = tableSchema.Columns();
         auto& liveColumns = LiveColumns_;
 
@@ -77,7 +80,7 @@ public:
             columnSchemas.end());
 
         auto* mutableOp = op->AsMutable<TScanOperator>();
-        SetTableSchema(&mutableOp->DataSplit(), tableSchema);
+        SetTableSchema(&mutableOp->DataSplits()[0], tableSchema);
         op->GetTableSchema(true);
 
         return true;
@@ -174,7 +177,7 @@ void TPrepareController::GetInitialSplits()
                     dataSplitOrError,
                     "Failed to get initial data split for table %s",
                     ~tableDescriptor.Path);
-                scanOp->DataSplit() = dataSplitOrError.Value();
+                scanOp->DataSplits().push_back(dataSplitOrError.Value());
             }
         });
 }

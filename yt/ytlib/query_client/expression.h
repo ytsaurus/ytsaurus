@@ -169,9 +169,8 @@ public:
         const TSourceLocation& sourceLocation,
         const TStringBuf& functionName)
         : TExpression(context, EExpressionKind::Function, sourceLocation)
-        , FunctionName_(functionName)
     {
-        FunctionName_.to_upper(0, Stroka::npos);
+        SetFunctionName(Stroka(functionName));
     }
 
     static inline bool IsClassOf(const TExpression* expr)

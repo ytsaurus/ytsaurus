@@ -100,7 +100,7 @@ public:
 
     TScanOperator(TPlanContext* context, const TScanOperator& other)
         : TOperator(context, EOperatorKind::Scan)
-        , DataSplit_(other.DataSplit_)
+        , DataSplits_(other.DataSplits_)
     { }
 
     static inline bool IsClassOf(const TOperator* op)
@@ -115,7 +115,7 @@ public:
 
     virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
-    DEFINE_BYREF_RW_PROPERTY(TDataSplit, DataSplit);
+    DEFINE_BYREF_RW_PROPERTY(TDataSplits, DataSplits);
 
 private:
     mutable std::unique_ptr<TTableSchema> TableSchema_;

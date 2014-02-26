@@ -66,6 +66,8 @@ struct TColumnFilter
     SmallVector<int, TypicalColumnCount> Indexes;
 };
 
+union TUnversionedValueData;
+
 struct TUnversionedValue;
 struct TVersionedValue;
 
@@ -77,7 +79,7 @@ class TUnversionedOwningRow;
 
 class TVersionedRow;
 
-typedef TUnversionedRow       TKey;
+typedef TUnversionedRow TKey;
 typedef TUnversionedOwningRow TOwningKey;
 
 class TUnversionedRowBuilder;

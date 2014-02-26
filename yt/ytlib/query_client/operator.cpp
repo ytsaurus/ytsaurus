@@ -63,7 +63,9 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
 const TTableSchema& TScanOperator::GetTableSchema(bool ignoreCache) const
 {
     if (!TableSchema_ || ignoreCache) {
-        TableSchema_ = std::make_unique<TTableSchema>(GetTableSchemaFromDataSplit(DataSplit()));
+        TableSchema_ = std::make_unique<TTableSchema>(GetTableSchemaFromDataSplit(DataSplits()[0]));
+
+        // TODO(lukyan): assert that other splits hava the same table scheme
     }
     return *TableSchema_;
 }
@@ -97,7 +99,7 @@ const TTableSchema& TGroupOperator::GetTableSchema(bool ignoreCache) const
     if (!TableSchema_ || ignoreCache) {
         TableSchema_ = std::make_unique<TTableSchema>();
         TTableSchema& result = *TableSchema_;
-            
+
         auto sourceSchema = GetSource()->GetTableSchema();
         for (const auto& groupItem : GroupItems()) {
             result.Columns().emplace_back(
@@ -119,7 +121,7 @@ const TTableSchema& TProjectOperator::GetTableSchema(bool ignoreCache) const
     if (!TableSchema_ || ignoreCache) {
         TableSchema_ = std::make_unique<TTableSchema>();
         TTableSchema& result = *TableSchema_;
-       
+
         auto sourceSchema = GetSource()->GetTableSchema();
         for (const auto& projection : Projections()) {
             result.Columns().emplace_back(
@@ -169,7 +171,7 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
         case EOperatorKind::Scan: {
             auto* op = original->As<TScanOperator>();
             auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
-            ToProto(proto->mutable_data_split(), op->DataSplit());
+            ToProto(proto->mutable_data_split(), op->DataSplits());
             break;
         }
 
@@ -219,8 +221,8 @@ TNamedExpression FromProto(const NProto::TNamedExpression& serialized, TPlanCont
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized, TPlanContext* context)
 {
     return TAggregateItem(
-        FromProto(serialized.expression(), context), 
-        EAggregateFunctions(serialized.aggregate_function()), 
+        FromProto(serialized.expression(), context),
+        EAggregateFunctions(serialized.aggregate_function()),
         serialized.name());
 }
 
@@ -233,7 +235,13 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
         case EOperatorKind::Scan: {
             auto data = serialized.GetExtension(NProto::TScanOperator::scan_operator);
             auto typedResult = new (context) TScanOperator(context);
-            FromProto(&typedResult->DataSplit(), data.data_split());
+            typedResult->DataSplits().reserve(data.data_split_size());
+
+            for (int i = 0; i < data.data_split_size(); ++i) {
+                TDataSplit dataSplit;
+                FromProto(&dataSplit, data.data_split(i));
+                typedResult->DataSplits().push_back(dataSplit);
+            }
             YASSERT(!result);
             result = typedResult;
             break;

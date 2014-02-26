@@ -30,7 +30,7 @@ message TScanOperator
     extend TOperator {
         optional TScanOperator scan_operator = 101;
     }
-    required NYT.NChunkClient.NProto.TChunkSpec data_split = 1;
+    repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 1;
 }
 
 message TUnionOperator

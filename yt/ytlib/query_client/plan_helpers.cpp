@@ -17,29 +17,14 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TDataSplit& GetHeaviestSplit(const TOperator* op)
-{
-    switch (op->GetKind()) {
-        case EOperatorKind::Scan:
-            return op->As<TScanOperator>()->DataSplit();
-        case EOperatorKind::Union:
-            YUNIMPLEMENTED();
-        case EOperatorKind::Filter:
-            return GetHeaviestSplit(op->As<TFilterOperator>()->GetSource());
-        case EOperatorKind::Group:
-            return GetHeaviestSplit(op->As<TGroupOperator>()->GetSource());
-        case EOperatorKind::Project:
-            return GetHeaviestSplit(op->As<TProjectOperator>()->GetSource());
-    }
-    YUNREACHABLE();
-}
-
 TKeyColumns InferKeyColumns(const TOperator* op)
 {
     switch (op->GetKind()) {
         case EOperatorKind::Scan: {
             return GetKeyColumnsFromDataSplit(
-                op->As<TScanOperator>()->DataSplit());
+                op->As<TScanOperator>()->DataSplits()[0]);
+
+            // TODO(lukyan): assert that other splits hava the same key columns
         }
         case EOperatorKind::Union: {
             TKeyColumns result;
@@ -72,8 +57,12 @@ TKeyRange InferKeyRange(const TOperator* op)
 {
     switch (op->GetKind()) {
         case EOperatorKind::Scan: {
-            const auto& dataSplit = op->As<TScanOperator>()->DataSplit();
-            return GetBothBoundsFromDataSplit(dataSplit);
+            auto* scanOp = op->As<TScanOperator>();
+            auto unitedKeyRange = std::make_pair(MaxKey(), MinKey());
+            for (const auto& dataSplit : scanOp->DataSplits()) {
+                unitedKeyRange = Unite(unitedKeyRange, GetBothBoundsFromDataSplit(dataSplit));
+            }
+            return unitedKeyRange;
         }
         case EOperatorKind::Union: {
             auto* unionOp = op->As<TUnionOperator>();
@@ -117,14 +106,14 @@ TKeyRange RefineKeyRange(
 
     auto normalizeKey =
     [&] (TKey& key) {
-        if (key.GetCount() == keySize + 1 && key[keySize].Type == EValueType::Min) {
-            TUnversionedOwningRowBuilder builder(keySize);
-            for (size_t index = 0; index < keySize; ++index) {
-                builder.AddValue(key[index]);
-            }
-            key = builder.GetRowAndReset();
-            AdvanceToValueSuccessor(key[keySize - 1]);
-        }
+       if (key.GetCount() == keySize + 1 && keySize > 0 && key[keySize].Type == EValueType::Min) {
+           TUnversionedOwningRowBuilder builder(keySize);
+           for (size_t index = 0; index < keySize; ++index) {
+               builder.AddValue(key[index]);
+           }
+           key = builder.GetRowAndReset();
+           AdvanceToValueSuccessor(key[keySize - 1]);
+       }
     };
 
     normalizeKey(result.first);
