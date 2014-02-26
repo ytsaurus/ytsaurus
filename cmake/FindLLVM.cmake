@@ -110,7 +110,7 @@ else()
   
   message(STATUS "LLVM Include Directory: ${LLVM_INCLUDE_DIRS}")
   message(STATUS "LLVM Library Directory: ${LLVM_LIBRARY_DIRS}")
-  message(STATUS "LLVM C Preprocessor: ${LLVM_CPPFLAGS}")
+  message(STATUS "LLVM C++ Preprocessor: ${LLVM_CPPFLAGS}")
   message(STATUS "LLVM C++ Compiler: ${LLVM_CXXFLAGS}")
 
 endif (NOT LLVM_CONFIG_EXECUTABLE)
