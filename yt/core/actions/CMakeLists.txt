@@ -18,6 +18,7 @@ set( HDRS
   ${BASE}/invoker.h
   ${BASE}/invoker_util.h
   ${BASE}/signal.h
+  ${BASE}/signal-inl.h
   ${BASE}/public.h
 )
 
