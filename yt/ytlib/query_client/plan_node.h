@@ -87,18 +87,6 @@ public:
         }
     }
 
-    // TODO(sandello): Implement CoW strategy here to avoid subtle issues.
-    // TODO(sandello): Or get rid of this method.
-    template <class TDerivedPlanNode>
-    inline TDerivedPlanNode* AsMutable(
-        typename std::enable_if<
-            std::is_base_of<TPlanNode, TDerivedPlanNode>::value,
-            int
-        >::type = 0) const
-    {
-        return const_cast<TDerivedPlanNode*>(As<TDerivedPlanNode>());
-    }
-
     virtual TArrayRef<const TPlanNode*> Children() const = 0;
 
 private:

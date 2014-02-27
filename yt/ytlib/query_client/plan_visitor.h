@@ -67,32 +67,22 @@ bool Traverse(IPlanVisitor* visitor, const TOperator* root);
 bool Traverse(IPlanVisitor* visitor, const TExpression* root);
 
 //! Recursively applies the functor to the tree.
-template <class TNode, class TFunctor>
-const TNode* Apply(TPlanContext* context, const TNode* node, const TFunctor& functor)
-{
-    const TNode* result = functor(context, node);
-
-    auto immutableChildren = result->Children();
-    auto mutableChildren = TMutableArrayRef<const TNode*>(
-        const_cast<const TNode**>(immutableChildren.data()),
-        immutableChildren.size());
-
-    for (auto& child : mutableChildren) {
-        child = Apply(context, child, functor);
-    }
-
-    return result;
-}
+const TOperator* Apply(
+    TPlanContext* context,
+    const TOperator* root,
+    const std::function<const TOperator*(TPlanContext*, const TOperator*)>& functor);
+const TExpression* Apply(
+    TPlanContext* context,
+    const TExpression* root,
+    const std::function<const TExpression*(TPlanContext*, const TExpression*)>& functor);
 
 //! Recursively visits every node in the tree.
-template <class TNode, class TVisitor>
-void Visit(const TNode* node, const TVisitor& visitor)
-{
-    visitor(node);
-    for (const auto& child : node->Children()) {
-        Visit(child, visitor);
-    }
-}
+void Visit(
+    const TExpression* root,
+    const std::function<void(const TExpression*)>& visitor);
+void Visit(
+    const TOperator* root,
+    const std::function<void(const TOperator*)>& visitor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

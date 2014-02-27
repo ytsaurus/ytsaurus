@@ -47,45 +47,6 @@ class TCheckAndPruneReferences
     : public TPlanVisitor
 {
 public:
-    virtual bool Visit(const TScanOperator* op) override
-    {
-        CurrentSourceSchema_ = op->GetTableSchema();
-
-        // Scan operators are always visited in the end,
-        // because they are leaf nodes.
-
-        YCHECK(op->DataSplits().size() == 1);
-
-        auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplits()[0]);
-        auto& columnSchemas = tableSchema.Columns();
-        auto& liveColumns = LiveColumns_;
-
-        columnSchemas.erase(
-            std::remove_if(
-                columnSchemas.begin(),
-                columnSchemas.end(),
-                [&liveColumns] (const TColumnSchema& columnSchema) -> bool {
-                    if (liveColumns.find(columnSchema.Name) != liveColumns.end()) {
-                        LOG_DEBUG(
-                            "Keeping column %s in the table schema",
-                            ~columnSchema.Name.Quote());
-                        return false;
-                    } else {
-                        LOG_DEBUG(
-                            "Prunning column %s from the table schema",
-                            ~columnSchema.Name.Quote());
-                        return true;
-                    }
-                }),
-            columnSchemas.end());
-
-        auto* mutableOp = op->AsMutable<TScanOperator>();
-        SetTableSchema(&mutableOp->DataSplits()[0], tableSchema);
-        op->GetTableSchema(true);
-
-        return true;
-    }
-
     virtual bool Visit(const TFilterOperator* op) override
     {
         CurrentSourceSchema_ = op->GetSource()->GetTableSchema();
@@ -129,6 +90,11 @@ public:
         return true;
     }
 
+    const std::set<Stroka>& GetLiveColumns()
+    {
+        return LiveColumns_;
+    }
+
 private:
     std::set<Stroka> LiveColumns_;
     TTableSchema CurrentSourceSchema_;
@@ -162,10 +128,11 @@ void TPrepareController::ParseSource()
 
 void TPrepareController::GetInitialSplits()
 {
-    Visit(
+    Head_ = Apply(
+        Context_.Get(),
         Head_,
-        [this] (const TOperator* op) {
-            if (auto* scanOp = op->AsMutable<TScanOperator>()) {
+        [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+            if (auto* scanOp = op->As<TScanOperator>()) {
                 auto tablePath = Context_->GetTablePath();
                 LOG_DEBUG("Getting initial data split for %s", ~tablePath);
                 // XXX(sandello): We have just one table at the moment.
@@ -177,8 +144,13 @@ void TPrepareController::GetInitialSplits()
                     dataSplitOrError,
                     "Failed to get initial data split for table %s",
                     ~tablePath);
-                scanOp->DataSplits().push_back(dataSplitOrError.Value());
+
+                auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                clonedScanOp->DataSplits().clear();
+                clonedScanOp->DataSplits().push_back(dataSplitOrError.Value());
+                return clonedScanOp;
             }
+            return op;
         });
 }
 
@@ -186,14 +158,55 @@ void TPrepareController::CheckAndPruneReferences()
 {
     TCheckAndPruneReferences visitor;
     Traverse(&visitor, Head_);
+
+    const auto& liveColumns = visitor.GetLiveColumns();
+
+    Head_ = Apply(
+        Context_.Get(),
+        Head_,
+        [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+            if (auto* scanOp = op->As<TScanOperator>()) {
+                YCHECK(scanOp->DataSplits().size() == 1);
+
+                auto schema = GetTableSchemaFromDataSplit(scanOp->DataSplits()[0]);
+                auto columns = schema.Columns();
+
+                columns.erase(
+                    std::remove_if(
+                        columns.begin(),
+                        columns.end(),
+                        [&liveColumns] (const TColumnSchema& columnSchema) -> bool {
+                            if (liveColumns.find(columnSchema.Name) != liveColumns.end()) {
+                                LOG_DEBUG(
+                                    "Keeping column %s in the table schema",
+                                    ~columnSchema.Name.Quote());
+                                return false;
+                            } else {
+                                LOG_DEBUG(
+                                    "Prunning column %s from the table schema",
+                                    ~columnSchema.Name.Quote());
+                                return true;
+                            }
+                        }),
+                    columns.end());
+
+                auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                SetTableSchema(&clonedScanOp->DataSplits()[0], schema);
+                clonedScanOp->GetTableSchema(true);
+
+                return clonedScanOp;
+            }
+            return op;
+        }
+    );
 }
 
 void TPrepareController::TypecheckExpressions()
 {
     Visit(Head_, [this] (const TOperator* op)
     {
-        if (auto* typedOp = op->As<TFilterOperator>()) {
-            auto actualType = typedOp->GetPredicate()->GetType(typedOp->GetSource()->GetTableSchema());
+        if (auto* filterOp = op->As<TFilterOperator>()) {
+            auto actualType = filterOp->GetPredicate()->GetType(filterOp->GetSource()->GetTableSchema());
             auto expectedType = EValueType(EValueType::Integer);
             if (actualType != expectedType) {
                 THROW_ERROR_EXCEPTION("WHERE-clause is not of valid type")
@@ -201,9 +214,9 @@ void TPrepareController::TypecheckExpressions()
                     << TErrorAttribute("expected_type", expectedType);
             }
         }
-        if (auto* typedOp = op->As<TProjectOperator>()) {
-            for (auto& projection : typedOp->Projections()) {
-                projection.Expression->GetType(typedOp->GetSource()->GetTableSchema()); // Force typechecking.
+        if (auto* projectOp = op->As<TProjectOperator>()) {
+            for (auto& projection : projectOp->Projections()) {
+                projection.Expression->GetType(projectOp->GetSource()->GetTableSchema()); // Force typechecking.
             }
         }
     });

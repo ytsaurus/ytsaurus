@@ -121,6 +121,68 @@ bool Traverse(IPlanVisitor* visitor, const TExpression* root)
     return true;
 }
 
+template <class TNode>
+static inline const TNode* ApplyImpl(
+    TPlanContext* context,
+    const TNode* root,
+    const std::function<const TNode*(TPlanContext*, const TNode*)>& functor)
+{
+    const TNode* result = functor(context, root);
+
+    auto immutableChildren = result->Children();
+    auto mutableChildren = TMutableArrayRef<const TNode*>(
+        const_cast<const TNode**>(immutableChildren.data()),
+        immutableChildren.size());
+
+    for (auto& child : mutableChildren) {
+        child = Apply(context, child, functor);
+    }
+
+    return result;
+}
+
+const TOperator* Apply(
+    TPlanContext* context,
+    const TOperator* root,
+    const std::function<const TOperator*(TPlanContext*, const TOperator*)>& functor)
+{
+    return ApplyImpl(context, root, functor);
+}
+
+const TExpression* Apply(
+    TPlanContext* context,
+    const TExpression* root,
+    const std::function<const TExpression*(TPlanContext*, const TExpression*)>& functor)
+{
+    return ApplyImpl(context, root, functor);
+}
+
+template <class TNode>
+static inline void VisitImpl(
+    const TNode* root,
+    const std::function<void(const TNode*)>& visitor)
+{
+    visitor(root);
+    for (const auto& child : root->Children()) {
+        Visit(child, visitor);
+    }
+}
+
+void Visit(
+    const TExpression* root,
+    const std::function<void(const TExpression*)>& visitor)
+{
+    VisitImpl(root, visitor);
+}
+
+void Visit(
+    const TOperator* root,
+    const std::function<void(const TOperator*)>& visitor)
+{
+    VisitImpl(root, visitor);
+}
+
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
