@@ -26,10 +26,10 @@ public:
     const Stroka& GetName(int id) const;
 
 private:
-    TSpinLock SpinLock;
+    TSpinLock SpinLock_;
 
-    std::vector<Stroka> IdToName;
-    yhash_map<TStringBuf, int> NameToId; // String values are owned by IdToName.
+    std::vector<Stroka> IdToName_;
+    yhash_map<TStringBuf, int> NameToId_; // String values are owned by IdToName.
 
     int DoRegisterName(const TStringBuf& name);
 

@@ -20,15 +20,15 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
 
 int TNameTable::GetSize() const
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    return IdToName.size();
+    TGuard<TSpinLock> guard(SpinLock_);
+    return IdToName_.size();
 }
 
 TNullable<int> TNameTable::FindId(const TStringBuf& name) const
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    auto it = NameToId.find(name);
-    if (it == NameToId.end()) {
+    TGuard<TSpinLock> guard(SpinLock_);
+    auto it = NameToId_.find(name);
+    if (it == NameToId_.end()) {
         return Null;
     } else {
         return MakeNullable(it->second);
@@ -44,22 +44,22 @@ int TNameTable::GetId(const TStringBuf& name) const
 
 const Stroka& TNameTable::GetName(int id) const
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(id >= 0 && id < IdToName.size());
-    return IdToName[id];
+    TGuard<TSpinLock> guard(SpinLock_);
+    YCHECK(id >= 0 && id < IdToName_.size());
+    return IdToName_[id];
 }
 
 int TNameTable::RegisterName(const TStringBuf& name)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock_);
     return DoRegisterName(name);
 }
 
 int TNameTable::GetIdOrRegisterName(const TStringBuf& name)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    auto it = NameToId.find(name);
-    if (it == NameToId.end()) {
+    TGuard<TSpinLock> guard(SpinLock_);
+    auto it = NameToId_.find(name);
+    if (it == NameToId_.end()) {
         return DoRegisterName(name);
     } else {
         return it->second;
@@ -68,10 +68,10 @@ int TNameTable::GetIdOrRegisterName(const TStringBuf& name)
 
 int TNameTable::DoRegisterName(const TStringBuf& name)
 {
-    int id = IdToName.size();
-    IdToName.emplace_back(name);
-    const auto& savedName = IdToName.back();
-    YCHECK(NameToId.insert(std::make_pair(savedName, id)).second);
+    int id = IdToName_.size();
+    IdToName_.emplace_back(name);
+    const auto& savedName = IdToName_.back();
+    YCHECK(NameToId_.insert(std::make_pair(savedName, id)).second);
     return id;
 }
 
