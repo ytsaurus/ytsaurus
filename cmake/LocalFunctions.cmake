@@ -62,9 +62,25 @@ function(PUMP pump output)
 )
 endfunction()
 
-# TODO(sandello): Autodiscover binaries.
-set(RAGEL_BIN /home/sandello/Cellar/bin/ragel) # Ragel v.6.8
-set(BISON_BIN /home/sandello/Cellar/bin/bison) # Bison v.3.0
+find_program(RAGEL_EXECUTABLE ragel)
+mark_as_advanced(RAGEL_EXECUTABLE)
+
+if(YT_BUILD_HAVE_RAGEL)
+  if(NOT RAGEL_EXECUTABLE)
+    message(FATAL_ERROR "Could not find Ragel.")
+  endif()
+
+  execute_process(
+    COMMAND ${RAGEL_EXECUTABLE} --version
+    OUTPUT_VARIABLE RAGEL_VERSION
+  )
+
+  if(NOT RAGEL_VERSION MATCHES "6.8")
+    message(FATAL_ERROR "Ragel 6.8 is required.")
+  endif()
+
+  message(STATUS "Found Ragel: ${RAGEL_EXECUTABLE}")
+endif()
 
 function(RAGEL input output)
   get_filename_component(_real_path ${input} REALPATH)
@@ -78,7 +94,7 @@ function(RAGEL input output)
       OUTPUT
         ${_result}
       COMMAND
-        ${RAGEL_BIN} -C -G2 ${_real_path} -o ${_result}
+        ${RAGEL_EXECUTABLE} -C -G2 ${_real_path} -o ${_result}
       MAIN_DEPENDENCY
         ${_real_path}
       WORKING_DIRECTORY
@@ -90,6 +106,26 @@ function(RAGEL input output)
   # Append generated .cpp to the output variable.
   set(${output} ${${output}} ${_result} PARENT_SCOPE)
 endfunction()
+
+find_program(BISON_EXECUTABLE bison)
+mark_as_advanced(BISON_EXECUTABLE)
+
+if(YT_BUILD_HAVE_BISON)
+  if(NOT BISON_EXECUTABLE)
+    message(FATAL_ERROR "Could not find Bison.")
+  endif()
+
+  execute_process(
+    COMMAND ${BISON_EXECUTABLE} --version
+    OUTPUT_VARIABLE BISON_VERSION
+  )
+
+  if(NOT BISON_VERSION MATCHES "3.0")
+    message(FATAL_ERROR "Bison 3.0 is required.")
+  endif()
+
+  message(STATUS "Found Bison: ${BISON_EXECUTABLE}")
+endif()
 
 function(BISON input output)
   get_filename_component(_real_path ${input} REALPATH)
@@ -104,7 +140,7 @@ function(BISON input output)
       OUTPUT
         ${_result} ${_result_aux}
       COMMAND
-        ${BISON_BIN} --locations -fcaret ${_real_path} -o ${_result}
+        ${BISON_EXECUTABLE} --locations -fcaret ${_real_path} -o ${_result}
       MAIN_DEPENDENCY
         ${_real_path}
       WORKING_DIRECTORY

@@ -20,10 +20,12 @@ find_program(LLVM_CONFIG_EXECUTABLE
   $ENV{LLVM_ROOT}/bin
 )
 
+mark_as_advanced(LLVM_CONFIG_EXECUTABLE)
+
 if(NOT LLVM_CONFIG_EXECUTABLE)
   message(FATAL_ERROR "LLVM cannot be found (could not find llvm-config). Set environment variable LLVM_ROOT.")
 else()
-  SET(LLVM_FOUND TRUE)
+  set(LLVM_FOUND TRUE)
 
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --version
@@ -85,7 +87,7 @@ else()
       endforeach()
     else()
       execute_process(
-        COMMAND ${LLVM_CONFIG_EXECUTABLE} --libfiles ${ARGN}
+        COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs ${ARGN}
         OUTPUT_VARIABLE _tmp
         OUTPUT_STRIP_TRAILING_WHITESPACE
       )
@@ -105,7 +107,7 @@ else()
     string(REPLACE "  " " " _libs_system "${_libs_system}")
     string(REPLACE " "  ";" _libs_system "${_libs_system}")
 
-    set( ${RESULT} ${_libs_system} ${_libs_module} PARENT_SCOPE )
+    set(${RESULT} ${_libs_system} ${_libs_module} PARENT_SCOPE)
   endfunction(llvm_map_components_to_libraries)
   
   message(STATUS "LLVM Include Directory: ${LLVM_INCLUDE_DIRS}")
@@ -113,7 +115,7 @@ else()
   message(STATUS "LLVM C++ Preprocessor: ${LLVM_CPPFLAGS}")
   message(STATUS "LLVM C++ Compiler: ${LLVM_CXXFLAGS}")
 
-endif (NOT LLVM_CONFIG_EXECUTABLE)
+endif()
 
 
 
