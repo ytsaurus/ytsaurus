@@ -325,7 +325,6 @@ protected:
             this,
             static_cast<int>(Tasks.size()),
             CurrentPartitionIndex);
-        task->Initialize();
 
         EndTask(task);
     }
@@ -1290,7 +1289,6 @@ private:
             this,
             static_cast<int>(Tasks.size()),
             CurrentPartitionIndex);
-        task->Initialize();
 
         EndTask(task);
     }
