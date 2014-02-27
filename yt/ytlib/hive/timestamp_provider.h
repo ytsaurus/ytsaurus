@@ -25,6 +25,8 @@ struct ITimestampProvider
     virtual TTimestamp GetLatestTimestamp() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(ITimestampProvider)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHive

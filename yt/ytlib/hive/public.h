@@ -11,17 +11,12 @@ namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectory;
-typedef TIntrusivePtr<TCellDirectory> TCellDirectoryPtr;
+DECLARE_REFCOUNTED_CLASS(TCellDirectory)
 
-struct ITimestampProvider;
-typedef TIntrusivePtr<ITimestampProvider> ITimestampProviderPtr;
+DECLARE_REFCOUNTED_STRUCT(ITimestampProvider)
 
-class TCellDirectoryConfig;
-typedef TIntrusivePtr<TCellDirectoryConfig> TCellDirectoryConfigPtr;
-
-class TRemoteTimestampProviderConfig;
-typedef TIntrusivePtr<TRemoteTimestampProviderConfig> TRemoteTimestampProviderConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
+DECLARE_REFCOUNTED_CLASS(TRemoteTimestampProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
