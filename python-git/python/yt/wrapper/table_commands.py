@@ -651,12 +651,14 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     if sort_by is None:
         sort_by = reduce_by
 
+    sort_by = _prepare_sort_by(sort_by)
+    reduce_by = _prepare_reduce_by(reduce_by)
+
     spec = compose(
         _add_user_spec,
         lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
-        lambda _: update({"sort_by": _prepare_sort_by(sort_by),
-                          "reduce_by": _prepare_reduce_by(reduce_by)}, _),
+        lambda _: update({"sort_by": sort_by, "reduce_by": reduce_by}, _),
         lambda _: memorize_files(*_add_user_command_spec("mapper", mapper,
             format, map_input_format, map_output_format,
             map_files, map_file_paths,
@@ -667,8 +669,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             reduce_files, reduce_file_paths,
             reduce_local_files, reduce_yt_files,
             reducer_memory_limit, reduce_by, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reduce_combiner", reduce_combiner, format,
-            reduce_combiner_input_format, reduce_combiner_output_format,
+        lambda _: memorize_files(*_add_user_command_spec("reduce_combiner", reduce_combiner,
+            format, reduce_combiner_input_format, reduce_combiner_output_format,
             reduce_combiner_files, reduce_combiner_file_paths,
             reduce_combiner_local_files, reduce_combiner_yt_files,
             reduce_combiner_memory_limit, reduce_by, _)),
@@ -723,10 +725,9 @@ def run_operation(binary, source_table, destination_table,
                     strategy=strategy,
                     spec=spec)
                 return
-            else:
-                reduce_by = _prepare_reduce_by(reduce_by)
-        else:
-            reduce_by = _prepare_reduce_by(reduce_by)
+
+    if op_name == "reduce":
+        reduce_by = _prepare_reduce_by(reduce_by)
 
     destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec)
 
@@ -742,7 +743,7 @@ def run_operation(binary, source_table, destination_table,
         _add_user_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
-        lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
+        lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
         lambda _: update({"memory_limit": memory_limit}, _) if memory_limit is not None else _,
         lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
