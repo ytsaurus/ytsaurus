@@ -9,6 +9,7 @@
 #include <core/ytree/ypath_detail.h>
 
 #include <ytlib/orchid/orchid_service_proxy.h>
+#include <ytlib/orchid/private.h>
 
 #include <core/rpc/channel.h>
 #include <core/rpc/message.h>
