@@ -852,13 +852,13 @@ TCodegenControllerImpl::TCodegenControllerImpl(IInvokerPtr invoker)
     PassManagerBuilder_.Inliner = llvm::createFunctionInliningPass();
 
     FunctionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
-    FunctionPassManager_->add(new llvm::DataLayoutPass(Module_));
+    FunctionPassManager_->add(new llvm::DataLayout(Module_));
     PassManagerBuilder_.populateFunctionPassManager(*FunctionPassManager_);
 
     FunctionPassManager_->doInitialization();
 
     ModulePassManager_ = std::make_unique<llvm::PassManager>();
-    ModulePassManager_->add(new llvm::DataLayoutPass(Module_));
+    ModulePassManager_->add(new llvm::DataLayout(Module_));
     PassManagerBuilder_.populateModulePassManager(*ModulePassManager_);
 }
 
