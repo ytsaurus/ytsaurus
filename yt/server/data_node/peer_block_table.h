@@ -65,7 +65,10 @@ private:
     TTable Table;
 
     TInstant LastSwept;
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TPeerBlockTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 

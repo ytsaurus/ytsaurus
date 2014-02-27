@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <core/concurrency/action_queue.h>
+
 #include <core/actions/signal.h>
 
 #include <core/logging/tagged_logger.h>
@@ -157,6 +158,8 @@ private:
     void DoDisable();
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

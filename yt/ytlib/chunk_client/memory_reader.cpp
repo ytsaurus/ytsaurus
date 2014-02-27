@@ -30,7 +30,10 @@ auto TMemoryReader::AsyncGetChunkMeta(
 {
     YCHECK(!partitionTag);
 
-    return MakeFuture(TGetMetaResult(tags ? FilterChunkMetaExtensions(ChunkMeta, *tags) : ChunkMeta));
+    return MakeFuture(TGetMetaResult(
+        tags
+        ? FilterChunkMetaByExtensionTags(ChunkMeta, *tags)
+        : ChunkMeta));
 }
 
 TChunkId TMemoryReader::GetChunkId() const

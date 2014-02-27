@@ -28,6 +28,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
+
 class TLocationConfig
     : public TYsonSerializable
 {
@@ -73,6 +75,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TLocationConfig)
+
 class TDiskHealthCheckerConfig
     : public TYsonSerializable
 {
@@ -97,6 +101,8 @@ public:
             .Default(TDuration::Seconds(60));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
 //! Describes a configuration of a data node.
 class TDataNodeConfig
@@ -262,6 +268,8 @@ public:
             .GreaterThanOrEqual(1);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TDataNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

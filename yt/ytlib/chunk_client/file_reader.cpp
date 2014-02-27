@@ -136,7 +136,7 @@ i64 TFileReader::GetFullSize() const
 TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* tags) const
 {
     YCHECK(Opened);
-    return tags ? FilterChunkMetaExtensions(ChunkMeta, *tags) : ChunkMeta;
+    return tags ? FilterChunkMetaByExtensionTags(ChunkMeta, *tags) : ChunkMeta;
 }
 
 IAsyncReader::TAsyncGetMetaResult

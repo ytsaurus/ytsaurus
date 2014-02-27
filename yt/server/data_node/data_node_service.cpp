@@ -24,6 +24,7 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/private.h>
+
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -153,26 +154,14 @@ void TDataNodeService::OnGotChunkMeta(
         return;
     }
 
-    *context->Response().mutable_chunk_meta() = result.Value();
+    const auto& chunkMeta = *result.Value();
 
     if (partitionTag) {
-        std::vector<NTableClient::NProto::TBlockInfo> filteredBlocks;
-        auto channelsExt = GetProtoExtension<TChannelsExt>(
-            result.Value().extensions());
-        // Partition chunks must have only one channel.
-        YCHECK(channelsExt.items_size() == 1);
-
-        for (const auto& blockInfo : channelsExt.items(0).blocks()) {
-            YCHECK(blockInfo.partition_tag() != DefaultPartitionTag);
-            if (blockInfo.partition_tag() == partitionTag.Get()) {
-                filteredBlocks.push_back(blockInfo);
-            }
-        }
-
-        ToProto(channelsExt.mutable_items(0)->mutable_blocks(), filteredBlocks);
-        SetProtoExtension(
-            context->Response().mutable_chunk_meta()->mutable_extensions(),
-            channelsExt);
+        *context->Response().mutable_chunk_meta() = FilterChunkMetaByPartitionTag(
+            chunkMeta,
+            *partitionTag);
+    } else {
+        *context->Response().mutable_chunk_meta() = chunkMeta;
     }
 
     context->Reply();
@@ -619,10 +608,11 @@ void TDataNodeService::ProcessSample(
         return;
     }
 
-    if (result.Value().type() != EChunkType::Table) {
-        auto error = TError("Invalid chunk type (Actual: %s, Expected: %s)",
-            ~FormatEnum(EChunkType(result.Value().type())),
-            ~FormatEnum(EChunkType(EChunkType::Table)));
+    const auto& chunkMeta = *result.Value();
+    if (chunkMeta.type() != EChunkType::Table) {
+        auto error = TError("Invalid chunk type: actual: %s, expected: %s",
+            ~FormatEnum(EChunkType(chunkMeta.type())).Quote(),
+            ~FormatEnum(EChunkType(EChunkType::Table)).Quote());
         LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
             ~ToString(chunkId));
         ToProto(chunkSamples->mutable_error(), error);
@@ -630,17 +620,17 @@ void TDataNodeService::ProcessSample(
     }
 
     // XXX(psushin): implement sampling for new chunks.
-    if (result.Value().version() != 1) {
+    if (chunkMeta.version() != 1) {
         // Only old chunks support sampling now.
-        auto error = TError("Invalid chunk version (Expected: 1, Actual: %d)",
-            result.Value().version());
+        auto error = TError("Invalid chunk version: expected: 1, actual: %d",
+            chunkMeta.version());
         LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
             ~ToString(chunkId));
         ToProto(chunkSamples->mutable_error(), error);
         return;
     }
 
-    auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
+    auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(chunkMeta.extensions());
     std::vector<NTableClient::NProto::TSample> samples;
     RandomSampleN(
         samplesExt.items().begin(),
@@ -747,25 +737,27 @@ void TDataNodeService::MakeChunkSplits(
         return;
     }
 
-    if (result.Value().type() != EChunkType::Table) {
-        auto error =  TError("Invalid chunk type (Expected: table, Actual: %s",
-            ~FormatEnum(EChunkType(result.Value().type())));
+    const auto& chunkMeta = *result.Value();
+
+    if (chunkMeta.type() != EChunkType::Table) {
+        auto error =  TError("Invalid chunk type: expected: \"table\", actual %s",
+            ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
         LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
     // XXX(psushin): implement splitting for new chunks.
-    if (result.Value().version() != 1) {
+    if (chunkMeta.version() != 1) {
         // Only old chunks support splitting now.
-        auto error = TError("Invalid chunk version (Expected: 1, Actual: %d)",
-            result.Value().version());
+        auto error = TError("Invalid chunk version: expected: 1, actual %d",
+            chunkMeta.version());
         LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
-    auto miscExt = GetProtoExtension<TMiscExt>(result.Value().extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     if (!miscExt.sorted()) {
         auto error =  TError("Chunk is unsorted");
         LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
@@ -773,9 +765,9 @@ void TDataNodeService::MakeChunkSplits(
         return;
     }
 
-    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.Value().extensions());
+    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(chunkMeta.extensions());
     if (keyColumnsExt.names_size() < keyColumns.size()) {
-        auto error = TError("Not enough key columns (Expected %d, Actual %d",
+        auto error = TError("Not enough key columns: expected %d, actual %d",
             static_cast<int>(keyColumns.size()),
             static_cast<int>(keyColumnsExt.names_size()));
         LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
@@ -786,7 +778,7 @@ void TDataNodeService::MakeChunkSplits(
     for (int i = 0; i < keyColumns.size(); ++i) {
         const auto& value = keyColumnsExt.names(i);
         if (keyColumns[i] != value) {
-            auto error = TError("Invalid key columns (Expected %s, Actual %s",
+            auto error = TError("Invalid key column: expected %s, actual %s",
                 ~keyColumns[i].Quote(),
                 ~value.Quote());
             LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
@@ -795,7 +787,7 @@ void TDataNodeService::MakeChunkSplits(
         }
     }
 
-    auto indexExt = GetProtoExtension<NTableClient::NProto::TIndexExt>(result.Value().extensions());
+    auto indexExt = GetProtoExtension<NTableClient::NProto::TIndexExt>(chunkMeta.extensions());
     if (indexExt.items_size() == 1) {
         // Only one index entry available - no need to split.
         splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);

@@ -1,7 +1,10 @@
 ﻿#pragma once
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
+#include "public.h"
+
 #include <core/misc/protobuf_helpers.h>
+
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 namespace NYT {
 
@@ -13,6 +16,14 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TIndexExt, 12)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TOldBoundaryKeysExt, 13)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TPartitionsExt, 15)
+
+namespace NTableClient {
+
+NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    int partitionTag);
+
+} // namespace NTableClient
 
 ////////////////////////////////////////////////////////////////////////////////
 

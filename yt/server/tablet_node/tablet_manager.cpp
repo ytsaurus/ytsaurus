@@ -990,9 +990,7 @@ private:
             chunkId,
             tablet,
             chunkMeta,
-            Bootstrap_->GetBlockStore()->GetBlockCache(),
-            Bootstrap_->GetMasterChannel(),
-            Bootstrap_->GetLocalDescriptor());
+            Bootstrap_);
     }
 
     IStorePtr CreateDynamicMemoryStore(TTablet* tablet, const TStoreId& storeId)

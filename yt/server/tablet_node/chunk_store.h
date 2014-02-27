@@ -14,6 +14,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -28,9 +30,7 @@ public:
         const TStoreId& id,
         TTablet* tablet,
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
-        NChunkClient::IBlockCachePtr blockCache,
-        NRpc::IChannelPtr masterChannel,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor);
+        NCellNode::TBootstrap* bootstrap);
     ~TChunkStore();
 
     // IStore implementation.
@@ -52,9 +52,7 @@ public:
 
 private:
     TTabletManagerConfigPtr Config_;
-    NChunkClient::IBlockCachePtr BlockCache_;
-    NRpc::IChannelPtr MasterChannel_;
-    TNullable<NNodeTrackerClient::TNodeDescriptor> LocalDescriptor_;
+    NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
     NVersionedTableClient::TOwningKey MinKey_;
@@ -63,7 +61,6 @@ private:
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
-    NChunkClient::IAsyncReaderPtr ChunkReader_;
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
 
 

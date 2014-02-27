@@ -2,13 +2,7 @@
 
 #include "public.h"
 
-// TODO(babenko): replace with public.h
-#include <core/actions/bind.h>
-#include <core/actions/invoker.h>
-
-#include <core/concurrency/periodic_executor.h>
-
-#include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <core/concurrency/public.h>
 
 #include <server/cell_node/public.h>
 
@@ -31,13 +25,13 @@ public:
 private:
     void Update();
 
-    typedef NChunkClient::TDataNodeServiceProxy TProxy;
-
     TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TPeerBlockUpdater)
 
 ////////////////////////////////////////////////////////////////////////////////
 

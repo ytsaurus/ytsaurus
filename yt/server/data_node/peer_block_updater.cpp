@@ -5,6 +5,8 @@
 #include "config.h"
 #include "master_connector.h"
 
+#include <core/concurrency/periodic_executor.h>
+
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -50,6 +52,8 @@ void TPeerBlockUpdater::Update()
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
     auto localDescriptor = Bootstrap->GetLocalDescriptor();
+
+    typedef TDataNodeServiceProxy TProxy;
 
     yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 

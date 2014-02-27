@@ -348,7 +348,7 @@ private:
 
         LOG_INFO("Chunk meta received");
         const auto& chunkMeta = metaOrError.Value();
-        const auto& blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
+        const auto& blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
 
         auto targets = FromProto<TNodeDescriptor>(ReplicationJobSpecExt.target_descriptors());
 
@@ -382,8 +382,10 @@ private:
 
         LOG_DEBUG("All blocks are enqueued for replication");
 
-        auto closeError = WaitFor(writer->AsyncClose(chunkMeta));
-        THROW_ERROR_EXCEPTION_IF_FAILED(closeError, "Error closing replication writer");
+        {
+            auto error = WaitFor(writer->AsyncClose(*chunkMeta));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing replication writer");
+        }
     }
 };
 

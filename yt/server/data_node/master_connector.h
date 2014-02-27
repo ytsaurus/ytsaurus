@@ -176,7 +176,10 @@ private:
     void OnChunkRemoved(TChunkPtr chunk);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 

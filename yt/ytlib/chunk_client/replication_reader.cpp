@@ -24,6 +24,7 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <ytlib/chunk_client/replication_reader.h>
 
 #include <util/random/shuffle.h>
 #include <util/generic/ymath.h>
@@ -35,6 +36,7 @@ using namespace NRpc;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
+using namespace NChunkClient;
 using namespace NConcurrency;
 
 using NYT::ToProto;

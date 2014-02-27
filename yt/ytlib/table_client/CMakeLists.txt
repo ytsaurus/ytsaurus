@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_writer_base.cpp
+  ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/merging_reader.cpp
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partition_chunk_writer.cpp

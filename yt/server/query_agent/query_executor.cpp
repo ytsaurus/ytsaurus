@@ -7,6 +7,9 @@
 #include <core/misc/string.h>
 
 #include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/async_reader.h> // TODO(babenko): remove when switched to refcounted macros
+#include <ytlib/chunk_client/replication_reader.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -22,8 +25,6 @@
 #include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/helpers.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-
 #include <ytlib/tablet_client/public.h>
 
 #include <server/data_node/block_store.h>
@@ -35,6 +36,8 @@
 #include <server/tablet_node/tablet_reader.h>
 
 #include <server/hydra/hydra_manager.h>
+
+#include <server/data_node/local_chunk_reader.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -49,6 +52,8 @@ using namespace NTabletClient;
 using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode;
+using namespace NDataNode;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +66,7 @@ class TQueryExecutor
     , public IEvaluateCallbacks
 {
 public:
-    explicit TQueryExecutor(NCellNode::TBootstrap* bootstrap)
+    explicit TQueryExecutor(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Evaluator_(CreateEvaluator(
             Bootstrap_->GetQueryWorkerInvoker(),
@@ -83,21 +88,33 @@ public:
         const TDataSplit& split,
         TPlanContextPtr context) override
     {
+        auto asyncResult = BIND(&TQueryExecutor::DoGetReaderControl, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run(split, std::move(context));
+        auto resultOrError = WaitFor(asyncResult);
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
+        return resultOrError.Value();
+    }
+
+private:
+    TBootstrap* Bootstrap_;
+
+    IExecutorPtr Evaluator_;
+
+
+    ISchemedReaderPtr DoGetReaderControl(
+        const TDataSplit& split,
+        TPlanContextPtr context)
+    {
         auto objectId = FromProto<TObjectId>(split.chunk_id());
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(split, std::move(context));
+                return DoGetChunkReaderControl(split, std::move(context));
 
-            case EObjectType::Tablet: {
-                auto asyncResult = BIND(&TQueryExecutor::DoGetTabletReaderControl, MakeStrong(this))
-                    .Guarded()
-                    .AsyncVia(Bootstrap_->GetControlInvoker())
-                    .Run(split, std::move(context));
-                auto resultOrError = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-                return resultOrError.Value();
-            }
+            case EObjectType::Tablet:
+                return DoGetTabletReaderControl(split, std::move(context));
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %s", 
@@ -105,30 +122,45 @@ public:
         }
     }
 
-private:
-    NCellNode::TBootstrap* Bootstrap_;
-
-    IExecutorPtr Evaluator_;
-
-
-    ISchemedReaderPtr GetChunkReader(
+    ISchemedReaderPtr DoGetChunkReaderControl(
         const TDataSplit& split,
         TPlanContextPtr context)
     {
         auto chunkId = FromProto<TChunkId>(split.chunk_id());
-        LOG_DEBUG("Creating reader for chunk split (ChunkId: %s)",
-            ~ToString(chunkId));
+        auto lowerLimit = FromProto<TReadLimit>(split.lower_limit());
+        auto upperLimit = FromProto<TReadLimit>(split.upper_limit());
+        auto timestamp = GetTimestampFromDataSplit(split);
 
-        auto masterChannel = Bootstrap_->GetMasterChannel();
-        auto blockCache = Bootstrap_->GetBlockStore()->GetBlockCache();
-        auto nodeDirectory = context->GetNodeDirectory();
+        auto chunkReader = CreateLocalChunkReader(Bootstrap_, chunkId);
+        if (chunkReader) {
+            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %s)",
+                ~ToString(chunkId));
+        } else {
+            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %s)",
+                ~ToString(chunkId));
+
+            auto blockCache = Bootstrap_->GetBlockStore()->GetBlockCache();
+            auto masterChannel = Bootstrap_->GetMasterChannel();
+            auto nodeDirectory = context->GetNodeDirectory();
+            // TODO(babenko): make configurable
+            // TODO(babenko): seed replicas?
+            // TODO(babenko): throttler?
+            chunkReader = CreateReplicationReader(
+                New<TReplicationReaderConfig>(),
+                std::move(blockCache),
+                std::move(masterChannel),
+                std::move(nodeDirectory),
+                Bootstrap_->GetLocalDescriptor(),
+                chunkId);
+        }
+
+        // TODO(babenko): make configurable
         return CreateSchemedChunkReader(
-            // TODO(babenko): make configuable
             New<TChunkReaderConfig>(),
-            split,
-            std::move(masterChannel),
-            std::move(nodeDirectory),
-            std::move(blockCache));
+            std::move(chunkReader),
+            lowerLimit,
+            upperLimit,
+            timestamp);
     }
 
 
@@ -214,7 +246,7 @@ private:
 
 };
 
-IExecutorPtr CreateQueryExecutor(NCellNode::TBootstrap* bootstrap)
+IExecutorPtr CreateQueryExecutor(TBootstrap* bootstrap)
 {
     return New<TQueryExecutor>(bootstrap);
 }

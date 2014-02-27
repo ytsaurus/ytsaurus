@@ -31,7 +31,7 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    NChunkClient::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = NULL) const;
+    NChunkClient::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = nullptr) const;
 
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);

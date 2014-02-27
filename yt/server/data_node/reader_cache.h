@@ -16,8 +16,7 @@ class TReaderCache
 {
 public:
     //! Constructs a new instance.
-    TReaderCache(TDataNodeConfigPtr config);
-
+    explicit TReaderCache(TDataNodeConfigPtr config);
     ~TReaderCache();
 
     typedef TErrorOr<NChunkClient::TFileReaderPtr> TGetReaderResult;
@@ -46,6 +45,8 @@ private:
     TIntrusivePtr<TImpl> Impl;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TReaderCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

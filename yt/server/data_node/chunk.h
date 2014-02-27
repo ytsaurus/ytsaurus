@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include <ytlib/chunk_client/chunk.pb.h>
 
 #include <core/misc/property.h>
 #include <core/misc/error.h>
 #include <core/misc/cache.h>
+
+#include <ytlib/chunk_client/chunk.pb.h>
 
 #include <server/cell_node/public.h>
 
@@ -20,6 +21,24 @@ struct TChunkDescriptor
     TChunkId Id;
     i64 DiskSpace;
 };
+
+class TRefCountedChunkMeta
+    : public TIntrinsicRefCounted
+    , public NChunkClient::NProto::TChunkMeta
+{
+public:
+    TRefCountedChunkMeta();
+    TRefCountedChunkMeta(const TRefCountedChunkMeta& other);
+    TRefCountedChunkMeta(TRefCountedChunkMeta&& other);
+
+    explicit TRefCountedChunkMeta(const NChunkClient::NProto::TChunkMeta& other);
+    explicit TRefCountedChunkMeta(NChunkClient::NProto::TChunkMeta&& other);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Describes chunk at a chunk holder.
 class TChunk
@@ -52,13 +71,13 @@ public:
     //! Returns the full path to the chunk data file.
     Stroka GetFileName() const;
 
-    typedef TErrorOr<NChunkClient::NProto::TChunkMeta> TGetMetaResult;
+    typedef TErrorOr<TRefCountedChunkMetaPtr> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
 
     //! Returns chunk meta.
     /*!
      *  \param priority Request priority.
-     *  \param tags The list of extension tags to return. If NULL
+     *  \param tags The list of extension tags to return. If |nullptr|
      *  then all extensions are returned.
      *
      *  \note The meta is fetched asynchronously and is cached.
@@ -70,14 +89,13 @@ public:
     //! Returns chunk meta.
     /*!
         If chunk meta not cached, returns |nullptr|.
-        Pointer is assumed to be alive while you hold the chunk.
      */
-    const NChunkClient::NProto::TChunkMeta* GetCachedMeta() const;
+    TRefCountedChunkMetaPtr GetCachedMeta() const;
 
     //! Tries to acquire a read lock and increments the lock counter.
     /*!
      *  Succeeds if removal is not scheduled yet.
-     *  Returns True on success, False on failure.
+     *  Returns |true| on success, |false| on failure.
      */
     bool TryAcquireReadLock();
 
@@ -107,18 +125,18 @@ private:
     TAsyncError ReadMeta(i64 priority);
     void DoReadMeta(TPromise<TError> promise);
 
-    mutable TSpinLock SpinLock;
+    mutable TSpinLock SpinLock_;
+    mutable TRefCountedChunkMetaPtr Meta_;
 
-    mutable volatile bool HasMeta;
-    mutable NChunkClient::NProto::TChunkMeta Meta;
+    int ReadLockCounter_;
+    bool RemovalScheduled_;
+    TPromise<void> RemovedEvent_;
 
-    int ReadLockCounter;
-    bool RemovalScheduled;
-    TPromise<void> RemovedEvent;
-
-    NCellNode::TNodeMemoryTracker& MemoryUsageTracker;
+    NCellNode::TNodeMemoryTracker& MemoryUsageTracker_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,9 +160,9 @@ public:
     ~TStoredChunk();
 };
 
-////////////////////////////////////////////////////////////////////////////////
+DEFINE_REFCOUNTED_TYPE(TStoredChunk)
 
-class TChunkCache;
+////////////////////////////////////////////////////////////////////////////////
 
 //! A chunk owned by TChunkCache.
 class TCachedChunk
@@ -169,9 +187,11 @@ public:
     ~TCachedChunk();
 
 private:
-    TWeakPtr<TChunkCache> ChunkCache;
+    TWeakPtr<TChunkCache> ChunkCache_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCachedChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 

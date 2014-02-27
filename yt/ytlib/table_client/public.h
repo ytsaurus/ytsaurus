@@ -3,27 +3,14 @@
 #include <core/misc/common.h>
 #include <core/misc/small_vector.h>
 
+#include <ytlib/table_client/public.h>
+
+#include <ytlib/chunk_client/public.h>
+
 namespace NYT {
-
-// Forward declarations.
-namespace NChunkClient
-{
-
-template <class TChunkReader>
-class TMultiChunkSequentialReader;
-
-template <class TChunkReader>
-class TMultiChunkSequentialWriter;
-
-
-template <class TChunkReader>
-class TMultiChunkParallelReader;
-
-}
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NTableClient {
 
 DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))

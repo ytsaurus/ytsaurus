@@ -23,6 +23,11 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <server/data_node/local_chunk_reader.h>
+#include <server/data_node/block_store.h>
+
+#include <server/cell_node/bootstrap.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -36,6 +41,8 @@ using namespace NVersionedTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NDataNode;
+using namespace NCellNode;
 
 using NChunkClient::TReadLimit;
 
@@ -46,15 +53,12 @@ TChunkStore::TChunkStore(
     const TStoreId& id,
     TTablet* tablet,
     const TChunkMeta* chunkMeta,
-    IBlockCachePtr blockCache,
-    IChannelPtr masterChannel,
-    const TNullable<TNodeDescriptor>& localDescriptor)
+    TBootstrap* boostrap)
     : TStoreBase(
         id,
         tablet)
     , Config_(std::move(config))
-    , BlockCache_(std::move(blockCache))
-    , MasterChannel_(std::move(masterChannel))
+    , Bootstrap_(boostrap)
     , DataSize_(-1)
 {
     State_ = EStoreState::Persistent;
@@ -97,20 +101,24 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return nullptr;
     }
 
-    if (!ChunkReader_) {
+    auto asyncChunkReader = BIND(&CreateLocalChunkReader)
+        .AsyncVia(Bootstrap_->GetControlInvoker())
+        .Run(Bootstrap_, Id_);
+    auto chunkReader = WaitFor(asyncChunkReader);
+    if (!chunkReader) {
         // TODO(babenko): provide seed replicas
-        ChunkReader_ = CreateReplicationReader(
+        chunkReader = CreateReplicationReader(
             Config_->ChunkReader,
-            BlockCache_,
-            MasterChannel_,
+            Bootstrap_->GetBlockStore()->GetBlockCache(),
+            Bootstrap_->GetMasterChannel(),
             New<TNodeDirectory>(),
-            LocalDescriptor_,
+            Bootstrap_->GetLocalDescriptor(),
             Id_);
     }
 
     if (!CachedMeta_) {
         auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
-            ChunkReader_,
+            chunkReader,
             Tablet_->Schema(),
             Tablet_->KeyColumns()));
         THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
@@ -125,7 +133,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 
     return CreateVersionedChunkReader(
         Config_->ChunkReader,
-        ChunkReader_,
+        chunkReader,
         CachedMeta_,
         lowerLimit,
         upperLimit,

@@ -17,7 +17,7 @@ DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TSizeOverrideExt, 16)
 
 namespace NChunkClient {
 
-NChunkClient::NProto::TChunkMeta FilterChunkMetaExtensions(
+NChunkClient::NProto::TChunkMeta FilterChunkMetaByExtensionTags(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const std::vector<int>& tags);
 

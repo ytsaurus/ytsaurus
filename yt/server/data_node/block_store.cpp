@@ -149,7 +149,7 @@ public:
                 ~ToString(blockId))));
         }
 
-        std::shared_ptr<TInsertCookie> cookie = std::make_shared<TInsertCookie>(blockId);
+        auto cookie = std::make_shared<TInsertCookie>(blockId);
         if (!BeginInsert(cookie.get())) {
             chunk->ReleaseReadLock();
             return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
@@ -158,7 +158,7 @@ public:
         LOG_DEBUG("Block cache miss (BlockId: %s)", ~ToString(blockId));
 
         i64 blockSize = -1;
-        auto* meta = chunk->GetCachedMeta();
+        auto meta = chunk->GetCachedMeta();
 
         if (meta) {
             blockSize = IncreasePendingSize(*meta, blockId.BlockIndex);

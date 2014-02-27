@@ -33,6 +33,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
 };
 
+DEFINE_REFCOUNTED_TYPE(TCachedBlock)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages cached blocks.
@@ -100,6 +102,8 @@ private:
     TIntrusivePtr<TCacheImpl> CacheImpl;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TBlockStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

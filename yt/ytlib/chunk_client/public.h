@@ -146,8 +146,14 @@ typedef TIntrusivePtr<TMemoryReader> TMemoryReaderPtr;
 class TMemoryWriter;
 typedef TIntrusivePtr<TMemoryWriter> TMemoryWriterPtr;
 
+template <class TChunkReader>
+class TMultiChunkSequentialReader;
+
 template <class TChunkWriter>
 class TMultiChunkSequentialWriter;
+
+template <class TChunkReader>
+class TMultiChunkParallelReader;
 
 ///////////////////////////////////////////////////////////////////////////////
 

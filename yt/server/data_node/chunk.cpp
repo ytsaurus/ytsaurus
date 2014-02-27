@@ -25,6 +25,31 @@ static auto& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedChunkMeta::TRefCountedChunkMeta()
+{ }
+
+TRefCountedChunkMeta::TRefCountedChunkMeta(const TRefCountedChunkMeta& other)
+{
+    CopyFrom(other);
+}
+
+TRefCountedChunkMeta::TRefCountedChunkMeta(TRefCountedChunkMeta&& other)
+{
+    Swap(&other);
+}
+
+TRefCountedChunkMeta::TRefCountedChunkMeta(const NChunkClient::NProto::TChunkMeta& other)
+{
+    CopyFrom(other);
+}
+
+TRefCountedChunkMeta::TRefCountedChunkMeta(NChunkClient::NProto::TChunkMeta&& other)
+{
+    Swap(&other);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunk::TChunk(
     TLocationPtr location,
     const TChunkId& id,
@@ -34,11 +59,10 @@ TChunk::TChunk(
     : Id_(id)
     , Location_(location)
     , Info_(chunkInfo)
-    , HasMeta(true)
-    , Meta(chunkMeta)
-    , MemoryUsageTracker(memoryUsageTracker)
+    , Meta_(New<TRefCountedChunkMeta>(chunkMeta))
+    , MemoryUsageTracker_(memoryUsageTracker)
 {
-    MemoryUsageTracker.Acquire(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
+    MemoryUsageTracker_.Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
     Initialize();
 }
 
@@ -48,8 +72,7 @@ TChunk::TChunk(
     TNodeMemoryTracker& memoryUsageTracker)
     : Id_(descriptor.Id)
     , Location_(location)
-    , HasMeta(false)
-    , MemoryUsageTracker(memoryUsageTracker)
+    , MemoryUsageTracker_(memoryUsageTracker)
 {
     Info_.set_disk_space(descriptor.DiskSpace);
     Info_.clear_meta_checksum();
@@ -58,14 +81,14 @@ TChunk::TChunk(
 
 void TChunk::Initialize()
 {
-    ReadLockCounter = 0;
-    RemovalScheduled = false;
+    ReadLockCounter_ = 0;
+    RemovalScheduled_ = false;
 }
 
 TChunk::~TChunk()
 {
-    if (HasMeta) {
-        MemoryUsageTracker.Release(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
+    if (Meta_) {
+        MemoryUsageTracker_.Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
     }
 }
 
@@ -79,17 +102,16 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(
     const std::vector<int>* tags)
 {
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (HasMeta) {
-            const auto& meta = Meta;
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (Meta_) {
             guard.Release();
 
             LOG_DEBUG("Meta cache hit (ChunkId: %s)", ~ToString(Id_));
 
             return MakeFuture(TGetMetaResult(
                 tags
-                ? FilterChunkMetaExtensions(meta, *tags)
-                : Meta));
+                ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, *tags))
+                : Meta_));
         }
     }
 
@@ -105,17 +127,16 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(
                 return error;
             }
 
-            YCHECK(HasMeta);
+            YCHECK(Meta_);
             return tags_
-                ? FilterChunkMetaExtensions(Meta, tags_.Get())
-                : Meta;
+                ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, *tags_))
+                : Meta_;
         }).AsyncVia(invoker));
 }
 
-const NChunkClient::NProto::TChunkMeta* TChunk::GetCachedMeta() const
+TRefCountedChunkMetaPtr TChunk::GetCachedMeta() const
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    return HasMeta ? &Meta : nullptr;
+    return Meta_;
 }
 
 TAsyncError TChunk::ReadMeta(i64 priority)
@@ -155,14 +176,13 @@ void TChunk::DoReadMeta(TPromise<TError> promise)
     }
 
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
         // This check is important since this code may get triggered
         // multiple times and readers do not use any locking.
-        if (!HasMeta) {
+        if (!Meta_) {
             // These are very quick getters.
-            Meta = reader->GetChunkMeta();
-            HasMeta = true;
-            MemoryUsageTracker.Acquire(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
+            Meta_ = New<TRefCountedChunkMeta>(reader->GetChunkMeta());
+            MemoryUsageTracker_.Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
         }
     }
 
@@ -178,14 +198,14 @@ bool TChunk::TryAcquireReadLock()
 {
     int lockCount;
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (RemovedEvent) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (RemovedEvent_) {
             LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %s)",
                 ~ToString(Id_));
             return false;
         }
 
-        lockCount = ++ReadLockCounter;
+        lockCount = ++ReadLockCounter_;
     }
 
     LOG_DEBUG("Chunk read lock acquired (ChunkId: %s, LockCount: %d)",
@@ -200,11 +220,11 @@ void TChunk::ReleaseReadLock()
     bool scheduleRemoval = false;
     int lockCount;
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        YCHECK(ReadLockCounter > 0);
-        lockCount = --ReadLockCounter;
-        if (ReadLockCounter == 0 && !RemovalScheduled && RemovedEvent) {
-            scheduleRemoval = RemovalScheduled = true;
+        TGuard<TSpinLock> guard(SpinLock_);
+        YCHECK(ReadLockCounter_ > 0);
+        lockCount = --ReadLockCounter_;
+        if (ReadLockCounter_ == 0 && !RemovalScheduled_ && RemovedEvent_) {
+            scheduleRemoval = RemovalScheduled_ = true;
         }
     }
 
@@ -222,14 +242,14 @@ TFuture<void> TChunk::ScheduleRemoval()
     bool scheduleRemoval = false;
 
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (RemovedEvent) {
-            return RemovedEvent;
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (RemovedEvent_) {
+            return RemovedEvent_;
         }
 
-        RemovedEvent = NewPromise();
-        if (ReadLockCounter == 0 && !RemovalScheduled) {
-            scheduleRemoval = RemovalScheduled = true;
+        RemovedEvent_ = NewPromise();
+        if (ReadLockCounter_ == 0 && !RemovalScheduled_) {
+            scheduleRemoval = RemovalScheduled_ = true;
         }
     }
 
@@ -237,7 +257,7 @@ TFuture<void> TChunk::ScheduleRemoval()
         DoRemoveChunk();
     }
 
-    return RemovedEvent;
+    return RemovedEvent_;
 }
 
 void TChunk::DoRemoveChunk()
@@ -246,7 +266,7 @@ void TChunk::DoRemoveChunk()
 
     auto this_ = MakeStrong(this);
     Location_->ScheduleChunkRemoval(this).Subscribe(BIND([=] () {
-        this_->RemovedEvent.Set();
+        this_->RemovedEvent_.Set();
     }));
 }
 
@@ -286,9 +306,14 @@ TCachedChunk::TCachedChunk(
     const TChunkInfo& chunkInfo,
     TChunkCachePtr chunkCache,
     TNodeMemoryTracker& memoryUsageTracker)
-    : TChunk(location, chunkId, chunkMeta, chunkInfo, memoryUsageTracker)
+    : TChunk(
+        location,
+        chunkId,
+        chunkMeta,
+        chunkInfo,
+        memoryUsageTracker)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
-    , ChunkCache(chunkCache)
+    , ChunkCache_(chunkCache)
 { }
 
 TCachedChunk::TCachedChunk(
@@ -298,13 +323,13 @@ TCachedChunk::TCachedChunk(
     TNodeMemoryTracker& memoryUsageTracker)
     : TChunk(location, descriptor, memoryUsageTracker)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
-    , ChunkCache(chunkCache)
+    , ChunkCache_(chunkCache)
 { }
 
 TCachedChunk::~TCachedChunk()
 {
     // This check ensures that we don't remove any chunks from cache upon shutdown.
-    if (!ChunkCache.IsExpired()) {
+    if (!ChunkCache_.IsExpired()) {
         LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~ToString(GetId()));
         EvictChunkReader();
         Location_->ScheduleChunkRemoval(this);
