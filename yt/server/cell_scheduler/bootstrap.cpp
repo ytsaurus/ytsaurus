@@ -128,7 +128,7 @@ void TBootstrap::Run()
     
     SetBuildAttributes(orchidRoot, "scheduler");
 
-    rpcServer->RegisterService(New<TOrchidService>(
+    rpcServer->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
 

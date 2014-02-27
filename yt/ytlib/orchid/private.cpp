@@ -1,14 +1,15 @@
-#pragma once
+#include "stdafx.h"
+#include "private.h"
 
 namespace NYT {
+namespace NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class Signature>
-class TCallback;
-
-typedef TCallback<void()> TClosure;
+NLog::TLogger OrchidLogger("Orchid");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NOrchid
 } // namespace NYT
+

@@ -12,9 +12,10 @@ $$ See bind.h for an extended commentary.
 $$==============================================================================
 */
 
-#include <core/misc/common.h>
+#include "public.h"
+
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-#include <core/misc/source_location.h>
+    #include <core/misc/source_location.h>
 #endif
 
 namespace NYT {

@@ -203,7 +203,7 @@ void TBootstrap::Run()
 
     RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
-    RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));
+    RpcServer->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker()));
     RpcServer->RegisterService(CreateJobTrackerService(this));
     RpcServer->RegisterService(CreateChunkService(this));
 

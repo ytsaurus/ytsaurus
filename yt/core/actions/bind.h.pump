@@ -43,8 +43,8 @@ $$
 $var MAX_ARITY = 7
 $range ARITY 0..MAX_ARITY
 
+#include "public.h"
 #include "bind_internal.h"
-#include "callback_internal.h"
 
 #ifdef ENABLE_BIND_LOCATION_TRACKING
 #define BIND(...) ::NYT::Bind(FROM_HERE, __VA_ARGS__)

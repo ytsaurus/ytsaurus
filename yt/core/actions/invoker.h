@@ -1,20 +1,12 @@
 #pragma once
 
-#include "common.h"
-#include "callback_forward.h"
+#include "public.h"
 
-#include <core/concurrency/thread.h>
+#include <core/concurrency/public.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): move to public.h
-struct IInvoker;
-typedef TIntrusivePtr<IInvoker> IInvokerPtr;
-
-struct IPrioritizedInvoker;
-typedef TIntrusivePtr<IPrioritizedInvoker> IPrioritizedInvokerPtr;
 
 struct IInvoker
     : public virtual TRefCounted

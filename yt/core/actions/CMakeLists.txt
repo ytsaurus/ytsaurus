@@ -10,16 +10,16 @@ set( HDRS
   ${BASE}/bind_helpers.h
   ${BASE}/bind_mpl.h
   ${BASE}/callback.h
-  ${BASE}/callback_forward.h
   ${BASE}/callback_internal.h
   ${BASE}/callback_via.h
   ${BASE}/cancelable_context.h
-  ${BASE}/common.h
   ${BASE}/future-inl.h
   ${BASE}/future.h
   ${BASE}/invoker.h
   ${BASE}/invoker_util.h
   ${BASE}/signal.h
+  ${BASE}/signal-inl.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
