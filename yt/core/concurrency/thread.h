@@ -13,9 +13,6 @@ namespace NConcurrency {
 //! Note that name length is usually limited by 16 characters.
 void SetCurrentThreadName(const char* name);
 
-typedef size_t TThreadId;
-const size_t InvalidThreadId = 0;
-
 //! Caches current thread id in TLS and returns it (fast).
 TThreadId GetCurrentThreadId();
 
