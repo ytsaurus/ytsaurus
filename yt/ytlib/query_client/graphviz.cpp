@@ -505,15 +505,12 @@ void DumpPlanFragment(
     TOutputStream& output,
     const Stroka& title)
 {
-    auto debugInformation = fragment.GetContext()->GetDebugInformation();
+    auto source = fragment.GetContext()->GetSource();
     auto headOperator = fragment.GetHead();
 
     TGraphVizVisitor visitor(output);
 
-    auto actualTitle = title;
-    if (actualTitle.empty()) {
-        actualTitle = debugInformation ? debugInformation->Source : "";
-    }
+    auto actualTitle = title.empty() ? source : title;
 
     visitor.WriteHeader(title);
     Traverse(&visitor, headOperator);

@@ -9,7 +9,6 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t InitialMemoryPoolSize = 4096;
 static const int FakeTableIndex = 0xdeadbabe;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +52,6 @@ void TPlanContext::TTrackedObject::operator delete(void*) throw()
 
 TPlanContext::TPlanContext(TTimestamp timestamp)
     : Timestamp_(timestamp)
-    , MemoryPool_(InitialMemoryPoolSize)
     , NodeDirectory_(New<TNodeDirectory>())
 { }
 
@@ -75,32 +73,42 @@ void TPlanContext::Deallocate(void*)
 
 TStringBuf TPlanContext::Capture(const char* begin, const char* end)
 {
-    return TStringBuf(MemoryPool_.Append(begin, end - begin), end - begin);
+    size_t length = end - begin;
+    char* buffer = MemoryPool_.Allocate(length);
+
+    ::memcpy(buffer, begin, length);
+
+    return TStringBuf(buffer, length);
 }
 
-void TPlanContext::SetDebugInformation(TDebugInformation&& debugInformation)
-{
-    DebugInformation_ = std::move(debugInformation);
+void TPlanContext::SetSource(Stroka source) {
+    Source_ = std::move(source);
 }
 
-const TDebugInformation* TPlanContext::GetDebugInformation() const
-{
-    return DebugInformation_.GetPtr();
+Stroka TPlanContext::GetSource() const {
+    return Source_;
 }
 
-TTableDescriptor& TPlanContext::TableDescriptor()
-{
-    return TableDescriptor_;
+void TPlanContext::SetTablePath(Stroka tablePath) {
+    TablePath_ = std::move(tablePath);
 }
 
-TNodeDirectoryPtr TPlanContext::GetNodeDirectory() const
-{
-    return NodeDirectory_;
+Stroka TPlanContext::GetTablePath() const {
+    return TablePath_;
+}
+
+void TPlanContext::SetTimestamp(TTimestamp timestamp) {
+    Timestamp_ = std::move(timestamp);
 }
 
 TTimestamp TPlanContext::GetTimestamp() const
 {
     return Timestamp_;
+}
+
+TNodeDirectoryPtr TPlanContext::GetNodeDirectory() const
+{
+    return NodeDirectory_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

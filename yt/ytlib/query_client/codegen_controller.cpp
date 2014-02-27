@@ -65,7 +65,7 @@ namespace NQueryClient {
 template <class T>
 size_t THashCombine(size_t seed, const T& value)
 {
-    std::hash<T> hasher;
+    ::hash<T> hasher;
     return seed ^ (hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2));
     // TODO(lukyan): Fix this function
 }
@@ -843,18 +843,22 @@ TCodegenControllerImpl::TCodegenControllerImpl(IInvokerPtr invoker)
         THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine: %s", errorStr.c_str());
     }
 
+    // TODO(sandello): This should settle upon 3.5 release.
+    Module_->setDataLayout(ExecutionEngine_->getDataLayout()->getStringRepresentation());
+
     llvm::PassManagerBuilder passManagerBuilder;
     PassManagerBuilder_.OptLevel = 2;
     PassManagerBuilder_.SizeLevel = 0;
     PassManagerBuilder_.Inliner = llvm::createFunctionInliningPass();
 
     FunctionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
-    FunctionPassManager_->add(new llvm::DataLayout(*ExecutionEngine_->getDataLayout()));
+    FunctionPassManager_->add(new llvm::DataLayoutPass(Module_));
     PassManagerBuilder_.populateFunctionPassManager(*FunctionPassManager_);
+
     FunctionPassManager_->doInitialization();
 
     ModulePassManager_ = std::make_unique<llvm::PassManager>();
-    ModulePassManager_->add(new llvm::DataLayout(*ExecutionEngine_->getDataLayout()));
+    ModulePassManager_->add(new llvm::DataLayoutPass(Module_));
     PassManagerBuilder_.populateModulePassManager(*ModulePassManager_);
 }
 

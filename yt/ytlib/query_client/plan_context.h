@@ -4,10 +4,10 @@
 
 #include <core/misc/nullable.h>
 #include <core/misc/small_vector.h>
+#include <core/misc/chunked_memory_pool.h>
 
 #include <ytlib/node_tracker_client/public.h>
-
-#include <util/memory/pool.h>
+#include <ytlib/transaction_client/public.h>
 
 #include <unordered_set>
 
@@ -15,17 +15,6 @@ namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Holds useful debug information.
-//! Usually this structure is not preserved between (de)serializations.
-struct TDebugInformation
-{
-    TDebugInformation(const Stroka& source)
-        : Source(source)
-    { }
-
-    Stroka Source;
-};
 
 //! Holds useful information about (input) table.
 struct TTableDescriptor
@@ -53,13 +42,12 @@ public:
     protected:
         TPlanContext* Context_;
 
-
         // Bound objects could not be instantiated without the context.
-        TTrackedObject();
-        TTrackedObject(const TTrackedObject&);
-        TTrackedObject(TTrackedObject&&);
-        TTrackedObject& operator=(const TTrackedObject&);
-        TTrackedObject& operator=(TTrackedObject&&);
+        TTrackedObject() = delete;
+        TTrackedObject(const TTrackedObject&) = delete;
+        TTrackedObject(TTrackedObject&&) = delete;
+        TTrackedObject& operator=(const TTrackedObject&) = delete;
+        TTrackedObject& operator=(TTrackedObject&&) = delete;
 
         // Bound objects could not be allocated nor freed with regular operators.
         void* operator new(size_t);
@@ -74,24 +62,32 @@ public:
     void Deallocate(void* pointer);
     TStringBuf Capture(const char* begin, const char* end);
 
-    void SetDebugInformation(TDebugInformation&& debugInformation);
-    const TDebugInformation* GetDebugInformation() const;
+    void SetSource(Stroka source);
+    Stroka GetSource() const;
 
-    TTableDescriptor& TableDescriptor();
+    void SetTablePath(Stroka tablePath);
+    Stroka GetTablePath() const;
+
+    void SetTimestamp(TTimestamp timestamp);
+    TTimestamp GetTimestamp() const;
 
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
 
-    TTimestamp GetTimestamp() const;
+    template <class TType, class... TArgs>
+    TType* TrackedNew(TArgs&&... args)
+    {
+        return new (this) TType(this, std::forward<TArgs>(args)...);
+    }
 
 private:
+    Stroka Source_;
+    Stroka TablePath_;
     TTimestamp Timestamp_;
 
-    TMemoryPool MemoryPool_;
-    TNullable<TDebugInformation> DebugInformation_;
-
-    std::unordered_set<TTrackedObject*> TrackedObjects_;
-    TTableDescriptor TableDescriptor_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+
+    TChunkedMemoryPool MemoryPool_;
+    std::unordered_set<TTrackedObject*> TrackedObjects_;
 
 };
 

@@ -73,18 +73,16 @@ EBinaryOpKind GetBinaryOpcodeKind(EBinaryOp opcode)
 
 Stroka TExpression::GetSource() const
 {
-    auto debugInformation = Context_->GetDebugInformation();
+    auto source = Context_->GetSource();
 
-    if (debugInformation) {
-        const auto& fullSource = debugInformation->Source;
-
+    if (!source.empty()) {
         auto offset = SourceLocation_.GetOffset();
         auto length = SourceLocation_.GetLength();
 
-        return fullSource.substr(offset, length);
-    } else {
-        return Stroka();
+        source = source.substr(offset, length);
     }
+
+    return source;
 }
 
 EValueType TExpression::GetType(const TTableSchema& sourceSchema) const

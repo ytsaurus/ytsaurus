@@ -1,4 +1,4 @@
-// A Bison parser, made by GNU Bison 3.0.
+// A Bison parser, made by GNU Bison 3.0.2.
 
 // Skeleton interface for Bison LALR(1) parsers in C++
 
@@ -31,16 +31,16 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
+ ** \file /Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
-#line 19 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 19 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:387
 
     #include "plan_node.h"
 
@@ -52,7 +52,7 @@
         class TParser;
     } }
 
-#line 56 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 56 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:387
 
 
 # include <vector>
@@ -68,6 +68,59 @@
 #endif
 
 
+#ifndef YY_ATTRIBUTE
+# if (defined __GNUC__                                               \
+      && (2 < __GNUC__ || (__GNUC__ == 2 && 96 <= __GNUC_MINOR__)))  \
+     || defined __SUNPRO_C && 0x5110 <= __SUNPRO_C
+#  define YY_ATTRIBUTE(Spec) __attribute__(Spec)
+# else
+#  define YY_ATTRIBUTE(Spec) /* empty */
+# endif
+#endif
+
+#ifndef YY_ATTRIBUTE_PURE
+# define YY_ATTRIBUTE_PURE   YY_ATTRIBUTE ((__pure__))
+#endif
+
+#ifndef YY_ATTRIBUTE_UNUSED
+# define YY_ATTRIBUTE_UNUSED YY_ATTRIBUTE ((__unused__))
+#endif
+
+#if !defined _Noreturn \
+     && (!defined __STDC_VERSION__ || __STDC_VERSION__ < 201112)
+# if defined _MSC_VER && 1200 <= _MSC_VER
+#  define _Noreturn __declspec (noreturn)
+# else
+#  define _Noreturn YY_ATTRIBUTE ((__noreturn__))
+# endif
+#endif
+
+/* Suppress unused-variable warnings by "using" E.  */
+#if ! defined lint || defined __GNUC__
+# define YYUSE(E) ((void) (E))
+#else
+# define YYUSE(E) /* empty */
+#endif
+
+#if defined __GNUC__ && 407 <= __GNUC__ * 100 + __GNUC_MINOR__
+/* Suppress an incorrect diagnostic about yylval being uninitialized.  */
+# define YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN \
+    _Pragma ("GCC diagnostic push") \
+    _Pragma ("GCC diagnostic ignored \"-Wuninitialized\"")\
+    _Pragma ("GCC diagnostic ignored \"-Wmaybe-uninitialized\"")
+# define YY_IGNORE_MAYBE_UNINITIALIZED_END \
+    _Pragma ("GCC diagnostic pop")
+#else
+# define YY_INITIAL_VALUE(Value) Value
+#endif
+#ifndef YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN
+# define YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN
+# define YY_IGNORE_MAYBE_UNINITIALIZED_END
+#endif
+#ifndef YY_INITIAL_VALUE
+# define YY_INITIAL_VALUE(Value) /* Nothing. */
+#endif
+
 /* Debug traces.  */
 #ifndef YT_QL_YYDEBUG
 # if defined YYDEBUG
@@ -81,9 +134,9 @@
 # endif /* ! defined YYDEBUG */
 #endif  /* ! defined YT_QL_YYDEBUG */
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:387
 namespace NYT { namespace NQueryClient {
-#line 87 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 140 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:387
 
 
 
@@ -230,7 +283,6 @@ namespace NYT { namespace NQueryClient {
     /// An auxiliary type to compute the largest semantic type.
     union union_type
     {
-      // equality-op
       // relational-op
       // additive-op
       // multiplicative-op
@@ -239,42 +291,51 @@ namespace NYT { namespace NQueryClient {
       // expression
       // or-op-expr
       // and-op-expr
-      // equality-op-expr
       // relational-op-expr
       // additive-op-expr
       // multiplicative-op-expr
       // atomic-expr
       char dummy2[sizeof(TExpression*)];
 
+      // where-clause
+      char dummy3[sizeof(TFilterOperator*)];
+
       // function-expr
-      char dummy3[sizeof(TFunctionExpression*)];
+      char dummy4[sizeof(TFunctionExpression*)];
 
       // function-expr-args
-      char dummy4[sizeof(TFunctionExpression::TArguments)];
+      char dummy5[sizeof(TFunctionExpression::TArguments)];
+
+      // group-by-clause
+      char dummy6[sizeof(TGroupOperator*)];
 
       // named-expression
-      char dummy5[sizeof(TNamedExpression)];
+      char dummy7[sizeof(TNamedExpression)];
 
       // named-expression-list
-      char dummy6[sizeof(TNamedExpressionList)];
+      char dummy8[sizeof(TNamedExpressionList)];
+
+      // head-clause
+      char dummy9[sizeof(TOperator*)];
 
       // select-clause
-      // from-where-clause
-      // from-clause
-      char dummy7[sizeof(TOperator*)];
+      char dummy10[sizeof(TProjectOperator*)];
 
       // reference-expr
-      char dummy8[sizeof(TReferenceExpression*)];
+      char dummy11[sizeof(TReferenceExpression*)];
+
+      // from-clause
+      char dummy12[sizeof(TScanOperator*)];
 
       // "identifier"
       // "YPath literal"
-      char dummy9[sizeof(TStringBuf)];
+      char dummy13[sizeof(TStringBuf)];
 
       // "double literal"
-      char dummy10[sizeof(double)];
+      char dummy14[sizeof(double)];
 
       // "integer literal"
-      char dummy11[sizeof(i64)];
+      char dummy15[sizeof(i64)];
 };
 
     /// Symbol semantic values.
@@ -361,9 +422,13 @@ namespace NYT { namespace NQueryClient {
 
   basic_symbol (typename Base::kind_type t, const TExpression* v, const location_type& l);
 
+  basic_symbol (typename Base::kind_type t, const TFilterOperator* v, const location_type& l);
+
   basic_symbol (typename Base::kind_type t, const TFunctionExpression* v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TFunctionExpression::TArguments v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TGroupOperator* v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
 
@@ -371,7 +436,11 @@ namespace NYT { namespace NQueryClient {
 
   basic_symbol (typename Base::kind_type t, const TOperator* v, const location_type& l);
 
+  basic_symbol (typename Base::kind_type t, const TProjectOperator* v, const location_type& l);
+
   basic_symbol (typename Base::kind_type t, const TReferenceExpression* v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TScanOperator* v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
@@ -552,14 +621,14 @@ namespace NYT { namespace NQueryClient {
 
 #if YT_QL_YYDEBUG
     /// The current debugging stream.
-    std::ostream& debug_stream () const;
+    std::ostream& debug_stream () const YY_ATTRIBUTE_PURE;
     /// Set the current debugging stream.
     void set_debug_stream (std::ostream &);
 
     /// Type for debugging levels.
     typedef int debug_level_type;
     /// The current debugging level.
-    debug_level_type debug_level () const;
+    debug_level_type debug_level () const YY_ATTRIBUTE_PURE;
     /// Set the current debugging level.
     void set_debug_level (debug_level_type l);
 #endif
@@ -588,8 +657,8 @@ namespace NYT { namespace NQueryClient {
 
     /// Compute post-reduction state.
     /// \param yystate   the current state
-    /// \param yylhs     the nonterminal to push on the stack
-    state_type yy_lr_goto_state_ (state_type yystate, int yylhs);
+    /// \param yysym     the nonterminal to push on the stack
+    state_type yy_lr_goto_state_ (state_type yystate, int yysym);
 
     /// Whether the given \c yypact_ value indicates a defaulted state.
     /// \param yyvalue   the value to check
@@ -626,7 +695,7 @@ namespace NYT { namespace NQueryClient {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const signed char yytable_[];
 
-  static const signed char yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -667,7 +736,7 @@ namespace NYT { namespace NQueryClient {
     /// \brief Reclaim the memory associated to a symbol.
     /// \param yymsg     Why this token is reclaimed.
     ///                  If null, print nothing.
-    /// \param s         The symbol.
+    /// \param yysym     The symbol.
     template <typename Base>
     void yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const;
 
@@ -741,13 +810,13 @@ namespace NYT { namespace NQueryClient {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 65,           //< Last index in yytable_.
-      yynnts_ = 22,  //< Number of nonterminal symbols.
+      yylast_ = 48,     ///< Last index in yytable_.
+      yynnts_ = 22,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 22, //< Termination state number.
+      yyfinal_ = 22, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 28    //< Number of tokens.
+      yyntokens_ = 28  ///< Number of tokens.
     };
 
 
@@ -758,11 +827,11 @@ namespace NYT { namespace NQueryClient {
   };
 
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
+#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:387
 } } // NYT::NQueryClient
-#line 764 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 833 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:387
 
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

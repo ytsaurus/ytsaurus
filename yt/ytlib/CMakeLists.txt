@@ -57,7 +57,7 @@ add_library( ytlib STATIC
 target_link_libraries( ytlib ytcore )
 
 if (YT_BUILD_ENABLE_LLVM)
-  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES core jit interpreter native ipo)
+  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES engine ipo)
   target_link_libraries( ytlib ${REQUIRED_LLVM_LIBRARIES} )
 endif()
 

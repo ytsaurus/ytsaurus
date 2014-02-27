@@ -70,27 +70,26 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TOperator*> select-clause
-%type <TOperator*> from-where-clause
-%type <TOperator*> from-clause
+%type <TOperator*> head-clause
+%type <TProjectOperator*> select-clause
+%type <TScanOperator*> from-clause
+%type <TFilterOperator*> where-clause
+%type <TGroupOperator*> group-by-clause
 
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
 
 %type <TExpression*> expression
-%type <TExpression*> relational-op-expr
 %type <TExpression*> or-op-expr
 %type <TExpression*> and-op-expr
-%type <TExpression*> equality-op-expr
+%type <TExpression*> relational-op-expr
 %type <TExpression*> multiplicative-op-expr
 %type <TExpression*> additive-op-expr
 %type <TExpression*> atomic-expr
+%type <TReferenceExpression*> reference-expr
 %type <TFunctionExpression*> function-expr
 %type <TFunctionExpression::TArguments> function-expr-args
 
-%type <TReferenceExpression*> reference-expr
-
-%type <EBinaryOp> equality-op
 %type <EBinaryOp> relational-op
 %type <EBinaryOp> multiplicative-op
 %type <EBinaryOp> additive-op
@@ -100,60 +99,69 @@
 %%
 
 head
-    : select-clause
+    : head-clause
         {
-            *head = $[select-clause];
+            *head = $[head-clause];
+        }
+;
+
+head-clause
+    : select-clause[project] from-clause[scan]
+        {
+            $project->SetSource($scan);
+            $$ = $project;
+        }
+    | select-clause[project] from-clause[scan] where-clause[filter]
+        {
+            $filter->SetSource($scan);
+            $project->SetSource($filter);
+            $$ = $project;
+        }
+    | select-clause[project] from-clause[scan] where-clause[filter] group-by-clause[group]
+        {
+            $filter->SetSource($scan);
+            $group->SetSource($filter);
+            $project->SetSource($group);
+            $$ = $project;
+        }
+    | select-clause[project] from-clause[scan] group-by-clause[group]
+        {
+            $group->SetSource($scan);
+            $project->SetSource($group);
+            $$ = $project;
         }
 ;
 
 select-clause
-    : named-expression-list[projections] from-where-clause[source]
+    : named-expression-list[projections]
         {
-            auto projectOp = new (context) TProjectOperator(context, $source);
-            projectOp->Projections().assign($projections.begin(), $projections.end());
-            $$ = projectOp;
-        }
-;
-
-from-where-clause
-    : from-clause[source]
-        {
-            $$ = $source;
-        }
-    | from-clause[source] KwWhere or-op-expr[predicate]
-        {
-            auto filterOp = new (context) TFilterOperator(context, $source);
-            filterOp->SetPredicate($predicate);
-
-            $$ = filterOp;
-        }
-    | from-clause[source] KwWhere or-op-expr[predicate] KwGroupBy named-expression-list[exprs]
-        {
-            auto filterOp = new (context) TFilterOperator(context, $source);
-            filterOp->SetPredicate($predicate);
-
-            auto groupOp = new (context) TGroupOperator(context, filterOp);
-            groupOp->GroupItems().assign($exprs.begin(), $exprs.end());
-
-            $$ = groupOp;
-        }
-    | from-clause[source] KwGroupBy named-expression-list[exprs]
-        {
-            auto groupOp = new (context) TGroupOperator(context, $source);
-            groupOp->GroupItems().assign($exprs.begin(), $exprs.end());
-
-            $$ = groupOp;
+            $$ = context->TrackedNew<TProjectOperator>(nullptr);
+            $$->Projections().assign($projections.begin(), $projections.end());
         }
 ;
 
 from-clause
     : KwFrom YPathLiteral[path]
         {
-            context->TableDescriptor().Path = $path;
+            context->SetTablePath(Stroka(~$path, +$path));
 
-            auto scanOp = new (context) TScanOperator(context);
+            $$ = context->TrackedNew<TScanOperator>();
+        }
+;
 
-            $$ = scanOp;
+where-clause
+    : KwWhere or-op-expr[predicate]
+        {
+            $$ = context->TrackedNew<TFilterOperator>(nullptr);
+            $$->SetPredicate($predicate);
+        }
+;
+
+group-by-clause
+    : KwGroupBy named-expression-list[exprs]
+        {
+            $$ = context->TrackedNew<TGroupOperator>(nullptr);
+            $$->GroupItems().assign($exprs.begin(), $exprs.end());
         }
 ;
 
@@ -188,68 +196,36 @@ expression
 or-op-expr
     : or-op-expr[lhs] KwOr and-op-expr[rhs]
         {
-            $$ = new (context) TBinaryOpExpression(
-                context,
-                @$,
-                EBinaryOp::Or,
-                $lhs,
-                $rhs);
+            $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
         }
     | and-op-expr
         { $$ = $1; }
 ;
 
 and-op-expr
-    : and-op-expr[lhs] KwAnd equality-op-expr[rhs]
+    : and-op-expr[lhs] KwAnd relational-op-expr[rhs]
         {
-            $$ = new (context) TBinaryOpExpression(
-                context,
-                @$,
-                EBinaryOp::And,
-                $lhs,
-                $rhs);
-        }
-    | equality-op-expr
-        { $$ = $1; }
-;
-
-equality-op-expr
-    : additive-op-expr[lhs] equality-op[opcode] relational-op-expr[rhs]
-        {
-            $$ = new (context) TBinaryOpExpression(
-                context,
-                @$,
-                $opcode,
-                $lhs,
-                $rhs);
+            $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
 ;
 
-equality-op
-    : OpEqual
-        { $$ = EBinaryOp::Equal; }
-    | OpNotEqual
-        { $$ = EBinaryOp::NotEqual; }
-;
-
 relational-op-expr
     : relational-op-expr[lhs] relational-op[opcode] additive-op-expr[rhs]
         {
-            $$ = new (context) TBinaryOpExpression(
-                context,
-                @$,
-                $opcode,
-                $lhs,
-                $rhs);
+            $$ = context->TrackedNew<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | additive-op-expr
         { $$ = $1; }
 ;
 
 relational-op
-    : OpLess
+    : OpEqual
+        { $$ = EBinaryOp::Equal; }
+    | OpNotEqual
+        { $$ = EBinaryOp::NotEqual; }
+    | OpLess
         { $$ = EBinaryOp::Less; }
     | OpLessOrEqual
         { $$ = EBinaryOp::LessOrEqual; }
@@ -262,12 +238,7 @@ relational-op
 additive-op-expr
     : additive-op-expr[lhs] additive-op[opcode] multiplicative-op-expr[rhs]
         {
-            $$ = new (context) TBinaryOpExpression(
-                context,
-                @$,
-                $opcode,
-                $lhs,
-                $rhs);
+            $$ = context->TrackedNew<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | multiplicative-op-expr
         { $$ = $1; }
@@ -283,12 +254,7 @@ additive-op
 multiplicative-op-expr
     : multiplicative-op-expr[lhs] multiplicative-op[opcode] atomic-expr[rhs]
         {
-            $$ = new (context) TBinaryOpExpression(
-                context,
-                @$,
-                $opcode,
-                $lhs,
-                $rhs);
+            $$ = context->TrackedNew<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | atomic-expr
         { $$ = $1; }
@@ -306,38 +272,34 @@ multiplicative-op
 atomic-expr
     : reference-expr
         { $$ = $1; }
+    | function-expr
+        { $$ = $1; }
     | IntegerLiteral[value]
         {
-            $$ = new (context) TIntegerLiteralExpression(context, @$, $value);
+            $$ = context->TrackedNew<TIntegerLiteralExpression>(@$, $value);
         }
     | DoubleLiteral[value]
         {
-            $$ = new (context) TDoubleLiteralExpression(context, @$, $value);
+            $$ = context->TrackedNew<TDoubleLiteralExpression>(@$, $value);
         }
     | LeftParenthesis or-op-expr[expr] RightParenthesis
-        { $$ = $expr; }
-    | function-expr
-        { $$ = $1; }
-;
-
-function-expr
-    : Identifier[name] LeftParenthesis function-expr-args[args] RightParenthesis
         {
-            $$ = new (context) TFunctionExpression(
-                context,
-                @$,
-                $name);
-            $$->Arguments().assign($args.begin(), $args.end());
+            $$ = $expr;
         }
 ;
 
 reference-expr
     : Identifier[name]
         {
-            $$ = new (context) TReferenceExpression(
-                context,
-                @$,
-                $name);
+            $$ = context->TrackedNew<TReferenceExpression>(@$, $name);
+        }
+;
+
+function-expr
+    : Identifier[name] LeftParenthesis function-expr-args[args] RightParenthesis
+        {
+            $$ = context->TrackedNew<TFunctionExpression>(@$, $name);
+            $$->Arguments().assign($args.begin(), $args.end());
         }
 ;
 

@@ -149,7 +149,7 @@ TPlanFragment TPrepareController::Run()
 void TPrepareController::ParseSource()
 {
     // Hook up with debug information for better error messages.
-    Context_->SetDebugInformation(TDebugInformation(Source_));
+    Context_->SetSource(Source_);
 
     TLexer lexer(Context_.Get(), Source_);
     TParser parser(lexer, Context_.Get(), &Head_);
@@ -166,17 +166,17 @@ void TPrepareController::GetInitialSplits()
         Head_,
         [this] (const TOperator* op) {
             if (auto* scanOp = op->AsMutable<TScanOperator>()) {
-                auto& tableDescriptor = Context_->TableDescriptor();
-                LOG_DEBUG("Getting initial data split for %s", ~tableDescriptor.Path);
+                auto tablePath = Context_->GetTablePath();
+                LOG_DEBUG("Getting initial data split for %s", ~tablePath);
                 // XXX(sandello): We have just one table at the moment.
                 // Will put TParallelAwaiter here in case of multiple tables.
                 auto dataSplitOrError = WaitFor(Callbacks_->GetInitialSplit(
-                    tableDescriptor.Path,
+                    ~tablePath,
                     Context_));
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     dataSplitOrError,
                     "Failed to get initial data split for table %s",
-                    ~tableDescriptor.Path);
+                    ~tablePath);
                 scanOp->DataSplits().push_back(dataSplitOrError.Value());
             }
         });

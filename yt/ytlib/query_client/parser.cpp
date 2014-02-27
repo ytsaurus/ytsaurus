@@ -1,4 +1,4 @@
-// A Bison parser, made by GNU Bison 3.0.
+// A Bison parser, made by GNU Bison 3.0.2.
 
 // Skeleton implementation for Bison LALR(1) parsers in C++
 
@@ -35,13 +35,13 @@
 
 // First part of user declarations.
 
-#line 39 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:398
+#line 39 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:399
 
-# ifndef YY_NULL
+# ifndef YY_NULLPTR
 #  if defined __cplusplus && 201103L <= __cplusplus
-#   define YY_NULL nullptr
+#   define YY_NULLPTR nullptr
 #  else
-#   define YY_NULL 0
+#   define YY_NULLPTR 0
 #  endif
 # endif
 
@@ -49,14 +49,14 @@
 
 // User implementation prologue.
 
-#line 53 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:406
+#line 53 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:407
 // Unqualified %code blocks.
-#line 31 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:407
+#line 31 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:408
 
     #include <ytlib/query_client/lexer.h>
     #define yt_ql_yylex lexer.GetNextToken
 
-#line 60 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:407
+#line 60 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:408
 
 
 #ifndef YY_
@@ -140,9 +140,9 @@
 #define YYERROR         goto yyerrorlab
 #define YYRECOVERING()  (!!yyerrstatus_)
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:473
+#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:474
 namespace NYT { namespace NQueryClient {
-#line 146 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:473
+#line 146 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:474
 
   /* Return YYSTR after stripping away unnecessary quotes and
      backslashes, so that it's suitable for yyerror.  The heuristic is
@@ -224,17 +224,15 @@ namespace NYT { namespace NQueryClient {
   {
       switch (other.type_get ())
     {
-      case 39: // equality-op
       case 41: // relational-op
       case 43: // additive-op
       case 45: // multiplicative-op
         value.copy< EBinaryOp > (other.value);
         break;
 
-      case 35: // expression
-      case 36: // or-op-expr
-      case 37: // and-op-expr
-      case 38: // equality-op-expr
+      case 37: // expression
+      case 38: // or-op-expr
+      case 39: // and-op-expr
       case 40: // relational-op-expr
       case 42: // additive-op-expr
       case 44: // multiplicative-op-expr
@@ -242,7 +240,11 @@ namespace NYT { namespace NQueryClient {
         value.copy< TExpression* > (other.value);
         break;
 
-      case 47: // function-expr
+      case 33: // where-clause
+        value.copy< TFilterOperator* > (other.value);
+        break;
+
+      case 48: // function-expr
         value.copy< TFunctionExpression* > (other.value);
         break;
 
@@ -250,22 +252,32 @@ namespace NYT { namespace NQueryClient {
         value.copy< TFunctionExpression::TArguments > (other.value);
         break;
 
-      case 34: // named-expression
+      case 34: // group-by-clause
+        value.copy< TGroupOperator* > (other.value);
+        break;
+
+      case 36: // named-expression
         value.copy< TNamedExpression > (other.value);
         break;
 
-      case 33: // named-expression-list
+      case 35: // named-expression-list
         value.copy< TNamedExpressionList > (other.value);
         break;
 
-      case 30: // select-clause
-      case 31: // from-where-clause
-      case 32: // from-clause
+      case 30: // head-clause
         value.copy< TOperator* > (other.value);
         break;
 
-      case 48: // reference-expr
+      case 31: // select-clause
+        value.copy< TProjectOperator* > (other.value);
+        break;
+
+      case 47: // reference-expr
         value.copy< TReferenceExpression* > (other.value);
+        break;
+
+      case 32: // from-clause
+        value.copy< TScanOperator* > (other.value);
         break;
 
       case 10: // "identifier"
@@ -298,17 +310,15 @@ namespace NYT { namespace NQueryClient {
     (void) v;
       switch (this->type_get ())
     {
-      case 39: // equality-op
       case 41: // relational-op
       case 43: // additive-op
       case 45: // multiplicative-op
         value.copy< EBinaryOp > (v);
         break;
 
-      case 35: // expression
-      case 36: // or-op-expr
-      case 37: // and-op-expr
-      case 38: // equality-op-expr
+      case 37: // expression
+      case 38: // or-op-expr
+      case 39: // and-op-expr
       case 40: // relational-op-expr
       case 42: // additive-op-expr
       case 44: // multiplicative-op-expr
@@ -316,7 +326,11 @@ namespace NYT { namespace NQueryClient {
         value.copy< TExpression* > (v);
         break;
 
-      case 47: // function-expr
+      case 33: // where-clause
+        value.copy< TFilterOperator* > (v);
+        break;
+
+      case 48: // function-expr
         value.copy< TFunctionExpression* > (v);
         break;
 
@@ -324,22 +338,32 @@ namespace NYT { namespace NQueryClient {
         value.copy< TFunctionExpression::TArguments > (v);
         break;
 
-      case 34: // named-expression
+      case 34: // group-by-clause
+        value.copy< TGroupOperator* > (v);
+        break;
+
+      case 36: // named-expression
         value.copy< TNamedExpression > (v);
         break;
 
-      case 33: // named-expression-list
+      case 35: // named-expression-list
         value.copy< TNamedExpressionList > (v);
         break;
 
-      case 30: // select-clause
-      case 31: // from-where-clause
-      case 32: // from-clause
+      case 30: // head-clause
         value.copy< TOperator* > (v);
         break;
 
-      case 48: // reference-expr
+      case 31: // select-clause
+        value.copy< TProjectOperator* > (v);
+        break;
+
+      case 47: // reference-expr
         value.copy< TReferenceExpression* > (v);
+        break;
+
+      case 32: // from-clause
+        value.copy< TScanOperator* > (v);
         break;
 
       case 10: // "identifier"
@@ -385,6 +409,13 @@ namespace NYT { namespace NQueryClient {
   {}
 
   template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TFilterOperator* v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TFunctionExpression* v, const location_type& l)
     : Base (t)
     , value (v)
@@ -393,6 +424,13 @@ namespace NYT { namespace NQueryClient {
 
   template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TFunctionExpression::TArguments v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TGroupOperator* v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -420,7 +458,21 @@ namespace NYT { namespace NQueryClient {
   {}
 
   template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TProjectOperator* v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TReferenceExpression* v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TScanOperator* v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -463,17 +515,15 @@ namespace NYT { namespace NQueryClient {
     // Type destructor.
     switch (yytype)
     {
-      case 39: // equality-op
       case 41: // relational-op
       case 43: // additive-op
       case 45: // multiplicative-op
         value.template destroy< EBinaryOp > ();
         break;
 
-      case 35: // expression
-      case 36: // or-op-expr
-      case 37: // and-op-expr
-      case 38: // equality-op-expr
+      case 37: // expression
+      case 38: // or-op-expr
+      case 39: // and-op-expr
       case 40: // relational-op-expr
       case 42: // additive-op-expr
       case 44: // multiplicative-op-expr
@@ -481,7 +531,11 @@ namespace NYT { namespace NQueryClient {
         value.template destroy< TExpression* > ();
         break;
 
-      case 47: // function-expr
+      case 33: // where-clause
+        value.template destroy< TFilterOperator* > ();
+        break;
+
+      case 48: // function-expr
         value.template destroy< TFunctionExpression* > ();
         break;
 
@@ -489,22 +543,32 @@ namespace NYT { namespace NQueryClient {
         value.template destroy< TFunctionExpression::TArguments > ();
         break;
 
-      case 34: // named-expression
+      case 34: // group-by-clause
+        value.template destroy< TGroupOperator* > ();
+        break;
+
+      case 36: // named-expression
         value.template destroy< TNamedExpression > ();
         break;
 
-      case 33: // named-expression-list
+      case 35: // named-expression-list
         value.template destroy< TNamedExpressionList > ();
         break;
 
-      case 30: // select-clause
-      case 31: // from-where-clause
-      case 32: // from-clause
+      case 30: // head-clause
         value.template destroy< TOperator* > ();
         break;
 
-      case 48: // reference-expr
+      case 31: // select-clause
+        value.template destroy< TProjectOperator* > ();
+        break;
+
+      case 47: // reference-expr
         value.template destroy< TReferenceExpression* > ();
+        break;
+
+      case 32: // from-clause
+        value.template destroy< TScanOperator* > ();
         break;
 
       case 10: // "identifier"
@@ -534,17 +598,15 @@ namespace NYT { namespace NQueryClient {
     super_type::move(s);
       switch (this->type_get ())
     {
-      case 39: // equality-op
       case 41: // relational-op
       case 43: // additive-op
       case 45: // multiplicative-op
         value.move< EBinaryOp > (s.value);
         break;
 
-      case 35: // expression
-      case 36: // or-op-expr
-      case 37: // and-op-expr
-      case 38: // equality-op-expr
+      case 37: // expression
+      case 38: // or-op-expr
+      case 39: // and-op-expr
       case 40: // relational-op-expr
       case 42: // additive-op-expr
       case 44: // multiplicative-op-expr
@@ -552,7 +614,11 @@ namespace NYT { namespace NQueryClient {
         value.move< TExpression* > (s.value);
         break;
 
-      case 47: // function-expr
+      case 33: // where-clause
+        value.move< TFilterOperator* > (s.value);
+        break;
+
+      case 48: // function-expr
         value.move< TFunctionExpression* > (s.value);
         break;
 
@@ -560,22 +626,32 @@ namespace NYT { namespace NQueryClient {
         value.move< TFunctionExpression::TArguments > (s.value);
         break;
 
-      case 34: // named-expression
+      case 34: // group-by-clause
+        value.move< TGroupOperator* > (s.value);
+        break;
+
+      case 36: // named-expression
         value.move< TNamedExpression > (s.value);
         break;
 
-      case 33: // named-expression-list
+      case 35: // named-expression-list
         value.move< TNamedExpressionList > (s.value);
         break;
 
-      case 30: // select-clause
-      case 31: // from-where-clause
-      case 32: // from-clause
+      case 30: // head-clause
         value.move< TOperator* > (s.value);
         break;
 
-      case 48: // reference-expr
+      case 31: // select-clause
+        value.move< TProjectOperator* > (s.value);
+        break;
+
+      case 47: // reference-expr
         value.move< TReferenceExpression* > (s.value);
+        break;
+
+      case 32: // from-clause
+        value.move< TScanOperator* > (s.value);
         break;
 
       case 10: // "identifier"
@@ -633,182 +709,156 @@ namespace NYT { namespace NQueryClient {
   TParser::make_End (const location_type& l)
   {
     return symbol_type (token::End, l);
-
   }
 
   TParser::symbol_type
   TParser::make_Failure (const location_type& l)
   {
     return symbol_type (token::Failure, l);
-
   }
 
   TParser::symbol_type
   TParser::make_KwFrom (const location_type& l)
   {
     return symbol_type (token::KwFrom, l);
-
   }
 
   TParser::symbol_type
   TParser::make_KwWhere (const location_type& l)
   {
     return symbol_type (token::KwWhere, l);
-
   }
 
   TParser::symbol_type
   TParser::make_KwGroupBy (const location_type& l)
   {
     return symbol_type (token::KwGroupBy, l);
-
   }
 
   TParser::symbol_type
   TParser::make_KwAs (const location_type& l)
   {
     return symbol_type (token::KwAs, l);
-
   }
 
   TParser::symbol_type
   TParser::make_KwAnd (const location_type& l)
   {
     return symbol_type (token::KwAnd, l);
-
   }
 
   TParser::symbol_type
   TParser::make_KwOr (const location_type& l)
   {
     return symbol_type (token::KwOr, l);
-
   }
 
   TParser::symbol_type
   TParser::make_Identifier (const TStringBuf& v, const location_type& l)
   {
     return symbol_type (token::Identifier, v, l);
-
   }
 
   TParser::symbol_type
   TParser::make_IntegerLiteral (const i64& v, const location_type& l)
   {
     return symbol_type (token::IntegerLiteral, v, l);
-
   }
 
   TParser::symbol_type
   TParser::make_DoubleLiteral (const double& v, const location_type& l)
   {
     return symbol_type (token::DoubleLiteral, v, l);
-
   }
 
   TParser::symbol_type
   TParser::make_YPathLiteral (const TStringBuf& v, const location_type& l)
   {
     return symbol_type (token::YPathLiteral, v, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpModulo (const location_type& l)
   {
     return symbol_type (token::OpModulo, l);
-
   }
 
   TParser::symbol_type
   TParser::make_LeftParenthesis (const location_type& l)
   {
     return symbol_type (token::LeftParenthesis, l);
-
   }
 
   TParser::symbol_type
   TParser::make_RightParenthesis (const location_type& l)
   {
     return symbol_type (token::RightParenthesis, l);
-
   }
 
   TParser::symbol_type
   TParser::make_Asterisk (const location_type& l)
   {
     return symbol_type (token::Asterisk, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpPlus (const location_type& l)
   {
     return symbol_type (token::OpPlus, l);
-
   }
 
   TParser::symbol_type
   TParser::make_Comma (const location_type& l)
   {
     return symbol_type (token::Comma, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpMinus (const location_type& l)
   {
     return symbol_type (token::OpMinus, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpDivide (const location_type& l)
   {
     return symbol_type (token::OpDivide, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpLess (const location_type& l)
   {
     return symbol_type (token::OpLess, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpLessOrEqual (const location_type& l)
   {
     return symbol_type (token::OpLessOrEqual, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpEqual (const location_type& l)
   {
     return symbol_type (token::OpEqual, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpNotEqual (const location_type& l)
   {
     return symbol_type (token::OpNotEqual, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpGreater (const location_type& l)
   {
     return symbol_type (token::OpGreater, l);
-
   }
 
   TParser::symbol_type
   TParser::make_OpGreaterOrEqual (const location_type& l)
   {
     return symbol_type (token::OpGreaterOrEqual, l);
-
   }
 
 
@@ -855,17 +905,15 @@ namespace NYT { namespace NQueryClient {
   {
       switch (that.type_get ())
     {
-      case 39: // equality-op
       case 41: // relational-op
       case 43: // additive-op
       case 45: // multiplicative-op
         value.move< EBinaryOp > (that.value);
         break;
 
-      case 35: // expression
-      case 36: // or-op-expr
-      case 37: // and-op-expr
-      case 38: // equality-op-expr
+      case 37: // expression
+      case 38: // or-op-expr
+      case 39: // and-op-expr
       case 40: // relational-op-expr
       case 42: // additive-op-expr
       case 44: // multiplicative-op-expr
@@ -873,7 +921,11 @@ namespace NYT { namespace NQueryClient {
         value.move< TExpression* > (that.value);
         break;
 
-      case 47: // function-expr
+      case 33: // where-clause
+        value.move< TFilterOperator* > (that.value);
+        break;
+
+      case 48: // function-expr
         value.move< TFunctionExpression* > (that.value);
         break;
 
@@ -881,22 +933,32 @@ namespace NYT { namespace NQueryClient {
         value.move< TFunctionExpression::TArguments > (that.value);
         break;
 
-      case 34: // named-expression
+      case 34: // group-by-clause
+        value.move< TGroupOperator* > (that.value);
+        break;
+
+      case 36: // named-expression
         value.move< TNamedExpression > (that.value);
         break;
 
-      case 33: // named-expression-list
+      case 35: // named-expression-list
         value.move< TNamedExpressionList > (that.value);
         break;
 
-      case 30: // select-clause
-      case 31: // from-where-clause
-      case 32: // from-clause
+      case 30: // head-clause
         value.move< TOperator* > (that.value);
         break;
 
-      case 48: // reference-expr
+      case 31: // select-clause
+        value.move< TProjectOperator* > (that.value);
+        break;
+
+      case 47: // reference-expr
         value.move< TReferenceExpression* > (that.value);
+        break;
+
+      case 32: // from-clause
+        value.move< TScanOperator* > (that.value);
         break;
 
       case 10: // "identifier"
@@ -927,17 +989,15 @@ namespace NYT { namespace NQueryClient {
     state = that.state;
       switch (that.type_get ())
     {
-      case 39: // equality-op
       case 41: // relational-op
       case 43: // additive-op
       case 45: // multiplicative-op
         value.copy< EBinaryOp > (that.value);
         break;
 
-      case 35: // expression
-      case 36: // or-op-expr
-      case 37: // and-op-expr
-      case 38: // equality-op-expr
+      case 37: // expression
+      case 38: // or-op-expr
+      case 39: // and-op-expr
       case 40: // relational-op-expr
       case 42: // additive-op-expr
       case 44: // multiplicative-op-expr
@@ -945,7 +1005,11 @@ namespace NYT { namespace NQueryClient {
         value.copy< TExpression* > (that.value);
         break;
 
-      case 47: // function-expr
+      case 33: // where-clause
+        value.copy< TFilterOperator* > (that.value);
+        break;
+
+      case 48: // function-expr
         value.copy< TFunctionExpression* > (that.value);
         break;
 
@@ -953,22 +1017,32 @@ namespace NYT { namespace NQueryClient {
         value.copy< TFunctionExpression::TArguments > (that.value);
         break;
 
-      case 34: // named-expression
+      case 34: // group-by-clause
+        value.copy< TGroupOperator* > (that.value);
+        break;
+
+      case 36: // named-expression
         value.copy< TNamedExpression > (that.value);
         break;
 
-      case 33: // named-expression-list
+      case 35: // named-expression-list
         value.copy< TNamedExpressionList > (that.value);
         break;
 
-      case 30: // select-clause
-      case 31: // from-where-clause
-      case 32: // from-clause
+      case 30: // head-clause
         value.copy< TOperator* > (that.value);
         break;
 
-      case 48: // reference-expr
+      case 31: // select-clause
+        value.copy< TProjectOperator* > (that.value);
+        break;
+
+      case 47: // reference-expr
         value.copy< TReferenceExpression* > (that.value);
+        break;
+
+      case 32: // from-clause
+        value.copy< TScanOperator* > (that.value);
         break;
 
       case 10: // "identifier"
@@ -1071,13 +1145,13 @@ namespace NYT { namespace NQueryClient {
 #endif // YT_QL_YYDEBUG
 
   inline TParser::state_type
-  TParser::yy_lr_goto_state_ (state_type yystate, int yylhs)
+  TParser::yy_lr_goto_state_ (state_type yystate, int yysym)
   {
-    int yyr = yypgoto_[yylhs - yyntokens_] + yystate;
+    int yyr = yypgoto_[yysym - yyntokens_] + yystate;
     if (0 <= yyr && yyr <= yylast_ && yycheck_[yyr] == yystate)
       return yytable_[yyr];
     else
-      return yydefgoto_[yylhs - yyntokens_];
+      return yydefgoto_[yysym - yyntokens_];
   }
 
   inline bool
@@ -1100,6 +1174,7 @@ namespace NYT { namespace NQueryClient {
 
     // State.
     int yyn;
+    /// Length of the RHS of the rule being reduced.
     int yylen = 0;
 
     // Error handling.
@@ -1111,9 +1186,6 @@ namespace NYT { namespace NQueryClient {
 
     /// The locations where the error started and ended.
     stack_symbol_type yyerror_range[3];
-
-    /// $$ and @$.
-    stack_symbol_type yylhs;
 
     /// The return value of parse ().
     int yyresult;
@@ -1130,7 +1202,7 @@ namespace NYT { namespace NQueryClient {
        location values to have been already stored, initialize these
        stacks with a primary value.  */
     yystack_.clear ();
-    yypush_ (YY_NULL, 0, yyla);
+    yypush_ (YY_NULLPTR, 0, yyla);
 
     // A new symbol was pushed on the stack.
   yynewstate:
@@ -1208,23 +1280,23 @@ namespace NYT { namespace NQueryClient {
   `-----------------------------*/
   yyreduce:
     yylen = yyr2_[yyn];
-    yylhs.state = yy_lr_goto_state_(yystack_[yylen].state, yyr1_[yyn]);
-    /* Variants are always initialized to an empty instance of the
-       correct type. The default $$=$1 action is NOT applied when using
-       variants.  */
-      switch (yyr1_[yyn])
     {
-      case 39: // equality-op
+      stack_symbol_type yylhs;
+      yylhs.state = yy_lr_goto_state_(yystack_[yylen].state, yyr1_[yyn]);
+      /* Variants are always initialized to an empty instance of the
+         correct type. The default '$$ = $1' action is NOT applied
+         when using variants.  */
+        switch (yyr1_[yyn])
+    {
       case 41: // relational-op
       case 43: // additive-op
       case 45: // multiplicative-op
         yylhs.value.build< EBinaryOp > ();
         break;
 
-      case 35: // expression
-      case 36: // or-op-expr
-      case 37: // and-op-expr
-      case 38: // equality-op-expr
+      case 37: // expression
+      case 38: // or-op-expr
+      case 39: // and-op-expr
       case 40: // relational-op-expr
       case 42: // additive-op-expr
       case 44: // multiplicative-op-expr
@@ -1232,7 +1304,11 @@ namespace NYT { namespace NQueryClient {
         yylhs.value.build< TExpression* > ();
         break;
 
-      case 47: // function-expr
+      case 33: // where-clause
+        yylhs.value.build< TFilterOperator* > ();
+        break;
+
+      case 48: // function-expr
         yylhs.value.build< TFunctionExpression* > ();
         break;
 
@@ -1240,22 +1316,32 @@ namespace NYT { namespace NQueryClient {
         yylhs.value.build< TFunctionExpression::TArguments > ();
         break;
 
-      case 34: // named-expression
+      case 34: // group-by-clause
+        yylhs.value.build< TGroupOperator* > ();
+        break;
+
+      case 36: // named-expression
         yylhs.value.build< TNamedExpression > ();
         break;
 
-      case 33: // named-expression-list
+      case 35: // named-expression-list
         yylhs.value.build< TNamedExpressionList > ();
         break;
 
-      case 30: // select-clause
-      case 31: // from-where-clause
-      case 32: // from-clause
+      case 30: // head-clause
         yylhs.value.build< TOperator* > ();
         break;
 
-      case 48: // reference-expr
+      case 31: // select-clause
+        yylhs.value.build< TProjectOperator* > ();
+        break;
+
+      case 47: // reference-expr
         yylhs.value.build< TReferenceExpression* > ();
+        break;
+
+      case 32: // from-clause
+        yylhs.value.build< TScanOperator* > ();
         break;
 
       case 10: // "identifier"
@@ -1276,403 +1362,367 @@ namespace NYT { namespace NQueryClient {
     }
 
 
-    // Compute the default @$.
-    {
-      slice<stack_symbol_type, stack_type> slice (yystack_, yylen);
-      YYLLOC_DEFAULT (yylhs.location, slice, yylen);
-    }
-
-    // Perform the reduction.
-    YY_REDUCE_PRINT (yyn);
-    try
+      // Compute the default @$.
       {
-        switch (yyn)
-          {
+        slice<stack_symbol_type, stack_type> slice (yystack_, yylen);
+        YYLLOC_DEFAULT (yylhs.location, slice, yylen);
+      }
+
+      // Perform the reduction.
+      YY_REDUCE_PRINT (yyn);
+      try
+        {
+          switch (yyn)
+            {
   case 2:
-#line 104 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 103 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
             *head = yystack_[0].value.as< TOperator* > ();
         }
-#line 1297 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1383 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 3:
-#line 111 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 110 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            auto projectOp = new (context) TProjectOperator(context, yystack_[0].value.as< TOperator* > ());
-            projectOp->Projections().assign(yystack_[1].value.as< TNamedExpressionList > ().begin(), yystack_[1].value.as< TNamedExpressionList > ().end());
-            yylhs.value.as< TOperator* > () = projectOp;
+            yystack_[1].value.as< TProjectOperator* > ()->SetSource(yystack_[0].value.as< TScanOperator* > ());
+            yylhs.value.as< TOperator* > () = yystack_[1].value.as< TProjectOperator* > ();
         }
-#line 1307 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1392 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 4:
-#line 120 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 115 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TOperator* > () = yystack_[0].value.as< TOperator* > ();
+            yystack_[0].value.as< TFilterOperator* > ()->SetSource(yystack_[1].value.as< TScanOperator* > ());
+            yystack_[2].value.as< TProjectOperator* > ()->SetSource(yystack_[0].value.as< TFilterOperator* > ());
+            yylhs.value.as< TOperator* > () = yystack_[2].value.as< TProjectOperator* > ();
         }
-#line 1315 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1402 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 5:
-#line 124 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 121 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            auto filterOp = new (context) TFilterOperator(context, yystack_[2].value.as< TOperator* > ());
-            filterOp->SetPredicate(yystack_[0].value.as< TExpression* > ());
-
-            yylhs.value.as< TOperator* > () = filterOp;
+            yystack_[1].value.as< TFilterOperator* > ()->SetSource(yystack_[2].value.as< TScanOperator* > ());
+            yystack_[0].value.as< TGroupOperator* > ()->SetSource(yystack_[1].value.as< TFilterOperator* > ());
+            yystack_[3].value.as< TProjectOperator* > ()->SetSource(yystack_[0].value.as< TGroupOperator* > ());
+            yylhs.value.as< TOperator* > () = yystack_[3].value.as< TProjectOperator* > ();
         }
-#line 1326 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1413 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 6:
-#line 131 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 128 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            auto filterOp = new (context) TFilterOperator(context, yystack_[4].value.as< TOperator* > ());
-            filterOp->SetPredicate(yystack_[2].value.as< TExpression* > ());
-
-            auto groupOp = new (context) TGroupOperator(context, filterOp);
-            groupOp->GroupItems().assign(yystack_[0].value.as< TNamedExpressionList > ().begin(), yystack_[0].value.as< TNamedExpressionList > ().end());
-
-            yylhs.value.as< TOperator* > () = groupOp;
+            yystack_[0].value.as< TGroupOperator* > ()->SetSource(yystack_[1].value.as< TScanOperator* > ());
+            yystack_[2].value.as< TProjectOperator* > ()->SetSource(yystack_[0].value.as< TGroupOperator* > ());
+            yylhs.value.as< TOperator* > () = yystack_[2].value.as< TProjectOperator* > ();
         }
-#line 1340 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1423 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 7:
-#line 141 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 137 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            auto groupOp = new (context) TGroupOperator(context, yystack_[2].value.as< TOperator* > ());
-            groupOp->GroupItems().assign(yystack_[0].value.as< TNamedExpressionList > ().begin(), yystack_[0].value.as< TNamedExpressionList > ().end());
-
-            yylhs.value.as< TOperator* > () = groupOp;
+            yylhs.value.as< TProjectOperator* > () = context->TrackedNew<TProjectOperator>(nullptr);
+            yylhs.value.as< TProjectOperator* > ()->Projections().assign(yystack_[0].value.as< TNamedExpressionList > ().begin(), yystack_[0].value.as< TNamedExpressionList > ().end());
         }
-#line 1351 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1432 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 8:
-#line 151 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 145 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            context->TableDescriptor().Path = yystack_[0].value.as< TStringBuf > ();
+            context->SetTablePath(Stroka(~yystack_[0].value.as< TStringBuf > (), +yystack_[0].value.as< TStringBuf > ()));
 
-            auto scanOp = new (context) TScanOperator(context);
-
-            yylhs.value.as< TOperator* > () = scanOp;
+            yylhs.value.as< TScanOperator* > () = context->TrackedNew<TScanOperator>();
         }
-#line 1363 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1442 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 9:
-#line 162 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 154 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    {
+            yylhs.value.as< TFilterOperator* > () = context->TrackedNew<TFilterOperator>(nullptr);
+            yylhs.value.as< TFilterOperator* > ()->SetPredicate(yystack_[0].value.as< TExpression* > ());
+        }
+#line 1451 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
+    break;
+
+  case 10:
+#line 162 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    {
+            yylhs.value.as< TGroupOperator* > () = context->TrackedNew<TGroupOperator>(nullptr);
+            yylhs.value.as< TGroupOperator* > ()->GroupItems().assign(yystack_[0].value.as< TNamedExpressionList > ().begin(), yystack_[0].value.as< TNamedExpressionList > ().end());
+        }
+#line 1460 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
+    break;
+
+  case 11:
+#line 170 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
             yylhs.value.as< TNamedExpressionList > ().swap(yystack_[2].value.as< TNamedExpressionList > ());
             yylhs.value.as< TNamedExpressionList > ().push_back(yystack_[0].value.as< TNamedExpression > ());
         }
-#line 1372 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
-    break;
-
-  case 10:
-#line 167 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    {
-            yylhs.value.as< TNamedExpressionList > ().push_back(yystack_[0].value.as< TNamedExpression > ());
-        }
-#line 1380 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
-    break;
-
-  case 11:
-#line 174 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    {
-            yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[0].value.as< TReferenceExpression* > (), yystack_[0].value.as< TReferenceExpression* > ()->GetColumnName());
-        }
-#line 1388 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1469 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 12:
-#line 178 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 175 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[2].value.as< TExpression* > (), Stroka(yystack_[0].value.as< TStringBuf > ()));
+            yylhs.value.as< TNamedExpressionList > ().push_back(yystack_[0].value.as< TNamedExpression > ());
         }
-#line 1396 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1477 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 13:
-#line 185 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-#line 1402 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 182 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    {
+            yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[0].value.as< TReferenceExpression* > (), yystack_[0].value.as< TReferenceExpression* > ()->GetColumnName());
+        }
+#line 1485 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 14:
-#line 190 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 186 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
-                context,
-                yylhs.location,
-                EBinaryOp::Or,
-                yystack_[2].value.as< TExpression* > (),
-                yystack_[0].value.as< TExpression* > ());
+            yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[2].value.as< TExpression* > (), Stroka(yystack_[0].value.as< TStringBuf > ()));
         }
-#line 1415 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1493 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 15:
-#line 199 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 193 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-#line 1421 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1499 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 16:
-#line 204 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 198 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
-                context,
-                yylhs.location,
-                EBinaryOp::And,
-                yystack_[2].value.as< TExpression* > (),
-                yystack_[0].value.as< TExpression* > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::Or, yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
-#line 1434 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1507 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 17:
-#line 213 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 202 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-#line 1440 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1513 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 18:
-#line 218 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 207 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
-                context,
-                yylhs.location,
-                yystack_[1].value.as< EBinaryOp > (),
-                yystack_[2].value.as< TExpression* > (),
-                yystack_[0].value.as< TExpression* > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
-#line 1453 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1521 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 19:
-#line 227 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 211 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-#line 1459 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1527 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 20:
-#line 232 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
-#line 1465 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 216 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    {
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
+        }
+#line 1535 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 21:
-#line 234 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
-#line 1471 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 220 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
+#line 1541 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 22:
-#line 239 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    {
-            yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
-                context,
-                yylhs.location,
-                yystack_[1].value.as< EBinaryOp > (),
-                yystack_[2].value.as< TExpression* > (),
-                yystack_[0].value.as< TExpression* > ());
-        }
-#line 1484 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 225 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
+#line 1547 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 23:
-#line 248 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-#line 1490 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 227 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
+#line 1553 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 24:
-#line 253 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 229 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Less; }
-#line 1496 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1559 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 25:
-#line 255 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 231 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::LessOrEqual; }
-#line 1502 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1565 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 26:
-#line 257 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 233 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Greater; }
-#line 1508 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1571 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 27:
-#line 259 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 235 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::GreaterOrEqual; }
-#line 1514 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1577 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 28:
-#line 264 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 240 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
-                context,
-                yylhs.location,
-                yystack_[1].value.as< EBinaryOp > (),
-                yystack_[2].value.as< TExpression* > (),
-                yystack_[0].value.as< TExpression* > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
-#line 1527 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1585 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 29:
-#line 273 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 244 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-#line 1533 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1591 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 30:
-#line 278 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 249 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Plus; }
-#line 1539 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1597 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 31:
-#line 280 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 251 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Minus; }
-#line 1545 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1603 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 32:
-#line 285 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 256 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TExpression* > () = new (context) TBinaryOpExpression(
-                context,
-                yylhs.location,
-                yystack_[1].value.as< EBinaryOp > (),
-                yystack_[2].value.as< TExpression* > (),
-                yystack_[0].value.as< TExpression* > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
-#line 1558 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1611 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 33:
-#line 294 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 260 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-#line 1564 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1617 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 34:
-#line 299 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 265 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Multiply; }
-#line 1570 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1623 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 35:
-#line 301 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 267 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Divide; }
-#line 1576 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1629 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 36:
-#line 303 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 269 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
-#line 1582 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1635 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 37:
-#line 308 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 274 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TReferenceExpression* > (); }
-#line 1588 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1641 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 38:
-#line 310 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    {
-            yylhs.value.as< TExpression* > () = new (context) TIntegerLiteralExpression(context, yylhs.location, yystack_[0].value.as< i64 > ());
-        }
-#line 1596 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 276 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TFunctionExpression* > (); }
+#line 1647 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 39:
-#line 314 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 278 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TExpression* > () = new (context) TDoubleLiteralExpression(context, yylhs.location, yystack_[0].value.as< double > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TIntegerLiteralExpression>(yylhs.location, yystack_[0].value.as< i64 > ());
         }
-#line 1604 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1655 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 40:
-#line 318 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    { yylhs.value.as< TExpression* > () = yystack_[1].value.as< TExpression* > (); }
-#line 1610 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 282 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    {
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TDoubleLiteralExpression>(yylhs.location, yystack_[0].value.as< double > ());
+        }
+#line 1663 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 41:
-#line 320 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TFunctionExpression* > (); }
-#line 1616 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 286 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
+    {
+            yylhs.value.as< TExpression* > () = yystack_[1].value.as< TExpression* > ();
+        }
+#line 1671 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 42:
-#line 325 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 293 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TFunctionExpression* > () = new (context) TFunctionExpression(
-                context,
-                yylhs.location,
-                yystack_[3].value.as< TStringBuf > ());
-            yylhs.value.as< TFunctionExpression* > ()->Arguments().assign(yystack_[1].value.as< TFunctionExpression::TArguments > ().begin(), yystack_[1].value.as< TFunctionExpression::TArguments > ().end());
+            yylhs.value.as< TReferenceExpression* > () = context->TrackedNew<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
         }
-#line 1628 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1679 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 43:
-#line 336 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 300 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
-            yylhs.value.as< TReferenceExpression* > () = new (context) TReferenceExpression(
-                context,
-                yylhs.location,
-                yystack_[0].value.as< TStringBuf > ());
+            yylhs.value.as< TFunctionExpression* > () = context->TrackedNew<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > ());
+            yylhs.value.as< TFunctionExpression* > ()->Arguments().assign(yystack_[1].value.as< TFunctionExpression::TArguments > ().begin(), yystack_[1].value.as< TFunctionExpression::TArguments > ().end());
         }
-#line 1639 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1688 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 44:
-#line 346 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 308 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().swap(yystack_[2].value.as< TFunctionExpression::TArguments > ());
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
-#line 1648 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1697 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
   case 45:
-#line 351 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:846
+#line 313 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:847
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
-#line 1656 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
+#line 1705 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
     break;
 
 
-#line 1660 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:846
-          default:
-            break;
-          }
-      }
-    catch (const syntax_error& yyexc)
-      {
-        error (yyexc);
-        YYERROR;
-      }
-    YY_SYMBOL_PRINT ("-> $$ =", yylhs);
-    yypop_ (yylen);
-    yylen = 0;
-    YY_STACK_PRINT ();
+#line 1709 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:847
+            default:
+              break;
+            }
+        }
+      catch (const syntax_error& yyexc)
+        {
+          error (yyexc);
+          YYERROR;
+        }
+      YY_SYMBOL_PRINT ("-> $$ =", yylhs);
+      yypop_ (yylen);
+      yylen = 0;
+      YY_STACK_PRINT ();
 
-    // Shift the result of the reduction.
-    yypush_ (YY_NULL, yylhs);
+      // Shift the result of the reduction.
+      yypush_ (YY_NULLPTR, yylhs);
+    }
     goto yynewstate;
 
   /*--------------------------------------.
@@ -1719,9 +1769,6 @@ namespace NYT { namespace NQueryClient {
     if (false)
       goto yyerrorlab;
     yyerror_range[1].location = yystack_[yylen - 1].location;
-    /* $$ was initialized before running the user action.  */
-    YY_SYMBOL_PRINT ("Error: discarding", yylhs);
-    yylhs.~stack_symbol_type();
     /* Do not reclaim the symbols of the rule whose action triggered
        this YYERROR.  */
     yypop_ (yylen);
@@ -1800,11 +1847,11 @@ namespace NYT { namespace NQueryClient {
         // Do not try to display the values of the reclaimed symbols,
         // as their printer might throw an exception.
         if (!yyempty)
-          yy_destroy_ (YY_NULL, yyla);
+          yy_destroy_ (YY_NULLPTR, yyla);
 
         while (1 < yystack_.size ())
           {
-            yy_destroy_ (YY_NULL, yystack_[0]);
+            yy_destroy_ (YY_NULLPTR, yystack_[0]);
             yypop_ ();
           }
         throw;
@@ -1883,7 +1930,7 @@ namespace NYT { namespace NQueryClient {
           }
       }
 
-    char const* yyformat = YY_NULL;
+    char const* yyformat = YY_NULLPTR;
     switch (yycount)
       {
 #define YYCASE_(N, S)                         \
@@ -1913,92 +1960,88 @@ namespace NYT { namespace NQueryClient {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -48;
+  const signed char TParser::yypact_ninf_ = -18;
 
-  const signed char TParser::yytable_ninf_ = -12;
+  const signed char TParser::yytable_ninf_ = -14;
 
   const signed char
   TParser::yypact_[] =
   {
-      15,    16,   -48,   -48,    15,    17,   -48,     1,   -48,    35,
-      27,    33,   -48,     6,   -12,     2,   -48,   -48,     3,    15,
-       5,   -48,   -48,    30,    15,   -48,    34,    36,    15,    15,
-     -48,   -48,   -48,   -48,    15,   -48,   -48,   -48,   -48,    15,
-      15,   -48,   -48,   -48,    15,   -48,    18,   -48,   -48,   -48,
-      15,    15,   -48,    33,   -48,    -9,     6,    -9,     2,   -48,
-     -48,    15,    29,    26,   -48,    15,    26
+      16,    -2,   -18,   -18,    16,    10,   -18,    19,     5,   -18,
+      22,    24,    26,    -8,    12,    -9,   -18,     3,   -18,    16,
+      -5,   -18,   -18,    23,    15,    16,    25,    16,    16,   -18,
+     -18,   -18,   -18,   -18,   -18,    16,   -18,   -18,    16,   -18,
+     -18,   -18,    16,   -18,   -10,   -18,   -18,    16,    16,    31,
+     -18,   -18,   -18,    26,    -8,    12,    -9,   -18,   -18,    16,
+      24,     5,   -18,   -18
   };
 
   const unsigned char
   TParser::yydefact_[] =
   {
-       0,    43,    38,    39,     0,     0,     2,     0,    10,     0,
-      13,    15,    17,    19,    23,    29,    33,    41,    37,     0,
-       0,    37,     1,     0,     0,     3,     4,     0,     0,     0,
-      24,    25,    26,    27,     0,    30,    31,    20,    21,     0,
-       0,    36,    34,    35,     0,    45,     0,    40,     8,     9,
-       0,     0,    12,    14,    16,    22,    18,    23,    28,    32,
-      42,     0,     5,     7,    44,     0,     6
+       0,    42,    39,    40,     0,     0,     2,     0,     7,    12,
+       0,    15,    17,    19,    21,    29,    33,    37,    38,     0,
+       0,    37,     1,     0,     3,     0,     0,     0,     0,    24,
+      25,    22,    23,    26,    27,     0,    30,    31,     0,    36,
+      34,    35,     0,    45,     0,    41,     8,     0,     0,     4,
+       6,    11,    14,    16,    18,    20,    28,    32,    43,     0,
+       9,    10,     5,    44
   };
 
   const signed char
   TParser::yypgoto_[] =
   {
-     -48,   -48,   -48,   -48,   -48,   -47,    24,   -17,    -3,    21,
-      23,   -48,    11,   -48,   -24,   -48,    13,   -48,    10,   -48,
-       0,   -48
+     -18,   -18,   -18,   -18,   -18,   -18,   -11,    -7,    14,   -17,
+      -3,    13,    17,   -18,     8,   -18,     9,   -18,     4,     0,
+     -18,   -18
   };
 
   const signed char
   TParser::yydefgoto_[] =
   {
-      -1,     5,     6,    25,    26,     7,     8,     9,    10,    11,
-      12,    39,    13,    34,    14,    40,    15,    44,    16,    17,
-      21,    46
+      -1,     5,     6,     7,    24,    49,    50,     8,     9,    10,
+      11,    12,    13,    35,    14,    38,    15,    42,    16,    21,
+      18,    44
   };
 
   const signed char
   TParser::yytable_[] =
   {
-      18,    20,    45,   -11,    63,    23,    35,   -11,    36,    35,
-      55,    36,    37,    38,    28,    57,    41,    22,    66,    42,
-      24,    47,   -11,    43,    18,     1,     2,     3,    30,    31,
-       4,    19,    32,    33,    60,    65,    28,    61,    28,    50,
-      51,    29,    27,    48,    64,    24,    52,    62,    49,    53,
-      56,    18,    54,    58,    59,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,    18
+      17,    20,    43,   -13,    27,    39,    58,   -13,    40,    59,
+      22,    45,    41,    19,    29,    30,    31,    32,    33,    34,
+      47,    48,   -13,    23,    25,    17,     1,     2,     3,    26,
+      36,     4,    37,    27,    28,    52,    46,    48,    62,    51,
+      53,    61,    63,    55,    60,    54,    57,    56,    17
   };
 
-  const signed char
+  const unsigned char
   TParser::yycheck_[] =
   {
-       0,     4,    19,     0,    51,     4,    18,     4,    20,    18,
-      34,    20,    24,    25,     9,    39,    14,     0,    65,    17,
-      19,    16,    19,    21,    24,    10,    11,    12,    22,    23,
-      15,    15,    26,    27,    16,     6,     9,    19,     9,     5,
-       6,     8,     7,    13,    61,    19,    10,    50,    24,    28,
-      39,    51,    29,    40,    44,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    -1,    -1,    65
+       0,     4,    19,     0,     9,    14,    16,     4,    17,    19,
+       0,    16,    21,    15,    22,    23,    24,    25,    26,    27,
+       5,     6,    19,     4,    19,    25,    10,    11,    12,     7,
+      18,    15,    20,     9,     8,    10,    13,     6,    49,    25,
+      27,    48,    59,    35,    47,    28,    42,    38,    48
   };
 
   const unsigned char
   TParser::yystos_[] =
   {
-       0,    10,    11,    12,    15,    29,    30,    33,    34,    35,
-      36,    37,    38,    40,    42,    44,    46,    47,    48,    15,
-      36,    48,     0,     4,    19,    31,    32,     7,     9,     8,
-      22,    23,    26,    27,    41,    18,    20,    24,    25,    39,
-      43,    14,    17,    21,    45,    35,    49,    16,    13,    34,
-       5,     6,    10,    37,    38,    42,    40,    42,    44,    46,
-      16,    19,    36,    33,    35,     6,    33
+       0,    10,    11,    12,    15,    29,    30,    31,    35,    36,
+      37,    38,    39,    40,    42,    44,    46,    47,    48,    15,
+      38,    47,     0,     4,    32,    19,     7,     9,     8,    22,
+      23,    24,    25,    26,    27,    41,    18,    20,    43,    14,
+      17,    21,    45,    37,    49,    16,    13,     5,     6,    33,
+      34,    36,    10,    39,    40,    42,    44,    46,    16,    19,
+      38,    35,    34,    37
   };
 
   const unsigned char
   TParser::yyr1_[] =
   {
-       0,    28,    29,    30,    31,    31,    31,    31,    32,    33,
-      33,    34,    34,    35,    36,    36,    37,    37,    38,    38,
-      39,    39,    40,    40,    41,    41,    41,    41,    42,    42,
+       0,    28,    29,    30,    30,    30,    30,    31,    32,    33,
+      34,    35,    35,    36,    36,    37,    38,    38,    39,    39,
+      40,    40,    41,    41,    41,    41,    41,    41,    42,    42,
       43,    43,    44,    44,    45,    45,    45,    46,    46,    46,
       46,    46,    47,    48,    49,    49
   };
@@ -2006,11 +2049,11 @@ namespace NYT { namespace NQueryClient {
   const unsigned char
   TParser::yyr2_[] =
   {
-       0,     2,     1,     2,     1,     3,     5,     3,     2,     3,
-       1,     1,     3,     1,     3,     1,     3,     1,     3,     1,
-       1,     1,     3,     1,     1,     1,     1,     1,     3,     1,
+       0,     2,     1,     2,     3,     4,     3,     1,     2,     2,
+       2,     3,     1,     1,     3,     1,     3,     1,     3,     1,
+       3,     1,     1,     1,     1,     1,     1,     1,     3,     1,
        1,     1,     3,     1,     1,     1,     1,     1,     1,     1,
-       3,     1,     4,     1,     3,     1
+       1,     3,     1,     4,     3,     1
   };
 
 
@@ -2027,23 +2070,23 @@ namespace NYT { namespace NQueryClient {
   "\"YPath literal\"", "\"`%`\"", "\"`(`\"", "\"`)`\"", "\"`*`\"",
   "\"`+`\"", "\"`,`\"", "\"`-`\"", "\"`/`\"", "\"`<`\"", "\"`<=`\"",
   "\"`=`\"", "\"`!=`\"", "\"`>`\"", "\"`>=`\"", "$accept", "head",
-  "select-clause", "from-where-clause", "from-clause",
-  "named-expression-list", "named-expression", "expression", "or-op-expr",
-  "and-op-expr", "equality-op-expr", "equality-op", "relational-op-expr",
+  "head-clause", "select-clause", "from-clause", "where-clause",
+  "group-by-clause", "named-expression-list", "named-expression",
+  "expression", "or-op-expr", "and-op-expr", "relational-op-expr",
   "relational-op", "additive-op-expr", "additive-op",
   "multiplicative-op-expr", "multiplicative-op", "atomic-expr",
-  "function-expr", "reference-expr", "function-expr-args", YY_NULL
+  "reference-expr", "function-expr", "function-expr-args", YY_NULLPTR
   };
 
 #if YT_QL_YYDEBUG
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   103,   103,   110,   119,   123,   130,   140,   150,   161,
-     166,   173,   177,   184,   189,   198,   203,   212,   217,   226,
-     231,   233,   238,   247,   252,   254,   256,   258,   263,   272,
-     277,   279,   284,   293,   298,   300,   302,   307,   309,   313,
-     317,   319,   324,   335,   345,   350
+       0,   102,   102,   109,   114,   120,   127,   136,   144,   153,
+     161,   169,   174,   181,   185,   192,   197,   201,   206,   210,
+     215,   219,   224,   226,   228,   230,   232,   234,   239,   243,
+     248,   250,   255,   259,   264,   266,   268,   273,   275,   277,
+     281,   285,   292,   299,   307,   312
   };
 
   // Print the state stack on the debug stream.
@@ -2124,10 +2167,10 @@ namespace NYT { namespace NQueryClient {
       return undef_token_;
   }
 
-#line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:1156
+#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:1155
 } } // NYT::NQueryClient
-#line 2130 "/home/sandello/yt/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:1156
-#line 356 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:1157
+#line 2173 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.cpp" // lalr1.cc:1155
+#line 318 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:1156
 
 
 namespace NYT {
