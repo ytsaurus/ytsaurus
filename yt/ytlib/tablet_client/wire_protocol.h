@@ -67,9 +67,16 @@ public:
 
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
-    void WriteUnversionedRow(NVersionedTableClient::TUnversionedRow row);
-    void WriteUnversionedRow(const std::vector<NVersionedTableClient::TUnversionedValue>& row);
-    void WriteUnversionedRowset(const std::vector<NVersionedTableClient::TUnversionedRow>& rowset);
+    typedef std::vector<int> TColumnIdMapping;
+    void WriteUnversionedRow(
+        NVersionedTableClient::TUnversionedRow row,
+        const TColumnIdMapping* idMapping = nullptr);
+    void WriteUnversionedRow(
+        const std::vector<NVersionedTableClient::TUnversionedValue>& row,
+        const TColumnIdMapping* idMapping = nullptr);
+    void WriteUnversionedRowset(
+        const std::vector<NVersionedTableClient::TUnversionedRow>& rowset,
+        const TColumnIdMapping* idMapping = nullptr);
     NVersionedTableClient::ISchemedWriterPtr CreateSchemedRowsetWriter();
 
     Stroka GetData() const;

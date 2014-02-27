@@ -714,7 +714,8 @@ void TWritingTableConsumer::OnControlIntegerScalar(i64 value)
             CurrentTableIndex_ = value;
             CurrentWriter_ = Writers_[CurrentTableIndex_];
             ControlState_ = EControlState::ExpectEndAttributes;
-            break;                                               }
+            break;
+        }
 
         default:
             ThrowInvalidControlAttribute("be an integer value");

@@ -4,6 +4,7 @@
 #include <core/misc/chunked_memory_pool.h>
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemed_writer.h>
 
@@ -17,8 +18,41 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowset
+class TRowsetBase
     : public IRowset
+{
+public:
+    // IRowset implementation.
+    virtual const TTableSchema& GetSchema() const override
+    {
+        return Schema_;
+    }
+
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        if (!NameTable_) {
+            NameTable_ = TNameTable::FromSchema(Schema_);
+        }
+        return NameTable_;
+    }
+
+    virtual const std::vector<TUnversionedRow>& GetRows() const override
+    {
+        return Rows_;
+    }
+
+protected:
+    TTableSchema Schema_;
+    mutable TNameTablePtr NameTable_; // create on demand
+    std::vector<TUnversionedRow> Rows_;
+
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRowset
+    : public TRowsetBase
 {
 public:
     TRowset(
@@ -26,24 +60,13 @@ public:
         const TTableSchema& schema,
         std::vector<TUnversionedRow> rows)
         : Readers_(std::move(readers))
-        , Schema_(schema)
-        , Rows_(std::move(rows))
-    { }
-
-    virtual const TTableSchema& Schema() const override
     {
-        return Schema_;
-    }
-
-    virtual const std::vector<TUnversionedRow>& Rows() const override
-    {
-        return Rows_;
+        Schema_ = schema;
+        Rows_ = std::move(rows);
     }
 
 private:
     std::vector<std::unique_ptr<TWireProtocolReader>> Readers_;
-    TTableSchema Schema_;
-    std::vector<TUnversionedRow> Rows_;
 
 };
 
@@ -63,8 +86,8 @@ IRowsetPtr CreateRowset(
 static const auto PresetResult = MakeFuture(TError());
 
 class TSchemedRowsetWriter
-    : public ISchemedWriter
-    , public IRowset
+    : public TRowsetBase
+    , public ISchemedWriter
 {
 public:
     TSchemedRowsetWriter()
@@ -76,17 +99,6 @@ public:
         return Result_;
     }
 
-    // IRowset implementation.
-    virtual const TTableSchema& Schema() const override
-    {
-        return Schema_;
-    }
-
-    virtual const std::vector<TUnversionedRow>& Rows() const override
-    {
-        return Rows_;
-    }
-
     // ISchemedWriter implementation.
     virtual TAsyncError Open(
         const TTableSchema& schema,
@@ -95,7 +107,6 @@ public:
         Schema_ = schema;
         return PresetResult;
     }
-
 
     virtual TAsyncError Close() override
     {
@@ -118,9 +129,6 @@ public:
 
 private:
     TPromise<TErrorOr<IRowsetPtr>> Result_;
-
-    TTableSchema Schema_;
-    std::vector<TUnversionedRow> Rows_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;

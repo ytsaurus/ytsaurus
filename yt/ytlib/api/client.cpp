@@ -866,20 +866,24 @@ public:
         
     virtual void WriteRow(
         const TYPath& path,
+        TNameTablePtr nameTable,
         TUnversionedRow row) override
     {
         WriteRows(
             path,
+            std::move(nameTable),
             std::vector<TUnversionedRow>(1, row));
     }
 
     virtual void WriteRows(
         const TYPath& path,
+        TNameTablePtr nameTable,
         std::vector<TUnversionedRow> rows) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
             this,
             path,
+            std::move(nameTable),
             std::move(rows))));
     }
 
@@ -1022,7 +1026,10 @@ private:
     class TRequestBase
     {
     public:
-        virtual void Run() = 0;
+        virtual void Run()
+        {
+            TableInfo_ = Transaction_->Client_->SyncGetTableInfo(Path_);
+        }
 
     protected:
         explicit TRequestBase(
@@ -1035,6 +1042,8 @@ private:
         TTransaction* Transaction_;
         TYPath Path_;
 
+        TTableMountInfoPtr TableInfo_;
+
     };
 
     class TWriteRequest
@@ -1044,23 +1053,28 @@ private:
         TWriteRequest(
             TTransaction* transaction,
             const TYPath& path,
+            TNameTablePtr nameTable,
             std::vector<TUnversionedRow> rows)
             : TRequestBase(transaction, path)
+            , NameTable_(std::move(nameTable))
             , Rows_(std::move(rows))
         { }
 
         virtual void Run() override
         {
-            const auto& tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
+            TRequestBase::Run();
+
+            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             for (auto row : Rows_) {
-                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(tableInfo, row);
+                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EProtocolCommand::WriteRow);
-                writer->WriteUnversionedRow(row);
+                writer->WriteUnversionedRow(row, &idMapping);
             }
         }
 
     private:
+        TNameTablePtr NameTable_;
         std::vector<TUnversionedRow> Rows_;
 
     };
@@ -1079,9 +1093,10 @@ private:
 
         virtual void Run() override
         {
-            const auto& tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
+            TRequestBase::Run();
+
             for (auto key : Keys_) {
-                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(tableInfo, key);
+                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EProtocolCommand::DeleteRow);
                 writer->WriteUnversionedRow(key);
@@ -1096,8 +1111,30 @@ private:
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
 
     std::map<TTabletInfoPtr, std::unique_ptr<TWireProtocolWriter>> TabletToWriter_;
+    
     TIntrusivePtr<TParallelCollector<void>> TransactionStartCollector_;
 
+    // Maps ids from name table to schema, for each involved name table.
+    typedef TWireProtocolWriter::TColumnIdMapping TColumnIdMapping;
+    yhash_map<TNameTablePtr, TWireProtocolWriter::TColumnIdMapping> NameTableToIdMapping_;
+
+
+    const TColumnIdMapping& GetColumnIdMapping(const TTableMountInfoPtr& tableInfo, const TNameTablePtr& nameTable)
+    {
+        auto it = NameTableToIdMapping_.find(nameTable);
+        if (it == NameTableToIdMapping_.end()) {
+            it = NameTableToIdMapping_.insert(std::make_pair(nameTable, TColumnIdMapping())).first;
+            auto& mapping = it->second;
+            mapping.resize(nameTable->GetSize());
+            const auto& schema = tableInfo->Schema;
+            for (int nameTableId = 0; nameTableId < nameTable->GetSize(); ++nameTableId) {
+                const auto& name = nameTable->GetName(nameTableId);
+                int schemaId = schema.GetColumnIndexOrThrow(name);
+                mapping[nameTableId] = schemaId;
+            }
+        }
+        return it->second;
+    }
 
     TWireProtocolWriter* AddTabletParticipant(TTabletInfoPtr tabletInfo)
     {

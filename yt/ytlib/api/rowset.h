@@ -16,8 +16,9 @@ namespace NApi {
 struct IRowset
     : public virtual TRefCounted
 {
-    virtual const NVersionedTableClient::TTableSchema& Schema() const = 0;
-    virtual const std::vector<NVersionedTableClient::TUnversionedRow>& Rows() const = 0;
+    virtual const NVersionedTableClient::TTableSchema& GetSchema() const = 0;
+    virtual const NVersionedTableClient::TNameTablePtr& GetNameTable() const = 0;
+    virtual const std::vector<NVersionedTableClient::TUnversionedRow>& GetRows() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRowset)

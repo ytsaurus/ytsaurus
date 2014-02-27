@@ -107,21 +107,37 @@ public:
         message.SerializePartialToCodedStream(&CodedStream_);
     }
 
-    void WriteUnversionedRow(TUnversionedRow row)
+    void WriteUnversionedRow(
+        TUnversionedRow row,
+        const TColumnIdMapping* idMapping)
     {
-        WriteRow(row);
+        if (row) {
+            WriteUInt32(row.GetCount() + 1);
+            for (int index = 0; index < row.GetCount(); ++index) {
+                WriteRowValue(row[index], idMapping);
+            }
+        } else {
+            WriteUInt32(0);
+        }
     }
 
-    void WriteUnversionedRow(const std::vector<TUnversionedValue>& row)
+    void WriteUnversionedRow(
+        const std::vector<TUnversionedValue>& row,
+        const TColumnIdMapping* idMapping)
     {
-        WriteRow(row);
+        WriteUInt32(row.size() + 1);
+        for (int index = 0; index < row.size(); ++index) {
+            WriteRowValue(row[index], idMapping);
+        }
     }
 
-    void WriteUnversionedRowset(const std::vector<TUnversionedRow>& rowset)
+    void WriteUnversionedRowset(
+        const std::vector<TUnversionedRow>& rowset,
+        const TColumnIdMapping* idMapping)
     {
         WriteUInt32(rowset.size());
         for (auto row : rowset) {
-            WriteRow(row);
+            WriteUnversionedRow(row, idMapping);
         }
     }
 
@@ -167,9 +183,20 @@ private:
         CodedStream_.WriteRaw(buffer, size);
     }
 
-    void WriteRowValue(const TUnversionedValue& value)
+    void WriteRowValue(
+        const TUnversionedValue& value,
+        const TColumnIdMapping* idMapping)
     {
-        WriteUInt32(value.Id);
+        if (idMapping) {
+            if (value.Id >= idMapping->size()) {
+                THROW_ERROR_EXCEPTION("Invalid column id %d, expected in range [0, %d]",
+                    static_cast<int>(value.Id),
+                    static_cast<int>(idMapping->size()));
+            }
+            WriteUInt32((*idMapping)[value.Id]);
+        } else {
+            WriteUInt32(value.Id);
+        }
         WriteUInt32(value.Type);
         switch (value.Type) {
             case EValueType::Integer:
@@ -188,26 +215,6 @@ private:
 
             default:
                 break;
-        }
-    }
-
-    void WriteRow(const std::vector<TUnversionedValue>& row)
-    {
-        WriteUInt32(row.size() + 1);
-        for (int index = 0; index < row.size(); ++index) {
-            WriteRowValue(row[index]);
-        }
-    }
-
-    void WriteRow(TUnversionedRow row)
-    {
-        if (row) {
-            WriteUInt32(row.GetCount() + 1);
-            for (int index = 0; index < row.GetCount(); ++index) {
-                WriteRowValue(row[index]);
-            }
-        } else {
-            WriteUInt32(0);
         }
     }
 
@@ -247,19 +254,25 @@ void TWireProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& me
     Impl_->WriteMessage(message);
 }
 
-void TWireProtocolWriter::WriteUnversionedRow(TUnversionedRow row)
+void TWireProtocolWriter::WriteUnversionedRow(
+    TUnversionedRow row,
+    const TColumnIdMapping* idMapping)
 {
-    Impl_->WriteUnversionedRow(row);
+    Impl_->WriteUnversionedRow(row, idMapping);
 }
 
-void TWireProtocolWriter::WriteUnversionedRow(const std::vector<TUnversionedValue>& row)
+void TWireProtocolWriter::WriteUnversionedRow(
+    const std::vector<TUnversionedValue>& row,
+    const TColumnIdMapping* idMapping)
 {
-    Impl_->WriteUnversionedRow(row);
+    Impl_->WriteUnversionedRow(row, idMapping);
 }
 
-void TWireProtocolWriter::WriteUnversionedRowset(const std::vector<TUnversionedRow>& rowset)
+void TWireProtocolWriter::WriteUnversionedRowset(
+    const std::vector<TUnversionedRow>& rowset,
+    const TColumnIdMapping* idMapping)
 {
-    Impl_->WriteUnversionedRowset(rowset);
+    Impl_->WriteUnversionedRowset(rowset, idMapping);
 }
 
 ISchemedWriterPtr TWireProtocolWriter::CreateSchemedRowsetWriter()

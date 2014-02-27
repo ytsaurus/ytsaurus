@@ -308,7 +308,10 @@ void TInsertCommand::DoExecute()
         rows.emplace_back(row.Get());
     }
 
-    transaction->WriteRows(Request->Path.GetPath(), std::move(rows));
+    transaction->WriteRows(
+        Request->Path.GetPath(),
+        consumer.GetNameTable(),
+        std::move(rows));
 
     auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
@@ -427,8 +430,8 @@ void TLookupCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
     
     auto rowset = lookupResult.Value();
-    YCHECK(rowset->Rows().size() == 1);
-    auto row = rowset->Rows()[0];
+    YCHECK(rowset->GetRows().size() == 1);
+    auto row = rowset->GetRows()[0];
     if (row) {
         TBlobOutput buffer;
         auto format = Context->GetOutputFormat();

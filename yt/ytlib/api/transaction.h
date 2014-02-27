@@ -3,6 +3,8 @@
 #include "public.h"
 #include "client.h"
 
+#include <ytlib/new_table_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -32,10 +34,12 @@ struct ITransaction
     // Tables
     virtual void WriteRow(
         const NYPath::TYPath& path,
+        NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::TUnversionedRow row) = 0;
 
     virtual void WriteRows(
         const NYPath::TYPath& path,
+        NVersionedTableClient::TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::TUnversionedRow> rows) = 0;
     
     virtual void DeleteRow(
