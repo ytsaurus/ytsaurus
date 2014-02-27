@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "orchid_service.h"
+#include "orchid_service_proxy.h"
+#include "private.h"
 
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/ypath_client.h>
@@ -11,6 +13,7 @@ namespace NOrchid {
 
 using namespace NBus;
 using namespace NRpc;
+using namespace NRpc::NProto;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,54 +22,63 @@ static auto& Logger = OrchidLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOrchidService::TOrchidService(
-    NYTree::INodePtr root,
-    IInvokerPtr invoker)
-    : NRpc::TServiceBase(
-        invoker,
-        TOrchidServiceProxy::GetServiceName(),
-        OrchidLogger.GetCategory())
+class TOrchidService
+    : public TServiceBase
 {
-    YCHECK(root);
+public:
+    TOrchidService(
+        NYTree::INodePtr root,
+        IInvokerPtr invoker)
+        : TServiceBase(
+            invoker,
+            TOrchidServiceProxy::GetServiceName(),
+            OrchidLogger.GetCategory())
+    {
+        YCHECK(root);
 
-    RootService = CreateRootService(root);
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
-{
-    UNUSED(request);
-    UNUSED(response);
-
-    auto requestMessage = TSharedRefArray(request->Attachments());
-
-    NRpc::NProto::TRequestHeader requestHeader;
-    if (!ParseRequestHeader(requestMessage, &requestHeader)) {
-        THROW_ERROR_EXCEPTION("Error parsing request header");
+        RootService = CreateRootService(root);
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
     }
 
-    const auto& path = requestHeader.path();
-    const auto& verb = requestHeader.verb();
+private:
+    typedef TOrchidService TThis;
 
-    context->SetRequestInfo("Path: %s, Verb: %s",
-        ~path,
-        ~verb);
+    NYTree::IYPathServicePtr RootService;
 
-    ExecuteVerb(RootService, requestMessage)
-        .Subscribe(BIND([=] (TSharedRefArray responseMessage) {
-            NRpc::NProto::TResponseHeader responseHeader;
-            YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+    DECLARE_RPC_SERVICE_METHOD(NProto, Execute)
+    {
+        UNUSED(request);
+        UNUSED(response);
 
-            auto error = FromProto(responseHeader.error());
+        auto requestMessage = TSharedRefArray(request->Attachments());
 
-            context->SetRequestInfo("Error: %s", ~ToString(error));
+        TRequestHeader requestHeader;
+        if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+            THROW_ERROR_EXCEPTION("Error parsing request header");
+        }
 
-            response->Attachments() = responseMessage.ToVector();
-            context->Reply();
-        }));
-}
+        const auto& path = requestHeader.path();
+        const auto& verb = requestHeader.verb();
+
+        context->SetRequestInfo("Path: %s, Verb: %s",
+            ~path,
+            ~verb);
+
+        ExecuteVerb(RootService, requestMessage)
+            .Subscribe(BIND([=] (TSharedRefArray responseMessage) {
+                TResponseHeader responseHeader;
+                YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+
+                auto error = FromProto(responseHeader.error());
+
+                context->SetRequestInfo("Error: %s", ~ToString(error));
+
+                response->Attachments() = responseMessage.ToVector();
+                context->Reply();
+            }));
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

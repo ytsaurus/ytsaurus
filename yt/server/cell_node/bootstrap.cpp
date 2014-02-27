@@ -308,7 +308,7 @@ void TBootstrap::Run()
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
-    RpcServer->RegisterService(New<TOrchidService>(
+    RpcServer->RegisterService(CreateOrchidService(
         OrchidRoot,
         GetControlInvoker()));
 
