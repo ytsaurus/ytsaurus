@@ -333,9 +333,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
     , Logger(OperationLogger)
-{
-    Initialize();
-}
+{ }
 
 void TOperationControllerBase::TTask::Initialize()
 {

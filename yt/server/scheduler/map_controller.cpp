@@ -276,6 +276,7 @@ private:
             jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
             MapTask = New<TMapTask>(this, jobCount);
+            MapTask->Initialize();
             MapTask->AddInput(stripes);
             MapTask->FinishInput();
             RegisterTask(MapTask);

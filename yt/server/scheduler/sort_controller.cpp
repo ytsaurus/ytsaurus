@@ -189,13 +189,16 @@ protected:
             SortTask = controller->SimpleSort
                 ? TSortTaskPtr(New<TSimpleSortTask>(controller, this))
                 : TSortTaskPtr(New<TPartitionSortTask>(controller, this));
+            SortTask->Initialize();
             controller->RegisterTask(SortTask);
 
             SortedMergeTask = New<TSortedMergeTask>(controller, this);
+            SortedMergeTask->Initialize();
             controller->RegisterTask(SortedMergeTask);
 
             if (!controller->SimpleSort) {
                 UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
+                UnorderedMergeTask->Initialize();
                 controller->RegisterTask(UnorderedMergeTask);
             }
         }
@@ -1865,6 +1868,7 @@ private:
         PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
         RegisterTask(PartitionTask);
@@ -2330,6 +2334,7 @@ private:
         PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
         RegisterTask(PartitionTask);
