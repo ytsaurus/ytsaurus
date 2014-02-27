@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-#include <core/actions/callback_forward.h>
-#include <core/actions/future.h>
+#include <core/actions/public.h>
 
 namespace NYT {
 namespace NHttp {

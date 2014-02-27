@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "callback.h"
 
 namespace NYT {

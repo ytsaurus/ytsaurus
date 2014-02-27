@@ -1,11 +1,8 @@
 #pragma once
 
-#include "common.h"
-#include "callback_forward.h"
+#include "public.h"
 
 #include <core/misc/nullable.h>
-
-#include <util/system/event.h>
 
 namespace NYT {
 
@@ -33,12 +30,6 @@ class TPromiseState;
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-class TFuture;
-
-template <class T>
-class TPromise;
 
 //! Creates an empty (unset) promise.
 template <class T>

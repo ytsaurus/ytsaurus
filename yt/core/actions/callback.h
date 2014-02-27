@@ -13,7 +13,7 @@
 //==============================================================================
 */
 // NOTE: Header files that do not require the full definition of #TCallback<> or
-// #TClosure should include "callback_forward.h" instead of this file.
+// #TClosure should include "public.h" instead of this file.
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -101,31 +101,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "callback_forward.h"
+#include "public.h"
 #include "callback_internal.h"
 
 #include <core/misc/mpl.h>
 
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-#include <core/misc/source_location.h>
+    #include <core/misc/source_location.h>
 #endif
 
 namespace NYT {
 
-// TODO(sandello): Replace these with a proper include with forward decls.
-template <class T>
-class TFuture;
-
-template <>
-class TFuture<void>;
-
-template <class T>
-class TPromise;
-
-template <>
-class TPromise<void>;
-
-struct IInvoker;
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 TPromise<T> NewPromise();
@@ -142,12 +129,8 @@ TPromise<T> NewPromise();
 // only one type: the function signature.
 //
 // If you are thinking of forward declaring #TCallback<> in your own header
-// file,
-// please include "callback_forward.h" instead.
+// file, please include "public.h" instead.
 //
-
-template <class Signature>
-class TCallback;
 
 namespace NDetail {
 

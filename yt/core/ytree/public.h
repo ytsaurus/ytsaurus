@@ -2,8 +2,6 @@
 
 #include <core/misc/common.h>
 
-#include <core/actions/callback_forward.h>
-
 #include <core/ypath/public.h>
 
 namespace NYT {
