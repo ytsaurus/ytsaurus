@@ -80,6 +80,15 @@ private:
 
 };
 
+IServicePtr CreateOrchidService(
+    INodePtr root,
+    IInvokerPtr invoker)
+{
+    return New<TOrchidService>(
+        root,
+        invoker);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NOrchid
