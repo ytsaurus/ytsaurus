@@ -15,6 +15,9 @@
 #ifndef YT_LLVM_SUPPORT_COMPILER_H
 #define YT_LLVM_SUPPORT_COMPILER_H
 
+// Avoid conflicts with LLVM.
+#define LLVM_SUPPORT_COMPILER_H
+
 #ifndef __has_feature
 # define __has_feature(x) 0
 #endif
