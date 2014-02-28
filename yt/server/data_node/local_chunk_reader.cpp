@@ -60,15 +60,15 @@ public:
         const std::vector<int>* tags) override
     {
         return Chunk_->GetMeta(FetchPriority, tags)
-            .Apply(BIND([=] (TChunk::TGetMetaResult result) -> IAsyncReader::TGetMetaResult {
+            .Apply(BIND([=] (TChunk::TGetMetaResult result) -> TGetMetaResult {
                 if (!result.IsOK()) {
                     return TError(result);
                 }
 
                 const auto& chunkMeta = *result.Value();
                 return partitionTag
-                    ? FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag)
-                    : chunkMeta;
+                    ? TGetMetaResult(FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag))
+                    : TGetMetaResult(chunkMeta);
             }));
     }
 
