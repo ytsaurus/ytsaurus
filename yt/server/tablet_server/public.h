@@ -26,14 +26,12 @@ DECLARE_ENUM(ETabletCellHealth,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManagerConfig;
-typedef TIntrusivePtr<TTabletManagerConfig> TTabletManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TTabletManager)
+
+DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 
 class TTabletCell;
 class TTablet;
-
-class TTabletManager;
-typedef TIntrusivePtr<TTabletManager> TTabletManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
