@@ -11,14 +11,6 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic error "-Wswitch-enum"
-#define ENSURE_ALL_CASES
-#else
-#define ENSURE_ALL_CASES default: YUNREACHABLE();
-#endif
-
 namespace NYT {
 namespace NQueryClient {
 
@@ -49,7 +41,6 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
             result = new (context) TProjectOperator(context, *this->As<TProjectOperator>());
             break;
 
-        ENSURE_ALL_CASES
     }
 
     YCHECK(result);
@@ -177,7 +168,6 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
             break;
         }
 
-        ENSURE_ALL_CASES
     }
 }
 
@@ -263,7 +253,6 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
             break;
         }
 
-        ENSURE_ALL_CASES
     }
 
     YCHECK(result);
@@ -274,9 +263,4 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
 
 } // namespace NQueryClient
 } // namespace NYT
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
-
 

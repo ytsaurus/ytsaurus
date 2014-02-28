@@ -9,14 +9,6 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic error "-Wswitch-enum"
-#define ENSURE_ALL_CASES
-#else
-#define ENSURE_ALL_CASES default: YUNREACHABLE();
-#endif
-
 namespace NYT {
 namespace NQueryClient {
 
@@ -41,7 +33,6 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
         case EBinaryOp::LessOrEqual:    return "<=";
         case EBinaryOp::Greater:        return ">";
         case EBinaryOp::GreaterOrEqual: return ">=";
-        ENSURE_ALL_CASES
     }
     YUNREACHABLE();
 }
@@ -66,7 +57,6 @@ EBinaryOpKind GetBinaryOpcodeKind(EBinaryOp opcode)
         case EBinaryOp::Greater:
         case EBinaryOp::GreaterOrEqual:
             return EBinaryOpKind::Relational;
-        ENSURE_ALL_CASES
     }
     YUNREACHABLE();
 }
@@ -150,7 +140,6 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
             break;
         }
 
-        ENSURE_ALL_CASES
     }
 }
 
@@ -222,7 +211,6 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
             break;
         }
 
-        ENSURE_ALL_CASES
     }
 
     YCHECK(result);
@@ -234,6 +222,3 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
 } // namespace NQueryClient
 } // namespace NYT
 
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif

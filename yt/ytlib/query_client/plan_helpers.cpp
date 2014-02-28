@@ -23,7 +23,6 @@ TKeyColumns InferKeyColumns(const TOperator* op)
         case EOperatorKind::Scan: {
             return GetKeyColumnsFromDataSplit(
                 op->As<TScanOperator>()->DataSplits()[0]);
-
             // TODO(lukyan): assert that other splits hava the same key columns
         }
         case EOperatorKind::Filter: {
@@ -64,7 +63,6 @@ TKeyRange InferKeyRange(const TOperator* op)
         case EOperatorKind::Project: {
             return InferKeyRange(op->As<TProjectOperator>()->GetSource());
         }
-        // ENSURE_ALL_CASES
     }
     YUNREACHABLE();
 }
@@ -321,8 +319,6 @@ TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second)
     } else {
         return std::make_pair(rightmost->first, rightmost->second);
     }
-
-    YUNREACHABLE();
 }
 
 bool IsEmpty(const TKeyRange& keyRange)
@@ -341,7 +337,7 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
             // For reference expression, always trust cached type.
             return sourceSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetName()).Type;
         case EExpressionKind::Function:
-            YUNREACHABLE();
+            YUNIMPLEMENTED();
         case EExpressionKind::BinaryOp: {
             auto* typedExpr = expr->As<TBinaryOpExpression>();
             auto lhsType = InferType(typedExpr->GetLhs(), sourceSchema);
@@ -389,10 +385,8 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                 case EBinaryOp::Greater:
                 case EBinaryOp::GreaterOrEqual:
                     return EValueType::Integer;
-                // ENSURE_ALL_CASES
             }
         }
-        // ENSURE_ALL_CASES
     }
     YUNREACHABLE();
 }

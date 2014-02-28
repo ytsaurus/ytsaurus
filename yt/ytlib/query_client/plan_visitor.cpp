@@ -15,11 +15,6 @@ static const int TypicalQueueLength = 16;
 #include "list_of_expressions.inc"
 #undef XX
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic error "-Wswitch-enum"
-#endif
-
 bool Traverse(IPlanVisitor* visitor, const TOperator* root)
 {
     SmallVector<const TOperator*, TypicalQueueLength> queue;
@@ -51,8 +46,6 @@ bool Traverse(IPlanVisitor* visitor, const TOperator* root)
                 queue.push_back(typedItem->GetSource());
                 break;
             }
-            default:
-                YUNREACHABLE();
         }
     }
 
@@ -97,8 +90,6 @@ bool Traverse(IPlanVisitor* visitor, const TExpression* root)
                 queue.push_back(typedItem->GetRhs());
                 break;
             }
-            default:
-                YUNREACHABLE();
         }
     }
 
@@ -165,11 +156,6 @@ void Visit(
 {
     VisitImpl(root, visitor);
 }
-
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
