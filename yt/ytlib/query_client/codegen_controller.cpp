@@ -691,10 +691,6 @@ private:
 
 };
 
-    // TODO(sandello): This should settle upon 3.5 release.
-    Module_->setDataLayout(ExecutionEngine_->getDataLayout()->getStringRepresentation());
-
-
 namespace NRoutines {
 
 ////////////////////////////////////////////////////////////////////////////////
