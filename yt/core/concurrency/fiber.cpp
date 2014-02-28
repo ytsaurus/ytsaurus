@@ -510,14 +510,11 @@ public:
                 if (waitFor) {
                     Forked_ = true;
                     // Schedule wakeup when the given future is set.
-                    waitFor.Subscribe(
-                        BIND(&TImpl::Wakeup, MakeStrong(This_))
-                        .Via(switchTo));
+                    waitFor.Subscribe(BIND(IgnoreResult(&TFiber::Run), MakeStrong(This_)).Via(switchTo));
                 } else if (switchTo) {
                     Forked_ = true;
                     // Schedule wakeup when switched to an another thread.
-                    switchTo->Invoke(
-                        BIND(&TImpl::Wakeup, MakeStrong(This_)));
+                    switchTo->Invoke(BIND(IgnoreResult(&TFiber::Run), MakeStrong(This_)));
                 }
 
                 break;
@@ -763,15 +760,6 @@ private:
         for (int index = oldSize; index < newSize; ++index) {
             Fls_[index] = FlsSlots[index].Ctor();
         }
-    }
-
-    static void Wakeup(TFiberPtr fiber)
-    {
-        if (fiber->IsCanceled()) {
-            return;
-        }
-
-        fiber->Run();
     }
 
     static std::shared_ptr<TFiberStackBase> GetStack(EFiberStack stack)
