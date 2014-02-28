@@ -42,6 +42,8 @@ struct IAsyncReader
     virtual TChunkId GetChunkId() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IAsyncReader)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

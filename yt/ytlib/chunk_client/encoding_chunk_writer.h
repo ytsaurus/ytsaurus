@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "chunk_meta_extensions.h"
-
 #include "data_statistics.h"
 
 #include <core/misc/error.h>
@@ -41,6 +40,8 @@ private:
     i64 LargestBlockSize_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TEncodingChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

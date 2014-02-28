@@ -109,7 +109,10 @@ private:
     NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TSequentialReader)
 
 ///////////////////////////////////////////////////////////////////////////////
 

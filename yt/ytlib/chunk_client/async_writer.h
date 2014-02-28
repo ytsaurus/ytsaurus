@@ -50,6 +50,8 @@ struct IAsyncWriter
     virtual const std::vector<int> GetWrittenIndexes() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IAsyncWriter)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

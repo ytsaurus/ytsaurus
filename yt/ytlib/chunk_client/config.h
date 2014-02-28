@@ -82,6 +82,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TClientBlockCacheConfig
@@ -99,6 +101,8 @@ public:
             .GreaterThanOrEqual(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TClientBlockCacheConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -128,6 +132,8 @@ public:
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSequentialReaderConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -189,6 +195,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TErasureWriterConfig
@@ -204,6 +212,8 @@ public:
             .GreaterThan(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TErasureWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -227,11 +237,14 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TEncodingWriterConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TEncodingWriterOptions
+class TEncodingWriterOptions
     : public virtual TYsonSerializable
 {
+public:
     NCompression::ECodec CompressionCodec;
 
     TEncodingWriterOptions()
@@ -240,6 +253,8 @@ struct TEncodingWriterOptions
             .Default(NCompression::ECodec::None);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TEncodingWriterOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -260,6 +275,8 @@ public:
             .GreaterThan(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -302,11 +319,14 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TMultiChunkWriterOptions
+class TMultiChunkWriterOptions
     : public virtual TEncodingWriterOptions
 {
+public:
     int ReplicationFactor;
     Stroka Account;
     bool ChunksVital;
@@ -327,12 +347,15 @@ struct TMultiChunkWriterOptions
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
+
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TMultiChunkReaderConfig
+class TMultiChunkReaderConfig
     : public virtual TReplicationReaderConfig
     , public virtual TSequentialReaderConfig
 {
+public:
     i64 MaxBufferSize;
 
     TMultiChunkReaderConfig()
@@ -349,6 +372,8 @@ struct TMultiChunkReaderConfig
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

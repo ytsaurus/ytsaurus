@@ -17,10 +17,11 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRefCountedChunkSpec
+class TRefCountedChunkSpec
     : public TIntrinsicRefCounted
     , public NProto::TChunkSpec
 {
+public:
     TRefCountedChunkSpec();
     TRefCountedChunkSpec(const TRefCountedChunkSpec& other);
     TRefCountedChunkSpec(TRefCountedChunkSpec&& other);
@@ -29,6 +30,8 @@ struct TRefCountedChunkSpec
     explicit TRefCountedChunkSpec(NProto::TChunkSpec&& other);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 

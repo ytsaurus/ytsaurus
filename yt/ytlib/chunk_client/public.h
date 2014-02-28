@@ -81,70 +81,32 @@ DECLARE_ENUM(EReadSessionType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadLimit;
+DECLARE_REFCOUNTED_CLASS(TReplicationReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TClientBlockCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TSequentialReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TEncodingWriterConfig)
 
-class TReplicationReaderConfig;
-typedef TIntrusivePtr<TReplicationReaderConfig> TReplicationReaderConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TEncodingWriter)
+DECLARE_REFCOUNTED_CLASS(TEncodingChunkWriter)
+DECLARE_REFCOUNTED_CLASS(TSequentialReader)
 
-class TClientBlockCacheConfig;
-typedef TIntrusivePtr<TClientBlockCacheConfig> TClientBlockCacheConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(IAsyncReader)
+DECLARE_REFCOUNTED_STRUCT(IAsyncWriter)
 
-class TEncodingWriterConfig;
-typedef TIntrusivePtr<TEncodingWriterConfig> TEncodingWriterConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(IBlockCache)
 
-struct TEncodingWriterOptions;
-typedef TIntrusivePtr<TEncodingWriterOptions> TEncodingWriterOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TFileReader)
+DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
-class TDispatcherConfig;
-typedef TIntrusivePtr<TDispatcherConfig> TDispatcherConfigPtr;
-
-class TMultiChunkWriterConfig;
-typedef TIntrusivePtr<TMultiChunkWriterConfig> TMultiChunkWriterConfigPtr;
-
-struct TMultiChunkWriterOptions;
-typedef TIntrusivePtr<TMultiChunkWriterOptions> TMultiChunkWriterOptionsPtr;
-
-struct TMultiChunkReaderConfig;
-typedef TIntrusivePtr<TMultiChunkReaderConfig> TMultiChunkReaderConfigPtr;
-
-class TEncodingWriter;
-typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;
-
-class TEncodingChunkWriter;
-typedef TIntrusivePtr<TEncodingChunkWriter> TEncodingChunkWriterPtr;
-
-struct IAsyncWriter;
-typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
-
-struct IAsyncReader;
-typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
-
-class TSequentialReader;
-typedef TIntrusivePtr<TSequentialReader> TSequentialReaderPtr;
-
-struct IBlockCache;
-typedef TIntrusivePtr<IBlockCache> IBlockCachePtr;
-
-class TSequentialReaderConfig;
-typedef TIntrusivePtr<TSequentialReaderConfig> TSequentialReaderConfigPtr;
-
-class TReplicationWriterConfig;
-typedef TIntrusivePtr<TReplicationWriterConfig> TReplicationWriterConfigPtr;
-
-class TErasureWriterConfig;
-typedef TIntrusivePtr<TErasureWriterConfig> TErasureWriterConfigPtr;
-
-class TFileReader;
-typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
-
-class TFileWriter;
-typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
-
-class TMemoryReader;
-typedef TIntrusivePtr<TMemoryReader> TMemoryReaderPtr;
-
-class TMemoryWriter;
-typedef TIntrusivePtr<TMemoryWriter> TMemoryWriterPtr;
+DECLARE_REFCOUNTED_CLASS(TMemoryReader)
+DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
 template <class TChunkReader>
 class TMultiChunkSequentialReader;
@@ -155,13 +117,10 @@ class TMultiChunkSequentialWriter;
 template <class TChunkReader>
 class TMultiChunkParallelReader;
 
-///////////////////////////////////////////////////////////////////////////////
+DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
+DECLARE_REFCOUNTED_CLASS(TChunkSlice)
 
-struct TRefCountedChunkSpec;
-typedef TIntrusivePtr<TRefCountedChunkSpec> TRefCountedChunkSpecPtr;
-
-class TChunkSlice;
-typedef TIntrusivePtr<TChunkSlice> TChunkSlicePtr;
+class TReadLimit;
 
 class TChannel;
 typedef std::vector<TChannel> TChannels;

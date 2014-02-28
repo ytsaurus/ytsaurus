@@ -62,6 +62,10 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TChunkSlice)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Constructs a new chunk slice from the original one, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TChunkSlicePtr CreateChunkSlice(
