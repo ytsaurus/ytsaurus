@@ -496,16 +496,18 @@ public:
         : llvm::FastFoldingSetNode(id)
         , CodegenedFunction_(codegenedFunction)
     {
+        // (EngineBuilder owns Module).
         Module_ = new llvm::Module("codegen", Context_);
 
         std::string errorStr;
-        // (EngineBuilder owns Module).
         ExecutionEngine_.reset(llvm::EngineBuilder(Module_).setErrorStr(&errorStr).create());
 
         if (!ExecutionEngine_) {
             delete Module_;
             THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine: %s", errorStr.c_str());
         }
+
+        Module_->setDataLayout(ExecutionEngine_->getDataLayout()->getStringRepresentation());
     }
 
     TCodegenedFunction CodegenedFunction_;
@@ -584,12 +586,12 @@ private:
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
         FunctionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
-        FunctionPassManager_->add(new llvm::DataLayoutPass(*ExecutionEngine_->getDataLayout()));
+        FunctionPassManager_->add(new llvm::DataLayoutPass(Module_));
         passManagerBuilder.populateFunctionPassManager(*FunctionPassManager_);
         FunctionPassManager_->doInitialization();
 
         ModulePassManager_ = std::make_unique<llvm::PassManager>();
-        ModulePassManager_->add(new llvm::DataLayoutPass(*ExecutionEngine_->getDataLayout()));
+        ModulePassManager_->add(new llvm::DataLayoutPass(Module_));
         passManagerBuilder.populateModulePassManager(*ModulePassManager_);
 
         FunctionPassManager_->run(*function);
