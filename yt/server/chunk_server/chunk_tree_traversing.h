@@ -62,6 +62,12 @@ void TraverseChunkTree(
     const NChunkClient::TReadLimit& lowerLimit = NChunkClient::TReadLimit(),
     const NChunkClient::TReadLimit& upperLimit = NChunkClient::TReadLimit());
 
+void EnumerateChunksInChunkTree(
+    TChunkList* root,
+    std::vector<TChunk*>* chunks,
+    const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
+    const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
+
 std::vector<TChunk*> EnumerateChunksInChunkTree(
     TChunkList* root,
     const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),

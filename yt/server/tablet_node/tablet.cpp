@@ -309,7 +309,7 @@ std::pair<TTablet::TPartitionListIterator, TTablet::TPartitionListIterator> TTab
     }
 
     auto endIt = beginIt;
-    while (endIt != Partitions_.end() && upperBound >= (*endIt)->GetPivotKey()) {
+    while (endIt != Partitions_.end() && upperBound > (*endIt)->GetPivotKey()) {
         ++endIt;
     }
 

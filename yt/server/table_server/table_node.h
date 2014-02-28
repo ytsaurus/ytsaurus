@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <core/misc/property.h>
+#include <core/misc/small_vector.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -31,6 +32,7 @@ public:
     // Most tables have no tablets.
     static const int MaxTabletCount = 1000;
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
+    typedef TTabletList::iterator TTabletListIterator; 
     DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
 
 public:
@@ -41,6 +43,10 @@ public:
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);
+
+    std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
+        const NVersionedTableClient::TOwningKey& minKey,
+        const NVersionedTableClient::TOwningKey& maxKey);
 
 };
 

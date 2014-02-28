@@ -55,6 +55,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NVersionedTableClient;
+using namespace NVersionedTableClient::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NYTree;
@@ -612,7 +613,6 @@ public:
         }
 
         // Update chunk lists.
-        // TODO(babenko): save data
         auto* oldRootChunkList = table->GetChunkList();
         auto* newRootChunkList = chunkManager->CreateChunkList();
         chunkManager->AttachToChunkList(
@@ -628,6 +628,26 @@ public:
             chunkLists.data() + lastTabletIndex + 1,
             chunkLists.data() + chunkLists.size());
 
+        // Move chunks from the resharded tablets to appropriate chunk lists.
+        std::vector<TChunk*> chunks;
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
+        }
+
+        for (auto* chunk : chunks) {
+            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+            auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
+            auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.min());
+            auto range = table->GetIntersectingTablets(minKey, maxKey);
+            for (auto it = range.first; it != range.second; ++it) {
+                auto* tablet = *it;
+                chunkManager->AttachToChunkList(
+                    newRootChunkList->Children()[tablet->GetIndex()]->AsChunkList(),
+                    chunk);
+            }
+        }
+
+        // Replace root chunk list.
         table->SetChunkList(newRootChunkList);
         YCHECK(newRootChunkList->OwningNodes().insert(table).second);
         objectManager->RefObject(newRootChunkList);

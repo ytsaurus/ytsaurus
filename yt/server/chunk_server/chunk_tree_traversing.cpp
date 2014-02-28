@@ -576,13 +576,17 @@ class TEnumeratingChunkVisitor
     : public IChunkVisitor
 {
 public:
+    explicit TEnumeratingChunkVisitor(std::vector<TChunk*>* chunks)
+        : Chunks_(chunks)
+    { }
+
     virtual bool OnChunk(
         TChunk* chunk,
         i64 /*rowIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
         const NChunkClient::TReadLimit& /*endLimit*/) override
     {
-        Chunks_.push_back(chunk);
+        Chunks_->push_back(chunk);
         return true;
     }
 
@@ -594,29 +598,38 @@ public:
     virtual void OnFinish() override
     { }
 
-    std::vector<TChunk*> GetChunks()
-    {
-        return std::move(Chunks_);
-    }
-
 private:
-    std::vector<TChunk*> Chunks_;
+    std::vector<TChunk*>* Chunks_;
 
 };
 
-std::vector<TChunk*> EnumerateChunksInChunkTree(
+void EnumerateChunksInChunkTree(
     TChunkList* root,
+    std::vector<TChunk*>* chunks,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit)
 {
-    auto visitor = New<TEnumeratingChunkVisitor>();
+    auto visitor = New<TEnumeratingChunkVisitor>(chunks);
     TraverseChunkTree(
         GetNonpreemptableChunkTraverserCallbacks(),
         visitor,
         root,
         lowerLimit,
         upperLimit);
-    return visitor->GetChunks();
+}
+
+std::vector<TChunk*> EnumerateChunksInChunkTree(
+    TChunkList* root,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit)
+{
+    std::vector<TChunk*> chunks;
+    EnumerateChunksInChunkTree(
+        root,
+        &chunks,
+        lowerLimit,
+        upperLimit);
+    return chunks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

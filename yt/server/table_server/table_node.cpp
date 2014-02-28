@@ -18,6 +18,7 @@
 namespace NYT {
 namespace NTableServer {
 
+using namespace NVersionedTableClient;
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NYTree;
@@ -27,6 +28,7 @@ using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
+using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +68,30 @@ void TTableNode::Load(TLoadContext& context)
         Load(context, KeyColumns_);
         Load(context, Tablets_);
     }
+}
+
+std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
+    const TOwningKey& minKey,
+    const TOwningKey& maxKey)
+{
+    auto beginIt = std::upper_bound(
+        Tablets_.begin(),
+        Tablets_.end(),
+        minKey,
+        [] (const TOwningKey& key, const TTablet* tablet) {
+            return key < tablet->GetPivotKey();
+        });
+
+    if (beginIt != Tablets_.begin()) {
+        --beginIt;
+    }
+
+    auto endIt = beginIt;
+    while (endIt != Tablets_.end() && maxKey >= (*endIt)->GetPivotKey()) {
+        ++endIt;
+    }
+
+    return std::make_pair(beginIt, endIt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
