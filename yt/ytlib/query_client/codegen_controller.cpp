@@ -62,6 +62,8 @@
 namespace NYT {
 namespace NQueryClient {
 
+static auto& Logger = QueryClientLogger;
+
 template <class T>
 size_t THashCombine(size_t seed, const T& value)
 {
@@ -535,8 +537,6 @@ public:
         const TOperator* op);
 
 private:
-    NLog::TTaggedLogger Logger;
-
     llvm::LLVMContext& Context_;
     llvm::Module* Module_;
     std::unique_ptr<llvm::ExecutionEngine>& ExecutionEngine_;
@@ -552,8 +552,7 @@ private:
         const TCGImmediates& params,
         Value* constantsRow,
         Value* passedFragmentParamsPtr)
-        : Logger(QueryClientLogger)
-        , Context_(context)
+        : Context_(context)
         , Module_(module)
         , ExecutionEngine_(executionEngine)
         , Params_(params)
@@ -1664,7 +1663,6 @@ private:
 
 private:
     IInvokerPtr CodegenInvoker_;
-    NLog::TTaggedLogger Logger;
 
     TSpinLock FoldingSetSpinLock_;
     llvm::FoldingSet<TCodegenedFragment> CodegenedFragmentsFoldingSet_;
@@ -1677,7 +1675,6 @@ std::once_flag InitializeNativeTargetFlag;
 
 TCodegenControllerImpl::TCodegenControllerImpl(IInvokerPtr invoker)
     : CodegenInvoker_(CreateSerializedInvoker(invoker))
-    , Logger(QueryClientLogger)
 {
     std::call_once(InitializeNativeTargetFlag, llvm::InitializeNativeTarget);
 }
@@ -1734,19 +1731,17 @@ TError TCodegenControllerImpl::EvaluateViaCache(
     }
 
     try {
-        LOG_DEBUG("Evaluating plan fragment");
+        LOG_DEBUG("Evaluating plan fragment (FragmentId: %s)",
+            ~ToString(fragment.Id()));
 
-        LOG_DEBUG("Opening writer");
+        LOG_DEBUG("Opening writer (FragmentId: %s)",
+            ~ToString(fragment.Id()));
         {
             auto error = WaitFor(writer->Open(
                 fragment.GetHead()->GetTableSchema(),
                 fragment.GetHead()->GetKeyColumns()));
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
-
-        //std::vector<TRow> batch;
-        //batch.reserve(MaxRowsPerWrite);
-
 
         std::pair<std::vector<TRow>, TChunkedMemoryPool*> batch;
         batch.second = &memoryPool;
@@ -1763,7 +1758,9 @@ TError TCodegenControllerImpl::EvaluateViaCache(
             &batch,
             writer.Get());
 
-        LOG_DEBUG("Flusing writer");
+        LOG_DEBUG("Flusing writer (FragmentId: %s)",
+            ~ToString(fragment.Id()));
+
         if (!batch.first.empty()) {
             if (!writer->Write(batch.first)) {
                 auto error = WaitFor(writer->GetReadyEvent());
@@ -1771,13 +1768,15 @@ TError TCodegenControllerImpl::EvaluateViaCache(
             }
         }
 
-        LOG_DEBUG("Closing writer");
+        LOG_DEBUG("Closing writer (FragmentId: %s)",
+            ~ToString(fragment.Id()));
         {
             auto error = WaitFor(writer->Close());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
 
-        LOG_DEBUG("Finished evaluating plan fragment");
+        LOG_DEBUG("Finished evaluating plan fragment (FragmentId: %s)",
+            ~ToString(fragment.Id()));
     } catch (const std::exception& ex) {
         auto error = TError("Failed to evaluate plan fragment") << ex;
         LOG_ERROR(error);
@@ -1795,11 +1794,6 @@ TError TCodegenControllerImpl::Run(
     const TPlanFragment& fragment,
     ISchemedWriterPtr writer)
 {
-    // TODO(sandello): This won't work. Fix me!
-    Logger.AddTag(Sprintf(
-        "FragmendId: %s",
-        ~ToString(fragment.Id())));
-
     return EvaluateViaCache(callbacks, fragment, std::move(writer));
 }
 
