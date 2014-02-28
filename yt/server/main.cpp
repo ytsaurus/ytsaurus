@@ -54,21 +54,11 @@ static NLog::TLogger Logger("Server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define X(a) int a;
-
-PP_FOR_EACH(X, (u)(v)(w))
-
 DECLARE_ENUM(EExitCode,
     ((OK)(0))
     ((OptionsError)(1))
     ((BootstrapError)(2))
 );
-
-void foo()
-{
-    u = 1;
-    auto x = EExitCode::OK;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
