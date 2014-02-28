@@ -4,6 +4,7 @@
 
 #include <core/misc/enum.h>
 #include <core/misc/ref.h>
+#include <core/misc/small_vector.h>
 
 #include <ytlib/new_table_client/public.h>
 
@@ -67,7 +68,7 @@ public:
 
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
-    typedef std::vector<int> TColumnIdMapping;
+    typedef SmallVector<int, NVersionedTableClient::TypicalColumnCount> TColumnIdMapping;
     void WriteUnversionedRow(
         NVersionedTableClient::TUnversionedRow row,
         const TColumnIdMapping* idMapping = nullptr);
