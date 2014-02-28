@@ -31,21 +31,21 @@ static const bool EnableCaching = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalChunkReadersyncReader;
-typedef TIntrusivePtr<TLocalChunkReadersyncReader> TLocalChunkReadersyncReaderPtr;
+class TLocalChunkReader;
+typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
 
-class TLocalChunkReadersyncReader
+class TLocalChunkReader
     : public NChunkClient::IAsyncReader
 {
 public:
-    TLocalChunkReadersyncReader(
+    TLocalChunkReader(
         TBootstrap* bootstrap,
         TChunkPtr chunk)
         : Bootstrap_(bootstrap)
         , Chunk_(chunk)
     { }
 
-    ~TLocalChunkReadersyncReader()
+    ~TLocalChunkReader()
     {
         Chunk_->ReleaseReadLock();
     }
@@ -86,7 +86,7 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        explicit TReadSession(TLocalChunkReadersyncReaderPtr owner)
+        explicit TReadSession(TLocalChunkReaderPtr owner)
             : Owner_(owner)
             , Promise_(NewPromise<TErrorOr<std::vector<TSharedRef>>>())
         { }
@@ -110,7 +110,7 @@ private:
         }
 
     private:
-        TLocalChunkReadersyncReaderPtr Owner_;
+        TLocalChunkReaderPtr Owner_;
         TPromise<TErrorOr<std::vector<TSharedRef>>> Promise_;
 
         std::vector<TSharedRef> Blocks_;
@@ -148,7 +148,7 @@ NChunkClient::IAsyncReaderPtr CreateLocalChunkReader(
         return nullptr;
     }
 
-    return New<TLocalChunkReadersyncReader>(
+    return New<TLocalChunkReader>(
         bootstrap,
         chunk);
 }
