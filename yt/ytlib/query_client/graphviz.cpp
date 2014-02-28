@@ -349,16 +349,6 @@ public:
         return true;
     }
 
-    virtual bool Visit(const TUnionOperator* op) override
-    {
-        CurrentSourceSchema_ = op->GetTableSchema();
-        WriteNode(op, TLabel(op).Build());
-        for (const auto& sourceOp : op->Sources()) {
-            WriteEdge(op, sourceOp);
-        }
-        return true;
-    }
-
     virtual bool Visit(const TFilterOperator* op) override
     {
         CurrentSourceSchema_ = op->GetSource()->GetTableSchema();

@@ -26,20 +26,6 @@ TKeyColumns InferKeyColumns(const TOperator* op)
 
             // TODO(lukyan): assert that other splits hava the same key columns
         }
-        case EOperatorKind::Union: {
-            TKeyColumns result;
-            auto* unionOp = op->As<TUnionOperator>();
-            bool didChooseKeyColumns = false;
-            for (const auto& sourceOp : unionOp->Sources()) {
-                if (!didChooseKeyColumns) {
-                    result = InferKeyColumns(sourceOp);
-                    didChooseKeyColumns = true;
-                } else {
-                    YCHECK(result == InferKeyColumns(sourceOp));
-                }
-            }
-            return result;
-        }
         case EOperatorKind::Filter: {
             return InferKeyColumns(op->As<TFilterOperator>()->GetSource());
         }
@@ -63,14 +49,6 @@ TKeyRange InferKeyRange(const TOperator* op)
                 unitedKeyRange = Unite(unitedKeyRange, GetBothBoundsFromDataSplit(dataSplit));
             }
             return unitedKeyRange;
-        }
-        case EOperatorKind::Union: {
-            auto* unionOp = op->As<TUnionOperator>();
-            auto result = std::make_pair(MaxKey(), MinKey());
-            for (const auto& sourceOp : unionOp->Sources()) {
-                result = Unite(result, InferKeyRange(sourceOp));
-            }
-            return result;
         }
         case EOperatorKind::Filter: {
             auto* filterOp = op->As<TFilterOperator>();

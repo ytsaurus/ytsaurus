@@ -33,14 +33,6 @@ message TScanOperator
     repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 1;
 }
 
-message TUnionOperator
-{
-    extend TOperator {
-        optional TUnionOperator union_operator = 102;
-    }
-    repeated TOperator sources = 1;
-}
-
 message TFilterOperator
 {
     extend TOperator {

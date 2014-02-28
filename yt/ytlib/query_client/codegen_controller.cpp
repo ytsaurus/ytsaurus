@@ -461,7 +461,6 @@ DECLARE_ENUM(EFoldingObjectType,
     (TableSchema)
 
     (ScanOp)
-    (UnionOp)
     (FilterOp)
     (GroupOp)
     (ProjectOp)
@@ -663,12 +662,6 @@ private:
         TIRBuilder& builder,
 
         const TScanOperator* op,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenUnionOp(
-        TIRBuilder& builder,
-
-        const TUnionOperator* op,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenFilterOp(
@@ -1149,8 +1142,6 @@ void TCGContext::CodegenOp(
     switch (op->GetKind()) {
         case EOperatorKind::Scan:
             return CodegenScanOp(builder, op->As<TScanOperator>(), codegenConsumer);
-        case EOperatorKind::Union:
-            return CodegenUnionOp(builder, op->As<TUnionOperator>(), codegenConsumer);
         case EOperatorKind::Filter:
             return CodegenFilterOp(builder, op->As<TFilterOperator>(), codegenConsumer);
         case EOperatorKind::Project:
@@ -1200,16 +1191,6 @@ void TCGContext::CodegenScanOp(
         ConstantInt::get(Type::getInt32Ty(Context_), dataSplitsIndex, true),
         innerBuilder.GetClosure(),
         function);
-}
-
-void TCGContext::CodegenUnionOp(
-    TIRBuilder& builder,
-    const TUnionOperator* op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    for (const auto& sourceOp : op->Sources()) {
-        CodegenOp(builder, sourceOp, codegenConsumer);
-    }
 }
 
 void TCGContext::CodegenFilterOp(
@@ -1610,17 +1591,6 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
             int dataSplitsIndex = FragmentParams_.DataSplitsArray.size();
             FragmentParams_.DataSplitsArray.push_back(scanOp->DataSplits());
             FragmentParams_.ScanOpToDataSplits[scanOp] = dataSplitsIndex;
-
-            break;
-        }
-
-        case EOperatorKind::Union: {
-            const auto* unionOp = op->As<TUnionOperator>();
-            Id_.AddInteger(EFoldingObjectType::UnionOp);
-
-            for (const auto* source : unionOp->Sources()) {
-                Profile(source);
-            }
 
             break;
         }

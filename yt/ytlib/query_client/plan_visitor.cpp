@@ -41,14 +41,6 @@ bool Traverse(IPlanVisitor* visitor, const TOperator* root)
                 if (!visitor->Visit(typedItem)) { return false; }
                 break;
             }
-            case EOperatorKind::Union: {
-                auto* typedItem = item->As<TUnionOperator>();
-                if (!visitor->Visit(typedItem)) { return false; }
-                queue.append(
-                    typedItem->Sources().begin(),
-                    typedItem->Sources().end());
-                break;
-            }
             case EOperatorKind::Filter: {
                 auto* typedItem = item->As<TFilterOperator>();
                 if (!visitor->Visit(typedItem)) { return false; }

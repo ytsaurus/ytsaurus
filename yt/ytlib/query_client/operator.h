@@ -17,7 +17,6 @@ namespace NQueryClient {
 
 DECLARE_ENUM(EOperatorKind,
     (Scan)
-    (Union)
     (Filter)
     (Group)
     (Project)
@@ -118,54 +117,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TDataSplits, DataSplits);
 
 private:
-    mutable std::unique_ptr<TTableSchema> TableSchema_;
-
-};
-
-class TUnionOperator
-    : public TOperator
-{
-public:
-    typedef SmallVector<const TOperator*, TypicalUnionArity> TSources;
-
-    TUnionOperator(TPlanContext* context)
-        : TOperator(context, EOperatorKind::Union)
-    { }
-
-    TUnionOperator(TPlanContext* context, const TUnionOperator& other)
-        : TOperator(context, EOperatorKind::Union)
-        , Sources_(other.Sources_)
-    { }
-
-    static inline bool IsClassOf(const TOperator* op)
-    {
-        return op->GetKind() == EOperatorKind::Union;
-    }
-
-    virtual TArrayRef<const TOperator*> Children() const override
-    {
-        return Sources_;
-    }
-
-    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
-
-    TSources& Sources()
-    {
-        return Sources_;
-    }
-
-    const TSources& Sources() const
-    {
-        return Sources_;
-    }
-
-    const TOperator* GetSource(int i) const
-    {
-        return Sources_[i];
-    }
-
-private:
-    TSources Sources_;
     mutable std::unique_ptr<TTableSchema> TableSchema_;
 
 };

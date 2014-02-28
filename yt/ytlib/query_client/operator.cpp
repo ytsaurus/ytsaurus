@@ -37,10 +37,6 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
             result = new (context) TScanOperator(context, *this->As<TScanOperator>());
             break;
 
-        case EOperatorKind::Union:
-            result = new (context) TUnionOperator(context, *this->As<TUnionOperator>());
-            break;
-
         case EOperatorKind::Filter:
             result = new (context) TFilterOperator(context, *this->As<TFilterOperator>());
             break;
@@ -66,25 +62,6 @@ const TTableSchema& TScanOperator::GetTableSchema(bool ignoreCache) const
         TableSchema_ = std::make_unique<TTableSchema>(GetTableSchemaFromDataSplit(DataSplits()[0]));
 
         // TODO(lukyan): assert that other splits hava the same table scheme
-    }
-    return *TableSchema_;
-}
-
-const TTableSchema& TUnionOperator::GetTableSchema(bool ignoreCache) const
-{
-    if (!TableSchema_ || ignoreCache) {
-        TableSchema_ = std::make_unique<TTableSchema>();
-
-        TTableSchema& result = *TableSchema_;
-        bool didChooseTableSchema = false;
-        for (const auto& source : Sources()) {
-            if (!didChooseTableSchema) {
-                result = source->GetTableSchema(ignoreCache);
-                didChooseTableSchema = true;
-            } else {
-                YCHECK(result == source->GetTableSchema(ignoreCache));
-            }
-        }
     }
     return *TableSchema_;
 }
@@ -175,13 +152,6 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
             break;
         }
 
-        case EOperatorKind::Union: {
-            auto* op = original->As<TUnionOperator>();
-            auto* proto = serialized->MutableExtension(NProto::TUnionOperator::union_operator);
-            ToProto(proto->mutable_sources(), op->Sources());
-            break;
-        }
-
         case EOperatorKind::Filter: {
             auto* op = original->As<TFilterOperator>();
             auto* proto = serialized->MutableExtension(NProto::TFilterOperator::filter_operator);
@@ -241,19 +211,6 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
                 TDataSplit dataSplit;
                 FromProto(&dataSplit, data.data_split(i));
                 typedResult->DataSplits().push_back(dataSplit);
-            }
-            YASSERT(!result);
-            result = typedResult;
-            break;
-        }
-
-        case EOperatorKind::Union: {
-            auto data = serialized.GetExtension(NProto::TUnionOperator::union_operator);
-            auto typedResult = new (context) TUnionOperator(context);
-            typedResult->Sources().reserve(data.sources_size());
-            for (int i = 0; i < data.sources_size(); ++i) {
-                typedResult->Sources().push_back(
-                    FromProto(data.sources(i), context));
             }
             YASSERT(!result);
             result = typedResult;
