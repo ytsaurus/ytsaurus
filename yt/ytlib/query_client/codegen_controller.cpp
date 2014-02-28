@@ -695,7 +695,10 @@ namespace NRoutines {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TRow row, std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch, ISchemedWriter* writer)
+void WriteRow(
+    TRow row,
+    std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch,
+    ISchemedWriter* writer)
 {
     std::vector<TRow>* batchArray = &batch->first;
     TChunkedMemoryPool* memoryPool = batch->second;
@@ -955,9 +958,9 @@ void CodegenForEachRow(
         ConstantInt::get(Type::getInt32Ty(context), 0, true),
         indexPtr);
 
-    BasicBlock* loopBB = BasicBlock::Create(context, "loop", function);
-    BasicBlock* condBB = BasicBlock::Create(context, "cond", function);
-    BasicBlock* endloopBB = BasicBlock::Create(context, "endloop", function);
+    auto* loopBB = BasicBlock::Create(context, "loop", function);
+    auto* condBB = BasicBlock::Create(context, "cond", function);
+    auto* endloopBB = BasicBlock::Create(context, "endloop", function);
 
     builder.CreateBr(condBB);
 
@@ -1170,7 +1173,7 @@ void TCGContext::CodegenScanOp(
         "ScanOpInner",
         Module_);
 
-    Function::arg_iterator args = function->arg_begin();
+    auto args = function->arg_begin();
     Value* closure = args;
     Value* rows = ++args;
     Value* size = ++args;
@@ -1224,8 +1227,8 @@ void TCGContext::CodegenFilterOp(
 
             Function* function = innerBuilder.GetInsertBlock()->getParent();
 
-            BasicBlock* ifBB = BasicBlock::Create(Context_, "if", function);
-            BasicBlock* endIfBB = BasicBlock::Create(Context_, "endif", function);
+            auto* ifBB = BasicBlock::Create(Context_, "if", function);
+            auto* endIfBB = BasicBlock::Create(Context_, "endif", function);
 
             innerBuilder.CreateCondBr(
                 innerBuilder.CreateICmpNE(
@@ -1254,7 +1257,7 @@ void TCGContext::CodegenProjectOp(
         "ProjectOpInner",
         Module_);
 
-    Function::arg_iterator args = function->arg_begin();
+    auto args = function->arg_begin();
     Value* closure = args;
     Value* newRow = ++args;
     YCHECK(++args == function->arg_end());
@@ -1308,7 +1311,7 @@ void TCGContext::CodegenGroupOp(
         "GroupOpInner",
         Module_);
 
-    Function::arg_iterator args = function->arg_begin();
+    auto args = function->arg_begin();
     Value* closure = args;
     Value* memoryPool = ++args;
     Value* groupedRows = ++args;
@@ -1370,9 +1373,9 @@ void TCGContext::CodegenGroupOp(
 
         Function* function = innerBuilder.GetInsertBlock()->getParent();
 
-        BasicBlock* ifBB = BasicBlock::Create(Context_, "if", function);
-        BasicBlock* elseBB = BasicBlock::Create(Context_, "else", function);
-        BasicBlock* endIfBB = BasicBlock::Create(Context_, "endif", function);
+        auto* ifBB = BasicBlock::Create(Context_, "if", function);
+        auto* elseBB = BasicBlock::Create(Context_, "else", function);
+        auto* endIfBB = BasicBlock::Create(Context_, "endif", function);
 
         innerBuilder.CreateCondBr(
             innerBuilder.CreateICmpNE(
@@ -1442,7 +1445,7 @@ TCodegenedFunction TCGContext::CodegenEvaluate(
         "Evaluate",
         module);
 
-    Function::arg_iterator args = function->arg_begin();
+    auto args = function->arg_begin();
     Value* constants = args;
     constants->setName("constants");
     Value* passedFragmentParamsPtr = ++args;
@@ -1487,7 +1490,7 @@ namespace NQueryClient {
 
 // TODO(sandello): Better names for these.
 struct TFragmentParams
-    : TCGImmediates
+    : public TCGImmediates
 {
     std::vector<TValue> ConstantArray;
     std::vector<TDataSplits> DataSplitsArray;
@@ -1496,13 +1499,13 @@ struct TFragmentParams
 class TFragmentProfileVisitor
 {
 private:
-    llvm::FoldingSetNodeID& Id;
-    TFragmentParams& FragmentParams;
+    llvm::FoldingSetNodeID& Id_;
+    TFragmentParams& FragmentParams_;
 
 public:
     explicit TFragmentProfileVisitor(llvm::FoldingSetNodeID& id, TFragmentParams& fragmentParams)
-        : Id(id)
-        , FragmentParams(fragmentParams)
+        : Id_(id)
+        , FragmentParams_(fragmentParams)
     { }
 
     void Profile(const TTableSchema& tableSchema);
@@ -1514,7 +1517,7 @@ public:
 
 void TFragmentProfileVisitor::Profile(const TTableSchema& tableSchema)
 {
-    Id.AddInteger(EFoldingObjectType::TableSchema);
+    Id_.AddInteger(EFoldingObjectType::TableSchema);
 }
 
 void TFragmentProfileVisitor::Profile(const TExpression* expr)
@@ -1522,38 +1525,38 @@ void TFragmentProfileVisitor::Profile(const TExpression* expr)
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral: {
             const auto* integerLiteralExpr = expr->As<TIntegerLiteralExpression>();
-            Id.AddInteger(EFoldingObjectType::IntegerLiteralExpr);
+            Id_.AddInteger(EFoldingObjectType::IntegerLiteralExpr);
 
-            int constantIndex = FragmentParams.ConstantArray.size();
-            FragmentParams.ConstantArray.push_back(MakeIntegerValue<TValue>(integerLiteralExpr->GetValue()));
-            FragmentParams.NodeToConstantIndex[expr] = constantIndex;
+            int constantIndex = FragmentParams_.ConstantArray.size();
+            FragmentParams_.ConstantArray.push_back(MakeIntegerValue<TValue>(integerLiteralExpr->GetValue()));
+            FragmentParams_.NodeToConstantIndex[expr] = constantIndex;
 
             break;
         }
 
         case EExpressionKind::DoubleLiteral: {
             const auto* doubleLiteralExpr = expr->As<TDoubleLiteralExpression>();
-            Id.AddInteger(EFoldingObjectType::DoubleLiteralExpr);
+            Id_.AddInteger(EFoldingObjectType::DoubleLiteralExpr);
 
-            int constantIndex = FragmentParams.ConstantArray.size();
-            FragmentParams.ConstantArray.push_back(MakeIntegerValue<TValue>(doubleLiteralExpr->GetValue()));
-            FragmentParams.NodeToConstantIndex[expr] = constantIndex;
+            int constantIndex = FragmentParams_.ConstantArray.size();
+            FragmentParams_.ConstantArray.push_back(MakeIntegerValue<TValue>(doubleLiteralExpr->GetValue()));
+            FragmentParams_.NodeToConstantIndex[expr] = constantIndex;
 
             break;
         }
 
         case EExpressionKind::Reference: {
             const auto* referenceExpr = expr->As<TReferenceExpression>();
-            Id.AddInteger(EFoldingObjectType::ReferenceExpr);
-            Id.AddString(~referenceExpr->GetColumnName());
+            Id_.AddInteger(EFoldingObjectType::ReferenceExpr);
+            Id_.AddString(~referenceExpr->GetColumnName());
 
             break;
         }
 
         case EExpressionKind::Function: {
             const auto* functionExpr = expr->As<TFunctionExpression>();
-            Id.AddInteger(EFoldingObjectType::FunctionExpr);
-            Id.AddString(~functionExpr->GetFunctionName());
+            Id_.AddInteger(EFoldingObjectType::FunctionExpr);
+            Id_.AddString(~functionExpr->GetFunctionName());
 
             for (const auto& argument : functionExpr->Arguments()) {
                 Profile(argument);
@@ -1564,8 +1567,8 @@ void TFragmentProfileVisitor::Profile(const TExpression* expr)
 
         case EExpressionKind::BinaryOp: {
             const auto* binaryOp = expr->As<TBinaryOpExpression>();
-            Id.AddInteger(EFoldingObjectType::BinaryOpExpr);
-            Id.AddInteger(binaryOp->GetOpcode());
+            Id_.AddInteger(EFoldingObjectType::BinaryOpExpr);
+            Id_.AddInteger(binaryOp->GetOpcode());
 
             Profile(binaryOp->GetLhs());
             Profile(binaryOp->GetRhs());
@@ -1580,17 +1583,17 @@ void TFragmentProfileVisitor::Profile(const TExpression* expr)
 
 void TFragmentProfileVisitor::Profile(const TNamedExpression& namedExpression)
 {
-    Id.AddInteger(EFoldingObjectType::NamedExpression);
-    Id.AddString(~namedExpression.Name);
+    Id_.AddInteger(EFoldingObjectType::NamedExpression);
+    Id_.AddString(~namedExpression.Name);
 
     Profile(namedExpression.Expression);
 }
 
 void TFragmentProfileVisitor::Profile(const TAggregateItem& aggregateItem)
 {
-    Id.AddInteger(EFoldingObjectType::AggregateItem);
-    Id.AddInteger(aggregateItem.AggregateFunction);
-    Id.AddString(~aggregateItem.Name);
+    Id_.AddInteger(EFoldingObjectType::AggregateItem);
+    Id_.AddInteger(aggregateItem.AggregateFunction);
+    Id_.AddString(~aggregateItem.Name);
 
     Profile(aggregateItem.Expression);
 }
@@ -1600,20 +1603,20 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
     switch (op->GetKind()) {
         case EOperatorKind::Scan: {
             const auto* scanOp = op->As<TScanOperator>();
-            Id.AddInteger(EFoldingObjectType::ScanOp);
+            Id_.AddInteger(EFoldingObjectType::ScanOp);
 
             Profile(scanOp->GetTableSchema());
 
-            int dataSplitsIndex = FragmentParams.DataSplitsArray.size();
-            FragmentParams.DataSplitsArray.push_back(scanOp->DataSplits());
-            FragmentParams.ScanOpToDataSplits[scanOp] = dataSplitsIndex;
+            int dataSplitsIndex = FragmentParams_.DataSplitsArray.size();
+            FragmentParams_.DataSplitsArray.push_back(scanOp->DataSplits());
+            FragmentParams_.ScanOpToDataSplits[scanOp] = dataSplitsIndex;
 
             break;
         }
 
         case EOperatorKind::Union: {
             const auto* unionOp = op->As<TUnionOperator>();
-            Id.AddInteger(EFoldingObjectType::UnionOp);
+            Id_.AddInteger(EFoldingObjectType::UnionOp);
 
             for (const auto* source : unionOp->Sources()) {
                 Profile(source);
@@ -1624,7 +1627,7 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
 
         case EOperatorKind::Filter: {
             const auto* filterOp = op->As<TFilterOperator>();
-            Id.AddInteger(EFoldingObjectType::FilterOp);
+            Id_.AddInteger(EFoldingObjectType::FilterOp);
 
             Profile(filterOp->GetPredicate());
             Profile(filterOp->GetSource());
@@ -1634,7 +1637,7 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
 
         case EOperatorKind::Project: {
             const auto* projectOp = op->As<TProjectOperator>();
-            Id.AddInteger(EFoldingObjectType::ProjectOp);
+            Id_.AddInteger(EFoldingObjectType::ProjectOp);
 
             for (const auto& projection : projectOp->Projections()) {
                 Profile(projection);
@@ -1647,7 +1650,7 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
 
         case EOperatorKind::Group: {
             const auto* groupOp = op->As<TGroupOperator>();
-            Id.AddInteger(EFoldingObjectType::GroupOp);
+            Id_.AddInteger(EFoldingObjectType::GroupOp);
 
             for (const auto& groupItem : groupOp->GroupItems()) {
                 Profile(groupItem);
@@ -1844,6 +1847,8 @@ TError TCodegenController::Run(
 {
     return Impl->Run(callbacks, fragment, std::move(writer));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
 } // namespace NYT
