@@ -10,14 +10,6 @@ static const int TypicalQueueLength = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(IExpressionVisitor, nodeType)
-#include "list_of_operators.inc"
-#undef XX
-
-#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(IOperatorVisitor, nodeType)
-#include "list_of_expressions.inc"
-#undef XX
-
 #define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(TPlanVisitor, nodeType)
 #include "list_of_operators.inc"
 #include "list_of_expressions.inc"

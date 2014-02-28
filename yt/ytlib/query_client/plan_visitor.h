@@ -29,22 +29,6 @@ struct IPlanVisitor
 #undef XX
 };
 
-struct IExpressionVisitor
-    : IPlanVisitor
-{
-#define XX(nodeType) AS_IMPLEMENTATION(nodeType)
-#include "list_of_operators.inc"
-#undef XX
-};
-
-struct IOperatorVisitor
-    : IPlanVisitor
-{
-#define XX(nodeType) AS_IMPLEMENTATION(nodeType)
-#include "list_of_expressions.inc"
-#undef XX
-};
-
 class TPlanVisitor
     : public IPlanVisitor
 {
