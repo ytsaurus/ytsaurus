@@ -585,12 +585,12 @@ private:
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
         FunctionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
-        FunctionPassManager_->add(new llvm::DataLayout(*ExecutionEngine_->getDataLayout()));
+        FunctionPassManager_->add(new llvm::DataLayoutPass(*ExecutionEngine_->getDataLayout()));
         passManagerBuilder.populateFunctionPassManager(*FunctionPassManager_);
         FunctionPassManager_->doInitialization();
 
         ModulePassManager_ = std::make_unique<llvm::PassManager>();
-        ModulePassManager_->add(new llvm::DataLayout(*ExecutionEngine_->getDataLayout()));
+        ModulePassManager_->add(new llvm::DataLayoutPass(*ExecutionEngine_->getDataLayout()));
         passManagerBuilder.populateModulePassManager(*ModulePassManager_);
 
         FunctionPassManager_->run(*function);
