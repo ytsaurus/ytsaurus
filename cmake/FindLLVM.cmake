@@ -96,20 +96,20 @@ else()
     endif()
 
     message(STATUS "LLVM Libraries for '${ARGN}': ${_libs_module}")
-  
+
     execute_process(
       COMMAND ${LLVM_CONFIG_EXECUTABLE} --system-libs ${ARGN}
       OUTPUT_VARIABLE _libs_system
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-  
+
     string(REPLACE "\n" " " _libs_system "${_libs_system}")
     string(REPLACE "  " " " _libs_system "${_libs_system}")
     string(REPLACE " "  ";" _libs_system "${_libs_system}")
 
-    set(${RESULT} ${_libs_system} ${_libs_module} PARENT_SCOPE)
+    set(${RESULT} ${_libs_module} ${_libs_system} PARENT_SCOPE)
   endfunction(llvm_map_components_to_libraries)
-  
+
   message(STATUS "LLVM Include Directory: ${LLVM_INCLUDE_DIRS}")
   message(STATUS "LLVM Library Directory: ${LLVM_LIBRARY_DIRS}")
   message(STATUS "LLVM C++ Preprocessor: ${LLVM_CPPFLAGS}")
