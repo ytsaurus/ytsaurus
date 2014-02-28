@@ -116,13 +116,21 @@ private:
 
 };
 
-typedef std::unordered_set<TRow, TGroupHasher, TGroupComparer> TGroupedRows;
+typedef std::unordered_set<TRow, TGroupHasher, TGroupComparer> TLookupRows;
 
 struct TPassedFragmentParams
 {
+    // Constants
+
     IEvaluateCallbacks* Callbacks;
     TPlanContext* Context;
     std::vector<TDataSplits>* DataSplitsArray;
+};
+
+struct TMemoryPools
+{
+    TChunkedMemoryPool alignedPool;
+    TChunkedMemoryPool unalignedPool;
 };
 
 static const int MaxRowsPerRead = 512;
@@ -133,6 +141,7 @@ static const int MaxRowsPerWrite = 512;
 } // namespace NQueryClient
 } // namespace NYT
 
+// LLVM helpres
 namespace llvm {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,8 +171,14 @@ template <bool cross>
 class TypeBuilder<std::pair<std::vector<TRow>, TChunkedMemoryPool*>*, cross>
     : public TypeBuilder<void*, cross>
 { };
+
 template <bool cross>
-class TypeBuilder<TGroupedRows*, cross>
+class TypeBuilder<TLookupRows*, cross>
+    : public TypeBuilder<void*, cross>
+{ };
+
+template <bool cross>
+class TypeBuilder<TPassedFragmentParams*, cross>
     : public TypeBuilder<void*, cross>
 { };
 
@@ -267,31 +282,11 @@ public:
     };
 };
 
-template <bool cross>
-class TypeBuilder<TPassedFragmentParams, cross>
-{
-public:
-    static StructType* get(LLVMContext& context)
-    {
-        return StructType::get(
-            TypeBuilder<void*, cross>::get(context),
-            TypeBuilder<void*, cross>::get(context),
-            TypeBuilder<void*, cross>::get(context),
-            nullptr);
-    }
-
-    enum Fields
-    {
-        Callbacks,
-        Context,
-        DataSplitsArray
-    };
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace llvm
 
+// Codegen
 namespace NYT {
 namespace NQueryClient {
 
@@ -488,43 +483,1018 @@ struct TCGImmediates
     yhash_map<const TScanOperator*, int> ScanOpToDataSplits;
 };
 
-// TODO(sandello): Better names for these.
-struct TFragmentParams
-    : TCGImmediates
-{
-    std::vector<TValue> ConstantArray;
-    std::vector<TDataSplits> DataSplitsArray;
-};
-struct TCGContext
-{
-    const TCGImmediates& Params;
+typedef void (*TCodegenedFunction)(
+    TRow constants,
+    TPassedFragmentParams* passedFragmentParams,
+    std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch,
+    ISchemedWriter* writer);
 
-    Value* ConstantsRow;
-    Value* PassedFragmentParamsPtr;
+class TCodegenedFragment
+    : public llvm::FastFoldingSetNode
+{
+public:
+    TCodegenedFragment(const llvm::FoldingSetNodeID& id, TCodegenedFunction codegenedFunction)
+        : llvm::FastFoldingSetNode(id)
+        , CodegenedFunction_(codegenedFunction)
+    {
+        Module_ = new llvm::Module("codegen", Context_);
+
+        std::string errorStr;
+        // (EngineBuilder owns Module).
+        ExecutionEngine_.reset(llvm::EngineBuilder(Module_).setErrorStr(&errorStr).create());
+
+        if (!ExecutionEngine_) {
+            delete Module_;
+            THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine: %s", errorStr.c_str());
+        }
+    }
+
+    TCodegenedFunction CodegenedFunction_;
+
+    llvm::LLVMContext Context_;
+    llvm::Module* Module_;
+    std::unique_ptr<llvm::ExecutionEngine> ExecutionEngine_;
+
+    ~TCodegenedFragment()
+    {
+        ExecutionEngine_.reset();
+    }
+};
+
+typedef std::function<void(TIRBuilder& builder, Value* row)> TCodegenConsumer;
+
+class TCGContext
+{
+public:
+    static TCodegenedFunction CodegenEvaluate(
+        llvm::LLVMContext& context, 
+        llvm::Module* module, 
+        std::unique_ptr<llvm::ExecutionEngine>& executionEngine,
+        const TCGImmediates& params,
+        const TOperator* op);
+
+private:
+    NLog::TTaggedLogger Logger;
+
+    llvm::LLVMContext& Context_;
+    llvm::Module* Module_;
+    std::unique_ptr<llvm::ExecutionEngine>& ExecutionEngine_;
+    const TCGImmediates& Params_;
+    Value* ConstantsRow_;
+    Value* PassedFragmentParamsPtr_;
+    std::map<void*, Function*> CachedRoutines_;
 
     TCGContext(
+        llvm::LLVMContext& context, 
+        llvm::Module* module, 
+        std::unique_ptr<llvm::ExecutionEngine>& executionEngine,
         const TCGImmediates& params,
         Value* constantsRow,
         Value* passedFragmentParamsPtr)
-        : Params(params)
-        , ConstantsRow(constantsRow)
-        , PassedFragmentParamsPtr(passedFragmentParamsPtr)
+        : Logger(QueryClientLogger)
+        , Context_(context)
+        , Module_(module)
+        , ExecutionEngine_(executionEngine)
+        , Params_(params)
+        , ConstantsRow_(constantsRow)
+        , PassedFragmentParamsPtr_(passedFragmentParamsPtr)
     { }
 
     Value* GetConstantsRows(TIRBuilder& builder) const
     {
         return builder.ViaClosure(
-            ConstantsRow,
+            ConstantsRow_,
             "constantsRow");
     }
 
     Value* GetPassedFragmentParamsPtr(TIRBuilder& builder) const
     {
         return builder.ViaClosure(
-            PassedFragmentParamsPtr,
+            PassedFragmentParamsPtr_,
             "passedFragmentParamsPtr");
     }
 
+    void* CompileFunction(Function* function)
+    {
+        std::unique_ptr<llvm::FunctionPassManager> FunctionPassManager_;
+        std::unique_ptr<llvm::PassManager> ModulePassManager_;
+
+        llvm::PassManagerBuilder passManagerBuilder;
+        passManagerBuilder.OptLevel = 2;
+        passManagerBuilder.SizeLevel = 0;
+        passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
+
+        FunctionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
+        FunctionPassManager_->add(new llvm::DataLayout(*ExecutionEngine_->getDataLayout()));
+        passManagerBuilder.populateFunctionPassManager(*FunctionPassManager_);
+        FunctionPassManager_->doInitialization();
+
+        ModulePassManager_ = std::make_unique<llvm::PassManager>();
+        ModulePassManager_->add(new llvm::DataLayout(*ExecutionEngine_->getDataLayout()));
+        passManagerBuilder.populateModulePassManager(*ModulePassManager_);
+
+        FunctionPassManager_->run(*function);
+        ModulePassManager_->run(*Module_);
+
+        //Module_->dump();
+
+        void* result = ExecutionEngine_->getPointerToFunction(function);
+
+        if (FunctionPassManager_) {
+            FunctionPassManager_->doFinalization();
+            FunctionPassManager_.reset();
+        }
+
+        return result;
+    }
+
+    template <class TResult, class... TArgs>
+    Function* GetRoutine(TResult(*functionPtr)(TArgs...), const llvm::Twine& name = "")
+    {
+        void* voidPtr = reinterpret_cast<void*>(functionPtr);
+
+        auto it = CachedRoutines_.find(voidPtr);
+        if (it != CachedRoutines_.end()) {
+            return it->second;
+        }
+
+        Function* function = Function::Create(
+            TypeBuilder<TResult(TArgs...), false>::get(Context_),
+            Function::ExternalLinkage,
+            name,
+            Module_);
+
+        ExecutionEngine_->addGlobalMapping(function, voidPtr);
+
+        CachedRoutines_[voidPtr] = function;
+
+        return function;
+    }
+
+    Value* CodegenExpr(
+        TIRBuilder& builder,
+        
+        const TExpression* expr,
+        const TTableSchema& tableSchema,
+        Value* row);
+
+    Value* CodegenFunctionExpr(
+        TIRBuilder& builder,
+
+        const TFunctionExpression* expr,
+        const TTableSchema& tableSchema,
+        Value* row);
+
+    Value* CodegenBinaryOpExpr(
+        TIRBuilder& builder,
+
+        const TBinaryOpExpression* expr,
+        const TTableSchema& tableSchema,
+        Value* row);
+
+
+    void CodegenOp(
+        TIRBuilder& builder,
+
+        const TOperator* op,
+        const TCodegenConsumer& codegenConsumer);
+
+    void CodegenScanOp(
+        TIRBuilder& builder,
+
+        const TScanOperator* op,
+        const TCodegenConsumer& codegenConsumer);
+
+    void CodegenUnionOp(
+        TIRBuilder& builder,
+
+        const TUnionOperator* op,
+        const TCodegenConsumer& codegenConsumer);
+
+    void CodegenFilterOp(
+        TIRBuilder& builder,
+
+        const TFilterOperator* op,
+        const TCodegenConsumer& codegenConsumer);
+
+    void CodegenProjectOp(
+        TIRBuilder& builder,
+
+        const TProjectOperator* op,
+        const TCodegenConsumer& codegenConsumer);
+
+    void CodegenGroupOp(
+        TIRBuilder& builder,
+
+        const TGroupOperator* op,
+        const TCodegenConsumer& codegenConsumer);
+
+};
+
+    // TODO(sandello): This should settle upon 3.5 release.
+    Module_->setDataLayout(ExecutionEngine_->getDataLayout()->getStringRepresentation());
+
+
+namespace NRoutines {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WriteRow(TRow row, std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch, ISchemedWriter* writer)
+{
+    std::vector<TRow>* batchArray = &batch->first;
+    TChunkedMemoryPool* memoryPool = batch->second;
+
+    YASSERT(batchArray->size() < batchArray->capacity());
+
+    TRow rowCopy = TRow::Allocate(memoryPool, row.GetCount());
+
+    for (int i = 0; i < row.GetCount(); ++i) {
+        rowCopy[i] = row[i];
+    }
+
+    batchArray->push_back(rowCopy);
+
+    if (batchArray->size() == batchArray->capacity()) {
+        if (!writer->Write(*batchArray)) {
+            auto error = WaitFor(writer->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+        batchArray->clear();
+    }
+}
+
+void ScanOpHelper(
+    TPassedFragmentParams* passedFragmentParams,
+    int dataSplitsIndex,
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, TRow* rows, int size))
+{
+    auto callbacks = passedFragmentParams->Callbacks;
+    auto context = passedFragmentParams->Context;
+    auto dataSplits = (*passedFragmentParams->DataSplitsArray)[dataSplitsIndex];
+
+    for (const auto& dataSplit : dataSplits) {
+        auto reader = callbacks->GetReader(dataSplit, context);
+        auto schema = GetTableSchemaFromDataSplit(dataSplit);
+
+        {
+            auto error = WaitFor(reader->Open(schema));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
+        std::vector<TRow> rows;
+        rows.reserve(MaxRowsPerRead);
+
+        while (true) {
+            bool hasMoreData = reader->Read(&rows);
+            bool shouldWait = rows.empty();
+
+            consumeRows(consumeRowsClosure, rows.data(), rows.size());
+            rows.clear();
+
+            if (!hasMoreData) {
+                break;
+            }
+
+            if (shouldWait) {
+                auto error = WaitFor(reader->GetReadyEvent());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            }
+        }
+    }
+}
+
+void ProjectOpHelper(
+    int projectionCount,
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, TRow row))
+{
+    // TODO(sandello): Think about allocating the row on the stack.
+    TChunkedMemoryPool memoryPool;
+
+    auto newRow = TRow::Allocate(&memoryPool, projectionCount);
+
+    consumeRows(consumeRowsClosure, newRow);
+}
+
+void GroupOpHelper(
+    int keySize,
+    int aggregateItemCount,
+    void** consumeRowsClosure,
+    void (*consumeRows)(
+        void** closure,
+        TChunkedMemoryPool* memoryPool,
+        std::vector<TRow>* groupedRows,
+        TLookupRows* rows,
+        TRow* newRowPtr))
+{
+    std::vector<TRow> groupedRows;
+    TLookupRows rows(
+        256,
+        TGroupHasher(keySize),
+        TGroupComparer(keySize));
+
+    TChunkedMemoryPool memoryPool;
+
+    auto newRow = TRow::Allocate(&memoryPool, keySize + aggregateItemCount);
+
+    consumeRows(consumeRowsClosure, &memoryPool, &groupedRows, &rows, &newRow);
+
+    memoryPool.Clear();
+}
+
+const TRow* FindRow(TLookupRows* rows, TRow row)
+{
+    auto it = rows->find(row);
+    return it != rows->end()? &*it : nullptr;
+}
+
+void AddRow(
+    TChunkedMemoryPool* memoryPool,
+    TLookupRows* lookupRows, // lookup table
+    std::vector<TRow>* groupedRows,
+    TRow* newRow,
+    int rowSize)
+{
+    groupedRows->push_back(*newRow);
+    lookupRows->insert(groupedRows->back());
+    *newRow = TRow::Allocate(memoryPool, rowSize);
+}
+
+TRow* GetRowsData(std::vector<TRow>* groupedRows)
+{
+    return groupedRows->data();
+}
+
+int GetRowsSize(std::vector<TRow>* groupedRows)
+{
+    return groupedRows->size();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoutines
+
+////////////////////////////////////////////////////////////////////////////////
+
+Value* CodegenRowValuesArray(TIRBuilder& builder, Value* row)
+{
+    Value* headerPtr = builder.CreateExtractValue(
+        row,
+        TypeBuilder<TRow, false>::Fields::Header,
+        "headerPtr");
+    Value* valuesPtr = builder.CreatePointerCast(
+        builder.CreateConstGEP1_32(headerPtr, 1),
+        TypeBuilder<TValue*, false>::get(builder.getContext()),
+        "valuesPtr");
+    return valuesPtr;
+}
+
+Value* CodegenDataPtrFromRow(TIRBuilder& builder, Value* row, int index, EValueType type)
+{
+    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
+    Value* dataPtr = builder.CreateConstGEP2_32(
+        rowValuesArray,
+        index,
+        TypeBuilder<TValue, false>::Fields::Data,
+        "dataPtr");
+
+    typedef TypeBuilder<TValueData, false> TUnionType;
+
+    TUnionType::Fields field;
+    switch (type) { // int, double or string
+        case EValueType::Integer:
+            field = TUnionType::Fields::Integer;
+            break;
+        case EValueType::Double:
+            field = TUnionType::Fields::Double;
+            break;
+        case EValueType::String:
+            field = TUnionType::Fields::String;
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    dataPtr = builder.CreatePointerCast(
+        dataPtr,
+        TUnionType::getAs(field, builder.getContext()),
+        "dataPtr");
+
+    return dataPtr;
+}
+
+Value* CodegenIdPtrFromRow(TIRBuilder& builder, Value* row, int index)
+{
+    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
+    Value* idPtr = builder.CreateConstGEP2_32(
+        rowValuesArray,
+        index,
+        TypeBuilder<TValue, false>::Fields::Id,
+        "idPtr");
+
+    return idPtr;
+}
+
+Value* CodegenTypePtrFromRow(TIRBuilder& builder, Value* row, int index)
+{
+    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
+    Value* typePtr = builder.CreateConstGEP2_32(
+        rowValuesArray,
+        index,
+        TypeBuilder<TValue, false>::Fields::Type,
+        "typePtr");
+
+    return typePtr;
+}
+
+void CodegenAggregateFunction(
+    TIRBuilder& builder,
+    EAggregateFunctions aggregateFunction,
+    Value* aggregateValuePtr,
+    Value* newValue)
+{
+    Value* oldAggregateValue = builder.CreateLoad(aggregateValuePtr);
+    Value* newAggregateValue = nullptr;
+    switch (aggregateFunction) {
+        case EAggregateFunctions::Sum:
+            newAggregateValue = builder.CreateBinOp(
+                Instruction::BinaryOps::Add,
+                oldAggregateValue,
+                newValue);
+            break;
+        case EAggregateFunctions::Min:
+            newAggregateValue = builder.CreateSelect(
+                builder.CreateICmpSLE(oldAggregateValue, newValue),
+                oldAggregateValue,
+                newValue);
+            break;
+        case EAggregateFunctions::Max:
+            newAggregateValue = builder.CreateSelect(
+                builder.CreateICmpSGE(oldAggregateValue, newValue),
+                oldAggregateValue,
+                newValue);
+            break;
+        default:
+            YUNIMPLEMENTED();
+    }
+    builder.CreateStore(newAggregateValue, aggregateValuePtr);
+}
+
+void CodegenForEachRow(
+    TIRBuilder& builder,
+    Value* rows,
+    Value* size,
+    const TCodegenConsumer& codegenConsumer)
+{
+    auto& context = builder.getContext();
+
+    Function* function = builder.GetInsertBlock()->getParent();
+
+    Value* indexPtr = builder.CreateAlloca(
+        TypeBuilder<i32, false>::get(context),
+        ConstantInt::get(Type::getInt32Ty(context), 1, true));
+
+    builder.CreateStore(
+        ConstantInt::get(Type::getInt32Ty(context), 0, true),
+        indexPtr);
+
+    BasicBlock* loopBB = BasicBlock::Create(context, "loop", function);
+    BasicBlock* condBB = BasicBlock::Create(context, "cond", function);
+    BasicBlock* endloopBB = BasicBlock::Create(context, "endloop", function);
+
+    builder.CreateBr(condBB);
+
+    builder.SetInsertPoint(condBB);
+
+    // index = *indexPtr
+    Value* index = builder.CreateLoad(indexPtr);
+    // if (index != size) ...
+    builder.CreateCondBr(
+        builder.CreateICmpNE(index, size),
+        loopBB,
+        endloopBB);
+
+    builder.SetInsertPoint(loopBB);
+
+    // codegenConsumer(*(rows + index))
+    codegenConsumer(builder, builder.CreateLoad(builder.CreateGEP(rows, index)));
+
+    // *indexPtr = index + 1;
+    builder.CreateStore(
+        builder.CreateAdd(
+            index,
+            ConstantInt::get(Type::getInt32Ty(context), 1)),
+        indexPtr);
+    builder.CreateBr(condBB);
+
+    builder.SetInsertPoint(endloopBB);
+}
+
+void CodegenSetRowValue(
+    TIRBuilder& builder,
+    Value* row,
+    int index,
+    ui16 id,
+    EValueType type,
+    Value* data)
+{
+    auto& context = builder.getContext();
+
+    Value* idPtr = CodegenIdPtrFromRow(builder, row, index);
+    Value* typePtr = CodegenTypePtrFromRow(builder, row, index);
+    Value* dataPtr = CodegenDataPtrFromRow(builder, row, index, type);
+
+    builder.CreateStore(
+        ConstantInt::get(Type::getInt16Ty(context), id),
+        idPtr);
+    builder.CreateStore(
+        ConstantInt::get(Type::getInt16Ty(context), type),
+        typePtr);
+    builder.CreateStore(
+        data,
+        dataPtr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Value* TCGContext::CodegenFunctionExpr(
+    TIRBuilder& builder,
+ 
+    const TFunctionExpression* expr,
+    const TTableSchema& tableSchema,
+    Value* row)
+{
+    YUNIMPLEMENTED();
+}
+
+Value* TCGContext::CodegenBinaryOpExpr(
+    TIRBuilder& builder,
+    const TBinaryOpExpression* expr,
+    const TTableSchema& tableSchema,
+    Value* row)
+{
+    Value* lhsValue = CodegenExpr(builder, expr->GetLhs(), tableSchema, row);
+    Value* rhsValue = CodegenExpr(builder, expr->GetRhs(), tableSchema, row);
+
+    auto name = expr->GetName();
+
+    switch (expr->GetOpcode()) {
+        // Arithmetical operations.
+#define XX(opcode, optype, foptype) \
+        case EBinaryOp::opcode: \
+            switch (expr->GetType(tableSchema)) { \
+                case EValueType::Integer: \
+                    return builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
+                case EValueType::Double: \
+                    return builder.CreateBinOp(Instruction::BinaryOps::foptype, lhsValue, rhsValue, ~expr->GetName()); \
+                default: \
+                    YUNREACHABLE(); /* Typechecked. */ \
+            } \
+            break;
+        XX(Plus, Add, FAdd)
+        XX(Minus, Sub, FSub)
+        XX(Multiply, Mul, FMul)
+        XX(Divide, SDiv, FDiv)
+#undef XX
+
+        // Integral and logical operations.
+#define XX(opcode, optype) \
+        case EBinaryOp::opcode: \
+            switch (expr->GetType(tableSchema)) { \
+                case EValueType::Integer: \
+                    return builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
+                default: \
+                    YUNREACHABLE(); /* Typechecked. */ \
+            } \
+            break;
+        XX(Modulo, SRem)
+        XX(And, And)
+        XX(Or, Or)
+#undef XX
+
+        // Comparsion operations.
+#define XX(opcode, ioptype, foptype) \
+        case EBinaryOp::opcode: \
+            switch (expr->GetType(tableSchema)) { \
+                case EValueType::Integer: \
+                    return builder.CreateICmp##ioptype(lhsValue, rhsValue, ~expr->GetName()); \
+                case EValueType::Double: \
+                    return builder.CreateFCmp##foptype(lhsValue, rhsValue, ~expr->GetName()); \
+                default: \
+                    YUNREACHABLE(); /* Typechecked. */ \
+            } \
+            break;
+        XX(Equal, EQ, UEQ)
+        XX(NotEqual, NE, UNE)
+        XX(Less, SLT, ULT)
+        XX(LessOrEqual, SLE, ULE)
+        XX(Greater, SGT, UGT)
+        XX(GreaterOrEqual, SGE, UGE)
+#undef XX
+    }
+    YUNREACHABLE();
+}
+
+Value* TCGContext::CodegenExpr(
+    TIRBuilder& builder,
+    const TExpression* expr,
+    const TTableSchema& tableSchema,
+    Value* row)
+{
+    YASSERT(expr);
+    switch (expr->GetKind()) {
+        case EExpressionKind::IntegerLiteral:
+        case EExpressionKind::DoubleLiteral: {
+            auto it = Params_.NodeToConstantIndex.find(expr);
+            YCHECK(it != Params_.NodeToConstantIndex.end());
+            int index = it->Second();
+            return builder.CreateLoad(
+                CodegenDataPtrFromRow(
+                    builder,
+                    GetConstantsRows(builder),
+                    index,
+                    expr->GetType(tableSchema)));
+        }
+        case EExpressionKind::Reference: {
+            int index = tableSchema.GetColumnIndexOrThrow(expr->As<TReferenceExpression>()->GetName());
+            return builder.CreateLoad(
+                CodegenDataPtrFromRow(
+                    builder,
+                    row,
+                    index,
+                    expr->GetType(tableSchema)));
+        }
+        case EExpressionKind::Function:
+            return CodegenFunctionExpr(
+                builder,
+                expr->As<TFunctionExpression>(),
+                tableSchema,
+                row);
+        case EExpressionKind::BinaryOp:
+            return CodegenBinaryOpExpr(
+                builder,
+                expr->As<TBinaryOpExpression>(),
+                tableSchema,
+                row);
+        default:
+            YUNREACHABLE();
+    }
+}
+
+void TCGContext::CodegenOp(
+    TIRBuilder& builder,
+    const TOperator* op,
+    const TCodegenConsumer& codegenConsumer)
+{
+    switch (op->GetKind()) {
+        case EOperatorKind::Scan:
+            return CodegenScanOp(builder, op->As<TScanOperator>(), codegenConsumer);
+        case EOperatorKind::Union:
+            return CodegenUnionOp(builder, op->As<TUnionOperator>(), codegenConsumer);
+        case EOperatorKind::Filter:
+            return CodegenFilterOp(builder, op->As<TFilterOperator>(), codegenConsumer);
+        case EOperatorKind::Project:
+            return CodegenProjectOp(builder, op->As<TProjectOperator>(), codegenConsumer);
+        case EOperatorKind::Group:
+            return CodegenGroupOp(builder, op->As<TGroupOperator>(), codegenConsumer);
+    }
+    YUNREACHABLE();
+}
+
+void TCGContext::CodegenScanOp(
+    TIRBuilder& builder,
+    const TScanOperator* op,
+    const TCodegenConsumer& codegenConsumer)
+{
+    // See ScanOpHelper.
+    Function* function = Function::Create(
+        TypeBuilder<void(void**, TRow*, int), false>::get(Context_),
+        Function::ExternalLinkage,
+        "ScanOpInner",
+        Module_);
+
+    Function::arg_iterator args = function->arg_begin();
+    Value* closure = args;
+    Value* rows = ++args;
+    Value* size = ++args;
+    YCHECK(++args == function->arg_end());
+
+    TIRBuilder innerBuilder(
+        BasicBlock::Create(Context_, "entry", function),
+        &builder,
+        closure);
+
+    CodegenForEachRow(innerBuilder, rows, size, codegenConsumer);
+
+    innerBuilder.CreateRetVoid();
+
+    Value* passedFragmentParamsPtr = GetPassedFragmentParamsPtr(builder);
+
+    auto it = Params_.ScanOpToDataSplits.find(op);
+    YCHECK(it != Params_.ScanOpToDataSplits.end());
+    int dataSplitsIndex = it->Second();
+
+    builder.CreateCall4(
+        GetRoutine(&NRoutines::ScanOpHelper, "ScanOpHelper"),
+        passedFragmentParamsPtr,
+        ConstantInt::get(Type::getInt32Ty(Context_), dataSplitsIndex, true),
+        innerBuilder.GetClosure(),
+        function);
+}
+
+void TCGContext::CodegenUnionOp(
+    TIRBuilder& builder,
+    const TUnionOperator* op,
+    const TCodegenConsumer& codegenConsumer)
+{
+    for (const auto& sourceOp : op->Sources()) {
+        CodegenOp(builder, sourceOp, codegenConsumer);
+    }
+}
+
+void TCGContext::CodegenFilterOp(
+    TIRBuilder& builder,
+    const TFilterOperator* op,
+    const TCodegenConsumer& codegenConsumer)
+{
+    auto sourceTableSchema = op->GetTableSchema();
+
+    CodegenOp(builder, op->GetSource(),
+        [&] (TIRBuilder& innerBuilder, Value* row) {
+            Value* result;
+            result = CodegenExpr(innerBuilder, op->GetPredicate(), sourceTableSchema, row);
+            result = innerBuilder.CreateZExtOrBitCast(result, TypeBuilder<i64, false>::get(Context_));
+
+            Function* function = innerBuilder.GetInsertBlock()->getParent();
+
+            BasicBlock* ifBB = BasicBlock::Create(Context_, "if", function);
+            BasicBlock* endIfBB = BasicBlock::Create(Context_, "endif", function);
+
+            innerBuilder.CreateCondBr(
+                innerBuilder.CreateICmpNE(
+                    result,
+                    ConstantInt::get(Type::getInt64Ty(Context_), 0, true)),
+                ifBB,
+                endIfBB);
+
+            innerBuilder.SetInsertPoint(ifBB);
+            codegenConsumer(innerBuilder, row);
+            innerBuilder.CreateBr(endIfBB);
+
+            innerBuilder.SetInsertPoint(endIfBB);
+    });
+}
+
+void TCGContext::CodegenProjectOp(
+    TIRBuilder& builder,
+    const TProjectOperator* op,
+    const TCodegenConsumer& codegenConsumer)
+{
+    // See ProjectOpHelper.
+    Function* function = Function::Create(
+        TypeBuilder<void(void**, TRow), false>::get(Context_),
+        Function::ExternalLinkage,
+        "ProjectOpInner",
+        Module_);
+
+    Function::arg_iterator args = function->arg_begin();
+    Value* closure = args;
+    Value* newRow = ++args;
+    YCHECK(++args == function->arg_end());
+
+    TIRBuilder innerBuilder(
+        BasicBlock::Create(Context_, "entry", function),
+        &builder,
+        closure);
+
+    int projectionCount = op->GetProjectionCount();
+
+    auto sourceTableSchema = op->GetSource()->GetTableSchema();
+    auto nameTable = op->GetNameTable();
+
+    CodegenOp(innerBuilder, op->GetSource(),
+        [&, newRow] (TIRBuilder& innerBuilder, Value* row) {
+            Value* newRowRef = innerBuilder.ViaClosure(newRow);
+
+            for (int index = 0; index < projectionCount; ++index) {
+                const auto& expr = op->GetProjection(index).Expression;
+                const auto& name = op->GetProjection(index).Name;
+                auto id = nameTable->GetId(name);
+                auto type = expr->GetType(sourceTableSchema);
+
+                Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row);
+
+                CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data);
+            }
+
+            codegenConsumer(innerBuilder, newRowRef);
+    });
+
+    innerBuilder.CreateRetVoid();
+
+    builder.CreateCall3(
+        GetRoutine(&NRoutines::ProjectOpHelper, "ProjectOpHelper"),
+        ConstantInt::get(Type::getInt32Ty(Context_), projectionCount, true),
+        innerBuilder.GetClosure(),
+        function);
+}
+
+void TCGContext::CodegenGroupOp(
+    TIRBuilder& builder,
+    const TGroupOperator* op,
+    const TCodegenConsumer& codegenConsumer)
+{
+    // See GroupOpHelper.
+    Function* function = Function::Create(
+        TypeBuilder<void(void**, void*, void*, void*, TRow*), false>::get(Context_),
+        Function::ExternalLinkage,
+        "GroupOpInner",
+        Module_);
+
+    Function::arg_iterator args = function->arg_begin();
+    Value* closure = args;
+    Value* memoryPool = ++args;
+    Value* groupedRows = ++args;
+    Value* rows = ++args;
+    Value* newRowPtr = ++args;
+    YCHECK(++args == function->arg_end());
+
+    TIRBuilder innerBuilder(
+        BasicBlock::Create(Context_, "entry", function),
+        &builder,
+        closure);
+
+    int keySize = op->GetGroupItemCount();
+    int aggregateItemCount = op->AggregateItems().size();
+
+    auto sourceTableSchema = op->GetSource()->GetTableSchema();
+    auto nameTable = op->GetNameTable();
+
+    CodegenOp(innerBuilder, op->GetSource(), [&] (TIRBuilder& innerBuilder, Value* row) {
+        Value* memoryPoolRef = innerBuilder.ViaClosure(memoryPool);
+        Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
+        Value* rowsRef = innerBuilder.ViaClosure(rows);
+        Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
+
+        Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
+
+        for (int index = 0; index < keySize; ++index) {
+            const auto& expr = op->GetGroupItem(index).Expression;
+            const auto& name = op->GetGroupItem(index).Name;
+            auto id = nameTable->GetId(name);
+            auto type = expr->GetType(sourceTableSchema);
+
+            // TODO(sandello): Others are unsupported.
+            YCHECK(type == EValueType::Integer);
+
+            Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row);
+
+            CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data);
+        }
+
+        for (int index = 0; index < aggregateItemCount; ++index) {
+            const auto& expr = op->GetAggregateItem(index).Expression;
+            const auto& name = op->GetAggregateItem(index).Name;
+            auto id = nameTable->GetId(name);
+            auto type = expr->GetType(sourceTableSchema);
+
+            // TODO(sandello): Others are unsupported.
+            YCHECK(type == EValueType::Integer);
+
+            Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row);
+
+            CodegenSetRowValue(innerBuilder, newRowRef, keySize + index, id, type, data);
+        }
+
+        Value* foundRowPtr = innerBuilder.CreateCall2(
+            GetRoutine(&NRoutines::FindRow, "FindRow"),
+            rowsRef,
+            newRowRef);
+
+        Function* function = innerBuilder.GetInsertBlock()->getParent();
+
+        BasicBlock* ifBB = BasicBlock::Create(Context_, "if", function);
+        BasicBlock* elseBB = BasicBlock::Create(Context_, "else", function);
+        BasicBlock* endIfBB = BasicBlock::Create(Context_, "endif", function);
+
+        innerBuilder.CreateCondBr(
+            innerBuilder.CreateICmpNE(
+                foundRowPtr,
+                llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo())),
+            ifBB,
+            elseBB);
+
+        innerBuilder.SetInsertPoint(ifBB);
+        Value* foundRow = innerBuilder.CreateLoad(foundRowPtr);
+        for (int index = 0; index < aggregateItemCount; ++index) {
+            const auto& item = op->AggregateItems()[index];
+
+            auto type = item.Expression->GetType(sourceTableSchema);
+            auto fn = item.AggregateFunction;
+
+            Value* aggregateValuePtr = CodegenDataPtrFromRow(innerBuilder, foundRow, keySize + index, type);
+            Value* newValuePtr = CodegenDataPtrFromRow(innerBuilder, newRowRef, keySize + index, type);
+            Value* newValue = innerBuilder.CreateLoad(newValuePtr);
+
+            CodegenAggregateFunction(innerBuilder, fn, aggregateValuePtr, newValue);
+        }
+        innerBuilder.CreateBr(endIfBB);
+
+        innerBuilder.SetInsertPoint(elseBB);
+        innerBuilder.CreateCall5(
+            GetRoutine(&NRoutines::AddRow, "AddRow"),
+            memoryPoolRef,
+            rowsRef,
+            groupedRowsRef,
+            newRowPtrRef,
+            ConstantInt::get(Type::getInt32Ty(Context_), keySize + aggregateItemCount, true));
+        innerBuilder.CreateBr(endIfBB);
+
+        innerBuilder.SetInsertPoint(endIfBB);
+    });
+
+    CodegenForEachRow(
+        innerBuilder,
+        innerBuilder.CreateCall(GetRoutine(&NRoutines::GetRowsData, "GetRowsData"), groupedRows),
+        innerBuilder.CreateCall(GetRoutine(&NRoutines::GetRowsSize, "GetRowsSize"), groupedRows),
+        codegenConsumer);
+
+    innerBuilder.CreateRetVoid();
+
+    builder.CreateCall4(
+        GetRoutine(&NRoutines::GroupOpHelper, "GroupOpHelper"),
+        ConstantInt::get(Type::getInt32Ty(Context_), keySize, true),
+        ConstantInt::get(Type::getInt32Ty(Context_), aggregateItemCount, true),
+        innerBuilder.GetClosure(),
+        function);
+}
+
+TCodegenedFunction TCGContext::CodegenEvaluate(
+    llvm::LLVMContext& context, 
+    llvm::Module* module, 
+    std::unique_ptr<llvm::ExecutionEngine>& executionEngine,
+    const TCGImmediates& params,
+    const TOperator* op)
+{
+    YASSERT(op);
+
+    // See TCodegenedFunction.
+    Function* function = Function::Create(
+        TypeBuilder<void(TRow, TPassedFragmentParams*, void*, void*), false>::get(context),
+        Function::ExternalLinkage,
+        "Evaluate",
+        module);
+
+    Function::arg_iterator args = function->arg_begin();
+    Value* constants = args;
+    constants->setName("constants");
+    Value* passedFragmentParamsPtr = ++args;
+    passedFragmentParamsPtr->setName("passedFragmentParamsPtr");
+    Value* batch = ++args;
+    batch->setName("batch");
+    Value* writer = ++args;
+    writer->setName("writer");
+    YCHECK(++args == function->arg_end());
+
+    TIRBuilder builder(BasicBlock::Create(context, "entry", function));
+
+    TCGContext ctx(context, module, executionEngine, params, constants, passedFragmentParamsPtr);
+
+    ctx.CodegenOp(builder, op,
+        [&] (TIRBuilder& innerBuilder, Value* row) {
+            Value* batchRef = innerBuilder.ViaClosure(batch);
+            Value* writerRef = innerBuilder.ViaClosure(writer);
+            innerBuilder.CreateCall3(
+                ctx.GetRoutine(&NRoutines::WriteRow, "WriteRow"),
+                row,
+                batchRef,
+                writerRef);
+    });
+
+    builder.CreateRetVoid();
+    verifyFunction(*function);
+    
+    TCodegenedFunction codegenedFunction = reinterpret_cast<TCodegenedFunction>(ctx.CompileFunction(function));
+
+    return codegenedFunction;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryClient
+} // namespace NYT
+
+// Controller
+namespace NYT {
+namespace NQueryClient {
+
+// TODO(sandello): Better names for these.
+struct TFragmentParams
+    : TCGImmediates
+{
+    std::vector<TValue> ConstantArray;
+    std::vector<TDataSplits> DataSplitsArray;
 };
 
 class TFragmentProfileVisitor
@@ -701,26 +1671,6 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
     }
 }
 
-typedef void (*TCodegenedFunction)(
-    TRow constants,
-    TPassedFragmentParams* passedFragmentParams,
-    std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch,
-    ISchemedWriter* writer);
-
-class TCodegenedFragment
-    : public llvm::FastFoldingSetNode
-{
-public:
-    TCodegenedFragment(const llvm::FoldingSetNodeID& id, TCodegenedFunction codegenedFunction)
-        : llvm::FastFoldingSetNode(id)
-        , CodegenedFunction_(codegenedFunction)
-    { }
-
-    TCodegenedFunction CodegenedFunction_;
-};
-
-typedef std::function<void(TIRBuilder& builder, Value* row)> TCodegenConsumer;
-
 class TCodegenControllerImpl
     : public NNonCopyable::TNonCopyable
 {
@@ -735,69 +1685,6 @@ public:
         ISchemedWriterPtr writer);
 
 private:
-    // Codegen
-    template <class TResult, class... TArgs>
-    Function* GetRoutine(TResult(*functionPtr)(TArgs...), const llvm::Twine& name = "")
-    {
-        void* voidPtr = reinterpret_cast<void*>(functionPtr);
-
-        auto it = CachedRoutines_.find(voidPtr);
-        if (it != CachedRoutines_.end()) {
-            return it->second;
-        }
-
-        Function* function = Function::Create(
-            TypeBuilder<TResult(TArgs...), false>::get(Context_),
-            Function::ExternalLinkage,
-            name,
-            Module_);
-
-        ExecutionEngine_->addGlobalMapping(function, voidPtr);
-
-        CachedRoutines_[voidPtr] = function;
-
-        return function;
-    }
-
-    TCodegenedFunction CodegenEvaluate(
-        const TOperator* op,
-        const TCGImmediates& fragmentParams);
-
-    void CodegenOp(
-        TIRBuilder& builder,
-        const TCGContext& ctx,
-        const TOperator* op,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenScanOp(
-        TIRBuilder& builder,
-        const TCGContext& ctx,
-        const TScanOperator* op,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenUnionOp(
-        TIRBuilder& builder,
-        const TCGContext& ctx,
-        const TUnionOperator* op,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenFilterOp(
-        TIRBuilder& builder,
-        const TCGContext& ctx,
-        const TFilterOperator* op,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenProjectOp(
-        TIRBuilder& builder,
-        const TCGContext& ctx,
-        const TProjectOperator* op,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenGroupOp(
-        TIRBuilder& builder,
-        const TCGContext& ctx,
-        const TGroupOperator* op,
-        const TCodegenConsumer& codegenConsumer);
 
     TError EvaluateViaCache(
         IEvaluateCallbacks* callbacks,
@@ -807,15 +1694,6 @@ private:
 private:
     IInvokerPtr CodegenInvoker_;
     NLog::TTaggedLogger Logger;
-
-    llvm::LLVMContext Context_;
-    llvm::Module* Module_;
-    llvm::PassManagerBuilder PassManagerBuilder_;
-    std::unique_ptr<llvm::ExecutionEngine> ExecutionEngine_;
-    std::unique_ptr<llvm::FunctionPassManager> FunctionPassManager_;
-    std::unique_ptr<llvm::PassManager> ModulePassManager_;
-
-    std::map<void*, Function*> CachedRoutines_;
 
     TSpinLock FoldingSetSpinLock_;
     llvm::FoldingSet<TCodegenedFragment> CodegenedFragmentsFoldingSet_;
@@ -831,871 +1709,7 @@ TCodegenControllerImpl::TCodegenControllerImpl(IInvokerPtr invoker)
     , Logger(QueryClientLogger)
 {
     std::call_once(InitializeNativeTargetFlag, llvm::InitializeNativeTarget);
-
-    Module_ = new llvm::Module("codegen", Context_);
-
-    std::string errorStr;
-    // (EngineBuilder owns Module).
-    ExecutionEngine_.reset(llvm::EngineBuilder(Module_).setErrorStr(&errorStr).create());
-
-    if (!ExecutionEngine_) {
-        delete Module_;
-        THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine: %s", errorStr.c_str());
-    }
-
-    // TODO(sandello): This should settle upon 3.5 release.
-    Module_->setDataLayout(ExecutionEngine_->getDataLayout()->getStringRepresentation());
-
-    llvm::PassManagerBuilder passManagerBuilder;
-    PassManagerBuilder_.OptLevel = 2;
-    PassManagerBuilder_.SizeLevel = 0;
-    PassManagerBuilder_.Inliner = llvm::createFunctionInliningPass();
-
-    FunctionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
-    FunctionPassManager_->add(new llvm::DataLayout(Module_));
-    PassManagerBuilder_.populateFunctionPassManager(*FunctionPassManager_);
-
-    FunctionPassManager_->doInitialization();
-
-    ModulePassManager_ = std::make_unique<llvm::PassManager>();
-    ModulePassManager_->add(new llvm::DataLayout(Module_));
-    PassManagerBuilder_.populateModulePassManager(*ModulePassManager_);
 }
-
-TCodegenControllerImpl::~TCodegenControllerImpl()
-{
-    if (FunctionPassManager_) {
-        FunctionPassManager_->doFinalization();
-        FunctionPassManager_.reset();
-    }
-
-    ExecutionEngine_.reset();
-}
-
-TError TCodegenControllerImpl::Run(
-    IEvaluateCallbacks* callbacks,
-    const TPlanFragment& fragment,
-    ISchemedWriterPtr writer)
-{
-    // TODO(sandello): This won't work. Fix me!
-    Logger.AddTag(Sprintf(
-        "FragmendId: %s",
-        ~ToString(fragment.Id())));
-
-    return EvaluateViaCache(callbacks, fragment, std::move(writer));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NRoutines {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void WriteRow(TRow row, std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch, ISchemedWriter* writer)
-{
-    std::vector<TRow>* batchArray = &batch->first;
-    TChunkedMemoryPool* memoryPool = batch->second;
-
-    YASSERT(batchArray->size() < batchArray->capacity());
-
-    TRow rowCopy = TRow::Allocate(memoryPool, row.GetCount());
-
-    for (int i = 0; i < row.GetCount(); ++i) {
-        rowCopy[i] = row[i];
-    }
-
-    batchArray->push_back(rowCopy);
-
-    if (batchArray->size() == batchArray->capacity()) {
-        if (!writer->Write(*batchArray)) {
-            auto error = WaitFor(writer->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-        batchArray->clear();
-    }
-}
-
-void ScanOpHelper(
-    TPassedFragmentParams* passedFragmentParams,
-    int dataSplitsIndex,
-    void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, int size))
-{
-    auto callbacks = passedFragmentParams->Callbacks;
-    auto context = passedFragmentParams->Context;
-    auto dataSplits = (*passedFragmentParams->DataSplitsArray)[dataSplitsIndex];
-
-    for (const auto& dataSplit : dataSplits) {
-        auto reader = callbacks->GetReader(dataSplit, context);
-        auto schema = GetTableSchemaFromDataSplit(dataSplit);
-
-        {
-            auto error = WaitFor(reader->Open(schema));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-
-        std::vector<TRow> rows;
-        rows.reserve(MaxRowsPerRead);
-
-        while (true) {
-            bool hasMoreData = reader->Read(&rows);
-            bool shouldWait = rows.empty();
-
-            consumeRows(consumeRowsClosure, rows.data(), rows.size());
-            rows.clear();
-
-            if (!hasMoreData) {
-                break;
-            }
-
-            if (shouldWait) {
-                auto error = WaitFor(reader->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
-            }
-        }
-    }
-}
-
-void ProjectOpHelper(
-    int projectionCount,
-    void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow row))
-{
-    // TODO(sandello): Think about allocating the row on the stack.
-    TChunkedMemoryPool memoryPool;
-
-    auto newRow = TRow::Allocate(&memoryPool, projectionCount);
-
-    consumeRows(consumeRowsClosure, newRow);
-}
-
-void GroupOpHelper(
-    int keySize,
-    int aggregateItemCount,
-    void** consumeRowsClosure,
-    void (*consumeRows)(
-        void** closure,
-        TChunkedMemoryPool* memoryPool,
-        std::vector<TRow>* groupedRows,
-        TGroupedRows* rows,
-        TRow* newRowPtr))
-{
-    std::vector<TRow> groupedRows;
-    TGroupedRows rows(
-        256,
-        TGroupHasher(keySize),
-        TGroupComparer(keySize));
-
-    TChunkedMemoryPool memoryPool;
-
-    auto newRow = TRow::Allocate(&memoryPool, keySize + aggregateItemCount);
-
-    consumeRows(consumeRowsClosure, &memoryPool, &groupedRows, &rows, &newRow);
-
-    memoryPool.Clear();
-}
-
-const TRow* FindRow(TGroupedRows* rows, TRow row)
-{
-    auto it = rows->find(row);
-    return it != rows->end()? &*it : nullptr;
-}
-
-void AddRow(
-    TChunkedMemoryPool* memoryPool,
-    TGroupedRows* rows,
-    std::vector<TRow>* groupedRows,
-    TRow* newRow,
-    int rowSize)
-{
-    groupedRows->push_back(*newRow);
-    rows->insert(groupedRows->back());
-    *newRow = TRow::Allocate(memoryPool, rowSize);
-}
-
-TRow* GetRowsData(std::vector<TRow>* groupedRows)
-{
-    return groupedRows->data();
-}
-
-int GetRowsSize(std::vector<TRow>* groupedRows)
-{
-    return groupedRows->size();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NRoutines
-
-////////////////////////////////////////////////////////////////////////////////
-
-Value* CodegenExpr(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TExpression* expr,
-    const TTableSchema& tableSchema,
-    Value* row);
-
-Value* CodegenFunctionExpr(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TFunctionExpression* expr,
-    const TTableSchema& tableSchema,
-    Value* row)
-{
-    YUNIMPLEMENTED();
-}
-
-Value* CodegenBinaryOpExpr(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TBinaryOpExpression* expr,
-    const TTableSchema& tableSchema,
-    Value* row)
-{
-    Value* lhsValue = CodegenExpr(builder, ctx, expr->GetLhs(), tableSchema, row);
-    Value* rhsValue = CodegenExpr(builder, ctx, expr->GetRhs(), tableSchema, row);
-
-    auto name = expr->GetName();
-
-    switch (expr->GetOpcode()) {
-        // Arithmetical operations.
-#define XX(opcode, optype, foptype) \
-        case EBinaryOp::opcode: \
-            switch (expr->GetType(tableSchema)) { \
-                case EValueType::Integer: \
-                    return builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
-                case EValueType::Double: \
-                    return builder.CreateBinOp(Instruction::BinaryOps::foptype, lhsValue, rhsValue, ~expr->GetName()); \
-                default: \
-                    YUNREACHABLE(); /* Typechecked. */ \
-            } \
-            break;
-        XX(Plus, Add, FAdd)
-        XX(Minus, Sub, FSub)
-        XX(Multiply, Mul, FMul)
-        XX(Divide, SDiv, FDiv)
-#undef XX
-
-        // Integral and logical operations.
-#define XX(opcode, optype) \
-        case EBinaryOp::opcode: \
-            switch (expr->GetType(tableSchema)) { \
-                case EValueType::Integer: \
-                    return builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
-                default: \
-                    YUNREACHABLE(); /* Typechecked. */ \
-            } \
-            break;
-        XX(Modulo, SRem)
-        XX(And, And)
-        XX(Or, Or)
-#undef XX
-
-        // Comparsion operations.
-#define XX(opcode, ioptype, foptype) \
-        case EBinaryOp::opcode: \
-            switch (expr->GetType(tableSchema)) { \
-                case EValueType::Integer: \
-                    return builder.CreateICmp##ioptype(lhsValue, rhsValue, ~expr->GetName()); \
-                case EValueType::Double: \
-                    return builder.CreateFCmp##foptype(lhsValue, rhsValue, ~expr->GetName()); \
-                default: \
-                    YUNREACHABLE(); /* Typechecked. */ \
-            } \
-            break;
-        XX(Equal, EQ, UEQ)
-        XX(NotEqual, NE, UNE)
-        XX(Less, SLT, ULT)
-        XX(LessOrEqual, SLE, ULE)
-        XX(Greater, SGT, UGT)
-        XX(GreaterOrEqual, SGE, UGE)
-#undef XX
-    }
-    YUNREACHABLE();
-}
-
-Value* CodegenRowValuesArray(TIRBuilder& builder, Value* row)
-{
-    Value* headerPtr = builder.CreateExtractValue(
-        row,
-        TypeBuilder<TRow, false>::Fields::Header,
-        "headerPtr");
-    Value* valuesPtr = builder.CreatePointerCast(
-        builder.CreateConstGEP1_32(headerPtr, 1),
-        TypeBuilder<TValue*, false>::get(builder.getContext()),
-        "valuesPtr");
-    return valuesPtr;
-}
-
-Value* CodegenDataPtrFromRow(TIRBuilder& builder, Value* row, int index, EValueType type)
-{
-    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
-    Value* dataPtr = builder.CreateConstGEP2_32(
-        rowValuesArray,
-        index,
-        TypeBuilder<TValue, false>::Fields::Data,
-        "dataPtr");
-
-    typedef TypeBuilder<TValueData, false> TUnionType;
-
-    TUnionType::Fields field;
-    switch (type) { // int, double or string
-        case EValueType::Integer:
-            field = TUnionType::Fields::Integer;
-            break;
-        case EValueType::Double:
-            field = TUnionType::Fields::Double;
-            break;
-        case EValueType::String:
-            field = TUnionType::Fields::String;
-            break;
-        default:
-            YUNREACHABLE();
-    }
-
-    dataPtr = builder.CreatePointerCast(
-        dataPtr,
-        TUnionType::getAs(field, builder.getContext()),
-        "dataPtr");
-
-    return dataPtr;
-}
-
-Value* CodegenIdPtrFromRow(TIRBuilder& builder, Value* row, int index)
-{
-    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
-    Value* idPtr = builder.CreateConstGEP2_32(
-        rowValuesArray,
-        index,
-        TypeBuilder<TValue, false>::Fields::Id,
-        "idPtr");
-
-    return idPtr;
-}
-
-Value* CodegenTypePtrFromRow(TIRBuilder& builder, Value* row, int index)
-{
-    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
-    Value* typePtr = builder.CreateConstGEP2_32(
-        rowValuesArray,
-        index,
-        TypeBuilder<TValue, false>::Fields::Type,
-        "typePtr");
-
-    return typePtr;
-}
-
-Value* CodegenExpr(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TExpression* expr,
-    const TTableSchema& tableSchema,
-    Value* row)
-{
-    YASSERT(expr);
-    switch (expr->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-        case EExpressionKind::DoubleLiteral: {
-            auto it = ctx.Params.NodeToConstantIndex.find(expr);
-            YCHECK(it != ctx.Params.NodeToConstantIndex.end());
-            int index = it->Second();
-            return builder.CreateLoad(
-                CodegenDataPtrFromRow(
-                    builder,
-                    ctx.GetConstantsRows(builder),
-                    index,
-                    expr->GetType(tableSchema)));
-        }
-        case EExpressionKind::Reference: {
-            int index = tableSchema.GetColumnIndexOrThrow(expr->As<TReferenceExpression>()->GetName());
-            return builder.CreateLoad(
-                CodegenDataPtrFromRow(
-                    builder,
-                    row,
-                    index,
-                    expr->GetType(tableSchema)));
-        }
-        case EExpressionKind::Function:
-            return CodegenFunctionExpr(
-                builder,
-                ctx,
-                expr->As<TFunctionExpression>(),
-                tableSchema,
-                row);
-        case EExpressionKind::BinaryOp:
-            return CodegenBinaryOpExpr(
-                builder,
-                ctx,
-                expr->As<TBinaryOpExpression>(),
-                tableSchema,
-                row);
-        default:
-            YUNREACHABLE();
-    }
-}
-
-void CodegenAggregateFunction(
-    TIRBuilder& builder,
-    EAggregateFunctions aggregateFunction,
-    Value* aggregateValuePtr,
-    Value* newValue)
-{
-    Value* oldAggregateValue = builder.CreateLoad(aggregateValuePtr);
-    Value* newAggregateValue = nullptr;
-    switch (aggregateFunction) {
-        case EAggregateFunctions::Sum:
-            newAggregateValue = builder.CreateBinOp(
-                Instruction::BinaryOps::Add,
-                oldAggregateValue,
-                newValue);
-            break;
-        case EAggregateFunctions::Min:
-            newAggregateValue = builder.CreateSelect(
-                builder.CreateICmpSLE(oldAggregateValue, newValue),
-                oldAggregateValue,
-                newValue);
-            break;
-        case EAggregateFunctions::Max:
-            newAggregateValue = builder.CreateSelect(
-                builder.CreateICmpSGE(oldAggregateValue, newValue),
-                oldAggregateValue,
-                newValue);
-            break;
-        default:
-            YUNIMPLEMENTED();
-    }
-    builder.CreateStore(newAggregateValue, aggregateValuePtr);
-}
-
-void CodegenForEachRow(
-    TIRBuilder& builder,
-    Value* rows,
-    Value* size,
-    const TCodegenConsumer& codegenConsumer)
-{
-    auto& context = builder.getContext();
-
-    Function* function = builder.GetInsertBlock()->getParent();
-
-    Value* indexPtr = builder.CreateAlloca(
-        TypeBuilder<i32, false>::get(context),
-        ConstantInt::get(Type::getInt32Ty(context), 1, true));
-
-    builder.CreateStore(
-        ConstantInt::get(Type::getInt32Ty(context), 0, true),
-        indexPtr);
-
-    BasicBlock* loopBB = BasicBlock::Create(context, "loop", function);
-    BasicBlock* condBB = BasicBlock::Create(context, "cond", function);
-    BasicBlock* endloopBB = BasicBlock::Create(context, "endloop", function);
-
-    builder.CreateBr(condBB);
-
-    builder.SetInsertPoint(condBB);
-
-    // index = *indexPtr
-    Value* index = builder.CreateLoad(indexPtr);
-    // if (index != size) ...
-    builder.CreateCondBr(
-        builder.CreateICmpNE(index, size),
-        loopBB,
-        endloopBB);
-
-    builder.SetInsertPoint(loopBB);
-
-    // codegenConsumer(*(rows + index))
-    codegenConsumer(builder, builder.CreateLoad(builder.CreateGEP(rows, index)));
-
-    // *indexPtr = index + 1;
-    builder.CreateStore(
-        builder.CreateAdd(
-            index,
-            ConstantInt::get(Type::getInt32Ty(context), 1)),
-        indexPtr);
-    builder.CreateBr(condBB);
-
-    builder.SetInsertPoint(endloopBB);
-}
-
-void CodegenSetRowValue(
-    TIRBuilder& builder,
-    Value* row,
-    int index,
-    ui16 id,
-    EValueType type,
-    Value* data)
-{
-    auto& context = builder.getContext();
-
-    Value* idPtr = CodegenIdPtrFromRow(builder, row, index);
-    Value* typePtr = CodegenTypePtrFromRow(builder, row, index);
-    Value* dataPtr = CodegenDataPtrFromRow(builder, row, index, type);
-
-    builder.CreateStore(
-        ConstantInt::get(Type::getInt16Ty(context), id),
-        idPtr);
-    builder.CreateStore(
-        ConstantInt::get(Type::getInt16Ty(context), type),
-        typePtr);
-    builder.CreateStore(
-        data,
-        dataPtr);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCodegenedFunction TCodegenControllerImpl::CodegenEvaluate(
-    const TOperator* op,
-    const TCGImmediates& fragmentParams)
-{
-    YASSERT(op);
-    LOG_DEBUG("Generating evaluation code  (Op: %p)", op);
-
-    // See TCodegenedFunction.
-    Function* function = Function::Create(
-        TypeBuilder<void(TRow, TPassedFragmentParams*, void*, void*), false>::get(Context_),
-        Function::ExternalLinkage,
-        "Evaluate",
-        Module_);
-
-    Function::arg_iterator args = function->arg_begin();
-    Value* constants = args;
-    constants->setName("constants");
-    Value* passedFragmentParamsPtr = ++args;
-    passedFragmentParamsPtr->setName("passedFragmentParamsPtr");
-    Value* batch = ++args;
-    batch->setName("batch");
-    Value* writer = ++args;
-    writer->setName("writer");
-    YCHECK(++args == function->arg_end());
-
-    TIRBuilder builder(BasicBlock::Create(Context_, "entry", function));
-
-    TCGContext ctx(fragmentParams, constants, passedFragmentParamsPtr);
-
-    CodegenOp(builder, ctx, op,
-        [&] (TIRBuilder& innerBuilder, Value* row) {
-            Value* batchRef = innerBuilder.ViaClosure(batch);
-            Value* writerRef = innerBuilder.ViaClosure(writer);
-            innerBuilder.CreateCall3(
-                GetRoutine(&NRoutines::WriteRow, "WriteRow"),
-                row,
-                batchRef,
-                writerRef);
-    });
-
-    builder.CreateRetVoid();
-    verifyFunction(*function);
-
-    FunctionPassManager_->run(*function);
-    ModulePassManager_->run(*Module_);
-
-    //Module_->dump();
-
-    TCodegenedFunction codegenedFunction = reinterpret_cast<TCodegenedFunction>(
-        ExecutionEngine_->getPointerToFunction(function));
-
-    LOG_DEBUG("Done generating evaluation code (Op: %p)", op);
-
-    return codegenedFunction;
-}
-
-void TCodegenControllerImpl::CodegenOp(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TOperator* op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    switch (op->GetKind()) {
-        case EOperatorKind::Scan:
-            return CodegenScanOp(builder, ctx, op->As<TScanOperator>(), codegenConsumer);
-        case EOperatorKind::Union:
-            return CodegenUnionOp(builder, ctx, op->As<TUnionOperator>(), codegenConsumer);
-        case EOperatorKind::Filter:
-            return CodegenFilterOp(builder, ctx, op->As<TFilterOperator>(), codegenConsumer);
-        case EOperatorKind::Project:
-            return CodegenProjectOp(builder, ctx, op->As<TProjectOperator>(), codegenConsumer);
-        case EOperatorKind::Group:
-            return CodegenGroupOp(builder, ctx, op->As<TGroupOperator>(), codegenConsumer);
-    }
-    YUNREACHABLE();
-}
-
-void TCodegenControllerImpl::CodegenScanOp(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TScanOperator* op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    // See ScanOpHelper.
-    Function* function = Function::Create(
-        TypeBuilder<void(void**, TRow*, int), false>::get(Context_),
-        Function::ExternalLinkage,
-        "ScanOpInner",
-        Module_);
-
-    Function::arg_iterator args = function->arg_begin();
-    Value* closure = args;
-    Value* rows = ++args;
-    Value* size = ++args;
-    YCHECK(++args == function->arg_end());
-
-    TIRBuilder innerBuilder(
-        BasicBlock::Create(Context_, "entry", function),
-        &builder,
-        closure);
-
-    CodegenForEachRow(innerBuilder, rows, size, codegenConsumer);
-
-    innerBuilder.CreateRetVoid();
-
-    Value* passedFragmentParamsPtr = ctx.GetPassedFragmentParamsPtr(builder);
-
-    auto it = ctx.Params.ScanOpToDataSplits.find(op);
-    YCHECK(it != ctx.Params.ScanOpToDataSplits.end());
-    int dataSplitsIndex = it->Second();
-
-    builder.CreateCall4(
-        GetRoutine(&NRoutines::ScanOpHelper, "ScanOpHelper"),
-        passedFragmentParamsPtr,
-        ConstantInt::get(Type::getInt32Ty(Context_), dataSplitsIndex, true),
-        innerBuilder.GetClosure(),
-        function);
-}
-
-void TCodegenControllerImpl::CodegenUnionOp(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TUnionOperator* op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    for (const auto& sourceOp : op->Sources()) {
-        CodegenOp(builder, ctx, sourceOp, codegenConsumer);
-    }
-}
-
-void TCodegenControllerImpl::CodegenFilterOp(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TFilterOperator* op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    auto sourceTableSchema = op->GetTableSchema();
-
-    CodegenOp(builder, ctx, op->GetSource(),
-        [&] (TIRBuilder& innerBuilder, Value* row) {
-            Value* result;
-            result = CodegenExpr(innerBuilder, ctx, op->GetPredicate(), sourceTableSchema, row);
-            result = innerBuilder.CreateZExtOrBitCast(result, TypeBuilder<i64, false>::get(Context_));
-
-            Function* function = innerBuilder.GetInsertBlock()->getParent();
-
-            BasicBlock* ifBB = BasicBlock::Create(Context_, "if", function);
-            BasicBlock* endIfBB = BasicBlock::Create(Context_, "endif", function);
-
-            innerBuilder.CreateCondBr(
-                innerBuilder.CreateICmpNE(
-                    result,
-                    ConstantInt::get(Type::getInt64Ty(Context_), 0, true)),
-                ifBB,
-                endIfBB);
-
-            innerBuilder.SetInsertPoint(ifBB);
-            codegenConsumer(innerBuilder, row);
-            innerBuilder.CreateBr(endIfBB);
-
-            innerBuilder.SetInsertPoint(endIfBB);
-    });
-}
-
-void TCodegenControllerImpl::CodegenProjectOp(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TProjectOperator* op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    // See ProjectOpHelper.
-    Function* function = Function::Create(
-        TypeBuilder<void(void**, TRow), false>::get(Context_),
-        Function::ExternalLinkage,
-        "ProjectOpInner",
-        Module_);
-
-    Function::arg_iterator args = function->arg_begin();
-    Value* closure = args;
-    Value* newRow = ++args;
-    YCHECK(++args == function->arg_end());
-
-    TIRBuilder innerBuilder(
-        BasicBlock::Create(Context_, "entry", function),
-        &builder,
-        closure);
-
-    int projectionCount = op->GetProjectionCount();
-
-    auto sourceTableSchema = op->GetSource()->GetTableSchema();
-    auto nameTable = op->GetNameTable();
-
-    CodegenOp(innerBuilder, ctx, op->GetSource(),
-        [&, newRow] (TIRBuilder& innerBuilder, Value* row) {
-            Value* newRowRef = innerBuilder.ViaClosure(newRow);
-
-            for (int index = 0; index < projectionCount; ++index) {
-                const auto& expr = op->GetProjection(index).Expression;
-                const auto& name = op->GetProjection(index).Name;
-                auto id = nameTable->GetId(name);
-                auto type = expr->GetType(sourceTableSchema);
-
-                Value* data = CodegenExpr(innerBuilder, ctx, expr, sourceTableSchema, row);
-
-                CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data);
-            }
-
-            codegenConsumer(innerBuilder, newRowRef);
-    });
-
-    innerBuilder.CreateRetVoid();
-
-    builder.CreateCall3(
-        GetRoutine(&NRoutines::ProjectOpHelper, "ProjectOpHelper"),
-        ConstantInt::get(Type::getInt32Ty(Context_), projectionCount, true),
-        innerBuilder.GetClosure(),
-        function);
-}
-
-void TCodegenControllerImpl::CodegenGroupOp(
-    TIRBuilder& builder,
-    const TCGContext& ctx,
-    const TGroupOperator* op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    // See GroupOpHelper.
-    Function* function = Function::Create(
-        TypeBuilder<void(void**, void*, void*, void*, TRow*), false>::get(Context_),
-        Function::ExternalLinkage,
-        "GroupOpInner",
-        Module_);
-
-    Function::arg_iterator args = function->arg_begin();
-    Value* closure = args;
-    Value* memoryPool = ++args;
-    Value* groupedRows = ++args;
-    Value* rows = ++args;
-    Value* newRowPtr = ++args;
-    YCHECK(++args == function->arg_end());
-
-    TIRBuilder innerBuilder(
-        BasicBlock::Create(Context_, "entry", function),
-        &builder,
-        closure);
-
-    int keySize = op->GetGroupItemCount();
-    int aggregateItemCount = op->AggregateItems().size();
-
-    auto sourceTableSchema = op->GetSource()->GetTableSchema();
-    auto nameTable = op->GetNameTable();
-
-    CodegenOp(innerBuilder, ctx, op->GetSource(), [&] (TIRBuilder& innerBuilder, Value* row) {
-        Value* memoryPoolRef = innerBuilder.ViaClosure(memoryPool);
-        Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
-        Value* rowsRef = innerBuilder.ViaClosure(rows);
-        Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
-
-        Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
-
-        for (int index = 0; index < keySize; ++index) {
-            const auto& expr = op->GetGroupItem(index).Expression;
-            const auto& name = op->GetGroupItem(index).Name;
-            auto id = nameTable->GetId(name);
-            auto type = expr->GetType(sourceTableSchema);
-
-            // TODO(sandello): Others are unsupported.
-            YCHECK(type == EValueType::Integer);
-
-            Value* data = CodegenExpr(innerBuilder, ctx, expr, sourceTableSchema, row);
-
-            CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data);
-        }
-
-        for (int index = 0; index < aggregateItemCount; ++index) {
-            const auto& expr = op->GetAggregateItem(index).Expression;
-            const auto& name = op->GetAggregateItem(index).Name;
-            auto id = nameTable->GetId(name);
-            auto type = expr->GetType(sourceTableSchema);
-
-            // TODO(sandello): Others are unsupported.
-            YCHECK(type == EValueType::Integer);
-
-            Value* data = CodegenExpr(innerBuilder, ctx, expr, sourceTableSchema, row);
-
-            CodegenSetRowValue(innerBuilder, newRowRef, keySize + index, id, type, data);
-        }
-
-        Value* foundRowPtr = innerBuilder.CreateCall2(
-            GetRoutine(&NRoutines::FindRow, "FindRow"),
-            rowsRef,
-            newRowRef);
-
-        Function* function = innerBuilder.GetInsertBlock()->getParent();
-
-        BasicBlock* ifBB = BasicBlock::Create(Context_, "if", function);
-        BasicBlock* elseBB = BasicBlock::Create(Context_, "else", function);
-        BasicBlock* endIfBB = BasicBlock::Create(Context_, "endif", function);
-
-        innerBuilder.CreateCondBr(
-            innerBuilder.CreateICmpNE(
-                foundRowPtr,
-                llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo())),
-            ifBB,
-            elseBB);
-
-        innerBuilder.SetInsertPoint(ifBB);
-        Value* foundRow = innerBuilder.CreateLoad(foundRowPtr);
-        for (int index = 0; index < aggregateItemCount; ++index) {
-            const auto& item = op->AggregateItems()[index];
-
-            auto type = item.Expression->GetType(sourceTableSchema);
-            auto fn = item.AggregateFunction;
-
-            Value* aggregateValuePtr = CodegenDataPtrFromRow(innerBuilder, foundRow, keySize + index, type);
-            Value* newValuePtr = CodegenDataPtrFromRow(innerBuilder, newRowRef, keySize + index, type);
-            Value* newValue = innerBuilder.CreateLoad(newValuePtr);
-
-            CodegenAggregateFunction(innerBuilder, fn, aggregateValuePtr, newValue);
-        }
-        innerBuilder.CreateBr(endIfBB);
-
-        innerBuilder.SetInsertPoint(elseBB);
-        innerBuilder.CreateCall5(
-            GetRoutine(&NRoutines::AddRow, "AddRow"),
-            memoryPoolRef,
-            rowsRef,
-            groupedRowsRef,
-            newRowPtrRef,
-            ConstantInt::get(Type::getInt32Ty(Context_), keySize + aggregateItemCount, true));
-        innerBuilder.CreateBr(endIfBB);
-
-        innerBuilder.SetInsertPoint(endIfBB);
-    });
-
-    CodegenForEachRow(
-        innerBuilder,
-        innerBuilder.CreateCall(GetRoutine(&NRoutines::GetRowsData, "GetRowsData"), groupedRows),
-        innerBuilder.CreateCall(GetRoutine(&NRoutines::GetRowsSize, "GetRowsSize"), groupedRows),
-        codegenConsumer);
-
-    innerBuilder.CreateRetVoid();
-
-    builder.CreateCall4(
-        GetRoutine(&NRoutines::GroupOpHelper, "GroupOpHelper"),
-        ConstantInt::get(Type::getInt32Ty(Context_), keySize, true),
-        ConstantInt::get(Type::getInt32Ty(Context_), aggregateItemCount, true),
-        innerBuilder.GetClosure(),
-        function);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 TError TCodegenControllerImpl::EvaluateViaCache(
     IEvaluateCallbacks* callbacks,
@@ -1726,9 +1740,13 @@ TError TCodegenControllerImpl::EvaluateViaCache(
             if (codegenedFragment->CodegenedFunction_) {
                 return;
             }
-            codegenedFragment->CodegenedFunction_ = CodegenEvaluate(
-                fragment.GetHead(),
-                fragmentParams);
+
+            codegenedFragment->CodegenedFunction_ = TCGContext::CodegenEvaluate(
+                codegenedFragment->Context_, 
+                codegenedFragment->Module_, 
+                codegenedFragment->ExecutionEngine_, 
+                fragmentParams,
+                fragment.GetHead());
         })
         .AsyncVia(CodegenInvoker_)
         .Run();
@@ -1798,14 +1816,23 @@ TError TCodegenControllerImpl::EvaluateViaCache(
     return TError();
 }
 
+TCodegenControllerImpl::~TCodegenControllerImpl()
+{ }
+
+TError TCodegenControllerImpl::Run(
+    IEvaluateCallbacks* callbacks,
+    const TPlanFragment& fragment,
+    ISchemedWriterPtr writer)
+{
+    // TODO(sandello): This won't work. Fix me!
+    Logger.AddTag(Sprintf(
+        "FragmendId: %s",
+        ~ToString(fragment.Id())));
+
+    return EvaluateViaCache(callbacks, fragment, std::move(writer));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NQueryClient
-} // namespace NYT
-
-/// TCodegenController
-namespace NYT {
-namespace NQueryClient {
 
 TCodegenController::TCodegenController(IInvokerPtr invoker)
     : Impl(std::make_unique<TCodegenControllerImpl>(invoker))
