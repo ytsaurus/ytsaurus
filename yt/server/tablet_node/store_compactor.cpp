@@ -213,7 +213,7 @@ private:
 
                 auto currentWriterProvider = New<TVersionedChunkWriterProvider>(
                     Config_->Writer,
-                    New<TChunkWriterOptions>(), // TODO(babenko): make configurable
+                    tablet->GetWriterOptions(),
                     tablet->Schema(),
                     tablet->KeyColumns());
 
