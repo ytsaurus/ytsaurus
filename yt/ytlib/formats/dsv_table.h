@@ -21,7 +21,6 @@ struct TDsvTable
         stopSymbols.push_back(config->FieldSeparator);
         stopSymbols.push_back(config->EscapingSymbol);
         stopSymbols.push_back('\0');
-        stopSymbols.push_back('\r');
 
         std::vector<char> valueStopSymbols(stopSymbols);
         ValueStops.Fill(
