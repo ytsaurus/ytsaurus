@@ -27,6 +27,8 @@
 
 #include <util/random/shuffle.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -391,7 +393,7 @@ protected:
         }
 
         auto backoffTime = reader->Config->MinPassBackoffTime *
-            pow(reader->Config->PassBackoffTimeMultiplier, PassIndex - 1);
+            std::pow(reader->Config->PassBackoffTimeMultiplier, PassIndex - 1);
 
         backoffTime = std::min(backoffTime, reader->Config->MaxPassBackoffTime);
 
