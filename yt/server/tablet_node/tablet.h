@@ -24,6 +24,8 @@ class TTablet
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletWriterOptionsPtr, WriterOptions);
+
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
     
@@ -42,6 +44,7 @@ public:
     explicit TTablet(const TTabletId& id);
     TTablet(
         NTabletClient::TTableMountConfigPtr config,
+        TTabletWriterOptionsPtr writerOptions,
         const TTabletId& id,
         TTabletSlot* slot,
         const NVersionedTableClient::TTableSchema& schema,

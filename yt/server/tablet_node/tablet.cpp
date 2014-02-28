@@ -36,6 +36,7 @@ TTablet::TTablet(const TTabletId& id)
 
 TTablet::TTablet(
     TTableMountConfigPtr config,
+    TTabletWriterOptionsPtr writerOptions,
     const TTabletId& id,
     TTabletSlot* slot,
     const TTableSchema& schema,
@@ -43,6 +44,7 @@ TTablet::TTablet(
     TOwningKey pivotKey,
     TOwningKey nextPivotKey)
     : Config_(config)
+    , WriterOptions_(writerOptions)
     , Id_(id)
     , Slot_(slot)
     , Schema_(schema)
@@ -66,6 +68,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, NextPivotKey_);
     Save(context, State_);
     Save(context, *Config_);
+    Save(context, *WriterOptions_);
 
     auto saveStore = [&] (IStorePtr store) {
         Save(context, store->GetId());
@@ -99,6 +102,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, NextPivotKey_);
     Load(context, State_);
     Load(context, *Config_);
+    Load(context, *WriterOptions_);
 
     auto loadStore = [&] () -> IStorePtr {
         auto storeId = Load<TStoreId>(context);

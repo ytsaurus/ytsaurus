@@ -21,6 +21,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
+#include <ytlib/chunk_client/config.h>
+
 #include <server/object_server/type_handler_detail.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -388,16 +390,26 @@ public:
             }
         }
 
-        // Parse and prepare mount config.
         auto tableProxy = objectManager->GetProxy(table);
+        const auto& tableAttributes = tableProxy->Attributes();
+
+        // Parse and prepare mount config.
         TTableMountConfigPtr mountConfig;
         try {
-            mountConfig = ConvertTo<TTableMountConfigPtr>(tableProxy->Attributes());
+            mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
         }
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
+
+        // Prepare tablet writer options.
+        auto writerOptions = New<NTabletNode::TTabletWriterOptions>();
+        writerOptions->ReplicationFactor = table->GetReplicationFactor();
+        writerOptions->Account = table->GetAccount()->GetName();
+        writerOptions->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
+        writerOptions->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
         // When mounting a table with no tablets, create the tablet automatically.
         if (table->Tablets().empty()) {
@@ -447,6 +459,7 @@ public:
             ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
             ToProto(req.mutable_next_pivot_key(), nextTablet ? nextTablet->GetPivotKey() : MaxKey());
             req.set_mount_config(serializedMountConfig.Data());
+            req.set_writer_options(serializedWriterOptions.Data());
 
             auto* chunkList = chunkLists[index]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);

@@ -11,6 +11,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/chunk_client/public.h>
+
 #include <server/hydra/public.h>
 
 namespace NYT {
@@ -113,6 +115,9 @@ typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
 class TUnversionedRowMerger;
 class TVersionedRowMerger;
+
+typedef NChunkClient::TMultiChunkWriterOptions TTabletWriterOptions;
+typedef NChunkClient::TMultiChunkWriterOptionsPtr TTabletWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

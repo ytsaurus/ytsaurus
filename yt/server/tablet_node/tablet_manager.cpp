@@ -416,9 +416,11 @@ private:
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
         auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
         auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
+        auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
 
         auto* tablet = new TTablet(
             mountConfig,
+            writerOptions,
             tabletId,
             Slot_,
             schema,

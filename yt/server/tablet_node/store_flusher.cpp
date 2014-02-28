@@ -187,13 +187,9 @@ private:
                 tablet->Schema(),
                 tablet->KeyColumns());
 
-             // TODO(babenko): make configurable
-            auto multiChunkWriterOptions = New<TMultiChunkWriterOptions>();
-            multiChunkWriterOptions->Account = "tmp";
-
             auto writer = New<TVersionedMultiChunkWriter>(
                 Config_->Writer,
-                multiChunkWriterOptions,
+                tablet->GetWriterOptions(),
                 writerProvider,
                 Bootstrap_->GetMasterChannel(),
                 transaction->GetId());

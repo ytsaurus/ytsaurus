@@ -68,6 +68,7 @@ protected:
 
         Tablet.reset(new TTablet(
             New<TTableMountConfig>(),
+            New<TTabletWriterOptions>(),
             NullTabletId,
             nullptr,
             schema,
