@@ -141,7 +141,7 @@ static const int MaxRowsPerWrite = 512;
 } // namespace NQueryClient
 } // namespace NYT
 
-// LLVM helpres
+// LLVM helpers
 namespace llvm {
 
 ////////////////////////////////////////////////////////////////////////////////
