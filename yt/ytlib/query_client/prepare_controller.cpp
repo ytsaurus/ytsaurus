@@ -169,7 +169,7 @@ void TPrepareController::CheckAndPruneReferences()
                 YCHECK(scanOp->DataSplits().size() == 1);
 
                 auto schema = GetTableSchemaFromDataSplit(scanOp->DataSplits()[0]);
-                auto columns = schema.Columns();
+                auto& columns = schema.Columns();
 
                 columns.erase(
                     std::remove_if(
