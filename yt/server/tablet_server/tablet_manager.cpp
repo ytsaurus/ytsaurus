@@ -972,8 +972,8 @@ private:
 
             cell->AssignPeer(node, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
-
             node->ScheduleTabletCellStart(cell);
+            ReconfigureCell(cell);
         }
     }
 
