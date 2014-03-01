@@ -256,7 +256,7 @@ void TLocation::DoDisable()
 std::vector<TChunkDescriptor> TLocation::Initialize()
 {
     try {
-        auto descriptors = DoInitialize();        
+        auto descriptors = DoInitialize();
         Enabled.store(true);
         return descriptors;
     } catch (const std::exception& ex) {
@@ -270,6 +270,11 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 {
     auto path = GetPath();
 
+    LOG_INFO("Scanning storage location");
+
+    // Others must not be able to list chunk store and chunk cache dirs.
+    NFS::ForcePath(path, Permissions);
+
     if (Config->MinDiskSpace) {
         i64 minSpace = Config->MinDiskSpace.Get();
         i64 totalSpace = GetTotalSpace();
@@ -280,10 +285,6 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         }
     }
 
-    LOG_INFO("Scanning storage location");
-
-    // Others must not be able to list chunk store and chunk cache dirs.
-    NFS::ForcePath(path, Permissions);
     NFS::CleanTempFiles(path);
 
     yhash_set<Stroka> recognizedFileNames;
