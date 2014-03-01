@@ -604,7 +604,7 @@ private:
         FunctionPassManager_->run(*function);
         ModulePassManager_->run(*Module_);
 
-        //Module_->dump();
+        Module_->dump();
 
         void* result = ExecutionEngine_->getPointerToFunction(function);
 
@@ -845,9 +845,9 @@ Value* CodegenRowValuesArray(TIRBuilder& builder, Value* row)
         TypeBuilder<TRow, false>::Fields::Header,
         "headerPtr");
     Value* valuesPtr = builder.CreatePointerCast(
-        builder.CreateConstGEP1_32(headerPtr, 1),
+        builder.CreateConstGEP1_32(headerPtr, 1, "valuesPtr"),
         TypeBuilder<TValue*, false>::get(builder.getContext()),
-        "valuesPtr");
+        "valuesPtrCasted");
     return valuesPtr;
 }
 
@@ -880,7 +880,7 @@ Value* CodegenDataPtrFromRow(TIRBuilder& builder, Value* row, int index, EValueT
     dataPtr = builder.CreatePointerCast(
         dataPtr,
         TUnionType::getAs(field, builder.getContext()),
-        "dataPtr");
+        "dataPtrCasted");
 
     return dataPtr;
 }
@@ -953,8 +953,7 @@ void CodegenForEachRow(
     Function* function = builder.GetInsertBlock()->getParent();
 
     Value* indexPtr = builder.CreateAlloca(
-        TypeBuilder<i32, false>::get(context),
-        ConstantInt::get(Type::getInt32Ty(context), 1, true));
+        TypeBuilder<i32, false>::get(context), nullptr, "indexPtr");
 
     builder.CreateStore(
         ConstantInt::get(Type::getInt32Ty(context), 0, true),
@@ -969,7 +968,7 @@ void CodegenForEachRow(
     builder.SetInsertPoint(condBB);
 
     // index = *indexPtr
-    Value* index = builder.CreateLoad(indexPtr);
+    Value* index = builder.CreateLoad(indexPtr, "index");
     // if (index != size) ...
     builder.CreateCondBr(
         builder.CreateICmpNE(index, size),
@@ -979,7 +978,7 @@ void CodegenForEachRow(
     builder.SetInsertPoint(loopBB);
 
     // codegenConsumer(*(rows + index))
-    codegenConsumer(builder, builder.CreateLoad(builder.CreateGEP(rows, index)));
+    codegenConsumer(builder, builder.CreateLoad(builder.CreateGEP(rows, index, "rowPtr"), "rowValue"));
 
     // *indexPtr = index + 1;
     builder.CreateStore(
@@ -1115,7 +1114,7 @@ Value* TCGContext::CodegenExpr(
                     builder,
                     GetConstantsRows(builder),
                     index,
-                    expr->GetType(tableSchema)));
+                    expr->GetType(tableSchema)), "literal");
         }
         case EExpressionKind::Reference: {
             int index = tableSchema.GetColumnIndexOrThrow(expr->As<TReferenceExpression>()->GetName());
@@ -1124,7 +1123,7 @@ Value* TCGContext::CodegenExpr(
                     builder,
                     row,
                     index,
-                    expr->GetType(tableSchema)));
+                    expr->GetType(tableSchema)), "reference");
         }
         case EExpressionKind::Function:
             return CodegenFunctionExpr(
@@ -1264,7 +1263,7 @@ void TCGContext::CodegenProjectOp(
 
     CodegenOp(innerBuilder, op->GetSource(),
         [&, newRow] (TIRBuilder& innerBuilder, Value* row) {
-            Value* newRowRef = innerBuilder.ViaClosure(newRow);
+            Value* newRowRef = innerBuilder.ViaClosure(newRow, "newRowRef");
 
             for (int index = 0; index < projectionCount; ++index) {
                 const auto& expr = op->GetProjection(index).Expression;
@@ -1452,8 +1451,8 @@ TCodegenedFunction TCGContext::CodegenEvaluate(
 
     ctx.CodegenOp(builder, op,
         [&] (TIRBuilder& innerBuilder, Value* row) {
-            Value* batchRef = innerBuilder.ViaClosure(batch);
-            Value* writerRef = innerBuilder.ViaClosure(writer);
+            Value* batchRef = innerBuilder.ViaClosure(batch, "batchRef");
+            Value* writerRef = innerBuilder.ViaClosure(writer, "writerRef");
             innerBuilder.CreateCall3(
                 ctx.GetRoutine(&NRoutines::WriteRow, "WriteRow"),
                 row,
