@@ -806,10 +806,11 @@ private:
                 continue;
             }
 
-            if (node->TabletCellCreateQueue().erase(cell) == 1) {
+            if (node->IsTabletCellStartScheduled(cell)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet slot created (Address: %s, CellId: %s)",
                     ~node->GetAddress(),
                     ~ToString(cellId));
+                node->CancelTabletCellStart(cell);
             }
 
             auto peerId = cell->FindPeerId(node->GetAddress());
@@ -866,9 +867,7 @@ private:
 
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
-            if (actualCells.find(cell) == actualCells.end() &&
-                node->TabletCellCreateQueue().find(cell) == node->TabletCellCreateQueue().end())
-            {
+            if (actualCells.find(cell) == actualCells.end() && !node->IsTabletCellStartScheduled(cell)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet peer offline: slot is missing (CellId: %s, Address: %s)",
                     ~ToString(cell->GetId()),
                     ~node->GetAddress());
@@ -963,7 +962,7 @@ private:
             if (cell->Peers()[peerId].Address)
                 continue;
 
-            if (node->TabletCellCreateQueue().find(cell) != node->TabletCellCreateQueue().end())
+            if (node->IsTabletCellStartScheduled(cell))
                 continue;
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation scheduled (CellId: %s, Address: %s, PeerId: %d)",
@@ -973,8 +972,8 @@ private:
 
             cell->AssignPeer(node, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
-            YCHECK(node->TabletCellCreateQueue().insert(cell).second);
-            ReconfigureCell(cell);
+
+            node->ScheduleTabletCellStart(cell);
         }
     }
 
@@ -1020,7 +1019,7 @@ private:
         auto nodeTracker = Bootstrap->GetNodeTracker();
         auto* node = nodeTracker->FindNodeByAddress(*peer.Address);
         if (node) {
-            node->DetachTabletCell(cell);
+            node->CancelTabletCellStart(cell);
         }
    
         cell->RevokePeer(peerId);

@@ -226,6 +226,22 @@ TNode::TTabletSlot* TNode::GetTabletSlot(TTabletCell* cell)
     return slot;
 }
 
+bool TNode::IsTabletCellStartScheduled(TTabletCell* cell) const
+{
+    return TabletCellCreateQueue_.find(cell) != TabletCellCreateQueue_.end();
+}
+
+void TNode::ScheduleTabletCellStart(TTabletCell* cell)
+{
+    YCHECK(TabletCellCreateQueue_.insert(cell).second);
+}
+
+void TNode::CancelTabletCellStart(TTabletCell* cell)
+{
+    // NB: Need not be there.
+    TabletCellCreateQueue_.erase(cell);
+}
+
 void TNode::DetachTabletCell(TTabletCell* cell)
 {
     TabletCellCreateQueue_.erase(cell);

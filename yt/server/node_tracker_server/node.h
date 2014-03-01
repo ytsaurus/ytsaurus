@@ -93,7 +93,7 @@ class TNode
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
     typedef yhash_set<NTabletServer::TTabletCell*> TTabletCellSet;
-    DEFINE_BYREF_RW_PROPERTY(TTabletCellSet, TabletCellCreateQueue);
+    DEFINE_BYREF_RO_PROPERTY(TTabletCellSet, TabletCellCreateQueue);
 
 public:
     TNode(
@@ -134,6 +134,9 @@ public:
     TTabletSlot* FindTabletSlot(NTabletServer::TTabletCell* cell);
     TTabletSlot* GetTabletSlot(NTabletServer::TTabletCell* cell);
 
+    bool IsTabletCellStartScheduled(NTabletServer::TTabletCell* cell) const;
+    void ScheduleTabletCellStart(NTabletServer::TTabletCell* cell);
+    void CancelTabletCellStart(NTabletServer::TTabletCell* cell);
     void DetachTabletCell(NTabletServer::TTabletCell* cell);
 
     static TAtomic GenerateVisitMark();
