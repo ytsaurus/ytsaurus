@@ -163,7 +163,7 @@ def wait_final_state(operation, timeout, print_info, action=lambda: None):
 def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda state: None):
     """ Wait operation and abort operation in case of keyboard interrupt """
     if timeout is None:
-        timeout = Timeout(config.OPERATION_GET_STATE_BACKOFF / 5.0, config.OPERATION_GET_STATE_BACKOFF, 0.1)
+        timeout = Timeout(config.OPERATION_STATE_UPDATE_PERIOD / 5.0, config.OPERATION_STATE_UPDATE_PERIOD, 0.1)
     print_info = PrintOperationInfo(operation) if print_progress else lambda state: None
 
     def wait():
