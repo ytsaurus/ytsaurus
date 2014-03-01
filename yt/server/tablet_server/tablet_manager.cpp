@@ -1016,6 +1016,7 @@ private:
             ~*peer.Address,
             peerId);
 
+        // Remove cell from the start queue.
         auto nodeTracker = Bootstrap->GetNodeTracker();
         auto* node = nodeTracker->FindNodeByAddress(*peer.Address);
         if (node) {
