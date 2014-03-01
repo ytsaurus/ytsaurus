@@ -5,7 +5,7 @@ import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartSlots
+message TReqAssignPeers
 {
     required NYT.NProto.TGuid cell_id = 1;
     repeated int32 node_ids = 2;

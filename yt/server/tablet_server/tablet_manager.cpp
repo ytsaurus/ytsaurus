@@ -184,7 +184,7 @@ public:
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, MakeStrong(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraStartSlots, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetCellState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeer, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
@@ -202,34 +202,6 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->RegisterHandler(New<TTabletCellTypeHandler>(this));
         objectManager->RegisterHandler(New<TTabletTypeHandler>(this));
-    }
-
-
-    TMutationPtr CreateStartSlotsMutation(const TReqStartSlots& request)
-    {
-        return CreateMutation(
-            Bootstrap->GetMetaStateFacade()->GetManager(),
-            request,
-            this,
-            &TImpl::HydraStartSlots);
-    }
-
-    TMutationPtr CreateSetCellStateMutation(const TReqSetCellState& request)
-    {
-        return CreateMutation(
-            Bootstrap->GetMetaStateFacade()->GetManager(),
-            request,
-            this,
-            &TImpl::HydraSetCellState);
-    }
-
-    TMutationPtr CreateRevokePeerMutation(const TReqRevokePeer& request)
-    {
-        return CreateMutation(
-            Bootstrap->GetMetaStateFacade()->GetManager(),
-            request,
-            this,
-            &TImpl::HydraRevokePeer);
     }
 
 
@@ -964,7 +936,7 @@ private:
     }
 
 
-    void HydraStartSlots(const TReqStartSlots& request)
+    void HydraAssignPeers(const TReqStartSlots& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1418,21 +1390,6 @@ TTabletManager::~TTabletManager()
 void TTabletManager::Initialize()
 {
     return Impl_->Initialize();
-}
-
-TMutationPtr TTabletManager::CreateStartSlotsMutation(const TReqStartSlots& request)
-{
-    return Impl_->CreateStartSlotsMutation(request);
-}
-
-TMutationPtr TTabletManager::CreateSetCellStateMutation(const TReqSetCellState& request)
-{
-    return Impl_->CreateSetCellStateMutation(request);
-}
-
-TMutationPtr TTabletManager::CreateRevokePeerMutation(const TReqRevokePeer& request)
-{
-    return Impl_->CreateRevokePeerMutation(request);
 }
 
 TTableSchema TTabletManager::GetTableSchema(TTableNode* table)

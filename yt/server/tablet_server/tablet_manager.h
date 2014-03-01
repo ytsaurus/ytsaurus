@@ -31,15 +31,6 @@ public:
 
     void Initialize();
 
-    NHydra::TMutationPtr CreateStartSlotsMutation(
-        const NProto::TReqStartSlots& request);
-
-    NHydra::TMutationPtr CreateSetCellStateMutation(
-        const NProto::TReqSetCellState& request);
-
-    NHydra::TMutationPtr CreateRevokePeerMutation(
-        const NProto::TReqRevokePeer& request);
-
     NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
 
     void MountTable(

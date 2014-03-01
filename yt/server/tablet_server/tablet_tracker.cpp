@@ -128,15 +128,14 @@ void TTabletTracker::ScheduleStateChange(TTabletCell* cell)
     ToProto(request.mutable_cell_id(), cell->GetId());
     request.set_state(ETabletCellState::Running);
 
-    Bootstrap
-        ->GetTabletManager()
-        ->CreateSetCellStateMutation(request)
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    CreateMutation(hydraManager, request)
         ->Commit();
 }
 
 void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
 {   
-    TReqStartSlots request;
+    TReqAssignPeers request;
     ToProto(request.mutable_cell_id(), cell->GetId());
 
     const auto& peers = cell->Peers();
@@ -166,9 +165,8 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
     }
 
     if (assigned) {
-        Bootstrap
-            ->GetTabletManager()
-            ->CreateStartSlotsMutation(request)
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        CreateMutation(hydraManager, request)
             ->Commit();
     }
 }
@@ -188,9 +186,8 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
             ToProto(request.mutable_cell_id(), cellId);
             request.set_peer_id(peerId);
 
-            Bootstrap
-                ->GetTabletManager()
-                ->CreateRevokePeerMutation(request)
+            auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+            CreateMutation(hydraManager, request)
                 ->Commit();
         }
     }
