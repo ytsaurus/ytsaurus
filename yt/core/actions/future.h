@@ -19,7 +19,7 @@ namespace NYT {
 
 #define RETURN_FUTURE_IF_ERROR(valueOrError, type) \
     if (!(valueOrError).IsOK()) { \
-        return MakeFuture<type>(TError(valueOrError)); \
+        return MakeFuture< type >(TError(valueOrError)); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,14 +49,14 @@ TPromise<void> NewPromise();
 
 //! Constructs a pre-set future.
 template <class T>
-TFuture<typename NMpl::TDecay<T>::TType> MakeFuture(T&& value);
+TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value);
 
 //! Constructs a pre-set void future.
 TFuture<void> MakeFuture();
 
 //! Constructs a pre-set promise.
 template <class T>
-TPromise<typename NMpl::TDecay<T>::TType> MakePromise(T&& value);
+TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value);
 
 //! Constructs a pre-set void promise.
 TPromise<void> MakePromise();
@@ -98,7 +98,7 @@ public:
     //! Move constructor.
     TFuture(TFuture&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<T>> TFuture::* TUnspecifiedBoolType;
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<T> > TFuture::* TUnspecifiedBoolType;
     //! Checks if the future is associated with a state.
     operator TUnspecifiedBoolType() const;
 
@@ -186,16 +186,16 @@ public:
     TFuture<void> IgnoreResult();
 
 private:
-    explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
-    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
+    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
+    explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
 
-    TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
 
 private:
     friend class TPromise<T>;
 
     template <class U>
-    friend TFuture<typename NMpl::TDecay<U>::TType> MakeFuture(U&& value);
+    friend TFuture< typename NMpl::TDecay<U>::TType > MakeFuture(U&& value);
 
     template <class U>
     friend bool operator==(const TFuture<U>& lhs, const TFuture<U>& rhs);
@@ -225,7 +225,7 @@ public:
     //! Move constructor.
     TFuture(TFuture&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<void>> TFuture::* TUnspecifiedBoolType;
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<void> > TFuture::* TUnspecifiedBoolType;
     //! Checks if the future is associated with a state.
     operator TUnspecifiedBoolType() const;
 
@@ -279,7 +279,7 @@ public:
         TClosure onTimeout);
 
     //! Does exactly same thing as its TPromise counterpart.
-    //! Gives the consumer a chance to handle cancelation.
+    //! Gives the consumder a chance to handle cancelation.
     void OnCanceled(TClosure onCancel);
 
     //! Notifies the producer that the promised value is no longer needed.
@@ -301,10 +301,10 @@ public:
     TFuture<R> Apply(TCallback<TFuture<R>()> mutator);
 
 private:
-    explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);
-    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state);
+    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state);
+    explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state);
 
-    TIntrusivePtr<NYT::NDetail::TPromiseState<void>> Impl_;
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
 
 private:
     friend class TPromise<void>;
@@ -349,7 +349,7 @@ public:
     //! Move constructor.
     TPromise(TPromise&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<T>> TPromise::*TUnspecifiedBoolType;
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<T> > TPromise::*TUnspecifiedBoolType;
     //! Checks if the promise is associated with a state.
     operator TUnspecifiedBoolType() const;
 
@@ -435,10 +435,10 @@ public:
     operator TFuture<T>() const;
 
 private:
-    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
-    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
+    explicit TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
+    explicit TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
 
-    TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
 
 private:
     friend class TFuture<T>;
@@ -447,7 +447,7 @@ private:
     friend TPromise<U> NewPromise();
     friend TPromise<void> NewPromise();
     template <class U>
-    friend TPromise<typename NMpl::TDecay<U>::TType> MakePromise(U&& value);
+    friend TPromise< typename NMpl::TDecay<U>::TType > MakePromise(U&& value);
 
     template <class U>
     friend bool operator==(const TPromise<U>& lhs, const TPromise<U>& rhs);
@@ -479,7 +479,7 @@ public:
     //! Move constructor.
     TPromise(TPromise&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<void>> TPromise::* TUnspecifiedBoolType;
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<void> > TPromise::* TUnspecifiedBoolType;
     //! Checks if the promise is associated with a state.
     operator TUnspecifiedBoolType() const;
 
@@ -560,10 +560,10 @@ public:
     operator TFuture<void>() const;
 
 private:
-    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);
-    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state);
+    explicit TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state);
+    explicit TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state);
 
-    TIntrusivePtr<NYT::NDetail::TPromiseState<void>> Impl_;
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
 
 private:
     friend class TFuture<void>;
@@ -589,6 +589,7 @@ bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs);
 //! #TPromise<> inequality operator.
 template <class T>
 bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -625,7 +626,7 @@ public:
     ~TFutureCancelationGuard();
 
 private:
-    TFuture<T> Future_;
+    TFuture<T> Future;
 
 };
 
