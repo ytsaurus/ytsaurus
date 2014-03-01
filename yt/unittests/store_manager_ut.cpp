@@ -318,6 +318,36 @@ TEST_F(TStoreManagerTest, MigrateRowOnOverwrite)
     CompareRows(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=2"));
 }
 
+TEST_F(TStoreManagerTest, MigrateRowWithRotation)
+{
+    auto store1 = Tablet->GetActiveStore();
+
+    auto transaction = StartTransaction();
+
+    std::vector<TDynamicRow> lockedRows1;
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRows1);
+    EXPECT_EQ(0, transaction->LockedRows().size());
+    EXPECT_EQ(1, lockedRows1.size());
+    TDynamicRowRef rowRef1(store1.Get(), lockedRows1[0]);
+
+    Rotate();
+    auto store2 = Tablet->GetActiveStore();
+
+    std::vector<TDynamicRow> lockedRows2;
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRows2);
+    EXPECT_EQ(0, transaction->LockedRows().size());
+    EXPECT_EQ(1, lockedRows1.size());
+    TDynamicRowRef rowRef2(store2.Get(), lockedRows2[0]);
+
+    StoreManager->ConfirmRow(rowRef1);
+    EXPECT_EQ(0, transaction->LockedRows().size());
+    EXPECT_EQ(TDynamicRow::InvalidLockIndex, rowRef1.Row.GetLockIndex());
+
+    StoreManager->ConfirmRow(rowRef2);
+    EXPECT_EQ(1, transaction->LockedRows().size());
+    EXPECT_EQ(0, rowRef2.Row.GetLockIndex());
+}
+
 TEST_F(TStoreManagerTest, WriteAfterDeleteFailureWithRotation)
 {
     auto transaction = StartTransaction();

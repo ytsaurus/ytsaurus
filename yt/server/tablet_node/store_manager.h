@@ -80,12 +80,17 @@ private:
 
     TDynamicRow MaybeMigrateRow(const TDynamicRowRef& rowRef);
 
-    void CheckLockAndMaybeMigrateRow(
+    TDynamicRow CheckLockAndMaybeMigrateRow(
         TTransaction* transaction,
         NVersionedTableClient::TUnversionedRow key,
         ERowLockMode mode);
 
     void CheckForUnlockedStore(const TDynamicMemoryStorePtr& store);
+    
+    void AddToLockedRows(
+        std::vector<TDynamicRow>* lockedRows,
+        TDynamicRow migratedRow,
+        TDynamicRow updatedRow);
 
 };
 

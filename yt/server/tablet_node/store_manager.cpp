@@ -196,19 +196,17 @@ void TStoreManager::WriteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    CheckLockAndMaybeMigrateRow(
+    auto migratedRow = CheckLockAndMaybeMigrateRow(
         transaction,
         row,
         ERowLockMode::Write);
 
-    auto dynamicRow = Tablet_->GetActiveStore()->WriteRow(
+    auto updatedRow = Tablet_->GetActiveStore()->WriteRow(
         transaction,
         row,
         prewrite);
 
-    if (lockedRows && dynamicRow) {
-        lockedRows->push_back(dynamicRow);
-    }
+    AddToLockedRows(lockedRows, migratedRow, updatedRow);
 }
 
 void TStoreManager::DeleteRow(
@@ -217,23 +215,45 @@ void TStoreManager::DeleteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
-    CheckLockAndMaybeMigrateRow(
+    auto migratedRow = CheckLockAndMaybeMigrateRow(
         transaction,
         key,
         ERowLockMode::Delete);
 
-    auto dynamicRow = Tablet_->GetActiveStore()->DeleteRow(
+    auto updatedRow = Tablet_->GetActiveStore()->DeleteRow(
         transaction,
         key,
         prewrite);
 
-    if (lockedRows && dynamicRow) {
-        lockedRows->push_back(dynamicRow);
+    AddToLockedRows(lockedRows, migratedRow, updatedRow);
+}
+
+void TStoreManager::AddToLockedRows(
+    std::vector<TDynamicRow>* lockedRows,
+    TDynamicRow migratedRow,
+    TDynamicRow updatedRow)
+{
+    if (!lockedRows)
+        return;
+
+    YASSERT(!migratedRow || !updatedRow || migratedRow == updatedRow);
+
+    if (migratedRow) {
+        lockedRows->push_back(migratedRow);
+        return;
+    }
+
+    if (updatedRow) {
+        lockedRows->push_back(updatedRow);
+        return;
     }
 }
 
 void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
 {
+    if (!rowRef.Row.GetTransaction())
+        return; // already migrated
+
     auto row = MaybeMigrateRow(rowRef);
     Tablet_->GetActiveStore()->ConfirmRow(row);
 }
@@ -263,7 +283,7 @@ TDynamicRow TStoreManager::MaybeMigrateRow(const TDynamicRowRef& rowRef)
         return rowRef.Row;
     }
 
-    auto migrateFrom = rowRef.Store;
+    auto* migrateFrom = rowRef.Store;
     const auto& migrateTo = Tablet_->GetActiveStore();
     auto migratedRow = migrateFrom->MigrateRow(rowRef.Row, migrateTo);
 
@@ -272,24 +292,26 @@ TDynamicRow TStoreManager::MaybeMigrateRow(const TDynamicRowRef& rowRef)
     return migratedRow;
 }
 
-void TStoreManager::CheckLockAndMaybeMigrateRow(
+TDynamicRow TStoreManager::CheckLockAndMaybeMigrateRow(
     TTransaction* transaction,
     TUnversionedRow key,
     ERowLockMode mode)
 {
     for (const auto& store : LockedStores_) {
-        if (store->CheckLockAndMaybeMigrateRow(
+        auto migratedRow = store->CheckLockAndMaybeMigrateRow(
             key,
             transaction,
             ERowLockMode::Write,
-            Tablet_->GetActiveStore()))
-        {
+            Tablet_->GetActiveStore());
+        if (migratedRow) {
             CheckForUnlockedStore(store);
-            break;
+            return migratedRow;
         }
     }
 
     // TODO(babenko): check passive stores for write timestamps
+
+    return TDynamicRow();
 }
 
 void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
@@ -352,9 +374,8 @@ void TStoreManager::Rotate(bool createNew)
         Tablet_->SetActiveStore(nullptr);
     }
 
-    LOG_INFO("Tablet stores rotated (TabletId: %s, StoreCount: %d)",
-        ~ToString(Tablet_->GetId()),
-        static_cast<int>(Tablet_->Stores().size()));
+    LOG_INFO("Tablet stores rotated (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
 }
 
 void TStoreManager::CreateActiveStore()
