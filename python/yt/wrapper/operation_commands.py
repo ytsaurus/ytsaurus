@@ -82,7 +82,7 @@ class OperationProgressFormatter(logging.Formatter):
 
 def get_operation_state(operation):
     old_request_timeout = config.http.REQUEST_TIMEOUT
-    config.http.REQUEST_TIMEOUT = config.OPERATION_GET_STATE_BACKOFF
+    config.http.REQUEST_TIMEOUT = config.OPERATION_TRANSACTION_TIMEOUT
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     require(exists(operation_path),
