@@ -57,6 +57,11 @@ public:
         : Canceled_(false)
     { }
 
+    ~TPromiseState()
+    {
+        Cancel();
+    }
+
     template <class U>
     explicit TPromiseState(U&& value)
         : Value_(std::forward<U>(value))
