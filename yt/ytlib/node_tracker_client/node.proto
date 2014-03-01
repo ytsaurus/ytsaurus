@@ -26,8 +26,6 @@ message TNodeStatistics
     optional int32 total_repair_session_count = 8;
     optional bool full = 5;
     repeated TLocationStatistics locations = 6;
-    optional int32 max_replication_session_count = 9;
-    optional int32 max_repair_session_count = 10;
 }
 
 // Measures limits and utilization of various resources.
