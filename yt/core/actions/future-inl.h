@@ -206,14 +206,14 @@ public:
         CancelHandlers_.push_back(std::move(onCancel));
     }
 
-    void Cancel()
+    bool Cancel()
     {
         TCancelHandlers handlers;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (Value_ || Canceled_)
-                return;
+                return false;
 
             ResultHandlers_.clear();
 
@@ -224,6 +224,8 @@ public:
         for (auto& handler : handlers) {
             handler.Run();
         }
+
+        return true;
     }
 
 };
@@ -434,14 +436,14 @@ public:
         CancelHandlers_.push_back(std::move(onCancel));
     }
 
-    void Cancel()
+    bool Cancel()
     {
         TCancelHandlers handlers;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (HasValue_)
-                return;
+                return false;
 
             ResultHandlers_.clear();
 
@@ -452,6 +454,8 @@ public:
         for (auto& handler : handlers) {
             handler.Run();
         }
+
+        return true;
     }
 
 };
@@ -746,7 +750,7 @@ inline void TFuture<T>::OnCanceled(TClosure onCancel)
 }
 
 template <class T>
-inline void TFuture<T>::Cancel()
+inline bool TFuture<T>::Cancel()
 {
     YASSERT(Impl);
     return Impl->Cancel();
@@ -920,7 +924,7 @@ inline void TFuture<void>::OnCanceled(TClosure onCancel)
     Impl->OnCanceled(std::move(onCancel));
 }
 
-inline void TFuture<void>::Cancel()
+inline bool TFuture<void>::Cancel()
 {
     YASSERT(Impl);
     return Impl->Cancel();

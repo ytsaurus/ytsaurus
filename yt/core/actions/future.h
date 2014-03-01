@@ -164,9 +164,9 @@ public:
     //! Gives the consumder a chance to handle cancelation.
     void OnCanceled(TClosure onCancel);
 
-    //! Notifies the producer that the promised value is no
-    //! longer needed.
-    void Cancel();
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
 
     //! Chains the asynchronous computation with another synchronous function.
     TFuture<void> Apply(TCallback<void(T)> mutator);
@@ -282,9 +282,9 @@ public:
     //! Gives the consumder a chance to handle cancelation.
     void OnCanceled(TClosure onCancel);
 
-    //! Notifies the producer that the promised value is no
-    //! longer needed.
-    void Cancel();
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
 
     //! Chains the asynchronous computation with another synchronous function.
     TFuture<void> Apply(TCallback<void()> mutator);
@@ -375,11 +375,8 @@ public:
     void Set(const T& value);
     void Set(T&& value);
 
-    //! Atomically sets the promise, if not already set or canceled.
+    //! Atomically invokes |Set|, if not already set or canceled.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    /*!
-     *  Calling this method also invokes all the subscribers.
-     */
     bool TrySet(const T& value);
     bool TrySet(T&& value);
 
