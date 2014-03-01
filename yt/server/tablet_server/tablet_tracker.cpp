@@ -58,9 +58,7 @@ TNode* TCandidatePool::TryAllocate(
 
 bool TCandidatePool::HasAvailableSlots(TNode* node)
 {
-    return
-        node->Statistics().available_tablet_slots() >
-        node->TabletCellCreateQueue().size();
+    return node->GetTotalUsedTabletSlots() < node->GetTotalTabletSlots();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,11 +95,6 @@ void TTabletTracker::Stop()
     if (PeriodicExecutor) {
         PeriodicExecutor->Stop();
         PeriodicExecutor.Reset();
-    }
-
-    auto nodeTracker = Bootstrap->GetNodeTracker();
-    for (auto* node : nodeTracker->Nodes().GetValues()) {
-        node->TabletCellCreateQueue().clear();
     }
 }
 

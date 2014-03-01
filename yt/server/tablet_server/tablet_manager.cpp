@@ -966,7 +966,7 @@ private:
 
     void HydraStartSlots(const TReqStartSlots& request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);       
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TTabletCellId>(request.cell_id());
         auto* cell = FindTabletCell(cellId);
@@ -1027,7 +1027,7 @@ private:
 
     void HydraRevokePeer(const TReqRevokePeer& request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);       
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TTabletCellId>(request.cell_id());
         auto* cell = FindTabletCell(cellId);
@@ -1038,12 +1038,18 @@ private:
         const auto& peer = cell->Peers()[peerId];
         if (!peer.Address || peer.Node)
             return;
-   
+
         LOG_INFO_UNLESS(IsRecovery(), "Tablet peer revoked (CellId: %s, Address: %s, PeerId: %d)",
             ~ToString(cell->GetId()),
             ~*peer.Address,
             peerId);
 
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto* node = nodeTracker->FindNodeByAddress(*peer.Address);
+        if (node) {
+            node->DetachTabletCell(cell);
+        }
+   
         cell->RevokePeer(peerId);
         ReconfigureCell(cell);
     }

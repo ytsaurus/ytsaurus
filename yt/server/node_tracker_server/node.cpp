@@ -242,6 +242,11 @@ TAtomic TNode::GenerateVisitMark()
     return AtomicIncrement(result);
 }
 
+void TNode::AddTabletSlotHint()
+{
+    ++HintedTabletSlots_;
+}
+
 int TNode::GetTotalUsedTabletSlots() const
 {
     return
@@ -250,9 +255,11 @@ int TNode::GetTotalUsedTabletSlots() const
         HintedTabletSlots_;
 }
 
-void TNode::AddTabletSlotHint()
+int TNode::GetTotalTabletSlots() const
 {
-    ++HintedTabletSlots_;
+    return
+        Statistics_.used_tablet_slots() +
+        Statistics_.available_tablet_slots();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -129,6 +129,7 @@ public:
 
     void AddTabletSlotHint();
     int GetTotalUsedTabletSlots() const;
+    int GetTotalTabletSlots() const;
 
     TTabletSlot* FindTabletSlot(NTabletServer::TTabletCell* cell);
     TTabletSlot* GetTabletSlot(NTabletServer::TTabletCell* cell);
