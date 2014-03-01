@@ -936,7 +936,7 @@ private:
     }
 
 
-    void HydraAssignPeers(const TReqStartSlots& request)
+    void HydraAssignPeers(const TReqAssignPeers& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
