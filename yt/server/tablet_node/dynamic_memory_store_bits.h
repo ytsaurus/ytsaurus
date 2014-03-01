@@ -259,7 +259,7 @@ public:
     }
 
 
-    static const int InvalidLockIndex = -1;
+    static const int InvalidLockIndex;
 
     int GetLockIndex() const
     {
