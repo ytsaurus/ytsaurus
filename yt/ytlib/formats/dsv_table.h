@@ -14,13 +14,16 @@ struct TDsvTable
     TLookupTable ValueStops;
     TEscapeTable Escapes;
 
-    TDsvTable(const TDsvFormatConfigPtr& config)
+    TDsvTable(const TDsvFormatConfigPtr& config, bool addCarriageReturn)
     {
         std::vector<char> stopSymbols;
         stopSymbols.push_back(config->RecordSeparator);
         stopSymbols.push_back(config->FieldSeparator);
         stopSymbols.push_back(config->EscapingSymbol);
         stopSymbols.push_back('\0');
+        if (addCarriageReturn) {
+            stopSymbols.push_back('\r');
+        }
 
         std::vector<char> valueStopSymbols(stopSymbols);
         ValueStops.Fill(

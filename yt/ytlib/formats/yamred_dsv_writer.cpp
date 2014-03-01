@@ -18,7 +18,7 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     , Config(config)
     , RowCount(-1)
     , State(EState::None)
-    , Table(config)
+    , Table(config, true)
 {
     YCHECK(Stream);
     YCHECK(Config);
