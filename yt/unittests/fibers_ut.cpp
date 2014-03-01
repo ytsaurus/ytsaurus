@@ -1341,24 +1341,6 @@ TEST_W(TFiberTest, SwitchToCancelableInvoker3)
     EXPECT_THROW({ SwitchTo(invoker2); }, TFiberCanceledException);
 }
 
-TEST_W(TFiberTest, SwitchToCancelableInvoker4)
-{
-    auto context = New<TCancelableContext>();
-
-    auto invoker1 = context->CreateInvoker(Queue1->GetInvoker());
-    auto invoker2 = context->CreateInvoker(Queue2->GetInvoker());
-
-    auto fiber = New<TFiber>(Bind(FROM_HERE, [=] () {
-        EXPECT_NO_THROW({ SwitchTo(invoker1); });
-        EXPECT_NO_THROW({ SwitchTo(invoker2); });
-        EXPECT_NO_THROW({ SwitchTo(invoker1); });
-        context->Cancel();
-        EXPECT_THROW({ SwitchTo(invoker2); }, TFiberCanceledException);
-    }));
-
-    EXPECT_THROW({ fiber->Run(); }, TFiberCanceledException);
-}
-
 TEST_W(TFiberTest, TerminatedCaught)
 {
     auto context = New<TCancelableContext>();
