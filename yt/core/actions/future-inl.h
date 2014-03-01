@@ -96,6 +96,11 @@ public:
         : Canceled_(false)
     { }
 
+    ~TPromiseState()
+    {
+        Cancel();
+    }
+
     template <class U>
     explicit TPromiseState(U&& value)
         : Value_(std::forward<U>(value))
@@ -335,6 +340,11 @@ public:
         : HasValue_(hasValue)
         , Canceled_(false)
     { }
+
+    ~TPromiseState()
+    {
+        Cancel();
+    }
 
     bool IsSet() const
     {
