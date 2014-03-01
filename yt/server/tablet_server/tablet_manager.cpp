@@ -1367,7 +1367,7 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
     TRspCreateObjects* response)
 {
     int size = attributes->Get<int>("size");
-    attributes->Remove("name");
+    attributes->Remove("size");
 
     if (size < 1 || size > 9) {
         THROW_ERROR_EXCEPTION("\"size\" must be in range [1,9]");
