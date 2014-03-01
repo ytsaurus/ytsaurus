@@ -84,7 +84,7 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
 
 TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 {
-    if (LatestWrite_ < LatestDelete_) {
+    if (LatestWrite_ == NullTimestamp || LatestWrite_ < LatestDelete_) {
         return TUnversionedRow();
     }
 
