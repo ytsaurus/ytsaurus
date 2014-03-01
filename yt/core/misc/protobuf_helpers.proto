@@ -4,7 +4,7 @@ package NYT.NProto;
 
 message TSerializedMessageEnvelope
 {
-	optional int32 codec = 1 [default = 0];
+    optional int32 codec = 1 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
