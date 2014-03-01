@@ -321,84 +321,48 @@ void TInsertCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
+    // TODO(babenko): read output via streaming
     TSelectRowsOptions options;
     options.Timestamp = Request->Timestamp;
 
-    auto memoryWriter = New<TMemoryWriter>();
-    auto chunkWriter = CreateSchemedChunkWriter(
-        New<NVersionedTableClient::TChunkWriterConfig>(),
-        New<TEncodingWriterOptions>(),
-        memoryWriter);
+    auto rowsetOrError = WaitFor(Context->GetClient()->SelectRows(
+        Request->Query,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError);
 
-    {
-        auto error = WaitFor(Context->GetClient()->SelectRows(
-            Request->Query,
-            chunkWriter,
-            options));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
-
-    auto memoryReader = New<TMemoryReader>(
-        std::move(memoryWriter->GetChunkMeta()),
-        std::move(memoryWriter->GetBlocks()));
-    auto chunkReader = CreateChunkReader(
-        New<TChunkReaderConfig>(),
-        memoryReader);
+    auto rowset = rowsetOrError.Value();
+    auto nameTable = rowset->GetNameTable();
 
     TBlobOutput buffer;
     auto format = Context->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
-    auto nameTable = New<TNameTable>();
-    {
-        auto error = WaitFor(chunkReader->Open(
-            nameTable,
-            TTableSchema(),
-            true));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
-
-    const int RowsBufferSize = 1000;
-    std::vector<NVersionedTableClient::TUnversionedRow> rows;
-    rows.reserve(RowsBufferSize);
-    
-    while (true) {
-        bool hasData = chunkReader->Read(&rows);
-        for (auto row : rows) {
-            consumer->OnListItem();
-            consumer->OnBeginMap();
-            for (int i = 0; i < row.GetCount(); ++i) {
-                const auto& value = row[i];
-                if (value.Type == EValueType::Null)
-                    continue;
-                consumer->OnKeyedItem(nameTable->GetName(value.Id));
-                switch (value.Type) {
-                    case EValueType::Integer:
-                        consumer->OnIntegerScalar(value.Data.Integer);
-                        break;
-                    case EValueType::Double:
-                        consumer->OnDoubleScalar(value.Data.Double);
-                        break;
-                    case EValueType::String:
-                        consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                        break;
-                    case EValueType::Any:
-                        consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
-                        break;
-                    default:
-                        YUNREACHABLE();
-                }
+    for (auto row : rowset->GetRows()) {
+        consumer->OnListItem();
+        consumer->OnBeginMap();
+        for (int i = 0; i < row.GetCount(); ++i) {
+            const auto& value = row[i];
+            if (value.Type == EValueType::Null)
+                continue;
+            consumer->OnKeyedItem(nameTable->GetName(value.Id));
+            switch (value.Type) {
+                case EValueType::Integer:
+                    consumer->OnIntegerScalar(value.Data.Integer);
+                    break;
+                case EValueType::Double:
+                    consumer->OnDoubleScalar(value.Data.Double);
+                    break;
+                case EValueType::String:
+                    consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                    break;
+                case EValueType::Any:
+                    consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                    break;
+                default:
+                    YUNREACHABLE();
             }
-            consumer->OnEndMap();
         }
-        if (!hasData) {
-            break;
-        }
-        if (rows.size() < rows.capacity()) {
-            auto result = WaitFor(chunkReader->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-        rows.clear();
+        consumer->OnEndMap();
     }
 
     auto output = Context->Request().OutputStream;
