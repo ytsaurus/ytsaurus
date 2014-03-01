@@ -47,11 +47,13 @@ public:
 
     virtual TAsyncError Close() override
     {
+        Writer_->WriteCommand(EWireProtocolCommand::EndOfRowset);
         return PresetResult;
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
+        Writer_->WriteCommand(EWireProtocolCommand::RowsetChunk);
         Writer_->WriteUnversionedRowset(rows);
         return true;
     }
@@ -78,7 +80,7 @@ public:
         WriteUInt32(CurrentProtocolVersion);
     }
 
-    void WriteCommand(EProtocolCommand command)
+    void WriteCommand(EWireProtocolCommand command)
     {
         WriteUInt32(command);
     }
@@ -234,7 +236,7 @@ Stroka TWireProtocolWriter::GetData() const
     return Impl_->GetData();
 }
 
-void TWireProtocolWriter::WriteCommand(EProtocolCommand command)
+void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
 {
     Impl_->WriteCommand(command);
 }
@@ -305,7 +307,14 @@ public:
         if (Finished_) {
             return false;
         }
-        Reader_->ReadUnversionedRowset(rows);
+
+        while (true) {
+            auto command = Reader_->ReadCommand();
+            if (command == EWireProtocolCommand::EndOfRowset)
+                break;
+            YCHECK(command == EWireProtocolCommand::RowsetChunk);
+            Reader_->ReadUnversionedRowset(rows);
+        }
         Finished_ = true;
         return true;
     }
@@ -339,9 +348,9 @@ public:
         }
     }
 
-    EProtocolCommand ReadCommand()
+    EWireProtocolCommand ReadCommand()
     {
-        return EProtocolCommand(ReadUInt32());
+        return EWireProtocolCommand(ReadUInt32());
     }
 
     TColumnFilter ReadColumnFilter()
@@ -390,9 +399,9 @@ public:
     void ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
     {
         ui32 count = ReadUInt32();
-        rowset->resize(count);
+        rowset->reserve(rowset->size() + count);
         for (int index = 0; index != count; ++index) {
-            (*rowset)[index] = ReadRow();
+            rowset->push_back(ReadRow());
         }
     }
 
@@ -505,7 +514,7 @@ TWireProtocolReader::TWireProtocolReader(const Stroka& data)
 TWireProtocolReader::~TWireProtocolReader()
 { }
 
-EProtocolCommand TWireProtocolReader::ReadCommand()
+EWireProtocolCommand TWireProtocolReader::ReadCommand()
 {
     return Impl_->ReadCommand();
 }

@@ -807,14 +807,14 @@ private:
         TWireProtocolWriter* writer)
     {
         auto command = reader->ReadCommand();
-        if (command == EProtocolCommand::End) {
+        if (command == EWireProtocolCommand::End) {
             return false;
         }
 
         const auto& storeManager = tablet->GetStoreManager();
 
         switch (command) {
-            case EProtocolCommand::LookupRows:
+            case EWireProtocolCommand::LookupRows:
                 storeManager->LookupRows(
                     timestamp,
                     reader,
@@ -837,14 +837,14 @@ private:
         std::vector<TDynamicRow>* lockedRows)
     {
         auto command = reader->ReadCommand();
-        if (command == EProtocolCommand::End) {
+        if (command == EWireProtocolCommand::End) {
             return false;
         }
             
         const auto& storeManager = tablet->GetStoreManager();
 
         switch (command) {
-            case EProtocolCommand::WriteRow: {
+            case EWireProtocolCommand::WriteRow: {
                 auto row = reader->ReadUnversionedRow();
                 storeManager->WriteRow(
                     transaction,
@@ -854,7 +854,7 @@ private:
                 break;
             }
 
-            case EProtocolCommand::DeleteRow: {
+            case EWireProtocolCommand::DeleteRow: {
                 auto key = reader->ReadUnversionedRow();
                 storeManager->DeleteRow(
                     transaction,

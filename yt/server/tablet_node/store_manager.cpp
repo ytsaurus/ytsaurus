@@ -115,6 +115,7 @@ void TStoreManager::LookupRows(
         }
     }
 
+    PooledKeys_.clear();
     reader->ReadUnversionedRowset(&PooledKeys_);
 
     TUnversionedRowMerger rowMerger(

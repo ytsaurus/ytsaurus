@@ -15,14 +15,15 @@ namespace NTabletClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EProtocolCommand,
+DECLARE_ENUM(EWireProtocolCommand,
     // Sentinels:
 
     ((End)(0))
 
+
     // Read commands:
     
-    ((LookupRows)(1))
+    ((LookupRows)(100))
     // Finds rows with given keys and fetches their components.
     //
     // Input:
@@ -32,9 +33,10 @@ DECLARE_ENUM(EProtocolCommand,
     // Output:
     //   * Unversioned rowset containing rows (whose size matches the number of requested keys)
 
+
     // Write commands:
 
-    ((WriteRow)(2))
+    ((WriteRow)(200))
     // Inserts a new row or completely replaces an existing one with matching key.
     //
     // Input:
@@ -42,13 +44,18 @@ DECLARE_ENUM(EProtocolCommand,
     // Output:
     //   None
 
-    ((DeleteRow)(3))
+    ((DeleteRow)(201))
     // Deletes a row with a given key, if it exists.
     //
     // Input:
     //   * Key
     // Output:
     //   None
+
+
+    // Rowset commands:
+    ((RowsetChunk)(300))
+    ((EndOfRowset)(301))
 
 );
 
@@ -60,7 +67,7 @@ public:
     TWireProtocolWriter();
     ~TWireProtocolWriter();
 
-    void WriteCommand(EProtocolCommand command);
+    void WriteCommand(EWireProtocolCommand command);
 
     void WriteColumnFilter(const NVersionedTableClient::TColumnFilter& filter);
 
@@ -98,7 +105,7 @@ public:
     explicit TWireProtocolReader(const Stroka& data); 
     ~TWireProtocolReader();
 
-    EProtocolCommand ReadCommand();
+    EWireProtocolCommand ReadCommand();
     
     NVersionedTableClient::TColumnFilter ReadColumnFilter();
 

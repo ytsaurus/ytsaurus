@@ -449,10 +449,10 @@ private:
             auto& subrequest = subrequestPair.second;
 
             TWireProtocolWriter writer;
-            writer.WriteCommand(EProtocolCommand::LookupRows);
+            writer.WriteCommand(EWireProtocolCommand::LookupRows);
             writer.WriteColumnFilter(columnFilter);
             writer.WriteUnversionedRowset(subrequest.Keys);
-            writer.WriteCommand(EProtocolCommand::End);
+            writer.WriteCommand(EWireProtocolCommand::End);
 
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
             TTabletServiceProxy proxy(channel);
@@ -478,6 +478,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
             auto reader = std::make_unique<TWireProtocolReader>(rsp->encoded_response());
+            pooledRows.clear();
             reader->ReadUnversionedRowset(&pooledRows);
 
             for (int index = 0; index < static_cast<int>(pooledRows.size()); ++index) {
@@ -1068,7 +1069,7 @@ private:
             for (auto row : Rows_) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
-                writer->WriteCommand(EProtocolCommand::WriteRow);
+                writer->WriteCommand(EWireProtocolCommand::WriteRow);
                 writer->WriteUnversionedRow(row, &idMapping);
             }
         }
@@ -1098,7 +1099,7 @@ private:
             for (auto key : Keys_) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
-                writer->WriteCommand(EProtocolCommand::DeleteRow);
+                writer->WriteCommand(EWireProtocolCommand::DeleteRow);
                 writer->WriteUnversionedRow(key);
             }
         }
@@ -1165,7 +1166,7 @@ private:
             const auto& tabletInfo = pair.first;
             
             auto* writer = pair.second.get();
-            writer->WriteCommand(EProtocolCommand::End);
+            writer->WriteCommand(EWireProtocolCommand::End);
 
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
 
