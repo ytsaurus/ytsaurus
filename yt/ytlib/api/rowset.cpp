@@ -110,7 +110,8 @@ public:
 
     virtual TAsyncError Close() override
     {
-        Result_.Set(TError());
+        Result_.Set(IRowsetPtr(this));
+        Result_.Reset();
         return PresetResult;
     }
 
