@@ -41,8 +41,8 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() const;
     TTableNode* GetTrunkNode() const;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
 
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
         const NVersionedTableClient::TOwningKey& minKey,

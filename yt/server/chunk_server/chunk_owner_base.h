@@ -29,8 +29,8 @@ public:
 
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
 
 private:
     const NChunkServer::TChunkList* GetUsageChunkList() const;
