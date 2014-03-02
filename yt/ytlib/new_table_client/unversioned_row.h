@@ -297,8 +297,8 @@ void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void ToProto(
     TProtoStringType* protoRow,
-    const TUnversionedValue* beginKey,
-    const TUnversionedValue* endKey);
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);

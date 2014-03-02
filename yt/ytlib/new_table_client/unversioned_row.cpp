@@ -574,10 +574,10 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka SerializeToString(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
+Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     int size = 2 * MaxVarUInt32Size; // header size
-    for (auto it = beginKey; it != endKey; ++it) {
+    for (auto* it = begin; it != end; ++it) {
         size += GetByteSize(*it);
     }
 
@@ -586,9 +586,9 @@ Stroka SerializeToString(const TUnversionedValue* beginKey, const TUnversionedVa
 
     char* current = const_cast<char*>(buffer.data());
     current += WriteVarUInt32(current, 0); // format version
-    current += WriteVarUInt32(current, static_cast<ui32>(std::distance(beginKey, endKey)));
+    current += WriteVarUInt32(current, static_cast<ui32>(std::distance(begin, end)));
 
-    for (auto it = beginKey; it != endKey; ++it) {
+    for (auto* it = begin; it != end; ++it) {
         current += WriteValue(current, *it);
     }
 
@@ -640,10 +640,10 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
 
 void ToProto(
     TProtoStringType* protoRow,
-    const TUnversionedValue* beginKey,
-    const TUnversionedValue* endKey)
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end)
 {
-    *protoRow = SerializeToString(beginKey, endKey);
+    *protoRow = SerializeToString(begin, end);
 }
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
