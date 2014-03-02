@@ -1390,6 +1390,16 @@ TEST_W(TFiberTest, CurrentInvokerAfterSwitch2)
     EXPECT_EQ(invoker, GetCurrentInvoker());
 }
 
+TEST_W(TFiberTest, WaitForAsyncVia)
+{
+    auto invoker = Queue1->GetInvoker();
+
+    auto x = BIND([&] () {
+    }).AsyncVia(invoker).Run();
+
+    WaitFor(x);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TFiberTest, ActionQueue1)
