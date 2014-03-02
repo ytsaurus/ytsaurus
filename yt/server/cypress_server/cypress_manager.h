@@ -154,6 +154,8 @@ private:
     TCypressNodeBase* RootNode;
 
     TAccessTrackerPtr AccessTracker;
+
+    bool RecomputeKeyColumns;
     
     
     void RegisterNode(std::unique_ptr<TCypressNodeBase> node);

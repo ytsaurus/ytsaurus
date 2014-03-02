@@ -416,6 +416,7 @@ TCypressManager::TCypressManager(
     , TypeToHandler(MaxObjectType + 1)
     , RootNode(nullptr)
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
+    , RecomputeKeyColumns(false)
 {
     VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
 
@@ -1239,6 +1240,9 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 24) {
         LockMap.LoadValues(context);
     }
+
+    // COMPAT(babenko)
+    RecomputeKeyColumns = (context.GetVersion() < 100);
 }
 
 void TCypressManager::OnAfterSnapshotLoaded()
@@ -1270,13 +1274,15 @@ void TCypressManager::OnAfterSnapshotLoaded()
     }
 
     // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
-    for (const auto& pair : NodeMap) {
-        if (TypeFromId(pair.first.ObjectId) == EObjectType::Table) {
-            auto* tableNode = dynamic_cast<NTableServer::TTableNode*>(pair.second);
-            auto* chunkList = tableNode->GetChunkList();
-            tableNode->SetSorted(!chunkList->LegacySortedBy().empty());
-            tableNode->KeyColumns() = chunkList->LegacySortedBy();
-            chunkList->LegacySortedBy().clear();
+    if (RecomputeKeyColumns) {
+        for (const auto& pair : NodeMap) {
+            if (TypeFromId(pair.first.ObjectId) == EObjectType::Table) {
+                auto* tableNode = dynamic_cast<NTableServer::TTableNode*>(pair.second);
+                auto* chunkList = tableNode->GetChunkList();
+                tableNode->SetSorted(!chunkList->LegacySortedBy().empty());
+                tableNode->KeyColumns() = chunkList->LegacySortedBy();
+                chunkList->LegacySortedBy().clear();
+            }
         }
     }
 
