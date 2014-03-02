@@ -130,7 +130,6 @@ private:
     class TNodeTypeHandler;
     class TLockTypeHandler;
     class TYPathResolver;
-    class TRootService;
 
     class TNodeMapTraits
     {
