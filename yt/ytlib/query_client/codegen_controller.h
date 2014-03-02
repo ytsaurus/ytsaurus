@@ -7,6 +7,9 @@
 namespace NYT {
 namespace NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): convert to TCodegenController::TImpl
 class TCodegenControllerImpl;
 
 class TCodegenController
@@ -23,6 +26,7 @@ public:
         ISchemedWriterPtr writer);
 
 private:
+    // TODO(babenko): rename to Impl_
     std::unique_ptr<TCodegenControllerImpl> Impl;
 
 };

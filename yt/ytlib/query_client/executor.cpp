@@ -5,8 +5,6 @@
 #include "coordinate_controller.h"
 #include "codegen_controller.h"
 
-#include <ytlib/new_table_client/schemed_writer.h>
-
 namespace NYT {
 namespace NQueryClient {
 
@@ -28,16 +26,16 @@ public:
         const TPlanFragment& fragment,
         ISchemedWriterPtr writer) override
     {
-        auto impl = [=] () -> TError {
+        auto this_ = MakeStrong(this);
+        return BIND([this, this_, fragment, writer] () -> TError {
 #ifdef YT_USE_LLVM
-            return CodegenController_.Run(Callbacks_, fragment, std::move(writer));
+                return CodegenController_.Run(Callbacks_, fragment, std::move(writer));
 #else
-            return TError("Query evaluation is not supported in this build");
+                return TError("Query evaluation is not supported in this build");
 #endif
-        };
-        return BIND(impl)
-        .AsyncVia(Invoker_)
-        .Run();
+            })
+            .AsyncVia(Invoker_)
+            .Run();
     }
 
 private:
@@ -67,24 +65,24 @@ public:
         const TPlanFragment& fragment,
         ISchemedWriterPtr writer) override
     {
-        auto impl = [=] () -> TError {
-            TCoordinateController coordinator(Callbacks_, fragment);
+        auto this_ = MakeStrong(this);
+        return BIND([this, this_, fragment, writer] () -> TError {
+                TCoordinateController coordinator(Callbacks_, fragment);
 
-            auto error = coordinator.Run();
-            RETURN_IF_ERROR(error);
+                auto error = coordinator.Run();
+                RETURN_IF_ERROR(error);
 
 #ifdef YT_USE_LLVM
-            return CodegenController_.Run(
-                &coordinator,
-                coordinator.GetCoordinatorFragment(),
-                std::move(writer));
+                return CodegenController_.Run(
+                    &coordinator,
+                    coordinator.GetCoordinatorFragment(),
+                    std::move(writer));
 #else
-            return TError("Query evaluation is not supported in this build");
+                return TError("Query evaluation is not supported in this build");
 #endif
-        };
-        return BIND(impl)
-        .AsyncVia(Invoker_)
-        .Run();
+            })
+            .AsyncVia(Invoker_)
+            .Run();
     }
 
 private:

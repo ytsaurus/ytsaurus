@@ -361,7 +361,7 @@ public:
         , Parent_(parent)
         , ClosurePtr_(closurePtr)
     {
-        Function* function = basicBlock->getParent();
+        auto* function = basicBlock->getParent();
         for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
             ValuesInContext_.insert(it);
         }
@@ -380,7 +380,7 @@ public:
         , ClosurePtr_(nullptr)
         , Closure_(nullptr)
     {
-        Function* function = basicBlock->getParent();
+        auto* function = basicBlock->getParent();
         for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
             ValuesInContext_.insert(it);
         }
@@ -512,16 +512,14 @@ public:
         Module_->setDataLayout(ExecutionEngine_->getDataLayout()->getStringRepresentation());
     }
 
+    // TODO(babenko): public fields of a class? are you serious?
+
     TCodegenedFunction CodegenedFunction_;
 
     llvm::LLVMContext Context_;
     llvm::Module* Module_;
     std::unique_ptr<llvm::ExecutionEngine> ExecutionEngine_;
 
-    ~TCodegenedFragment()
-    {
-        ExecutionEngine_.reset();
-    }
 };
 
 typedef std::function<void(TIRBuilder& builder, Value* row)> TCodegenConsumer;
@@ -531,7 +529,8 @@ class TCGContext
 public:
     static TCodegenedFunction CodegenEvaluate(
         llvm::LLVMContext& context, 
-        llvm::Module* module, 
+        llvm::Module* module,
+        // TODO(babenko): why not pass rawptr? 
         std::unique_ptr<llvm::ExecutionEngine>& executionEngine,
         const TCGImmediates& params,
         const TOperator* op);
@@ -1470,6 +1469,8 @@ TCodegenedFunction TCGContext::CodegenEvaluate(
 namespace NYT {
 namespace NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(sandello): Better names for these.
 struct TFragmentParams
     : public TCGImmediates
@@ -1704,27 +1705,27 @@ TError TCodegenControllerImpl::EvaluateViaCache(
     }
 
     if (!codegenedFragment->CodegenedFunction_) {
-        auto voidFuture = BIND([&] () {
-            if (codegenedFragment->CodegenedFunction_) {
-                return;
-            }
+        auto codegenFuture = BIND([&] () {
+                if (codegenedFragment->CodegenedFunction_) {
+                    return;
+                }
 
-            codegenedFragment->CodegenedFunction_ = TCGContext::CodegenEvaluate(
-                codegenedFragment->Context_, 
-                codegenedFragment->Module_, 
-                codegenedFragment->ExecutionEngine_, 
-                fragmentParams,
-                fragment.GetHead());
-        })
-        .AsyncVia(CodegenInvoker_)
-        .Run();
+                codegenedFragment->CodegenedFunction_ = TCGContext::CodegenEvaluate(
+                    codegenedFragment->Context_, 
+                    codegenedFragment->Module_, 
+                    codegenedFragment->ExecutionEngine_, 
+                    fragmentParams,
+                    fragment.GetHead());
+            })
+            .AsyncVia(CodegenInvoker_)
+            .Run();
 
-        WaitFor(voidFuture);
+        WaitFor(codegenFuture);
     }
 
     // Make TRow from fragmentParams.ConstantArray.
     TChunkedMemoryPool memoryPool;
-    TRow constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
+    auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
 
     for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
         constants[i] = fragmentParams.ConstantArray[i];
