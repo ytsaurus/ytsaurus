@@ -18,7 +18,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double SleepQuantum = 0.050;
+static double SleepQuantum = 0.050;
 
 TEST(TFutureTest, IsNull)
 {
