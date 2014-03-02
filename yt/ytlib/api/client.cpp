@@ -540,6 +540,7 @@ private:
         if (options.LastTabletIndex) {
             req->set_first_tablet_index(*options.LastTabletIndex);
         }
+        req->set_force(options.Force);
 
         auto rsp = WaitFor(ObjectProxy_->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
