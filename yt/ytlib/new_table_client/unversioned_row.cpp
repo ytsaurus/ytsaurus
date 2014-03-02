@@ -574,6 +574,8 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static Stroka SerializedNullRow("");
+
 Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     int size = 2 * MaxVarUInt32Size; // header size
@@ -599,11 +601,17 @@ Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue
 
 Stroka SerializeToString(TUnversionedRow row)
 {
-    return SerializeToString(row.Begin(), row.End());
+    return row
+        ? SerializeToString(row.Begin(), row.End())
+        : SerializedNullRow;
 }
 
 TUnversionedOwningRow DeserializeFromString(const Stroka& data)
 {
+    if (data == SerializedNullRow) {
+        return TUnversionedOwningRow();
+    }
+
     const char* current = ~data;
 
     ui32 version;
@@ -653,7 +661,9 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 
 Stroka ToString(TUnversionedRow row)
 {
-    return "[" + JoinToString(row.Begin(), row.End()) + "]";
+    return row
+        ? "[" + JoinToString(row.Begin(), row.End()) + "]"
+        : "<Null>";
 }
 
 Stroka ToString(const TUnversionedOwningRow& row)
