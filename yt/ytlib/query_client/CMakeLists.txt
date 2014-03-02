@@ -51,11 +51,11 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/codegen_controller.h
   )
 
-  set_source_files_properties(
-    ${BASE}/codegen_controller.cpp
-    PROPERTIES
-    COMPILE_FLAGS ${LLVM_CPPFLAGS}
-  )
+#  set_source_files_properties(
+#    ${BASE}/codegen_controller.cpp
+#    PROPERTIES
+#    COMPILE_FLAGS ${LLVM_CPPFLAGS}
+#  )
 endif()
 
 list( APPEND YT_SOURCE_FILES
