@@ -275,6 +275,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = FindTransaction(id);
+        if (!transaction)
+            return;
         if (transaction->GetState() != ETransactionState::Active)
             return;
 
