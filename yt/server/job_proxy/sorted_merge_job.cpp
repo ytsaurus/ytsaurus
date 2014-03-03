@@ -44,11 +44,11 @@ class TSortedMergeJob
 public:
     explicit TSortedMergeJob(IJobHost* host)
         : TJob(host)
-        , JobSpec(Host->GetJobSpec())
+        , JobSpec(host->GetJobSpec())
         , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
         , MergeJobSpecExt(JobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext))
     {
-        auto config = Host->GetConfig();
+        auto config = host->GetConfig();
 
         YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
@@ -69,9 +69,9 @@ public:
 
                 auto reader = New<TTableChunkSequenceReader>(
                     config->JobIO->TableReader,
-                    Host->GetMasterChannel(),
-                    Host->GetBlockCache(),
-                    Host->GetNodeDirectory(),
+                    host->GetMasterChannel(),
+                    host->GetBlockCache(),
+                    host->GetNodeDirectory(),
                     std::move(chunks),
                     provider);
 
@@ -97,7 +97,7 @@ public:
                 config->JobIO->TableWriter,
                 options,
                 writerProvider,
-                Host->GetMasterChannel(),
+                host->GetMasterChannel(),
                 transactionId,
                 chunkListId));
         }

@@ -20,7 +20,7 @@ public:
     explicit TJob(IJobHost* host);
 
 protected:
-    IJobHost* Host;
+    TWeakPtr<IJobHost> Host;
 
     TInstant StartTime;
 

@@ -17,10 +17,8 @@ namespace NJobProxy {
 
 //! Represents a context for running jobs inside job proxy.
 struct IJobHost
+    : public virtual TRefCounted
 {
-    virtual ~IJobHost()
-    { }
-
     virtual TJobProxyConfigPtr GetConfig() = 0;
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
 
