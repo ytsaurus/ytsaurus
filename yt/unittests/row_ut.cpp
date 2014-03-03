@@ -68,6 +68,11 @@ TEST(TUnversionedRowTest, Serialize4)
     CheckSerialize(builder.GetRow());
 }
 
+TEST(TUnversionedRowTest, Serialize5)
+{
+    CheckSerialize(TUnversionedRow());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

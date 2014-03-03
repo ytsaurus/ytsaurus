@@ -356,6 +356,18 @@ int CompareRows(
 
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
 {
+    if (!lhs && !rhs) {
+        return 0;
+    }
+
+    if (lhs && !rhs) {
+        return +1;
+    }
+
+    if (!lhs && rhs) {
+        return -1;
+    }
+
     return CompareRows(
         lhs.Begin(),
         lhs.Begin() + std::min(lhs.GetCount(), prefixLength),

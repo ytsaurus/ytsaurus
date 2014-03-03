@@ -384,7 +384,7 @@ public:
     int GetCount() const
     {
         const auto* header = GetHeader();
-        return header ? static_cast<int>(header->Count) : 0;
+        return static_cast<int>(header->Count);
     }
 
     const TUnversionedValue& operator[] (int index) const
@@ -450,12 +450,12 @@ private:
 
     TUnversionedRowHeader* GetHeader()
     {
-        return reinterpret_cast<TUnversionedRowHeader*>(RowData.Begin());
+        return RowData ? reinterpret_cast<TUnversionedRowHeader*>(RowData.Begin()) : nullptr;
     }
 
     const TUnversionedRowHeader* GetHeader() const
     {
-        return reinterpret_cast<const TUnversionedRowHeader*>(RowData.Begin());
+        return RowData ? reinterpret_cast<const TUnversionedRowHeader*>(RowData.Begin()) : nullptr;
     }
 
     void Init(const TUnversionedValue* begin, const TUnversionedValue* end)
