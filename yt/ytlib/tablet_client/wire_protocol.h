@@ -87,7 +87,7 @@ public:
         const TColumnIdMapping* idMapping = nullptr);
     NVersionedTableClient::ISchemedWriterPtr CreateSchemedRowsetWriter();
 
-    Stroka GetData() const;
+    Stroka GetData();
 
 private:
     class TImpl;

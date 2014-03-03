@@ -74,8 +74,8 @@ class TWireProtocolWriter::TImpl
 {
 public:
     TImpl()
-        : RawStream_(&Data_)
-        , CodedStream_(&RawStream_)
+        : RawStream_(new google::protobuf::io::StringOutputStream(&Data_))
+        , CodedStream_(new google::protobuf::io::CodedOutputStream(RawStream_.get()))
     {
         WriteUInt32(CurrentProtocolVersion);
     }
@@ -106,7 +106,7 @@ public:
     {
         WriteUInt32(message.ByteSize());
 
-        message.SerializePartialToCodedStream(&CodedStream_);
+        message.SerializePartialToCodedStream(CodedStream_.get());
     }
 
     void WriteUnversionedRow(
@@ -143,25 +143,28 @@ public:
         }
     }
 
-    Stroka GetData() const
+    Stroka GetData()
     {
+        // Destroying the streams also trims the (preallocated) tail of the string.
+        CodedStream_.reset();
+        RawStream_.reset();
         return Data_;
     }
 
 private:
     Stroka Data_;
-    google::protobuf::io::StringOutputStream RawStream_;
-    google::protobuf::io::CodedOutputStream CodedStream_;
+    std::unique_ptr<google::protobuf::io::StringOutputStream> RawStream_;
+    std::unique_ptr<google::protobuf::io::CodedOutputStream> CodedStream_;
 
 
     void WriteUInt32(ui32 value)
     {
-        CodedStream_.WriteVarint32(value);
+        CodedStream_->WriteVarint32(value);
     }
 
     void WriteUInt64(ui64 value)
     {
-        CodedStream_.WriteVarint64(value);
+        CodedStream_->WriteVarint64(value);
     }
 
     void WriteInt64(i64 value)
@@ -182,7 +185,7 @@ private:
 
     void WriteRaw(const void* buffer, size_t size)
     {
-        CodedStream_.WriteRaw(buffer, size);
+        CodedStream_->WriteRaw(buffer, size);
     }
 
     void WriteRowValue(
@@ -231,7 +234,7 @@ TWireProtocolWriter::TWireProtocolWriter()
 TWireProtocolWriter::~TWireProtocolWriter()
 { }
 
-Stroka TWireProtocolWriter::GetData() const
+Stroka TWireProtocolWriter::GetData()
 {
     return Impl_->GetData();
 }
