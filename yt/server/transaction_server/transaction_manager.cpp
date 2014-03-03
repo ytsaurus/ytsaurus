@@ -642,7 +642,9 @@ void TTransactionManager::OnLeaderActive()
 
     for (const auto& pair : TransactionMap) {
         const auto* transaction = pair.second;
-        if (transaction->GetState() == ETransactionState::Active) {
+        if (transaction->GetState() == ETransactionState::Active ||
+            transaction->GetState() == ETransactionState::PersistentlyPrepared)
+        {
             auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
             CreateLease(transaction, actualTimeout);
         }

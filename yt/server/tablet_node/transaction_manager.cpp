@@ -336,7 +336,9 @@ private:
         // Recreate leases for all active transactions.
         for (const auto& pair : TransactionMap_) {
             const auto* transaction = pair.second;
-            if (transaction->GetState() == ETransactionState::Active) {
+            if (transaction->GetState() == ETransactionState::Active ||
+                transaction->GetState() == ETransactionState::PersistentlyPrepared)
+            {
                 auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
                 CreateLease(transaction, actualTimeout);
             }
