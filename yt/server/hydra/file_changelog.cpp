@@ -432,14 +432,14 @@ private:
 
     TChangelogQueuePtr FindQueue(TSyncFileChangelogPtr changelog) const
     {
-        TGuard<TSpinLock> guard(Spinlock);
+        TGuard<TSpinLock> guard(SpinLock);
         auto it = QueueMap.find(changelog);
         return it == QueueMap.end() ? nullptr : it->second;
     }
 
     TChangelogQueuePtr FindQueueAndLock(TSyncFileChangelogPtr changelog) const
     {
-        TGuard<TSpinLock> guard(Spinlock);
+        TGuard<TSpinLock> guard(SpinLock);
         auto it = QueueMap.find(changelog);
         if (it == QueueMap.end()) {
             return nullptr;
@@ -452,7 +452,7 @@ private:
 
     TChangelogQueuePtr GetQueueAndLock(TSyncFileChangelogPtr changelog)
     {
-        TGuard<TSpinLock> guard(Spinlock);
+        TGuard<TSpinLock> guard(SpinLock);
         TChangelogQueuePtr queue;
 
         auto it = QueueMap.find(changelog);
@@ -469,7 +469,7 @@ private:
 
     void RemoveQueue(TSyncFileChangelogPtr changelog)
     {
-        TGuard<TSpinLock> guard(Spinlock);
+        TGuard<TSpinLock> guard(SpinLock);
         QueueMap.erase(changelog);
     }
 
@@ -478,7 +478,7 @@ private:
         // Take a snapshot.
         std::vector<TChangelogQueuePtr> queues;
         {
-            TGuard<TSpinLock> guard(Spinlock);
+            TGuard<TSpinLock> guard(SpinLock);
             for (const auto& pair : QueueMap) {
                 const auto& queue = pair.second;
                 if (queue->HasPendingActions()) {
@@ -495,7 +495,7 @@ private:
 
     void SweepQueues()
     {
-        TGuard<TSpinLock> guard(Spinlock);
+        TGuard<TSpinLock> guard(SpinLock);
         auto it = QueueMap.begin();
         while (it != QueueMap.end()) {
             auto jt = it++;
@@ -533,7 +533,7 @@ private:
     }
 
 
-    TSpinLock Spinlock;
+    TSpinLock SpinLock;
     yhash_map<TSyncFileChangelogPtr, TChangelogQueuePtr> QueueMap;
 
     TThread Thread;
