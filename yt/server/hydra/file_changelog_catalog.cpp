@@ -665,10 +665,9 @@ private:
 
             guard.Release();
 
-            // NB: Subscribe outside of spinlock guard.
-            multiplexedFlushResult.Subscribe(BIND(
-                &TFileChangelogCatalog::OnMultiplexedChangelogFlushed,
-                MakeStrong(this)));
+            multiplexedFlushResult.Subscribe(
+                BIND(&TFileChangelogCatalog::OnMultiplexedChangelogFlushed, MakeStrong(this))
+                    .Via(GetHydraIOInvoker()));
 
             auto multiplexedCleanAwaiter = New<TParallelAwaiter>(GetSyncInvoker());
             multiplexedCleanAwaiter->Await(multiplexedFlushResult);
@@ -704,7 +703,8 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         MultiplexedChangelog->Seal(MultiplexedChangelog->GetRecordCount())
-            .Subscribe(BIND(&TFileChangelogCatalog::OnMultiplexedChangelogSealed, MakeStrong(this)));
+            .Subscribe(BIND(&TFileChangelogCatalog::OnMultiplexedChangelogSealed, MakeStrong(this))
+                .Via(GetHydraIOInvoker()));
     }
 
     void OnMultiplexedChangelogSealed()
