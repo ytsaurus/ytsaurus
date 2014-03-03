@@ -4,6 +4,7 @@
 #include "partition.h"
 
 #include <core/misc/property.h>
+#include <core/misc/ref_tracked.h>
 
 #include <core/actions/cancelable_context.h>
 
@@ -20,7 +21,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : private TNonCopyable
+    : public TRefTracked<TChunk>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);
