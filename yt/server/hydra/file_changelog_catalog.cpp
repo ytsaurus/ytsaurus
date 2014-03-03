@@ -12,7 +12,6 @@
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/fiber.h>
 
 #include <ytlib/hydra/version.h>
 
@@ -704,8 +703,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // Switch multiplexed changelog.
-        WaitFor(MultiplexedChangelog->Seal(MultiplexedChangelog->GetRecordCount()));
+        MultiplexedChangelog->Seal(MultiplexedChangelog->GetRecordCount())
+            .Subscribe(BIND(&TFileChangelogCatalog::OnMultiplexedChangelogSealed, MakeStrong(this)));
+    }
+
+    void OnMultiplexedChangelogSealed()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
 
         int oldId = MultiplexedChangelog->GetId();
         int newId = oldId + 1;
