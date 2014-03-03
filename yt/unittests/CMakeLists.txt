@@ -2,7 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
   #${BASE}/async_change_log_ut.cpp
-  ${BASE}/async_result_ut.cpp
+  ${BASE}/future_ut.cpp
   ${BASE}/attributes_ut.cpp
   ${BASE}/bind_ut.cpp
   ${BASE}/bus_ut.cpp
