@@ -2754,7 +2754,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
-    i64 sliceDataSize = std::min(maxSliceDataSize, std::max(TotalInputDataSize / jobCount, (i64)1));
+    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplicator * TotalInputDataSize / jobCount, 1.0));
 
     FOREACH (const auto& chunkSpec, CollectInputChunks()) {
         int oldSize = result.size();

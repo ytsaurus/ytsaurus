@@ -117,6 +117,10 @@ public:
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
 
+    //! Multiplicator of slice data size.
+    //! It is necessary to prevent scheduling of double data size per one job.
+    double SliceDataSizeMultiplicator;
+
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
 
@@ -237,6 +241,10 @@ public:
         RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
             .GreaterThan(0);
+
+        RegisterParameter("slice_data_size_multiplicator", SliceDataSizeMultiplicator)
+            .Default(0.51)
+            .GreaterThan(0.0);
 
         RegisterParameter("map_job_max_slice_data_size", MapJobMaxSliceDataSize)
             .Default((i64)256 * 1024 * 1024)
