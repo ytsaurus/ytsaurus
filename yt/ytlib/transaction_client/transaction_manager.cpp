@@ -638,7 +638,8 @@ private:
                     LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s, CellGuid: %s)",
                         ~ToString(Transaction_->Id_),
                         ~ToString(cellGuid));
-                    OnError(TError("Transaction has expired or was aborted at cell %s",
+                    OnError(TError("Transaction %s has expired or was aborted at cell %s",
+                        ~ToString(Transaction_->Id_),
                         ~ToString(cellGuid)));
                 } else {
                     // Soft error.
