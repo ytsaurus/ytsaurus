@@ -10,6 +10,13 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TAsyncError GetQueriesNotSupportedErrror()
+{
+    return MakeFuture(TError("Query evaluation is not supported in this build"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEvaluatorProxy
     : public IExecutor
 {
@@ -26,16 +33,16 @@ public:
         const TPlanFragment& fragment,
         ISchemedWriterPtr writer) override
     {
+#ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
         return BIND([this, this_, fragment, writer] () -> TError {
-#ifdef YT_USE_LLVM
                 return CodegenController_.Run(Callbacks_, fragment, std::move(writer));
-#else
-                return TError("Query evaluation is not supported in this build");
-#endif
             })
             .AsyncVia(Invoker_)
             .Run();
+#else
+        return GetQueriesNotSupportedErrror();
+#endif
     }
 
 private:
@@ -65,6 +72,7 @@ public:
         const TPlanFragment& fragment,
         ISchemedWriterPtr writer) override
     {
+#ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
         return BIND([this, this_, fragment, writer] () -> TError {
                 TCoordinateController coordinator(Callbacks_, fragment);
@@ -72,17 +80,16 @@ public:
                 auto error = coordinator.Run();
                 RETURN_IF_ERROR(error);
 
-#ifdef YT_USE_LLVM
                 return CodegenController_.Run(
                     &coordinator,
                     coordinator.GetCoordinatorFragment(),
                     std::move(writer));
-#else
-                return TError("Query evaluation is not supported in this build");
-#endif
             })
             .AsyncVia(Invoker_)
             .Run();
+#else
+        return GetQueriesNotSupportedErrror();
+#endif
     }
 
 private:
