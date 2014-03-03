@@ -100,6 +100,16 @@ def get_operation_progress(operation):
         progress["aborted"] = progress["aborted"]["total"]
     return progress
 
+def order_progress(progress):
+    keys = ["running", "completed", "pending", "failed", "aborted", "lost", "total"]
+    result = []
+    for key in keys:
+        result.append((key, progress[key]))
+    for key, value in progress.iteritems():
+        if key not in keys:
+            result.append((key, value))
+    return result
+
 class PrintOperationInfo(object):
     """ Caches operation state and prints info by update"""
     def __init__(self, operation):
@@ -127,9 +137,9 @@ class PrintOperationInfo(object):
                         "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
                 else:
                     logger.info(
-                        "operation %s jobs: %s",
+                        "operation %s: %s",
                         self.operation,
-                        "\t".join("{0}={1}".format(k, v) for k, v in progress.iteritems()))
+                        "\t".join("{0}={1}".format(k, v) for k, v in order_progress(progress)))
             self.progress = progress
         elif state != self.state:
             logger.info("operation %s %s", self.operation, state)
