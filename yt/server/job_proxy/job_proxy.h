@@ -19,8 +19,7 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxy
-    : public TRefCounted
-    , public IJobHost
+    : public IJobHost
 {
 public:
     TJobProxy(

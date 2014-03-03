@@ -57,10 +57,10 @@ public:
 
     explicit TMergeJob(IJobHost* host)
         : TJob(host)
-        , JobSpec(Host->GetJobSpec())
+        , JobSpec(host->GetJobSpec())
         , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     {
-        auto config = Host->GetConfig();
+        auto config = host->GetConfig();
 
         YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
 
@@ -77,9 +77,9 @@ public:
 
         Reader = CreateSyncReader(New<TReader>(
             config->JobIO->TableReader,
-            Host->GetMasterChannel(),
-            Host->GetBlockCache(),
-            Host->GetNodeDirectory(),
+            host->GetMasterChannel(),
+            host->GetBlockCache(),
+            host->GetNodeDirectory(),
             std::move(chunkSpecs),
             readerProvider));
 
@@ -104,7 +104,7 @@ public:
             config->JobIO->TableWriter,
             options,
             writerProvider,
-            Host->GetMasterChannel(),
+            host->GetMasterChannel(),
             transactionId,
             chunkListId));
     }

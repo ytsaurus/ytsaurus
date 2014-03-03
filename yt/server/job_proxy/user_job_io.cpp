@@ -34,7 +34,7 @@ TUserJobIO::TUserJobIO(
     IJobHost* host)
     : IOConfig(ioConfig)
     , Host(host)
-    , JobSpec(Host->GetJobSpec())
+    , JobSpec(host->GetJobSpec())
     , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     , Logger(JobProxyLogger)
 { }

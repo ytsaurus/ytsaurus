@@ -49,7 +49,7 @@ public:
         IJobHost* host)
         : TUserJobIO(config, host)
     {
-        const auto& jobSpec = Host->GetJobSpec();
+        const auto& jobSpec = host->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
         Partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
         KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
