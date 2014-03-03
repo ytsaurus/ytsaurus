@@ -17,6 +17,8 @@
 #include <ytlib/new_table_client/schemed_reader.h>
 #include <ytlib/new_table_client/versioned_reader.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -50,6 +52,7 @@ public:
         , ReadyEvent_(PresetResult)
         , Opened_(false)
         , Refilling_(false)
+        , Finished_(false)
     { }
 
 protected:
@@ -81,21 +84,21 @@ protected:
 
     TAsyncError ReadyEvent_;
 
-    TAtomic Opened_;
-    TAtomic Refilling_;
+    std::atomic<bool> Opened_;
+    std::atomic<bool> Refilling_;
+    bool Finished_;
 
 
     template <class TRow, class TRowMerger>
     bool DoRead(std::vector<TRow>* rows, TRowMerger* rowMerger)
     {
-        YCHECK(!AtomicGet(Refilling_));
-        YCHECK(AtomicGet(Opened_));
+        YCHECK(!Refilling_);
+        YCHECK(Opened_);
 
         rows->clear();
         Pool_.Clear();
 
-        // Check for end-of-stream.
-        if (SessionHeapBegin_ == SessionHeapEnd_) {
+        if (Finished_) {
             return false;
         }
 
@@ -193,7 +196,8 @@ protected:
             TryRefillSession(&session);
         }
 
-        AtomicSet(Opened_, true);
+        Opened_ = true;
+        CheckFinished();
     }
 
 
@@ -241,7 +245,7 @@ protected:
 
         if (refillCollector) {
             auto this_ = MakeStrong(this);
-            AtomicSet(Refilling_, true);
+            Refilling_ = true;
             ReadyEvent_ = refillCollector->Complete()
                 .Apply(BIND([this, this_] (TError error) -> TError {
                     if (error.IsOK()) {
@@ -251,12 +255,19 @@ protected:
                     }
 
                     RefillingSessions_.clear();
-                    AtomicSet(Refilling_, false);
+                    Refilling_ = false;
+                    CheckFinished();
                     return error;
                 }));
         } else {
             ReadyEvent_ = PresetResult;
+            CheckFinished();
         }
+    }
+
+    void CheckFinished()
+    {
+        Finished_ = (SessionHeapBegin_ == SessionHeapEnd_);
     }
 
 };
