@@ -21,7 +21,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public TRefTracked<TChunk>
+    : public TRefTracked<TTablet>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);
