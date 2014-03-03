@@ -120,7 +120,7 @@ i64 GetUserRss(int uid)
 }
 
 // The caller must be sure that it has root privileges.
-void KilallByUid(int uid)
+void KillallByUid(int uid)
 {
     YCHECK(uid > 0);
 
@@ -319,7 +319,7 @@ static const int EXEC_ERR_CODE[] = {
     0
 };
 
-int getErrNoFromExitCode(int exitCode) {
+int GetErrNoFromExitCode(int exitCode) {
     int index = BASE_EXIT_CODE - exitCode;
     if (index >= 0) {
         return EXEC_ERR_CODE[index];

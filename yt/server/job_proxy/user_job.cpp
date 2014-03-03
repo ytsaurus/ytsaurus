@@ -479,7 +479,7 @@ private:
     void Kill()
     {
         auto uid = Host->GetConfig()->UserId;
-        KilallByUid(uid);
+        KillallByUid(uid);
     }
 
     void CheckMemoryUsage()

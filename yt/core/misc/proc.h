@@ -20,7 +20,7 @@ std::vector<int> GetPidsByUid(int uid);
  */
 i64 GetProcessRss(int pid = -1);
 
-void KilallByUid(int uid);
+void KillallByUid(int uid);
 
 TError StatusToError(int status);
 
@@ -30,7 +30,7 @@ void SafeClose(int fd, bool ignoreInvalidFd = false);
 
 void CloseAllDescriptors();
 
-int getErrNoFromExitCode(int exitCode);
+int GetErrNoFromExitCode(int exitCode);
 
 int Spawn(const char* path, std::vector<Stroka>& arguments);
 
