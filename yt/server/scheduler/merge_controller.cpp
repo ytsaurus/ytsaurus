@@ -573,6 +573,12 @@ public:
         , Spec(spec)
     { }
 
+    // TODO: fix TotalOutputRowCount calculation
+    //virtual bool IsRowCountPreserved() const override
+    //{
+    //    return true;
+    //}
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x6acdae46);
 
@@ -677,6 +683,12 @@ public:
         : TOrderedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
+
+    // TODO: fix TotalOutputRowCount calculation
+    //virtual bool IsRowCountPreserved() const override
+    //{
+    //    return true;
+    //}
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController, 0x1f748c56);
@@ -1053,6 +1065,12 @@ public:
         : TSortedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
+
+    // TODO: fix TotalOutputRowCount calculation
+    //virtual bool IsRowCountPreserved() const override
+    //{
+    //    return true;
+    //}
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);

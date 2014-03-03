@@ -119,7 +119,7 @@ public:
 
     //! Multiplicator of slice data size.
     //! It is necessary to prevent scheduling of double data size per one job.
-    double SliceDataSizeMultiplicator;
+    double SliceDataSizeMultiplier;
 
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
@@ -242,7 +242,7 @@ public:
             .Default(10000)
             .GreaterThan(0);
 
-        RegisterParameter("slice_data_size_multiplicator", SliceDataSizeMultiplicator)
+        RegisterParameter("slice_data_size_multiplicator", SliceDataSizeMultiplier)
             .Default(0.51)
             .GreaterThan(0.0);
 

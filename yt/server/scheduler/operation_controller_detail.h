@@ -703,6 +703,8 @@ protected:
     // Enables sorted output from user jobs.
     virtual bool IsSortedOutputSupported() const;
 
+    virtual bool IsRowCountPreserved() const;
+
     std::vector<Stroka> CheckInputTablesSorted(
         const TNullable< std::vector<Stroka> >& keyColumns);
     static bool CheckKeyColumnsCompatible(

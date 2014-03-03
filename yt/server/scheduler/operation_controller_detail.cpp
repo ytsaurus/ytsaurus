@@ -1229,6 +1229,14 @@ void TOperationControllerBase::CommitResults()
 
     TObjectServiceProxy proxy(AuthenticatedMasterChannel);
     auto batchReq = proxy.ExecuteBatch();
+    
+    if (IsRowCountPreserved() && TotalInputRowCount != TotalOutputRowCount) {
+        THROW_ERROR_EXCEPTION(
+            "Input row count (%" PRId64 ") and output row count (%" PRId64 ") are distinct",
+            TotalInputRowCount,
+            TotalOutputRowCount);
+    }
+
 
     FOREACH (auto& table, OutputTables) {
         auto path = FromObjectId(table.ObjectId);
@@ -2754,7 +2762,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
-    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplicator * TotalInputDataSize / jobCount, 1.0));
+    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalInputDataSize / jobCount, 1.0));
 
     FOREACH (const auto& chunkSpec, CollectInputChunks()) {
         int oldSize = result.size();
@@ -2846,6 +2854,11 @@ EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const
+{
+    return false;
+}
+
+bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
 }

@@ -1645,6 +1645,11 @@ public:
         , Spec(spec)
     { }
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return true;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortController, 0xbca37afe);
 
