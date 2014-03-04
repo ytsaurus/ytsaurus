@@ -1009,10 +1009,7 @@ void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
 
     std::vector<TSharedRef> parts(request.request_parts_size());
     for (int partIndex = 0; partIndex < request.request_parts_size(); ++partIndex) {
-        // Construct a non-owning TSharedRef to avoid copying.
-        // This is feasible since the message will outlive the request.
-        const auto& part = request.request_parts(partIndex);
-        parts[partIndex] = TSharedRef::FromRefNonOwning(TRef::FromString(part));
+        parts[partIndex] = TSharedRef::FromString(request.request_parts(partIndex));
     }
 
     auto requestMessage = TSharedRefArray(std::move(parts));
