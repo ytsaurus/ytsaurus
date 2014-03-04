@@ -641,24 +641,24 @@ private:
 
     Value* CodegenExpr(
         TIRBuilder& builder,
-        
         const TExpression* expr,
         const TTableSchema& tableSchema,
-        Value* row);
+        Value* row,
+        Value* isNullPtr);
 
     Value* CodegenFunctionExpr(
         TIRBuilder& builder,
-
         const TFunctionExpression* expr,
         const TTableSchema& tableSchema,
-        Value* row);
+        Value* row,
+        Value* isNullPtr);
 
     Value* CodegenBinaryOpExpr(
         TIRBuilder& builder,
-
         const TBinaryOpExpression* expr,
         const TTableSchema& tableSchema,
-        Value* row);
+        Value* row,
+        Value* isNullPtr);
 
 
     void CodegenOp(
@@ -885,18 +885,6 @@ Value* CodegenDataPtrFromRow(TIRBuilder& builder, Value* row, int index, EValueT
     return dataPtr;
 }
 
-Value* CodegenIdPtrFromRow(TIRBuilder& builder, Value* row, int index)
-{
-    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
-    Value* idPtr = builder.CreateConstGEP2_32(
-        rowValuesArray,
-        index,
-        TypeBuilder<TValue, false>::Fields::Id,
-        "idPtr");
-
-    return idPtr;
-}
-
 Value* CodegenTypePtrFromRow(TIRBuilder& builder, Value* row, int index)
 {
     Value* rowValuesArray = CodegenRowValuesArray(builder, row);
@@ -907,6 +895,111 @@ Value* CodegenTypePtrFromRow(TIRBuilder& builder, Value* row, int index)
         "typePtr");
 
     return typePtr;
+}
+
+
+void CodegenIsNull(
+    TIRBuilder& builder,
+    Value* row,
+    int index,
+    Value* isNullPtr)
+{
+    auto& context = builder.getContext();
+    Value* type = builder.CreateLoad(CodegenTypePtrFromRow(builder, row, index));
+
+    Value* currentNull = builder.CreateSelect(
+        builder.CreateICmpEQ(
+            type, 
+            ConstantInt::get(Type::getInt16Ty(context), EValueType::Null)),
+        ConstantInt::getTrue(context),
+        builder.CreateLoad(isNullPtr));
+
+    builder.CreateStore(currentNull, isNullPtr);
+}
+
+Value* CodegenNullValue(TIRBuilder& builder, Type* type)
+{
+    if (type->isIntegerTy()) {
+        return ConstantInt::get(type, 0);
+    } else if (type->isDoubleTy()) {
+        return ConstantFP::get(type, 0);
+    }
+
+    YUNREACHABLE();
+}
+
+Value* CodegenValueFromRow(TIRBuilder& builder, Value* row, int index, EValueType type, Value* isNullPtr, llvm::Twine name = llvm::Twine())
+{
+    typedef TypeBuilder<TValueData, false> TUnionType;
+
+    TUnionType::Fields field;
+    switch (type) { // int, double or string
+        case EValueType::Integer:
+            field = TUnionType::Fields::Integer;
+            break;
+        case EValueType::Double:
+            field = TUnionType::Fields::Double;
+            break;
+        case EValueType::String:
+            //field = TUnionType::Fields::String;
+            YUNIMPLEMENTED();
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    auto& context = builder.getContext();
+
+    Function* function = builder.GetInsertBlock()->getParent();
+
+    auto* getValueBB = BasicBlock::Create(context, "getValue", function);
+    auto* resultBB = BasicBlock::Create(context, "result", function);          
+
+    CodegenIsNull(builder, row, index, isNullPtr);
+
+    auto* sourceBB = builder.GetInsertBlock();
+    builder.CreateCondBr(builder.CreateLoad(isNullPtr), resultBB, getValueBB);
+    builder.SetInsertPoint(getValueBB);
+
+    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
+    Value* dataPtr = builder.CreateConstGEP2_32(
+        rowValuesArray,
+        index,
+        TypeBuilder<TValue, false>::Fields::Data,
+        "dataPtr");
+
+    Value* value = builder.CreateLoad(
+        builder.CreatePointerCast(
+            dataPtr,
+            TUnionType::getAs(field, builder.getContext()),
+            "dataPtrCasted"), 
+        "literal");
+
+
+    getValueBB = builder.GetInsertBlock();
+    builder.CreateBr(resultBB);
+    builder.SetInsertPoint(resultBB);
+
+    llvm::PHINode* phiNode = builder.CreatePHI(value->getType(), 2, name);
+
+    Value* nullValue = CodegenNullValue(builder, value->getType());
+
+    phiNode->addIncoming(nullValue, sourceBB);
+    phiNode->addIncoming(value, getValueBB);
+
+    return phiNode;
+}
+
+Value* CodegenIdPtrFromRow(TIRBuilder& builder, Value* row, int index)
+{
+    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
+    Value* idPtr = builder.CreateConstGEP2_32(
+        rowValuesArray,
+        index,
+        TypeBuilder<TValue, false>::Fields::Id,
+        "idPtr");
+
+    return idPtr;
 }
 
 void CodegenAggregateFunction(
@@ -997,7 +1090,8 @@ void CodegenSetRowValue(
     int index,
     ui16 id,
     EValueType type,
-    Value* data)
+    Value* data,
+    Value* isNullPtr)
 {
     auto& context = builder.getContext();
 
@@ -1008,9 +1102,15 @@ void CodegenSetRowValue(
     builder.CreateStore(
         ConstantInt::get(Type::getInt16Ty(context), id),
         idPtr);
+
     builder.CreateStore(
-        ConstantInt::get(Type::getInt16Ty(context), type),
+        builder.CreateSelect(
+            builder.CreateLoad(isNullPtr), 
+            ConstantInt::get(Type::getInt16Ty(context), EValueType::Null), 
+            ConstantInt::get(Type::getInt16Ty(context), 
+            type)),
         typePtr);
+    
     builder.CreateStore(
         data,
         dataPtr);
@@ -1020,10 +1120,10 @@ void CodegenSetRowValue(
 
 Value* TCGContext::CodegenFunctionExpr(
     TIRBuilder& builder,
- 
     const TFunctionExpression* expr,
     const TTableSchema& tableSchema,
-    Value* row)
+    Value* row,
+    Value* isNullPtr)
 {
     YUNIMPLEMENTED();
 }
@@ -1032,10 +1132,28 @@ Value* TCGContext::CodegenBinaryOpExpr(
     TIRBuilder& builder,
     const TBinaryOpExpression* expr,
     const TTableSchema& tableSchema,
-    Value* row)
+    Value* row,
+    Value* isNullPtr)
 {
-    Value* lhsValue = CodegenExpr(builder, expr->GetLhs(), tableSchema, row);
-    Value* rhsValue = CodegenExpr(builder, expr->GetRhs(), tableSchema, row);
+    Value* lhsValue = CodegenExpr(builder, expr->GetLhs(), tableSchema, row, isNullPtr);
+
+    Function* function = builder.GetInsertBlock()->getParent();
+
+    auto* getRhsValueBB = BasicBlock::Create(Context_, "getRhsValue", function);
+    auto* evalResultBB = BasicBlock::Create(Context_, "evalResult", function);
+    auto* resultBB = BasicBlock::Create(Context_, "result", function);
+
+    auto* sourceBB = builder.GetInsertBlock();
+    builder.CreateCondBr(builder.CreateLoad(isNullPtr), resultBB, getRhsValueBB);
+    builder.SetInsertPoint(getRhsValueBB);
+
+    Value* rhsValue = CodegenExpr(builder, expr->GetRhs(), tableSchema, row, isNullPtr);
+
+    getRhsValueBB = builder.GetInsertBlock();
+    builder.CreateCondBr(builder.CreateLoad(isNullPtr), resultBB, evalResultBB);
+    builder.SetInsertPoint(evalResultBB);
+
+    Value* result = 0;
 
     auto name = expr->GetName();
 
@@ -1045,9 +1163,11 @@ Value* TCGContext::CodegenBinaryOpExpr(
         case EBinaryOp::opcode: \
             switch (expr->GetType(tableSchema)) { \
                 case EValueType::Integer: \
-                    return builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
+                    result = builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
+                    break; \
                 case EValueType::Double: \
-                    return builder.CreateBinOp(Instruction::BinaryOps::foptype, lhsValue, rhsValue, ~expr->GetName()); \
+                    result = builder.CreateBinOp(Instruction::BinaryOps::foptype, lhsValue, rhsValue, ~expr->GetName()); \
+                    break; \
                 default: \
                     YUNREACHABLE(); /* Typechecked. */ \
             } \
@@ -1063,7 +1183,8 @@ Value* TCGContext::CodegenBinaryOpExpr(
         case EBinaryOp::opcode: \
             switch (expr->GetType(tableSchema)) { \
                 case EValueType::Integer: \
-                    return builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
+                    result = builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
+                    break; \
                 default: \
                     YUNREACHABLE(); /* Typechecked. */ \
             } \
@@ -1078,9 +1199,11 @@ Value* TCGContext::CodegenBinaryOpExpr(
         case EBinaryOp::opcode: \
             switch (expr->GetType(tableSchema)) { \
                 case EValueType::Integer: \
-                    return builder.CreateICmp##ioptype(lhsValue, rhsValue, ~expr->GetName()); \
+                    result = builder.CreateICmp##ioptype(lhsValue, rhsValue, ~expr->GetName()); \
+                    break; \
                 case EValueType::Double: \
-                    return builder.CreateFCmp##foptype(lhsValue, rhsValue, ~expr->GetName()); \
+                    result = builder.CreateFCmp##foptype(lhsValue, rhsValue, ~expr->GetName()); \
+                    break; \
                 default: \
                     YUNREACHABLE(); /* Typechecked. */ \
             } \
@@ -1093,14 +1216,27 @@ Value* TCGContext::CodegenBinaryOpExpr(
         XX(GreaterOrEqual, SGE, UGE)
 #undef XX
     }
-    YUNREACHABLE();
+
+    builder.CreateBr(resultBB);
+    builder.SetInsertPoint(resultBB);
+
+    llvm::PHINode* phiNode = builder.CreatePHI(result->getType(), 3);
+
+    Value* nullValue = CodegenNullValue(builder, result->getType());
+
+    phiNode->addIncoming(nullValue, sourceBB);
+    phiNode->addIncoming(nullValue, getRhsValueBB);
+    phiNode->addIncoming(result, evalResultBB);
+
+    return phiNode;
 }
 
 Value* TCGContext::CodegenExpr(
     TIRBuilder& builder,
     const TExpression* expr,
     const TTableSchema& tableSchema,
-    Value* row)
+    Value* row,
+    Value* isNullPtr)
 {
     YASSERT(expr);
     switch (expr->GetKind()) {
@@ -1109,34 +1245,33 @@ Value* TCGContext::CodegenExpr(
             auto it = Params_.NodeToConstantIndex.find(expr);
             YCHECK(it != Params_.NodeToConstantIndex.end());
             int index = it->Second();
-            return builder.CreateLoad(
-                CodegenDataPtrFromRow(
-                    builder,
-                    GetConstantsRows(builder),
-                    index,
-                    expr->GetType(tableSchema)), "literal");
+
+            return CodegenValueFromRow(
+                builder,
+                GetConstantsRows(builder),
+                index,
+                expr->GetType(tableSchema), isNullPtr, "literal");
         }
         case EExpressionKind::Reference: {
             int index = tableSchema.GetColumnIndexOrThrow(expr->As<TReferenceExpression>()->GetName());
-            return builder.CreateLoad(
-                CodegenDataPtrFromRow(
-                    builder,
-                    row,
-                    index,
-                    expr->GetType(tableSchema)), "reference");
+            return CodegenValueFromRow(
+                builder,
+                row,
+                index,
+                expr->GetType(tableSchema), isNullPtr, "reference");
         }
         case EExpressionKind::Function:
             return CodegenFunctionExpr(
                 builder,
                 expr->As<TFunctionExpression>(),
                 tableSchema,
-                row);
+                row, isNullPtr);
         case EExpressionKind::BinaryOp:
             return CodegenBinaryOpExpr(
                 builder,
                 expr->As<TBinaryOpExpression>(),
                 tableSchema,
-                row);
+                row, isNullPtr);
         default:
             YUNREACHABLE();
     }
@@ -1210,9 +1345,14 @@ void TCGContext::CodegenFilterOp(
 
     CodegenOp(builder, op->GetSource(),
         [&] (TIRBuilder& innerBuilder, Value* row) {
-            Value* result;
-            result = CodegenExpr(innerBuilder, op->GetPredicate(), sourceTableSchema, row);
-            result = innerBuilder.CreateZExtOrBitCast(result, TypeBuilder<i64, false>::get(Context_));
+
+            Value* isNullPtr = innerBuilder.CreateAlloca(
+                TypeBuilder<llvm::types::i<1>, false>::get(Context_), 0, "isNullPtr");
+            innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+            
+            Value* result = innerBuilder.CreateZExtOrBitCast(
+                CodegenExpr(innerBuilder, op->GetPredicate(), sourceTableSchema, row, isNullPtr),
+                TypeBuilder<i64, false>::get(Context_));
 
             Function* function = innerBuilder.GetInsertBlock()->getParent();
 
@@ -1271,9 +1411,11 @@ void TCGContext::CodegenProjectOp(
                 auto id = nameTable->GetId(name);
                 auto type = expr->GetType(sourceTableSchema);
 
-                Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row);
-
-                CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data);
+                Value* isNullPtr = innerBuilder.CreateAlloca(
+                    TypeBuilder<llvm::types::i<1>, false>::get(Context_), 0, "isNullPtr");
+                innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+                Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row, isNullPtr);
+                CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data, isNullPtr);
             }
 
             codegenConsumer(innerBuilder, newRowRef);
@@ -1336,9 +1478,11 @@ void TCGContext::CodegenGroupOp(
             // TODO(sandello): Others are unsupported.
             YCHECK(type == EValueType::Integer);
 
-            Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row);
-
-            CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data);
+            Value* isNullPtr = innerBuilder.CreateAlloca(
+                TypeBuilder<llvm::types::i<1>, false>::get(Context_), 0, "isNullPtr");
+            innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+            Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row, isNullPtr);
+            CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data, isNullPtr);
         }
 
         for (int index = 0; index < aggregateItemCount; ++index) {
@@ -1350,9 +1494,11 @@ void TCGContext::CodegenGroupOp(
             // TODO(sandello): Others are unsupported.
             YCHECK(type == EValueType::Integer);
 
-            Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row);
-
-            CodegenSetRowValue(innerBuilder, newRowRef, keySize + index, id, type, data);
+            Value* isNullPtr = innerBuilder.CreateAlloca(
+                TypeBuilder<llvm::types::i<1>, false>::get(Context_), 0, "isNullPtr");
+            innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+            Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row, isNullPtr);
+            CodegenSetRowValue(innerBuilder, newRowRef, keySize + index, id, type, data, isNullPtr);
         }
 
         Value* foundRowPtr = innerBuilder.CreateCall2(

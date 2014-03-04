@@ -199,6 +199,15 @@ TTableSchema GetSampleTableSchema()
     return tableSchema;
 }
 
+TTableSchema GetSample2TableSchema()
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().push_back({ "a", EValueType::Integer });
+    tableSchema.Columns().push_back({ "b", EValueType::Integer });
+    tableSchema.Columns().push_back({ "c", EValueType::Integer });
+    return tableSchema;
+}
+
 template <class T>
 TFuture<TErrorOr<T>> WrapInFuture(const T& value)
 {
@@ -220,6 +229,21 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
 
     SetKeyColumns(&dataSplit, GetSampleKeyColumns());
     SetTableSchema(&dataSplit, GetSampleTableSchema());
+
+    return dataSplit;
+}
+
+TDataSplit MakeSimple2Split(const TYPath& path, ui64 counter = 0)
+{
+    TDataSplit dataSplit;
+
+    ToProto(
+        dataSplit.mutable_chunk_id(),
+        MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
+
+    TKeyColumns keyColumns;
+    SetKeyColumns(&dataSplit, keyColumns);
+    SetTableSchema(&dataSplit, GetSample2TableSchema());
 
     return dataSplit;
 }
@@ -1313,6 +1337,25 @@ TEST_F(TQueryCodegenTest, Simple)
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
     CodegenAndEvaluate("a, b FROM [//t]", source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryCodegenTest, Simple2)
+{
+    auto simpleSplit = MakeSimple2Split("//t");
+
+    std::vector<TUnversionedOwningRow> source;
+    source.push_back(BuildRow("a=4;b=5", simpleSplit, true));
+    source.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
+    source.push_back(BuildRow("a=16", simpleSplit, true));
+    
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("a=4;b=5", simpleSplit, true));
+    result.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
+    result.push_back(BuildRow("a=16", simpleSplit, true));
+
+    CodegenAndEvaluate("a, b, c FROM [//t] where a > 3", source, result);
 
     SUCCEED();
 }
