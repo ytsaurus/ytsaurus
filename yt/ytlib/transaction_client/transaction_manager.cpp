@@ -143,12 +143,9 @@ public:
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
+        State_ = EState::Active;
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
-            State_ = EState::Active;
-        }
+        YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
     
         Register();
 
@@ -500,21 +497,17 @@ private:
 
     TError OnMasterTransactionStarted(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-    
-            if (!rsp->IsOK()) {
-                State_ = EState::Aborted;
-                return rsp->GetError();
-            }
-
-            State_ = EState::Active;
-            
-            YCHECK(rsp->object_ids_size() == 1);
-            Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
-            
-            YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
+        if (!rsp->IsOK()) {
+            State_ = EState::Aborted;
+            return rsp->GetError();
         }
+
+        State_ = EState::Active;
+        
+        YCHECK(rsp->object_ids_size() == 1);
+        Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
+        
+        YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
 
         LOG_INFO("Master transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~ToString(Id_),
@@ -537,6 +530,8 @@ private:
             0, // TODO(babenko): cell id?
             static_cast<ui64>(StartTimestamp_),
             TabletTransactionCounter++);
+
+        State_ = EState::Active;
 
         LOG_INFO("Tablet transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s)",
             ~ToString(Id_),
