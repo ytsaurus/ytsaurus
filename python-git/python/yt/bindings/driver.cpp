@@ -27,15 +27,6 @@
 
 #include <ytlib/hydra/hydra_service_proxy.h>
 
-// For at_exit
-#include <core/profiling/profiling_manager.h>
-
-#include <core/rpc/dispatcher.h>
-
-#include <core/bus/tcp_dispatcher.h>
-
-#include <ytlib/chunk_client/dispatcher.h>
-
 #include <contrib/libs/pycxx/Objects.hxx>
 #include <contrib/libs/pycxx/Extensions.hxx>
 
@@ -254,7 +245,8 @@ class driver_module
 {
 public:
     driver_module()
-        : Py::ExtensionModule<driver_module>("driver")
+        // It should be the same as .so file name
+        : Py::ExtensionModule<driver_module>("driver_lib")
     {
         PyEval_InitThreads();
 
