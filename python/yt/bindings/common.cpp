@@ -27,6 +27,10 @@ bool HasArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name)
         return args.length() > 0;
     }
 }
+        
+Py::Object YsonError(PyObject_GetAttr(
+    PyImport_ImportModule("yt.yson.common"),
+    PyString_FromString("YsonError")));
 
 } // namespace NPython
 } // namespace NYT

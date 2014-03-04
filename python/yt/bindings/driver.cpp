@@ -132,7 +132,12 @@ public:
             }
         }
 
-        response->SetResponse(DriverInstance_->Execute(request));
+        try {
+            response->SetResponse(DriverInstance_->Execute(request));
+        } catch (const std::exception& error) {
+            THROW_YSON_ERROR(error.what());
+        }
+
         return pythonResponse;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, Execute)
@@ -146,7 +151,12 @@ public:
 
         Py::Callable class_type(TCommandDescriptor::type());
         Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
-        descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
+        try {
+            descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
+        } catch (const std::exception& error) {
+            THROW_YSON_ERROR(error.what());
+        }
+
         return descriptor;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptor)
@@ -157,14 +167,18 @@ public:
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        auto descriptors = Py::List();
-        for (const auto& nativeDescriptor : DriverInstance_->GetCommandDescriptors()) {
-            Py::Callable class_type(TCommandDescriptor::type());
-            Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
-            descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
-            descriptors.append(descriptor);
+        try {
+            auto descriptors = Py::List();
+            for (const auto& nativeDescriptor : DriverInstance_->GetCommandDescriptors()) {
+                Py::Callable class_type(TCommandDescriptor::type());
+                Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
+                descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
+                descriptors.append(descriptor);
+            }
+            return descriptors;
+        } catch (const std::exception& error) {
+            THROW_YSON_ERROR(error.what());
         }
-        return descriptors;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
 
@@ -183,12 +197,16 @@ public:
 
     Py::Object GcCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
-        NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
-        proxy.SetDefaultTimeout(Null); // infinity
-        auto req = proxy.GCCollect();
-        auto rsp = req->Invoke().Get();
-        if (!rsp->IsOK()) {
-            return ConvertTo<Py::Object>(TError(*rsp));
+        try {
+            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
+            proxy.SetDefaultTimeout(Null); // infinity
+            auto req = proxy.GCCollect();
+            auto rsp = req->Invoke().Get();
+            if (!rsp->IsOK()) {
+                return ConvertTo<Py::Object>(TError(*rsp));
+            }
+        } catch (const std::exception& error) {
+            THROW_YSON_ERROR(error.what());
         }
         return Py::None();
     }
@@ -204,18 +222,22 @@ public:
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        NHydra::THydraServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
-        proxy.SetDefaultTimeout(Null); // infinity
-        auto req = proxy.BuildSnapshotDistributed();
-        req->set_set_read_only(setReadOnly);
+        try {
+            NHydra::THydraServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
+            proxy.SetDefaultTimeout(Null); // infinity
+            auto req = proxy.BuildSnapshotDistributed();
+            req->set_set_read_only(setReadOnly);
 
-        auto rsp = req->Invoke().Get();
-        if (!rsp->IsOK()) {
-            return ConvertTo<Py::Object>(TError(*rsp));
+            auto rsp = req->Invoke().Get();
+            if (!rsp->IsOK()) {
+                return ConvertTo<Py::Object>(TError(*rsp));
+            }
+
+            int snapshotId = rsp->snapshot_id();
+            printf("Snapshot %d is built\n", snapshotId);
+        } catch (const std::exception& error) {
+            THROW_YSON_ERROR(error.what());
         }
-
-        int snapshotId = rsp->snapshot_id();
-        printf("Snapshot %d is built\n", snapshotId);
 
         return Py::None();
     }
