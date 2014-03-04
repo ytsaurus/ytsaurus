@@ -18,6 +18,19 @@ using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+Py::Exception CreateYsonError(const std::string& message)
+{
+    static PyObject* ysonErrorClass = nullptr;
+    if (!ysonErrorClass) {
+        ysonErrorClass = PyObject_GetAttr(
+            PyImport_ImportModule("yt.yson.common"),
+            PyString_FromString("YsonError"));
+    }
+    return Py::Exception(ysonErrorClass, message);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TYsonIterator
     : public Py::PythonClass<TYsonIterator>
 {
@@ -68,7 +81,7 @@ public:
             result.increment_reference_count();
             return result.ptr();
         } catch (const std::exception& error) {
-            THROW_YSON_ERROR(error.what());
+            throw CreateYsonError(error.what());
         }
     }
 
@@ -198,11 +211,11 @@ private:
         }
 
         if (args.length() > 0 || kwargs.length() > 0) {
-            THROW_YSON_ERROR("Incorrect arguments");
+            throw CreateYsonError("Incorrect arguments");
         }
 
         if (ysonType == NYson::EYsonType::MapFragment) {
-            THROW_YSON_ERROR("Map fragment is not supported");
+            throw CreateYsonError("Map fragment is not supported");
         }
 
         if (ysonType == NYson::EYsonType::ListFragment) {
@@ -228,7 +241,7 @@ private:
                 }
                 parser.Finish();
             } catch (const std::exception& error) {
-                THROW_YSON_ERROR(error.what());
+                throw CreateYsonError(error.what());
             }
 
             return consumer.ExtractObject();
@@ -281,7 +294,7 @@ private:
         }
 
         if (args.length() > 0 || kwargs.length() > 0) {
-            THROW_YSON_ERROR("Incorrect arguments");
+            throw CreateYsonError("Incorrect arguments");
         }
 
         NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, indent);
@@ -289,7 +302,7 @@ private:
             try {
                 NYTree::Consume(obj, &writer);
             } catch (const NYT::TErrorException& error) {
-                THROW_YSON_ERROR(error.what());
+                throw CreateYsonError(error.what());
             }
         } else if (ysonType == NYson::EYsonType::ListFragment) {
             auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
@@ -299,10 +312,10 @@ private:
                     NYTree::Consume(Py::Object(item, true), &writer);
                 }
             } catch (const NYT::TErrorException& error) {
-                THROW_YSON_ERROR(error.what());
+                throw CreateYsonError(error.what());
             }
         } else {
-            THROW_YSON_ERROR(ToString(ysonType) + " is not supported");
+            throw CreateYsonError(ToString(ysonType) + " is not supported");
         }
     }
 };
