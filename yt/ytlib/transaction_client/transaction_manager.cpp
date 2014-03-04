@@ -76,8 +76,6 @@ public:
 
     TFuture<TErrorOr<TTransactionPtr>> Start(const TTransactionStartOptions& options);
 
-    TTransactionPtr Start(const TTransactionStartOptions& options);
-
     TTransactionPtr Attach(const TTransactionAttachOptions& options);
 
     void AbortAll();
