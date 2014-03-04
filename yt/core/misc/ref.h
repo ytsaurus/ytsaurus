@@ -4,8 +4,6 @@
 #include "blob.h"
 #include "new.h"
 
-
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,13 +155,18 @@ public:
         return TSharedRef(nullptr, ref);
     }
 
-    //! Creates an owning reference by copying data from a given string.
+    //! Creates an owning reference from a string.
+    //! Since strings are ref-counted, no data is copied.
     template <class TTag>
     static TSharedRef FromString(const Stroka& str)
     {
-        auto result = TSharedRef::Allocate<TTag>(str.length());
-        std::copy(str.begin(), str.end(), result.Begin());
-        return result;
+        auto holder = New<TStringHolder>(str);
+#ifdef ENABLE_REF_COUNTED_TRACKING
+        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
+        holder->InitializeTracking(cookie);
+#endif
+        auto ref = TRef::FromString(holder->String);
+        return TSharedRef(std::move(holder), ref);
     }
 
     static TSharedRef FromString(const Stroka& str)
@@ -171,7 +174,7 @@ public:
         return FromString<TDefaultSharedBlobTag>(str);
     }
 
-    //! Creates a reference to the whole blob taking the ownership of its content.
+    //! Creates a reference to the whole blob taking ownership of its content.
     template <class TTag>
     static TSharedRef FromBlob(TBlob&& blob)
     {
@@ -296,6 +299,25 @@ private:
         friend class TSharedRef;
 
         TBlob Blob;
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+        void* Cookie;
+        void InitializeTracking(void* cookie);
+        void FinalizeTracking();
+#endif
+    };
+
+    class TStringHolder
+        : public THolder
+    {
+    public:
+        explicit TStringHolder(const Stroka& string);
+        ~TStringHolder();
+
+    private:
+        friend class TSharedRef;
+
+        Stroka String;
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
         void* Cookie;

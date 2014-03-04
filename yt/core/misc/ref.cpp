@@ -54,6 +54,39 @@ void TSharedRef::TBlobHolder::FinalizeTracking()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSharedRef::TStringHolder::TStringHolder(const Stroka& string)
+    : String(string)
+#ifdef ENABLE_REF_COUNTED_TRACKING
+    , Cookie(nullptr)
+#endif
+{ }
+
+TSharedRef::TStringHolder::~TStringHolder()
+{
+#ifdef ENABLE_REF_COUNTED_TRACKING
+    FinalizeTracking();
+#endif
+}
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+
+void TSharedRef::TStringHolder::InitializeTracking(void* cookie)
+{
+    YASSERT(!Cookie);
+    Cookie = cookie;
+    TRefCountedTracker::Get()->Allocate(Cookie, String.length());
+}
+
+void TSharedRef::TStringHolder::FinalizeTracking()
+{
+    YASSERT(Cookie);
+    TRefCountedTracker::Get()->Free(Cookie, String.length());
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka ToString(const TRef& ref)
 {
     return Stroka(ref.Begin(), ref.End());
