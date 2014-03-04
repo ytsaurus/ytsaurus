@@ -216,11 +216,11 @@ private:
         auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
         int firstMessageId = request->first_message_id();
 
-        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, FirstMessageId: %d, MessageCount: %" PRISZT,
+        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, FirstMessageId: %d, MessageCount: %d",
             ~ToString(srcCellGuid),
             ~ToString(SelfCellGuid),
             firstMessageId,
-            request->Attachments().size());
+            request->messages_size());
         
         CreateReceiveMessagesMutation(context)
             ->OnSuccess(CreateRpcSuccessHandler(context))
