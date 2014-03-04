@@ -74,13 +74,13 @@ public:
         ITimestampProviderPtr timestampProvider,
         TCellDirectoryPtr cellDirectory);
 
-    TFuture<TErrorOr<TTransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
+    TFuture<TErrorOr<TTransactionPtr>> Start(const TTransactionStartOptions& options);
 
     TTransactionPtr Start(const TTransactionStartOptions& options);
 
     TTransactionPtr Attach(const TTransactionAttachOptions& options);
 
-    void AsyncAbortAll();
+    void AbortAll();
 
 private:
     friend class TTransaction;
@@ -107,23 +107,14 @@ public:
         , AutoAbort_(false)
         , Ping_(false)
         , PingAncestors_(false)
-        , State_(EState::Active)
+        , State_(EState::Initializing)
         , Aborted_(NewPromise())
         , StartTimestamp_(NullTimestamp)
     { }
 
     ~TImpl()
     {
-        if (AutoAbort_) {
-            if (State_ == EState::Active) {
-                SendAbort();
-            }
-
-            {
-                TGuard<TSpinLock> guard(Owner_->SpinLock_);
-                YCHECK(Owner_->AliveTransactions_.erase(this) == 1);
-            }
-        }
+        Unregister();
     }
 
 
@@ -169,7 +160,7 @@ public:
         }
     }
 
-    TAsyncError AsyncCommit(const TMutationId& mutationId)
+    TAsyncError Commit(const TMutationId& mutationId)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -204,8 +195,9 @@ public:
         if (participantGuids.empty()) {
             {
                 TGuard<TSpinLock> guard(SpinLock_);
-                if (State_ != EState::Committing)
+                if (State_ != EState::Committing) {
                     return MakeFuture(Error_);
+                }
                 State_ = EState::Committed;
             }
 
@@ -238,7 +230,7 @@ public:
             BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellGuid));
     }
 
-    TAsyncError AsyncAbort(const TMutationId& mutationId)
+    TAsyncError Abort(const TMutationId& mutationId)
     {
         auto this_ = MakeStrong(this);
         return SendAbort(mutationId).Apply(BIND([this, this_] (TError error) -> TError {
@@ -249,7 +241,7 @@ public:
         }));
     }
 
-    TAsyncError AsyncPing()
+    TAsyncError Ping()
     {
         return SendPing();
     }
@@ -319,7 +311,7 @@ public:
             if (!Error_.IsOK()) {
                 THROW_ERROR Error_;
             }
-            if (!ParticipantGuids_.insert(cellGuid).second) {
+            if (ParticipantGuids_.find(cellGuid) != ParticipantGuids_.end()) {
                 return MakeFuture(TError());
             }
         }
@@ -362,6 +354,7 @@ private:
     friend class TTransactionManager::TImpl;
 
     DECLARE_ENUM(EState,
+        (Initializing)
         (Active)
         (Aborted)
         (Committing)
@@ -431,6 +424,19 @@ private:
         }        
     }
 
+    void Unregister()
+    {
+        if (AutoAbort_) {
+            TGuard<TSpinLock> guard(Owner_->SpinLock_);
+            YCHECK(Owner_->AliveTransactions_.erase(this) == 1);
+
+            if (State_ == EState::Active) {
+                SendAbort();
+            }
+        }
+    }
+
+
     void SchedulePing()
     {
         TDelayedExecutor::Submit(
@@ -486,22 +492,26 @@ private:
         }
 
         return proxy.Execute(req).Apply(
-            BIND(&TImpl::OnTransactionStarted, MakeStrong(this)));
+            BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
     }
 
-    TError OnTransactionStarted(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
+    TError OnMasterTransactionStarted(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
     {
-        if (!rsp->IsOK()) {
-            State_ = EState::Aborted;
-            return rsp->GetError();
-        }
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+    
+            if (!rsp->IsOK()) {
+                State_ = EState::Aborted;
+                return rsp->GetError();
+            }
 
-        State_ = EState::Active;
-        
-        YCHECK(rsp->object_ids_size() == 1);
-        Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
-        
-        YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
+            State_ = EState::Active;
+            
+            YCHECK(rsp->object_ids_size() == 1);
+            Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
+            
+            YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
+        }
 
         LOG_INFO("Master transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~ToString(Id_),
@@ -544,13 +554,22 @@ private:
             LOG_DEBUG("Transaction tablet participant added (TransactionId: %s, CellGuid: %s)",
                 ~ToString(Id_),
                 ~ToString(cellGuid));
+
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                if (State_ == EState::Active) {
+                    // NB: Ignore duplicates.
+                    ParticipantGuids_.insert(cellGuid);
+                }
+            }
         } else {
             LOG_DEBUG(*rsp, "Error adding transaction tablet participant (TransactionId: %s, CellGuid: %s)",
                 ~ToString(Id_),
                 ~ToString(cellGuid));
 
-            DoAbort(TError("Error adding participant tablet cell %s",
-                ~ToString(cellGuid))
+            DoAbort(TError("Error adding participant %s to transaction %s",
+                ~ToString(cellGuid),
+                ~ToString(Id_))
                 << *rsp);
         }
         return rsp->GetError();
@@ -844,7 +863,7 @@ TTransactionManager::TImpl::TImpl(
     YCHECK(CellDirectory_);
 }
 
-TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::AsyncStart(const TTransactionStartOptions& options)
+TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::Start(const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -869,7 +888,7 @@ TTransactionPtr TTransactionManager::TImpl::Attach(const TTransactionAttachOptio
     return New<TTransaction>(transaction);
 }
 
-void TTransactionManager::TImpl::AsyncAbortAll()
+void TTransactionManager::TImpl::AbortAll()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -885,7 +904,7 @@ void TTransactionManager::TImpl::AsyncAbortAll()
     }
 
     for (const auto& transaction : transactions) {
-        transaction->AsyncAbort(NullMutationId);
+        transaction->Abort(NullMutationId);
     }
 }
 
@@ -900,12 +919,12 @@ TTransaction::~TTransaction()
 
 TAsyncError TTransaction::Commit(const NHydra::TMutationId& mutationId /*= NHydra::NullMutationId*/)
 {
-    return Impl_->AsyncCommit(mutationId);
+    return Impl_->Commit(mutationId);
 }
 
 TAsyncError TTransaction::Abort(const NHydra::TMutationId& mutationId /*= NHydra::NullMutationId*/)
 {
-    return Impl_->AsyncAbort(mutationId);
+    return Impl_->Abort(mutationId);
 }
 
 void TTransaction::Detach()
@@ -915,7 +934,7 @@ void TTransaction::Detach()
 
 TAsyncError TTransaction::Ping()
 {
-    return Impl_->AsyncPing();
+    return Impl_->Ping();
 }
 
 ETransactionType TTransaction::GetType() const
@@ -944,7 +963,7 @@ DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    const NHive::TCellGuid& masterCellGuid,
+    const TCellGuid& masterCellGuid,
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
@@ -961,7 +980,7 @@ TTransactionManager::~TTransactionManager()
 
 TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::Start(const TTransactionStartOptions& options)
 {
-    return Impl_->AsyncStart(options);
+    return Impl_->Start(options);
 }
 
 TTransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)
@@ -971,7 +990,7 @@ TTransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& opt
 
 void TTransactionManager::AbortAll()
 {
-    Impl_->AsyncAbortAll();
+    Impl_->AbortAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
