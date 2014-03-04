@@ -82,14 +82,23 @@ TKeyRange RefineKeyRange(
 
     auto normalizeKey =
     [&] (TKey& key) {
-       if (key.GetCount() == keySize + 1 && keySize > 0 && key[keySize].Type == EValueType::Min) {
-           TUnversionedOwningRowBuilder builder(keySize);
-           for (size_t index = 0; index < keySize; ++index) {
-               builder.AddValue(key[index]);
-           }
-           key = builder.GetRowAndReset();
-           AdvanceToValueSuccessor(key[keySize - 1]);
-       }
+        if (keySize == 0) {
+            return;
+        }
+        if (key.GetCount() == 0) {
+            TUnversionedOwningRowBuilder builder(keySize);
+            for (size_t index = 0; index < keySize; ++index) {
+                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
+            }
+            key = builder.GetRowAndReset();
+        } else if (key.GetCount() == keySize + 1 && key[keySize].Type == EValueType::Min) {
+            TUnversionedOwningRowBuilder builder(keySize);
+            for (size_t index = 0; index < keySize; ++index) {
+                builder.AddValue(key[index]);
+            }
+            key = builder.GetRowAndReset();
+            AdvanceToValueSuccessor(key[keySize - 1]);
+        }
     };
 
     normalizeKey(result.first);
