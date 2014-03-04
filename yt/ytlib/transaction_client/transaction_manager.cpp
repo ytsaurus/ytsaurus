@@ -144,7 +144,12 @@ public:
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
 
-        YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
+            State_ = EState::Active;
+        }
+    
         Register();
 
         LOG_INFO("Master transaction attached (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
