@@ -1033,7 +1033,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         auto* object = handler->GetObject(id);
 
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
-        // CheckEmpty will raise CollectPromise when GC becomes empty.
+        // CheckEmpty will raise CollectPromise when GC queue becomes empty.
         // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
         GarbageCollector->Dequeue(object);
