@@ -107,8 +107,11 @@ class yson_module
 {
 public:
     yson_module()
-        : Py::ExtensionModule<yson_module>("yson")
+        // It should be the same as .so file name
+        : Py::ExtensionModule<yson_module>("yson_lib")
     {
+        PyEval_InitThreads();
+
         RegisterShutdown();
 
         TYsonIterator::InitType();
