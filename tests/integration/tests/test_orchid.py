@@ -32,11 +32,14 @@ class TestOrchid(YTEnvSetup):
             path_to_orchid = path + '/' + service + '/orchid'
             self._check_service(path_to_orchid, service_name)
 
-    def test_on_masters(self):
-        self._check_orchid('//sys/masters', self.NUM_MASTERS, "master")
+    def test_at_masters(self):
+        for i in range(100):
+            self._check_orchid('//sys/masters', self.NUM_MASTERS, "master")
 
-    def test_on_nodes(self):
-        self._check_orchid('//sys/nodes', self.NUM_NODES, "node")
+    def test_at_nodes(self):
+        for i in range(100):
+            self._check_orchid('//sys/nodes', self.NUM_NODES, "node")
 
-    def test_on_scheduler(self):
-        self._check_service('//sys/scheduler/orchid', "scheduler")
+    def test_at_scheduler(self):
+        for i in range(100):
+            self._check_service('//sys/scheduler/orchid', "scheduler")
