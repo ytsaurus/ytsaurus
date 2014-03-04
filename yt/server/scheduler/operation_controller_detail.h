@@ -324,7 +324,6 @@ protected:
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
 
         void Persist(TPersistenceContext& context);
-
     };
 
     struct TCompletedJob

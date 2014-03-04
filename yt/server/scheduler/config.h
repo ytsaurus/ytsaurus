@@ -117,8 +117,8 @@ public:
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
 
-    //! Multiplicator of slice data size.
-    //! It is necessary to prevent scheduling of double data size per one job.
+    //! Multiplier of slice data size.
+    //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataSizeMultiplier;
 
     //! Maximum number of partitions during sort, ever.
@@ -242,7 +242,7 @@ public:
             .Default(10000)
             .GreaterThan(0);
 
-        RegisterParameter("slice_data_size_multiplicator", SliceDataSizeMultiplier)
+        RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
             .Default(0.51)
             .GreaterThan(0.0);
 

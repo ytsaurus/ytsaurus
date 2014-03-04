@@ -290,6 +290,11 @@ protected:
 
     TTaskGroupPtr MergeTaskGroup;
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return true;
+    }
+
     //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
     void ClearCurrentTaskStripes()
     {
@@ -573,12 +578,6 @@ public:
         , Spec(spec)
     { }
 
-    // TODO: fix TotalOutputRowCount calculation
-    //virtual bool IsRowCountPreserved() const override
-    //{
-    //    return true;
-    //}
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x6acdae46);
 
@@ -684,17 +683,10 @@ public:
         , Spec(spec)
     { }
 
-    // TODO: fix TotalOutputRowCount calculation
-    //virtual bool IsRowCountPreserved() const override
-    //{
-    //    return true;
-    //}
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController, 0x1f748c56);
 
     TOrderedMergeOperationSpecPtr Spec;
-
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -759,6 +751,10 @@ private:
 
     TEraseOperationSpecPtr Spec;
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return false;
+    }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -1065,12 +1061,6 @@ public:
         : TSortedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
-
-    // TODO: fix TotalOutputRowCount calculation
-    //virtual bool IsRowCountPreserved() const override
-    //{
-    //    return true;
-    //}
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);
