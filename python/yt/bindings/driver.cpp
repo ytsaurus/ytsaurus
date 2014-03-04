@@ -43,6 +43,19 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+Py::Exception CreateYtError(const std::string& message)
+{
+    static PyObject* ytErrorClass = nullptr;
+    if (!ytErrorClass) {
+        ytErrorClass = PyObject_GetAttr(
+            PyImport_ImportModule("yt.common"),
+            PyString_FromString("YtError"));
+    }
+    return Py::Exception(ytErrorClass, message);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TDriver
     : public Py::PythonClass<TDriver>
 {
@@ -126,7 +139,7 @@ public:
         try {
             response->SetResponse(DriverInstance_->Execute(request));
         } catch (const std::exception& error) {
-            THROW_YSON_ERROR(error.what());
+            throw CreateYtError(error.what());
         }
 
         return pythonResponse;
@@ -145,7 +158,7 @@ public:
         try {
             descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
         } catch (const std::exception& error) {
-            THROW_YSON_ERROR(error.what());
+            throw CreateYtError(error.what());
         }
 
         return descriptor;
@@ -168,7 +181,7 @@ public:
             }
             return descriptors;
         } catch (const std::exception& error) {
-            THROW_YSON_ERROR(error.what());
+            throw CreateYtError(error.what());
         }
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
@@ -197,7 +210,7 @@ public:
                 return ConvertTo<Py::Object>(TError(*rsp));
             }
         } catch (const std::exception& error) {
-            THROW_YSON_ERROR(error.what());
+            throw CreateYtError(error.what());
         }
         return Py::None();
     }
@@ -227,7 +240,7 @@ public:
             int snapshotId = rsp->snapshot_id();
             printf("Snapshot %d is built\n", snapshotId);
         } catch (const std::exception& error) {
-            THROW_YSON_ERROR(error.what());
+            throw CreateYtError(error.what());
         }
 
         return Py::None();

@@ -54,9 +54,6 @@ bool HasArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name);
 
 extern Py::Object YsonError;
 
-#define THROW_YSON_ERROR(message) \
-    throw Py::Exception(YsonError.ptr(), message);
-
 } // namespace NPython
 
 } // namespace NYT
