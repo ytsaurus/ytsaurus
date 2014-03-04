@@ -61,7 +61,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
 
             auto error = FromProto(responseHeader.error());
 
-            context->SetRequestInfo("Error: %s", ~ToString(error));
+            context->SetResponse("InnerError: %s", ~ToString(error));
 
             response->Attachments() = responseMessage.ToVector();
             context->Reply();
