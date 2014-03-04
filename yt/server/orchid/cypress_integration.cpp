@@ -84,8 +84,8 @@ public:
             mutationContext->SuppressMutation();
         }
 
-        // Prevent doing anything during recovery.
-        if (hydraManager->IsRecovery()) {
+        // Prevent doing anything during recovery and at followers.
+        if (!hydraManager->IsLeader()) {
             return;
         }
 
