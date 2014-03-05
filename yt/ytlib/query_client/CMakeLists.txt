@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client )
 set( SRCS
   ${BASE}/plan_visitor.cpp
-  ${BASE}/plan_matcher.cpp
   ${BASE}/plan_helpers.cpp
   ${BASE}/graphviz.cpp
   ${BASE}/operator.cpp
@@ -24,7 +23,6 @@ set( HDRS
   ${BASE}/callbacks.h
   ${BASE}/plan_node.h
   ${BASE}/plan_visitor.h
-  ${BASE}/plan_matcher.h
   ${BASE}/plan_helpers.h
   ${BASE}/coordinate_controller.h
   ${BASE}/prepare_controller.h
