@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/versioned_multi_chunk_writer.cpp
   ${BASE}/versioned_row.cpp
   ${BASE}/cached_versioned_chunk_meta.cpp
+  ${BASE}/pipe.cpp
 )
 
 set( HDRS
@@ -45,6 +46,7 @@ set( HDRS
   ${BASE}/writer.h
   ${BASE}/unversioned_writer.h
   ${BASE}/cached_versioned_chunk_meta.h
+  ${BASE}/pipe.h
 )
 
 list(APPEND YT_SOURCE_FILES
