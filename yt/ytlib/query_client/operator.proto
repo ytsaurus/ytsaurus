@@ -36,7 +36,7 @@ message TScanOperator
 message TFilterOperator
 {
     extend TOperator {
-        optional TFilterOperator filter_operator = 103;
+        optional TFilterOperator filter_operator = 102;
     }
     required TOperator source = 1;
     required TExpression predicate = 2;
@@ -45,7 +45,7 @@ message TFilterOperator
 message TGroupOperator
 {
     extend TOperator {
-        optional TGroupOperator group_operator = 104;
+        optional TGroupOperator group_operator = 103;
     }
     required TOperator source = 1;
     repeated TNamedExpression group_items = 2;
@@ -55,7 +55,7 @@ message TGroupOperator
 message TProjectOperator
 {
     extend TOperator {
-        optional TProjectOperator project_operator = 105;
+        optional TProjectOperator project_operator = 104;
     }
     required TOperator source = 1;
     repeated TNamedExpression projections = 2;
