@@ -26,10 +26,11 @@
 #define _MAX_ "<\"type\"=\"max\">#"
 
 namespace NYT {
-
 namespace NVersionedTableClient {
 
-void PrintTo(const TOwningKey& key, ::std::ostream* os)
+////////////////////////////////////////////////////////////////////////////////
+
+    void PrintTo(const TOwningKey& key, ::std::ostream* os)
 {
     *os << KeyToYson(key.Get());
 }
@@ -39,11 +40,17 @@ void PrintTo(const TKey& key, ::std::ostream* os)
     *os << KeyToYson(key);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
+} // namespace NYT
 
+
+namespace NYT {
 namespace NQueryClient {
-
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYPath;
 using namespace NObjectClient;
@@ -1230,9 +1237,6 @@ protected:
             result.begin(),
             std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
 
-        YCHECK(!Controller_);
-        Controller_.Emplace(GetCurrentInvoker());
-
         EXPECT_CALL(EvaluateMock_, GetReader(_, _))
             .WillOnce(Return(ReaderMock_));
 
@@ -1255,21 +1259,18 @@ protected:
                 .WillOnce(Return(WrapVoidInFuture()));
         }
 
-        auto error = Controller_->Run(
+        TCodegenController controller;
+        auto error = controller.Run(
             &EvaluateMock_,
             TPlanFragment::Prepare(query, NullTimestamp, &PrepareMock_),
             WriterMock_);
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
-
-        Controller_.Reset();
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     StrictMock<TEvaluateCallbacksMock> EvaluateMock_;
-    TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;   
+    TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_; 
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
-
-    TNullable<TCodegenController> Controller_;
 
 };
 
@@ -1322,7 +1323,8 @@ TEST_F(TQueryCodegenTest, Complex)
 
 #endif
 
-} // namespace
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NQueryClient
 } // namespace NYT
