@@ -28,9 +28,6 @@ public:
     TEvaluatorProxy(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
-#ifdef YT_USE_LLVM
-        , CodegenController_(Invoker_)
-#endif
     { }
 
     virtual TAsyncError Execute(
@@ -67,9 +64,6 @@ public:
     TCoordinatorProxy(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
-#ifdef YT_USE_LLVM
-        , CodegenController_(Invoker_)
-#endif
     { }
 
     virtual TAsyncError Execute(

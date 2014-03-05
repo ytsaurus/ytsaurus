@@ -6,6 +6,9 @@
 #include "plan_node.h"
 #include "plan_visitor.h"
 #include "plan_helpers.h"
+#include "plan_fragment.h"
+
+#include "callbacks.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -16,6 +19,7 @@
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/action_queue.h>
 
+#include <core/misc/lazy_ptr.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/chunked_memory_pool.h>
 
@@ -62,7 +66,13 @@
 namespace NYT {
 namespace NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 static auto& Logger = QueryClientLogger;
+static TLazyIntrusivePtr<NConcurrency::TActionQueue> CodegenQueue(
+    NConcurrency::TActionQueue::CreateFactory("Codegen"));
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 size_t THashCombine(size_t seed, const T& value)
@@ -1465,6 +1475,7 @@ TCodegenedFunction TCGContext::CodegenEvaluate(
 } // namespace NQueryClient
 } // namespace NYT
 
+
 // Controller
 namespace NYT {
 namespace NQueryClient {
@@ -1642,166 +1653,151 @@ void TFragmentProfileVisitor::Profile(const TOperator* op)
     }
 }
 
-class TCodegenControllerImpl
+////////////////////////////////////////////////////////////////////////////////
+
+class TCodegenController::TImpl
     : public NNonCopyable::TNonCopyable
 {
 public:
-    // Common
-    explicit TCodegenControllerImpl(IInvokerPtr invoker);
-    ~TCodegenControllerImpl();
+    TImpl()
+    {
+        static std::once_flag InitializeNativeTargetFlag;
+        std::call_once(InitializeNativeTargetFlag, llvm::InitializeNativeTarget);
+
+        static std::once_flag LlvmStartFlag;
+        std::call_once(LlvmStartFlag, llvm::llvm_start_multithreaded);
+    }
 
     TError Run(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer);
+        ISchemedWriterPtr writer)
+    {
+        return EvaluateViaCache(
+            callbacks,
+            fragment,
+            std::move(writer));
+    }
 
 private:
+    TSpinLock FoldingSetSpinLock_;
+    llvm::FoldingSet<TCodegenedFragment> CodegenedFragmentsFoldingSet_;
+
 
     TError EvaluateViaCache(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer);
+        ISchemedWriterPtr writer)
+    {
+        llvm::FoldingSetNodeID id;
+        TFragmentParams fragmentParams;
 
-private:
-    IInvokerPtr CodegenInvoker_;
+        TFragmentProfileVisitor(id, fragmentParams).Profile(fragment.GetHead());
 
-    TSpinLock FoldingSetSpinLock_;
-    llvm::FoldingSet<TCodegenedFragment> CodegenedFragmentsFoldingSet_;
+        TCodegenedFragment* codegenedFragment = nullptr;
+
+        // Preliminary check.
+        {
+            TGuard<TSpinLock> guard(FoldingSetSpinLock_);
+            void* insertPoint = nullptr;
+            codegenedFragment = CodegenedFragmentsFoldingSet_.FindNodeOrInsertPos(id, insertPoint);
+        }
+
+        if (!codegenedFragment) {
+            WaitFor(BIND([&] () {
+                    auto codegenedFragmentHolder = std::make_unique<TCodegenedFragment>(id, nullptr);
+
+                    codegenedFragmentHolder->CodegenedFunction_ = TCGContext::CodegenEvaluate(
+                        codegenedFragmentHolder->Context_, 
+                        codegenedFragmentHolder->Module_, 
+                        codegenedFragmentHolder->ExecutionEngine_, 
+                        fragmentParams,
+                        fragment.GetHead());
+
+                    {
+                        TGuard<TSpinLock> guard(FoldingSetSpinLock_);
+                        void* insertPoint = nullptr;
+                        // Final check.
+                        codegenedFragment = CodegenedFragmentsFoldingSet_.FindNodeOrInsertPos(id, insertPoint);
+                        if (!codegenedFragment) {
+                            codegenedFragment = codegenedFragmentHolder.release();
+                            CodegenedFragmentsFoldingSet_.InsertNode(codegenedFragment, insertPoint);
+                        }
+                    }
+                })
+                .AsyncVia(CodegenQueue->GetInvoker())
+                .Run());
+        }
+
+        // Make TRow from fragmentParams.ConstantArray.
+        TChunkedMemoryPool memoryPool;
+        auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
+        for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
+            constants[i] = fragmentParams.ConstantArray[i];
+        }
+
+        try {
+            LOG_DEBUG("Evaluating plan fragment (FragmentId: %s)",
+                ~ToString(fragment.Id()));
+
+            LOG_DEBUG("Opening writer (FragmentId: %s)",
+                ~ToString(fragment.Id()));
+            {
+                auto error = WaitFor(writer->Open(
+                    fragment.GetHead()->GetTableSchema(),
+                    fragment.GetHead()->GetKeyColumns()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            }
+
+            std::pair<std::vector<TRow>, TChunkedMemoryPool*> batch;
+            batch.second = &memoryPool;
+            batch.first.reserve(MaxRowsPerWrite);
+
+            TPassedFragmentParams passedFragmentParams;
+            passedFragmentParams.Callbacks = callbacks;
+            passedFragmentParams.Context = fragment.GetContext().Get();
+            passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
+
+            codegenedFragment->CodegenedFunction_(
+                constants,
+                &passedFragmentParams,
+                &batch,
+                writer.Get());
+
+            LOG_DEBUG("Flusing writer (FragmentId: %s)",
+                ~ToString(fragment.Id()));
+
+            if (!batch.first.empty()) {
+                if (!writer->Write(batch.first)) {
+                    auto error = WaitFor(writer->GetReadyEvent());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                }
+            }
+
+            LOG_DEBUG("Closing writer (FragmentId: %s)",
+                ~ToString(fragment.Id()));
+            {
+                auto error = WaitFor(writer->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            }
+
+            LOG_DEBUG("Finished evaluating plan fragment (FragmentId: %s)",
+                ~ToString(fragment.Id()));
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to evaluate plan fragment") << ex;
+            LOG_ERROR(error);
+            return error;
+        }
+
+        return TError();
+    }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::once_flag InitializeNativeTargetFlag;
-
-TCodegenControllerImpl::TCodegenControllerImpl(IInvokerPtr invoker)
-    : CodegenInvoker_(CreateSerializedInvoker(invoker))
-{
-    std::call_once(InitializeNativeTargetFlag, llvm::InitializeNativeTarget);
-}
-
-TError TCodegenControllerImpl::EvaluateViaCache(
-    IEvaluateCallbacks* callbacks,
-    const TPlanFragment& fragment,
-    ISchemedWriterPtr writer)
-{
-    llvm::FoldingSetNodeID id;
-    TFragmentParams fragmentParams;
-
-    TFragmentProfileVisitor(id, fragmentParams).Profile(fragment.GetHead());
-
-    TCodegenedFragment* codegenedFragment = nullptr;
-
-    {
-        TGuard<TSpinLock> guard(FoldingSetSpinLock_);
-
-        void* insertPoint = nullptr;
-        codegenedFragment = CodegenedFragmentsFoldingSet_.FindNodeOrInsertPos(id, insertPoint);
-
-        if (!codegenedFragment) {
-            codegenedFragment = new TCodegenedFragment(id, nullptr);
-            CodegenedFragmentsFoldingSet_.InsertNode(codegenedFragment, insertPoint);
-        }
-    }
-
-    if (!codegenedFragment->CodegenedFunction_) {
-        auto codegenFuture = BIND([&] () {
-                if (codegenedFragment->CodegenedFunction_) {
-                    return;
-                }
-
-                codegenedFragment->CodegenedFunction_ = TCGContext::CodegenEvaluate(
-                    codegenedFragment->Context_, 
-                    codegenedFragment->Module_, 
-                    codegenedFragment->ExecutionEngine_, 
-                    fragmentParams,
-                    fragment.GetHead());
-            })
-            .AsyncVia(CodegenInvoker_)
-            .Run();
-
-        WaitFor(codegenFuture);
-    }
-
-    // Make TRow from fragmentParams.ConstantArray.
-    TChunkedMemoryPool memoryPool;
-    auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
-
-    for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
-        constants[i] = fragmentParams.ConstantArray[i];
-    }
-
-    try {
-        LOG_DEBUG("Evaluating plan fragment (FragmentId: %s)",
-            ~ToString(fragment.Id()));
-
-        LOG_DEBUG("Opening writer (FragmentId: %s)",
-            ~ToString(fragment.Id()));
-        {
-            auto error = WaitFor(writer->Open(
-                fragment.GetHead()->GetTableSchema(),
-                fragment.GetHead()->GetKeyColumns()));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-
-        std::pair<std::vector<TRow>, TChunkedMemoryPool*> batch;
-        batch.second = &memoryPool;
-        batch.first.reserve(MaxRowsPerWrite);
-
-        TPassedFragmentParams passedFragmentParams;
-        passedFragmentParams.Callbacks = callbacks;
-        passedFragmentParams.Context = fragment.GetContext().Get();
-        passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
-
-        codegenedFragment->CodegenedFunction_(
-            constants,
-            &passedFragmentParams,
-            &batch,
-            writer.Get());
-
-        LOG_DEBUG("Flusing writer (FragmentId: %s)",
-            ~ToString(fragment.Id()));
-
-        if (!batch.first.empty()) {
-            if (!writer->Write(batch.first)) {
-                auto error = WaitFor(writer->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
-            }
-        }
-
-        LOG_DEBUG("Closing writer (FragmentId: %s)",
-            ~ToString(fragment.Id()));
-        {
-            auto error = WaitFor(writer->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-
-        LOG_DEBUG("Finished evaluating plan fragment (FragmentId: %s)",
-            ~ToString(fragment.Id()));
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to evaluate plan fragment") << ex;
-        LOG_ERROR(error);
-        return error;
-    }
-
-    return TError();
-}
-
-TCodegenControllerImpl::~TCodegenControllerImpl()
-{ }
-
-TError TCodegenControllerImpl::Run(
-    IEvaluateCallbacks* callbacks,
-    const TPlanFragment& fragment,
-    ISchemedWriterPtr writer)
-{
-    return EvaluateViaCache(callbacks, fragment, std::move(writer));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCodegenController::TCodegenController(IInvokerPtr invoker)
-    : Impl(std::make_unique<TCodegenControllerImpl>(invoker))
+TCodegenController::TCodegenController()
+    : Impl_(std::make_unique<TCodegenController::TImpl>())
 { }
 
 TCodegenController::~TCodegenController()
@@ -1812,7 +1808,7 @@ TError TCodegenController::Run(
     const TPlanFragment& fragment,
     ISchemedWriterPtr writer)
 {
-    return Impl->Run(callbacks, fragment, std::move(writer));
+    return Impl_->Run(callbacks, fragment, std::move(writer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
