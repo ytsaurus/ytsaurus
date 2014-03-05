@@ -10,10 +10,16 @@ static const int TypicalQueueLength = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define XX(nodeType) IMPLEMENT_AST_VISITOR_DUMMY(TPlanVisitor, nodeType)
+#define IMPLEMENT_VISITOR(visitorType, nodeType, nodeKind) \
+bool visitorType::Visit(const T##nodeKind##nodeType *) \
+{ return true; }
+#define XX(kind) IMPLEMENT_VISITOR(TPlanVisitor, Operator, kind)
 #include "list_of_operators.inc"
+#undef XX
+#define XX(kind) IMPLEMENT_VISITOR(TPlanVisitor, Expression, kind)
 #include "list_of_expressions.inc"
 #undef XX
+#undef IMPLEMENT_VISITOR
 
 bool Traverse(IPlanVisitor* visitor, const TOperator* root)
 {

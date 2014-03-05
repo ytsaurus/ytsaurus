@@ -24,23 +24,18 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
     TOperator* result = nullptr;
 
     switch (GetKind()) {
-
         case EOperatorKind::Scan:
             result = new (context) TScanOperator(context, *this->As<TScanOperator>());
             break;
-
         case EOperatorKind::Filter:
             result = new (context) TFilterOperator(context, *this->As<TFilterOperator>());
             break;
-
         case EOperatorKind::Group:
             result = new (context) TGroupOperator(context, *this->As<TGroupOperator>());
             break;
-
         case EOperatorKind::Project:
             result = new (context) TProjectOperator(context, *this->As<TProjectOperator>());
             break;
-
     }
 
     YCHECK(result);

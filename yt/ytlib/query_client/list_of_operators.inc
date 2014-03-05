@@ -1,4 +1,4 @@
-XX(ScanOperator)
-XX(FilterOperator)
-XX(GroupOperator)
-XX(ProjectOperator)
+XX(Scan)
+XX(Filter)
+XX(Group)
+XX(Project)

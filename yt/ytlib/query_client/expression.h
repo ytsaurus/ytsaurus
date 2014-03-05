@@ -85,8 +85,12 @@ public:
     //! Piggy-backed method |GetConstantValue|.
     TValue GetConstantValue() const;
 
-private:
+protected:
+    friend class TPlanNodeBase<TExpression, EExpressionKind>;
+    TExpression* CloneImpl(TPlanContext* context) const;
+
     TSourceLocation SourceLocation_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,6 +106,13 @@ public:
         i64 value)
         : TExpression(context, EExpressionKind::IntegerLiteral, sourceLocation)
         , Value_(value)
+    { }
+
+    TIntegerLiteralExpression(
+        TPlanContext* context,
+        const TIntegerLiteralExpression& other)
+        : TExpression(context, EExpressionKind::IntegerLiteral, other.SourceLocation_)
+        , Value_(other.Value_)
     { }
 
     static inline bool IsClassOf(const TExpression* expr)
@@ -126,6 +137,13 @@ public:
         , Value_(value)
     { }
 
+    TDoubleLiteralExpression(
+        TPlanContext* context,
+        const TDoubleLiteralExpression& other)
+        : TExpression(context, EExpressionKind::DoubleLiteral, other.SourceLocation_)
+        , Value_(other.Value_)
+    { }
+
     static inline bool IsClassOf(const TExpression* expr)
     {
         return expr->GetKind() == EExpressionKind::DoubleLiteral;
@@ -146,6 +164,13 @@ public:
         const TStringBuf& columnName)
         : TExpression(context, EExpressionKind::Reference, sourceLocation)
         , ColumnName_(columnName)
+    { }
+
+    TReferenceExpression(
+        TPlanContext* context,
+        const TReferenceExpression& other)
+        : TExpression(context, EExpressionKind::Reference, other.SourceLocation_)
+        , ColumnName_(other.ColumnName_)
     { }
 
     static inline bool IsClassOf(const TExpression* expr)
@@ -172,6 +197,14 @@ public:
     {
         SetFunctionName(Stroka(functionName));
     }
+
+    TFunctionExpression(
+        TPlanContext* context,
+        const TFunctionExpression& other)
+        : TExpression(context, EExpressionKind::Function, other.SourceLocation_)
+        , Arguments_(other.Arguments_)
+        , FunctionName_(other.FunctionName_)
+    { }
 
     static inline bool IsClassOf(const TExpression* expr)
     {
@@ -201,6 +234,11 @@ public:
     const TExpression* GetArgument(int i) const
     {
         return Arguments_[i];
+    }
+
+    void SetArgument(int i, TExpression* argument)
+    {
+        Arguments_[i] = argument;
     }
 
     Stroka GetFunctionName() const
@@ -233,10 +271,18 @@ public:
         const TExpression* rhs)
         : TExpression(context, EExpressionKind::BinaryOp, sourceLocation)
         , Opcode_(opcode)
-    {
-        Subexpressions_[Lhs_] = lhs;
-        Subexpressions_[Rhs_] = rhs;
-    }
+        , Lhs_(lhs)
+        , Rhs_(rhs)
+    { }
+
+    TBinaryOpExpression(
+        TPlanContext* context,
+        const TBinaryOpExpression& other)
+        : TExpression(context, EExpressionKind::BinaryOp, other.SourceLocation_)
+        , Opcode_(other.Opcode_)
+        , Lhs_(other.Lhs_)
+        , Rhs_(other.Rhs_)
+    { }
 
     static inline bool IsClassOf(const TExpression* expr)
     {
@@ -246,24 +292,34 @@ public:
     virtual TArrayRef<const TExpression*> Children() const override
     {
         // XXX(sandello): Construct explicitly to enable C-array overload.
-        return MakeArrayRef(Subexpressions_);
+        return MakeArrayRef(&Lhs_, 2);
     }
 
     const TExpression* GetLhs() const
     {
-        return Subexpressions_[Lhs_];
+        return Lhs_;
+    }
+
+    void SetLhs(const TExpression* lhs)
+    {
+        Lhs_ = lhs;
     }
 
     const TExpression* GetRhs() const
     {
-        return Subexpressions_[Rhs_];
+        return Rhs_;
+    }
+
+    void SetRhs(const TExpression* rhs)
+    {
+        Rhs_ = rhs;
     }
 
     DEFINE_BYVAL_RO_PROPERTY(EBinaryOp, Opcode);
 
 protected:
-    enum { Lhs_, Rhs_, NumberOfSubexpressions_ };
-    const TExpression* Subexpressions_[NumberOfSubexpressions_];
+    const TExpression* Lhs_;
+    const TExpression* Rhs_;
 
 };
 

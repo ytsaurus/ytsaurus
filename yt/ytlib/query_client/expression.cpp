@@ -61,6 +61,23 @@ EBinaryOpKind GetBinaryOpcodeKind(EBinaryOp opcode)
     YUNREACHABLE();
 }
 
+TExpression* TExpression::CloneImpl(TPlanContext* context) const
+{
+    TExpression* result = nullptr;
+
+    switch (GetKind()) {
+#define XX(kind) \
+        case EExpressionKind::kind: \
+            result = new (context) T##kind##Expression(context, *this->As<T##kind##Expression>()); \
+            break;
+#include "list_of_expressions.inc"
+#undef XX
+    }
+
+    YCHECK(result);
+    return result;
+}
+
 Stroka TExpression::GetSource() const
 {
     auto source = Context_->GetSource();
@@ -100,6 +117,7 @@ TValue TExpression::GetConstantValue() const
 void ToProto(NProto::TExpression* serialized, const TExpression* original)
 {
     serialized->set_kind(original->GetKind());
+
     switch (original->GetKind()) {
 
         case EExpressionKind::IntegerLiteral: {

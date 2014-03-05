@@ -74,8 +74,6 @@ public:
         : TPlanNodeBase(context, kind)
     { }
 
-    TOperator* CloneImpl(TPlanContext* context) const;
-
     //! Infers table schema of the query result.
     virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const = 0;
 
@@ -87,6 +85,11 @@ public:
 
     //! Constructs a name table filled with operator's schema.
     NVersionedTableClient::TNameTablePtr GetNameTable() const;
+
+protected:
+    friend class TPlanNodeBase<TOperator, EOperatorKind>;
+    TOperator* CloneImpl(TPlanContext* context) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

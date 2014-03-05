@@ -13,38 +13,36 @@ class TExpression;
 class TPlanContext;
 struct IPlanVisitor;
 
-#define AS_INTERFACE(nodeType) \
-    virtual bool Visit(const T ## nodeType *) = 0;
-#define AS_IMPLEMENTATION(nodeType) \
-    virtual bool Visit(const T ## nodeType *) override;
+#define DECLARE_VISITOR_INTERFACE(type, kind) \
+    virtual bool Visit(const T##kind##type *) = 0;
+#define DECLARE_VISITOR_IMPLEMENTATION(type, kind) \
+    virtual bool Visit(const T##kind##type *) override;
 
 struct IPlanVisitor
 {
     virtual ~IPlanVisitor()
     { }
-
-#define XX(nodeType) AS_INTERFACE(nodeType)
-#include "list_of_expressions.inc"
+#define XX(kind) DECLARE_VISITOR_INTERFACE(Operator, kind)
 #include "list_of_operators.inc"
+#undef XX
+#define XX(kind) DECLARE_VISITOR_INTERFACE(Expression, kind)
+#include "list_of_expressions.inc"
 #undef XX
 };
 
 class TPlanVisitor
     : public IPlanVisitor
 {
-// Stub out everything.
-#define XX(nodeType) AS_IMPLEMENTATION(nodeType)
-#include "list_of_expressions.inc"
+#define XX(kind) DECLARE_VISITOR_IMPLEMENTATION(Operator, kind)
 #include "list_of_operators.inc"
+#undef XX
+#define XX(kind) DECLARE_VISITOR_IMPLEMENTATION(Expression, kind)
+#include "list_of_expressions.inc"
 #undef XX
 };
 
-#undef AS_INTERFACE
-#undef AS_IMPLEMENTATION
-
-#define IMPLEMENT_AST_VISITOR_DUMMY(visitorType, nodeType) \
-bool visitorType::Visit(const T ## nodeType*) \
-{ return true; }
+#undef DECLARE_VISITOR_INTERFACE
+#undef DECLARE_VISITOR_IMPLEMENTATION
 
 //! Runs a depth-first preorder traversal.
 bool Traverse(IPlanVisitor* visitor, const TOperator* root);
