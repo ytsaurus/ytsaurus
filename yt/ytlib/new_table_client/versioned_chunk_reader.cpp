@@ -197,7 +197,7 @@ int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
     auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int beginBlockIndex = 0;
-    if (LowerLimit_.HasRowIndex() && LowerLimit_.GetRowIndex() > 0) {
+    if (LowerLimit_.HasRowIndex() && LowerLimit_.GetRowIndex()) {
         // To make search symmetrical with blockIndex we ignore last block.
         typedef decltype(blockMetaEntries.end()) TIter;
         auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
@@ -250,7 +250,7 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
     auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int endBlockIndex = blockMetaEntries.size();
-    if (UpperLimit_.HasRowIndex() && UpperLimit_.GetRowIndex() > 0) {
+    if (UpperLimit_.HasRowIndex() && UpperLimit_.GetRowIndex()) {
         auto begin = blockMetaEntries.begin();
         auto end = blockMetaEntries.end() - 1;
         auto it = std::lower_bound(
@@ -259,7 +259,7 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
             UpperLimit_.GetRowIndex(),
             [] (const TBlockMeta& blockMeta, int index) {
                 auto maxRowIndex = blockMeta.chunk_row_count() - 1;
-                return index < maxRowIndex;
+                return maxRowIndex < index;
             });
 
         if (it != end) {
@@ -277,7 +277,7 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
             [] (const TProtoStringType& protoKey, const TOwningKey& pivot) {
                 TOwningKey key;
                 FromProto(&key, protoKey);
-                return pivot < key;
+                return key < pivot;
             });
 
         if (it != blockIndexEntries.end()) {
