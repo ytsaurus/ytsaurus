@@ -508,6 +508,18 @@ TUnversionedRow TUnversionedRow::Capture(TChunkedMemoryPool* alignedPool, TChunk
     return dstRow;
 }
 
+std::vector<TUnversionedRow> CaptureRows(
+    const std::vector<TUnversionedRow>& rows,
+    TChunkedMemoryPool* alignedPool,
+    TChunkedMemoryPool* unalignedPool)
+{
+    std::vector<TUnversionedRow> capturedRows(rows.size());
+    for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
+        capturedRows[index] = rows[index].Capture(alignedPool, unalignedPool);
+    }
+    return capturedRows;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType)
