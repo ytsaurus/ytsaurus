@@ -172,9 +172,6 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
         Attachments_.begin(),
         ResponseMessage.Begin() + 2,
         ResponseMessage.End());
-
-    NProto::TResponseHeader responseHeader;
-    YCHECK(ParseResponseHeader(ResponseMessage, &responseHeader));
 }
 
 void TClientResponse::OnAcknowledgement()
