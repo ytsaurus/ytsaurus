@@ -99,28 +99,28 @@ public:
         YUNREACHABLE();
     }
 
-    virtual TLocationToDataSplits GroupByLocation(
+    virtual TGroupedDataSplits Regroup(
         const TDataSplits& splits,
         TPlanContextPtr context) override
     {
-        TLocationToDataSplits result;
+        TGroupedDataSplits result;
         for (const auto& split : splits) {
-            auto location = LocationFromDataSplit(split);
-            result[location].push_back(split);
+            result.emplace_back(1, split);
         }
         return result;
     }
 
     virtual ISchemedReaderPtr Delegate(
         const TPlanFragment& fragment,
-        const Stroka& /*location*/) override
+        const TDataSplit& /*collocatedSplit*/) override
     {
         auto pipe = New<TSchemedPipe>();
-        Evaluator_->Execute(fragment, pipe->GetWriter()).Subscribe(BIND([pipe] (TError error) {
-            if (!error.IsOK()) {
-                pipe->Fail(error);
-            }
-        }));
+        Evaluator_->Execute(fragment, pipe->GetWriter())
+            .Subscribe(BIND([pipe] (TError error) {
+                if (!error.IsOK()) {
+                    pipe->Fail(error);
+                }
+            }));
         return pipe->GetReader();
     }
 

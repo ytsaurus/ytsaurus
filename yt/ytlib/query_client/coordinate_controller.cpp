@@ -51,8 +51,11 @@ TError TCoordinateController::Run()
     try {
         LOG_DEBUG("Coordinating plan fragment");
 
-        Fragment_ = SplitPlanFragment(Fragment_);
-        InitializeReaders();
+        Fragment_ = TPlanFragment(
+            Fragment_.GetContext(),
+            Simplify(Gather(Scatter(Fragment_.GetHead()))));
+
+        DelegateToPeers();
 
         return TError();
     } catch (const std::exception& ex) {
@@ -67,221 +70,6 @@ TPlanFragment TCoordinateController::GetCoordinatorFragment() const
     return Fragment_;
 }
 
-TDataSplits TCoordinateController::GetUnitedDataSplit(
-    TPlanContext* context,
-    std::map<Stroka, const TOperator*> operatorsByLocation)
-{
-    TDataSplits facadeDataSplits;
-
-    for (auto& colocatedOperator : operatorsByLocation) {
-        Stroka location = colocatedOperator.first;
-        const TOperator* op = colocatedOperator.second;
-
-        auto fragment = TPlanFragment(context, op);
-        LOG_DEBUG("Created subfragment (SubfragmentId: %s)",
-            ~ToString(fragment.Id()));
-
-        auto inferredKeyRange = op->GetKeyRange();
-        if (IsEmpty(inferredKeyRange)) {
-            LOG_DEBUG("Subfragment is empty (SubfragmentId: %s)",
-                ~ToString(fragment.Id()));
-            continue;
-        } else {
-            LOG_DEBUG("Inferred key range %s ... %s (SubfragmentId: %s)",
-                ~ToString(inferredKeyRange.first),
-                ~ToString(inferredKeyRange.second),
-                ~ToString(fragment.Id()));
-        }
-
-        fragment.Rewrite(
-        [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-            auto* scanOp = op->As<TScanOperator>();
-            if (!scanOp) {
-                return op;
-            }
-
-            auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-            auto& filteredDataSplits = clonedScanOp->DataSplits();
-
-            for (const auto& dataSplit : scanOp->DataSplits()) {
-                if (!IsSorted(dataSplit)) {
-                    filteredDataSplits.push_back(dataSplit);
-                } else {
-                    auto intersectedKeyRange = Intersect(
-                        GetBothBoundsFromDataSplit(dataSplit),
-                        inferredKeyRange);
-
-                    if (!IsEmpty(intersectedKeyRange)) {
-                        TDataSplit clonedDataSplit = dataSplit;
-                        SetBothBounds(&clonedDataSplit, intersectedKeyRange);
-                        filteredDataSplits.push_back(dataSplit);
-                    }
-                }
-            }
-
-            return clonedScanOp;
-        });
-
-        int index = Peers_.size();
-        Peers_.emplace_back(TPlanFragment(context, op), location, nullptr);
-
-        TDataSplit facadeDataSplit;
-        SetObjectId(
-            &facadeDataSplit,
-            MakeId(EObjectType::PlanFragment, 0xBABE, index, 0));
-        SetTableSchema(&facadeDataSplit, op->GetTableSchema());
-        SetKeyColumns(&facadeDataSplit, op->GetKeyColumns());
-        SetBothBounds(&facadeDataSplit, inferredKeyRange);
-
-        facadeDataSplits.push_back(facadeDataSplit);
-    }
-
-    return facadeDataSplits;
-}
-
-TDataSplits TCoordinateController::SplitFurther(
-    TPlanContext* context,
-    const TDataSplits& dataSplits)
-{
-    TDataSplits resultingDataSplits;
-
-    for (const auto& dataSplit : dataSplits) {
-        auto objectId = GetObjectIdFromDataSplit(dataSplit);
-
-        if (Callbacks_->CanSplit(dataSplit)) {
-            LOG_DEBUG("Splitting input %s", ~ToString(objectId));
-        } else {
-            resultingDataSplits.push_back(dataSplit);
-            continue;
-        }
-
-        auto newDataSplitsOrError = WaitFor(Callbacks_->SplitFurther(dataSplit, context));
-        auto newDataSplits = newDataSplitsOrError.ValueOrThrow();
-
-        LOG_DEBUG(
-            "Got %" PRISZT " splits for input %s",
-            newDataSplits.size(),
-            ~ToString(objectId));
-
-        resultingDataSplits.insert(
-            resultingDataSplits.end(),
-            newDataSplits.begin(),
-            newDataSplits.end());
-    }
-
-    return resultingDataSplits;
-}
-
-std::map<Stroka, const TOperator*> TCoordinateController::SplitOperator(
-    TPlanContext* context,
-    const TOperator* op)
-{
-    if (auto* scanOp = op->As<TScanOperator>()) {
-        TLocationToDataSplits dataSplitsByLocation =
-            Callbacks_->GroupByLocation(
-                SplitFurther(context, scanOp->DataSplits()),
-                context);
-        std::map<Stroka, const TOperator*> result;
-
-        for (const auto& sourceSplit : dataSplitsByLocation) {
-            auto* splittedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-            splittedScanOp->DataSplits() = sourceSplit.second;
-
-            result[sourceSplit.first] = splittedScanOp;
-        }
-
-        return result;
-    } else if (auto* filterOp = op->As<TFilterOperator>()) {
-        auto splittedSources = SplitOperator(context, filterOp->GetSource());
-
-        for (auto& splittedSource : splittedSources) {
-            auto* newFilterOp = filterOp->Clone(context)->As<TFilterOperator>();
-            newFilterOp->SetSource(splittedSource.second);
-            splittedSource.second = newFilterOp;
-        }
-
-        return splittedSources;
-    } else if (auto* projectOp = op->As<TProjectOperator>()) {
-        auto splittedSources = SplitOperator(context, projectOp->GetSource());
-
-        for (auto& splittedSource : splittedSources) {
-            auto* newProjectOp = projectOp->Clone(context)->As<TProjectOperator>();
-            newProjectOp->SetSource(splittedSource.second);
-            splittedSource.second = newProjectOp;
-        }
-
-        return splittedSources;
-    } else if (auto* groupOp = op->As<TGroupOperator>()) {
-        auto splittedSources = SplitOperator(context, groupOp->GetSource());
-
-        if (splittedSources.size() > 1) { // create final group by
-            for (auto& splittedSource : splittedSources) {
-                auto delegatedGroupOp = new (context) TGroupOperator(
-                    context,
-                    splittedSource.second);
-
-                delegatedGroupOp->GroupItems() = groupOp->GroupItems();
-                delegatedGroupOp->AggregateItems() = groupOp->AggregateItems();
-
-                splittedSource.second = delegatedGroupOp;
-            }
-
-            auto* finalScanOp = new (context) TScanOperator(context);
-            finalScanOp->DataSplits() = GetUnitedDataSplit(context, splittedSources);
-
-            auto* finalGroupOp = new (context) TGroupOperator(
-                context,
-                finalScanOp);
-
-            auto& finalGroupItems = finalGroupOp->GroupItems();
-            for (const auto& groupItem : groupOp->GroupItems()) {
-                auto referenceExpr = new (context) TReferenceExpression(
-                    context,
-                    NullSourceLocation,
-                    groupItem.Name);
-                finalGroupItems.push_back(TNamedExpression(
-                    referenceExpr,
-                    groupItem.Name));
-            }
-
-            auto& finalAggregateItems = finalGroupOp->AggregateItems();
-            for (const auto& aggregateItem : groupOp->AggregateItems()) {
-                auto referenceExpr = new (context) TReferenceExpression(
-                    context,
-                    NullSourceLocation,
-                    aggregateItem.Name);
-                finalAggregateItems.push_back(TAggregateItem(
-                    referenceExpr,
-                    aggregateItem.AggregateFunction,
-                    aggregateItem.Name));
-            }
-
-            std::map<Stroka, const TOperator*> result;
-
-            result["DRIVER"] = finalGroupOp;
-
-            return result;
-        } else {
-            for (auto& splittedSource : splittedSources) {
-                auto* newGroupOp = groupOp->Clone(context)->As<TGroupOperator>();
-                newGroupOp->SetSource(splittedSource.second);
-                splittedSource.second = newGroupOp;
-            }
-
-            return splittedSources;
-        }
-    }
-
-    YUNREACHABLE();
-}
-
-void TCoordinateController::InitializeReaders()
-{
-    for (auto& peer : Peers_) {
-        std::get<2>(peer) = Callbacks_->Delegate(std::get<0>(peer), std::get<1>(peer));
-    }
-}
-
 std::vector<TPlanFragment> TCoordinateController::GetPeerFragments() const
 {
     std::vector<TPlanFragment> result;
@@ -292,40 +80,237 @@ std::vector<TPlanFragment> TCoordinateController::GetPeerFragments() const
     return result;
 }
 
-ISchemedReaderPtr TCoordinateController::GetReader(
-    const TDataSplit& dataSplit,
-    TPlanContextPtr context)
+
+std::vector<const TOperator*> TCoordinateController::Scatter(const TOperator* op)
 {
-    auto objectId = GetObjectIdFromDataSplit(dataSplit);
-    LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
-    switch (TypeFromId(objectId)) {
-        case EObjectType::PlanFragment: {
-            auto peerIndex = CounterFromId(objectId);
-            YASSERT(peerIndex < Peers_.size());
-            auto peer = std::get<2>(Peers_[peerIndex]);
-            YASSERT(peer);
-            return peer;
+    auto* context = Fragment_.GetContext().Get();
+    std::vector<const TOperator*> resultOps;
+
+    switch (op->GetKind()) {
+
+        case EOperatorKind::Scan: {
+            auto* scanOp = op->As<TScanOperator>();
+            auto groupedSplits = Regroup(Split(scanOp->DataSplits()));
+
+            for (const auto& splits : groupedSplits) {
+                auto* newScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                newScanOp->DataSplits() = splits;
+                resultOps.push_back(newScanOp);
+            }
+
+            break;
         }
-        default:
-            return Callbacks_->GetReader(dataSplit, context);
+
+        case EOperatorKind::Filter: {
+            auto* filterOp = op->As<TFilterOperator>();
+
+            resultOps = Scatter(filterOp->GetSource());
+            for (auto& resultOp : resultOps) {
+                auto* newFilterOp = filterOp->Clone(context)->As<TFilterOperator>();
+                newFilterOp->SetSource(resultOp);
+                resultOp = newFilterOp;
+            }
+
+            break;
+        }
+
+        case EOperatorKind::Group: {
+            auto* groupOp = op->As<TGroupOperator>();
+
+            resultOps = Scatter(groupOp->GetSource());
+            for (auto& resultOp : resultOps) {
+                auto* newGroupOp = groupOp->Clone(context)->As<TGroupOperator>();
+                newGroupOp->SetSource(resultOp);
+                resultOp = newGroupOp;
+            }
+
+            if (resultOps.size() <= 1) {
+                break;
+            }
+
+            auto* finalGroupOp = context->TrackedNew<TGroupOperator>(Gather(resultOps));
+
+            auto& finalGroupItems = finalGroupOp->GroupItems();
+            for (const auto& groupItem : groupOp->GroupItems()) {
+                auto referenceExpr = context->TrackedNew<TReferenceExpression>(
+                    NullSourceLocation,
+                    groupItem.Name);
+                finalGroupItems.push_back(TNamedExpression(
+                    referenceExpr,
+                    groupItem.Name));
+            }
+
+            auto& finalAggregateItems = finalGroupOp->AggregateItems();
+            for (const auto& aggregateItem : groupOp->AggregateItems()) {
+                auto referenceExpr = context->TrackedNew<TReferenceExpression>(
+                    NullSourceLocation,
+                    aggregateItem.Name);
+                finalAggregateItems.push_back(TAggregateItem(
+                    referenceExpr,
+                    aggregateItem.AggregateFunction,
+                    aggregateItem.Name));
+            }
+
+            resultOps.clear();
+            resultOps.push_back(finalGroupOp);
+
+            break;
+        }
+
+        case EOperatorKind::Project: {
+            auto* projectOp = op->As<TProjectOperator>();
+
+            resultOps = Scatter(projectOp->GetSource());
+
+            for (auto& resultOp : resultOps) {
+                auto* newProjectOp = projectOp->Clone(context)->As<TProjectOperator>();
+                newProjectOp->SetSource(resultOp);
+                resultOp = newProjectOp;
+            }
+
+            break;
+        }
+
+    }
+
+    return resultOps;
+}
+
+const TOperator* TCoordinateController::Gather(const std::vector<const TOperator*>& ops)
+{
+    auto* context = Fragment_.GetContext().Get();
+
+    auto* resultOp = context->TrackedNew<TScanOperator>();
+    auto& resultSplits = resultOp->DataSplits();
+
+    std::function<const TDataSplit&(const TOperator*)> determineColocatedSplit =
+        [&determineColocatedSplit] (const TOperator* op) -> const TDataSplit& {
+            switch (op->GetKind()) {
+                case EOperatorKind::Scan:
+                    return op->As<TScanOperator>()->DataSplits().front();
+                case EOperatorKind::Filter:
+                    return determineColocatedSplit(op->As<TFilterOperator>()->GetSource());
+                case EOperatorKind::Group:
+                    return determineColocatedSplit(op->As<TGroupOperator>()->GetSource());
+                case EOperatorKind::Project:
+                    return determineColocatedSplit(op->As<TProjectOperator>()->GetSource());
+            }
+            YUNREACHABLE();
+        };
+
+    for (const auto& op : ops) {
+        auto fragment = TPlanFragment(context, op);
+        LOG_DEBUG("Created subfragment (SubFragmentId: %s)",
+            ~ToString(fragment.Id()));
+
+        int index = Peers_.size();
+        Peers_.emplace_back(fragment, determineColocatedSplit(op), nullptr);
+
+        TDataSplit facadeSplit;
+
+        SetObjectId(
+            &facadeSplit,
+            MakeId(EObjectType::PlanFragment, 0xbabe, index, 0xc0ffee));
+        SetTableSchema(&facadeSplit, op->GetTableSchema());
+        SetKeyColumns(&facadeSplit, op->GetKeyColumns());
+        SetBothBounds(&facadeSplit, op->GetKeyRange());
+
+        resultSplits.push_back(facadeSplit);
+    }
+
+    return resultOp;
+}
+
+const TOperator* TCoordinateController::Simplify(const TOperator* op)
+{
+    return Apply(
+        Fragment_.GetContext().Get(),
+        op,
+        [this] (const TPlanContext* context, const TOperator* op) -> const TOperator* {
+            auto* scanOp = op->As<TScanOperator>();
+            if (!scanOp || scanOp->DataSplits().size() != 1) {
+                return op;
+            }
+
+            auto pair = IsInternal(scanOp->DataSplits().front());
+            if (pair.first) {
+                YCHECK(pair.second < Peers_.size());
+                return std::get<0>(Peers_[pair.second]).GetHead();
+            } else {
+                return op;
+            }
+        });
+}
+
+TDataSplits TCoordinateController::Split(const TDataSplits& splits)
+{
+    TDataSplits result;
+
+    for (const auto& split : splits) {
+        auto objectId = GetObjectIdFromDataSplit(split);
+
+        if (Callbacks_->CanSplit(split)) {
+            LOG_DEBUG("Splitting input %s", ~ToString(objectId));
+        } else {
+            result.push_back(split);
+            continue;
+        }
+
+        auto newSplitsOrError = WaitFor(Callbacks_->SplitFurther(split, Fragment_.GetContext()));
+        auto newSplits = newSplitsOrError.ValueOrThrow();
+
+        LOG_DEBUG(
+            "Got %" PRISZT " splits for input %s",
+            newSplits.size(),
+            ~ToString(objectId));
+
+        result.insert(result.end(), newSplits.begin(), newSplits.end());
+    }
+
+    return result;
+}
+
+TGroupedDataSplits TCoordinateController::Regroup(const TDataSplits& splits)
+{
+    return Callbacks_->Regroup(splits, Fragment_.GetContext());
+}
+
+std::pair<bool, int> TCoordinateController::IsInternal(const TDataSplit& split)
+{
+    auto objectId = GetObjectIdFromDataSplit(split);
+    auto type = TypeFromId(objectId);
+    auto counter = CounterFromId(objectId);
+
+    if (type == EObjectType::PlanFragment) {
+        return std::make_pair(true, counter);
+    } else {
+        return std::make_pair(false, -1);
     }
 }
 
-TPlanFragment TCoordinateController::SplitPlanFragment(const TPlanFragment& planFragment)
+void TCoordinateController::DelegateToPeers()
 {
-    auto context = planFragment.GetContext().Get();
-    auto splittedSources = SplitOperator(context, planFragment.GetHead());
-    const TOperator* resultOp = nullptr;
-
-    if (splittedSources.size() == 1 && splittedSources.begin()->first == "DRIVER") {
-        resultOp = splittedSources.begin()->second;
-    } else {
-        auto* finalScanOp = new (context) TScanOperator(context);
-        finalScanOp->DataSplits() = GetUnitedDataSplit(context, splittedSources);
-        resultOp = finalScanOp;
+    for (auto& peer : Peers_) {
+        if (!IsInternal(std::get<1>(peer)).first) {
+            std::get<2>(peer) = Callbacks_->Delegate(std::get<0>(peer), std::get<1>(peer));
+        }
     }
+}
 
-    return TPlanFragment(context, resultOp);
+ISchemedReaderPtr TCoordinateController::GetReader(
+    const TDataSplit& split,
+    TPlanContextPtr context)
+{
+    auto objectId = GetObjectIdFromDataSplit(split);
+    LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
+
+    auto pair = IsInternal(split);
+    if (pair.first) {
+        YCHECK(pair.second < Peers_.size());
+        return std::get<2>(Peers_[pair.second]);
+    } else {
+        return Callbacks_->GetReader(split, context);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

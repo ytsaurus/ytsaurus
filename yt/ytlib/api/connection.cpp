@@ -243,9 +243,7 @@ public:
 
     virtual bool CanSplit(const TDataSplit& split) override
     {
-        auto objectId = GetObjectIdFromDataSplit(split);
-        auto type = TypeFromId(objectId);
-        return type == EObjectType::Table;
+        return TypeFromId(GetObjectIdFromDataSplit(split)) == EObjectType::Table;
     }
 
     virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
@@ -259,25 +257,31 @@ public:
                 .Run(split, std::move(context));
     }
 
-    virtual TLocationToDataSplits GroupByLocation(
-        const TDataSplits& dataSplits,
+    virtual TGroupedDataSplits Regroup(
+        const TDataSplits& splits,
         TPlanContextPtr context) override
     {
-        TLocationToDataSplits result;
+        std::map<Stroka, TDataSplits> groups;
+        TGroupedDataSplits result;
 
         auto nodeDirectory = context->GetNodeDirectory();
 
-        for (const auto& dataSplit : dataSplits) {
-            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(dataSplit.replicas());
+        for (const auto& split : splits) {
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
             if (replicas.empty()) {
-                auto objectId = GetObjectIdFromDataSplit(dataSplit);
+                auto objectId = GetObjectIdFromDataSplit(split);
                 THROW_ERROR_EXCEPTION("No alive replicas for split %s",
                     ~ToString(objectId));
             }
             auto replica = replicas[RandomNumber(replicas.size())];
             auto descriptor = nodeDirectory->GetDescriptor(replica);
 
-            result[descriptor.Address].push_back(dataSplit);
+            groups[descriptor.Address].push_back(split);
+        }
+
+        result.reserve(groups.size());
+        for (const auto& group : groups) {
+            result.emplace_back(std::move(group.second));
         }
 
         return result;
@@ -285,13 +289,20 @@ public:
 
     virtual ISchemedReaderPtr Delegate(
         const TPlanFragment& fragment,
-        const Stroka& location) override
+        const TDataSplit& collocatedSplit) override
     {
+        auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(collocatedSplit.replicas());
+        YCHECK(!replicas.empty());
+        auto replica = replicas[RandomNumber(replicas.size())];
+
+        auto descriptor = fragment.GetContext()->GetNodeDirectory()->GetDescriptor(replica);
+        auto address = descriptor.Address;
+
         LOG_DEBUG("Delegating fragment (FragmentId: %s, Address: %s)",
             ~ToString(fragment.Id()),
-            ~location);
+            ~address);
 
-        auto channel = NodeChannelFactory_->CreateChannel(location);
+        auto channel = NodeChannelFactory_->CreateChannel(address);
 
         TQueryServiceProxy proxy(channel);
         auto req = proxy.Execute();

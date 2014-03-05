@@ -15,7 +15,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
-    
+
 class TPlanFragment;
 class TExpression;
 class TOperator;
@@ -43,8 +43,7 @@ DECLARE_REFCOUNTED_STRUCT(IExecutor)
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 typedef std::vector<TDataSplit> TDataSplits;
-
-typedef std::map<Stroka, TDataSplits> TLocationToDataSplits;
+typedef std::vector<TDataSplits> TGroupedDataSplits;
 
 using NVersionedTableClient::ISchemedReader;
 using NVersionedTableClient::ISchemedReaderPtr;

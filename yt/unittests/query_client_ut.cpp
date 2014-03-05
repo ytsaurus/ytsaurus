@@ -89,17 +89,17 @@ public:
 
     MOCK_METHOD1(CanSplit, bool(const TDataSplit&));
 
-    MOCK_METHOD2(GroupByLocation, TLocationToDataSplits(
-        const TDataSplits&,
-        TPlanContextPtr));
-
     MOCK_METHOD2(SplitFurther, TFuture<TErrorOr<TDataSplits>>(
         const TDataSplit&,
         TPlanContextPtr));
 
+    MOCK_METHOD2(Regroup, TGroupedDataSplits(
+        const TDataSplits&,
+        TPlanContextPtr));
+
     MOCK_METHOD2(Delegate, ISchemedReaderPtr(
         const TPlanFragment&,
-        const Stroka&));
+        const TDataSplit&));
 };
 
 MATCHER_P(HasCounter, expectedCounter, "")
@@ -372,16 +372,15 @@ protected:
 
 TEST_F(TQueryCoordinateTest, EmptySplit)
 {
-    std::vector<TDataSplit> emptySplit;
-
-    TLocationToDataSplits emptyLocationToSplits;
+    TDataSplits emptySplits;
+    TGroupedDataSplits emptyGroupedSplits;
 
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
-        .WillOnce(Return(WrapInFuture(emptySplit)));
-    EXPECT_CALL(CoordinateMock_, GroupByLocation(HasSplitsCount(0), _))
-        .WillOnce(Return(emptyLocationToSplits));
+        .WillOnce(Return(WrapInFuture(emptySplits)));
+    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(0), _))
+        .WillOnce(Return(emptyGroupedSplits));
 
     EXPECT_NO_THROW({
         Coordinate("k from [//t]");
@@ -390,19 +389,19 @@ TEST_F(TQueryCoordinateTest, EmptySplit)
 
 TEST_F(TQueryCoordinateTest, SingleSplit)
 {
-    std::vector<TDataSplit> singleSplit;
-    singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
+    TDataSplits singleSplit;
+    TGroupedDataSplits singleGroupedSplit;
 
-    TLocationToDataSplits singleLocationToSplits;
-    singleLocationToSplits["mylocation"] = singleSplit;
+    singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
+    singleGroupedSplit.push_back(singleSplit);
 
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(singleSplit)));
-    EXPECT_CALL(CoordinateMock_, GroupByLocation(HasSplitsCount(1), _))
-        .WillOnce(Return(singleLocationToSplits));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, "mylocation"))
+    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(1), _))
+        .WillOnce(Return(singleGroupedSplit));
+    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
         .WillOnce(Return(nullptr));
 
     EXPECT_NO_THROW({
@@ -1080,7 +1079,8 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 
 TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 {
-    std::vector<TDataSplit> splits;
+    TDataSplits splits;
+    TGroupedDataSplits groupedSplits;
 
     splits.emplace_back(MakeSimpleSplit("//t", 1));
     SetSorted(&splits.back(), true);
@@ -1097,8 +1097,7 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
     SetLowerBound(&splits.back(), BuildKey("2;0;0"));
     SetUpperBound(&splits.back(), BuildKey("3;0;0"));
 
-    TLocationToDataSplits locationToSplits;
-    locationToSplits["mylocation"] = splits;
+    groupedSplits.push_back(splits);
 
     EXPECT_CALL(CoordinateMock_, CanSplit(_))
         .WillRepeatedly(Return(false));
@@ -1107,9 +1106,9 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
         .RetiresOnSaturation();
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(splits)));
-    EXPECT_CALL(CoordinateMock_, GroupByLocation(HasSplitsCount(3), _))
-        .WillOnce(Return(locationToSplits));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, "mylocation"))
+    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(3), _))
+        .WillOnce(Return(groupedSplits));
+    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
         .WillOnce(Return(nullptr));
 
     EXPECT_NO_THROW({

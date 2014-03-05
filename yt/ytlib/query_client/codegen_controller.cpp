@@ -55,7 +55,6 @@
 #include <llvm/Support/TargetSelect.h>
 
 // TODO(sandello):
-//  - Remove TTaggedLogger from a stateless evaluator
 //  - Cleanup TFragmentParams, TPassedFragmentParams, TCGImmediates & TCGContext
 //    and their usages
 //  - Implement basic logging & profiling within evaluation code

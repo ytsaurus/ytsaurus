@@ -39,29 +39,22 @@ public:
     std::vector<TPlanFragment> GetPeerFragments() const;
 
 private:
+    std::vector<const TOperator*> Scatter(const TOperator* op);
+    const TOperator* Gather(const std::vector<const TOperator*>& ops);
+    const TOperator* Simplify(const TOperator*);
 
-    void InitializeReaders();
+    TDataSplits Split(const TDataSplits& splits);
+    TGroupedDataSplits Regroup(const TDataSplits& splits);
 
-    TDataSplits GetUnitedDataSplit(
-        TPlanContext* context,
-        std::map<Stroka, const TOperator*> operatorsByLocation);
+    std::pair<bool, int> IsInternal(const TDataSplit& split);
 
-    TDataSplits SplitFurther(
-        TPlanContext* context,
-        const TDataSplits& splits);
-
-    std::map<Stroka, const TOperator*> SplitOperator(
-        TPlanContext* context,
-        const TOperator* op);
-
-    TPlanFragment SplitPlanFragment(const TPlanFragment& planFragment);
-
+    void DelegateToPeers();
 
 private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
 
-    std::vector<std::tuple<TPlanFragment, Stroka, ISchemedReaderPtr>> Peers_;
+    std::vector<std::tuple<TPlanFragment, const TDataSplit&, ISchemedReaderPtr>> Peers_;
 
     NLog::TTaggedLogger Logger;
 };
