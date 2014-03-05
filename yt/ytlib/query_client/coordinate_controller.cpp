@@ -128,7 +128,7 @@ TDataSplits TCoordinateController::GetUnitedDataSplit(
         TDataSplit facadeDataSplit;
         SetObjectId(
             &facadeDataSplit,
-            MakeId(EObjectType::QueryPlan, 0xBABE, index, 0));
+            MakeId(EObjectType::PlanFragment, 0xBABE, index, 0));
         SetTableSchema(&facadeDataSplit, op->GetTableSchema());
         SetKeyColumns(&facadeDataSplit, op->GetKeyColumns());
         SetBothBounds(&facadeDataSplit, inferredKeyRange);
@@ -299,7 +299,7 @@ ISchemedReaderPtr TCoordinateController::GetReader(
     auto objectId = GetObjectIdFromDataSplit(dataSplit);
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
     switch (TypeFromId(objectId)) {
-        case EObjectType::QueryPlan: {
+        case EObjectType::PlanFragment: {
             auto peerIndex = CounterFromId(objectId);
             YASSERT(peerIndex < Peers_.size());
             auto peer = std::get<2>(Peers_[peerIndex]);
