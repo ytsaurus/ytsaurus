@@ -6,7 +6,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int FormatVersion = 2;
+const int FormatVersion = 2;
 
 NLog::TLogger TableReaderLogger("TableReader");
 NLog::TLogger TableWriterLogger("TableWriter");

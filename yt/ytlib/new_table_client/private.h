@@ -11,7 +11,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern int FormatVersion;
+extern const int FormatVersion;
 
 extern NLog::TLogger TableReaderLogger;
 extern NLog::TLogger TableWriterLogger;
