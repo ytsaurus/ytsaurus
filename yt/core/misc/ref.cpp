@@ -22,9 +22,9 @@ bool TRef::AreBitwiseEqual(const TRef& lhs, const TRef& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
-    : Blob(std::move(blob))
+    : Blob_(std::move(blob))
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    , Cookie(nullptr)
+    , Cookie_(nullptr)
 #endif
 { }
 
@@ -39,15 +39,15 @@ TSharedRef::TBlobHolder::~TBlobHolder()
 
 void TSharedRef::TBlobHolder::InitializeTracking(void* cookie)
 {
-    YASSERT(!Cookie);
-    Cookie = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie, Blob.Size());
+    YASSERT(!Cookie_);
+    Cookie_ = cookie;
+    TRefCountedTracker::Get()->Allocate(Cookie_, Blob_.Size());
 }
 
 void TSharedRef::TBlobHolder::FinalizeTracking()
 {
-    YASSERT(Cookie);
-    TRefCountedTracker::Get()->Free(Cookie, Blob.Size());
+    YASSERT(Cookie_);
+    TRefCountedTracker::Get()->Free(Cookie_, Blob_.Size());
 }
 
 #endif
@@ -55,9 +55,9 @@ void TSharedRef::TBlobHolder::FinalizeTracking()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef::TStringHolder::TStringHolder(const Stroka& string)
-    : String(string)
+    : Data_(string)
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    , Cookie(nullptr)
+    , Cookie_(nullptr)
 #endif
 { }
 
@@ -72,15 +72,15 @@ TSharedRef::TStringHolder::~TStringHolder()
 
 void TSharedRef::TStringHolder::InitializeTracking(void* cookie)
 {
-    YASSERT(!Cookie);
-    Cookie = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie, String.length());
+    YASSERT(!Cookie_);
+    Cookie_ = cookie;
+    TRefCountedTracker::Get()->Allocate(Cookie_, Data_.length());
 }
 
 void TSharedRef::TStringHolder::FinalizeTracking()
 {
-    YASSERT(Cookie);
-    TRefCountedTracker::Get()->Free(Cookie, String.length());
+    YASSERT(Cookie_);
+    TRefCountedTracker::Get()->Free(Cookie_, Data_.length());
 }
 
 #endif
@@ -205,78 +205,78 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRefArray::TSharedRefArray(TIntrusivePtr<TImpl> impl)
-    : Impl(std::move(impl))
+    : Impl_(std::move(impl))
 { }
 
 TSharedRefArray::TSharedRefArray()
 { }
 
 TSharedRefArray::TSharedRefArray(const TSharedRefArray& other)
-    : Impl(other.Impl)
+    : Impl_(other.Impl_)
 { }
 
 TSharedRefArray::TSharedRefArray(TSharedRefArray&& other)
-    : Impl(std::move(other.Impl))
+    : Impl_(std::move(other.Impl_))
 { }
 
 TSharedRefArray::~TSharedRefArray()
 { }
 
 TSharedRefArray::TSharedRefArray(const TSharedRef& part)
-    : Impl(New<TImpl>(part))
+    : Impl_(New<TImpl>(part))
 { }
 
 TSharedRefArray::TSharedRefArray(TSharedRef&& part)
-    : Impl(New<TImpl>(std::move(part)))
+    : Impl_(New<TImpl>(std::move(part)))
 { }
 
 TSharedRefArray::TSharedRefArray(const std::vector<TSharedRef>& parts)
-    : Impl(New<TImpl>(parts))
+    : Impl_(New<TImpl>(parts))
 { }
 
 TSharedRefArray::TSharedRefArray(std::vector<TSharedRef>&& parts)
-    : Impl(New<TImpl>(std::move(parts)))
+    : Impl_(New<TImpl>(std::move(parts)))
 { }
 
 void TSharedRefArray::Reset()
 {
-    Impl.Reset();
+    Impl_.Reset();
 }
 
 TSharedRefArray::operator bool() const
 {
-    return Impl != nullptr;
+    return Impl_ != nullptr;
 }
 
 int TSharedRefArray::Size() const
 {
-    return Impl ? Impl->Size() : 0;
+    return Impl_ ? Impl_->Size() : 0;
 }
 
 bool TSharedRefArray::Empty() const
 {
-    return Impl ? Impl->Empty() : true;
+    return Impl_ ? Impl_->Empty() : true;
 }
 
 const TSharedRef& TSharedRefArray::operator[](int index) const
 {
-    YASSERT(Impl);
-    return (*Impl)[index];
+    YASSERT(Impl_);
+    return (*Impl_)[index];
 }
 
 const TSharedRef* TSharedRefArray::Begin() const
 {
-    return Impl ? Impl->Begin() : nullptr;
+    return Impl_ ? Impl_->Begin() : nullptr;
 }
 
 const TSharedRef* TSharedRefArray::End() const
 {
-    return Impl ? Impl->End() : nullptr;
+    return Impl_ ? Impl_->End() : nullptr;
 }
 
 TSharedRef TSharedRefArray::Pack() const
 {
-    return Impl ? Impl->Pack() : TSharedRef();
+    return Impl_ ? Impl_->Pack() : TSharedRef();
 }
 
 TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
@@ -286,7 +286,7 @@ TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
 
 std::vector<TSharedRef> TSharedRefArray::ToVector() const
 {
-    return Impl ? Impl->ToVector() : std::vector<TSharedRef>();
+    return Impl_ ? Impl_->ToVector() : std::vector<TSharedRef>();
 }
 
 const TSharedRef* begin(const TSharedRefArray& array)
@@ -302,7 +302,7 @@ const TSharedRef* end(const TSharedRefArray& array)
 void swap(TSharedRefArray& lhs, TSharedRefArray& rhs)
 {
     using std::swap;
-    swap(lhs.Impl, rhs.Impl);
+    swap(lhs.Impl_, rhs.Impl_);
 }
 
 TSharedRefArray& TSharedRefArray::operator=(TSharedRefArray other)

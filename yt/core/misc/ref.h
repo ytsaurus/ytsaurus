@@ -17,7 +17,7 @@ class TRef
 public:
     //! Creates a null reference with zero size.
     FORCED_INLINE TRef()
-        : Data(nullptr)
+        : Data_(nullptr)
         , Size_(0)
     { }
 
@@ -25,15 +25,15 @@ public:
     FORCED_INLINE TRef(void* data, size_t size)
     {
         YASSERT(data || size == 0);
-        Data = reinterpret_cast<char*>(data);
+        Data_ = reinterpret_cast<char*>(data);
         Size_ = size;
     }
 
     //! Creates a reference for a given range of memory.
     FORCED_INLINE TRef(void* begin, void* end)
     {
-        Data = reinterpret_cast<char*>(begin);
-        Size_ = reinterpret_cast<char*>(end) - Data;
+        Data_ = reinterpret_cast<char*>(begin);
+        Size_ = reinterpret_cast<char*>(end) - Data_;
     }
 
     //! Creates a non-owning reference for a given blob.
@@ -58,12 +58,12 @@ public:
 
     FORCED_INLINE char* Begin() const
     {
-        return Data;
+        return Data_;
     }
 
     FORCED_INLINE char* End() const
     {
-        return Data + Size_;
+        return Data_ + Size_;
     }
 
     FORCED_INLINE bool Empty() const
@@ -79,7 +79,7 @@ public:
     //! Compares the pointer (not the content!) for equality.
     FORCED_INLINE bool operator == (const TRef& other) const
     {
-        return Data == other.Data && Size_ == other.Size_;
+        return Data_ == other.Data_ && Size_ == other.Size_;
     }
 
     //! Compares the pointer (not the content!) for inequality.
@@ -95,11 +95,11 @@ public:
     //! Implicit conversion to bool.
     FORCED_INLINE operator TUnspecifiedBoolType() const
     {
-        return Data ? &TRef::Data : nullptr;
+        return Data_ ? &TRef::Data_ : nullptr;
     }
 
 private:
-    char* Data;
+    char* Data_;
     size_t Size_;
 
 };
@@ -132,8 +132,8 @@ public:
 
     //! Creates a reference with a given holder.
     TSharedRef(THolderPtr holder, const TRef& ref)
-        : Holder(std::move(holder))
-        , Ref(ref)
+        : Holder_(std::move(holder))
+        , Ref_(ref)
     { }
 
     //! Allocates a new shared block of memory.
@@ -165,7 +165,7 @@ public:
         void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
         holder->InitializeTracking(cookie);
 #endif
-        auto ref = TRef::FromString(holder->String);
+        auto ref = TRef::FromString(holder->Data_);
         return TSharedRef(std::move(holder), ref);
     }
 
@@ -183,7 +183,7 @@ public:
         void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
         holder->InitializeTracking(cookie);
 #endif
-        auto ref = TRef::FromBlob(holder->Blob);
+        auto ref = TRef::FromBlob(holder->Blob_);
         return TSharedRef(std::move(holder), ref);
     }
 
@@ -195,23 +195,23 @@ public:
     //! Creates a reference to a portion of currently held data.
     TSharedRef Slice(const TRef& sliceRef) const
     {
-        YASSERT(sliceRef.Begin() >= Ref.Begin() && sliceRef.End() <= Ref.End());
-        return TSharedRef(Holder, sliceRef);
+        YASSERT(sliceRef.Begin() >= Ref_.Begin() && sliceRef.End() <= Ref_.End());
+        return TSharedRef(Holder_, sliceRef);
     }
 
     FORCED_INLINE operator const TRef&() const
     {
-        return Ref;
+        return Ref_;
     }
 
     FORCED_INLINE const char* Begin() const
     {
-        return Ref.Begin();
+        return Ref_.Begin();
     }
 
     FORCED_INLINE char* Begin()
     {
-        return Ref.Begin();
+        return Ref_.Begin();
     }
 
     FORCED_INLINE const char* operator ~ () const
@@ -221,28 +221,28 @@ public:
 
     FORCED_INLINE const char* End() const
     {
-        return Ref.End();
+        return Ref_.End();
     }
 
     FORCED_INLINE char* End()
     {
-        return Ref.End();
+        return Ref_.End();
     }
 
     FORCED_INLINE size_t Size() const
     {
-        return Ref.Size();
+        return Ref_.Size();
     }
 
     FORCED_INLINE bool Empty() const
     {
-        return Ref.Empty();
+        return Ref_.Empty();
     }
 
     //! Compares the pointer (not the content!) for equality.
     FORCED_INLINE bool operator == (const TSharedRef& other) const
     {
-        return Holder == other.Holder && Ref == other.Ref;
+        return Holder_ == other.Holder_ && Ref_ == other.Ref_;
     }
 
     //! Compares the pointer (not the content!) for inequality.
@@ -255,14 +255,14 @@ public:
     typedef TRef TSharedRef::*TUnspecifiedBoolType;
     FORCED_INLINE operator TUnspecifiedBoolType() const
     {
-        return Ref ? &TSharedRef::Ref : nullptr;
+        return Ref_ ? &TSharedRef::Ref_ : nullptr;
     }
 
     friend void swap(TSharedRef& lhs, TSharedRef& rhs)
     {
         using std::swap;
-        swap(lhs.Holder, rhs.Holder);
-        swap(lhs.Ref, rhs.Ref);
+        swap(lhs.Holder_, rhs.Holder_);
+        swap(lhs.Ref_, rhs.Ref_);
     }
 
     TSharedRef& operator = (TSharedRef other)
@@ -273,14 +273,14 @@ public:
 
     void Reset()
     {
-        Holder.Reset();
-        Ref = TRef();
+        Holder_.Reset();
+        Ref_ = TRef();
     }
 
     template <class TTag>
     void EnsureNonShared()
     {
-        if (Holder && Holder->GetRefCount() > 1) {
+        if (Holder_ && Holder_->GetRefCount() > 1) {
             auto other = Allocate<TTag>(Size(), false);
             memcpy(other.Begin(), Begin(), Size());
             swap(*this, other);
@@ -298,10 +298,10 @@ private:
     private:
         friend class TSharedRef;
 
-        TBlob Blob;
+        TBlob Blob_;
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
-        void* Cookie;
+        void* Cookie_;
         void InitializeTracking(void* cookie);
         void FinalizeTracking();
 #endif
@@ -317,17 +317,17 @@ private:
     private:
         friend class TSharedRef;
 
-        Stroka String;
+        Stroka Data_;
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
-        void* Cookie;
+        void* Cookie_;
         void InitializeTracking(void* cookie);
         void FinalizeTracking();
 #endif
     };
 
-    THolderPtr Holder;
-    TRef Ref;
+    THolderPtr Holder_;
+    TRef Ref_;
 
 };
 
@@ -368,7 +368,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
     explicit TSharedRefArray(TIntrusivePtr<TImpl> impl);
 
