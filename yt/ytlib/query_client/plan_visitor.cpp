@@ -127,7 +127,28 @@ const TOperator* Apply(
     const TOperator* root,
     const std::function<const TOperator*(TPlanContext*, const TOperator*)>& functor)
 {
-    return ApplyImpl(context, root, functor);
+    // TODO(sandello): Implement COW to get rid of extra copies.
+    auto* mutatedRoot = functor(context, root)->Clone(context);
+    switch (mutatedRoot->GetKind()) {
+        case EOperatorKind::Scan:
+            break;
+        case EOperatorKind::Filter: {
+            auto* typedMutatedRoot = mutatedRoot->As<TFilterOperator>();
+            typedMutatedRoot->SetSource(Apply(context, typedMutatedRoot->GetSource(), functor));
+            break;
+        }
+        case EOperatorKind::Group: {
+            auto* typedMutatedRoot = mutatedRoot->As<TGroupOperator>();
+            typedMutatedRoot->SetSource(Apply(context, typedMutatedRoot->GetSource(), functor));
+            break;
+        }
+        case EOperatorKind::Project:{
+            auto* typedMutatedRoot = mutatedRoot->As<TProjectOperator>();
+            typedMutatedRoot->SetSource(Apply(context, typedMutatedRoot->GetSource(), functor));
+            break;
+        }
+    }
+    return mutatedRoot;
 }
 
 const TExpression* Apply(
@@ -135,7 +156,28 @@ const TExpression* Apply(
     const TExpression* root,
     const std::function<const TExpression*(TPlanContext*, const TExpression*)>& functor)
 {
-    return ApplyImpl(context, root, functor);
+    // TODO(sandello): Implement COW to get rid of extra copies.
+    auto* mutatedRoot = functor(context, root)->Clone(context);
+    switch (mutatedRoot->GetKind()) {
+        case EExpressionKind::IntegerLiteral:
+        case EExpressionKind::DoubleLiteral:
+        case EExpressionKind::Reference:
+            break;
+        case EExpressionKind::Function: {
+            auto* typedMutatedRoot = mutatedRoot->As<TFunctionExpression>();
+            for (auto& argument : typedMutatedRoot->Arguments()) {
+                argument = Apply(context, argument, functor);
+            }
+            break;
+        }
+        case EExpressionKind::BinaryOp: {
+            auto* typedMutatedRoot = mutatedRoot->As<TBinaryOpExpression>();
+            typedMutatedRoot->SetLhs(Apply(context, typedMutatedRoot->GetLhs(), functor));
+            typedMutatedRoot->SetRhs(Apply(context, typedMutatedRoot->GetRhs(), functor));
+            break;
+        }
+    }
+    return mutatedRoot;
 }
 
 void Visit(
