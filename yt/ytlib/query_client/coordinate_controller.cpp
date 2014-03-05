@@ -51,6 +51,22 @@ TError TCoordinateController::Run()
     try {
         LOG_DEBUG("Coordinating plan fragment");
 
+        // Infer key range and push it down.
+        auto keyRange = Fragment_.GetHead()->GetKeyRange();
+        Fragment_.Rewrite([&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+            if (auto* scanOp = op->As<TScanOperator>()) {
+                auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                for (auto& split : clonedScanOp->DataSplits()) {
+                    auto originalRange = GetBothBoundsFromDataSplit(split);
+                    auto intersectedRange = Intersect(originalRange, keyRange);
+                    SetBothBounds(&split, intersectedRange);
+                }
+                return clonedScanOp;
+            }
+            return op;
+        });
+
+        // Now build and distribute fragments.
         Fragment_ = TPlanFragment(
             Fragment_.GetContext(),
             Simplify(Gather(Scatter(Fragment_.GetHead()))));
