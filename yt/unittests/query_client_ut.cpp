@@ -199,15 +199,6 @@ TTableSchema GetSampleTableSchema()
     return tableSchema;
 }
 
-TTableSchema GetSample2TableSchema()
-{
-    TTableSchema tableSchema;
-    tableSchema.Columns().push_back({ "a", EValueType::Integer });
-    tableSchema.Columns().push_back({ "b", EValueType::Integer });
-    tableSchema.Columns().push_back({ "c", EValueType::Integer });
-    return tableSchema;
-}
-
 template <class T>
 TFuture<TErrorOr<T>> WrapInFuture(const T& value)
 {
@@ -233,7 +224,11 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
     return dataSplit;
 }
 
-TDataSplit MakeSimple2Split(const TYPath& path, ui64 counter = 0)
+TDataSplit MakeSplit(
+    const TYPath& path,
+    const std::vector<TColumnSchema>& columns,
+    TKeyColumns keyColumns = TKeyColumns(),
+    ui64 counter = 0)
 {
     TDataSplit dataSplit;
 
@@ -241,9 +236,11 @@ TDataSplit MakeSimple2Split(const TYPath& path, ui64 counter = 0)
         dataSplit.mutable_chunk_id(),
         MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-    TKeyColumns keyColumns;
     SetKeyColumns(&dataSplit, keyColumns);
-    SetTableSchema(&dataSplit, GetSample2TableSchema());
+
+    TTableSchema tableSchema;
+    tableSchema.Columns() = columns;
+    SetTableSchema(&dataSplit, tableSchema);
 
     return dataSplit;
 }
@@ -1326,7 +1323,12 @@ protected:
 
 TEST_F(TQueryCodegenTest, Simple)
 {
-    auto simpleSplit = MakeSimpleSplit("//t");
+    auto simpleSplit = MakeSplit("//t", 
+        {
+            { "a", EValueType::Integer },
+            { "b", EValueType::Integer },
+            { "c", EValueType::Integer }
+        });
 
     std::vector<TUnversionedOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
@@ -1341,9 +1343,14 @@ TEST_F(TQueryCodegenTest, Simple)
     SUCCEED();
 }
 
-TEST_F(TQueryCodegenTest, Simple2)
+TEST_F(TQueryCodegenTest, SimpleWithNull)
 {
-    auto simpleSplit = MakeSimple2Split("//t");
+    auto simpleSplit = MakeSplit("//t", 
+        {
+            { "a", EValueType::Integer },
+            { "b", EValueType::Integer },
+            { "c", EValueType::Integer }
+        });
 
     std::vector<TUnversionedOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, true));
@@ -1362,7 +1369,12 @@ TEST_F(TQueryCodegenTest, Simple2)
 
 TEST_F(TQueryCodegenTest, Complex)
 {
-    auto simpleSplit = MakeSimpleSplit("//t");
+    auto simpleSplit = MakeSplit("//t", 
+        {
+            { "a", EValueType::Integer },
+            { "b", EValueType::Integer },
+            { "c", EValueType::Integer }
+        });
 
     const char* sourceRowsData[] = {
         "a=1;b=10",
@@ -1386,6 +1398,54 @@ TEST_F(TQueryCodegenTest, Complex)
     result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
 
     CodegenAndEvaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryCodegenTest, ComplexWithNull)
+{
+    auto simpleSplit = MakeSplit("//t", 
+        {
+            { "a", EValueType::Integer },
+            { "b", EValueType::Integer },
+            { "c", EValueType::Integer }
+        });
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90",
+        "a=10",
+        "b=1",
+        "b=2",
+        "b=3"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, true));
+    }
+
+    std::vector<TUnversionedOwningRow> result;
+
+    auto resultSplit = MakeSplit("", 
+        {
+            { "x", EValueType::Integer },
+            { "t", EValueType::Integer },
+            { "y", EValueType::Integer }
+        });
+
+    result.push_back(BuildRow("x=1;t=251;y=250", resultSplit, true));
+    result.push_back(BuildRow("x=0;t=200;y=200", resultSplit, true));
+    result.push_back(BuildRow("y=6", resultSplit, true));
+
+    CodegenAndEvaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", source, result);
 
     SUCCEED();
 }

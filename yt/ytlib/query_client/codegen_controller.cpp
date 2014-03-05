@@ -92,8 +92,7 @@ public:
     {
         size_t result = 0;
         for (int i = 0; i < KeySize_; ++i) {
-            YCHECK(key[i].Type == EValueType::Integer);
-            result = THashCombine(result, key[i].Data.Integer);
+            result = THashCombine(result, GetHash(key[i]));
         }
         return result;
     }
@@ -113,9 +112,7 @@ public:
     bool operator() (TRow lhs, TRow rhs) const
     {
         for (int i = 0; i < KeySize_; ++i) {
-            YCHECK(lhs[i].Type == EValueType::Integer);
-            YCHECK(rhs[i].Type == EValueType::Integer);
-            if (lhs[i].Data.Integer != rhs[i].Data.Integer) {
+            if (CompareRowValues(lhs[i], rhs[i])) {
                 return false;
             }
         }
@@ -588,7 +585,7 @@ private:
         std::unique_ptr<llvm::PassManager> ModulePassManager_;
 
         llvm::PassManagerBuilder passManagerBuilder;
-        passManagerBuilder.OptLevel = 2;
+        passManagerBuilder.OptLevel = 1;
         passManagerBuilder.SizeLevel = 0;
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
@@ -897,12 +894,7 @@ Value* CodegenTypePtrFromRow(TIRBuilder& builder, Value* row, int index)
     return typePtr;
 }
 
-
-void CodegenIsNull(
-    TIRBuilder& builder,
-    Value* row,
-    int index,
-    Value* isNullPtr)
+void CodegenIsNull(TIRBuilder& builder, Value* row, int index, Value* isNullPtr)
 {
     auto& context = builder.getContext();
     Value* type = builder.CreateLoad(CodegenTypePtrFromRow(builder, row, index));
@@ -928,28 +920,15 @@ Value* CodegenNullValue(TIRBuilder& builder, Type* type)
     YUNREACHABLE();
 }
 
-Value* CodegenValueFromRow(TIRBuilder& builder, Value* row, int index, EValueType type, Value* isNullPtr, llvm::Twine name = llvm::Twine())
+Value* CodegenValueFromRow(
+    TIRBuilder& builder,
+    Value* row,
+    int index,
+    EValueType type,
+    Value* isNullPtr,
+    llvm::Twine name = llvm::Twine())
 {
-    typedef TypeBuilder<TValueData, false> TUnionType;
-
-    TUnionType::Fields field;
-    switch (type) { // int, double or string
-        case EValueType::Integer:
-            field = TUnionType::Fields::Integer;
-            break;
-        case EValueType::Double:
-            field = TUnionType::Fields::Double;
-            break;
-        case EValueType::String:
-            //field = TUnionType::Fields::String;
-            YUNIMPLEMENTED();
-            break;
-        default:
-            YUNREACHABLE();
-    }
-
     auto& context = builder.getContext();
-
     Function* function = builder.GetInsertBlock()->getParent();
 
     auto* getValueBB = BasicBlock::Create(context, "getValue", function);
@@ -957,27 +936,14 @@ Value* CodegenValueFromRow(TIRBuilder& builder, Value* row, int index, EValueTyp
 
     CodegenIsNull(builder, row, index, isNullPtr);
 
-    auto* sourceBB = builder.GetInsertBlock();
     builder.CreateCondBr(builder.CreateLoad(isNullPtr), resultBB, getValueBB);
+    auto* sourceBB = builder.GetInsertBlock();
     builder.SetInsertPoint(getValueBB);
 
-    Value* rowValuesArray = CodegenRowValuesArray(builder, row);
-    Value* dataPtr = builder.CreateConstGEP2_32(
-        rowValuesArray,
-        index,
-        TypeBuilder<TValue, false>::Fields::Data,
-        "dataPtr");
+    Value* value = builder.CreateLoad(CodegenDataPtrFromRow(builder, row, index, type));
 
-    Value* value = builder.CreateLoad(
-        builder.CreatePointerCast(
-            dataPtr,
-            TUnionType::getAs(field, builder.getContext()),
-            "dataPtrCasted"), 
-        "literal");
-
-
-    getValueBB = builder.GetInsertBlock();
     builder.CreateBr(resultBB);
+    getValueBB = builder.GetInsertBlock();
     builder.SetInsertPoint(resultBB);
 
     llvm::PHINode* phiNode = builder.CreatePHI(value->getType(), 2, name);
@@ -1004,11 +970,39 @@ Value* CodegenIdPtrFromRow(TIRBuilder& builder, Value* row, int index)
 
 void CodegenAggregateFunction(
     TIRBuilder& builder,
+    Value* row,
+    Value* newRow,
     EAggregateFunctions aggregateFunction,
-    Value* aggregateValuePtr,
-    Value* newValue)
+    int index,
+    EValueType type)
 {
-    Value* oldAggregateValue = builder.CreateLoad(aggregateValuePtr);
+    auto& context = builder.getContext();
+    Function* function = builder.GetInsertBlock()->getParent();
+
+    Value* newValueIsNullPtr = builder.CreateAlloca(
+        TypeBuilder<llvm::types::i<1>, false>::get(context), 0, "newValueIsNullPtr");
+    Value* newValue = CodegenValueFromRow(builder, newRow, index, type, newValueIsNullPtr);
+
+    auto* aggregateBB = BasicBlock::Create(context, "aggregate", function);
+    auto* aggregateEndBB = BasicBlock::Create(context, "aggregateEnd", function);
+    builder.CreateCondBr(builder.CreateLoad(newValueIsNullPtr), aggregateEndBB, aggregateBB);
+
+    // aggregate
+    builder.SetInsertPoint(aggregateBB);
+
+    Value* isNullPtr = builder.CreateAlloca(
+        TypeBuilder<llvm::types::i<1>, false>::get(context), 0, "isNullPtr");
+    CodegenIsNull(builder, row, index, isNullPtr);
+
+    Value* valuePtr = CodegenDataPtrFromRow(builder, row, index, type);
+
+    auto* doAggregateBB = BasicBlock::Create(context, "doAggregate", function);
+    auto* swapAggregateBB = BasicBlock::Create(context, "swapAggregate", function);
+    builder.CreateCondBr(builder.CreateLoad(isNullPtr), swapAggregateBB, doAggregateBB);
+
+    // do aggregate
+    builder.SetInsertPoint(doAggregateBB);
+    Value* oldAggregateValue = builder.CreateLoad(valuePtr);
     Value* newAggregateValue = nullptr;
     switch (aggregateFunction) {
         case EAggregateFunctions::Sum:
@@ -1032,8 +1026,17 @@ void CodegenAggregateFunction(
         default:
             YUNIMPLEMENTED();
     }
-    builder.CreateStore(newAggregateValue, aggregateValuePtr);
+    builder.CreateStore(newAggregateValue, valuePtr);
+    builder.CreateBr(aggregateEndBB);
+
+    // swap aggregate
+    builder.SetInsertPoint(swapAggregateBB);
+    builder.CreateStore(newValue, valuePtr);
+    builder.CreateBr(aggregateEndBB);
+
+    builder.SetInsertPoint(aggregateEndBB);
 }
+
 
 void CodegenForEachRow(
     TIRBuilder& builder,
@@ -1527,11 +1530,7 @@ void TCGContext::CodegenGroupOp(
             auto type = item.Expression->GetType(sourceTableSchema);
             auto fn = item.AggregateFunction;
 
-            Value* aggregateValuePtr = CodegenDataPtrFromRow(innerBuilder, foundRow, keySize + index, type);
-            Value* newValuePtr = CodegenDataPtrFromRow(innerBuilder, newRowRef, keySize + index, type);
-            Value* newValue = innerBuilder.CreateLoad(newValuePtr);
-
-            CodegenAggregateFunction(innerBuilder, fn, aggregateValuePtr, newValue);
+            CodegenAggregateFunction(innerBuilder, foundRow, newRowRef, fn, keySize + index, type);
         }
         innerBuilder.CreateBr(endIfBB);
 
