@@ -64,6 +64,8 @@ public:
     Stroka Name;
 };
 
+typedef SmallVector<TAggregateItem, 3> TAggregateItemList;
+
 class TOperator
     : public TPlanNodeBase<TOperator, EOperatorKind>
 {
@@ -157,8 +159,6 @@ class TGroupOperator
     : public TOperator
 {
 public:
-    typedef SmallVector<TAggregateItem, 3> TAggregateItemList;
-
     TGroupOperator(TPlanContext* context, const TOperator* source)
         : TOperator(context, EOperatorKind::Group)
         , Source_(source)
