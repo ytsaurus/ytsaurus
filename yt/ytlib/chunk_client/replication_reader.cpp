@@ -97,7 +97,7 @@ public:
 
         LOG_INFO("Reader initialized (InitialSeedReplicas: [%s], FetchPromPeers: %s, LocalDescriptor: %s, EnableCaching: %s)",
             ~JoinToString(InitialSeedReplicas, TChunkReplicaAddressFormatter(NodeDirectory)),
-            ~FormatEnum(Config->FetchFromPeers),
+            ~FormatBool(Config->FetchFromPeers),
             LocalDescriptor ? ~ToString(LocalDescriptor->Address) : "<Null>",
             ~FormatBool(Config->EnableNodeCaching));
     }
