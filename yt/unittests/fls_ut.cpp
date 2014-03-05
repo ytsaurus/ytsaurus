@@ -36,11 +36,12 @@ struct TMyValue
     }
 };
 
-template <> int TMyValue<int>::CtorCalls;
-template <> int TMyValue<int>::DtorCalls;
+template <> int TMyValue<int>::CtorCalls = 0;
+template <> int TMyValue<int>::DtorCalls = 0;
 
-template <> int TMyValue<Stroka>::CtorCalls;
-template <> int TMyValue<Stroka>::DtorCalls;
+template <> int TMyValue<Stroka>::CtorCalls = 0;
+template <> int TMyValue<Stroka>::DtorCalls = 0;
+
 
 class TFlsTest
     : public ::testing::Test
