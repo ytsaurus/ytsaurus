@@ -247,6 +247,8 @@ void TPrepareController::MoveAggregateExpressions()
             auto& newProjections = newProjectOp->Projections();
             auto& newAggregateItems = newGroupOp->AggregateItems();
 
+            std::set<Stroka> subexprNames;
+
             for (auto& projection : projectOp->Projections()) {
                 auto newExpr = Apply(
                     context,
@@ -278,14 +280,20 @@ void TPrepareController::MoveAggregateExpressions()
                             }
 
                             Stroka subexprName = functionExpr->GetName();
+
+                            if (!subexprNames.count(subexprName)) {
+                                subexprNames.insert(subexprName);
+                                newAggregateItems.push_back(TAggregateItem(
+                                    functionExpr->GetArgument(0),
+                                    aggregateFunction,
+                                    subexprName));
+                            }
+
                             auto referenceExpr = new (context) TReferenceExpression(
                                 context,
                                 NullSourceLocation,
                                 subexprName);
-                            newAggregateItems.push_back(TAggregateItem(
-                                functionExpr->GetArgument(0),
-                                aggregateFunction,
-                                subexprName));
+                            
                             return referenceExpr;
                         }
                         return expr;
