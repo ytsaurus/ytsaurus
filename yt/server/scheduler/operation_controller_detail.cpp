@@ -2864,7 +2864,7 @@ bool TOperationControllerBase::IsSortedOutputSupported() const
 
 bool TOperationControllerBase::IsRowCountPreserved() const
 {
-    return true;
+    return false;
 }
 
 void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter)

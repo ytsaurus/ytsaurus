@@ -1434,6 +1434,11 @@ private:
     i64 StartRowIndex;
     TNullable<int> TeleportOutputTable;
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return false;
+    }
+
     bool IsTeleportInputTable(int tableIndex) const
     {
         return InputTables[tableIndex].Path.Attributes().Get<bool>("teleport", false);

@@ -1288,7 +1288,7 @@ protected:
 
     virtual void DoOperationCompleted() override
     {
-        if (PartitionTask) {
+        if (PartitionTask && IsRowCountPreserved()) {
             auto inputRowCount = PartitionTask->GetJobStatistics().input().row_count();
             if (inputRowCount != TotalOutputRowCount) {
                 OnOperationFailed(TError(
