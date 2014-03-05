@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/array_ref.h>
+#include <functional>
 
 namespace NYT {
 namespace NQueryClient {
