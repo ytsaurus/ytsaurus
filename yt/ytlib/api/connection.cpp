@@ -471,7 +471,7 @@ private:
             SetTableSchema(&subsplit, schema);
             
             auto pivotKey = tabletInfo->PivotKey;
-            auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (it + 1)->PivotKey
+            auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey
 
             SetLowerBound(&subsplit, std::max(lowerBound, pivotKey));
             SetUpperBound(&subsplit, std::min(upperBound, nextPivotKey));
