@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <core/concurrency/action_queue.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/query_client/plan_fragment.h>
@@ -30,7 +32,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-    void PrintTo(const TOwningKey& key, ::std::ostream* os)
+void PrintTo(const TOwningKey& key, ::std::ostream* os)
 {
     *os << KeyToYson(key.Get());
 }
@@ -52,6 +54,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NConcurrency;
 using namespace NYPath;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
@@ -1215,9 +1218,32 @@ protected:
 
         ReaderMock_ = New<StrictMock<TReaderMock>>();
         WriterMock_ = New<StrictMock<TWriterMock>>();
+
+        ActionQueue_ = New<TActionQueue>("Test");
+    }
+
+    virtual void TearDown() override
+    {
+        ActionQueue_->Shutdown();
     }
 
     void CodegenAndEvaluate(
+        const Stroka& query,
+        const std::vector<TUnversionedOwningRow>& owningSource,
+        const std::vector<TUnversionedOwningRow>& owningResult)
+    {
+        auto result = BIND(&TQueryCodegenTest::DoCodegenAndEvaluate, this)
+            .Guarded()
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(
+                query,
+                owningSource,
+                owningResult)
+            .Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    void DoCodegenAndEvaluate(
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult)
@@ -1271,6 +1297,7 @@ protected:
     StrictMock<TEvaluateCallbacksMock> EvaluateMock_;
     TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_; 
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
+    TActionQueuePtr ActionQueue_;
 
 };
 
