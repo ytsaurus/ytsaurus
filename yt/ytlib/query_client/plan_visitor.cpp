@@ -102,26 +102,6 @@ bool Traverse(IPlanVisitor* visitor, const TExpression* root)
     return true;
 }
 
-template <class TNode>
-static inline const TNode* ApplyImpl(
-    TPlanContext* context,
-    const TNode* root,
-    const std::function<const TNode*(TPlanContext*, const TNode*)>& functor)
-{
-    const TNode* result = functor(context, root);
-
-    auto immutableChildren = result->Children();
-    auto mutableChildren = TMutableArrayRef<const TNode*>(
-        const_cast<const TNode**>(immutableChildren.data()),
-        immutableChildren.size());
-
-    for (auto& child : mutableChildren) {
-        child = Apply(context, child, functor);
-    }
-
-    return result;
-}
-
 const TOperator* Apply(
     TPlanContext* context,
     const TOperator* root,
