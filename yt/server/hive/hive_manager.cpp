@@ -486,11 +486,9 @@ private:
 
     void HandleIncomingMessages(TMailbox* mailbox, const TReqPostMessages& req)
     {
-        for (int messageId = req.first_message_id();
-            messageId < req.first_message_id() + req.messages_size();
-            ++messageId)
-        {
-            HandleIncomingMessage(mailbox, messageId, req.messages(messageId));
+        for (int index = 0; index < req.messages_size(); ++index) {
+            int messageId = req.first_message_id() + index;
+            HandleIncomingMessage(mailbox, messageId, req.messages(index));
         }
     }
 
