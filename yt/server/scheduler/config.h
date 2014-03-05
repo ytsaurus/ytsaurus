@@ -57,7 +57,7 @@ class TSchedulerConfig
 {
 public:
     //! Interval between consecutive master connection attempts.
-    TDuration ConnectRetryPeriod;
+    TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
     TDuration NodeHearbeatTimeout;
@@ -185,7 +185,7 @@ public:
 
     TSchedulerConfig()
     {
-        RegisterParameter("connect_retry_period", ConnectRetryPeriod)
+        RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHearbeatTimeout)
             .Default(TDuration::Seconds(60));
