@@ -71,7 +71,7 @@ private:
 
     i64 RowCount_;
 
-    TAsyncError NextBlockFuture_;
+    TAsyncErrorPromise ReadyEvent_;
 
     int GetBeginBlockIndex() const;
     int GetEndBlockIndex() const;
@@ -104,7 +104,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     , CurrentBlockIndex_(0)
     , CurrentRowIndex_(0)
     , RowCount_(0)
-    , NextBlockFuture_(PresetResult)
+    , ReadyEvent_(MakePromise(TError()))
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
@@ -137,13 +137,17 @@ template <class TBlockReader>
 bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
 {
     YCHECK(rows->capacity() > 0);
-    YCHECK(NextBlockFuture_.IsSet());
 
     MemoryPool_.Clear();
     rows->clear();
 
     if (PreviousBlockReader_) {
         PreviousBlockReader_.reset();
+    }
+
+    if (!ReadyEvent_.IsSet()) {
+        // Waiting for the next block.
+        return true;
     }
 
     if (!BlockReader_) {
@@ -170,7 +174,7 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
         if (!BlockReader_->NextRow()) {
             PreviousBlockReader_.swap(BlockReader_);
             if (SequentialReader_->HasNext()) {
-                NextBlockFuture_ = SequentialReader_->AsyncNextBlock();
+                ReadyEvent_ = NewPromise<TError>();
                 BIND(&TVersionedChunkReader<TBlockReader>::DoSwitchBlock, MakeWeak(this))
                     .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
                     .Run();
@@ -187,7 +191,7 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
 template <class TBlockReader>
 TAsyncError TVersionedChunkReader<TBlockReader>::GetReadyEvent()
 {
-    return NextBlockFuture_;
+    return ReadyEvent_.ToFuture();
 }
 
 template <class TBlockReader>
@@ -197,7 +201,7 @@ int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
     auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int beginBlockIndex = 0;
-    if (LowerLimit_.HasRowIndex()) {
+    if (LowerLimit_.HasRowIndex() && LowerLimit_.GetRowIndex() > 0) {
         // To make search symmetrical with blockIndex we ignore last block.
         typedef decltype(blockMetaEntries.end()) TIter;
         auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
@@ -250,7 +254,7 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
     auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int endBlockIndex = blockMetaEntries.size();
-    if (UpperLimit_.HasRowIndex()) {
+    if (UpperLimit_.HasRowIndex() && UpperLimit_.GetRowIndex() > 0) {
         auto begin = blockMetaEntries.begin();
         auto end = blockMetaEntries.end() - 1;
         auto it = std::lower_bound(
@@ -259,7 +263,7 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
             UpperLimit_.GetRowIndex(),
             [] (const TBlockMeta& blockMeta, int index) {
                 auto maxRowIndex = blockMeta.chunk_row_count() - 1;
-                return maxRowIndex < index;
+                return index < maxRowIndex;
             });
 
         if (it != end) {
@@ -277,7 +281,7 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
             [] (const TProtoStringType& protoKey, const TOwningKey& pivot) {
                 TOwningKey key;
                 FromProto(&key, protoKey);
-                return key < pivot;
+                return pivot < key;
             });
 
         if (it != blockIndexEntries.end()) {
@@ -362,13 +366,13 @@ TBlockReader* TVersionedChunkReader<TBlockReader>::NewBlockReader()
 template <class TBlockReader>
 void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 {
-    auto error = WaitFor(NextBlockFuture_);
+    auto error = WaitFor(SequentialReader_->AsyncNextBlock());
     ++CurrentBlockIndex_;
-    if (!error.IsOK()) {
-        return;
+    if (error.IsOK()) {
+        BlockReader_.reset(NewBlockReader());
     }
 
-    BlockReader_.reset(NewBlockReader());
+    ReadyEvent_.Set(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
