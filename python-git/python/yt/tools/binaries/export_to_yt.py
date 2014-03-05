@@ -44,7 +44,7 @@ def export_table(object, args):
     try:
         yt.config.set_proxy(params.yt_proxy)
         if yt.exists(dst) and yt.records_count(dst) != 0:
-            if params.force:
+            if not params.force:
                 yt.remove(dst)
             else:
                 logger.error("Destination table '%s' is not empty" % dst)
@@ -55,6 +55,7 @@ def export_table(object, args):
 
     with yt.Transaction():
         yt.lock(src, mode="snapshot")
+
 
         record_count = yt.records_count(src)
 
@@ -86,6 +87,25 @@ def export_table(object, args):
             logger.info("Running sort")
             yt.run_sort(dst, sort_by=sorted_by)
 
+        # TODO(ignat): remove this copypaste (code is borrowed from import_from_mr.py)
+        if params.erasure_codec is not None and params.erasure_codec == "none":
+            params.erasure_codec = None
+
+        if params.compression_codec is not None or params.erasure_codec is not None:
+            mode = "sorted" if is_sorted else "unordered"
+            spec = {"combine_chunks": "true",
+                    "force_transform": "true"}
+
+            if params.compression_codec is not None:
+                yt.set_attribute(dst, "compression_codec", params.compression_codec)
+            if params.erasure_codec is not None:
+                yt.set_attribute(dst, "erasure_codec", params.erasure_codec)
+                spec["job_io"] = {"table_writer": {"desired_chunk_size": 2 * 1024 ** 3}}
+                spec["data_size_per_job"] = max(1, int(4 * (1024 ** 3) / yt.get(dst + "/@compression_ratio")))
+
+            logger.info("Merging '%s' with spec '%s'", dst, repr(spec))
+            yt.run_merge(dst, dst, mode=mode, spec=spec)
+
     finally:
         yt.config.set_proxy(old_proxy)
 
@@ -107,6 +127,9 @@ def main():
 
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
+
+    parser.add_argument("--compression-codec")
+    parser.add_argument("--erasure-codec")
 
     args = parser.parse_args()
 
