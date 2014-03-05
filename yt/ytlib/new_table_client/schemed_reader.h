@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/error.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
