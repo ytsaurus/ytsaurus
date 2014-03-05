@@ -7,7 +7,6 @@
 
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <core/misc/array_ref.h>
 #include <core/misc/error.h>
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
@@ -86,8 +85,6 @@ public:
             return nullptr;
         }
     }
-
-    virtual TArrayRef<const TPlanNode*> Children() const = 0;
 
 private:
     EKind Kind_;

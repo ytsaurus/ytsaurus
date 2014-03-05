@@ -39,6 +39,8 @@ public:
         void* operator new(size_t size, TPlanContext* context);
         void operator delete(void* pointer, TPlanContext* context) throw();
 
+        TPlanContext* GetAssociatedContext();
+
     protected:
         TPlanContext* Context_;
 

@@ -112,11 +112,6 @@ public:
         return op->GetKind() == EOperatorKind::Scan;
     }
 
-    virtual TArrayRef<const TOperator*> Children() const override
-    {
-        return Null;
-    }
-
     virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
     DEFINE_BYREF_RW_PROPERTY(TDataSplits, DataSplits);
@@ -146,11 +141,6 @@ public:
         return op->GetKind() == EOperatorKind::Filter;
     }
 
-    virtual TArrayRef<const TOperator*> Children() const override
-    {
-        return Source_;
-    }
-
     virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
@@ -177,11 +167,6 @@ public:
     static inline bool IsClassOf(const TOperator* op)
     {
         return op->GetKind() == EOperatorKind::Group;
-    }
-
-    virtual TArrayRef<const TOperator*> Children() const override
-    {
-        return Source_;
     }
 
     virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
@@ -233,11 +218,6 @@ public:
     static inline bool IsClassOf(const TOperator* op)
     {
         return op->GetKind() == EOperatorKind::Project;
-    }
-
-    virtual TArrayRef<const TOperator*> Children() const override
-    {
-        return Source_;
     }
 
     virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;

@@ -65,11 +65,6 @@ public:
         , SourceLocation_(sourceLocation)
     { }
 
-    virtual TArrayRef<const TExpression*> Children() const override
-    {
-        return Null;
-    }
-
     //! Returns expression source (as it was written by the user) if possible.
     Stroka GetSource() const;
 
@@ -211,11 +206,6 @@ public:
         return expr->GetKind() == EExpressionKind::Function;
     }
 
-    virtual TArrayRef<const TExpression*> Children() const override
-    {
-        return Arguments_;
-    }
-
     TArguments& Arguments()
     {
         return Arguments_;
@@ -287,12 +277,6 @@ public:
     static inline bool IsClassOf(const TExpression* expr)
     {
         return expr->GetKind() == EExpressionKind::BinaryOp;
-    }
-
-    virtual TArrayRef<const TExpression*> Children() const override
-    {
-        // XXX(sandello): Construct explicitly to enable C-array overload.
-        return MakeArrayRef(&Lhs_, 2);
     }
 
     const TExpression* GetLhs() const
