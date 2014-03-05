@@ -199,17 +199,17 @@ const TOperator* TCoordinateController::Gather(const std::vector<const TOperator
     auto* resultOp = context->TrackedNew<TScanOperator>();
     auto& resultSplits = resultOp->DataSplits();
 
-    std::function<const TDataSplit&(const TOperator*)> determineColocatedSplit =
-        [&determineColocatedSplit] (const TOperator* op) -> const TDataSplit& {
+    std::function<const TDataSplit&(const TOperator*)> determineCollocatedSplit =
+        [&determineCollocatedSplit] (const TOperator* op) -> const TDataSplit& {
             switch (op->GetKind()) {
                 case EOperatorKind::Scan:
                     return op->As<TScanOperator>()->DataSplits().front();
                 case EOperatorKind::Filter:
-                    return determineColocatedSplit(op->As<TFilterOperator>()->GetSource());
+                    return determineCollocatedSplit(op->As<TFilterOperator>()->GetSource());
                 case EOperatorKind::Group:
-                    return determineColocatedSplit(op->As<TGroupOperator>()->GetSource());
+                    return determineCollocatedSplit(op->As<TGroupOperator>()->GetSource());
                 case EOperatorKind::Project:
-                    return determineColocatedSplit(op->As<TProjectOperator>()->GetSource());
+                    return determineCollocatedSplit(op->As<TProjectOperator>()->GetSource());
             }
             YUNREACHABLE();
         };
@@ -220,7 +220,7 @@ const TOperator* TCoordinateController::Gather(const std::vector<const TOperator
             ~ToString(fragment.Id()));
 
         int index = Peers_.size();
-        Peers_.emplace_back(fragment, determineColocatedSplit(op), nullptr);
+        Peers_.emplace_back(fragment, determineCollocatedSplit(op), nullptr);
 
         TDataSplit facadeSplit;
 
