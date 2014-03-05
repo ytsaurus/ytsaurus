@@ -100,7 +100,8 @@ TDataSplits TCoordinateController::GetUnitedDataSplit(
                 return op;
             }
 
-            TDataSplits filteredDataSplits;
+            auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+            auto& filteredDataSplits = clonedScanOp->DataSplits();
 
             for (const auto& dataSplit : scanOp->DataSplits()) {
                 if (!IsSorted(dataSplit)) {
@@ -117,9 +118,6 @@ TDataSplits TCoordinateController::GetUnitedDataSplit(
                     }
                 }
             }
-
-            auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-            clonedScanOp->DataSplits() = filteredDataSplits;
 
             return clonedScanOp;
         });
