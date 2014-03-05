@@ -518,6 +518,7 @@ private:
 
                 auto request = DeserializeMessage(serializedFrontMessage);
                 YCHECK(incomingMessages.erase(frontMessageId) == 1);
+                mailbox->SetLastIncomingMessageId(frontMessageId);
                 consumed = true;
 
                 TMutationContext context(HydraManager->GetMutationContext(), request);
