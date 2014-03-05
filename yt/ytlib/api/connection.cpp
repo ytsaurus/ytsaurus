@@ -470,9 +470,11 @@ private:
             SetKeyColumns(&subsplit, keyColumns);
             SetTableSchema(&subsplit, schema);
             
-            SetLowerBound(&subsplit, tabletInfo->PivotKey);
-            auto jt = it + 1;
-            SetUpperBound(&subsplit, jt == tableInfo->Tablets.end() ? MaxKey() : (*jt)->PivotKey);
+            auto pivotKey = tabletInfo->PivotKey;
+            auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (it + 1)->PivotKey
+
+            SetLowerBound(&subsplit, std::max(lowerBound, pivotKey));
+            SetUpperBound(&subsplit, std::min(upperBound, nextPivotKey));
 
             SetTimestamp(&subsplit, context->GetTimestamp());
 
