@@ -239,6 +239,11 @@ const TOperator* TCoordinateController::Gather(const std::vector<const TOperator
 
 const TOperator* TCoordinateController::Simplify(const TOperator* op)
 {
+    // If we have delegated a segment locally, then we can omit extra data copy.
+    // Basically, we would like to reduce
+    //   (peers) -> (first local query) -> (second local query)
+    // to
+    //   (peers) -> (first + second local query)
     return Apply(
         Fragment_.GetContext().Get(),
         op,
@@ -248,13 +253,22 @@ const TOperator* TCoordinateController::Simplify(const TOperator* op)
                 return op;
             }
 
-            auto pair = IsInternal(scanOp->DataSplits().front());
-            if (pair.first) {
-                YCHECK(pair.second < Peers_.size());
-                return std::get<0>(Peers_[pair.second]).GetHead();
-            } else {
+            const auto& outerSplit = scanOp->DataSplits().front();
+            auto outerPair = IsInternal(outerSplit);
+            if (!outerPair.first) {
                 return op;
             }
+
+            YCHECK(outerPair.second < Peers_.size());
+            const auto& peer = Peers_[outerPair.second];
+
+            const auto& innerSplit = std::get<1>(peer);
+            auto innerPair = IsInternal(innerSplit);
+            if (!innerPair.first) {
+                return op;
+            }
+
+            return std::get<0>(peer).GetHead();
         });
 }
 
