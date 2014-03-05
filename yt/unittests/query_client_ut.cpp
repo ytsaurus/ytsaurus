@@ -1367,6 +1367,40 @@ TEST_F(TQueryCodegenTest, SimpleWithNull)
     SUCCEED();
 }
 
+TEST_F(TQueryCodegenTest, SimpleWithNull2)
+{
+    auto simpleSplit = MakeSplit("//t", 
+        {
+            { "a", EValueType::Integer },
+            { "b", EValueType::Integer },
+            { "c", EValueType::Integer }
+        });
+
+    std::vector<TUnversionedOwningRow> source;
+    source.push_back(BuildRow("a=1;b=2;c=3", simpleSplit, true));
+    source.push_back(BuildRow("a=4", simpleSplit, true));
+    source.push_back(BuildRow("a=5;b=5", simpleSplit, true));
+    source.push_back(BuildRow("a=7;c=8", simpleSplit, true));
+    source.push_back(BuildRow("a=10;b=1", simpleSplit, true));
+    source.push_back(BuildRow("a=10;c=1", simpleSplit, true));
+    
+    auto resultSplit = MakeSplit("",
+        {
+            { "a", EValueType::Integer },
+            { "x", EValueType::Integer }
+        });
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("a=1;x=5", resultSplit, true));
+    result.push_back(BuildRow("a=4;", resultSplit, true));
+    result.push_back(BuildRow("a=5;", resultSplit, true));
+    result.push_back(BuildRow("a=7;", resultSplit, true));
+
+    CodegenAndEvaluate("a, b + c as x FROM [//t] where a < 10", source, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryCodegenTest, Complex)
 {
     auto simpleSplit = MakeSplit("//t", 
