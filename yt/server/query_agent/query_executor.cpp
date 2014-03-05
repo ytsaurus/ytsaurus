@@ -7,7 +7,6 @@
 #include <core/misc/string.h>
 
 #include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/async_reader.h> // TODO(babenko): remove when switched to refcounted macros
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
@@ -19,6 +18,7 @@
 #include <ytlib/new_table_client/schemed_reader.h>
 #include <ytlib/new_table_client/schemed_chunk_reader.h>
 #include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/pipe.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/callbacks.h>
@@ -63,27 +63,67 @@ static auto& Logger = QueryAgentLogger;
 
 class TQueryExecutor
     : public IExecutor
-    , public IEvaluateCallbacks
+    , public ICoordinateCallbacks
 {
 public:
     explicit TQueryExecutor(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
+        , Coordinator_(CreateCoordinator(
+            Bootstrap_->GetQueryWorkerInvoker(),
+            this))
         , Evaluator_(CreateEvaluator(
             Bootstrap_->GetQueryWorkerInvoker(),
             this))
     { }
+
 
     // IExecutor implementation.
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
         ISchemedWriterPtr writer) override
     {
-        LOG_DEBUG("Executing plan fragment (FragmentId: %s)",
-            ~ToString(fragment.Id()));
-        return Evaluator_->Execute(fragment, std::move(writer));
+        return Coordinator_->Execute(fragment, std::move(writer));
     }
 
-    // IExecuteCallbacks implementation.
+
+    // ICoordinateCallbacks implementation.
+    virtual bool CanSplit(const TDataSplit& /*split*/) override
+    {
+        return false;
+    }
+
+    virtual TFuture<TErrorOr<TDataSplits>> SplitFurther(
+        const TDataSplit& /*split*/,
+        TPlanContextPtr /*context*/) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual TLocationToDataSplits GroupByLocation(
+        const TDataSplits& splits,
+        TPlanContextPtr context) override
+    {
+        TLocationToDataSplits result;
+        for (const auto& split : splits) {
+            auto location = LocationFromDataSplit(split);
+            result[location].push_back(split);
+        }
+        return result;
+    }
+
+    virtual ISchemedReaderPtr Delegate(
+        const TPlanFragment& fragment,
+        const Stroka& /*location*/) override
+    {
+        auto pipe = New<TSchemedPipe>();
+        Evaluator_->Execute(fragment, pipe->GetWriter()).Subscribe(BIND([pipe] (TError error) {
+            if (!error.IsOK()) {
+                pipe->Fail(error);
+            }
+        }));
+        return pipe->GetReader();
+    }
+
     virtual ISchemedReaderPtr GetReader(
         const TDataSplit& split,
         TPlanContextPtr context) override
@@ -100,6 +140,7 @@ public:
 private:
     TBootstrap* Bootstrap_;
 
+    IExecutorPtr Coordinator_;
     IExecutorPtr Evaluator_;
 
 
@@ -242,6 +283,13 @@ private:
             std::move(lowerBound),
             std::move(upperBound),
             timestamp);
+    }
+
+
+    static Stroka LocationFromDataSplit(const TDataSplit& split)
+    {
+        auto objectId = GetObjectIdFromDataSplit(split);
+        return ToString(objectId);
     }
 
 };
