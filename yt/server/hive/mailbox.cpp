@@ -15,28 +15,10 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMessage::Save(TSaveContext& context ) const
-{
-    using NYT::Save;
-
-    Save(context, Type);
-    Save(context, Data);
-}
-
-void TMessage::Load(TLoadContext& context )
-{
-    using NYT::Load;
-
-    Load(context, Type);
-    Load(context, Data);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMailbox::TMailbox(const TCellGuid& cellGuid)
     : CellGuid_(cellGuid)
-    , FirstPendingMessageId_(0)
-    , LastReceivedMessageId_(-1)
+    , FirstOutcomingMessageId_(0)
+    , LastIncomingMessageId_(-1)
     , InFlightMessageCount_(0)
     , Connected_(false)
 { }
@@ -46,9 +28,10 @@ void TMailbox::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, CellGuid_);
-    Save(context, FirstPendingMessageId_);
-    Save(context, LastReceivedMessageId_);
-    Save(context, PendingMessages_);
+    Save(context, FirstOutcomingMessageId_);
+    Save(context, LastIncomingMessageId_);
+    Save(context, OutcomingMessages_);
+    Save(context, IncomingMessages_);
 }
 
 void TMailbox::Load(TLoadContext& context)
@@ -56,13 +39,13 @@ void TMailbox::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, CellGuid_);
-    Load(context, FirstPendingMessageId_);
-    Load(context, LastReceivedMessageId_);
-    Load(context, PendingMessages_);
+    Load(context, FirstOutcomingMessageId_);
+    Load(context, LastIncomingMessageId_);
+    Load(context, OutcomingMessages_);
+    Load(context, IncomingMessages_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NHive
 } // namespace NYT

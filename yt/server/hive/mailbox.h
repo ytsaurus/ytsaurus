@@ -19,10 +19,6 @@ struct TMessage
 {
     Stroka Type;
     TSharedRef Data;
-
-    void Save(NHydra::TSaveContext& context) const;
-    void Load(NHydra::TLoadContext& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,10 +27,15 @@ class TMailbox
 {
     // Persistent state.
     DEFINE_BYVAL_RO_PROPERTY(TCellGuid, CellGuid);
-    DEFINE_BYVAL_RW_PROPERTY(int, FirstPendingMessageId);
-    DEFINE_BYVAL_RW_PROPERTY(int, LastReceivedMessageId);
+
+    DEFINE_BYVAL_RW_PROPERTY(int, FirstOutcomingMessageId);
+    DEFINE_BYVAL_RW_PROPERTY(int, LastIncomingMessageId);
     DEFINE_BYVAL_RW_PROPERTY(int, InFlightMessageCount)
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TMessage>, PendingMessages);
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, OutcomingMessages);
+    
+    typedef std::map<int, Stroka> TIncomingMessageMap;
+    DEFINE_BYREF_RW_PROPERTY(TIncomingMessageMap, IncomingMessages);
 
     // Transient state.
     DEFINE_BYVAL_RW_PROPERTY(bool, Connected);

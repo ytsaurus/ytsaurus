@@ -25,7 +25,7 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, Ping);
-    DEFINE_RPC_PROXY_METHOD(NProto, Send);
+    DEFINE_RPC_PROXY_METHOD(NProto, PostMessages);
 
 };
 

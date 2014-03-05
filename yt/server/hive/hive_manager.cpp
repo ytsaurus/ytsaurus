@@ -70,10 +70,10 @@ public:
         Automaton->RegisterPart(this);
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Send));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReceiveMessages, Unretained(this), nullptr));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this), nullptr));
 
         RegisterLoader(
             "HiveManager.Keys",
@@ -157,15 +157,17 @@ public:
         YCHECK(HydraManager->IsMutating());
 
         int messageId =
-            mailbox->GetFirstPendingMessageId() +
-            static_cast<int>(mailbox->PendingMessages().size());
-        mailbox->PendingMessages().push_back(message);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Message posted (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
+            mailbox->GetFirstOutcomingMessageId() +
+            static_cast<int>(mailbox->OutcomingMessages().size());
+        auto serializedMessage = SerializeMessage(message);
+        mailbox->OutcomingMessages().push_back(serializedMessage);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
             ~ToString(SelfCellGuid),
             ~ToString(mailbox->GetCellGuid()),
             messageId);
 
-        MaybeSendPendingMessages(mailbox);
+        MaybeSendOutcomingMessages(mailbox);
     }
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
@@ -201,26 +203,26 @@ private:
             ~ToString(SelfCellGuid));
 
         auto* mailbox = FindMailbox(srcCellGuid);
-        int lastReceivedMessageId = mailbox ? mailbox->GetLastReceivedMessageId() : -1;
+        int lastIncomingMessageId = mailbox ? mailbox->GetLastIncomingMessageId() : -1;
 
-        response->set_last_received_message_id(lastReceivedMessageId);
+        response->set_last_incoming_message_id(lastIncomingMessageId);
 
-        context->SetResponseInfo("LastReceivedMessageId: %d",
-            lastReceivedMessageId);
+        context->SetResponseInfo("LastIncomingMessageId: %d",
+            lastIncomingMessageId);
 
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Send)
+    DECLARE_RPC_SERVICE_METHOD(NProto, PostMessages)
     {
         auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
         int firstMessageId = request->first_message_id();
 
-        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, FirstMessageId: %d, MessageCount: %d",
+        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, MessageIds: %d-%d",
             ~ToString(srcCellGuid),
             ~ToString(SelfCellGuid),
             firstMessageId,
-            request->messages_size());
+            firstMessageId + request->messages_size() - 1);
         
         CreateReceiveMessagesMutation(context)
             ->OnSuccess(CreateRpcSuccessHandler(context))
@@ -237,24 +239,24 @@ private:
         if (!mailbox)
             return;
 
-        int lastReceivedMessageId = request.last_received_message_id();
-        int trimCount = lastReceivedMessageId - mailbox->GetFirstPendingMessageId() + 1;
+        int lastIncomingMessageId = request.last_incoming_message_id();
+        int trimCount = lastIncomingMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
         YCHECK(trimCount >= 0);
         if (trimCount == 0)
             return;
 
-        auto& pendingMessages = mailbox->PendingMessages();
+        auto& outcomingMessages = mailbox->OutcomingMessages();
         std::move(
-            pendingMessages.begin() + trimCount,
-            pendingMessages.end(),
-            pendingMessages.begin());
-        pendingMessages.resize(pendingMessages.size() - trimCount);
+            outcomingMessages.begin() + trimCount,
+            outcomingMessages.end(),
+            outcomingMessages.begin());
+        outcomingMessages.resize(outcomingMessages.size() - trimCount);
 
-        mailbox->SetFirstPendingMessageId(mailbox->GetFirstPendingMessageId() + trimCount);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellGuid: %s, DstCellGuid: %s, FirstPendingMessageId: %d)",
+        mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + trimCount);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellGuid: %s, DstCellGuid: %s, FirstOutcomingMessageId: %d)",
             ~ToString(SelfCellGuid),
             ~ToString(mailbox->GetCellGuid()),
-            mailbox->GetFirstPendingMessageId());
+            mailbox->GetFirstOutcomingMessageId());
 
         if (IsLeader()) {
             YCHECK(mailbox->GetInFlightMessageCount() >= trimCount);
@@ -262,7 +264,7 @@ private:
         }
     }
 
-    void HydraReceiveMessages(TCtxSendPtr context, const TReqSend& request)
+    void HydraPostMessages(TCtxPostMessagesPtr context, const TReqPostMessages& request)
     {
         try {
             auto srcCellGuid = FromProto<TCellGuid>(request.src_cell_guid());
@@ -272,10 +274,10 @@ private:
 
             if (context) {
                 auto* response = &context->Response();
-                int lastReceivedMessageId = mailbox->GetLastReceivedMessageId();
-                response->set_last_received_message_id(lastReceivedMessageId);
-                context->SetResponseInfo("LastReceivedMessageId: %d",
-                    lastReceivedMessageId);
+                int lastIncomingMessageId = mailbox->GetLastIncomingMessageId();
+                response->set_last_incoming_message_id(lastIncomingMessageId);
+                context->SetResponseInfo("LastIncomingMessageId: %d",
+                    lastIncomingMessageId);
             }
         } catch (const std::exception& ex) {
             if (context) {
@@ -373,20 +375,20 @@ private:
             return;
         }
 
-        int lastReceivedMessageId = rsp->last_received_message_id();
+        int lastIncomingMessageId = rsp->last_incoming_message_id();
         LOG_DEBUG("Ping succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessagId: %d)",
             ~ToString(SelfCellGuid),
             ~ToString(mailbox->GetCellGuid()),
-            lastReceivedMessageId);
+            lastIncomingMessageId);
 
         SetMailboxConnected(mailbox);
-        HandleAcknowledgedMessages(mailbox, lastReceivedMessageId);
-        MaybeSendPendingMessages(mailbox);
+        HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
+        MaybeSendOutcomingMessages(mailbox);
         SchedulePing(mailbox);
     }
 
 
-    void MaybeSendPendingMessages(TMailbox* mailbox)
+    void MaybeSendOutcomingMessages(TMailbox* mailbox)
     {
         if (!IsLeader())
             return;
@@ -398,59 +400,58 @@ private:
         if (!channel)
             return;
 
-        if (mailbox->PendingMessages().size() <= mailbox->GetInFlightMessageCount())
+        if (mailbox->OutcomingMessages().size() <= mailbox->GetInFlightMessageCount())
             return;
 
         THiveServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config->RpcTimeout);
 
-        auto req = proxy.Send();
+        auto req = proxy.PostMessages();
         ToProto(req->mutable_src_cell_guid(), SelfCellGuid);
-        int firstMessageId = mailbox->GetFirstPendingMessageId() + mailbox->GetInFlightMessageCount();
-        int messageCount = mailbox->PendingMessages().size() - mailbox->GetInFlightMessageCount();
+        int firstMessageId = mailbox->GetFirstOutcomingMessageId() + mailbox->GetInFlightMessageCount();
+        int messageCount = mailbox->OutcomingMessages().size() - mailbox->GetInFlightMessageCount();
         req->set_first_message_id(firstMessageId);
-        for (auto it = mailbox->PendingMessages().begin() + mailbox->GetInFlightMessageCount();
-             it != mailbox->PendingMessages().end();
+        for (auto it = mailbox->OutcomingMessages().begin() + mailbox->GetInFlightMessageCount();
+             it != mailbox->OutcomingMessages().end();
              ++it)
         {
-            const auto& message = *it;
-            req->add_messages(SerializeMessage(message));
+            req->add_messages(*it);
         }
 
         mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() + messageCount);
 
-        LOG_DEBUG("Pending messages sent (SrcCellGuid: %s, DstCellGuid: %s, MessageIds: %d-%d)",
+        LOG_DEBUG("Posting outcoming messages (SrcCellGuid: %s, DstCellGuid: %s, MessageIds: %d-%d)",
             ~ToString(SelfCellGuid),
             ~ToString(mailbox->GetCellGuid()),
             firstMessageId,
             firstMessageId + messageCount - 1);
 
         req->Invoke().Subscribe(
-            BIND(&TImpl::OnSendResponse, MakeStrong(this), mailbox->GetCellGuid())
+            BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), mailbox->GetCellGuid())
                 .Via(EpochAutomatonInvoker));
     }
 
-    void OnSendResponse(const TCellGuid& cellGuid, THiveServiceProxy::TRspSendPtr rsp)
+    void OnPostMessagesResponse(const TCellGuid& cellGuid, THiveServiceProxy::TRspPostMessagesPtr rsp)
     {
         auto* mailbox = FindMailbox(cellGuid);
         if (!mailbox)
             return;
 
         if (!rsp->IsOK()) {
-            LOG_DEBUG(*rsp, "Send failed (SrcCellGuid: %s, DstCellGuid: %s)",
+            LOG_DEBUG(*rsp, "Failed to post outcoming messages (SrcCellGuid: %s, DstCellGuid: %s)",
                 ~ToString(SelfCellGuid),
                 ~ToString(mailbox->GetCellGuid()));
             SetMailboxDisconnected(mailbox);
             return;
         }
 
-        int lastReceivedMessageId = rsp->last_received_message_id();
-        LOG_DEBUG("Send succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessageId: %d)",
+        int lastIncomingMessageId = rsp->last_incoming_message_id();
+        LOG_DEBUG("Outcoming messages posted successfully (SrcCellGuid: %s, DstCellGuid: %s, LastIncomingMessageId: %d)",
             ~ToString(SelfCellGuid),
             ~ToString(mailbox->GetCellGuid()),
-            lastReceivedMessageId);
+            lastIncomingMessageId);
 
-        HandleAcknowledgedMessages(mailbox, lastReceivedMessageId);
+        HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
     }
 
 
@@ -463,43 +464,74 @@ private:
             &TImpl::HydraAcknowledgeMessages);
     }
 
-    TMutationPtr CreateReceiveMessagesMutation(TCtxSendPtr context)
+    TMutationPtr CreateReceiveMessagesMutation(TCtxPostMessagesPtr context)
     {
         return CreateMutation(HydraManager)
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND(&TImpl::HydraReceiveMessages, MakeStrong(this), context, ConstRef(context->Request())));
+            ->SetAction(BIND(&TImpl::HydraPostMessages, MakeStrong(this), context, ConstRef(context->Request())));
     }
 
 
-    void HandleAcknowledgedMessages(TMailbox* mailbox, int lastReceivedMessageId)
+    void HandleAcknowledgedMessages(TMailbox* mailbox, int lastIncomingMessageId)
     {
-        if (lastReceivedMessageId < mailbox->GetFirstPendingMessageId())
+        if (lastIncomingMessageId < mailbox->GetFirstOutcomingMessageId())
             return;
 
         TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_guid(), mailbox->GetCellGuid());
-        req.set_last_received_message_id(lastReceivedMessageId);
+        req.set_last_incoming_message_id(lastIncomingMessageId);
         CreateAcknowledgeMessagesMutation(req)
             ->Commit();
     }
 
-    void HandleIncomingMessages(TMailbox* mailbox, const TReqSend& req)
+    void HandleIncomingMessages(TMailbox* mailbox, const TReqPostMessages& req)
     {
-        int firstMessageId = req.first_message_id();
-        int skipCount = mailbox->GetLastReceivedMessageId() + 1 - firstMessageId;
-        YCHECK(skipCount >= 0);
-        
-        for (int index = skipCount; index < req.messages_size(); ++index) {
-            int messageId = firstMessageId + index;
-            mailbox->SetLastReceivedMessageId(messageId);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Message received (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
+        for (int messageId = req.first_message_id();
+            messageId < req.first_message_id() + req.messages_size();
+            ++messageId)
+        {
+            HandleIncomingMessage(mailbox, messageId, req.messages(messageId));
+        }
+    }
+
+    void HandleIncomingMessage(TMailbox* mailbox, int messageId, const Stroka& serializedMessage)
+    {
+        if (messageId <= mailbox->GetLastIncomingMessageId()) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping an obsolete incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
                 ~ToString(mailbox->GetCellGuid()),
                 ~ToString(SelfCellGuid),
                 messageId);
+        } else {
+            auto& incomingMessages = mailbox->IncomingMessages();
+            YCHECK(incomingMessages.insert(std::make_pair(messageId, serializedMessage)).second);
 
-            auto request = DeserializeMessage(req.messages(index));
-	        TMutationContext context(HydraManager->GetMutationContext(), request);
-    	    static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
+            bool consumed = false;
+            while (!incomingMessages.empty()) {
+                const auto& frontPair = *incomingMessages.begin();
+                int frontMessageId = frontPair.first;
+                const auto& serializedFrontMessage = frontPair.second;
+                if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
+                    break;
+
+                LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
+                    ~ToString(mailbox->GetCellGuid()),
+                    ~ToString(SelfCellGuid),
+                    frontMessageId);
+
+                auto request = DeserializeMessage(serializedFrontMessage);
+                YCHECK(incomingMessages.erase(frontMessageId) == 1);
+                consumed = true;
+
+                TMutationContext context(HydraManager->GetMutationContext(), request);
+                static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
+            }
+
+            if (!consumed) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Keeping an out-of-order incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
+                    ~ToString(mailbox->GetCellGuid()),
+                    ~ToString(SelfCellGuid),
+                    messageId);
+            }
         }
     }
 
