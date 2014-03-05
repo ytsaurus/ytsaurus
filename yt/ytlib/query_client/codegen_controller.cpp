@@ -601,7 +601,7 @@ private:
         FunctionPassManager_->run(*function);
         ModulePassManager_->run(*Module_);
 
-        Module_->dump();
+        //Module_->dump();
 
         void* result = ExecutionEngine_->getPointerToFunction(function);
 
