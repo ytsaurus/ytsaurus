@@ -132,29 +132,46 @@ const TExpression* Apply(
     return ApplyImpl(context, root, functor);
 }
 
-template <class TNode>
-static inline void VisitImpl(
-    const TNode* root,
-    const std::function<void(const TNode*)>& visitor)
-{
-    visitor(root);
-    for (const auto& child : root->Children()) {
-        Visit(child, visitor);
-    }
-}
-
 void Visit(
     const TExpression* root,
     const std::function<void(const TExpression*)>& visitor)
 {
-    VisitImpl(root, visitor);
+    visitor(root);
+    switch (root->GetKind()) {
+        case EExpressionKind::IntegerLiteral:
+        case EExpressionKind::DoubleLiteral:
+        case EExpressionKind::Reference:
+            break;
+        case EExpressionKind::Function:
+            for (const auto& argument : root->As<TFunctionExpression>()->Arguments()) {
+                Visit(argument, visitor);
+            }
+            break;
+        case EExpressionKind::BinaryOp:
+            Visit(root->As<TBinaryOpExpression>()->GetLhs(), visitor);
+            Visit(root->As<TBinaryOpExpression>()->GetRhs(), visitor);
+            break;
+    }
 }
 
 void Visit(
     const TOperator* root,
     const std::function<void(const TOperator*)>& visitor)
 {
-    VisitImpl(root, visitor);
+    visitor(root);
+    switch (root->GetKind()) {
+        case EOperatorKind::Scan:
+            break;
+        case EOperatorKind::Filter:
+            Visit(root->As<TFilterOperator>()->GetSource(), visitor);
+            break;
+        case EOperatorKind::Group:
+            Visit(root->As<TGroupOperator>()->GetSource(), visitor);
+            break;
+        case EOperatorKind::Project:
+            Visit(root->As<TProjectOperator>()->GetSource(), visitor);
+            break;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
