@@ -197,7 +197,7 @@ int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
     auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int beginBlockIndex = 0;
-    if (LowerLimit_.HasRowIndex() && LowerLimit_.GetRowIndex()) {
+    if (LowerLimit_.HasRowIndex()) {
         // To make search symmetrical with blockIndex we ignore last block.
         typedef decltype(blockMetaEntries.end()) TIter;
         auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
@@ -250,7 +250,7 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
     auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
 
     int endBlockIndex = blockMetaEntries.size();
-    if (UpperLimit_.HasRowIndex() && UpperLimit_.GetRowIndex()) {
+    if (UpperLimit_.HasRowIndex()) {
         auto begin = blockMetaEntries.begin();
         auto end = blockMetaEntries.end() - 1;
         auto it = std::lower_bound(
