@@ -44,18 +44,21 @@ if (YT_BUILD_ENABLE_LLVM)
   set( SRCS
     ${SRCS}
     ${BASE}/codegen_controller.cpp
+    ${BASE}/cg_routine_registry.cpp
+    ${BASE}/cg_routines.cpp
+    ${BASE}/cg_cache.cpp
+    ${BASE}/cg_fragment.cpp
   )
 
   set( HDRS
     ${HDRS}
     ${BASE}/codegen_controller.h
+    ${BASE}/cg_types.h
+    ${BASE}/cg_routine_registry.h
+    ${BASE}/cg_routines.h
+    ${BASE}/cg_cache.h
+    ${BASE}/cg_fragment.h
   )
-
-#  set_source_files_properties(
-#    ${BASE}/codegen_controller.cpp
-#    PROPERTIES
-#    COMPILE_FLAGS ${LLVM_CPPFLAGS}
-#  )
 endif()
 
 list( APPEND YT_SOURCE_FILES
