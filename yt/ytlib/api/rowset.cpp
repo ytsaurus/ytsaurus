@@ -1,12 +1,11 @@
 #include "stdafx.h"
 #include "rowset.h"
 
-#include <core/misc/chunked_memory_pool.h>
-
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/tablet_client/wire_protocol.h>
 
@@ -118,7 +117,7 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
         for (auto row : rows) {
-            Rows_.push_back(row.Capture(&AlignedPool_, &UnalignedPool_));
+            Rows_.push_back(RowBuffer_.Capture(row));
         }
         return true;
     }
@@ -131,8 +130,7 @@ public:
 private:
     TPromise<TErrorOr<IRowsetPtr>> Result_;
 
-    TChunkedMemoryPool AlignedPool_;
-    TChunkedMemoryPool UnalignedPool_;
+    TRowBuffer RowBuffer_;
 
 };
 

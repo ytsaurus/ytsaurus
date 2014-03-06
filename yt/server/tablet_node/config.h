@@ -48,8 +48,8 @@ class TTabletManagerConfig
     : public TYsonSerializable
 {
 public:
-    size_t AlignedPoolChunkSize;
-    size_t UnalignedPoolChunkSize;
+    i64 AlignedPoolChunkSize;
+    i64 UnalignedPoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
     int KeyCountRotationThreshold;

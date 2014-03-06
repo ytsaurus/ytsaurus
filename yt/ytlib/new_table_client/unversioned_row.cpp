@@ -489,37 +489,6 @@ TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int v
     return TUnversionedRow(header);
 }
 
-TUnversionedRow TUnversionedRow::Capture(TChunkedMemoryPool* alignedPool, TChunkedMemoryPool* unalignedPool) const
-{
-    if (!*this) {
-        return TUnversionedRow();
-    }
-
-    auto dstRow = TUnversionedRow::Allocate(alignedPool, GetCount());
-    for (int index = 0; index < static_cast<int>(GetCount()); ++index) {
-        const auto& srcValue = (*this)[index];
-        auto& dstValue = dstRow[index];
-        dstValue = srcValue;
-        if (dstValue.Type == EValueType::String || dstValue.Type == EValueType::Any) {
-            dstValue.Data.String = unalignedPool->AllocateUnaligned(srcValue.Length);
-            memcpy(const_cast<char*>(dstValue.Data.String), srcValue.Data.String, srcValue.Length);
-        }
-    }
-    return dstRow;
-}
-
-std::vector<TUnversionedRow> CaptureRows(
-    const std::vector<TUnversionedRow>& rows,
-    TChunkedMemoryPool* alignedPool,
-    TChunkedMemoryPool* unalignedPool)
-{
-    std::vector<TUnversionedRow> capturedRows(rows.size());
-    for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
-        capturedRows[index] = rows[index].Capture(alignedPool, unalignedPool);
-    }
-    return capturedRows;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType)

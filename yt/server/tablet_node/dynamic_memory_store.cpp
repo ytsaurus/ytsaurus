@@ -374,10 +374,12 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
     , ValueCount_(0)
-    , AlignedPool_(Config_->AlignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
-    , UnalignedPool_(Config_->UnalignedPoolChunkSize, Config_->MaxPoolSmallBlockRatio)
+    , RowBuffer_(
+        Config_->AlignedPoolChunkSize,
+        Config_->UnalignedPoolChunkSize,
+        Config_->MaxPoolSmallBlockRatio)
     , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(
-        &AlignedPool_,
+        RowBuffer_.GetAlignedPool(),
         TKeyComparer(KeyColumnCount_)))
 {
     State_ = EStoreState::ActiveDynamic;
@@ -518,6 +520,8 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
 {
     TDynamicRow migratedRow;
     auto newKeyProvider = [&] () -> TDynamicRow {
+        auto* migrationTargetPool = migrateTo->RowBuffer_.GetAlignedPool();
+
         // Create migrated row.
         migratedRow = migrateTo->AllocateRow();
 
@@ -544,7 +548,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
             if (list) {
                 const auto& srcValue = list.Back();
                 if ((srcValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                    auto migratedList = TValueList::Allocate(&migrateTo->AlignedPool_, InitialEditListCapacity);
+                    auto migratedList = TValueList::Allocate(migrationTargetPool, InitialEditListCapacity);
                     migratedRow.SetFixedValueList(index, migratedList, KeyColumnCount_);
                     migratedList.Push([&] (TVersionedValue* dstValue) {
                         migrateTo->CaptureValue(dstValue, srcValue);
@@ -559,7 +563,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         if (timestampList) {
             auto timestamp = timestampList.Back();
             if ((timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                auto migratedTimestampList = TTimestampList::Allocate(&migrateTo->AlignedPool_, InitialEditListCapacity);
+                auto migratedTimestampList = TTimestampList::Allocate(migrationTargetPool, InitialEditListCapacity);
                 migratedRow.SetTimestampList(migratedTimestampList, KeyColumnCount_);
                 migratedTimestampList.Push(timestamp);
             }
@@ -669,7 +673,7 @@ void TDynamicMemoryStore::AbortRow(TDynamicRow row)
 TDynamicRow TDynamicMemoryStore::AllocateRow()
 {
     return TDynamicRow::Allocate(
-        &AlignedPool_,
+        RowBuffer_.GetAlignedPool(),
         KeyColumnCount_,
         SchemaColumnCount_);
 }
@@ -765,11 +769,11 @@ void TDynamicMemoryStore::AddFixedValue(
             return;
         }
 
-        if (AllocateListForPushIfNeeded(&list, &AlignedPool_)) {
+        if (AllocateListForPushIfNeeded(&list, RowBuffer_.GetAlignedPool())) {
             row.SetFixedValueList(listIndex, list, KeyColumnCount_);
         }
     } else {
-        list = TValueList::Allocate(&AlignedPool_, InitialEditListCapacity);
+        list = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
         row.SetFixedValueList(listIndex, list, KeyColumnCount_);
     }
 
@@ -792,11 +796,11 @@ void TDynamicMemoryStore::AddTimestamp(TDynamicRow row, TTimestamp timestamp)
 {
     auto timestampList = row.GetTimestampList(KeyColumnCount_);
     if (timestampList) {
-        if (AllocateListForPushIfNeeded(&timestampList, &AlignedPool_)) {
+        if (AllocateListForPushIfNeeded(&timestampList, RowBuffer_.GetAlignedPool())) {
             row.SetTimestampList(timestampList, KeyColumnCount_);
         }
     } else {
-        timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
+        timestampList = TTimestampList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
         row.SetTimestampList(timestampList, KeyColumnCount_);
     }
     timestampList.Push(timestamp);
@@ -818,13 +822,13 @@ void TDynamicMemoryStore::AddUncommittedTimestamp(TDynamicRow row, TTimestamp ti
             }
         }
     } else {
-        timestampList = TTimestampList::Allocate(&AlignedPool_, InitialEditListCapacity);
+        timestampList = TTimestampList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
         row.SetTimestampList(timestampList, KeyColumnCount_);
         pushTimestamp = true;
     }
 
     if (pushTimestamp) {
-        if (AllocateListForPushIfNeeded(&timestampList, &AlignedPool_)) {
+        if (AllocateListForPushIfNeeded(&timestampList, RowBuffer_.GetAlignedPool())) {
             row.SetTimestampList(timestampList, KeyColumnCount_);
         }
         timestampList.Push(timestamp);
@@ -846,7 +850,7 @@ void TDynamicMemoryStore::CaptureValue(TVersionedValue* dst, const TVersionedVal
 void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     if (src.Type == EValueType::String || src.Type == EValueType::Any) {
-        dst->Data.String = UnalignedPool_.AllocateUnaligned(src.Length);
+        dst->Data.String = RowBuffer_.GetUnalignedPool()->AllocateUnaligned(src.Length);
         memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
     }
 }
@@ -863,22 +867,22 @@ int TDynamicMemoryStore::GetKeyCount() const
 
 i64 TDynamicMemoryStore::GetAlignedPoolSize() const
 {
-    return AlignedPool_.GetSize();
+    return RowBuffer_.GetAlignedPool()->GetSize();
 }
 
 i64 TDynamicMemoryStore::GetAlignedPoolCapacity() const
 {
-    return AlignedPool_.GetCapacity();
+    return RowBuffer_.GetAlignedPool()->GetCapacity();
 }
 
 i64 TDynamicMemoryStore::GetUnalignedPoolSize() const
 {
-    return UnalignedPool_.GetSize();
+    return RowBuffer_.GetUnalignedPool()->GetSize();
 }
 
 i64 TDynamicMemoryStore::GetUnalignedPoolCapacity() const
 {
-    return UnalignedPool_.GetCapacity();
+    return RowBuffer_.GetUnalignedPool()->GetCapacity();
 }
 
 i64 TDynamicMemoryStore::GetDataSize() const
@@ -996,14 +1000,14 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
         auto* keyBegin = row.GetKeys();
         auto* keyEnd = keyBegin + KeyColumnCount_;
         for (auto* keyIt = keyBegin; keyIt != keyEnd; ++keyIt) {
-            NVersionedTableClient::Load(context, *keyIt, &UnalignedPool_);
+            NVersionedTableClient::Load(context, *keyIt, RowBuffer_.GetUnalignedPool());
         }
 
         for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
             int valueCount = Load<int>(context);
             for (int valueIndex = 0; valueIndex < valueCount; ++valueIndex) {
                 TVersionedValue value;
-                NVersionedTableClient::Load(context, value, &UnalignedPool_);
+                NVersionedTableClient::Load(context, value, RowBuffer_.GetUnalignedPool());
                 AddFixedValue(row, listIndex, value);
             }
         }

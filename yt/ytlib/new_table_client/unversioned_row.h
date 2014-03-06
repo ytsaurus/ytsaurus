@@ -183,10 +183,6 @@ public:
         TChunkedMemoryPool* alignedPool, 
         int valueCount);
     
-    TUnversionedRow Capture(
-        TChunkedMemoryPool* alignedPool,
-        TChunkedMemoryPool* unalignedPool) const;
-
 
     explicit operator bool() const
     {
@@ -252,11 +248,6 @@ private:
     TUnversionedRowHeader* Header;
 
 };
-
-std::vector<TUnversionedRow> CaptureRows(
-    const std::vector<TUnversionedRow>& rows,
-    TChunkedMemoryPool* alignedPool,
-    TChunkedMemoryPool* unalignedPool);
 
 // For TKeyComparer.
 inline int GetKeyComparerValueCount(TUnversionedRow row, int prefixLength)

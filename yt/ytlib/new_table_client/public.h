@@ -92,6 +92,8 @@ class TTableSchema;
 
 DECLARE_REFCOUNTED_CLASS(TNameTable)
 
+class TRowBuffer;
+
 class TBlockWriter;
 
 // TODO(babenko): deprecated, remove

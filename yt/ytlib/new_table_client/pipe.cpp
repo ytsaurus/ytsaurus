@@ -2,8 +2,8 @@
 #include "pipe.h"
 #include "schemed_reader.h"
 #include "schemed_writer.h"
+#include "row_buffer.h"
 
-#include <core/misc/chunked_memory_pool.h>
 #include <core/misc/ring_queue.h>
 
 namespace NYT {
@@ -35,10 +35,8 @@ struct TSchemedPipe::TData
 
     TTableSchema Schema;
 
-    TChunkedMemoryPool AlignedPool;
-    TChunkedMemoryPool UnalignedPool;
-
-    TRingQueue<TUnversionedRow> Rows;
+    TRowBuffer RowBuffer;
+    TRingQueue<TUnversionedRow> RowQueue;
     
     TPromise<TError> ReaderReadyEvent;
     TPromise<TError> WriterReadyEvent;
@@ -85,10 +83,10 @@ public:
             }
 
             if (!Data_->Failed) {
-                auto& dataRows = Data_->Rows;
-                while (!dataRows.empty() && rows->size() < rows->capacity()) {
-                    rows->push_back(dataRows.front());
-                    dataRows.pop();
+                auto& rowQueue = Data_->RowQueue;
+                while (!rowQueue.empty() && rows->size() < rows->capacity()) {
+                    rows->push_back(rowQueue.front());
+                    rowQueue.pop();
                     ++Data_->RowsRead;
                 }
             }
@@ -180,10 +178,7 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
         // Copy data (no lock).
-        auto capturedRows = CaptureRows(
-            rows,
-            &Data_->AlignedPool,
-            &Data_->UnalignedPool);
+        auto capturedRows = Data_->RowBuffer.Capture(rows);
 
         // Enqueue rows (with lock).
         TPromise<TError> readerReadyEvent;
@@ -199,7 +194,7 @@ public:
             }
 
             for (auto row : capturedRows) {
-                Data_->Rows.push(row);
+                Data_->RowQueue.push(row);
                 ++Data_->RowsWritten;
             }
 

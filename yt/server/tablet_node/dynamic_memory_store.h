@@ -8,7 +8,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
 
@@ -94,9 +94,7 @@ private:
 
     int ValueCount_;
 
-    TChunkedMemoryPool AlignedPool_;
-    TChunkedMemoryPool UnalignedPool_;
-
+    NVersionedTableClient::TRowBuffer RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, NVersionedTableClient::TKeyComparer>> Rows_;
 
 
