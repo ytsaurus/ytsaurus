@@ -229,6 +229,11 @@ def import_table(object, args):
 
             logger.info("Merging '%s' with spec '%s'", dst, repr(spec))
             yt.run_merge(dst, dst, mode=mode, spec=spec)
+        
+        # Additional final check 
+        if yt.records_count(dst) != record_count:
+            logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, yt.records_count(dst))
+            return -1
 
     except yt.YtError:
         logger.exception("Error occured while import")
