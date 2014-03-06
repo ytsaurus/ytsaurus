@@ -75,6 +75,9 @@ private:
 
     i64 RowCount_;
 
+    TTimestamp MinTimestamp_;
+    TTimestamp MaxTimestamp_;
+
     void WriteRow(
         TVersionedRow row,
         const TUnversionedValue* beginPreviousKey,
@@ -106,6 +109,8 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
     , BlockMetaExtSize_(0)
     , BlockIndexExtSize_(0)
     , RowCount_(0)
+    , MinTimestamp_(MaxTimestamp)
+    , MaxTimestamp_(MinTimestamp)
 {
     YCHECK(Schema_.Columns().size() > 0);
     YCHECK(KeyColumns_.size() > 0);
@@ -242,6 +247,9 @@ void TVersionedChunkWriter<TBlockWriter>::FinishBlock()
 
     BlockMetaExt_.add_entries()->Swap(&block.Meta);
     EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+
+    MaxTimestamp_ = std::max(MaxTimestamp_, BlockWriter_->GetMaxTimestamp());
+    MinTimestamp_ = std::min(MinTimestamp_, BlockWriter_->GetMinTimestamp());
 }
 
 template <class TBlockWriter>
@@ -273,6 +281,8 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);
     miscExt.set_row_count(RowCount_);
+    miscExt.set_min_timestamp(MinTimestamp_);
+    miscExt.set_max_timestamp(MaxTimestamp_);
 
     return EncodingChunkWriter_->Close();
 }

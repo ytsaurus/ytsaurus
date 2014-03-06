@@ -55,7 +55,8 @@ message TMiscExt
     // Uncompressed size of the largest block.
     optional int64 max_block_size = 9 [default = 0];
 
-    optional bool versioned = 10 [default = false];
+    optional int64 min_timestamp = 10 [default = 0];
+    optional int64 max_timestamp = 11 [default = 0];
 }
 
 message TChunkInfo

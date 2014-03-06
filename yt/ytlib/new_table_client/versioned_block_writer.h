@@ -19,6 +19,9 @@ class TSimpleVersionedBlockWriter
 {
     DEFINE_BYVAL_RO_PROPERTY(int, RowCount);
 
+    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MinTimestamp);
+    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp);
+
 public:
     TSimpleVersionedBlockWriter(const TTableSchema& schema, const TKeyColumns& keyColumns);
 

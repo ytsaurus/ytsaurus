@@ -1,12 +1,16 @@
 #include "stdafx.h"
 #include "versioned_block_writer.h"
 
+#include <ytlib/transaction_client/public.h>
+
 #include <core/misc/serialize.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NProto;
+
+using NTransactionClient::TimestampValueMask;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +27,8 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
     : RowCount_(0)
+    , MinTimestamp_(MaxTimestamp)
+    , MaxTimestamp_(MinTimestamp)
     , SchemaColumnCount_(schema.Columns().size())
     , KeyColumnCount_(keyColumns.size())
     , TimestampCount_(0)
@@ -65,6 +71,10 @@ void TSimpleVersionedBlockWriter::WriteRow(
             WritePod(ValueStream_, value.Timestamp);
             ++valueCount;
         }
+
+        TTimestamp ts = value.Timestamp & TimestampValueMask;
+        MaxTimestamp_ = std::max(MaxTimestamp_, ts);
+        MinTimestamp_ = std::min(MinTimestamp_, ts);
     }
 
     while (lastId < SchemaColumnCount_) {

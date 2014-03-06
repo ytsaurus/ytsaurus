@@ -180,7 +180,7 @@ void TChunkReader::DoOpen()
     auto chunkSchema = NYT::FromProto<TTableSchema>(GetProtoExtension<NProto::TTableSchemaExt>(meta.extensions()));
     auto misc = GetProtoExtension<TMiscExt>(meta.extensions());
 
-    IsVersionedChunk = misc.versioned();
+    IsVersionedChunk = false;
 
     // In versioned chunks first column in block is used for timestamp.
     int schemaIndexBase = IsVersionedChunk ? 1 : 0;
