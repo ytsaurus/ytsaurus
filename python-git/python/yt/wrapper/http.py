@@ -92,7 +92,7 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
             return response
         except tuple(network_errors) as error:
             message =  "HTTP request (%s) has failed with error '%s'" % (description, str(error))
-            if make_retries and attempt + 1 < http_config.RETRIES_COUNT:
+            if make_retries and attempt + 1 < http_config.REQUEST_RETRY_COUNT:
                 backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
                 if backoff:
                     logger.warning("%s. Sleep for %.2lf seconds...", message, backoff)
