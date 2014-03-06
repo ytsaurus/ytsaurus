@@ -588,13 +588,12 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
 {
     if (Controller->IsRowCountPreserved()) {
-        auto statistic = joblet->Job->Result().statistics();
-        if (statistic.input().row_count() != statistic.output().row_count()) {
-            Controller->OnOperationFailed(
-                TError(
-                    "Input/output row count mismatch in completed job: %" PRId64 " != %" PRId64 ")",
-                    statistic.input().row_count(),
-                    statistic.output().row_count())
+        const auto& statistics = joblet->Job->Result().statistics();
+        if (statistics.input().row_count() != statistics.output().row_count()) {
+            Controller->OnOperationFailed(TError(
+                "Input/output row count mismatch in completed job: %" PRId64 " != %" PRId64,
+                statistics.input().row_count(),
+                statistics.output().row_count())
                 << TErrorAttribute("task", GetId()));
         }
     }
@@ -1240,7 +1239,6 @@ void TOperationControllerBase::CommitResults()
 
     TObjectServiceProxy proxy(AuthenticatedMasterChannel);
     auto batchReq = proxy.ExecuteBatch();
-    
 
     FOREACH (auto& table, OutputTables) {
         auto path = FromObjectId(table.ObjectId);

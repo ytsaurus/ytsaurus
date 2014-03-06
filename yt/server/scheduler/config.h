@@ -117,7 +117,6 @@ public:
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
 
-    //! Multiplier of slice data size.
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataSizeMultiplier;
 
