@@ -190,6 +190,11 @@ class TypeBuilder<TPassedFragmentParams*, cross>
     : public TypeBuilder<void*, cross>
 { };
 
+template <bool cross>
+class TypeBuilder<TMemoryPools*, cross>
+    : public TypeBuilder<void*, cross>
+{ };
+
 // Aggregate types
 
 template <bool cross>
@@ -493,7 +498,8 @@ struct TCGImmediates
 typedef void (*TCodegenedFunction)(
     TRow constants,
     TPassedFragmentParams* passedFragmentParams,
-    std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch,
+    std::vector<TRow>* batch, // TODO(lukyan): remove this
+    TMemoryPools* pools, // TODO(lukyan): remove this
     ISchemedWriter* writer);
 
 class TCodegenedFragment
@@ -660,32 +666,32 @@ private:
 
     void CodegenOp(
         TIRBuilder& builder,
-
         const TOperator* op,
+        Value* pools,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenScanOp(
         TIRBuilder& builder,
-
         const TScanOperator* op,
+        Value* pools,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenFilterOp(
         TIRBuilder& builder,
-
         const TFilterOperator* op,
+        Value* pools,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenProjectOp(
         TIRBuilder& builder,
-
         const TProjectOperator* op,
+        Value* pools,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenGroupOp(
         TIRBuilder& builder,
-
         const TGroupOperator* op,
+        Value* pools,
         const TCodegenConsumer& codegenConsumer);
 
 };
@@ -696,28 +702,22 @@ namespace NRoutines {
 
 void WriteRow(
     TRow row,
-    std::pair<std::vector<TRow>, TChunkedMemoryPool*>* batch,
+    std::vector<TRow>* batch,
+    TMemoryPools* pools,
     ISchemedWriter* writer)
 {
-    std::vector<TRow>* batchArray = &batch->first;
-    TChunkedMemoryPool* memoryPool = batch->second;
+    YASSERT(batch->size() < batch->capacity());
 
-    YASSERT(batchArray->size() < batchArray->capacity());
+    batch->push_back(row);
 
-    TRow rowCopy = TRow::Allocate(memoryPool, row.GetCount());
-
-    for (int i = 0; i < row.GetCount(); ++i) {
-        rowCopy[i] = row[i];
-    }
-
-    batchArray->push_back(rowCopy);
-
-    if (batchArray->size() == batchArray->capacity()) {
-        if (!writer->Write(*batchArray)) {
+    if (batch->size() == batch->capacity()) {
+        if (!writer->Write(*batch)) {
             auto error = WaitFor(writer->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
-        batchArray->clear();
+        batch->clear();
+        pools->alignedPool.Clear();
+        pools->unalignedPool.Clear();
     }
 }
 
@@ -762,43 +762,24 @@ void ScanOpHelper(
     }
 }
 
-void ProjectOpHelper(
-    int projectionCount,
-    void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow row))
-{
-    // TODO(sandello): Think about allocating the row on the stack.
-    TChunkedMemoryPool memoryPool;
-
-    auto newRow = TRow::Allocate(&memoryPool, projectionCount);
-
-    consumeRows(consumeRowsClosure, newRow);
-}
-
 void GroupOpHelper(
     int keySize,
     int aggregateItemCount,
     void** consumeRowsClosure,
     void (*consumeRows)(
         void** closure,
-        TChunkedMemoryPool* memoryPool,
+        TMemoryPools* memoryPools,
         std::vector<TRow>* groupedRows,
-        TLookupRows* rows,
-        TRow* newRowPtr))
+        TLookupRows* rows))
 {
     std::vector<TRow> groupedRows;
-    TLookupRows rows(
+    TLookupRows lookupRows(
         256,
         TGroupHasher(keySize),
         TGroupComparer(keySize));
 
-    TChunkedMemoryPool memoryPool;
-
-    auto newRow = TRow::Allocate(&memoryPool, keySize + aggregateItemCount);
-
-    consumeRows(consumeRowsClosure, &memoryPool, &groupedRows, &rows, &newRow);
-
-    memoryPool.Clear();
+    TMemoryPools memoryPools;
+    consumeRows(consumeRowsClosure, &memoryPools, &groupedRows, &lookupRows);
 }
 
 const TRow* FindRow(TLookupRows* rows, TRow row)
@@ -808,7 +789,7 @@ const TRow* FindRow(TLookupRows* rows, TRow row)
 }
 
 void AddRow(
-    TChunkedMemoryPool* memoryPool,
+    TMemoryPools* memoryPools,
     TLookupRows* lookupRows, // lookup table
     std::vector<TRow>* groupedRows,
     TRow* newRow,
@@ -816,7 +797,14 @@ void AddRow(
 {
     groupedRows->push_back(*newRow);
     lookupRows->insert(groupedRows->back());
-    *newRow = TRow::Allocate(memoryPool, rowSize);
+    *newRow = TRow::Allocate(&memoryPools->alignedPool, rowSize);
+}
+
+
+// TRow AllocateRow(TMemoryPools* memoryPools, int rowSize) does not work
+void AllocateRow(TMemoryPools* memoryPools, int rowSize, TRow* rowPtr)
+{
+    *rowPtr = TRow::Allocate(&memoryPools->alignedPool, rowSize);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)
@@ -1280,20 +1268,23 @@ Value* TCGContext::CodegenExpr(
     }
 }
 
+// Codegen operators
+
 void TCGContext::CodegenOp(
     TIRBuilder& builder,
     const TOperator* op,
+    Value* pools,
     const TCodegenConsumer& codegenConsumer)
 {
     switch (op->GetKind()) {
         case EOperatorKind::Scan:
-            return CodegenScanOp(builder, op->As<TScanOperator>(), codegenConsumer);
+            return CodegenScanOp(builder, op->As<TScanOperator>(), pools, codegenConsumer);
         case EOperatorKind::Filter:
-            return CodegenFilterOp(builder, op->As<TFilterOperator>(), codegenConsumer);
+            return CodegenFilterOp(builder, op->As<TFilterOperator>(), pools, codegenConsumer);
         case EOperatorKind::Project:
-            return CodegenProjectOp(builder, op->As<TProjectOperator>(), codegenConsumer);
+            return CodegenProjectOp(builder, op->As<TProjectOperator>(), pools, codegenConsumer);
         case EOperatorKind::Group:
-            return CodegenGroupOp(builder, op->As<TGroupOperator>(), codegenConsumer);
+            return CodegenGroupOp(builder, op->As<TGroupOperator>(), pools, codegenConsumer);
     }
     YUNREACHABLE();
 }
@@ -1301,6 +1292,7 @@ void TCGContext::CodegenOp(
 void TCGContext::CodegenScanOp(
     TIRBuilder& builder,
     const TScanOperator* op,
+    Value* pools,
     const TCodegenConsumer& codegenConsumer)
 {
     // See ScanOpHelper.
@@ -1312,8 +1304,11 @@ void TCGContext::CodegenScanOp(
 
     auto args = function->arg_begin();
     Value* closure = args;
+    closure->setName("closure");
     Value* rows = ++args;
+    rows->setName("rows");
     Value* size = ++args;
+    size->setName("size");
     YCHECK(++args == function->arg_end());
 
     TIRBuilder innerBuilder(
@@ -1342,11 +1337,12 @@ void TCGContext::CodegenScanOp(
 void TCGContext::CodegenFilterOp(
     TIRBuilder& builder,
     const TFilterOperator* op,
+    Value* pools,
     const TCodegenConsumer& codegenConsumer)
 {
     auto sourceTableSchema = op->GetTableSchema();
 
-    CodegenOp(builder, op->GetSource(),
+    CodegenOp(builder, op->GetSource(), pools,
         [&] (TIRBuilder& innerBuilder, Value* row) {
 
             Value* isNullPtr = innerBuilder.CreateAlloca(
@@ -1380,34 +1376,27 @@ void TCGContext::CodegenFilterOp(
 void TCGContext::CodegenProjectOp(
     TIRBuilder& builder,
     const TProjectOperator* op,
+    Value* pools,
     const TCodegenConsumer& codegenConsumer)
 {
-    // See ProjectOpHelper.
-    Function* function = Function::Create(
-        TypeBuilder<void(void**, TRow), false>::get(Context_),
-        Function::ExternalLinkage,
-        "ProjectOpInner",
-        Module_);
-
-    auto args = function->arg_begin();
-    Value* closure = args;
-    Value* newRow = ++args;
-    YCHECK(++args == function->arg_end());
-
-    TIRBuilder innerBuilder(
-        BasicBlock::Create(Context_, "entry", function),
-        &builder,
-        closure);
-
     int projectionCount = op->GetProjectionCount();
 
     auto sourceTableSchema = op->GetSource()->GetTableSchema();
     auto nameTable = op->GetNameTable();
 
-    CodegenOp(innerBuilder, op->GetSource(),
-        [&, newRow] (TIRBuilder& innerBuilder, Value* row) {
-            Value* newRowRef = innerBuilder.ViaClosure(newRow, "newRowRef");
+    Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(Context_));
 
+    CodegenOp(builder, op->GetSource(), pools,
+        [&] (TIRBuilder& innerBuilder, Value* row) {
+            Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
+                
+            innerBuilder.CreateCall3(
+                GetRoutine(&NRoutines::AllocateRow, "AllocateRow"),
+                innerBuilder.ViaClosure(pools, "poolsRef"),
+                ConstantInt::get(Type::getInt32Ty(Context_), projectionCount, true), newRowPtrRef);
+
+            Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
+            
             for (int index = 0; index < projectionCount; ++index) {
                 const auto& expr = op->GetProjection(index).Expression;
                 const auto& name = op->GetProjection(index).Name;
@@ -1423,34 +1412,27 @@ void TCGContext::CodegenProjectOp(
 
             codegenConsumer(innerBuilder, newRowRef);
     });
-
-    innerBuilder.CreateRetVoid();
-
-    builder.CreateCall3(
-        GetRoutine(&NRoutines::ProjectOpHelper, "ProjectOpHelper"),
-        ConstantInt::get(Type::getInt32Ty(Context_), projectionCount, true),
-        innerBuilder.GetClosure(),
-        function);
 }
 
 void TCGContext::CodegenGroupOp(
     TIRBuilder& builder,
     const TGroupOperator* op,
+    Value* pools,
     const TCodegenConsumer& codegenConsumer)
 {
     // See GroupOpHelper.
     Function* function = Function::Create(
-        TypeBuilder<void(void**, void*, void*, void*, TRow*), false>::get(Context_),
+        TypeBuilder<void(void**, void*, void*, void*), false>::get(Context_),
         Function::ExternalLinkage,
         "GroupOpInner",
         Module_);
 
     auto args = function->arg_begin();
     Value* closure = args;
-    Value* memoryPool = ++args;
+    Value* memoryPools = ++args;
     Value* groupedRows = ++args;
     Value* rows = ++args;
-    Value* newRowPtr = ++args;
+    //Value* newRowPtr = ++args;
     YCHECK(++args == function->arg_end());
 
     TIRBuilder innerBuilder(
@@ -1464,12 +1446,19 @@ void TCGContext::CodegenGroupOp(
     auto sourceTableSchema = op->GetSource()->GetTableSchema();
     auto nameTable = op->GetNameTable();
 
-    CodegenOp(innerBuilder, op->GetSource(), [&] (TIRBuilder& innerBuilder, Value* row) {
-        Value* memoryPoolRef = innerBuilder.ViaClosure(memoryPool);
+    Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(Context_));
+
+    CodegenOp(innerBuilder, op->GetSource(), memoryPools, [&] (TIRBuilder& innerBuilder, Value* row) {
+        Value* memoryPoolsRef = innerBuilder.ViaClosure(memoryPools, "memoryPoolsRef");
         Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
         Value* rowsRef = innerBuilder.ViaClosure(rows);
         Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
 
+        innerBuilder.CreateCall3(
+            GetRoutine(&NRoutines::AllocateRow, "AllocateRow"),
+            memoryPoolsRef,
+            ConstantInt::get(Type::getInt32Ty(Context_), keySize + aggregateItemCount, true), newRowPtrRef);
+            
         Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
 
         for (int index = 0; index < keySize; ++index) {
@@ -1537,7 +1526,7 @@ void TCGContext::CodegenGroupOp(
         innerBuilder.SetInsertPoint(elseBB);
         innerBuilder.CreateCall5(
             GetRoutine(&NRoutines::AddRow, "AddRow"),
-            memoryPoolRef,
+            memoryPoolsRef,
             rowsRef,
             groupedRowsRef,
             newRowPtrRef,
@@ -1574,7 +1563,7 @@ TCodegenedFunction TCGContext::CodegenEvaluate(
 
     // See TCodegenedFunction.
     Function* function = Function::Create(
-        TypeBuilder<void(TRow, TPassedFragmentParams*, void*, void*), false>::get(context),
+        TypeBuilder<void(TRow, TPassedFragmentParams*, void*, void*, void*), false>::get(context),
         Function::ExternalLinkage,
         "Evaluate",
         module);
@@ -1586,6 +1575,8 @@ TCodegenedFunction TCGContext::CodegenEvaluate(
     passedFragmentParamsPtr->setName("passedFragmentParamsPtr");
     Value* batch = ++args;
     batch->setName("batch");
+    Value* pools = ++args;
+    pools->setName("pools");
     Value* writer = ++args;
     writer->setName("writer");
     YCHECK(++args == function->arg_end());
@@ -1594,14 +1585,16 @@ TCodegenedFunction TCGContext::CodegenEvaluate(
 
     TCGContext ctx(context, module, executionEngine, params, constants, passedFragmentParamsPtr);
 
-    ctx.CodegenOp(builder, op,
+    ctx.CodegenOp(builder, op, pools,
         [&] (TIRBuilder& innerBuilder, Value* row) {
             Value* batchRef = innerBuilder.ViaClosure(batch, "batchRef");
+            Value* poolsRef = innerBuilder.ViaClosure(pools, "poolsRef");
             Value* writerRef = innerBuilder.ViaClosure(writer, "writerRef");
-            innerBuilder.CreateCall3(
+            innerBuilder.CreateCall4(
                 ctx.GetRoutine(&NRoutines::WriteRow, "WriteRow"),
                 row,
                 batchRef,
+                poolsRef,
                 writerRef);
     });
 
@@ -1892,26 +1885,27 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            std::pair<std::vector<TRow>, TChunkedMemoryPool*> batch;
-            batch.second = &memoryPool;
-            batch.first.reserve(MaxRowsPerWrite);
-
             TPassedFragmentParams passedFragmentParams;
             passedFragmentParams.Callbacks = callbacks;
             passedFragmentParams.Context = fragment.GetContext().Get();
             passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
 
+            std::vector<TRow> batch;
+            batch.reserve(MaxRowsPerWrite);
+            TMemoryPools pools;
+
             codegenedFragment->CodegenedFunction_(
                 constants,
                 &passedFragmentParams,
                 &batch,
+                &pools,
                 writer.Get());
 
             LOG_DEBUG("Flusing writer (FragmentId: %s)",
                 ~ToString(fragment.Id()));
 
-            if (!batch.first.empty()) {
-                if (!writer->Write(batch.first)) {
+            if (!batch.empty()) {
+                if (!writer->Write(batch)) {
                     auto error = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
