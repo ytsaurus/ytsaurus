@@ -103,7 +103,7 @@ public:
         if (!transaction) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "No such transction %s",
+                "No such transaction %s",
                 ~ToString(id));
         }
         return transaction;
