@@ -307,11 +307,6 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
-    if (!node->HasSpareSession(sessionType)) {
-        // Do not write anything to nodes already having too many write sessions.
-        return false;
-    }
-
     // Seems OK :)
     return true;
 }

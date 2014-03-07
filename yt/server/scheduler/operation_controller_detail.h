@@ -324,7 +324,6 @@ protected:
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
 
         void Persist(TPersistenceContext& context);
-
     };
 
     struct TCompletedJob
@@ -700,8 +699,13 @@ protected:
 
     // Unsorted helpers.
 
-    // Enables sorted output from user jobs.
+    //! Enables sorted output from user jobs.
     virtual bool IsSortedOutputSupported() const;
+
+    //! If |true| then all jobs started within the operation must
+    //! preserve row count. This invariant is checked for each completed job.
+    //! Should a violation be discovered, the operation fails. 
+    virtual bool IsRowCountPreserved() const;
 
     std::vector<Stroka> CheckInputTablesSorted(
         const TNullable< std::vector<Stroka> >& keyColumns);

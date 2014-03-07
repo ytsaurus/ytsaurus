@@ -47,11 +47,11 @@ class TPartitionJob
 public:
     explicit TPartitionJob(IJobHost* host)
         : TJob(host)
-        , JobSpec(Host->GetJobSpec())
+        , JobSpec(host->GetJobSpec())
         , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
         , PartitionJobSpecExt(JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     {
-        auto config = Host->GetConfig();
+        auto config = host->GetConfig();
 
         YCHECK(SchedulerJobSpecExt.input_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt.input_specs(0);
@@ -67,9 +67,9 @@ public:
 
         Reader = New<TReader>(
             config->JobIO->TableReader,
-            Host->GetMasterChannel(),
-            Host->GetBlockCache(),
-            Host->GetNodeDirectory(),
+            host->GetMasterChannel(),
+            host->GetBlockCache(),
+            host->GetNodeDirectory(),
             std::move(chunks),
             readerProvider);
 
@@ -111,7 +111,7 @@ public:
             config->JobIO->TableWriter,
             options,
             writerProvider,
-            Host->GetMasterChannel(),
+            host->GetMasterChannel(),
             transactionId,
             chunkListId));
     }

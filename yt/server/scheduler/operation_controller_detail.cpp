@@ -587,6 +587,16 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
 {
+    if (Controller->IsRowCountPreserved()) {
+        const auto& statistics = joblet->Job->Result().statistics();
+        if (statistics.input().row_count() != statistics.output().row_count()) {
+            Controller->OnOperationFailed(TError(
+                "Input/output row count mismatch in completed job: %" PRId64 " != %" PRId64,
+                statistics.input().row_count(),
+                statistics.output().row_count())
+                << TErrorAttribute("task", GetId()));
+        }
+    }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 }
 
@@ -2754,7 +2764,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
-    i64 sliceDataSize = std::min(maxSliceDataSize, std::max(TotalInputDataSize / jobCount, (i64)1));
+    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalInputDataSize / jobCount, 1.0));
 
     FOREACH (const auto& chunkSpec, CollectInputChunks()) {
         int oldSize = result.size();
@@ -2846,6 +2856,11 @@ EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const
+{
+    return false;
+}
+
+bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
 }

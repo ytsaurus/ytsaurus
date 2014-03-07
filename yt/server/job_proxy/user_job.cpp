@@ -92,7 +92,7 @@ public:
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
     {
-        auto config = Host->GetConfig();
+        auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
@@ -435,6 +435,9 @@ private:
     // Called from the forked process.
     void StartJob()
     {
+        auto host = Host.Lock();
+        YCHECK(host);
+
         try {
             FOREACH (auto& pipe, InputPipes) {
                 pipe->PrepareJobDescriptors();
@@ -451,7 +454,7 @@ private:
             }
 
             // ToDo(psushin): handle errors.
-            auto config = Host->GetConfig();
+            auto config = host->GetConfig();
             ChDir(config->SandboxName);
 
             TPatternFormatter formatter;
@@ -524,15 +527,13 @@ private:
         }
     }
 
-    void Kill()
-    {
-        auto uid = Host->GetConfig()->UserId;
-        KilallByUid(uid);
-    }
-
     void CheckMemoryUsage()
     {
-        int uid = Host->GetConfig()->UserId;
+        auto host = Host.Lock();
+        if (!host)
+            return;
+
+        int uid = host->GetConfig()->UserId;
         if (uid <= 0) {
             return;
         }
@@ -574,7 +575,7 @@ private:
                     << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit)
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
-                Kill();
+                KilallByUid(uid);
                 return;
             }
 
@@ -584,13 +585,13 @@ private:
 
                 MemoryUsage += delta;
 
-                auto resourceUsage = Host->GetResourceUsage();
+                auto resourceUsage = host->GetResourceUsage();
                 resourceUsage.set_memory(resourceUsage.memory() + delta);
-                Host->SetResourceUsage(resourceUsage);
+                host->SetResourceUsage(resourceUsage);
             }
         } catch (const std::exception& ex) {
             SetError(ex);
-            Kill();
+            KilallByUid(uid);
         }
     }
 

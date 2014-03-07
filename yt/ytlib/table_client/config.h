@@ -71,6 +71,21 @@ class TTableWriterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBufferedTableWriterConfig
+    : public TTableWriterConfig
+{
+public:
+    TDuration RetryBackoffTime;
+
+    TBufferedTableWriterConfig()
+    {
+        RegisterParameter("retry_backoff_time", RetryBackoffTime)
+            .Default(TDuration::Seconds(3));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkWriterOptions
     : public virtual NChunkClient::TEncodingWriterOptions
 {

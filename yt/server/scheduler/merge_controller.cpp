@@ -290,6 +290,11 @@ protected:
 
     TTaskGroupPtr MergeTaskGroup;
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return true;
+    }
+
     //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
     void ClearCurrentTaskStripes()
     {
@@ -683,7 +688,6 @@ private:
 
     TOrderedMergeOperationSpecPtr Spec;
 
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
@@ -747,6 +751,10 @@ private:
 
     TEraseOperationSpecPtr Spec;
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return false;
+    }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -1425,6 +1433,11 @@ private:
 
     i64 StartRowIndex;
     TNullable<int> TeleportOutputTable;
+
+    virtual bool IsRowCountPreserved() const override
+    {
+        return false;
+    }
 
     bool IsTeleportInputTable(int tableIndex) const
     {

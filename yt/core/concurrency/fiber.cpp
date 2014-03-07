@@ -197,7 +197,11 @@ public:
 #endif
     { }
 
+#ifdef __clang__
+    void Reset(void* stack, size_t size, void __attribute__((__regparm__(1))) (*callee)(void *), void* opaque)
+#else
     void Reset(void* stack, size_t size, void (*callee)(void *), void* opaque)
+#endif
     {
 #ifdef _win_
         if (Fiber_) {
@@ -252,7 +256,7 @@ private:
     static VOID CALLBACK
     Trampoline(PVOID opaque);
 #else
-    static void __attribute__((__noinline__))
+    static void __attribute__((__noinline__, __regparm__(1)))
     Trampoline();
 #endif
 

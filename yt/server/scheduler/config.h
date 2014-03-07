@@ -57,7 +57,7 @@ class TSchedulerConfig
 {
 public:
     //! Interval between consecutive master connection attempts.
-    TDuration ConnectRetryPeriod;
+    TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
     TDuration NodeHearbeatTimeout;
@@ -116,6 +116,9 @@ public:
     i64 MergeJobMaxSliceDataSize;
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
+
+    //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
+    double SliceDataSizeMultiplier;
 
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
@@ -181,7 +184,7 @@ public:
 
     TSchedulerConfig()
     {
-        RegisterParameter("connect_retry_period", ConnectRetryPeriod)
+        RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHearbeatTimeout)
             .Default(TDuration::Seconds(60));
@@ -237,6 +240,10 @@ public:
         RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
             .GreaterThan(0);
+
+        RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
+            .Default(0.51)
+            .GreaterThan(0.0);
 
         RegisterParameter("map_job_max_slice_data_size", MapJobMaxSliceDataSize)
             .Default((i64)256 * 1024 * 1024)

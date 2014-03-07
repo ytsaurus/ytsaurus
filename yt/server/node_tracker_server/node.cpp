@@ -165,22 +165,6 @@ void TNode::AddSessionHint(EWriteSessionType sessionType)
     }
 }
 
-bool TNode::HasSpareSession(EWriteSessionType sessionType) const
-{
-    switch (sessionType) {
-        case EWriteSessionType::User:
-            return true;
-        case EWriteSessionType::Replication:
-            return Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ <
-                   Statistics_.max_replication_session_count();
-        case EWriteSessionType::Repair:
-            return Statistics_.total_repair_session_count() + HintedRepairSessionCount_ <
-                   Statistics_.max_repair_session_count();
-        default:
-            YUNREACHABLE();
-    }
-}
-
 int TNode::GetTotalSessionCount() const
 {
     return

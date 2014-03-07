@@ -49,11 +49,11 @@ class TPartitionSortJob
 public:
     explicit TPartitionSortJob(IJobHost* host)
         : TJob(host)
-        , JobSpec(Host->GetJobSpec())
+        , JobSpec(host->GetJobSpec())
         , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
         , SortJobSpecExt(JobSpec.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     {
-        auto config = Host->GetConfig();
+        auto config = host->GetConfig();
 
         YCHECK(SchedulerJobSpecExt.input_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt.input_specs(0);
@@ -71,9 +71,9 @@ public:
         auto provider = New<TPartitionChunkReaderProvider>(config->JobIO->TableReader);
         Reader = New<TReader>(
             config->JobIO->TableReader,
-            Host->GetMasterChannel(),
-            Host->GetBlockCache(),
-            Host->GetNodeDirectory(),
+            host->GetMasterChannel(),
+            host->GetBlockCache(),
+            host->GetNodeDirectory(),
             std::move(chunks),
             provider);
 
@@ -90,14 +90,17 @@ public:
             config->JobIO->TableWriter,
             options,
             writerProvider,
-            Host->GetMasterChannel(),
+            host->GetMasterChannel(),
             transactionId,
             chunkListId);
     }
 
     virtual TJobResult Run() override
     {
-        const auto& jobSpec = Host->GetJobSpec();
+        auto host = Host.Lock();
+        YCHECK(host);
+
+        const auto& jobSpec = host->GetJobSpec();
         const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         PROFILE_TIMING ("/sort_time") {
@@ -165,7 +168,7 @@ public:
                     std::push_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
 
                     if (!isNetworkReleased && Reader->GetIsFetchingComplete()) {
-                        Host->ReleaseNetwork();
+                        host->ReleaseNetwork();
                         isNetworkReleased =  true;
                     }
 
@@ -175,7 +178,7 @@ public:
                 }
 
                 if (!isNetworkReleased) {
-                    Host->ReleaseNetwork();
+                    host->ReleaseNetwork();
                 }
             }
             PROFILE_TIMING_CHECKPOINT("read");

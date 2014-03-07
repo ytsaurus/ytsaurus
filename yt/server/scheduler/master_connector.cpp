@@ -378,7 +378,7 @@ private:
             TDelayedExecutor::Submit(
                 BIND(&TImpl::StartConnecting, MakeStrong(this))
                     .Via(Bootstrap->GetControlInvoker()),
-                Config->ConnectRetryPeriod);
+                Config->ConnectRetryBackoffTime);
             return;
         }
 

@@ -233,7 +233,7 @@ NChunkClient::NProto::TDataStatistics TPartitionChunkReader::GetDataStatistics()
     result.set_chunk_count(1);
 
     if (SequentialReader) {
-        result.set_row_count(GetRowIndex());
+        result.set_row_count(GetRowIndex() + 1);
         result.set_uncompressed_data_size(SequentialReader->GetUncompressedDataSize());
         result.set_compressed_data_size(SequentialReader->GetCompressedDataSize());
     } else {

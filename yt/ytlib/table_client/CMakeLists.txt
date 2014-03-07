@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client )
 set( SRCS
+  ${BASE}/buffered_table_writer.cpp
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_writer_base.cpp
@@ -22,6 +23,7 @@ set( SRCS
 set( HDRS
   ${BASE}/async_reader.h
   ${BASE}/async_writer.h
+  ${BASE}/buffered_table_writer.h
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
   ${BASE}/chunk_meta_extensions.h

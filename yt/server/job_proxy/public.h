@@ -18,6 +18,7 @@ struct IJob;
 typedef TIntrusivePtr<IJob> TJobPtr;
 
 struct IJobHost;
+typedef TIntrusivePtr<IJobHost> IJobHostPtr;
 
 struct IDataPipe;
 typedef TIntrusivePtr<IDataPipe> IDataPipePtr;

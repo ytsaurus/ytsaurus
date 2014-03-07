@@ -186,12 +186,6 @@ public:
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
-    //! Maximum number of concurrent replication write sessions the node is willing to handle.
-    int MaxReplicationSessions;
-
-    //! Maximum number of concurrent repair write sessions the node is willing to handle.
-    int MaxRepairSessions;
-
     //! Number of writer threads per location.
     int WriteThreadCount;
 
@@ -251,12 +245,6 @@ public:
             .DefaultNew();
         RegisterParameter("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
-        RegisterParameter("max_replication_sessions", MaxReplicationSessions)
-            .Default(16)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_repair_sessions", MaxRepairSessions)
-            .Default(16)
-            .GreaterThanOrEqual(0);
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
             .GreaterThanOrEqual(1);
