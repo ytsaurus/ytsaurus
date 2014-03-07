@@ -55,6 +55,7 @@ message TMiscExt
     // Uncompressed size of the largest block.
     optional int64 max_block_size = 9 [default = 0];
 
+    // Min/max timestamps for versioned table chunks.
     optional int64 min_timestamp = 10 [default = 0];
     optional int64 max_timestamp = 11 [default = 0];
 }

@@ -91,6 +91,16 @@ TOwningKey TChunkStore::GetMaxKey() const
     return MaxKey_;
 }
 
+TTimestamp TChunkStore::GetMinTimestamp() const override
+{
+    return MinTimestamp_;
+}
+
+TTimestamp TChunkStore::GetMaxTimestamp() const override
+{
+    return MaxTimestamp_;
+}
+
 IVersionedReaderPtr TChunkStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
@@ -167,7 +177,9 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("uncompressed_data_size").Value(miscExt.uncompressed_data_size())
         .Item("key_count").Value(miscExt.row_count())
         .Item("min_key").Value(MinKey_)
-        .Item("max_key").Value(MaxKey_);
+        .Item("max_key").Value(MaxKey_)
+        .Item("min_timestamp").Value(MinTimestamp_)
+        .Item("max_timestamp").Value(MaxTimestamp_);
 }
 
 void TChunkStore::PrecacheProperties()
@@ -175,6 +187,8 @@ void TChunkStore::PrecacheProperties()
     // Precache frequently used values.
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     DataSize_ = miscExt.uncompressed_data_size();
+    MinTimestamp_ = miscExt.min_timestamp();
+    MaxTimestamp_ = miscExt.max_timestamp();
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
     MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());

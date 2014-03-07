@@ -31,8 +31,15 @@ struct IStore
 
     //! Returns the minimum key in the store, inclusive.
     virtual NVersionedTableClient::TOwningKey GetMinKey() const = 0;
+
     //! Returns the maximum key in the chunk, inclusive.
     virtual NVersionedTableClient::TOwningKey GetMaxKey() const = 0;
+
+    //! Returns the minimum timestamp of changes recorded in the store.
+    virtual NVersionedTableClient::TTimestamp GetMinTimestamp() const = 0;
+
+    //! Returns the maximum timestamp of changes recorded in the store.
+    virtual NVersionedTableClient::TTimestamp GetMaxTimestamp() const = 0;
 
     //! Returns a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!

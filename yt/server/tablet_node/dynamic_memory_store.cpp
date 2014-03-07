@@ -888,6 +888,18 @@ TOwningKey TDynamicMemoryStore::GetMaxKey() const
     return MaxKey();
 }
 
+TTimestamp TDynamicMemoryStore::GetMinTimestamp() const override
+{
+    // TODO(babenko)
+    return NullTimestamp;
+}
+
+TTimestamp TDynamicMemoryStore::GetMaxTimestamp() const override
+{
+    // TODO(babenko)
+    return NullTimestamp;
+}
+
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,

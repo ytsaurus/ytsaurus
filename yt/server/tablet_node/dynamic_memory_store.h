@@ -70,6 +70,9 @@ public:
     virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
     virtual NVersionedTableClient::TOwningKey GetMaxKey() const override;
 
+    virtual NVersionedTableClient::TTimestamp GetMinTimestamp() const override;
+    virtual NVersionedTableClient::TTimestamp GetMaxTimestamp() const override;
+
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TOwningKey lowerKey,
         NVersionedTableClient::TOwningKey upperKey,

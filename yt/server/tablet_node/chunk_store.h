@@ -39,6 +39,9 @@ public:
     virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
     virtual NVersionedTableClient::TOwningKey GetMaxKey() const override;
 
+    virtual NVersionedTableClient::TTimestamp GetMinTimestamp() const override;
+    virtual NVersionedTableClient::TTimestamp GetMaxTimestamp() const override;
+
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         NVersionedTableClient::TOwningKey lowerKey,
         NVersionedTableClient::TOwningKey upperKey,
@@ -57,6 +60,8 @@ private:
     // Cached for fast retrieval from ChunkMeta_.
     NVersionedTableClient::TOwningKey MinKey_;
     NVersionedTableClient::TOwningKey MaxKey_;
+    NVersionedTableClient::TTimestamp MinTimestamp_;
+    NVersionedTableClient::TTimestamp MaxTimestamp_;
     i64 DataSize_;
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
