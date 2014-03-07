@@ -93,7 +93,6 @@ add_msvc_precompiled_header(
 
 if (MSVC)
   add_definitions( -D_VARIADIC_MAX=10 )
-  add_definitions( -DGTEST_HAS_SEH=0 )
 endif()
 
 if (APPLE)
