@@ -4,14 +4,18 @@
 #include "chunk_manager.h"
 #include "chunk.h"
 
+#include <core/misc/protobuf_helpers.h>
+
 #include <core/ytree/fluent.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/schema.h>
-
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
+
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <server/node_tracker_server/node.h>
 #include <server/node_tracker_server/node_directory_builder.h>
@@ -32,9 +36,11 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NVersionedTableClient;
 using namespace NNodeTrackerServer;
 
 using NChunkClient::NProto::TMiscExt;
+using NVersionedTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +62,8 @@ private:
         const auto* chunk = GetThisTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
         YCHECK(!chunk->IsConfirmed() || miscExt);
+
+        bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
 
         attributes->push_back("cached_replicas");
         attributes->push_back("stored_replicas");
@@ -82,8 +90,12 @@ private:
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
+        attributes->push_back(TAttributeInfo("min_timestamp", chunk->IsConfirmed() && miscExt->has_min_timestamp()));
+        attributes->push_back(TAttributeInfo("max_timestamp", chunk->IsConfirmed() && miscExt->has_max_timestamp()));
         attributes->push_back(TAttributeInfo("staging_transaction_id", chunk->IsStaged()));
         attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
+        attributes->push_back(TAttributeInfo("min_key", hasBoundaryKeysExt));
+        attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -235,51 +247,62 @@ private:
                 return true;
             }
 
-            if (key == "meta_size") {
+            if (key == "meta_size" && miscExt.has_meta_size()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.meta_size());
                 return true;
             }
 
-            if (key == "compressed_data_size") {
+            if (key == "compressed_data_size" && miscExt.has_compressed_data_size()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.compressed_data_size());
                 return true;
             }
 
-            if (key == "uncompressed_data_size") {
+            if (key == "uncompressed_data_size" && miscExt.has_uncompressed_data_size()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.uncompressed_data_size());
                 return true;
             }
 
-            if (key == "data_weight") {
+            if (key == "data_weight" && miscExt.has_data_weight()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.data_weight());
                 return true;
             }
 
-            if (key == "compression_codec") {
+            if (key == "compression_codec" && miscExt.has_compression_codec()) {
                 BuildYsonFluently(consumer)
                     .Value(CamelCaseToUnderscoreCase(ToString(NCompression::ECodec(miscExt.compression_codec()))));
                 return true;
             }
 
-            if (key == "row_count") {
+            if (key == "row_count" && miscExt.has_row_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.row_count());
                 return true;
             }
 
-            if (key == "value_count") {
+            if (key == "value_count" && miscExt.has_value_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.value_count());
                 return true;
             }
 
-            if (key == "sorted") {
+            if (key == "sorted" && miscExt.has_sorted()) {
                 BuildYsonFluently(consumer)
                     .Value(FormatBool(miscExt.sorted()));
+                return true;
+            }
+
+            if (key == "min_timestamp" && miscExt.has_min_timestamp()) {
+                BuildYsonFluently(consumer)
+                    .Value(FormatBool(miscExt.min_timestamp()));
+                return true;
+            }
+            if (key == "max_timestamp" && miscExt.has_max_timestamp()) {
+                BuildYsonFluently(consumer)
+                    .Value(FormatBool(miscExt.max_timestamp()));
                 return true;
             }
         }
@@ -294,6 +317,21 @@ private:
             if (key == "staging_account") {
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetStagingAccount()->GetName());
+                return true;
+            }
+        }
+
+        auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+        if (boundaryKeysExt) {
+            if (key == "min_key") {
+                BuildYsonFluently(consumer)
+                    .Value(FromProto<TOwningKey>(boundaryKeysExt->min()));
+                return true;
+            }
+
+            if (key == "max_key") {
+                BuildYsonFluently(consumer)
+                    .Value(FromProto<TOwningKey>(boundaryKeysExt->max()));
                 return true;
             }
         }
