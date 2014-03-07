@@ -4,6 +4,11 @@
 #include "chunk_manager.h"
 #include "chunk.h"
 #include "node_directory_builder.h"
+#include "helpers.h"
+
+#include <core/misc/protobuf_helpers.h>
+
+#include <core/ytree/fluent.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
@@ -15,6 +20,8 @@
 #include <server/node_tracker_server/node.h>
 
 #include <server/object_server/object_detail.h>
+
+#include <server/cypress_server/cypress_manager.h>
 
 #include <server/transaction_server/transaction.h>
 
@@ -94,6 +101,8 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
+        auto cypressManager = Bootstrap->GetCypressManager();
+
         auto* chunk = GetThisTypedImpl();
         auto status = chunkManager->ComputeChunkStatus(chunk);
 
@@ -217,9 +226,10 @@ private:
         }
 
         if (key == "owning_nodes") {
-            auto paths = chunkManager->GetOwningNodes(const_cast<TChunk*>(chunk));
-            BuildYsonFluently(consumer)
-                .Value(paths);
+            SerializeOwningNodesPaths(
+                cypressManager,
+                const_cast<TChunk*>(chunk),
+                consumer);
             return true;
         }
 

@@ -1,12 +1,20 @@
 #include "stdafx.h"
 #include "helpers.h"
+#include "chunk_owner_base.h"
+
+#include <core/ytree/fluent.h>
 
 #include <ytlib/object_client/public.h>
+
+#include <server/cypress_server/cypress_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NYTree;
+using namespace NYson;
 using namespace NObjectClient;
+using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +70,65 @@ void AttachToChunkList(
         &child + 1,
         [] (TChunkTree* /*chunk*/) { },
         resetSorted);
+}
+
+void GetOwningNodes(
+    TChunkTree* chunkTree,
+    yhash_set<TChunkTree*>& visited,
+    yhash_set<TChunkOwnerBase*>* owningNodes)
+{
+    if (!visited.insert(chunkTree).second) {
+        return;
+    }
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk: {
+            for (auto* parent : chunkTree->AsChunk()->Parents()) {
+                GetOwningNodes(parent, visited, owningNodes);
+            }
+            break;
+        }
+        case EObjectType::ChunkList: {
+            auto* chunkList = chunkTree->AsChunkList();
+            owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
+            for (auto* parent : chunkList->Parents()) {
+                GetOwningNodes(parent, visited, owningNodes);
+            }
+            break;
+        }
+        default:
+            YUNREACHABLE();
+    }
+}
+
+void SerializeOwningNodesPaths(
+    TCypressManagerPtr cypressManager,
+    TChunkTree* chunkTree,
+    IYsonConsumer* consumer)
+{
+    yhash_set<TChunkOwnerBase*> owningNodes;
+    yhash_set<TChunkTree*> visited;
+    GetOwningNodes(chunkTree, visited, &owningNodes);
+
+    BuildYsonFluently(consumer)
+        .DoListFor(owningNodes, [&] (TFluentList fluent, TChunkOwnerBase* node) {
+            auto proxy = cypressManager->GetNodeProxy(
+                node->GetTrunkNode(),
+                node->GetTransaction());
+            auto path = proxy->GetPath();
+            if (node->GetTransaction()) {
+                fluent
+                    .Item()
+                    .BeginAttributes()
+                        .Item("transaction_id").Value(node->GetTransaction()->GetId())
+                    .EndAttributes()
+                    .Value(path);
+            } else {
+                fluent
+                    .Item()
+                    .Value(path);
+            }
+        });
 }
 
 ///////////////////////////////////////////////////////////////////////////////

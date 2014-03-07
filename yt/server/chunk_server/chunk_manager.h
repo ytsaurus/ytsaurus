@@ -105,8 +105,6 @@ public:
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();
 
-    std::vector<NYPath::TYPath> GetOwningNodes(TChunkTree* chunkTree);
-
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
 private:

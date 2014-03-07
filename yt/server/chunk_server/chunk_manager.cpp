@@ -609,28 +609,6 @@ public:
     }
 
 
-    std::vector<TYPath> GetOwningNodes(TChunkTree* chunkTree)
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-
-        yhash_set<TChunkOwnerBase*> owningNodes;
-        yhash_set<TChunkTree*> visited;
-        GetOwningNodes(chunkTree, visited, &owningNodes);
-
-        std::vector<TYPath> paths;
-        FOREACH (auto* node, owningNodes) {
-            auto proxy = cypressManager->GetNodeProxy(
-                node->GetTrunkNode(),
-                node->GetTransaction());
-            auto path = proxy->GetPath();
-            paths.push_back(path);
-        }
-
-        std::sort(paths.begin(), paths.end());
-        paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
-        return paths;
-    }
-
     EChunkStatus ComputeChunkStatus(TChunk* chunk)
     {
         return ChunkReplicator->ComputeChunkStatus(chunk);
@@ -1275,36 +1253,6 @@ private:
     }
 
 
-    static void GetOwningNodes(
-        TChunkTree* chunkTree,
-        yhash_set<TChunkTree*>& visited,
-        yhash_set<TChunkOwnerBase*>* owningNodes)
-    {
-        if (!visited.insert(chunkTree).second) {
-            return;
-        }
-        switch (chunkTree->GetType()) {
-            case EObjectType::Chunk:
-            case EObjectType::ErasureChunk: {
-                FOREACH (auto* parent, chunkTree->AsChunk()->Parents()) {
-                    GetOwningNodes(parent, visited, owningNodes);
-                }
-                break;
-            }
-            case EObjectType::ChunkList: {
-                auto* chunkList = chunkTree->AsChunkList();
-                owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
-                FOREACH (auto* parent, chunkList->Parents()) {
-                    GetOwningNodes(parent, visited, owningNodes);
-                }
-                break;
-            }
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-
     void OnProfiling()
     {
         if (ChunkReplicator) {
@@ -1622,11 +1570,6 @@ void TChunkManager::SchedulePropertiesUpdate(TChunkTree* chunkTree)
 int TChunkManager::GetTotalReplicaCount()
 {
     return Impl->GetTotalReplicaCount();
-}
-
-std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTree* chunkTree)
-{
-    return Impl->GetOwningNodes(chunkTree);
 }
 
 EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)

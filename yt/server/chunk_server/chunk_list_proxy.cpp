@@ -3,12 +3,15 @@
 #include "private.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
+#include "helpers.h"
 
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 
 #include <server/cell_master/bootstrap.h>
 
 #include <server/object_server/object_detail.h>
+
+#include <server/cypress_server/cypress_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -82,6 +85,8 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
+        auto cypressManager = Bootstrap->GetCypressManager();
+
         const auto* chunkList = GetThisTypedImpl();
 
         if (key == "children_ids") {
@@ -114,9 +119,10 @@ private:
         }
 
         if (key == "owning_nodes") {
-            auto paths = chunkManager->GetOwningNodes(const_cast<TChunkList*>(chunkList));
-            BuildYsonFluently(consumer)
-                .Value(paths);
+            SerializeOwningNodesPaths(
+                cypressManager,
+                const_cast<TChunkList*>(chunkList),
+                consumer);
             return true;
         }
 
