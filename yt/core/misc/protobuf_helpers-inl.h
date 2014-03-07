@@ -29,6 +29,18 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
 }
 
 template <class T>
+bool HasProtoExtension(const NProto::TExtensionSet& extensions)
+{
+    i32 tag = TProtoExtensionTag<T>::Value;
+    for (const auto& extension : extensions.extensions()) {
+        if (extension.tag() == tag) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class T>
 TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
 {
     TNullable<T> result;

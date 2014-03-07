@@ -272,6 +272,10 @@ struct TProtoExtensionTag;
 template <class T>
 T GetProtoExtension(const NProto::TExtensionSet& extensions);
 
+// Returns |true| iff an extension of a given type is present.
+template <class T>
+bool HasProtoExtension(const NProto::TExtensionSet& extensions);
+
 //! Finds and deserializes an extension of the given type. Returns |Null| if no matching
 //! extension is found.
 template <class T>
