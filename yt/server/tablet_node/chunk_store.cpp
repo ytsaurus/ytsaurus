@@ -91,12 +91,12 @@ TOwningKey TChunkStore::GetMaxKey() const
     return MaxKey_;
 }
 
-TTimestamp TChunkStore::GetMinTimestamp() const override
+TTimestamp TChunkStore::GetMinTimestamp() const
 {
     return MinTimestamp_;
 }
 
-TTimestamp TChunkStore::GetMaxTimestamp() const override
+TTimestamp TChunkStore::GetMaxTimestamp() const
 {
     return MaxTimestamp_;
 }

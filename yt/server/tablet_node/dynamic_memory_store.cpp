@@ -888,13 +888,13 @@ TOwningKey TDynamicMemoryStore::GetMaxKey() const
     return MaxKey();
 }
 
-TTimestamp TDynamicMemoryStore::GetMinTimestamp() const override
+TTimestamp TDynamicMemoryStore::GetMinTimestamp() const
 {
     // TODO(babenko)
     return NullTimestamp;
 }
 
-TTimestamp TDynamicMemoryStore::GetMaxTimestamp() const override
+TTimestamp TDynamicMemoryStore::GetMaxTimestamp() const
 {
     // TODO(babenko)
     return NullTimestamp;
