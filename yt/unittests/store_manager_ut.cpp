@@ -167,7 +167,7 @@ TEST_F(TStoreManagerTest, CommitRow)
     EXPECT_EQ(0, store->GetLockCount());
 }
 
-TEST_F(TStoreManagerTest, MigrateRowOnConfirm)
+TEST_F(TStoreManagerTest, ConfirmRowWithRotation)
 {
     auto store1 = Tablet->GetActiveStore();
 
@@ -188,11 +188,11 @@ TEST_F(TStoreManagerTest, MigrateRowOnConfirm)
     TDynamicRowRef rowRef1(store1.Get(), lockedRows[0]);
     StoreManager->ConfirmRow(rowRef1);
 
-    EXPECT_EQ(0, store1->GetLockCount());
-    EXPECT_EQ(1, store2->GetLockCount());
+    EXPECT_EQ(1, store1->GetLockCount());
+    EXPECT_EQ(0, store2->GetLockCount());
 
     auto rowRef2 = transaction->LockedRows()[0];
-    EXPECT_TRUE(rowRef2.Store == store2);
+    EXPECT_TRUE(rowRef2.Store == store1);
 
     StoreManager->PrepareRow(rowRef2);
     PrepareTransaction(transaction.get());
@@ -208,7 +208,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnConfirm)
     CompareRows(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1"));
 }
 
-TEST_F(TStoreManagerTest, MigrateRowOnPrepare)
+TEST_F(TStoreManagerTest, PrepareRowWithRotation)
 {
     auto store1 = Tablet->GetActiveStore();
 
@@ -229,10 +229,10 @@ TEST_F(TStoreManagerTest, MigrateRowOnPrepare)
 
     StoreManager->PrepareRow(rowRef);
     PrepareTransaction(transaction.get());
-    EXPECT_TRUE(rowRef.Store == store2);
+    EXPECT_TRUE(rowRef.Store == store1);
 
-    EXPECT_EQ(0, store1->GetLockCount());
-    EXPECT_EQ(1, store2->GetLockCount());
+    EXPECT_EQ(1, store1->GetLockCount());
+    EXPECT_EQ(0, store2->GetLockCount());
 
     StoreManager->CommitRow(rowRef);
     CommitTransaction(transaction.get());
@@ -278,7 +278,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnCommit)
     CompareRows(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1"));
 }
 
-TEST_F(TStoreManagerTest, MigrateRowOnOverwrite)
+TEST_F(TStoreManagerTest, OverwriteRowWithRotation1)
 {
     auto store1 = Tablet->GetActiveStore();
 
@@ -300,9 +300,9 @@ TEST_F(TStoreManagerTest, MigrateRowOnOverwrite)
     StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), false, nullptr);
     EXPECT_EQ(1, transaction->LockedRows().size());
 
-    EXPECT_TRUE(rowRef.Store == store2);
-    EXPECT_EQ(0, store1->GetLockCount());
-    EXPECT_EQ(1, store2->GetLockCount());
+    EXPECT_TRUE(rowRef.Store == store1);
+    EXPECT_EQ(1, store1->GetLockCount());
+    EXPECT_EQ(0, store2->GetLockCount());
 
     StoreManager->PrepareRow(rowRef);
     PrepareTransaction(transaction.get());
@@ -318,7 +318,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnOverwrite)
     CompareRows(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=2"));
 }
 
-TEST_F(TStoreManagerTest, MigrateRowWithRotation)
+TEST_F(TStoreManagerTest, OverwriteRowWithRotation2)
 {
     auto store1 = Tablet->GetActiveStore();
 
@@ -328,7 +328,7 @@ TEST_F(TStoreManagerTest, MigrateRowWithRotation)
     StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRows1);
     EXPECT_EQ(0, transaction->LockedRows().size());
     EXPECT_EQ(1, lockedRows1.size());
-    TDynamicRowRef rowRef1(store1.Get(), lockedRows1[0]);
+    TDynamicRowRef rowRef(store1.Get(), lockedRows1[0]);
 
     Rotate();
     auto store2 = Tablet->GetActiveStore();
@@ -336,16 +336,24 @@ TEST_F(TStoreManagerTest, MigrateRowWithRotation)
     std::vector<TDynamicRow> lockedRows2;
     StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRows2);
     EXPECT_EQ(0, transaction->LockedRows().size());
-    EXPECT_EQ(1, lockedRows1.size());
-    TDynamicRowRef rowRef2(store2.Get(), lockedRows2[0]);
+    EXPECT_EQ(0, lockedRows2.size());
 
-    StoreManager->ConfirmRow(rowRef1);
-    EXPECT_EQ(0, transaction->LockedRows().size());
-    EXPECT_EQ(TDynamicRow::InvalidLockIndex, rowRef1.Row.GetLockIndex());
-
-    StoreManager->ConfirmRow(rowRef2);
+    StoreManager->ConfirmRow(rowRef);
     EXPECT_EQ(1, transaction->LockedRows().size());
-    EXPECT_EQ(0, rowRef2.Row.GetLockIndex());
+    EXPECT_EQ(0, rowRef.Row.GetLockIndex());
+
+    StoreManager->PrepareRow(rowRef);
+    PrepareTransaction(transaction.get());
+
+    StoreManager->CommitRow(rowRef);
+    CommitTransaction(transaction.get());
+
+    EXPECT_EQ(0, store1->GetLockCount());
+    EXPECT_EQ(0, store2->GetLockCount());
+
+    auto key = BuildKey("1");
+    CompareRows(LookupRow(store1, key, LastCommittedTimestamp), Null);
+    CompareRows(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1"));
 }
 
 TEST_F(TStoreManagerTest, WriteAfterDeleteFailureWithRotation)
@@ -398,7 +406,7 @@ TEST_F(TStoreManagerTest, DISABLED_WriteWriteConflictWithRotation2)
     });
 }
 
-TEST_F(TStoreManagerTest, DontMigrateRowOnAbort)
+TEST_F(TStoreManagerTest, AbortRowWithRotation)
 {
     auto store1 = Tablet->GetActiveStore();
 

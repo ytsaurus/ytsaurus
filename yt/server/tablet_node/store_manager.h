@@ -78,19 +78,14 @@ private:
     std::vector<NVersionedTableClient::TVersionedRow> VersionedPooledRows_;
 
 
-    TDynamicRow MaybeMigrateRow(const TDynamicRowRef& rowRef);
+    TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);
 
-    TDynamicRow CheckLockAndMaybeMigrateRow(
+    TDynamicRowRef FindRowAndCheckLocks(
         TTransaction* transaction,
         NVersionedTableClient::TUnversionedRow key,
         ERowLockMode mode);
 
     void CheckForUnlockedStore(const TDynamicMemoryStorePtr& store);
-    
-    void AddToLockedRows(
-        std::vector<TDynamicRow>* lockedRows,
-        TDynamicRow migratedRow,
-        TDynamicRow updatedRow);
 
 };
 

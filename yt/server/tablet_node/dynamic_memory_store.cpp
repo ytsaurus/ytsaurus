@@ -415,8 +415,6 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     TUnversionedRow row,
     bool prewrite)
 {
-    YASSERT(State_ == EStoreState::ActiveDynamic);
-
     TDynamicRow result;
 
     auto addValues = [&] (TDynamicRow dynamicRow) {
@@ -428,6 +426,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
     auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
+        YASSERT(State_ == EStoreState::ActiveDynamic);
         auto dynamicRow = result = AllocateRow();
         YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Write, prewrite));
 
@@ -587,11 +586,10 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
     return migratedRow;
 }
 
-TDynamicRow TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(
+TDynamicRow TDynamicMemoryStore::FindRowAndCheckLocks(
     NVersionedTableClient::TKey key,
     TTransaction* transaction,
-    ERowLockMode mode,
-    const TDynamicMemoryStorePtr& migrateTo)
+    ERowLockMode mode)
 {
     auto it = Rows_->FindEqualTo(key);
     if (!it.IsValid()) {
@@ -599,23 +597,14 @@ TDynamicRow TDynamicMemoryStore::CheckLockAndMaybeMigrateRow(
     }
 
     auto row = it.GetCurrent();
-
     CheckRowLock(row, transaction, mode);
-
-    if (row.GetLockMode() == ERowLockMode::None) {
-        return TDynamicRow();
-    }
-
-    return MigrateRow(row, migrateTo);
+    return row;
 }
 
 void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
 {
-    YASSERT(State_ == EStoreState::ActiveDynamic);
-
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
-    
     int lockIndex = static_cast<int>(transaction->LockedRows().size());
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     row.SetLockIndex(lockIndex);
@@ -623,8 +612,6 @@ void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
 
 void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
 {
-    YASSERT(State_ == EStoreState::ActiveDynamic);
-
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
     row.SetPrepareTimestamp(transaction->GetPrepareTimestamp());

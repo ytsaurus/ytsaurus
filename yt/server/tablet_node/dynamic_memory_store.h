@@ -45,11 +45,10 @@ public:
     TDynamicRow MigrateRow(
         TDynamicRow row,
         const TDynamicMemoryStorePtr& migrateTo);
-    TDynamicRow CheckLockAndMaybeMigrateRow(
+    TDynamicRow FindRowAndCheckLocks(
         NVersionedTableClient::TKey key,
         TTransaction* transaction,
-        ERowLockMode mode,
-        const TDynamicMemoryStorePtr& migrateTo);
+        ERowLockMode mode);
 
     void ConfirmRow(TDynamicRow row);
     void PrepareRow(TDynamicRow row);
