@@ -30,7 +30,7 @@ public:
     explicit TFluentLogEventImpl(NYson::IYsonConsumer* consumer)
         : TBase(consumer)
     {
-        Consumer->OnBeginMap();
+        this->Consumer->OnBeginMap();
     }
 
     TFluentLogEventImpl(TFluentLogEventImpl&& other)
@@ -41,14 +41,14 @@ public:
 
     ~TFluentLogEventImpl()
     {
-        if (Consumer) {
-            Consumer->OnEndMap();
+        if (this->Consumer) {
+            this->Consumer->OnEndMap();
         }
     }
 
     NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(const TStringBuf& key)
     {
-        Consumer->OnKeyedItem(key);
+        this->Consumer->OnKeyedItem(key);
         return NYTree::TFluentYsonBuilder::TAny<TThis&&>(this->Consumer, std::move(*this));
     }
 
