@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import to_yson_type
 from time import sleep
 
 ##################################################################
@@ -25,7 +26,8 @@ class TestChunkServer(YTEnvSetup):
         chunk_ids = get('//tmp/t/@chunk_ids', tx=tx)
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
-        assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
+        assert get('#' + chunk_id + '/@owning_nodes') == \
+            [to_yson_type('//tmp/t', attributes = {'transaction_id' : tx})]
 
     def test_replication(self):
         create('table', '//tmp/t')
