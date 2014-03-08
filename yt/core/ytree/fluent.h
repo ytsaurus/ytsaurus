@@ -162,7 +162,6 @@ public:
             return *static_cast<TDeepThis*>(this);
         }
 
-    protected :
     };
 
     template <class TParent>
