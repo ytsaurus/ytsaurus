@@ -1914,7 +1914,7 @@ private:
     TFluentLogEvent LogEventFluently(ELogEventType eventType)
     {
         return TFluentLogEvent(GetEventLogConsumer())
-            .Item(STRINGBUF("datetime")).Value(Now())
+            .Item(STRINGBUF("timestamp")).Value(Now())
             .Item(STRINGBUF("event_type")).Value(eventType);
     }
 
