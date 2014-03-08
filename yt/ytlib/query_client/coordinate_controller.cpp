@@ -310,7 +310,7 @@ std::pair<bool, int> TCoordinateController::IsInternal(const TDataSplit& split)
 {
     auto objectId = GetObjectIdFromDataSplit(split);
     auto type = TypeFromId(objectId);
-    auto counter = CounterFromId(objectId);
+    int counter = static_cast<int>(CounterFromId(objectId));
 
     if (type == EObjectType::PlanFragment) {
         return std::make_pair(true, counter);
