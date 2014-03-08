@@ -260,7 +260,6 @@ public:
             }
         }
 
-        YCHECK(cookie.GetValue().IsSet());
         auto cgFragment = cookie.GetValue().Get().ValueOrThrow();
         YCHECK(cgFragment->IsCompiled());
 
