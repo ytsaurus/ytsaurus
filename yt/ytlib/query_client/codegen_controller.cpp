@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "codegen_controller.h"
 
 #include "private.h"

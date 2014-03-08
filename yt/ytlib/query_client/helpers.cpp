@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "public.h"
 
 #include <ytlib/chunk_client/schema.h>

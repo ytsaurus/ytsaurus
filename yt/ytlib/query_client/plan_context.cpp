@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "plan_context.h"
 
 #include <ytlib/node_tracker_client/node_directory.h>

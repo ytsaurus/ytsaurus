@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "executor.h"
 
 #include "private.h"

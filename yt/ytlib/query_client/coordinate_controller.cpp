@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "coordinate_controller.h"
 
 #include "private.h"

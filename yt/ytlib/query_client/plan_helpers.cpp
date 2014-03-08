@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "plan_helpers.h"
 #include "plan_node.h"
 

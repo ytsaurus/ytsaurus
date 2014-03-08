@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "plan_fragment.h"
 
 #include "prepare_controller.h"

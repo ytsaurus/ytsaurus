@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "cg_cache.h"
 #include "cg_fragment.h"
 
