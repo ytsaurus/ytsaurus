@@ -153,10 +153,8 @@ void TAsyncTableWriter::Open()
     UploadTransaction = transactionOrError.Value();
     ListenTransaction(UploadTransaction);
 
-    LOG_INFO(
-        "Upload transaction created (TransactionId: %s)",
+    LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~ToString(UploadTransaction->GetId()));
-
 
     auto batchRsp = WaitFor(FetchTableInfo());
     auto chunkListId = OnInfoFetched(batchRsp);
@@ -377,12 +375,12 @@ NChunkClient::NProto::TDataStatistics TAsyncTableWriter::GetDataStatistics() con
 ////////////////////////////////////////////////////////////////////////////////
 
 IAsyncWriterPtr CreateAsyncTableWriter(
-        TTableWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        ITransactionPtr transaction,
-        TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath,
-        const TNullable<TKeyColumns>& keyColumns)
+    TTableWriterConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    ITransactionPtr transaction,
+    TTransactionManagerPtr transactionManager,
+    const NYPath::TRichYPath& richPath,
+    const TNullable<TKeyColumns>& keyColumns)
 {
     return New<TAsyncTableWriter>(
         config,
