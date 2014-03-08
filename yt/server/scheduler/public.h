@@ -1,5 +1,7 @@
 #pragma once
 
+#include <core/misc/enum.h>
+
 #include <ytlib/scheduler/public.h>
 
 #include <ytlib/job_tracker_client/public.h>
@@ -12,6 +14,8 @@ namespace NScheduler {
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
+
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ESchedulerStrategy,
     (Null)
@@ -36,6 +40,9 @@ typedef TIntrusivePtr<TExecNode> TExecNodePtr;
 
 class TFairShareStrategyConfig;
 typedef TIntrusivePtr<TFairShareStrategyConfig> TFairShareStrategyConfigPtr;
+
+class TEventLogConfig;
+typedef TIntrusivePtr<TEventLogConfig> TEventLogConfigPtr;
 
 class TSchedulerConfig;
 typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;

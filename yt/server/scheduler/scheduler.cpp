@@ -12,6 +12,7 @@
 #include "job_resources.h"
 #include "private.h"
 #include "snapshot_downloader.h"
+#include "event_log.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
@@ -46,6 +47,10 @@
 
 #include <ytlib/scheduler/helpers.h>
 
+#include <ytlib/table_client/async_writer.h>
+#include <ytlib/table_client/buffered_table_writer.h>
+#include <ytlib/table_client/table_consumer.h>
+
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/fluent.h>
 
@@ -58,10 +63,11 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NTransactionClient;
-using namespace NCypressClient;
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTransactionClient;
+using namespace NCypressClient;
 using namespace NCellScheduler;
 using namespace NObjectClient;
 using namespace NMetaState;
@@ -71,7 +77,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
-using namespace NConcurrency;
+using namespace NTableClient;
 
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -92,19 +98,19 @@ public:
     TImpl(
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
-        : Config(config)
-        , Bootstrap(bootstrap)
-        , BackgroundQueue(New<TActionQueue>("Background"))
-        , SnapshotIOQueue(New<TActionQueue>("SnapshotIO"))
-        , MasterConnector(new TMasterConnector(Config, Bootstrap))
-        , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
-        , TotalResourceUsageProfiler(Profiler.GetPathPrefix() + "/total_resource_usage")
-        , TotalCompletedJobTimeCounter("/total_completed_job_time")
-        , TotalFailedJobTimeCounter("/total_failed_job_time")
-        , TotalAbortedJobTimeCounter("/total_aborted_job_time")
-        , JobTypeCounters(static_cast<int>(EJobType::SchedulerLast))
-        , TotalResourceLimits(ZeroNodeResources())
-        , TotalResourceUsage(ZeroNodeResources())
+        : Config_(config)
+        , Bootstrap_(bootstrap)
+        , BackgroundQueue_(New<TActionQueue>("Background"))
+        , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
+        , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
+        , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
+        , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
+        , TotalCompletedJobTimeCounter_("/total_completed_job_time")
+        , TotalFailedJobTimeCounter_("/total_failed_job_time")
+        , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
+        , JobTypeCounters_(static_cast<int>(EJobType::SchedulerLast))
+        , TotalResourceLimits_(ZeroNodeResources())
+        , TotalResourceUsage_(ZeroNodeResources())
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -116,34 +122,44 @@ public:
     {
         InitStrategy();
 
-        MasterConnector->AddGlobalWatcherRequester(BIND(
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TThis::RequestConfig,
             Unretained(this)));
-        MasterConnector->AddGlobalWatcherHandler(BIND(
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
             &TThis::HandleConfig,
             Unretained(this)));
 
-        MasterConnector->SubscribeMasterConnected(BIND(
+        MasterConnector_->SubscribeMasterConnected(BIND(
             &TThis::OnMasterConnected,
             Unretained(this)));
-        MasterConnector->SubscribeMasterDisconnected(BIND(
+        MasterConnector_->SubscribeMasterDisconnected(BIND(
             &TThis::OnMasterDisconnected,
             Unretained(this)));
 
-        MasterConnector->SubscribeUserTransactionAborted(BIND(
+        MasterConnector_->SubscribeUserTransactionAborted(BIND(
             &TThis::OnUserTransactionAborted,
             Unretained(this)));
-        MasterConnector->SubscribeSchedulerTransactionAborted(BIND(
+        MasterConnector_->SubscribeSchedulerTransactionAborted(BIND(
             &TThis::OnSchedulerTransactionAborted,
             Unretained(this)));
 
-        MasterConnector->Start();
+        MasterConnector_->Start();
 
-        ProfilingExecutor = New<TPeriodicExecutor>(
-            Bootstrap->GetControlInvoker(),
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
             BIND(&TThis::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
-        ProfilingExecutor->Start();
+        ProfilingExecutor_->Start();
+
+        EventLogWriter_ = CreateBufferedTableWriter(
+            Config_->EventLog,
+            Bootstrap_->GetMasterChannel(),
+            Bootstrap_->GetTransactionManager(),
+            Config_->EventLog->Path);
+        EventLogWriter_->Open();
+        EventLogConsumer_.reset(new TTableConsumer(EventLogWriter_));
+
+        LogEventFluently(ELogEventType::SchedulerStarted);
     }
 
 
@@ -151,7 +167,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Strategy.get();
+        return Strategy_.get();
     }
 
     IYPathServicePtr GetOrchidService()
@@ -165,7 +181,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TOperationPtr> operations;
-        FOREACH (const auto& pair, IdToOperation) {
+        FOREACH (const auto& pair, IdToOperation_) {
             operations.push_back(pair.second);
         }
         return operations;
@@ -173,13 +189,13 @@ public:
 
     IInvokerPtr GetSnapshotIOInvoker()
     {
-        return SnapshotIOQueue->GetInvoker();
+        return SnapshotIOQueue_->GetInvoker();
     }
 
 
     bool IsConnected()
     {
-        return MasterConnector->IsConnected();
+        return MasterConnector_->IsConnected();
     }
 
     void ValidateConnected()
@@ -194,8 +210,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = IdToOperation.find(id);
-        return it == IdToOperation.end() ? nullptr : it->second;
+        auto it = IdToOperation_.find(id);
+        return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
     TOperationPtr GetOperationOrThrow(const TOperationId& id)
@@ -216,15 +232,15 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = MutationIdToOperation.find(id);
-        return it == MutationIdToOperation.end() ? nullptr : it->second;
+        auto it = MutationIdToOperation_.find(id);
+        return it == MutationIdToOperation_.end() ? nullptr : it->second;
     }
 
 
     TExecNodePtr FindNode(const Stroka& address)
     {
-        auto it = AddressToNode.find(address);
-        return it == AddressToNode.end() ? nullptr : it->second;
+        auto it = AddressToNode_.find(address);
+        return it == AddressToNode_.end() ? nullptr : it->second;
     }
 
     TExecNodePtr GetNode(const Stroka& address)
@@ -236,8 +252,8 @@ public:
 
     TExecNodePtr GetOrRegisterNode(const TNodeDescriptor& descriptor)
     {
-        auto it = AddressToNode.find(descriptor.Address);
-        if (it == AddressToNode.end()) {
+        auto it = AddressToNode_.find(descriptor.Address);
+        if (it == AddressToNode_.end()) {
             return RegisterNode(descriptor);
         }
 
@@ -265,9 +281,9 @@ public:
             }
         }
 
-        if (static_cast<int>(IdToOperation.size()) >= Config->MaxOperationCount) {
+        if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
             THROW_ERROR_EXCEPTION("Limit for the number of concurrent operations %d has been reached",
-                Config->MaxOperationCount);
+                Config_->MaxOperationCount);
         }
 
         // Attach user transaction if any. Don't ping it.
@@ -322,7 +338,7 @@ public:
         // Spawn a new fiber where all startup logic will work asynchronously.
         return
             BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
-                .AsyncVia(Bootstrap->GetControlInvoker())
+                .AsyncVia(Bootstrap_->GetControlInvoker())
                 .Run()
                 .Apply(BIND([=] (TError error) {
                     return error.IsOK()
@@ -414,10 +430,10 @@ public:
 
         // Update total resource limits _before_ processing the heartbeat to
         // maintain exact values of total resource limits.
-        TotalResourceLimits -= oldResourceLimits;
-        TotalResourceLimits += node->ResourceLimits();
+        TotalResourceLimits_ -= oldResourceLimits;
+        TotalResourceLimits_ += node->ResourceLimits();
 
-        if (MasterConnector->IsConnected()) {
+        if (MasterConnector_->IsConnected()) {
             std::vector<TJobPtr> runningJobs;
             bool hasWaitingJobs = false;
             yhash_set<TOperationPtr> operationsToLog;
@@ -472,7 +488,7 @@ public:
                 LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
             } else {
                 PROFILE_TIMING ("/schedule_time") {
-                    Strategy->ScheduleJobs(~schedulingContext);
+                    Strategy_->ScheduleJobs(~schedulingContext);
                 }
             }
 
@@ -511,8 +527,8 @@ public:
 
         // Update total resource usage _after_ processing the heartbeat to avoid
         // "unsaturated CPU" phenomenon.
-        TotalResourceUsage -= oldResourceUsage;
-        TotalResourceUsage += node->ResourceUsage();
+        TotalResourceUsage_ -= oldResourceUsage;
+        TotalResourceUsage_ += node->ResourceUsage();
     }
 
 
@@ -527,34 +543,34 @@ public:
 
     virtual TMasterConnector* GetMasterConnector() override
     {
-        return ~MasterConnector;
+        return ~MasterConnector_;
     }
 
     virtual TNodeResources GetTotalResourceLimits() override
     {
-        return TotalResourceLimits;
+        return TotalResourceLimits_;
     }
 
 
     // IOperationHost implementation
     virtual NRpc::IChannelPtr GetMasterChannel() override
     {
-        return Bootstrap->GetMasterChannel();
+        return Bootstrap_->GetMasterChannel();
     }
 
     virtual TTransactionManagerPtr GetTransactionManager() override
     {
-        return Bootstrap->GetTransactionManager();
+        return Bootstrap_->GetTransactionManager();
     }
 
     virtual IInvokerPtr GetControlInvoker() override
     {
-        return Bootstrap->GetControlInvoker();
+        return Bootstrap_->GetControlInvoker();
     }
 
     virtual IInvokerPtr GetBackgroundInvoker() override
     {
-        return BackgroundQueue->GetInvoker();
+        return BackgroundQueue_->GetInvoker();
     }
 
     virtual std::vector<TExecNodePtr> GetExecNodes() override
@@ -562,7 +578,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TExecNodePtr> result;
-        FOREACH (const auto& pair, AddressToNode) {
+        FOREACH (const auto& pair, AddressToNode_) {
             result.push_back(pair.second);
         }
         return result;
@@ -572,7 +588,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return static_cast<int>(AddressToNode.size());
+        return static_cast<int>(AddressToNode_.size());
+    }
+
+    virtual IYsonConsumer* GetEventLogConsumer() override
+    {
+        return EventLogConsumer_.get();
     }
 
     virtual void OnOperationCompleted(TOperationPtr operation) override
@@ -617,40 +638,44 @@ private:
     typedef TImpl TThis;
     friend class TSchedulingContext;
 
-    TSchedulerConfigPtr Config;
-    TBootstrap* Bootstrap;
+    TSchedulerConfigPtr Config_;
+    TBootstrap* Bootstrap_;
 
-    TActionQueuePtr BackgroundQueue;
-    TActionQueuePtr SnapshotIOQueue;
+    TActionQueuePtr BackgroundQueue_;
+    TActionQueuePtr SnapshotIOQueue_;
 
-    std::unique_ptr<TMasterConnector> MasterConnector;
+    std::unique_ptr<TMasterConnector> MasterConnector_;
 
-    std::unique_ptr<ISchedulerStrategy> Strategy;
+    std::unique_ptr<ISchedulerStrategy> Strategy_;
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
-    TExecNodeMap AddressToNode;
+    TExecNodeMap AddressToNode_;
 
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
-    TOperationIdMap IdToOperation;
+    TOperationIdMap IdToOperation_;
 
     typedef yhash_map<TMutationId, TOperationPtr> TOperationMutationIdMap;
-    TOperationMutationIdMap MutationIdToOperation;
+    TOperationMutationIdMap MutationIdToOperation_;
 
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
-    TJobMap IdToJob;
+    TJobMap IdToJob_;
 
-    NProfiling::TProfiler TotalResourceLimitsProfiler;
-    NProfiling::TProfiler TotalResourceUsageProfiler;
+    NProfiling::TProfiler TotalResourceLimitsProfiler_;
+    NProfiling::TProfiler TotalResourceUsageProfiler_;
 
-    NProfiling::TAggregateCounter TotalCompletedJobTimeCounter;
-    NProfiling::TAggregateCounter TotalFailedJobTimeCounter;
-    NProfiling::TAggregateCounter TotalAbortedJobTimeCounter;
+    NProfiling::TAggregateCounter TotalCompletedJobTimeCounter_;
+    NProfiling::TAggregateCounter TotalFailedJobTimeCounter_;
+    NProfiling::TAggregateCounter TotalAbortedJobTimeCounter_;
 
-    std::vector<int> JobTypeCounters;
-    TPeriodicExecutorPtr ProfilingExecutor;
+    std::vector<int> JobTypeCounters_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TNodeResources TotalResourceLimits;
-    TNodeResources TotalResourceUsage;
+    TNodeResources TotalResourceLimits_;
+    TNodeResources TotalResourceUsage_;
+
+    NTableClient::IAsyncWriterPtr EventLogWriter_;
+    std::unique_ptr<IYsonConsumer> EventLogConsumer_;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
@@ -663,22 +688,24 @@ private:
         FOREACH (auto jobTypeValue, EJobType::GetDomainValues()) {
             auto jobType = EJobType(jobTypeValue);
             if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
-                Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
+                Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters_[jobType]);
             }
         }
 
-        Profiler.Enqueue("/job_count/total", IdToJob.size());
-        Profiler.Enqueue("/operation_count", IdToOperation.size());
-        Profiler.Enqueue("/node_count", AddressToNode.size());
+        Profiler.Enqueue("/job_count/total", IdToJob_.size());
+        Profiler.Enqueue("/operation_count", IdToOperation_.size());
+        Profiler.Enqueue("/node_count", AddressToNode_.size());
 
-        ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
-        ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
+        ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
+        ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
     }
 
 
     void OnMasterConnected(const TMasterHandshakeResult& result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LogEventFluently(ELogEventType::MasterConnected);
 
         ReviveOperations(result.Operations);
     }
@@ -687,7 +714,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operations = IdToOperation;
+        LogEventFluently(ELogEventType::MasterDisconnected);
+
+        auto operations = IdToOperation_;
         FOREACH (const auto& pair, operations) {
             auto operation = pair.second;
             if (!operation->IsFinishedState()) {
@@ -699,16 +728,16 @@ private:
             }
             FinishOperation(operation);
         }
-        YCHECK(IdToOperation.empty());
+        YCHECK(IdToOperation_.empty());
 
-        FOREACH (const auto& pair, AddressToNode) {
+        FOREACH (const auto& pair, AddressToNode_) {
             auto node = pair.second;
             node->Jobs().clear();
         }
 
-        IdToJob.clear();
+        IdToJob_.clear();
 
-        std::fill(JobTypeCounters.begin(), JobTypeCounters.end(), 0);
+        std::fill(JobTypeCounters_.begin(), JobTypeCounters_.end(), 0);
     }
 
     TError GetMasterDisconnectedError()
@@ -764,7 +793,7 @@ private:
         }
 
         try {
-            if (!ReconfigureYsonSerializable(Config, TYsonString(rsp->value())))
+            if (!ReconfigureYsonSerializable(Config_, TYsonString(rsp->value())))
                 return;
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing updated scheduler configuration");
@@ -787,7 +816,7 @@ private:
             StartIOTransactions(operation);
 
             {
-                auto asyncResult = MasterConnector->CreateOperationNode(operation);
+                auto asyncResult = MasterConnector_->CreateOperationNode(operation);
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 if (operation->GetState() != EOperationState::Initializing)
@@ -876,7 +905,7 @@ private:
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
-            reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler sync for operation %s",
@@ -925,7 +954,7 @@ private:
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
-            reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
             reqExt->set_enable_uncommitted_accounting(false);
             reqExt->set_enable_staged_accounting(false);
 
@@ -978,7 +1007,7 @@ private:
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
-            reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler input for operation %s",
@@ -996,7 +1025,7 @@ private:
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
             reqExt->set_enable_uncommitted_accounting(false);
-            reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+            reqExt->set_timeout(Config_->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler output for operation %s",
@@ -1047,7 +1076,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(IdToOperation.empty());
+        YCHECK(IdToOperation_.empty());
         FOREACH (auto operation, operations) {
             ReviveOperation(operation);
         }
@@ -1074,7 +1103,7 @@ private:
             auto wrappedError = TError("Operation has failed to revive")
                 << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-            MasterConnector->FlushOperationNode(operation);
+            MasterConnector_->FlushOperationNode(operation);
             return;
         }
 
@@ -1105,7 +1134,7 @@ private:
             }
 
             {
-                auto asyncResult = MasterConnector->ResetRevivingOperationNode(operation);
+                auto asyncResult = MasterConnector_->ResetRevivingOperationNode(operation);
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 if (operation->GetState() != EOperationState::Reviving)
@@ -1134,7 +1163,7 @@ private:
             auto wrappedError = TError("Operation has failed to revive")
                 << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-            MasterConnector->FlushOperationNode(operation);
+            MasterConnector_->FlushOperationNode(operation);
             AbortSchedulerTransactions(operation);
             FinishOperation(operation);
         }
@@ -1143,8 +1172,8 @@ private:
 
     TJobPtr FindJob(const TJobId& jobId)
     {
-        auto it = IdToJob.find(jobId);
-        return it == IdToJob.end() ? nullptr : it->second;
+        auto it = IdToJob_.find(jobId);
+        return it == IdToJob_.end() ? nullptr : it->second;
     }
 
 
@@ -1157,16 +1186,16 @@ private:
         auto node = New<TExecNode>(descriptor);
 
         auto lease = TLeaseManager::CreateLease(
-            Config->NodeHearbeatTimeout,
+            Config_->NodeHearbeatTimeout,
             BIND(&TImpl::UnregisterNode, MakeWeak(this), node)
                 .Via(GetControlInvoker()));
 
         node->SetLease(lease);
 
-        TotalResourceLimits += node->ResourceLimits();
-        TotalResourceUsage += node->ResourceUsage();
+        TotalResourceLimits_ += node->ResourceLimits();
+        TotalResourceUsage_ += node->ResourceUsage();
 
-        YCHECK(AddressToNode.insert(std::make_pair(node->GetAddress(), node)).second);
+        YCHECK(AddressToNode_.insert(std::make_pair(node->GetAddress(), node)).second);
 
         return node;
     }
@@ -1177,8 +1206,8 @@ private:
 
         LOG_INFO("Node offline (Address: %s)", ~node->GetAddress());
 
-        TotalResourceLimits -= node->ResourceLimits();
-        TotalResourceUsage -= node->ResourceUsage();
+        TotalResourceLimits_ -= node->ResourceLimits();
+        TotalResourceUsage_ -= node->ResourceUsage();
 
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
@@ -1191,17 +1220,17 @@ private:
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
-        YCHECK(AddressToNode.erase(address) == 1);
+        YCHECK(AddressToNode_.erase(address) == 1);
     }
 
 
     void RegisterOperation(TOperationPtr operation)
     {
-        YCHECK(IdToOperation.insert(std::make_pair(operation->GetOperationId(), operation)).second);
+        YCHECK(IdToOperation_.insert(std::make_pair(operation->GetOperationId(), operation)).second);
 
         auto mutationId = operation->GetMutationId();
         if (mutationId != NullMutationId) {
-            YCHECK(MutationIdToOperation.insert(std::make_pair(mutationId, operation)).second);
+            YCHECK(MutationIdToOperation_.insert(std::make_pair(mutationId, operation)).second);
         }
 
         OperationRegistered_.Fire(operation);
@@ -1223,11 +1252,11 @@ private:
 
     void UnregisterOperation(TOperationPtr operation)
     {
-        YCHECK(IdToOperation.erase(operation->GetOperationId()) == 1);
+        YCHECK(IdToOperation_.erase(operation->GetOperationId()) == 1);
 
         auto mutationId = operation->GetMutationId();
         if (mutationId != NullMutationId) {
-            YCHECK(MutationIdToOperation.erase(operation->GetMutationId()) == 1);
+            YCHECK(MutationIdToOperation_.erase(operation->GetMutationId()) == 1);
         }
 
         OperationUnregistered_.Fire(operation);
@@ -1243,7 +1272,7 @@ private:
 
         LOG_DEBUG("Progress: %s, %s (OperationId: %s)",
             ~operation->GetController()->GetLoggingProgress(),
-            ~Strategy->GetOperationLoggingProgress(operation),
+            ~Strategy_->GetOperationLoggingProgress(operation),
             ~ToString(operation->GetOperationId()));
     }
 
@@ -1317,9 +1346,9 @@ private:
         auto operation = job->GetOperation();
         auto node = job->GetNode();
 
-        ++JobTypeCounters[job->GetType()];
+        ++JobTypeCounters_[job->GetType()];
 
-        YCHECK(IdToJob.insert(std::make_pair(job->GetId(), job)).second);
+        YCHECK(IdToJob_.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(operation->Jobs().insert(job).second);
         YCHECK(node->Jobs().insert(job).second);
         
@@ -1338,9 +1367,9 @@ private:
         auto operation = job->GetOperation();
         auto node = job->GetNode();
 
-        --JobTypeCounters[job->GetType()];
+        --JobTypeCounters_[job->GetType()];
 
-        YCHECK(IdToJob.erase(job->GetId()) == 1);
+        YCHECK(IdToJob_.erase(job->GetId()) == 1);
         YCHECK(operation->Jobs().erase(job) == 1);
         YCHECK(node->Jobs().erase(job) == 1);
 
@@ -1468,13 +1497,13 @@ private:
         auto duration = job->GetDuration();
         switch (job->GetState()) {
             case EJobState::Completed:
-                Profiler.Increment(TotalCompletedJobTimeCounter, duration.MicroSeconds());
+                Profiler.Increment(TotalCompletedJobTimeCounter_, duration.MicroSeconds());
                 break;
             case EJobState::Failed:
-                Profiler.Increment(TotalFailedJobTimeCounter, duration.MicroSeconds());
+                Profiler.Increment(TotalFailedJobTimeCounter_, duration.MicroSeconds());
                 break;
             case EJobState::Aborted:
-                Profiler.Increment(TotalAbortedJobTimeCounter, duration.MicroSeconds());
+                Profiler.Increment(TotalAbortedJobTimeCounter_, duration.MicroSeconds());
                 break;
             default:
                 YUNREACHABLE();
@@ -1491,13 +1520,13 @@ private:
             auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
 
             if (jobFailed || operation->GetStdErrCount() < operation->GetMaxStdErrCount()) {
-                MasterConnector->CreateJobNode(job, stderrChunkId);
+                MasterConnector_->CreateJobNode(job, stderrChunkId);
                 operation->SetStdErrCount(operation->GetStdErrCount() + 1);
             } else {
                 ReleaseStdErrChunk(job, stderrChunkId);
             }
         } else if (jobFailed) {
-            MasterConnector->CreateJobNode(job, NullChunkId);
+            MasterConnector_->CreateJobNode(job, NullChunkId);
         }
     }
 
@@ -1527,12 +1556,12 @@ private:
 
     void InitStrategy()
     {
-        switch (Config->Strategy) {
+        switch (Config_->Strategy) {
             case ESchedulerStrategy::Null:
-                Strategy = CreateNullStrategy(this);
+                Strategy_ = CreateNullStrategy(this);
                 break;
             case ESchedulerStrategy::FairShare:
-                Strategy = CreateFairShareStrategy(Config, this);
+                Strategy_ = CreateFairShareStrategy(Config_, this);
                 break;
             default:
                 YUNREACHABLE();
@@ -1543,17 +1572,17 @@ private:
     {
         switch (operation->GetType()) {
             case EOperationType::Map:
-                return CreateMapController(Config, this, operation);
+                return CreateMapController(Config_, this, operation);
             case EOperationType::Merge:
-                return CreateMergeController(Config, this, operation);
+                return CreateMergeController(Config_, this, operation);
             case EOperationType::Erase:
-                return CreateEraseController(Config, this, operation);
+                return CreateEraseController(Config_, this, operation);
             case EOperationType::Sort:
-                return CreateSortController(Config, this, operation);
+                return CreateSortController(Config_, this, operation);
             case EOperationType::Reduce:
-                return CreateReduceController(Config, this, operation);
+                return CreateReduceController(Config_, this, operation);
             case EOperationType::MapReduce:
-                return CreateMapReduceController(Config, this, operation);
+                return CreateMapReduceController(Config_, this, operation);
             default:
                 YUNREACHABLE();
         }
@@ -1573,7 +1602,7 @@ private:
             // First flush: ensure that all stderrs are attached and the
             // state is changed to Completing.
             {
-                auto asyncResult = MasterConnector->FlushOperationNode(operation);
+                auto asyncResult = MasterConnector_->FlushOperationNode(operation);
                 WaitFor(asyncResult);
                 if (operation->GetState() != EOperationState::Completing)
                     throw TFiberTerminatedException();
@@ -1598,7 +1627,7 @@ private:
 
             // Second flush: ensure that state is changed to Completed.
             {
-                auto asyncResult = MasterConnector->FlushOperationNode(operation);
+                auto asyncResult = MasterConnector_->FlushOperationNode(operation);
                 WaitFor(asyncResult);
                 YCHECK(operation->GetState() == EOperationState::Completed);
             }
@@ -1633,7 +1662,7 @@ private:
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.
         {
-            auto asyncResult = MasterConnector->FlushOperationNode(operation);
+            auto asyncResult = MasterConnector_->FlushOperationNode(operation);
             WaitFor(asyncResult);
             if (operation->GetState() != intermediateState)
                 return;
@@ -1645,7 +1674,7 @@ private:
         
         // Second flush: ensure that the state is changed to its final value.
         {
-            auto asyncResult = MasterConnector->FlushOperationNode(operation);
+            auto asyncResult = MasterConnector_->FlushOperationNode(operation);
             WaitFor(asyncResult);
             if (operation->GetState() != finalState)
                 return;
@@ -1663,18 +1692,18 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("connected").Value(MasterConnector->IsConnected())
+                .Item("connected").Value(MasterConnector_->IsConnected())
                 .Item("cell").BeginMap()
-                    .Item("resource_limits").Value(TotalResourceLimits)
-                    .Item("resource_usage").Value(TotalResourceUsage)
+                    .Item("resource_limits").Value(TotalResourceLimits_)
+                    .Item("resource_usage").Value(TotalResourceUsage_)
                 .EndMap()
-                .Item("operations").DoMapFor(IdToOperation, [=] (TFluentMap fluent, TOperationIdMap::value_type pair) {
+                .Item("operations").DoMapFor(IdToOperation_, [=] (TFluentMap fluent, TOperationIdMap::value_type pair) {
                     BuildOperationYson(pair.second, fluent);
                 })
-                .Item("nodes").DoMapFor(AddressToNode, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
-                .DoIf(Strategy != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, ~Strategy))
+                .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, ~Strategy_))
             .EndMap();
     }
 
@@ -1688,11 +1717,11 @@ private:
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, ~Strategy, operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, ~Strategy_, operation))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, ~Strategy, operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, ~Strategy_, operation))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
@@ -1880,6 +1909,15 @@ private:
     std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs);
+
+
+    TFluentLogEvent LogEventFluently(ELogEventType eventType)
+    {
+        return TFluentLogEvent(GetEventLogConsumer())
+            .Item(STRINGBUF("datetime")).Value(Now())
+            .Item(STRINGBUF("event_type")).Value(eventType);
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1909,7 +1947,7 @@ public:
             return false;
         }
 
-        auto maxJobStarts = Owner->Config->MaxStartedJobsPerHeartbeat;
+        auto maxJobStarts = Owner->Config_->MaxStartedJobsPerHeartbeat;
         if (maxJobStarts && StartedJobs_.size() >= maxJobStarts.Get()) {
             return false;
         }

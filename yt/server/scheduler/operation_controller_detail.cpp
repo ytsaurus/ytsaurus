@@ -3278,6 +3278,14 @@ void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
     UNUSED(config);
 }
 
+TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
+{
+    return TFluentLogEvent(Host->GetEventLogConsumer())
+        .Item(STRINGBUF("datetime")).Value(Now())
+        .Item(STRINGBUF("event_type")).Value(eventType)
+        .Item(STRINGBUF("operation_id")).Value(Operation->GetOperationId());
+}
+
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)
 {
     const auto& result = joblet->Job->Result();

@@ -8,13 +8,15 @@
 #include <core/actions/invoker.h>
 #include <core/actions/cancelable_context.h>
 
-#include <ytlib/scheduler/job.pb.h>
-
-#include <ytlib/transaction_client/public.h>
+#include <core/yson/public.h>
 
 #include <core/ytree/public.h>
 
 #include <core/rpc/public.h>
+
+#include <ytlib/scheduler/job.pb.h>
+
+#include <ytlib/transaction_client/public.h>
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
@@ -71,6 +73,10 @@ struct IOperationHost
 
     //! Returns the number of currently active exec nodes.
     virtual int GetExecNodeCount() = 0;
+
+    //! Returns a consumer used for writing into the event log.
+    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
+
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.

@@ -6,6 +6,7 @@
 #include "chunk_list_pool.h"
 #include "job_resources.h"
 #include "serialization_context.h"
+#include "event_log.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/id_generator.h>
@@ -790,6 +791,8 @@ protected:
 
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
     void InitFinalOutputConfig(TJobIOConfigPtr config);
+
+    TFluentLogEvent LogEventFluently(ELogEventType eventType);
 
 private:
     typedef TOperationControllerBase TThis;
