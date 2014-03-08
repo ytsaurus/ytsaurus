@@ -159,11 +159,7 @@ private:
         auto transactionId = GetTransactionId(context);
         if (transactionId != NullTransactionId) {
             transaction = transactionManager->GetTransactionOrThrow(transactionId);
-            if (transaction->GetState() != ETransactionState::Active) {
-                THROW_ERROR_EXCEPTION(
-                    "Transaction %s is not active",
-                    ~ToString(transactionId));
-            }
+            transaction->ValidateActive();
         }
 
         NYPath::TTokenizer tokenizer(path);

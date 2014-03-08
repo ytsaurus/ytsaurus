@@ -67,9 +67,7 @@ private:
         if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION("No such transaction %s", ~ToString(id));
         }
-        if (!transaction->IsActive()) {
-            THROW_ERROR_EXCEPTION("Transaction %s is not active", ~ToString(id));
-        }
+        transaction->ValidateActive();
         return transaction;
     }
 

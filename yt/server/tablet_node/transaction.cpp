@@ -159,16 +159,31 @@ void TTransaction::ResetFinished()
 
 ETransactionState TTransaction::GetPersistentState() const
 {
-    return State_ == ETransactionState::TransientlyPrepared
-        ? ETransactionState(ETransactionState::Active)
-        : State_;
+    switch (State_) {
+        case ETransactionState::TransientlyPrepared:
+        case ETransactionState::Aborting:
+            return ETransactionState::Active;
+        default:
+            return State_;
+    }
 }
 
 TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
 {
-    return State_ == ETransactionState::TransientlyPrepared
-        ? NullTimestamp
-        : PrepareTimestamp_;
+    switch (State_) {
+        case ETransactionState::TransientlyPrepared:
+            return NullTimestamp;
+        default:
+            return PrepareTimestamp_;
+    }
+}
+
+void TTransaction::ValidateActive() const
+{
+    if (State_ != ETransactionState::Active) {
+        THROW_ERROR_EXCEPTION("Transaction %s is not active",
+            ~ToString(Id_));
+    }    
 }
 
 ////////////////////////////////////////////////////////////////////////////////

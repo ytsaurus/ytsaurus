@@ -139,10 +139,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-
-        if (transaction->GetState() != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Transaction is not active");
-        }
+        transaction->ValidateActive();
 
         transaction->SetPrepareTimestamp(prepareTimestamp);
         transaction->SetState(
@@ -152,10 +149,23 @@ public:
 
         TransactionPrepared_.Fire(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             ~FormatBool(persistent),
             prepareTimestamp);
+    }
+
+    void PrepareTransactionAbort(const TTransactionId& transactionId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        transaction->ValidateActive();
+
+        transaction->SetState(ETransactionState::Aborting);
+
+        LOG_DEBUG("Transaction abort prepared (TransactionId: %s)",
+            ~ToString(transactionId));
     }
 
     void CommitTransaction(
@@ -224,10 +234,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        
-        if (transaction->GetState() != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Transaction is not active");
-        }
+        transaction->ValidateActive();
 
         auto it = LeaseMap_.find(transaction->GetId());
         YCHECK(it != LeaseMap_.end());
@@ -282,6 +289,8 @@ private:
 
         LOG_INFO("Transaction lease expired (TransactionId: %s)",
             ~ToString(id));
+
+        transaction->SetState(ETransactionState::Aborting);
 
         auto transactionSupervisor = Slot_->GetTransactionSupervisor();
 
@@ -461,6 +470,12 @@ void TTransactionManager::PrepareTransactionCommit(
         prepareTimestamp);
 }
 
+void TTransactionManager::PrepareTransactionAbort(
+    const TTransactionId& transactionId)
+{
+    Impl_->PrepareTransactionAbort(transactionId);    
+}
+
 void TTransactionManager::CommitTransaction(
     const TTransactionId& transactionId,
     TTimestamp commitTimestamp)
@@ -468,7 +483,8 @@ void TTransactionManager::CommitTransaction(
     Impl_->CommitTransaction(transactionId, commitTimestamp);
 }
 
-void TTransactionManager::AbortTransaction(const TTransactionId& transactionId)
+void TTransactionManager::AbortTransaction(
+    const TTransactionId& transactionId)
 {
     Impl_->AbortTransaction(transactionId);
 }

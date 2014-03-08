@@ -20,7 +20,8 @@ DECLARE_ENUM(ETransactionState,
     ((PersistentlyPrepared) (1))
     ((TransientlyPrepared)  (2))
     ((Committed)            (3))
-    ((Aborted)              (4))
+    ((Aborting)             (4))
+    ((Aborted)              (5))
 );
 
 class TTransaction
@@ -48,6 +49,8 @@ public:
 
     ETransactionState GetPersistentState() const;
     TTimestamp GetPersistentPrepareTimestamp() const;
+
+    void ValidateActive() const;
 
 private:
     TPromise<void> Finished_;

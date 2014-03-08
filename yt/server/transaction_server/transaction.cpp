@@ -67,16 +67,23 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Acd_);
 }
 
-bool TTransaction::IsActive() const
-{
-    return State_ == ETransactionState::Active;
-}
-
 ETransactionState TTransaction::GetPersistentState() const
 {
-    return State_ == ETransactionState::TransientlyPrepared
-        ? ETransactionState(ETransactionState::Active)
-        : State_;
+    switch (State_) {
+        case ETransactionState::TransientlyPrepared:
+        case ETransactionState::Aborting:
+            return ETransactionState::Active;
+        default:
+            return State_;
+    }
+}
+
+void TTransaction::ValidateActive() const
+{
+    if (State_ != ETransactionState::Active) {
+        THROW_ERROR_EXCEPTION("Transaction %s is not active",
+            ~ToString(Id));
+    }    
 }
 
 ////////////////////////////////////////////////////////////////////////////////

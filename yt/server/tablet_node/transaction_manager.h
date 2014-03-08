@@ -66,6 +66,8 @@ private:
         const TTransactionId& transactionId,
         bool persistent,
         TTimestamp prepareTimestamp) override;
+    virtual void PrepareTransactionAbort(
+        const TTransactionId& transactionId) override;
     virtual void CommitTransaction(
         const TTransactionId& transactionId,
         TTimestamp commitTimestamp) override;

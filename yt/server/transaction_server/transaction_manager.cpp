@@ -186,13 +186,6 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    void ValidateTransactionIsActive(const TTransaction* transaction)
-    {
-        if (!transaction->IsActive()) {
-            THROW_ERROR_EXCEPTION("Transaction is not active: %s",
-                ~ToString(transaction->GetId()));
-        }
-    }
 
     DECLARE_YPATH_SERVICE_METHOD(NTransactionClient::NProto, Commit)
     {
@@ -452,7 +445,7 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ValidateTransactionActive(transaction);
+    transaction->ValidateActive();
 
     auto securityManager = Bootstrap->GetSecurityManager();
     securityManager->ValidatePermission(transaction, EPermission::Write);
@@ -514,7 +507,8 @@ void TTransactionManager::PingTransaction(const TTransaction* transaction, bool 
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ValidateTransactionActive(transaction);
+    transaction->ValidateActive();
+
     // TODO(babenko): possibly validate permissions?
 
     DoPingTransaction(transaction);
@@ -531,7 +525,8 @@ void TTransactionManager::PingTransaction(const TTransaction* transaction, bool 
 void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(transaction->IsActive());
+
+    YCHECK(transaction->GetState() == ETransactionState::Active);
 
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());
@@ -621,14 +616,6 @@ void TTransactionManager::Clear()
     DoClear();
 }
 
-void TTransactionManager::ValidateTransactionActive(const TTransaction* transaction)
-{
-    if (!transaction->IsActive()) {
-        THROW_ERROR_EXCEPTION("Transaction %s is not active",
-            ~ToString(transaction->GetId()));
-    }
-}
-
 TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
 {
     return std::min(
@@ -690,7 +677,9 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = FindTransaction(id);
-    if (!IsObjectAlive(transaction) || !transaction->IsActive())
+    if (!IsObjectAlive(transaction))
+        return;
+    if (transaction->GetState() != ETransactionState::Active)
         return;
 
     LOG_INFO("Transaction lease expired (TransactionId: %s)", ~ToString(id));
@@ -724,7 +713,7 @@ void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* ob
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ValidateTransactionActive(transaction);
+    transaction->ValidateActive();
 
     auto objectManager = Bootstrap->GetObjectManager();
     YCHECK(transaction->StagedObjects().insert(object).second);
@@ -738,7 +727,7 @@ void TTransactionManager::UnstageObject(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ValidateTransactionActive(transaction);
+    transaction->ValidateActive();
 
     if (transaction->StagedObjects().erase(object) == 0) {
         THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
@@ -758,7 +747,7 @@ void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase*
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ValidateTransactionActive(transaction);
+    transaction->ValidateActive();
 
     auto objectManager = Bootstrap->GetObjectManager();
     transaction->StagedNodes().push_back(node);
@@ -773,8 +762,7 @@ void TTransactionManager::PrepareTransactionCommit(
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = GetTransactionOrThrow(transactionId);
-
-    ValidateTransactionActive(transaction);
+    transaction->ValidateActive();
 
     auto securityManager = Bootstrap->GetSecurityManager();
     securityManager->ValidatePermission(transaction, EPermission::Write);
@@ -785,14 +773,24 @@ void TTransactionManager::PrepareTransactionCommit(
             static_cast<int>(transaction->NestedTransactions().size()));
     }
 
-    transaction->SetState(
-        persistent
+    transaction->SetState(persistent
         ? ETransactionState::PersistentlyPrepared
         : ETransactionState::TransientlyPrepared);
 
-    LOG_DEBUG("Transaction prepared (TransactionId: %s, Presistent: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %s, Presistent: %s)",
         ~ToString(transactionId),
         ~FormatBool(persistent));
+}
+
+void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto* transaction = GetTransactionOrThrow(transactionId);
+    transaction->ValidateActive();
+
+    LOG_DEBUG("Transaction abort prepared (TransactionId: %s)",
+        ~ToString(transactionId));
 }
 
 void TTransactionManager::CommitTransaction(
@@ -811,6 +809,7 @@ void TTransactionManager::AbortTransaction(const TTransactionId& transactionId)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = GetTransactionOrThrow(transactionId);
+
     AbortTransaction(transaction);
 }
 
@@ -822,6 +821,7 @@ void TTransactionManager::PingTransaction(
 
     const auto& requestExt = request.GetExtension(TReqPingTransactionExt::ping_transaction_ext);
     auto* transaction = GetTransactionOrThrow(transactionId);
+
     PingTransaction(transaction, requestExt.ping_ancestors());
 }
 

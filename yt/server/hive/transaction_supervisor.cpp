@@ -221,6 +221,8 @@ private:
         context->SetRequestInfo("TransactionId: %s",
             ~ToString(transactionId));
 
+        TransactionManager->PrepareTransactionAbort(transactionId);
+
         CreateMutation(HydraManager, *request)
             ->SetId(mutationId)
             ->OnSuccess(CreateRpcSuccessHandler(context))

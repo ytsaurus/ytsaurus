@@ -23,12 +23,16 @@ struct ITransactionManager
         bool persistent,
         TTimestamp prepareTimestamp) = 0;
 
+    virtual void PrepareTransactionAbort(
+        const TTransactionId& tranasctionId) = 0;
+
     //! Once #PrepareTransactionCommit succeeded, #CommitTransaction cannot throw.
     virtual void CommitTransaction(
         const TTransactionId& transactionId,
         TTimestamp commitTimestamp) = 0;
 
-    virtual void AbortTransaction(const TTransactionId& transactionId) = 0;
+    virtual void AbortTransaction(
+        const TTransactionId& transactionId) = 0;
 
     virtual void PingTransaction(
         const TTransactionId& transactionId,

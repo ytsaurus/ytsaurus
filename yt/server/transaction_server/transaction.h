@@ -29,7 +29,8 @@ DECLARE_ENUM(ETransactionState,
     ((TransientlyPrepared)    (1))
     ((PersistentlyPrepared)   (2))
     ((Committed)              (3))
-    ((Aborted)                (4))
+    ((Aborting)               (4))
+    ((Aborted)                (5))
 );
 
 class TTransaction
@@ -67,9 +68,9 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    bool IsActive() const;
-
     ETransactionState GetPersistentState() const;
+
+    void ValidateActive() const;
 
 };
 
