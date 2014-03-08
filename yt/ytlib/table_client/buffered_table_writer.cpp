@@ -1,16 +1,9 @@
 #include "stdafx.h"
-
 #include "buffered_table_writer.h"
-
 #include "async_writer.h"
 #include "config.h"
 #include "private.h"
 #include "table_writer.h"
-
-#include <ytlib/chunk_client/dispatcher.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction.h>
 
 #include <core/concurrency/delayed_executor.h>
 
@@ -19,8 +12,17 @@
 
 #include <core/rpc/channel.h>
 
+#include <core/logging/tagged_logger.h>
+
+#include <ytlib/chunk_client/dispatcher.h>
+
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/transaction.h>
+
 namespace NYT {
 namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -28,16 +30,15 @@ using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NYPath;
 
-static auto& Logger = TableWriterLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace  NDetail {
+namespace {
 
 class TBuffer
 {
+public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TRow>, Rows);
-    DEFINE_BYVAL_RW_PROPERTY(i64, Index);
+    DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
 public:
     void AddRow(const TRow& row)
@@ -47,8 +48,8 @@ public:
 
         for (const auto& pair : row) {
             newRow.push_back(std::make_pair(
-                DeepCopy(pair.first),
-                DeepCopy(pair.first)));
+                Capture(pair.first),
+                Capture(pair.first)));
         }
     }
 
@@ -66,7 +67,7 @@ public:
 private:
     TChunkedMemoryPool MemoryPool_;
 
-    TStringBuf DeepCopy(const TStringBuf& value)
+    TStringBuf Capture(const TStringBuf& value)
     {
         char* ptr = MemoryPool_.AllocateUnaligned(value.size());
         std::memcpy(ptr, value.begin(), value.size());
@@ -75,11 +76,9 @@ private:
 
 };
 
-} // namespace NDetail
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using NDetail::TBuffer;
 
 class TBufferedTableWriter
     : public IAsyncWriter
@@ -89,21 +88,24 @@ public:
         TBufferedTableWriterConfigPtr config,
         IChannelPtr masterChannel,
         TTransactionManagerPtr transactionManager,
-        const TRichYPath& richPath,
+        const TRichYPath& path,
         const TNullable<TKeyColumns>& keyColumns)
         : Config_(config)
         , MasterChannel_(masterChannel)
         , TransactionManager_(transactionManager)
-        , Path_(richPath)
+        , Path_(path)
         , KeyColumns_(keyColumns)
         , CurrentBufferIndex_(-1)
         , FlushedBufferCount_(0)
         , RowCount_(0)
         , DroppedRowCount_(0)
         , CurrentBuffer_(nullptr)
+        , Logger(TableWriterLogger)
     {
         EmptyBuffers_.Enqueue(Buffers_);
         EmptyBuffers_.Enqueue(Buffers_ + 1);
+        
+        Logger.AddTag(Sprintf("Path: %s", ~Path_.GetPath()));
     }
 
     virtual void Open() override
@@ -172,17 +174,19 @@ private:
     TRichYPath Path_;
     TNullable<TKeyColumns> KeyColumns_;
 
-    i64 CurrentBufferIndex_;
-    i64 FlushedBufferCount_;
+    int CurrentBufferIndex_;
+    int FlushedBufferCount_;
 
     i64 RowCount_;
     i64 DroppedRowCount_;
 
     // Double buffering.
-    NDetail::TBuffer Buffers_[2];
+    TBuffer Buffers_[2];
 
-    NDetail::TBuffer* CurrentBuffer_;
+    TBuffer* CurrentBuffer_;
     TLockFreeQueue<TBuffer*> EmptyBuffers_;
+
+    NLog::TTaggedLogger Logger;
 
 
     void ScheduleBufferFlush(TBuffer* buffer)
@@ -203,7 +207,7 @@ private:
     void FlushBuffer(TBuffer* buffer)
     {
         if (buffer->GetIndex() > FlushedBufferCount_) {
-            // Previous chunk not yet flushed
+            // Previous chunk not yet flushed.
             ScheduleDelayedRetry(buffer);
             return;
         }
@@ -224,21 +228,16 @@ private:
             }
 
             writer->Close();
-            LOG_DEBUG(
-                "Buffered chunk successfully flushed (Path: %s, BufferIndex: %" PRId64 ")",
-                ~Path_.GetPath(),
+            LOG_DEBUG("Buffered table chunk flushed successfully (BufferIndex: %d)",
                 buffer->GetIndex());
 
             buffer->Clear();
             ++FlushedBufferCount_;
         } catch (const std::exception& ex) {
-            ScheduleDelayedRetry(buffer);
-
-            LOG_WARNING(
-                ex,
-                "Failed to write buffered chunk, scheduling retry (Path: %s, BufferIndex: %" PRId64 ")",
-                ~Path_.GetPath(),
+            LOG_WARNING(ex, "Buffered table chunk write failed, will retry later (BufferIndex: %d)",
                 buffer->GetIndex());
+
+            ScheduleDelayedRetry(buffer);
         }
     }
 
@@ -250,14 +249,14 @@ IAsyncWriterPtr CreateBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     IChannelPtr masterChannel,
     TTransactionManagerPtr transactionManager,
-    const TRichYPath richPath,
+    const TRichYPath& path,
     const TNullable<TKeyColumns>& keyColumns)
 {
     return New<TBufferedTableWriter>(
         config,
         masterChannel,
         transactionManager,
-        richPath,
+        path,
         keyColumns);
 }
 
