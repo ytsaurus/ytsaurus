@@ -40,7 +40,6 @@
 #ifndef YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 # define YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
-#line 19 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:387
 
     #include "plan_node.h"
 
@@ -52,7 +51,6 @@
         class TParser;
     } }
 
-#line 56 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:387
 
 
 # include <vector>
@@ -134,9 +132,7 @@
 # endif /* ! defined YYDEBUG */
 #endif  /* ! defined YT_QL_YYDEBUG */
 
-#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:387
 namespace NYT { namespace NQueryClient {
-#line 140 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:387
 
 
 
@@ -827,9 +823,7 @@ namespace NYT { namespace NQueryClient {
   };
 
 
-#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:387
 } } // NYT::NQueryClient
-#line 833 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:387
 
 
 

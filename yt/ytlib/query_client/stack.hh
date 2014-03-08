@@ -40,9 +40,7 @@
 
 # include <vector>
 
-#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // stack.hh:152
 namespace NYT { namespace NQueryClient {
-#line 46 "/Users/sandello/YT/source/yt/ytlib/query_client/stack.hh" // stack.hh:152
   template <class T, class S = std::vector<T> >
   class stack
   {
@@ -151,8 +149,6 @@ namespace NYT { namespace NQueryClient {
     unsigned int range_;
   };
 
-#line 5 "/Users/sandello/YT/source/yt/ytlib/query_client/parser.yy" // stack.hh:152
 } } // NYT::NQueryClient
-#line 157 "/Users/sandello/YT/source/yt/ytlib/query_client/stack.hh" // stack.hh:152
 
 #endif // !YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
