@@ -271,6 +271,7 @@ public:
 
 };
 
+// TODO(sandello): Make configurable.
 TCGCache::TCGCache()
     : Impl_(New<TImpl>(100))
 { }
