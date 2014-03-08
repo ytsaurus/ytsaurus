@@ -76,11 +76,14 @@ class TBufferedTableWriterConfig
 {
 public:
     TDuration RetryBackoffTime;
+    TDuration FlushPeriod;
 
     TBufferedTableWriterConfig()
     {
         RegisterParameter("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("flush_period", FlushPeriod)
+            .Default(TDuration::Seconds(60));
     }
 };
 

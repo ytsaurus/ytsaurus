@@ -6,6 +6,7 @@
 #include "table_writer.h"
 
 #include <core/concurrency/delayed_executor.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/property.h>
@@ -18,6 +19,8 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
+
+#include <queue>
 
 namespace NYT {
 namespace NTableClient {
@@ -49,7 +52,7 @@ public:
         for (const auto& pair : row) {
             newRow.push_back(std::make_pair(
                 Capture(pair.first),
-                Capture(pair.first)));
+                Capture(pair.second)));
         }
     }
 
@@ -62,6 +65,11 @@ public:
     i64 GetSize() const
     {
         return MemoryPool_.GetSize();
+    }
+
+    bool IsEmpty() const
+    {
+        return Rows_.empty();
     }
 
 private:
@@ -88,27 +96,30 @@ public:
         TBufferedTableWriterConfigPtr config,
         IChannelPtr masterChannel,
         TTransactionManagerPtr transactionManager,
-        const TRichYPath& path)
+        const TYPath& path)
         : Config_(config)
         , MasterChannel_(masterChannel)
         , TransactionManager_(transactionManager)
         , Path_(path)
+        , FlushExecutor_(New<TPeriodicExecutor>(
+            TDispatcher::Get()->GetWriterInvoker(),
+            BIND(&TBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
         , CurrentBufferIndex_(-1)
-        , FlushedBufferCount_(0)
-        , RowCount_(0)
+        , TotalRowCount_(0)
         , DroppedRowCount_(0)
+        , FlushedBufferCount_(0)
         , CurrentBuffer_(nullptr)
         , Logger(TableWriterLogger)
     {
-        EmptyBuffers_.Enqueue(Buffers_);
-        EmptyBuffers_.Enqueue(Buffers_ + 1);
+        EmptyBuffers_.push(Buffers_);
+        EmptyBuffers_.push(Buffers_ + 1);
         
-        Logger.AddTag(Sprintf("Path: %s", ~Path_.GetPath()));
+        Logger.AddTag(Sprintf("Path: %s", ~Path_));
     }
 
     virtual void Open() override
     {
-        // Do nothing.
+        FlushExecutor_->Start();
     }
 
     virtual bool IsReady() override
@@ -128,31 +139,33 @@ public:
 
     virtual void WriteRow(const TRow& row) override
     {
-        ++RowCount_;
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        ++TotalRowCount_;
 
         if (!CurrentBuffer_) {
-            if (EmptyBuffers_.IsEmpty()) {
+            if (EmptyBuffers_.empty()) {
                 // Buffer overfilled - drop row.
                 ++DroppedRowCount_;
                 return;
             }
 
             ++CurrentBufferIndex_;
-            EmptyBuffers_.Dequeue(&CurrentBuffer_);
+            CurrentBuffer_ = EmptyBuffers_.front();
+            EmptyBuffers_.pop();
             CurrentBuffer_->SetIndex(CurrentBufferIndex_);
         }
 
         CurrentBuffer_->AddRow(row);
 
         if (CurrentBuffer_->GetSize() > Config_->DesiredChunkSize) {
-            ScheduleBufferFlush(CurrentBuffer_);
-            CurrentBuffer_ = nullptr;
+            RotateBuffers();
         }
     }
 
     virtual i64 GetRowCount() const override
     {
-        return RowCount_;
+        return TotalRowCount_;
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -170,25 +183,49 @@ private:
     TBufferedTableWriterConfigPtr Config_;
     IChannelPtr MasterChannel_;
     TTransactionManagerPtr TransactionManager_;
-    TRichYPath Path_;
+    TYPath Path_;
 
-    int CurrentBufferIndex_;
-    int FlushedBufferCount_;
-
-    i64 RowCount_;
-    i64 DroppedRowCount_;
+    TPeriodicExecutorPtr FlushExecutor_;
 
     // Double buffering.
     TBuffer Buffers_[2];
 
+    // Guards the following section of members.
+    TSpinLock SpinLock_;
+    int CurrentBufferIndex_;
+    i64 TotalRowCount_;
+    i64 DroppedRowCount_;
     TBuffer* CurrentBuffer_;
-    TLockFreeQueue<TBuffer*> EmptyBuffers_;
+    std::queue<TBuffer*> EmptyBuffers_;
+
+    // Only accessed in writer thread.
+    int FlushedBufferCount_;
 
     NLog::TTaggedLogger Logger;
 
 
+    void OnPeriodicFlush()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        
+        if (CurrentBuffer_ && !CurrentBuffer_->IsEmpty()) {
+            RotateBuffers();
+        }
+    }
+
+    void RotateBuffers()
+    {
+        if (CurrentBuffer_) {
+            ScheduleBufferFlush(CurrentBuffer_);
+            CurrentBuffer_ = nullptr;
+        }
+    }
+
     void ScheduleBufferFlush(TBuffer* buffer)
     {
+        LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %d)",
+            buffer->GetIndex());
+
         TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
             &TBufferedTableWriter::FlushBuffer,
             MakeWeak(this),
@@ -211,12 +248,15 @@ private:
         }
 
         try {
+            TRichYPath richPath(Path_);
+            richPath.Attributes().Set("append", true);
+
             auto writer = CreateAsyncTableWriter(
                 Config_,
                 MasterChannel_,
                 nullptr,
                 TransactionManager_,
-                Path_,
+                richPath,
                 Null);
 
             writer->Open();
@@ -231,6 +271,11 @@ private:
 
             buffer->Clear();
             ++FlushedBufferCount_;
+
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                EmptyBuffers_.push(buffer);
+            }
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Buffered table chunk write failed, will retry later (BufferIndex: %d)",
                 buffer->GetIndex());
@@ -247,7 +292,7 @@ IAsyncWriterPtr CreateBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     IChannelPtr masterChannel,
     TTransactionManagerPtr transactionManager,
-    const TRichYPath& path)
+    const TYPath& path)
 {
     return New<TBufferedTableWriter>(
         config,
