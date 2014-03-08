@@ -83,10 +83,10 @@ Stroka TExpression::GetSource() const
     auto source = Context_->GetSource();
 
     if (!source.empty()) {
-        auto offset = SourceLocation_.GetOffset();
-        auto length = SourceLocation_.GetLength();
+        auto begin = SourceLocation_.first;
+        auto end = SourceLocation_.second;
 
-        source = source.substr(offset, length);
+        source = source.substr(begin, end - begin);
     }
 
     return source;

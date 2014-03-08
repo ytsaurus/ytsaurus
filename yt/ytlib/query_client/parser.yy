@@ -19,9 +19,6 @@
 %code requires {
     #include "plan_node.h"
 
-    #include <cmath>
-    #include <iostream>
-
     namespace NYT { namespace NQueryClient {
         class TLexer;
         class TParser;
@@ -31,6 +28,18 @@
 %code {
     #include <ytlib/query_client/lexer.h>
     #define yt_ql_yylex lexer.GetNextToken
+
+    #ifndef YYLLOC_DEFAULT
+    #define YYLLOC_DEFAULT(Current, Rhs, N) \
+        do { \
+            if (N) { \
+                (Current).first = YYRHSLOC(Rhs, 1).first; \
+                (Current).second = YYRHSLOC (Rhs, N).second; \
+            } else { \
+                (Current).first = (Current).second = YYRHSLOC(Rhs, 0).second; \
+            } \
+        } while (false)
+    #endif
 }
 
 %token End 0 "end of stream"
@@ -323,7 +332,7 @@ namespace NQueryClient {
 void TParser::error(const location_type& location, const std::string& message)
 {
     THROW_ERROR_EXCEPTION("Error while parsing query: %s", message.c_str())
-        << TErrorAttribute("query_range", ToString(location));
+        << TErrorAttribute("query_range", Sprintf("%d-%d", location.first, location.second));
 }
 
 } // namespace NQueryClient

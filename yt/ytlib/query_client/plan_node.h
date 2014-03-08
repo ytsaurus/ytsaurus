@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include "plan_context.h"
-#include "source_location.h"
 
 #include <ytlib/chunk_client/chunk_spec.h>
 
@@ -90,6 +89,9 @@ private:
     EKind Kind_;
 
 };
+
+typedef std::pair<int, int> TSourceLocation;
+static const TSourceLocation NullSourceLocation(0, 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 

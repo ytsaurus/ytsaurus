@@ -110,7 +110,7 @@ typedef TParser::token_type TToken;
         end => { type = TToken::End; fbreak; };
 
         # Advance location pointers when skipping whitespace.
-        wss => { location->begin = te - s; };
+        wss => { location->first = te - s; };
     *|;
 
 }%%
@@ -150,9 +150,9 @@ TParser::token_type TLexer::GetNextToken(
 {
     TParser::token_type type = TToken::End;
 
-    location->begin = p - s;
+    location->first = p - s;
     %% write exec;
-    location->end = p - s;
+    location->second = p - s;
 
     if (cs == %%{ write error; }%%) {
         // TODO(sandello): Handle lexer failures.

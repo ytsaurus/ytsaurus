@@ -31,20 +31,17 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /Users/sandello/YT/source/yt/ytlib/query_client/parser.hpp
+ ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "plan_node.h"
-
-    #include <cmath>
-    #include <iostream>
 
     namespace NYT { namespace NQueryClient {
         class TLexer;
@@ -828,4 +825,4 @@ namespace NYT { namespace NQueryClient {
 
 
 
-#endif // !YY_YT_QL_YY_USERS_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

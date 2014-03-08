@@ -67,7 +67,7 @@ TParser::token_type TLexer::GetNextToken(
 {
     TParser::token_type type = TToken::End;
 
-    location->begin = p - s;
+    location->first = p - s;
     
 	{
 	if ( p == pe )
@@ -156,7 +156,7 @@ tr24:
         }}
 	goto st6;
 tr25:
-	{te = p;p--;{ location->begin = te - s; }}
+	{te = p;p--;{ location->first = te - s; }}
 	goto st6;
 tr26:
 	{te = p;p--;{
@@ -790,7 +790,7 @@ case 30:
 	_out: {}
 	}
 
-    location->end = p - s;
+    location->second = p - s;
 
     if (cs == 
 0

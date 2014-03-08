@@ -53,6 +53,18 @@
     #include <ytlib/query_client/lexer.h>
     #define yt_ql_yylex lexer.GetNextToken
 
+    #ifndef YYLLOC_DEFAULT
+    #define YYLLOC_DEFAULT(Current, Rhs, N) \
+        do { \
+            if (N) { \
+                (Current).first = YYRHSLOC(Rhs, 1).first; \
+                (Current).second = YYRHSLOC (Rhs, N).second; \
+            } else { \
+                (Current).first = (Current).second = YYRHSLOC(Rhs, 0).second; \
+            } \
+        } while (false)
+    #endif
+
 
 
 #ifndef YY_
@@ -1987,11 +1999,11 @@ namespace NYT { namespace NQueryClient {
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   102,   102,   109,   114,   120,   127,   136,   144,   153,
-     161,   169,   174,   181,   185,   192,   197,   201,   206,   210,
-     215,   219,   224,   226,   228,   230,   232,   234,   239,   243,
-     248,   250,   255,   259,   264,   266,   268,   273,   275,   277,
-     281,   285,   292,   299,   307,   312
+       0,   111,   111,   118,   123,   129,   136,   145,   153,   162,
+     170,   178,   183,   190,   194,   201,   206,   210,   215,   219,
+     224,   228,   233,   235,   237,   239,   241,   243,   248,   252,
+     257,   259,   264,   268,   273,   275,   277,   282,   284,   286,
+     290,   294,   301,   308,   316,   321
   };
 
   // Print the state stack on the debug stream.
@@ -2081,7 +2093,7 @@ namespace NQueryClient {
 void TParser::error(const location_type& location, const std::string& message)
 {
     THROW_ERROR_EXCEPTION("Error while parsing query: %s", message.c_str())
-        << TErrorAttribute("query_range", ToString(location));
+        << TErrorAttribute("query_range", Sprintf("%d-%d", location.first, location.second));
 }
 
 } // namespace NQueryClient

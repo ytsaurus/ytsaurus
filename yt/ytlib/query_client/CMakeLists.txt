@@ -13,7 +13,6 @@ set( SRCS
   ${BASE}/coordinate_controller.cpp
   ${BASE}/prepare_controller.cpp
   ${BASE}/executor.cpp
-  ${BASE}/source_location.cpp
 )
 
 set( HDRS
@@ -37,7 +36,6 @@ set( HDRS
   ${BASE}/plan_context.h
   ${BASE}/plan_fragment.h
   ${BASE}/query_service_proxy.h
-  ${BASE}/source_location.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
