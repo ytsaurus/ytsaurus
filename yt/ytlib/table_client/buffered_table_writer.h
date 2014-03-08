@@ -17,8 +17,7 @@ IAsyncWriterPtr CreateBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionManagerPtr transactionManager,
-    const NYPath::TRichYPath& path,
-    const TNullable<TKeyColumns>& keyColumns);
+    const NYPath::TRichYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

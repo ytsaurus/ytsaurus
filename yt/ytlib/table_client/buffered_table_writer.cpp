@@ -88,13 +88,11 @@ public:
         TBufferedTableWriterConfigPtr config,
         IChannelPtr masterChannel,
         TTransactionManagerPtr transactionManager,
-        const TRichYPath& path,
-        const TNullable<TKeyColumns>& keyColumns)
+        const TRichYPath& path)
         : Config_(config)
         , MasterChannel_(masterChannel)
         , TransactionManager_(transactionManager)
         , Path_(path)
-        , KeyColumns_(keyColumns)
         , CurrentBufferIndex_(-1)
         , FlushedBufferCount_(0)
         , RowCount_(0)
@@ -164,7 +162,8 @@ public:
 
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
     {
-        return KeyColumns_;
+        static TNullable<TKeyColumns> Result = Null;
+        return Result;
     }
 
 private:
@@ -172,7 +171,6 @@ private:
     IChannelPtr MasterChannel_;
     TTransactionManagerPtr TransactionManager_;
     TRichYPath Path_;
-    TNullable<TKeyColumns> KeyColumns_;
 
     int CurrentBufferIndex_;
     int FlushedBufferCount_;
@@ -219,7 +217,7 @@ private:
                 nullptr,
                 TransactionManager_,
                 Path_,
-                KeyColumns_);
+                Null);
 
             writer->Open();
 
@@ -249,15 +247,13 @@ IAsyncWriterPtr CreateBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     IChannelPtr masterChannel,
     TTransactionManagerPtr transactionManager,
-    const TRichYPath& path,
-    const TNullable<TKeyColumns>& keyColumns)
+    const TRichYPath& path)
 {
     return New<TBufferedTableWriter>(
         config,
         masterChannel,
         transactionManager,
-        path,
-        keyColumns);
+        path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
