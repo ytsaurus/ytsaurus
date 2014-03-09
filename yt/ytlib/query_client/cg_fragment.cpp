@@ -3,6 +3,8 @@
 
 #include "private.h"
 
+#include <llvm/ADT/Triple.h>
+
 #include <llvm/IR/DiagnosticInfo.h>
 #include <llvm/IR/DiagnosticPrinter.h>
 #include <llvm/IR/LLVMContext.h>
@@ -19,6 +21,7 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/Host.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -66,12 +69,22 @@ public:
 
         auto module = std::make_unique<llvm::Module>("cgfragment", Context_);
 
+        // Infer host parameters.
+        auto hostCpu = llvm::sys::getHostCPUName();
+        auto hostTriple = llvm::Triple::normalize(
+            llvm::sys::getProcessTriple()
+#ifdef _win_
+            + "-elf"
+#endif
+        );
+
         std::string what;
         Engine_.reset(llvm::EngineBuilder(module.get())
             .setEngineKind(llvm::EngineKind::JIT)
             .setOptLevel(llvm::CodeGenOpt::Default)
             .setUseMCJIT(true)
             .setMCJITMemoryManager(new TCGMemoryManager())
+            .setMCPU(hostCpu)
             .setErrorStr(&what)
             .create());
 
@@ -81,7 +94,12 @@ public:
             Module_ = module.release();
         }
 
+        Module_->setTargetTriple(hostTriple);
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
+
+        LOG_DEBUG("Created a new codegenerated fragment (HostCpu: %s, HostTriple: %s)",
+            hostCpu.str().c_str(),
+            hostTriple.c_str());
     }
 
     llvm::LLVMContext& GetContext()
