@@ -534,6 +534,7 @@ private:
             chunkReader->MakeCurrentRow();
             // Check end validator.
             if (!chunkReader->ValidateRow()) {
+                --chunkReader->CurrentRowIndex;
                 chunkReader->Initializer.Reset();
                 chunkReader->ReaderState.FinishOperation();
                 return;
@@ -860,7 +861,7 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
     if (ValidateRow()) {
         ++Provider->RowIndex_;
     } else {
-        CurrentRowIndex -= 1;
+        --CurrentRowIndex;
     }
 
     if (RowState.HasRunningOperation())
