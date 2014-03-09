@@ -127,19 +127,21 @@ protected:
     bool Running;
 
 
-    // Totals.
+    // These totals are approximate.
     int TotalInputChunkCount;
     i64 TotalInputDataSize;
     i64 TotalInputRowCount;
     i64 TotalInputValueCount;
 
+    // These totals are exact.
     int TotalIntermeidateChunkCount;
-    int TotalIntermediateDataSize;
-    int TotalIntermediateRowCount;
+    i64 TotalIntermediateDataSize;
+    i64 TotalIntermediateRowCount;
 
+    // These totals are exact.
     int TotalOutputChunkCount;
-    int TotalOutputDataSize;
-    int TotalOutputRowCount;
+    i64 TotalOutputDataSize;
+    i64 TotalOutputRowCount;
 
     int UnavailableInputChunkCount;
 

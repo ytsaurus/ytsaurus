@@ -336,11 +336,6 @@ protected:
             return ~ChunkPool;
         }
 
-        NJobTrackerClient::NProto::TJobStatistics GetJobStatistics() const
-        {
-            return JobStatistics;
-        }
-
         virtual void Persist(TPersistenceContext& context) override
         {
             TTask::Persist(context);
@@ -348,7 +343,6 @@ protected:
             using NYT::Persist;
             Persist(context, Controller);
             Persist(context, ChunkPool);
-            Persist(context, JobStatistics);
         }
 
     private:
@@ -356,8 +350,6 @@ protected:
 
         TSortControllerBase* Controller;
         std::unique_ptr<IChunkPool> ChunkPool;
-
-        NJobTrackerClient::NProto::TJobStatistics JobStatistics;
 
         virtual bool IsMemoryReserveEnabled() const override
         {
@@ -401,8 +393,6 @@ protected:
             TTask::OnJobCompleted(joblet);
 
             Controller->PartitionJobCounter.Completed(1);
-
-            JobStatistics += joblet->Job->Result().statistics();
 
             auto* resultExt = joblet->Job->Result().MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
@@ -1289,11 +1279,14 @@ protected:
     virtual void DoOperationCompleted() override
     {
         if (PartitionTask && IsRowCountPreserved()) {
-            auto inputRowCount = PartitionTask->GetJobStatistics().input().row_count();
-            if (inputRowCount != TotalOutputRowCount) {
+            i64 totalInputRowCount = 0;
+            for (auto partition : Partitions) {
+                totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
+            }
+            if (totalInputRowCount != TotalOutputRowCount) {
                 OnOperationFailed(TError(
-                    "Input/output row count mismatch in sort operation: %" PRId64 " != %" PRId64 ")",
-                    inputRowCount,
+                    "Input/output row count mismatch in sort operation: %" PRId64 " != %" PRId64,
+                    totalInputRowCount,
                     TotalOutputRowCount));
             }
         }
