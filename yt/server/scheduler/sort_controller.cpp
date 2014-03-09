@@ -1278,7 +1278,7 @@ protected:
 
     virtual void DoOperationCompleted() override
     {
-        if (PartitionTask && IsRowCountPreserved()) {
+        if (IsRowCountPreserved()) {
             i64 totalInputRowCount = 0;
             for (auto partition : Partitions) {
                 totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
