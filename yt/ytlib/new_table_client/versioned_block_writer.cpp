@@ -83,7 +83,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     }
 
     YASSERT(KeyStream_.GetSize() - keyOffset == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
-    WritePaddingZeroes(KeyStream_, GetKeySize(KeyColumnCount_, SchemaColumnCount_));
+    WritePadding(KeyStream_, GetKeySize(KeyColumnCount_, SchemaColumnCount_));
 }
 
 TBlock TSimpleVersionedBlockWriter::FlushBlock()

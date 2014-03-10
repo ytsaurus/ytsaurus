@@ -20,114 +20,117 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Alignment size; measured in bytes and must be a power of two.
-const size_t YTAlignment = 8;
+const size_t SerializationAlignment = 8;
+static_assert(
+    (SerializationAlignment & (SerializationAlignment - 1)) == 0,
+    "SerializationAlignment should be a power of two.");
 
-//! Auxiliary constants and functions.
 namespace NDetail {
 
-const ui8 Padding[YTAlignment] = { 0 };
+const ui8 SerializationPadding[SerializationAlignment] = { 0 };
 
 } // namespace NDetail
 
-static_assert(!(YTAlignment & (YTAlignment - 1)), "YTAlignment should be a power of two.");
-
-//! Rounds up the #size to the nearest factor of #YTAlignment.
-template <class T>
-T GetPaddingSize(T size)
+//! Returns the minimum number whose addition to #size makes
+//! the result divisible by #SerializationAlignment.
+FORCED_INLINE size_t GetPaddingSize(size_t size)
 {
-    T result = static_cast<T>(size % YTAlignment);
-    return result == 0 ? 0 : YTAlignment - result;
+    return
+        (SerializationAlignment - (size & (SerializationAlignment - 1))) &
+        (SerializationAlignment - 1);
 }
 
-template <class T>
-T AlignUp(T size)
+//! Rounds up #size to the nearest factor of #SerializationAlignment.
+FORCED_INLINE size_t AlignUp(size_t size)
 {
-    return size + GetPaddingSize(size);
+    return (size + SerializationAlignment - 1) & ~(SerializationAlignment - 1);
 }
 
-template <class OutputStream>
-size_t WritePaddingZeroes(OutputStream& output, i64 writtenSize)
-{
-    output.Write(&NDetail::Padding, GetPaddingSize(writtenSize));
-    return AlignUp(writtenSize);
-}
+////////////////////////////////////////////////////////////////////////////////
 
-template <class OutputStream>
-void Write(OutputStream& output, const TRef& ref)
+template <class TOutput>
+void Write(TOutput& output, const TRef& ref)
 {
     output.Write(ref.Begin(), ref.Size());
 }
 
-template <class OutputStream>
-void Append(OutputStream& output, const TRef& ref)
+template <class TOutput>
+void Append(TOutput& output, const TRef& ref)
 {
     output.Append(ref.Begin(), ref.Size());
 }
 
-template <class InputStream>
-size_t Read(InputStream& input, TRef& ref)
+template <class TInput>
+size_t Read(TInput& input, TRef& ref)
 {
     return input.Read(ref.Begin(), ref.Size());
 }
 
-template <class OutputStream, class T>
-void WritePod(OutputStream& output, const T& obj)
+template <class TOutput, class T>
+void WritePod(TOutput& output, const T& obj)
 {
     output.Write(&obj, sizeof(obj));
 }
 
-template <class OutputStream, class T>
-void AppendPod(OutputStream& output, const T& obj)
+template <class TOutput, class T>
+void AppendPod(TOutput& output, const T& obj)
 {
     output.Append(&obj, sizeof(obj));
 }
 
-template <class InputStream, class T>
-size_t ReadPod(InputStream& input, T& obj)
+template <class TInput, class T>
+size_t ReadPod(TInput& input, T& obj)
 {
     return input.Read(&obj, sizeof(obj));
 }
 
-template <class OutputStream>
-size_t WritePadded(OutputStream& output, const TRef& ref)
+template <class TOutput>
+size_t WritePadding(TOutput& output, size_t writtenSize)
+{
+    output.Write(&NDetail::SerializationPadding, GetPaddingSize(writtenSize));
+    return AlignUp(writtenSize);
+}
+
+template <class TOutput>
+size_t WritePadded(TOutput& output, const TRef& ref)
 {
     output.Write(ref.Begin(), ref.Size());
-    output.Write(&NDetail::Padding, GetPaddingSize(ref.Size()));
+    output.Write(&NYT::NDetail::SerializationPadding, GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }
 
-template <class OutputStream>
-size_t AppendPadded(OutputStream& output, const TRef& ref)
+template <class TOutput>
+size_t AppendPadded(TOutput& output, const TRef& ref)
 {
     output.Append(ref.Begin(), ref.Size());
-    output.Append(&NYT::NDetail::Padding, GetPaddingSize(ref.Size()));
+    output.Append(&NYT::NDetail::SerializationPadding, GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }
 
-template <class InputStream>
-size_t ReadPadded(InputStream& input, const TRef& ref)
+template <class TInput>
+size_t ReadPadded(TInput& input, const TRef& ref)
 {
     input.Read(ref.Begin(), ref.Size());
     input.Skip(GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }
 
-template <class InputStream, class T>
-size_t ReadPodPadded(InputStream& input, T& obj)
+template <class TInput, class T>
+size_t ReadPodPadded(TInput& input, T& obj)
 {
     auto objRef = TRef::FromPod(obj);
     return ReadPadded(input, objRef);
 }
 
-template <class OutputStream, class T>
-size_t AppendPodPadded(OutputStream& output, const T& obj)
+template <class TOutput, class T>
+size_t AppendPodPadded(TOutput& output, const T& obj)
 {
     auto objRef = TRef::FromPod(obj);
     return AppendPadded(output, objRef);
 }
 
-template <class OutputStream, class T>
-size_t WritePodPadded(OutputStream& output, const T& obj)
+template <class TOutput, class T>
+size_t WritePodPadded(TOutput& output, const T& obj)
 {
     auto objRef = TRef::FromPod(obj);
     return WritePadded(output, objRef);
@@ -138,12 +141,12 @@ size_t WritePodPadded(OutputStream& output, const T& obj)
 template <class T>
 TSharedRef PackRefs(const T& parts)
 {
-    i64 size = 0;
+    size_t size = 0;
 
     // Number of bytes to hold vector size.
     size += sizeof(i32);
     // Number of bytes to hold ref sizes.
-    size += sizeof(i64)* parts.size();
+    size += sizeof(i64) * parts.size();
     // Number of bytes to hold refs.
     for (const auto& ref : parts) {
         size += ref.Size();
