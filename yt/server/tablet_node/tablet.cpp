@@ -29,10 +29,10 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(const TTabletId& id)
-    : Config_(New<TTableMountConfig>())
-    , WriterOptions_(New<TTabletWriterOptions>())
-    , Id_(id)
+    : Id_(id)
     , Slot_(nullptr)
+    , Config_(New<TTableMountConfig>())
+    , WriterOptions_(New<TTabletWriterOptions>())
 { }
 
 TTablet::TTablet(
