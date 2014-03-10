@@ -215,17 +215,23 @@ private:
         TPlanContextPtr context)
     {
         auto chunkId = FromProto<TChunkId>(split.chunk_id());
-        auto lowerLimit = FromProto<TReadLimit>(split.lower_limit());
-        auto upperLimit = FromProto<TReadLimit>(split.upper_limit());
+        auto lowerBound = FromProto<TReadLimit>(split.lower_limit());
+        auto upperBound = FromProto<TReadLimit>(split.upper_limit());
         auto timestamp = GetTimestampFromDataSplit(split);
 
         auto chunkReader = CreateLocalChunkReader(Bootstrap_, chunkId);
         if (chunkReader) {
-            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %s)",
-                ~ToString(chunkId));
+            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %s, LowerBound: {%s}, UpperBound: {%s}, Timestamp: % " PRId64 ")",
+                ~ToString(chunkId),
+                ~ToString(lowerBound),
+                ~ToString(upperBound),
+                timestamp);
         } else {
-            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %s)",
-                ~ToString(chunkId));
+            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %s, LowerBound: {%s}, UpperBound: {%s}, Timestamp: % " PRId64 ")",
+                ~ToString(chunkId),
+                ~ToString(lowerBound),
+                ~ToString(upperBound),
+                timestamp);
 
             auto blockCache = Bootstrap_->GetBlockStore()->GetBlockCache();
             auto masterChannel = Bootstrap_->GetMasterChannel();
@@ -244,8 +250,8 @@ private:
         return CreateSchemedChunkReader(
             Config_->ChunkReader,
             std::move(chunkReader),
-            lowerLimit,
-            upperLimit,
+            lowerBound,
+            upperBound,
             timestamp);
     }
 
@@ -308,13 +314,17 @@ private:
                 ~FormatEnum(tablet->GetState()).Quote());
         }
 
-        LOG_DEBUG("Creating reader for tablet split (TabletId: %s, CellId: %s)",
-            ~ToString(tabletId),
-            ~ToString(slot->GetCellGuid()));
-
         auto lowerBound = GetLowerBoundFromDataSplit(split);
         auto upperBound = GetUpperBoundFromDataSplit(split);
         auto timestamp = GetTimestampFromDataSplit(split);
+
+        LOG_DEBUG("Creating reader for tablet split (TabletId: %s, CellId: %s, LowerBound: {%s}, UpperBound: {%s}, Timestamp: % " PRId64 ")",
+            ~ToString(tabletId),
+            ~ToString(slot->GetCellGuid()),
+            ~ToString(lowerBound),
+            ~ToString(upperBound),
+            timestamp);
+
         return CreateSchemedTabletReader(
             tablet,
             std::move(lowerBound),
