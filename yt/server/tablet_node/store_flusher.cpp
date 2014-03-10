@@ -121,7 +121,7 @@ private:
 
         store->SetState(EStoreState::Flushing);
 
-        tablet->GetEpochAutomatonInvoker()->Invoke(
+        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(
             BIND(&TStoreFlusher::FlushStore, MakeStrong(this), tablet, store));
     }
 
@@ -138,7 +138,7 @@ private:
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
 
-        auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
+        auto automatonInvoker = tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
         auto poolInvoker = ThreadPool_->GetInvoker();
 
         TObjectServiceProxy proxy(Bootstrap_->GetMasterChannel());

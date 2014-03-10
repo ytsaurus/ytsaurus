@@ -48,7 +48,7 @@ public:
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
-        , AutomatonInvoker_(Tablet_->GetEpochAutomatonInvoker())
+        , AutomatonInvoker_(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
         , ReadyEvent_(PresetResult)
         , Opened_(false)
         , Refilling_(false)

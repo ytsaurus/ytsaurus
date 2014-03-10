@@ -74,10 +74,12 @@ public:
         , SlotIndex_(slotIndex)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , AutomatonQueue_(New<TActionQueue>(Sprintf("TabletSlot:%d", SlotIndex_)))
+        , AutomatonQueue_(New<TFairShareActionQueue>(
+            Sprintf("TabletSlot:%d", SlotIndex_),
+            EAutomatonThreadQueue::GetDomainNames()))
         , Logger(TabletNodeLogger)
     {
-        VERIFY_INVOKER_AFFINITY(AutomatonQueue_->GetInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
 
         Reset();
     }
@@ -132,19 +134,19 @@ public:
         return Automaton_;
     }
 
-    IInvokerPtr GetAutomatonInvoker() const
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
-        return AutomatonQueue_->GetInvoker();
+        return AutomatonQueue_->GetInvoker(queue);
     }
 
-    IInvokerPtr GetEpochAutomatonInvoker() const
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
-        return EpochAutomatonInvoker_;
+        return EpochAutomatonInvokers_.empty() ? nullptr : EpochAutomatonInvokers_[queue];
     }
 
-    IInvokerPtr GetGuardedAutomatonInvoker() const
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
-        return GuardedAutomatonInvoker_;
+        return GuardedAutomatonInvokers_.empty() ? nullptr : GuardedAutomatonInvokers_[queue];
     }
 
     THiveManagerPtr GetHiveManager() const
@@ -276,7 +278,7 @@ public:
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->TabletNode->HydraManager,
                 Bootstrap_->GetControlInvoker(),
-                GetAutomatonInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Write),
                 Automaton_,
                 rpcServer,
                 CellManager_,
@@ -289,13 +291,17 @@ public:
             HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-            GuardedAutomatonInvoker_ = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonQueue_->GetInvoker());
+            GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
+            for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
+                GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(
+                    GetAutomatonInvoker(queue));
+            }
 
             HiveManager_ = New<THiveManager>(
                 CellGuid_,
                 Config_->TabletNode->HiveManager,
                 Bootstrap_->GetCellDirectory(),
-                GetAutomatonInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Write),
                 rpcServer,
                 HydraManager_,
                 Automaton_);
@@ -314,7 +320,7 @@ public:
 
             TransactionSupervisor_ = New<TTransactionSupervisor>(
                 Config_->TabletNode->TransactionSupervisor,
-                GetAutomatonInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Write),
                 rpcServer,
                 HydraManager_,
                 Automaton_,
@@ -403,9 +409,9 @@ private:
     NRpc::IServicePtr TabletService_;
 
     TTabletAutomatonPtr Automaton_;
-    TActionQueuePtr AutomatonQueue_;
-    IInvokerPtr EpochAutomatonInvoker_;
-    IInvokerPtr GuardedAutomatonInvoker_;
+    TFairShareActionQueuePtr AutomatonQueue_;
+    std::vector<IInvokerPtr> EpochAutomatonInvokers_;
+    std::vector<IInvokerPtr> GuardedAutomatonInvokers_;
 
     NLog::TTaggedLogger Logger;
 
@@ -427,7 +433,7 @@ private:
             HydraManager_.Reset();
         }
 
-        GuardedAutomatonInvoker_.Reset();
+        GuardedAutomatonInvokers_.clear();
 
         if (HiveManager_) {
             HiveManager_->Stop();
@@ -452,7 +458,7 @@ private:
 
         Automaton_.Reset();
 
-        EpochAutomatonInvoker_.Reset();
+        EpochAutomatonInvokers_.clear();
     }
 
     void SetCellGuid(const TCellGuid& cellGuid)
@@ -486,15 +492,18 @@ private:
 
     void OnStartEpoch()
     {
-        EpochAutomatonInvoker_ = HydraManager_
-            ->GetEpochContext()
-            ->CancelableContext
-            ->CreateInvoker(GetAutomatonInvoker());
+        EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
+        for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
+            EpochAutomatonInvokers_[queue] = HydraManager_
+                ->GetEpochContext()
+                ->CancelableContext
+                ->CreateInvoker(GetAutomatonInvoker(queue));
+        }
     }
 
     void OnStopEpoch()
     {
-        EpochAutomatonInvoker_.Reset();
+        EpochAutomatonInvokers_.clear();
     }
 
 
@@ -523,7 +532,7 @@ private:
 
         auto cancelableContext = epochContext->CancelableContext;
         auto actuallyDone = BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
-            .AsyncVia(GuardedAutomatonInvoker_)
+            .AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read))
             .Run(cancelableContext, consumer);
         // Wait for actuallyDone to become fulfilled or canceled.
         auto somehowDone = NewPromise();
@@ -604,19 +613,19 @@ TTabletAutomatonPtr TTabletSlot::GetAutomaton() const
     return Impl_->GetAutomaton();
 }
 
-IInvokerPtr TTabletSlot::GetAutomatonInvoker() const
+IInvokerPtr TTabletSlot::GetAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
-    return Impl_->GetAutomatonInvoker();
+    return Impl_->GetAutomatonInvoker(queue);
 }
 
-IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker() const
+IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
-    return Impl_->GetEpochAutomatonInvoker();
+    return Impl_->GetEpochAutomatonInvoker(queue);
 }
 
-IInvokerPtr TTabletSlot::GetGuardedAutomatonInvoker() const
+IInvokerPtr TTabletSlot::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
-    return Impl_->GetGuardedAutomatonInvoker();
+    return Impl_->GetGuardedAutomatonInvoker(queue);
 }
 
 THiveManagerPtr TTabletSlot::GetHiveManager() const

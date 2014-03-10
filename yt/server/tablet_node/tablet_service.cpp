@@ -39,7 +39,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetHydraManager(),
-            slot->GetAutomatonInvoker(),
+            slot->GetAutomatonInvoker(EAutomatonThreadQueue::Write),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellGuid()),
             TabletNodeLogger.GetCategory())
         , Slot_(slot)
@@ -49,7 +49,8 @@ public:
         YCHECK(Bootstrap_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
+            .SetInvoker(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Read)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
     }
 

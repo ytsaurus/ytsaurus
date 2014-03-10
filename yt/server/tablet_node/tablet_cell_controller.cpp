@@ -260,7 +260,7 @@ private:
             auto this_ = MakeStrong(this);
 
             for (auto slot : Owner_->Slots_) {
-                auto invoker = slot->GetGuardedAutomatonInvoker();
+                auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
                 if (!invoker)
                     continue;
                 auto result = NewPromise();

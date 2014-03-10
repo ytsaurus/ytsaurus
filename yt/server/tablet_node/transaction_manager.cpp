@@ -51,7 +51,7 @@ public:
             bootstrap)
         , Config_(config)
     {
-        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
 
         Slot_->GetAutomaton()->RegisterPart(this);
 
@@ -265,7 +265,7 @@ private:
         auto lease = TLeaseManager::CreateLease(
             timeout,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-                .Via(Slot_->GetEpochAutomatonInvoker()));
+                .Via(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)));
         YCHECK(LeaseMap_.insert(std::make_pair(transaction->GetId(), lease)).second);
     }
 

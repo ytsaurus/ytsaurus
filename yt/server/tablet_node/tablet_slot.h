@@ -41,9 +41,10 @@ public:
     
     NHydra::IHydraManagerPtr GetHydraManager() const;
     TTabletAutomatonPtr GetAutomaton() const;
-    IInvokerPtr GetAutomatonInvoker() const;
-    IInvokerPtr GetEpochAutomatonInvoker() const;
-    IInvokerPtr GetGuardedAutomatonInvoker() const;
+
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const;
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const;
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const;
 
     NHive::THiveManagerPtr GetHiveManager() const;
     NHive::TMailbox* GetMasterMailbox();

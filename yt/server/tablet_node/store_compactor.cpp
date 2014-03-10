@@ -126,7 +126,7 @@ private:
             pivotKeys.push_back(partition->GetPivotKey());
         }
 
-        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
+        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
             &TStoreCompactor::PartitionEden,
             MakeStrong(this),
             eden,
@@ -151,7 +151,7 @@ private:
         Logger.AddTag(Sprintf("TabletId: %s",
             ~ToString(tablet->GetId())));
 
-        auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
+        auto automatonInvoker = tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
         auto poolInvoker = ThreadPool_->GetInvoker();
 
         try {

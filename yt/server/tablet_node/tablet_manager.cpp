@@ -78,7 +78,7 @@ public:
             bootstrap)
         , Config_(config)
     {
-        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
 
         Slot_->GetAutomaton()->RegisterPart(this);
 
@@ -152,7 +152,7 @@ public:
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
             store->SetState(store->GetPersistentState());
-        }).Via(store->GetTablet()->GetEpochAutomatonInvoker());
+        }).Via(store->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         TDelayedExecutor::Submit(callback, Config_->ErrorBackoffTime);
     }
@@ -352,7 +352,7 @@ private:
     {
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            StopTablet(tablet);
+            StopTabletEpoch(tablet);
         }
 
         TabletMap_.Clear();
@@ -366,7 +366,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            StartTablet(tablet);
+            StartTabletEpoch(tablet);
             CheckIfFullyUnlocked(tablet);
             CheckIfAllStoresFlushed(tablet);
         }
@@ -382,7 +382,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            StopTablet(tablet);
+            StopTabletEpoch(tablet);
         }
     }
 
@@ -393,7 +393,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            StartTablet(tablet);
+            StartTabletEpoch(tablet);
         }
     }
 
@@ -403,7 +403,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            StopTablet(tablet);
+            StopTabletEpoch(tablet);
         }
     }
 
@@ -447,7 +447,7 @@ private:
         }
     
         if (!IsRecovery()) {
-            StartTablet(tablet);
+            StartTabletEpoch(tablet);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, StoreCount: %d, Keys: %s .. %s)",
@@ -472,7 +472,7 @@ private:
             tablet->SetState(ETabletState::Unmounted);
 
             if (!IsRecovery()) {
-                StopTablet(tablet);
+                StopTabletEpoch(tablet);
             }
 
             TabletMap_.Remove(tabletId);
@@ -543,7 +543,7 @@ private:
                     ~ToString(tabletId));
 
                 if (!IsRecovery()) {
-                    StopTablet(tablet);
+                    StopTabletEpoch(tablet);
                 }
 
                 TabletMap_.Remove(tabletId);
@@ -931,7 +931,7 @@ private:
     void PostTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
-        Slot_->GetEpochAutomatonInvoker()->Invoke(BIND(
+        Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
             IgnoreResult(&TMutation::Commit),
             mutation));
     }
@@ -950,16 +950,12 @@ private:
     }
 
 
-    void StartTablet(TTablet* tablet)
+    void StartTabletEpoch(TTablet* tablet)
     {
-        auto context = New<TCancelableContext>();
-        tablet->SetCancelableContext(context);
-
-        auto hydraManager = Slot_->GetHydraManager();
-        tablet->SetEpochAutomatonInvoker(context->CreateInvoker(Slot_->GetEpochAutomatonInvoker()));
+        tablet->StartEpoch(Slot_);
     }
 
-    void StopTablet(TTablet* tablet)
+    void StopTabletEpoch(TTablet* tablet)
     {
         for (const auto& partition : tablet->Partitions()) {
             partition->SetState(EPartitionState::None);
@@ -970,13 +966,7 @@ private:
             store->SetState(store->GetPersistentState());
         }
 
-        auto context = tablet->GetCancelableContext();
-        if (context) {
-            context->Cancel();
-            tablet->SetCancelableContext(nullptr);
-        }
-
-        tablet->SetEpochAutomatonInvoker(nullptr);
+        tablet->StopEpoch();
         
         tablet->GetStoreManager()->ResetRotationScheduled();
     }

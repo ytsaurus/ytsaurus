@@ -74,6 +74,11 @@ DECLARE_ENUM(EStoreState,
     (RemoveFailed)          // transient, waiting for back off to complete
 );
 
+DECLARE_ENUM(EAutomatonThreadQueue,
+    (Read)
+    (Write)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)

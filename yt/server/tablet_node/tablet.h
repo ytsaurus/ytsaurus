@@ -38,8 +38,7 @@ public:
     
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
 
-    DEFINE_BYVAL_RW_PROPERTY(TCancelableContextPtr, CancelableContext);
-    DEFINE_BYVAL_RW_PROPERTY(IInvokerPtr, EpochAutomatonInvoker);
+    DEFINE_BYVAL_RO_PROPERTY(TCancelableContextPtr, CancelableContext);
 
 public:
     explicit TTablet(const TTabletId& id);
@@ -95,8 +94,14 @@ public:
     int GetSchemaColumnCount() const;
     int GetKeyColumnCount() const;
 
+    void StartEpoch(TTabletSlotPtr slot);
+    void StopEpoch();
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue);
+
 private:
     TStoreManagerPtr StoreManager_;
+
+    std::vector<IInvokerPtr> EpochAutomatonInvokers_;
 
     std::unique_ptr<TPartition> Eden_;
 

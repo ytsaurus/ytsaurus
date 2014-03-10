@@ -227,7 +227,7 @@ private:
             ThrowNoSuchTablet(tabletId);
         }
 
-        auto invoker = slot->GetGuardedAutomatonInvoker();
+        auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
         if (!invoker) {
             ThrowNoSuchTablet(tabletId);
         }

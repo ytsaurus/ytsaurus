@@ -370,6 +370,32 @@ int TTablet::GetKeyColumnCount() const
     return static_cast<int>(KeyColumns_.size());
 }
 
+void TTablet::StartEpoch(TTabletSlotPtr slot)
+{
+    CancelableContext_ = New<TCancelableContext>();
+
+    EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
+    for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
+        EpochAutomatonInvokers_[queue] = CancelableContext_->CreateInvoker(
+            slot->GetEpochAutomatonInvoker(queue));
+    }
+}
+
+void TTablet::StopEpoch()
+{
+    if (CancelableContext_) {
+        CancelableContext_->Cancel();
+        CancelableContext_.Reset();
+    }
+
+    EpochAutomatonInvokers_.clear();
+}
+
+IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
+{
+    return EpochAutomatonInvokers_.empty() ? nullptr : EpochAutomatonInvokers_[queue];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
