@@ -44,20 +44,16 @@
 #include <llvm/Support/Threading.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include <mutex>
+
 // TODO(sandello):
 //  - Cleanup TFragmentParams, TPassedFragmentParams, TCGImmediates & TCGContext
 //    and their usages
 //  - Implement basic logging & profiling within evaluation code
 //
-////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NQueryClient {
-
-static auto& Logger = QueryClientLogger;
-
-static TLazyIntrusivePtr<NConcurrency::TActionQueue> CodegenQueue(
-    NConcurrency::TActionQueue::CreateFactory("Codegen"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +70,30 @@ using llvm::Instruction;
 using llvm::Type;
 using llvm::TypeBuilder;
 using llvm::Value;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = QueryClientLogger;
+
+static TLazyIntrusivePtr<TActionQueue> CodegenQueue(TActionQueue::CreateFactory("Codegen"));
+
+////////////////////////////////////////////////////////////////////////////////
+
+void InitializeLlvmImpl()
+{
+    llvm::llvm_start_multithreaded();
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmParser();
+    llvm::InitializeNativeTargetAsmPrinter();
+}
+
+void InitializeLlvm()
+{
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, &InitializeLlvmImpl);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <bool PreserveNames = true>
 class TContextPreservingInserter
@@ -1124,10 +1144,7 @@ class TCodegenController::TImpl
 public:
     TImpl()
     {
-        llvm::llvm_start_multithreaded();
-        llvm::InitializeNativeTarget();
-        llvm::InitializeNativeTargetAsmParser();
-        llvm::InitializeNativeTargetAsmPrinter();
+        InitializeLlvm();
         RegisterCGRoutines();
     }
 
