@@ -303,12 +303,12 @@ private:
 
             if (key == "min_timestamp" && miscExt.has_min_timestamp()) {
                 BuildYsonFluently(consumer)
-                    .Value(FormatBool(miscExt.min_timestamp()));
+                    .Value(miscExt.min_timestamp());
                 return true;
             }
             if (key == "max_timestamp" && miscExt.has_max_timestamp()) {
                 BuildYsonFluently(consumer)
-                    .Value(FormatBool(miscExt.max_timestamp()));
+                    .Value(miscExt.max_timestamp());
                 return true;
             }
         }
