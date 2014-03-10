@@ -157,8 +157,8 @@ void RegisterCGRoutinesImpl()
 
 void RegisterCGRoutines()
 {
-    static std::once_flag registeredCGRoutines;
-    std::call_once(registeredCGRoutines, &RegisterCGRoutinesImpl);
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, &RegisterCGRoutinesImpl);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
