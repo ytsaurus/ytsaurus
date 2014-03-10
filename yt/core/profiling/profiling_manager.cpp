@@ -101,22 +101,18 @@ public:
 
     TTagId RegisterTag(const TTag& tag)
     {
-        TTagId id;
-
-        {
-            TGuard<TSpinLock> guard(TagSpinLock);
-            auto pair = std::make_pair(tag.Key, tag.Value);
-            auto it = TagToId.find(pair);
-            if (it != TagToId.end()) {
-                return it->second;
-            }
-        
-            id = static_cast<TTagId>(IdToTag.size());
-            IdToTag.push_back(tag);
-            YCHECK(TagToId.insert(std::make_pair(pair, id)).second);
-
-            TagKeyToValues[tag.Key].push_back(tag.Value);
+        TGuard<TSpinLock> guard(TagSpinLock);
+        auto pair = std::make_pair(tag.Key, tag.Value);
+        auto it = TagToId.find(pair);
+        if (it != TagToId.end()) {
+            return it->second;
         }
+        
+        auto id = static_cast<TTagId>(IdToTag.size());
+        IdToTag.push_back(tag);
+        YCHECK(TagToId.insert(std::make_pair(pair, id)).second);
+
+        TagKeyToValues[tag.Key].push_back(tag.Value);
 
         auto tags = BuildYsonStringFluently()
             .DoMapFor(TagKeyToValues, [] (TFluentMap fluent, const TTagKeyToValues::value_type& pair) {
