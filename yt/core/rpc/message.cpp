@@ -70,24 +70,6 @@ TSharedRefArray CreateResponseMessage(
         attachments);
 }
 
-TSharedRefArray CreateResponseMessage(
-    IServiceContextPtr context)
-{
-    YCHECK(context->IsReplied());
-
-    NProto::TResponseHeader header;
-    ToProto(header.mutable_request_id(), context->GetRequestId());
-    ToProto(header.mutable_error(), context->GetError());
-
-    return
-        context->GetError().IsOK()
-        ? CreateResponseMessage(
-            header,
-            context->GetResponseBody(),
-            context->ResponseAttachments())
-        : CreateErrorResponseMessage(header);
-}
-
 TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header)
 {

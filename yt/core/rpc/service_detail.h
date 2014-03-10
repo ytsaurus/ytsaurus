@@ -476,6 +476,7 @@ private:
     TSpinLock ActiveRequestsLock;
     yhash_set<TActiveRequestPtr> ActiveRequests;
 
+
     void Init(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,

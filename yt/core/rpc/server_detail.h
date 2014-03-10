@@ -57,31 +57,31 @@ public:
     virtual Stroka GetResponseInfo() override;
 
 protected:
+    std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
+    TSharedRefArray RequestMessage_;
+
+    TRequestId RequestId_;
+    TRealmId RealmId_;
+
+    TSharedRef RequestBody_;
+    std::vector<TSharedRef> RequestAttachments_;
+
+    bool Replied_;
+    TError Error_;
+
+    TSharedRef ResponseBody_;
+    std::vector<TSharedRef> ResponseAttachments_;
+
+    Stroka RequestInfo_;
+    Stroka ResponseInfo_;
+
+
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage);
 
     explicit TServiceContextBase(
         TSharedRefArray requestMessage);
-
-    std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
-    TSharedRefArray RequestMessage;
-
-    TRequestId RequestId;
-    TRealmId RealmId;
-
-    TSharedRef RequestBody;
-    std::vector<TSharedRef> RequestAttachments_;
-    bool Replied;
-    TError Error;
-
-    TSharedRef ResponseBody;
-    std::vector<TSharedRef> ResponseAttachments_;
-
-    TSharedRefArray ResponseMessage_;
-
-    Stroka RequestInfo;
-    Stroka ResponseInfo;
 
     virtual void DoReply() = 0;
 
@@ -91,6 +91,9 @@ protected:
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 
 private:
+    mutable TSharedRefArray ResponseMessage_; // cached
+
+
     void Initialize();
 
 };

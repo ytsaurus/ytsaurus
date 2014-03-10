@@ -22,7 +22,7 @@ TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage)
     : RequestHeader_(std::move(header))
-    , RequestMessage(std::move(requestMessage))
+    , RequestMessage_(std::move(requestMessage))
 {
     Initialize();
 }
@@ -30,43 +30,42 @@ TServiceContextBase::TServiceContextBase(
 TServiceContextBase::TServiceContextBase(
     TSharedRefArray requestMessage)
     : RequestHeader_(new TRequestHeader())
-    , RequestMessage(std::move(requestMessage))
+    , RequestMessage_(std::move(requestMessage))
 {
-    YCHECK(ParseRequestHeader(RequestMessage, RequestHeader_.get()));
+    YCHECK(ParseRequestHeader(RequestMessage_, RequestHeader_.get()));
     Initialize();
 }
 
 void TServiceContextBase::Initialize()
 {
-    RequestId = RequestHeader_->has_request_id()
+    RequestId_ = RequestHeader_->has_request_id()
         ? FromProto<TRequestId>(RequestHeader_->request_id())
         : NullRequestId;
 
-    RealmId = RequestHeader_->has_realm_id()
+    RealmId_ = RequestHeader_->has_realm_id()
         ? FromProto<TRealmId>(RequestHeader_->realm_id())
         : NullRealmId;
 
-    Replied = false;
+    Replied_ = false;
 
-    YASSERT(RequestMessage.Size() >= 2);
-    RequestBody = RequestMessage[1];
+    YASSERT(RequestMessage_.Size() >= 2);
+    RequestBody_ = RequestMessage_[1];
     RequestAttachments_ = std::vector<TSharedRef>(
-        RequestMessage.Begin() + 2,
-        RequestMessage.End());
+        RequestMessage_.Begin() + 2,
+        RequestMessage_.End());
 }
 
 void TServiceContextBase::Reply(const TError& error)
 {
-    YASSERT(!Replied);
+    YASSERT(!Replied_);
 
-    Error = error;
-    Replied = true;
+    Error_ = error;
+    Replied_ = true;
 
     if (IsOneWay()) {
         // Cannot reply OK to a one-way request.
         YCHECK(!error.IsOK());
     } else {
-        ResponseMessage_ = CreateResponseMessage(this);
         DoReply();
     }
 
@@ -75,35 +74,48 @@ void TServiceContextBase::Reply(const TError& error)
 
 void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 {
-    YASSERT(!Replied);
+    YASSERT(!Replied_);
     YASSERT(!IsOneWay());
     YASSERT(responseMessage.Size() >= 1);
 
     TResponseHeader header;
     YCHECK(DeserializeFromProto(&header, responseMessage[0]));
 
-    Error = FromProto(header.error());
-    if (Error.IsOK()) {
+    Error_ = FromProto(header.error());
+    if (Error_.IsOK()) {
         YASSERT(responseMessage.Size() >= 2);
-        ResponseBody = responseMessage[1];
+        ResponseBody_ = responseMessage[1];
         ResponseAttachments_ = std::vector<TSharedRef>(
             responseMessage.Begin() + 2,
             responseMessage.End());
     } else {
-        ResponseBody.Reset();
+        ResponseBody_.Reset();
         ResponseAttachments_.clear();
     }
 
-    Replied = true;
-    ResponseMessage_ = CreateResponseMessage(this);
+    Replied_ = true;
     DoReply();
     
-    LogResponse(Error);
+    LogResponse(Error_);
 }
 
 TSharedRefArray TServiceContextBase::GetResponseMessage() const
 {
-    YCHECK(Replied);
+    YCHECK(Replied_);
+
+    if (!ResponseMessage_) {
+        NProto::TResponseHeader header;
+        ToProto(header.mutable_request_id(), RequestId_);
+        ToProto(header.mutable_error(), Error_);
+
+        ResponseMessage_ = Error_.IsOK()
+            ? CreateResponseMessage(
+                header,
+                ResponseBody_,
+                ResponseAttachments_)
+            : CreateErrorResponseMessage(header);
+    }
+
     return ResponseMessage_;
 }
 
@@ -114,19 +126,19 @@ bool TServiceContextBase::IsOneWay() const
 
 bool TServiceContextBase::IsReplied() const
 {
-    return Replied;
+    return Replied_;
 }
 
 const TError& TServiceContextBase::GetError() const
 {
-    YASSERT(Replied);
+    YASSERT(Replied_);
 
-    return Error;
+    return Error_;
 }
 
 TSharedRef TServiceContextBase::GetRequestBody() const
 {
-    return RequestBody;
+    return RequestBody_;
 }
 
 std::vector<TSharedRef>& TServiceContextBase::RequestAttachments()
@@ -136,15 +148,15 @@ std::vector<TSharedRef>& TServiceContextBase::RequestAttachments()
 
 TSharedRef TServiceContextBase::GetResponseBody()
 {
-    return ResponseBody;
+    return ResponseBody_;
 }
 
 void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
-    YASSERT(!Replied);
+    YASSERT(!Replied_);
     YASSERT(!IsOneWay());
 
-    ResponseBody = responseBody;
+    ResponseBody_ = responseBody;
 }
 
 std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
@@ -156,12 +168,12 @@ std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 
 TSharedRefArray TServiceContextBase::GetRequestMessage() const
 {
-    return RequestMessage;
+    return RequestMessage_;
 }
 
 TRequestId TServiceContextBase::GetRequestId() const
 {
-    return RequestId;
+    return RequestId_;
 }
 
 TNullable<TInstant> TServiceContextBase::GetRequestStartTime() const
@@ -200,7 +212,7 @@ const Stroka& TServiceContextBase::GetVerb() const
 
 const TRealmId& TServiceContextBase::GetRealmId() const
 {
-    return RealmId;
+    return RealmId_;
 }
 
 const TRequestHeader& TServiceContextBase::RequestHeader() const
@@ -215,26 +227,26 @@ TRequestHeader& TServiceContextBase::RequestHeader()
 
 void TServiceContextBase::SetRequestInfo(const Stroka& info)
 {
-    RequestInfo = info;
+    RequestInfo_ = info;
     LogRequest();
 }
 
 Stroka TServiceContextBase::GetRequestInfo() const
 {
-    return RequestInfo;
+    return RequestInfo_;
 }
 
 void TServiceContextBase::SetResponseInfo(const Stroka& info)
 {
-    YASSERT(!Replied);
+    YASSERT(!Replied_);
     YASSERT(!IsOneWay());
 
-    ResponseInfo = info;
+    ResponseInfo_ = info;
 }
 
 Stroka TServiceContextBase::GetResponseInfo()
 {
-    return ResponseInfo;
+    return ResponseInfo_;
 }
 
 void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)

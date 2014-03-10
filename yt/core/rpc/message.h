@@ -23,9 +23,6 @@ TSharedRefArray CreateResponseMessage(
     const ::google::protobuf::MessageLite& body,
     const std::vector<TSharedRef>& attachments = std::vector<TSharedRef>());
 
-TSharedRefArray CreateResponseMessage(
-    IServiceContextPtr context);
-
 TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header);
 

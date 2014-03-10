@@ -945,14 +945,14 @@ protected:
     virtual void DoReply() override
     {
         if (ResponseHandler) {
-            ResponseHandler.Run(ResponseMessage_);
+            ResponseHandler.Run(GetResponseMessage());
         }
     }
 
     virtual void LogRequest() override
     {
         Stroka str;
-        AppendInfo(str, RequestInfo);
+        AppendInfo(str, RequestInfo_);
         LOG_DEBUG("%s:%s %s <- %s",
             ~GetService(),
             ~GetVerb(),
@@ -964,7 +964,7 @@ protected:
     {
         Stroka str;
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
-        AppendInfo(str, ResponseInfo);
+        AppendInfo(str, ResponseInfo_);
         LOG_DEBUG("%s:%s %s -> %s",
             ~GetService(),
             ~GetVerb(),

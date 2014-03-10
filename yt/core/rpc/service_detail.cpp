@@ -91,9 +91,16 @@ public:
         , ReplyBus(std::move(replyBus))
         , Logger(loggingCategory)
     {
-        YASSERT(RequestMessage);
+        YASSERT(RequestMessage_);
         YASSERT(ReplyBus);
         YASSERT(Service);
+    }
+
+    ~TServiceContext()
+    {
+        if (!IsOneWay() && !Replied_) {
+            Reply(TError(NRpc::EErrorCode::Unavailable, "Request canceled"));
+        }
     }
 
 private:
@@ -102,9 +109,10 @@ private:
     IBusPtr ReplyBus;
     NLog::TLogger Logger;
 
+
     virtual void DoReply() override
     {
-        Service->OnResponse(ActiveRequest, ResponseMessage_);
+        Service->OnResponse(ActiveRequest, GetResponseMessage());
     }
 
     virtual void LogRequest() override
@@ -115,12 +123,12 @@ private:
         Stroka str;
         str.reserve(1024); // should be enough for a typical request message
 
-        if (RequestId != NullRequestId) {
-            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        if (RequestId_ != NullRequestId) {
+            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId_)));
         }
 
-        if (RealmId != NullRealmId) {
-            AppendInfo(str, Sprintf("RealmId: %s", ~ToString(RealmId)));
+        if (RealmId_ != NullRealmId) {
+            AppendInfo(str, Sprintf("RealmId: %s", ~ToString(RealmId_)));
         }
 
         auto user = FindAuthenticatedUser(*RequestHeader_);
@@ -128,7 +136,7 @@ private:
             AppendInfo(str, Sprintf("User: %s", ~*user));
         }
 
-        AppendInfo(str, RequestInfo);
+        AppendInfo(str, RequestInfo_);
 
         LOG_DEBUG("%s <- %s",
             ~GetVerb(),
@@ -143,13 +151,13 @@ private:
         Stroka str;
         str.reserve(1024); // should be enough for typical response message
 
-        if (RequestId != NullRequestId) {
-            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        if (RequestId_ != NullRequestId) {
+            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId_)));
         }
 
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
 
-        AppendInfo(str, ResponseInfo);
+        AppendInfo(str, ResponseInfo_);
 
         LOG_DEBUG("%s -> %s",
             ~GetVerb(),

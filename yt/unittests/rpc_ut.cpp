@@ -40,11 +40,11 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegisteredCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistered);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, LongReply);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
 
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, CheckAll);
@@ -60,17 +60,13 @@ class TNonExistingServiceProxy
     : public TProxyBase
 {
 public:
-    static const Stroka ServiceName;
-
-    TNonExistingServiceProxy(IChannelPtr channel)
-        : TProxyBase(channel, ServiceName)
+    explicit TNonExistingServiceProxy(IChannelPtr channel)
+        : TProxyBase(channel, "NonExistingService")
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
 };
-
-const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,10 +98,10 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplyingCall));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LongReply));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OneWay)
             .SetOneWay(true));
@@ -117,16 +113,13 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, DoNothing);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, LongReply);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NoReply);
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegisteredCall);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, NotRegistredOneWay);
 
 private:
     // To signal for one-way rpc requests when processed the request
@@ -140,53 +133,27 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TMyService, ReplyingCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, DoNothing)
 {
-    UNUSED(request);
-    UNUSED(response);
     context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, EmptyCall)
-{
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, LongReply)
 {
-    UNUSED(request);
-    UNUSED(response);
     Sleep(TDuration::Seconds(5));
     context->Reply();
 }
 
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, NotRegisteredCall)
-{
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-}
+DEFINE_RPC_SERVICE_METHOD(TMyService, NoReply)
+{ }
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 {
-
-    UNUSED(request);
-    UNUSED(response);
     context->Reply(TError(42, "Some Error"));
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
-{
-    UNUSED(request);
-}
-
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, NotRegistredOneWay)
-{
-    UNUSED(request);
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -320,7 +287,7 @@ TEST_F(TRpcTest, Attachments)
 TEST_F(TRpcTest, OK)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.ReplyingCall();
+    auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(TError::OK, response->GetError().GetCode());
@@ -329,7 +296,7 @@ TEST_F(TRpcTest, OK)
 TEST_F(TRpcTest, TransportError)
 {
     TMyProxy proxy(CreateChannel("localhost:9999"));
-    auto request = proxy.EmptyCall();
+    auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
@@ -338,7 +305,7 @@ TEST_F(TRpcTest, TransportError)
 TEST_F(TRpcTest, NoService)
 {
     TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.EmptyCall();
+    auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchService, response->GetError().GetCode());
@@ -347,7 +314,7 @@ TEST_F(TRpcTest, NoService)
 TEST_F(TRpcTest, NoMethod)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.NotRegisteredCall();
+    auto request = proxy.NotRegistered();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetError().GetCode());
@@ -358,10 +325,20 @@ TEST_F(TRpcTest, Timeout)
     TMyProxy proxy(CreateChannel("localhost:2000"));
     proxy.SetDefaultTimeout(TDuration::Seconds(1));
 
-    auto request = proxy.EmptyCall();
+    auto request = proxy.LongReply();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::Timeout, response->GetError().GetCode());
+}
+
+TEST_F(TRpcTest, NoReply)
+{
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+
+    auto request = proxy.NoReply();
+    auto response = request->Invoke().Get();
+
+    EXPECT_EQ(EErrorCode::Unavailable, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, CustomErrorMessage)
@@ -411,8 +388,6 @@ TEST_F(TRpcTest, OneWaySend)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Different types of errors in one-way rpc
-// TODO: think about refactoring
 TEST_F(TRpcTest, OneWayOK)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
