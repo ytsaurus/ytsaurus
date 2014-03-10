@@ -1215,7 +1215,7 @@ private:
                 &pools,
                 writer.Get());
 
-            LOG_DEBUG("Flusing writer (FragmentId: %s)",
+            LOG_DEBUG("Flushing writer (FragmentId: %s)",
                 ~ToString(fragment.Id()));
 
             if (!batch.empty()) {
