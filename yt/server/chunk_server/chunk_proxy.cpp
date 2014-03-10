@@ -213,7 +213,7 @@ private:
 
         if (key == "confirmed") {
             BuildYsonFluently(consumer)
-                .Value(FormatBool(chunk->IsConfirmed()));
+                .Value(chunk->IsConfirmed());
             return true;
         }
 
@@ -297,7 +297,7 @@ private:
 
             if (key == "sorted" && miscExt.has_sorted()) {
                 BuildYsonFluently(consumer)
-                    .Value(FormatBool(miscExt.sorted()));
+                    .Value(miscExt.sorted());
                 return true;
             }
 
