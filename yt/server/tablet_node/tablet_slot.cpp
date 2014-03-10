@@ -366,7 +366,8 @@ public:
         State_ = EPeerState::Finalizing;
 
         auto this_ = MakeStrong(this);
-        BIND([this, this_] () {
+        auto owner = MakeStrong(Owner_);
+        BIND([this, this_, owner] () {
             SwitchToIOThread();
 
             auto tabletCellController = Bootstrap_->GetTabletCellController();
@@ -374,7 +375,7 @@ public:
 
             SwitchToControlThread();
 
-            tabletCellController->UnregisterTablets(Owner_);
+            tabletCellController->UnregisterTablets(owner);
 
             SnapshotStore_.Reset();
             ChangelogStore_.Reset();
