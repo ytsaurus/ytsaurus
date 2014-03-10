@@ -130,6 +130,8 @@ void TSequentialReader::DecompressBlock(
 {
     int globalIndex = firstSequenceIndex + blockIndex;
 
+    LOG_DEBUG("Started decompressing block (BlockIndex: %d)", globalIndex);
+
     const auto& blocks = readResult.Value();
     const auto& block = blocks[blockIndex];
     auto data = Codec->Decompress(block);
@@ -146,7 +148,7 @@ void TSequentialReader::DecompressBlock(
         AsyncSemaphore.Release(-delta);
     }
 
-    LOG_DEBUG("Decompressed block %d", globalIndex);
+    LOG_DEBUG("Finished decompressing block (BlockIndex: %d)", globalIndex);
 
     ++blockIndex;
     if (blockIndex < blocks.size()) {
