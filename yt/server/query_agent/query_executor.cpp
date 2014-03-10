@@ -287,13 +287,6 @@ private:
             timestamp);
     }
 
-
-    static Stroka LocationFromDataSplit(const TDataSplit& split)
-    {
-        auto objectId = GetObjectIdFromDataSplit(split);
-        return ToString(objectId);
-    }
-
 };
 
 IExecutorPtr CreateQueryExecutor(
