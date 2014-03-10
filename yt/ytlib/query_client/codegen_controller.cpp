@@ -1199,6 +1199,9 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
+            LOG_DEBUG("Writer opened (FragmentId: %s)",
+                ~ToString(fragment.Id()));
+
             TPassedFragmentParams passedFragmentParams;
             passedFragmentParams.Callbacks = callbacks;
             passedFragmentParams.Context = fragment.GetContext().Get();
