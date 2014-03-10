@@ -2,8 +2,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <core/concurrency/fiber.h>
-
 #include <core/misc/string.h>
 
 #include <ytlib/chunk_client/block_cache.h>
@@ -44,7 +42,6 @@
 namespace NYT {
 namespace NQueryAgent {
 
-using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
@@ -58,6 +55,54 @@ using namespace NCellNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = QueryAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLazySchemedReader
+    : public ISchemedReader
+{
+public:
+    explicit TLazySchemedReader(TFuture<TErrorOr<ISchemedReaderPtr>> futureUnderlyingReader)
+        : FutureUnderlyingReader_(std::move(futureUnderlyingReader))
+    { }
+
+    virtual TAsyncError Open(const TTableSchema& schema) override
+    {
+        return FutureUnderlyingReader_.Apply(
+            BIND(&TLazySchemedReader::DoOpen, MakeStrong(this), schema));
+    }
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        YASSERT(UnderlyingReader_);
+        return UnderlyingReader_->Read(rows);
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        YASSERT(UnderlyingReader_);
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+private:
+    TFuture<TErrorOr<ISchemedReaderPtr>> FutureUnderlyingReader_;
+
+    ISchemedReaderPtr UnderlyingReader_;
+
+
+    TAsyncError DoOpen(const TTableSchema& schema, TErrorOr<ISchemedReaderPtr> readerOrError)
+    {
+        if (!readerOrError.IsOK()) {
+            return MakeFuture(TError(readerOrError));
+        }
+
+        YCHECK(!UnderlyingReader_);
+        UnderlyingReader_ = readerOrError.Value();
+
+        return UnderlyingReader_->Open(schema);
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,35 +176,14 @@ public:
         const TDataSplit& split,
         TPlanContextPtr context) override
     {
-        auto asyncResult = BIND(&TQueryExecutor::DoGetReaderControl, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run(split, std::move(context));
-        auto resultOrError = WaitFor(asyncResult);
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-        return resultOrError.Value();
-    }
-
-private:
-    TQueryAgentConfigPtr Config_;
-    TBootstrap* Bootstrap_;
-
-    IExecutorPtr Coordinator_;
-    IExecutorPtr Evaluator_;
-
-
-    ISchemedReaderPtr DoGetReaderControl(
-        const TDataSplit& split,
-        TPlanContextPtr context)
-    {
         auto objectId = FromProto<TObjectId>(split.chunk_id());
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return DoGetChunkReaderControl(split, std::move(context));
+                return DoGetChunkReader(split, std::move(context));
 
             case EObjectType::Tablet:
-                return DoGetTabletReaderControl(split, std::move(context));
+                return DoGetTabletReader(split, std::move(context));
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %s", 
@@ -167,7 +191,26 @@ private:
         }
     }
 
-    ISchemedReaderPtr DoGetChunkReaderControl(
+private:
+    TQueryAgentConfigPtr Config_;
+    TBootstrap* Bootstrap_;
+    
+    IExecutorPtr Coordinator_;
+    IExecutorPtr Evaluator_;
+
+
+    ISchemedReaderPtr DoGetChunkReader(
+        const TDataSplit& split,
+        TPlanContextPtr context)
+    {
+        auto futureReader = BIND(&TQueryExecutor::DoControlGetChunkReader, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run(split, std::move(context));
+        return New<TLazySchemedReader>(std::move(futureReader));
+    }
+
+    ISchemedReaderPtr DoControlGetChunkReader(
         const TDataSplit& split,
         TPlanContextPtr context)
     {
@@ -207,48 +250,40 @@ private:
     }
 
 
-    void ThrowNoSuchTablet(const TTabletId& tabletId)
-    {
-        THROW_ERROR_EXCEPTION("Tablet %s is not known",
-            ~ToString(tabletId));
-    }
-
-    ISchemedReaderPtr DoGetTabletReaderControl(
+    ISchemedReaderPtr DoGetTabletReader(
         const TDataSplit& split,
         TPlanContextPtr context)
     {
-        auto tabletId = FromProto<TTabletId>(split.chunk_id());
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        auto cellId = tabletCellController->FindCellByTablet(tabletId);
-        if (cellId == NullTabletCellId) {
-            ThrowNoSuchTablet(tabletId);
+        try {
+            auto tabletId = FromProto<TTabletId>(split.chunk_id());
+            auto tabletCellController = Bootstrap_->GetTabletCellController();
+            auto slot = tabletCellController->FindSlotByTabletId(tabletId);
+            if (!slot) {
+                ThrowNoSuchTablet(tabletId);
+            }
+
+            auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
+            if (!invoker) {
+                ThrowNoSuchTablet(tabletId);
+            }
+
+            auto futureReader = BIND(&TQueryExecutor::DoAutomatonGetTabletReader, MakeStrong(this))
+                .Guarded()
+                .AsyncVia(invoker)
+                .Run(tabletId, slot, split, std::move(context));
+
+            if (futureReader.IsCanceled()) {
+                ThrowNoSuchTablet(tabletId);
+            }
+
+            return New<TLazySchemedReader>(futureReader);
+        } catch (const std::exception& ex) {
+            auto futureReader = MakeFuture(TErrorOr<ISchemedReaderPtr>(ex));
+            return New<TLazySchemedReader>(futureReader);
         }
-
-        auto slot = tabletCellController->FindSlot(cellId);
-        if (!slot) {
-            ThrowNoSuchTablet(tabletId);
-        }
-
-        auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
-        if (!invoker) {
-            ThrowNoSuchTablet(tabletId);
-        }
-
-        auto asyncResult = BIND(&TQueryExecutor::DoGetTabletReaderAutomaton, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(invoker)
-            .Run(tabletId, slot, split, std::move(context));
-
-        if (asyncResult.IsCanceled()) {
-            ThrowNoSuchTablet(tabletId);
-        }
-
-        auto resultOrError = WaitFor(asyncResult);
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-        return resultOrError.Value();
     }
 
-    ISchemedReaderPtr DoGetTabletReaderAutomaton(
+    ISchemedReaderPtr DoAutomatonGetTabletReader(
         const TTabletId& tabletId,
         TTabletSlotPtr slot,
         const TDataSplit& split,
@@ -285,6 +320,13 @@ private:
             std::move(lowerBound),
             std::move(upperBound),
             timestamp);
+    }
+
+
+    void ThrowNoSuchTablet(const TTabletId& tabletId)
+    {
+        THROW_ERROR_EXCEPTION("Tablet %s is not known",
+            ~ToString(tabletId));
     }
 
 };

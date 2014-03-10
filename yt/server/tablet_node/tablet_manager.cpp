@@ -953,6 +953,9 @@ private:
     void StartTabletEpoch(TTablet* tablet)
     {
         tablet->StartEpoch(Slot_);
+
+        auto tabletCellController = Bootstrap_->GetTabletCellController();
+        tabletCellController->RegisterTablet(tablet);
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -969,6 +972,9 @@ private:
         tablet->StopEpoch();
         
         tablet->GetStoreManager()->ResetRotationScheduled();
+
+        auto tabletCellController = Bootstrap_->GetTabletCellController();
+        tabletCellController->UnregisterTablet(tablet);
     }
 
 

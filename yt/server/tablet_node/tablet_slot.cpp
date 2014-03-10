@@ -136,16 +136,24 @@ public:
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return AutomatonQueue_->GetInvoker(queue);
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(InvokersSpinLock_);
         return EpochAutomatonInvokers_.empty() ? nullptr : EpochAutomatonInvokers_[queue];
     }
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(InvokersSpinLock_);
         return GuardedAutomatonInvokers_.empty() ? nullptr : GuardedAutomatonInvokers_[queue];
     }
 
@@ -291,10 +299,13 @@ public:
             HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-            GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-            for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
-                GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(
-                    GetAutomatonInvoker(queue));
+            {
+                TGuard<TSpinLock> guard(InvokersSpinLock_);
+                GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
+                for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
+                    GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(
+                        GetAutomatonInvoker(queue));
+                }
             }
 
             HiveManager_ = New<THiveManager>(
@@ -363,8 +374,11 @@ public:
 
             SwitchToControlThread();
 
+            tabletCellController->UnregisterTablets(Owner_);
+
             SnapshotStore_.Reset();
             ChangelogStore_.Reset();
+            
             Reset();
 
             LOG_INFO("Slot removed");
@@ -410,6 +424,8 @@ private:
 
     TTabletAutomatonPtr Automaton_;
     TFairShareActionQueuePtr AutomatonQueue_;
+
+    TSpinLock InvokersSpinLock_;
     std::vector<IInvokerPtr> EpochAutomatonInvokers_;
     std::vector<IInvokerPtr> GuardedAutomatonInvokers_;
 
@@ -432,8 +448,6 @@ private:
             HydraManager_->Stop();
             HydraManager_.Reset();
         }
-
-        GuardedAutomatonInvokers_.clear();
 
         if (HiveManager_) {
             HiveManager_->Stop();
@@ -458,7 +472,11 @@ private:
 
         Automaton_.Reset();
 
-        EpochAutomatonInvokers_.clear();
+        {
+            TGuard<TSpinLock> guard(InvokersSpinLock_);
+            EpochAutomatonInvokers_.clear();
+            GuardedAutomatonInvokers_.clear();
+        }
     }
 
     void SetCellGuid(const TCellGuid& cellGuid)
@@ -492,6 +510,7 @@ private:
 
     void OnStartEpoch()
     {
+        TGuard<TSpinLock> guard(InvokersSpinLock_);
         EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
         for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
             EpochAutomatonInvokers_[queue] = HydraManager_
@@ -503,6 +522,7 @@ private:
 
     void OnStopEpoch()
     {
+        TGuard<TSpinLock> guard(InvokersSpinLock_);
         EpochAutomatonInvokers_.clear();
     }
 

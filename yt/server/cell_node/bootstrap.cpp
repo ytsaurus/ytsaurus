@@ -307,7 +307,7 @@ void TBootstrap::Run()
 
     TabletCellController = New<TTabletCellController>(Config, this);
 
-    auto queryExecutor = CreateQueryExecutor(this);
+    auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
 
     RpcServer->RegisterService(CreateQueryService(
         GetControlInvoker(),

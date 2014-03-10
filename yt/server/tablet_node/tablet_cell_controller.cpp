@@ -41,7 +41,7 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = TabletNodeLogger;
-static auto TabletScanPeriod = TDuration::Seconds(3);
+static auto SlotScanPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,10 +55,10 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , UsedSlotCount_(0)
-        , TabletScanExecutor_(New<TPeriodicExecutor>(
+        , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
-            BIND(&TImpl::OnScanTablets, Unretained(this)),
-            TabletScanPeriod,
+            BIND(&TImpl::OnScanSlots, Unretained(this)),
+            SlotScanPeriod,
             EPeriodicExecutorMode::Manual))
     { }
 
@@ -102,7 +102,7 @@ public:
             Slots_[UsedSlotCount_++]->Load(cellGuid);
         }
 
-        TabletScanExecutor_->Start();
+        SlotScanExecutor_->Start();
 
         LOG_INFO("Tablet node initialized");
     }
@@ -129,12 +129,12 @@ public:
         return Slots_;
     }
 
-    TTabletSlotPtr FindSlot(const TCellGuid& guid)
+    TTabletSlotPtr FindSlot(const TCellGuid& id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (auto slot : Slots_) {
-            if (slot->GetCellGuid() == guid) {
+            if (slot->GetCellGuid() == id) {
                 return slot;
             }
         }
@@ -183,15 +183,63 @@ public:
     }
 
 
-    TTabletCellId FindCellByTablet(const TTabletId& tabletId)
+    TTabletSlotPtr FindSlotByTabletId(const TTabletId& tabletId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto it = TabletIdToCellIds_.find(tabletId);
-        return it == TabletIdToCellIds_.end() ? NullTabletCellId : it->second;
+        TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
+        auto it = TabletIdToSlot_.find(tabletId);
+        return it == TabletIdToSlot_.end() ? nullptr : it->second;
     }
 
-    
+    void RegisterTablet(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        {
+            TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
+            YCHECK(TabletIdToSlot_.insert(std::make_pair(tablet->GetId(), tablet->GetSlot())).second);
+        }
+
+        LOG_INFO("Tablet-to-slot mapping added (TabletId: %s, CellGuid: %s)",
+            ~ToString(tablet->GetId()),
+            ~ToString(tablet->GetSlot()->GetCellGuid()));
+    }
+
+    void UnregisterTablet(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        {
+            TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
+            // NB: Don't check the result.
+            TabletIdToSlot_.erase(tablet->GetId());
+        }
+
+        LOG_INFO("Tablet-to-slot mapping removed (TabletId: %s, CellGuid: %s)",
+            ~ToString(tablet->GetId()),
+            ~ToString(tablet->GetSlot()->GetCellGuid()));
+    }
+
+    void UnregisterTablets(TTabletSlotPtr slot)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
+        auto it = TabletIdToSlot_.begin();
+        while (it != TabletIdToSlot_.end()) {
+            auto jt = it++;
+            if (it->second == slot) {
+                LOG_INFO("Tablet-to-slot mapping removed (TabletId: %s, CellGuid: %s)",
+                    ~ToString(it->first),
+                    ~ToString(it->second->GetCellGuid()));
+                TabletIdToSlot_.erase(it);
+            }
+            it = jt;
+        }
+    }
+
+
     IChangelogCatalogPtr GetChangelogCatalog()
     {
         return ChangelogCatalog_;
@@ -228,8 +276,10 @@ private:
     int UsedSlotCount_;
     std::vector<TTabletSlotPtr> Slots_;
 
-    TPeriodicExecutorPtr TabletScanExecutor_;
-    yhash_map<TTabletId, TTabletCellId> TabletIdToCellIds_;
+    TPeriodicExecutorPtr SlotScanExecutor_;
+
+    TSpinLock TabletIdToSlotSpinLock_;
+    yhash_map<TTabletId, TTabletSlotPtr> TabletIdToSlot_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -263,67 +313,35 @@ private:
                 auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
                 if (!invoker)
                     continue;
-                auto result = NewPromise();
-                auto callback = BIND(&TTabletScanner::ScanSlot, this_, slot, result);
-                if (!invoker->Invoke(callback))
-                    continue;
-                awaiter->Await(result);
+
+                awaiter->Await(BIND([this, this_, slot] () {
+                        Owner_->SlotScan_.Fire(slot);
+                    })
+                    .AsyncVia(invoker)
+                    .Run());
             }
 
             return awaiter->Complete();
         }
 
-        const yhash_map<TTabletId, TTabletCellId>& GetResult() const
-        {
-            return TabletIdToCellIds_;
-        }
-
-
     private:
         TIntrusivePtr<TImpl> Owner_;
 
-        TSpinLock SpinLock_;
-        yhash_map<TTabletId, TTabletCellId> TabletIdToCellIds_;
-
-        void ScanSlot(TTabletSlotPtr slot, TPromise<void> result)
-        {
-            auto tabletManager = slot->GetTabletManager();
-
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                for (auto* tablet : tabletManager->Tablets().GetValues()) {
-                    if (tablet->GetState() == ETabletState::Mounted) {
-                        // NB: Allow collisions.
-                        TabletIdToCellIds_[tablet->GetId()] = slot->GetCellGuid();
-                    }
-                }
-            }
-
-            Owner_->SlotScan_.Fire(slot);
-
-            result.Set();
-        }
-
     };
 
-    void OnScanTablets()
+    void OnScanSlots()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_DEBUG("Tablet scan started");
+        LOG_DEBUG("Slot scan started");
 
         auto scanner = New<TTabletScanner>(this);
 
         auto this_ = MakeStrong(this);
-        scanner->Run().Subscribe(BIND([this, this_, scanner] () {
+        scanner->Run().Subscribe(BIND([this, this_] () {
             VERIFY_THREAD_AFFINITY(ControlThread);
-
-            const auto& result = scanner->GetResult();
-            LOG_DEBUG("Tablet scan completed, %d tablet(s) found",
-                static_cast<int>(result.size()));
-
-            TabletIdToCellIds_ = result;
-            TabletScanExecutor_->ScheduleNext();
+            LOG_DEBUG("Slot scan completed");
+            SlotScanExecutor_->ScheduleNext();
         }));
     }
 
@@ -362,9 +380,9 @@ const std::vector<TTabletSlotPtr>& TTabletCellController::Slots() const
     return Impl_->Slots();
 }
 
-TTabletSlotPtr TTabletCellController::FindSlot(const TCellGuid& guid)
+TTabletSlotPtr TTabletCellController::FindSlot(const TCellGuid& id)
 {
-    return Impl_->FindSlot(guid);
+    return Impl_->FindSlot(id);
 }
 
 void TTabletCellController::CreateSlot(const TCreateTabletSlotInfo& createInfo)
@@ -382,9 +400,24 @@ void TTabletCellController::RemoveSlot(TTabletSlotPtr slot)
     Impl_->RemoveSlot(slot);
 }
 
-TTabletCellId TTabletCellController::FindCellByTablet(const TTabletId& tabletId)
+TTabletSlotPtr TTabletCellController::FindSlotByTabletId(const TTabletId& tabletId)
 {
-    return Impl_->FindCellByTablet(tabletId);
+    return Impl_->FindSlotByTabletId(tabletId);
+}
+
+void TTabletCellController::RegisterTablet(TTablet* tablet)
+{
+    Impl_->RegisterTablet(tablet);
+}
+
+void TTabletCellController::UnregisterTablet(TTablet* tablet)
+{
+    Impl_->UnregisterTablet(tablet);
+}
+
+void TTabletCellController::UnregisterTablets(TTabletSlotPtr slot)
+{
+    Impl_->UnregisterTablets(std::move(slot));
 }
 
 IChangelogCatalogPtr TTabletCellController::GetChangelogCatalog()

@@ -42,6 +42,8 @@ public:
     NHydra::IHydraManagerPtr GetHydraManager() const;
     TTabletAutomatonPtr GetAutomaton() const;
 
+    // These methods are thread-safe.
+    // They may return |nullptr| is the invoker of a requested type is not available.
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const;
