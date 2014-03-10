@@ -108,6 +108,11 @@ public:
             "U have to be convertible to T");
     }
 
+    ~TPromiseState()
+    {
+        DoCancel();
+    }
+
     const T& Get() const
     {
         {
@@ -196,7 +201,12 @@ public:
     {
         // Calling subscribers may release the last reference to this.
         auto this_ = MakeStrong(this);
+        return DoCancel();
+    }
 
+private:
+    bool DoCancel()
+    {
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (Value_ || Canceled_) {
@@ -345,6 +355,11 @@ public:
         , Canceled_(false)
     { }
 
+    ~TPromiseState()
+    {
+        DoCancel();
+    }
+
     bool IsSet() const
     {
         // Guard is typically redundant.
@@ -415,8 +430,13 @@ public:
     bool Cancel()
     {
         // Calling subscribers may release the last reference to this.
-        auto this_ = MakeStrong(this);
+        auto this_ =  MakeStrong(this);
+        return DoCancel();
+    }
 
+private:
+    bool DoCancel()
+    {
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
