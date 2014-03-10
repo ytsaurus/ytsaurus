@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/small_vector.h>
-
 #include <ytlib/new_table_client/public.h>
 
 namespace NYT {
@@ -20,7 +18,7 @@ NVersionedTableClient::ISchemedReaderPtr CreateSchemedTabletReader(
     TTablet* tablet,
     NVersionedTableClient::TOwningKey lowerBound,
     NVersionedTableClient::TOwningKey upperBound,
-    TTimestamp timestamp);  
+    TTimestamp timestamp);
 
 //! Creates a reader that merges data from the relevant stores
 //! and provides all versions of each value.
