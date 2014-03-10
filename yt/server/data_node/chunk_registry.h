@@ -18,14 +18,13 @@ class TChunkRegistry
     : public TRefCounted
 {
 public:
-    //! Initializes a new instance.
     explicit TChunkRegistry(NCellNode::TBootstrap* bootstrap);
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
     TChunkPtr FindChunk(const TChunkId& chunkId) const;
 
 private:
-    NCellNode::TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap_;
 
 };
 
