@@ -307,11 +307,12 @@ void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
 bool TStoreManager::IsRotationNeeded() const
 {
     const auto& store = Tablet_->GetActiveStore();
+    const auto& config = Tablet_->GetConfig();
     return
-        store->GetKeyCount() >= Config_->KeyCountRotationThreshold ||
-        store->GetValueCount() >= Config_->ValueCountRotationThreshold ||
-        store->GetAlignedPoolSize() >= Config_->AlignedPoolSizeRotationThreshold ||
-        store->GetUnalignedPoolSize() >= Config_->UnalignedPoolSizeRotationThreshold;
+        store->GetKeyCount() >= config->KeyCountRotationThreshold ||
+        store->GetValueCount() >= config->ValueCountRotationThreshold ||
+        store->GetAlignedPoolSize() >= config->AlignedPoolSizeRotationThreshold ||
+        store->GetUnalignedPoolSize() >= config->UnalignedPoolSizeRotationThreshold;
 }
 
 void TStoreManager::SetRotationScheduled()

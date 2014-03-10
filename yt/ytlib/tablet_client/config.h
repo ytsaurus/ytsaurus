@@ -13,7 +13,10 @@ class TTableMountConfig
     : public TYsonSerializable
 {
 public:
-    int MaxVersions;
+    int KeyCountRotationThreshold;
+    int ValueCountRotationThreshold;
+    i64 AlignedPoolSizeRotationThreshold;
+    i64 UnalignedPoolSizeRotationThreshold;
 
     i64 MaxPartitionDataSize;
     i64 MinPartitionDataSize;
@@ -25,10 +28,18 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("max_versions", MaxVersions)
-            .Default(16)
+        RegisterParameter("key_count_rotation_threshold", KeyCountRotationThreshold)
             .GreaterThan(0)
-            .LessThanOrEqual(65535);
+            .Default(1000000);
+        RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
+            .GreaterThan(0)
+            .Default(10000000);
+        RegisterParameter("aligned_pool_size_rotation_threshold", AlignedPoolSizeRotationThreshold)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("unaligned_pool_size_rotation_threshold", UnalignedPoolSizeRotationThreshold)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 256 * 1024 * 1024)

@@ -44,20 +44,30 @@ TTablet::TTablet(
     const TKeyColumns& keyColumns,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey)
-    : Config_(config)
-    , WriterOptions_(writerOptions)
-    , Id_(id)
+    : Id_(id)
     , Slot_(slot)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
+    , Config_(config)
+    , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(this, TPartition::EdenIndex))
 { }
 
 TTablet::~TTablet()
 { }
+
+const NTabletClient::TTableMountConfigPtr& TTablet::GetConfig()
+{
+    return Config_;
+}
+
+const TTabletWriterOptionsPtr& TTablet::GetWriterOptions()
+{
+    return WriterOptions_;
+}
 
 void TTablet::Save(TSaveContext& context) const
 {

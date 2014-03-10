@@ -24,9 +24,6 @@ class TTablet
     : public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableMountConfigPtr, Config);
-    DEFINE_BYVAL_RO_PROPERTY(TTabletWriterOptionsPtr, WriterOptions);
-
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
     
@@ -53,6 +50,9 @@ public:
         NVersionedTableClient::TOwningKey nextPivotKey);
 
     ~TTablet();
+
+    const NTabletClient::TTableMountConfigPtr& GetConfig();
+    const TTabletWriterOptionsPtr& GetWriterOptions();
 
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr manager);
@@ -99,6 +99,9 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue);
 
 private:
+    NTabletClient::TTableMountConfigPtr Config_;
+    TTabletWriterOptionsPtr WriterOptions_;
+
     TStoreManagerPtr StoreManager_;
 
     std::vector<IInvokerPtr> EpochAutomatonInvokers_;

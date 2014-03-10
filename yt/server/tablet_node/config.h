@@ -73,19 +73,6 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.25);
 
-        RegisterParameter("key_count_rotation_threshold", KeyCountRotationThreshold)
-            .GreaterThan(0)
-            .Default(1000000);
-        RegisterParameter("value_count_rotation_threshold", ValueCountRotationThreshold)
-            .GreaterThan(0)
-            .Default(10000000);
-        RegisterParameter("aligned_pool_size_rotation_threshold", AlignedPoolSizeRotationThreshold)
-            .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
-        RegisterParameter("unaligned_pool_size_rotation_threshold", UnalignedPoolSizeRotationThreshold)
-            .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
-
         RegisterParameter("error_backoff_time", ErrorBackoffTime)
             .Default(TDuration::Minutes(1));
 
