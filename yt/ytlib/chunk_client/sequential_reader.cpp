@@ -140,10 +140,11 @@ void TSequentialReader::DecompressBlock(
 
     i64 delta = data.Size() - BlockSequence[globalIndex].Size;
 
-    if (delta > 0)
+    if (delta > 0) {
         AsyncSemaphore.Acquire(delta);
-    else
+    } else {
         AsyncSemaphore.Release(-delta);
+    }
 
     LOG_DEBUG("Decompressed block %d", globalIndex);
 
