@@ -246,17 +246,16 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
 
-    auto context = CreateYPathContext(
-        requestMessage,
-        "",
-        TYPathResponseHandler());
-
     IYPathServicePtr suffixService;
     TYPath suffixPath;
     try {
+        auto resolveContext = CreateYPathContext(
+            requestMessage,
+            "",
+            TYPathResponseHandler());
         ResolveYPath(
             service,
-            context,
+            resolveContext,
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
@@ -268,16 +267,16 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
     SetRequestYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-
+    
     auto asyncResponseMessage = NewPromise<TSharedRefArray>();
 
-    auto updatedContext = CreateYPathContext(
+    auto invokeContext = CreateYPathContext(
         updatedRequestMessage,
         suffixService->GetLoggingCategory(),
         BIND(&OnYPathResponse, asyncResponseMessage));
 
     // This should never throw.
-    suffixService->Invoke(updatedContext);
+    suffixService->Invoke(invokeContext);
 
     return asyncResponseMessage;
 }
