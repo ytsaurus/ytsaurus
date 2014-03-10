@@ -91,10 +91,9 @@ public:
 
         if (!Engine_) {
             THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine: %s", what.c_str());
-        } else {
-            Module_ = module.release();
         }
 
+        Module_ = module.release();
         Module_->setTargetTriple(hostTriple);
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
 
