@@ -58,6 +58,10 @@ private:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(const TReadLimit& limit);
+
 bool IsNontrivial(const TReadLimit& limit);
 bool IsTrivial(const TReadLimit& limit);
 
