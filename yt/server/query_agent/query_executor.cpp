@@ -66,8 +66,11 @@ class TQueryExecutor
     , public ICoordinateCallbacks
 {
 public:
-    explicit TQueryExecutor(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+    explicit TQueryExecutor(
+        TQueryAgentConfigPtr config,
+        TBootstrap* bootstrap)
+        : Config_(config)
+        , Bootstrap_(bootstrap)
         , Coordinator_(CreateCoordinator(
             Bootstrap_->GetQueryWorkerInvoker(),
             this))
@@ -138,6 +141,7 @@ public:
     }
 
 private:
+    TQueryAgentConfigPtr Config_;
     TBootstrap* Bootstrap_;
 
     IExecutorPtr Coordinator_;
@@ -183,11 +187,10 @@ private:
             auto blockCache = Bootstrap_->GetBlockStore()->GetBlockCache();
             auto masterChannel = Bootstrap_->GetMasterChannel();
             auto nodeDirectory = context->GetNodeDirectory();
-            // TODO(babenko): make configurable
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
             chunkReader = CreateReplicationReader(
-                New<TReplicationReaderConfig>(),
+                Config_->ChunkReader,
                 std::move(blockCache),
                 std::move(masterChannel),
                 std::move(nodeDirectory),
@@ -195,9 +198,8 @@ private:
                 chunkId);
         }
 
-        // TODO(babenko): make configurable
         return CreateSchemedChunkReader(
-            New<TChunkReaderConfig>(),
+            Config_->ChunkReader,
             std::move(chunkReader),
             lowerLimit,
             upperLimit,
@@ -294,9 +296,11 @@ private:
 
 };
 
-IExecutorPtr CreateQueryExecutor(TBootstrap* bootstrap)
+IExecutorPtr CreateQueryExecutor(
+    TQueryAgentConfigPtr config,
+    TBootstrap* bootstrap)
 {
-    return New<TQueryExecutor>(bootstrap);
+    return New<TQueryExecutor>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

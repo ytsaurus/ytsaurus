@@ -11,7 +11,9 @@ namespace NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NQueryClient::IExecutorPtr CreateQueryExecutor(NCellNode::TBootstrap* bootstrap);
+NQueryClient::IExecutorPtr CreateQueryExecutor(
+    TQueryAgentConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
