@@ -33,23 +33,23 @@ inline void TParallelAwaiter::Init(
 {
     YCHECK(invoker);
 
-    Canceled = false;
+    Canceled_ = false;
 
-    Completed = false;
-    CompletedPromise = NewPromise();
+    Completed_ = false;
+    CompletedPromise_ = NewPromise();
 
-    Terminated = false;
+    Terminated_ = false;
 
-    RequestCount = 0;
-    ResponseCount = 0;
+    RequestCount_ = 0;
+    ResponseCount_ = 0;
 
-    CancelableContext = New<TCancelableContext>();
-    CancelableInvoker = CancelableContext->CreateInvoker(invoker);
+    CancelableContext_ = New<TCancelableContext>();
+    CancelableInvoker_ = CancelableContext_->CreateInvoker(invoker);
 
-    Profiler = profiler;
+    Profiler_ = profiler;
 
-    if (Profiler && timingPath) {
-        Timer = Profiler->TimingStart(
+    if (Profiler_ && timingPath) {
+        Timer_ = Profiler_->TimingStart(
             *timingPath,
             NProfiling::EmptyTagIds,
             NProfiling::ETimerMode::Parallel);
@@ -58,13 +58,13 @@ inline void TParallelAwaiter::Init(
 
 inline bool TParallelAwaiter::TryAwait()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    YASSERT(!Completed);
+    TGuard<TSpinLock> guard(SpinLock_);
+    YASSERT(!Completed_);
 
-    if (Canceled || Terminated)
+    if (Canceled_ || Terminated_)
         return false;
 
-    ++RequestCount;
+    ++RequestCount_;
     return true;
 }
 
@@ -72,70 +72,127 @@ template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
     const NProfiling::TTagIdList& tagIds,
-    TCallback<void(T)> onResult)
+    TCallback<void(T)> onResult,
+    TClosure onCancel)
 {
     YASSERT(result);
 
     if (TryAwait()) {
         result.Subscribe(BIND(
-            &TParallelAwaiter::OnResult<T>,
+            &TParallelAwaiter::HandleResult<T>,
             MakeStrong(this),
             tagIds,
             Passed(std::move(onResult))));
+        result.OnCanceled(BIND(
+            &TParallelAwaiter::HandleCancel,
+            MakeStrong(this),
+            tagIds,
+            Passed(std::move(onCancel))));
     }
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
     const NProfiling::TTagIdList& tagIds,
-    TCallback<void(void)> onResult)
+    TCallback<void(void)> onResult,
+    TClosure onCancel)
 {
     YASSERT(result);
 
     if (TryAwait()) {
         result.Subscribe(BIND(
-            (void(TParallelAwaiter::*)(const NProfiling::TTagIdList&, TCallback<void()>)) &TParallelAwaiter::OnResult,
+            (void(TParallelAwaiter::*)(const NProfiling::TTagIdList&, TCallback<void()>)) &TParallelAwaiter::HandleResult,
             MakeStrong(this),
             tagIds,
             Passed(std::move(onResult))));
+        result.OnCanceled(BIND(
+            &TParallelAwaiter::HandleCancel,
+            MakeStrong(this),
+            tagIds,
+            Passed(std::move(onCancel))));
     }
 }
 
 template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
-    TCallback<void(T)> onResult)
+    TCallback<void(T)> onResult,
+    TClosure onCancel)
 {
-    Await(std::move(result), NProfiling::EmptyTagIds, std::move(onResult));
+    Await(
+        std::move(result),
+        NProfiling::EmptyTagIds,
+        std::move(onResult),
+        std::move(onCancel));
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
-    TCallback<void()> onResult)
+    TCallback<void()> onResult,
+    TClosure onCancel)
 {
-    Await(std::move(result), NProfiling::EmptyTagIds, std::move(onResult));
+    Await(
+        std::move(result),
+        NProfiling::EmptyTagIds,
+        std::move(onResult),
+        std::move(onCancel));
 }
 
-inline void TParallelAwaiter::OnResultImpl(const NProfiling::TTagIdList& tagIds)
+template <class T>
+void TParallelAwaiter::HandleResult(
+    const NProfiling::TTagIdList& tagIds,
+    TCallback<void(T)> onResult,
+    T result)
+{
+    if (onResult) {
+        CancelableInvoker_->Invoke(BIND(onResult, result));
+    }
+
+    HandleResponse(tagIds);
+}
+
+inline void TParallelAwaiter::HandleResult(
+    const NProfiling::TTagIdList& tagIds,
+    TCallback<void()> onResult)
+{
+    if (onResult) {
+        CancelableInvoker_->Invoke(onResult);
+    }
+
+    HandleResponse(tagIds);
+}
+
+inline void TParallelAwaiter::HandleCancel(
+    const NProfiling::TTagIdList& tagIds,
+    TCallback<void()> onCancel)
+{
+    if (onCancel) {
+        CancelableInvoker_->Invoke(onCancel);
+    }
+
+    HandleResponse(tagIds);
+}
+
+inline void TParallelAwaiter::HandleResponse(const NProfiling::TTagIdList& tagIds)
 {
     bool fireCompleted = false;
     TClosure onComplete;
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (Canceled || Terminated)
+        if (Canceled_ || Terminated_)
             return;
 
-        if (Profiler) {
-            Profiler->TimingCheckpoint(Timer, tagIds);
+        if (Profiler_) {
+            Profiler_->TimingCheckpoint(Timer_, tagIds);
         }
 
-        ++ResponseCount;
+        ++ResponseCount_;
 
-        fireCompleted = (ResponseCount == RequestCount) && Completed;
+        fireCompleted = (ResponseCount_ == RequestCount_) && Completed_;
 
         if (fireCompleted) {
-            onComplete = OnComplete;
+            onComplete = OnComplete_;
             Terminate();
         }
     }
@@ -145,59 +202,24 @@ inline void TParallelAwaiter::OnResultImpl(const NProfiling::TTagIdList& tagIds)
     }
 }
 
-inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
-{
-    auto this_ = MakeStrong(this);
-    CancelableInvoker->Invoke(BIND([this, this_, onComplete] () {
-        if (onComplete) {
-            onComplete.Run();
-        }
-        CompletedPromise.Set();
-    }));
-}
-
-template <class T>
-void TParallelAwaiter::OnResult(
-    const NProfiling::TTagIdList& tagIds,
-    TCallback<void(T)> onResult,
-    T result)
-{
-    if (onResult) {
-        CancelableInvoker->Invoke(BIND(onResult, result));
-    }
-
-    OnResultImpl(tagIds);
-}
-
-inline void TParallelAwaiter::OnResult(
-    const NProfiling::TTagIdList& tagIds,
-    TCallback<void()> onResult)
-{
-    if (onResult) {
-        CancelableInvoker->Invoke(onResult);
-    }
-
-    OnResultImpl(tagIds);
-}
-
 inline TFuture<void> TParallelAwaiter::Complete(
     TClosure onComplete,
     const NProfiling::TTagIdList& tagIds)
 {
     bool fireCompleted;
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        YASSERT(!Completed);
-        if (Canceled || Terminated) {
-            return CompletedPromise;
+        YASSERT(!Completed_);
+        if (Canceled_ || Terminated_) {
+            return CompletedPromise_;
         }
 
-        OnComplete = onComplete;
-        CompletedTagIds = tagIds;
-        Completed = true;
+        OnComplete_ = onComplete;
+        CompletedTagIds_ = tagIds;
+        Completed_ = true;
 
-        fireCompleted = (RequestCount == ResponseCount);
+        fireCompleted = (RequestCount_ == ResponseCount_);
 
         if (fireCompleted) {
             Terminate();
@@ -208,58 +230,69 @@ inline TFuture<void> TParallelAwaiter::Complete(
         DoFireCompleted(onComplete);
     }
 
-    return CompletedPromise;
+    return CompletedPromise_;
+}
+
+inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
+{
+    auto this_ = MakeStrong(this);
+    CancelableInvoker_->Invoke(BIND([this, this_, onComplete] () {
+        if (onComplete) {
+            onComplete.Run();
+        }
+        CompletedPromise_.Set();
+    }));
 }
 
 inline void TParallelAwaiter::Cancel()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (Canceled)
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (Canceled_)
         return;
 
-    CancelableContext->Cancel();
-    Canceled = true;
+    CancelableContext_->Cancel();
+    Canceled_ = true;
     Terminate();
 }
 
 inline int TParallelAwaiter::GetRequestCount() const
 {
-    return RequestCount;
+    return RequestCount_;
 }
 
 inline int TParallelAwaiter::GetResponseCount() const
 {
-    return ResponseCount;
+    return ResponseCount_;
 }
 
 inline bool TParallelAwaiter::IsCompleted() const
 {
-    return Completed;
+    return Completed_;
 }
 
 inline TFuture<void> TParallelAwaiter::GetAsyncCompleted() const
 {
-    return CompletedPromise;
+    return CompletedPromise_;
 }
 
 inline bool TParallelAwaiter::IsCanceled() const
 {
-    return Canceled;
+    return Canceled_;
 }
 
 inline void TParallelAwaiter::Terminate()
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock);
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-    if (Terminated)
+    if (Terminated_)
         return;
 
-    if (Completed && Profiler) {
-        Profiler->TimingStop(Timer, CompletedTagIds);
+    if (Completed_ && Profiler_) {
+        Profiler_->TimingStop(Timer_, CompletedTagIds_);
     }
 
-    OnComplete.Reset();
-    Terminated = true;
+    OnComplete_.Reset();
+    Terminated_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

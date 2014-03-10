@@ -30,22 +30,26 @@ public:
     template <class T>
     void Await(
         TFuture<T> result,
-        TCallback<void(T)> onResult = TCallback<void(T)>());
+        TCallback<void(T)> onResult = TCallback<void(T)>(),
+        TClosure onCancel = TClosure());
     template <class T>
     void Await(
         TFuture<T> result,
         const NProfiling::TTagIdList& tagIds,
-        TCallback<void(T)> onResult = TCallback<void(T)>());
+        TCallback<void(T)> onResult = TCallback<void(T)>(),
+        TClosure onCancel = TClosure());
 
     //! Specialization of #Await for |T = void|.
     void Await(
         TFuture<void> result,
-        TCallback<void()> onResult = TCallback<void()>());
+        TCallback<void()> onResult = TCallback<void()>(),
+        TClosure onCancel = TClosure());
     //! Specialization of #Await for |T = void|.
     void Await(
         TFuture<void> result,
         const NProfiling::TTagIdList& tagIds,
-        TCallback<void()> onResult = TCallback<void()>());
+        TCallback<void()> onResult = TCallback<void()>(),
+        TClosure onCancel = TClosure());
 
     TFuture<void> Complete(
         TClosure onComplete = TClosure(),
@@ -62,25 +66,26 @@ public:
     bool IsCanceled() const;
 
 private:
-    TSpinLock SpinLock;
+    TSpinLock SpinLock_;
 
-    bool Canceled;
+    bool Canceled_;
 
-    bool Completed;
-    TPromise<void> CompletedPromise;
-    TClosure OnComplete;
-    NProfiling::TTagIdList CompletedTagIds;
+    bool Completed_;
+    TPromise<void> CompletedPromise_;
+    TClosure OnComplete_;
+    NProfiling::TTagIdList CompletedTagIds_;
 
-    bool Terminated;
+    bool Terminated_;
 
-    int RequestCount;
-    int ResponseCount;
+    int RequestCount_;
+    int ResponseCount_;
 
-    TCancelableContextPtr CancelableContext;
-    IInvokerPtr CancelableInvoker;
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableInvoker_;
 
-    NProfiling::TProfiler* Profiler;
-    NProfiling::TTimer Timer;
+    NProfiling::TProfiler* Profiler_;
+    NProfiling::TTimer Timer_;
+
 
     void Init(
         IInvokerPtr invoker,
@@ -89,20 +94,24 @@ private:
 
     bool TryAwait();
 
-    void OnResultImpl(const NProfiling::TTagIdList& tagIds);
-    void DoFireCompleted(TClosure onComplete);
-
     void Terminate();
 
     template <class T>
-    void OnResult(
+    void HandleResult(
         const NProfiling::TTagIdList& tagIds,
         TCallback<void(T)> onResult,
         T result);
 
-    void OnResult(
+    void HandleResult(
         const NProfiling::TTagIdList& tagIds,
         TCallback<void()> onResult);
+
+    void HandleCancel(
+        const NProfiling::TTagIdList& tagIds,
+        TClosure onCancel);
+
+    void HandleResponse(const NProfiling::TTagIdList& tagIds);
+    void DoFireCompleted(TClosure onComplete);
 
 };
 
