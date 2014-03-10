@@ -52,6 +52,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
+        context->SetRequestInfo("");
+        
         auto planFragment = FromProto(request->plan_fragment());
         planFragment.GetContext()->GetNodeDirectory()->MergeFrom(request->node_directory());
 
