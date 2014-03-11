@@ -185,16 +185,12 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        if (Value_)
-            return;
-
         if (Canceled_) {
             guard.Release();
             onCancel.Run();
-            return;
+        } else if (!Value_) {
+            CancelHandlers_.push_back(std::move(onCancel));
         }
-
-        CancelHandlers_.push_back(std::move(onCancel));
     }
 
     bool Cancel()
@@ -421,8 +417,12 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        if (HasValue_ || Canceled_)
+        if (HasValue_)
             return;
+
+        if (Canceled_) {
+
+        }
 
         CancelHandlers_.push_back(std::move(onCancel));
     }
