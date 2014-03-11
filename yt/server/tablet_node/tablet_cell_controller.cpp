@@ -313,11 +313,6 @@ private:
                 if (!invoker)
                     continue;
 
-                auto cc = New<TCancelableContext>();
-                invoker = cc->CreateInvoker(invoker);
-
-                cc->Cancel();
-
                 awaiter->Await(BIND([this, this_, slot] () {
                         Owner_->SlotScan_.Fire(slot);
                     })
