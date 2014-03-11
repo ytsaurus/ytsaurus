@@ -19,8 +19,8 @@
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 
 #include "versioned_table_client_ut.h"
 
@@ -83,7 +83,7 @@ class TCoordinateCallbacksMock
     : public ICoordinateCallbacks
 {
 public:
-    MOCK_METHOD2(GetReader, ISchemedReaderPtr(
+    MOCK_METHOD2(GetReader, ISchemafulReaderPtr(
         const TDataSplit&,
         TPlanContextPtr));
 
@@ -97,7 +97,7 @@ public:
         const TDataSplits&,
         TPlanContextPtr));
 
-    MOCK_METHOD2(Delegate, ISchemedReaderPtr(
+    MOCK_METHOD2(Delegate, ISchemafulReaderPtr(
         const TPlanFragment&,
         const TDataSplit&));
 };
@@ -1145,12 +1145,12 @@ class TEvaluateCallbacksMock
     : public IEvaluateCallbacks
 {
 public:
-    MOCK_METHOD2(GetReader, ISchemedReaderPtr(const TDataSplit&, TPlanContextPtr));
+    MOCK_METHOD2(GetReader, ISchemafulReaderPtr(const TDataSplit&, TPlanContextPtr));
 
 };
 
 class TReaderMock
-    : public ISchemedReader
+    : public ISchemafulReader
 {
 public:
     MOCK_METHOD1(Open, TAsyncError(const TTableSchema&));
@@ -1159,7 +1159,7 @@ public:
 };
 
 class TWriterMock
-    : public ISchemedWriter
+    : public ISchemafulWriter
 {
 public:
     MOCK_METHOD2(Open, TAsyncError(const TTableSchema&, const TNullable<TKeyColumns>&));

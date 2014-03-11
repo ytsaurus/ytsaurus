@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "schemed_block_writer.h"
+#include "schemaful_block_writer.h"
 #include "unversioned_row.h"
 
 #include <core/misc/varint.h>

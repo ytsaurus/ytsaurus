@@ -42,7 +42,7 @@
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/schemed_reader.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
 
 
 namespace NYT {
@@ -68,7 +68,7 @@ static auto& Logger = ApiLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryResponseReader
-    : public ISchemedReader
+    : public ISchemafulReader
 {
 public:
     explicit TQueryResponseReader(TQueryServiceProxy::TInvExecute asyncResponse)
@@ -97,7 +97,7 @@ private:
     TQueryServiceProxy::TInvExecute AsyncResponse_;
 
     std::unique_ptr<TWireProtocolReader> ProtocolReader_;
-    ISchemedReaderPtr RowsetReader_;
+    ISchemafulReaderPtr RowsetReader_;
 
     
     TError OnResponse(
@@ -112,7 +112,7 @@ private:
         ProtocolReader_.reset(new TWireProtocolReader(response->encoded_response()));
 
         YCHECK(!RowsetReader_);
-        RowsetReader_ = ProtocolReader_->CreateSchemedRowsetReader();
+        RowsetReader_ = ProtocolReader_->CreateSchemafulRowsetReader();
 
         auto asyncResult = RowsetReader_->Open(schema);
         YCHECK(asyncResult.IsSet()); // this reader is sync
@@ -234,7 +234,7 @@ public:
 
     // ICoordinateCallbacks implementation.
 
-    virtual ISchemedReaderPtr GetReader(
+    virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& /*split*/,
         TPlanContextPtr /*context*/) override
     {
@@ -287,7 +287,7 @@ public:
         return result;
     }
 
-    virtual ISchemedReaderPtr Delegate(
+    virtual ISchemafulReaderPtr Delegate(
         const TPlanFragment& fragment,
         const TDataSplit& collocatedSplit) override
     {

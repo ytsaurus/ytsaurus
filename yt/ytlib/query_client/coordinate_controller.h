@@ -24,7 +24,7 @@ public:
 
     int GetPeerIndex(const TDataSplit& dataSplit);
 
-    virtual ISchemedReaderPtr GetReader(
+    virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
         TPlanContextPtr context) override;
 
@@ -54,7 +54,7 @@ private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
 
-    std::vector<std::tuple<TPlanFragment, const TDataSplit&, ISchemedReaderPtr>> Peers_;
+    std::vector<std::tuple<TPlanFragment, const TDataSplit&, ISchemafulReaderPtr>> Peers_;
 
     NLog::TTaggedLogger Logger;
 };

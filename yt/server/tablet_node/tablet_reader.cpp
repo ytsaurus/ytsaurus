@@ -14,7 +14,7 @@
 #include <core/concurrency/parallel_collector.h>
 
 #include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/schemed_reader.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/versioned_reader.h>
 
 #include <atomic>
@@ -274,12 +274,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemedTabletReader
+class TSchemafulTabletReader
     : public TTabletReaderBase
-    , public ISchemedReader
+    , public ISchemafulReader
 {
 public:
-    TSchemedTabletReader(
+    TSchemafulTabletReader(
         TTablet* tablet,
         TOwningKey lowerBound,
         TOwningKey upperBound,
@@ -293,7 +293,7 @@ public:
 
     virtual TAsyncError Open(const TTableSchema& schema) override
     {
-        return BIND(&TSchemedTabletReader::DoOpen, MakeStrong(this), schema)
+        return BIND(&TSchemafulTabletReader::DoOpen, MakeStrong(this), schema)
             .Guarded()
             .AsyncVia(AutomatonInvoker_)
             .Run();
@@ -358,7 +358,7 @@ private:
 
 };
 
-ISchemedReaderPtr CreateSchemedTabletReader(
+ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTablet* tablet,
     TOwningKey lowerBound,
     TOwningKey upperBound,
@@ -366,7 +366,7 @@ ISchemedReaderPtr CreateSchemedTabletReader(
 {
     YCHECK(tablet);
 
-    return New<TSchemedTabletReader>(
+    return New<TSchemafulTabletReader>(
         tablet,
         std::move(lowerBound),
         std::move(upperBound),

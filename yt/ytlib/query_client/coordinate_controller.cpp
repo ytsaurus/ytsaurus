@@ -16,7 +16,7 @@
 
 #include <ytlib/chunk_client/chunk_replica.h>
 
-#include <ytlib/new_table_client/schemed_reader.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
@@ -328,7 +328,7 @@ void TCoordinateController::DelegateToPeers()
     }
 }
 
-ISchemedReaderPtr TCoordinateController::GetReader(
+ISchemafulReaderPtr TCoordinateController::GetReader(
     const TDataSplit& split,
     TPlanContextPtr context)
 {

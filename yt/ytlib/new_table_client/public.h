@@ -104,9 +104,9 @@ typedef TIntrusivePtr<IReader> IReaderPtr;
 struct IWriter;
 typedef TIntrusivePtr<IWriter> IWriterPtr;
 
-DECLARE_REFCOUNTED_STRUCT(ISchemedReader)
-DECLARE_REFCOUNTED_STRUCT(ISchemedWriter)
-DECLARE_REFCOUNTED_CLASS(TSchemedPipe)
+DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemafulWriter)
+DECLARE_REFCOUNTED_CLASS(TSchemafulPipe)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)

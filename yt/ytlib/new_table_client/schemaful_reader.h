@@ -15,7 +15,7 @@ namespace NVersionedTableClient {
  *  
  *  Useful for: query engine.
  */
-struct ISchemedReader 
+struct ISchemafulReader 
     : public virtual TRefCounted
 {
     //! Initializes the reader. Must be called (and its result must be waited for)
@@ -38,7 +38,7 @@ struct ISchemedReader
 
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchemedReader)
+DEFINE_REFCOUNTED_TYPE(ISchemafulReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 

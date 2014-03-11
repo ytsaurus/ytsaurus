@@ -4,7 +4,7 @@
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/tablet_client/wire_protocol.h>
@@ -84,12 +84,12 @@ IRowsetPtr CreateRowset(
 
 static const auto PresetResult = MakeFuture(TError());
 
-class TSchemedRowsetWriter
+class TSchemafulRowsetWriter
     : public TRowsetBase
-    , public ISchemedWriter
+    , public ISchemafulWriter
 {
 public:
-    TSchemedRowsetWriter()
+    TSchemafulRowsetWriter()
         : Result_(NewPromise<TErrorOr<IRowsetPtr>>())
     { }
 
@@ -98,7 +98,7 @@ public:
         return Result_;
     }
 
-    // ISchemedWriter implementation.
+    // ISchemafulWriter implementation.
     virtual TAsyncError Open(
         const TTableSchema& schema,
         const TNullable<TKeyColumns>& /*keyColumns*/) override
@@ -134,9 +134,9 @@ private:
 
 };
 
-std::tuple<ISchemedWriterPtr, TPromise<TErrorOr<IRowsetPtr>>> CreateSchemedRowsetWriter()
+std::tuple<ISchemafulWriterPtr, TPromise<TErrorOr<IRowsetPtr>>> CreateSchemafulRowsetWriter()
 {
-    auto writer = New<TSchemedRowsetWriter>();
+    auto writer = New<TSchemafulRowsetWriter>();
     return std::make_tuple(writer, writer->GetResult());
 }
 

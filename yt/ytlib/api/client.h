@@ -291,7 +291,7 @@ struct IClientBase
 
     virtual TAsyncError SelectRows(
         const Stroka& query,
-        NVersionedTableClient::ISchemedWriterPtr writer,
+        NVersionedTableClient::ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(

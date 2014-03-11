@@ -1,13 +1,13 @@
 #include "stdafx.h"
-#include "schemed_chunk_reader.h"
+#include "schemaful_chunk_reader.h"
 #include "reader.h"
 #include "config.h"
 #include "private.h"
-#include "schemed_block_reader.h"
+#include "schemaful_block_reader.h"
 #include "name_table.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
-#include "schemed_reader.h"
+#include "schemaful_reader.h"
 #include "unversioned_row.h"
 
 #include <ytlib/chunk_client/async_reader.h>
@@ -54,7 +54,7 @@ using namespace NYson;
 
 class TChunkReader
     : public IReader
-    , public ISchemedReader
+    , public ISchemafulReader
 {
 public:
     TChunkReader(
@@ -360,7 +360,7 @@ IReaderPtr CreateChunkReader(
     return New<TChunkReader>(config, asyncReader, startLimit, endLimit, timestamp);
 }
 
-ISchemedReaderPtr CreateSchemedChunkReader(
+ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr asyncReader,
     const TReadLimit& startLimit,
@@ -375,7 +375,7 @@ ISchemedReaderPtr CreateSchemedChunkReader(
 // Adapter for old chunks.
 class TTableChunkReaderAdapter
     : public IReader
-    , public ISchemedReader
+    , public ISchemafulReader
 {
 public:
     TSequentialReaderPtr SequentialReader;
@@ -577,7 +577,7 @@ IReaderPtr CreateChunkReader(
     return New<TTableChunkReaderAdapter>(reader);
 }
 
-ISchemedReaderPtr CreateSchemedChunkReader(
+ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     const TChunkSpec& chunkSpec,
     NRpc::IChannelPtr masterChannel,

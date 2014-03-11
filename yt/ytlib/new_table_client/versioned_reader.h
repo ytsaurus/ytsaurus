@@ -9,10 +9,10 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Reads a schemed versioned rowset.
+//! Reads a schemaful versioned rowset.
 /*!
  *  Versioned rowset implies that it is:
- *  1. Schemed.
+ *  1. Schemaful.
  *  2. Sorted.
  *  3. No two rows share the same key.
  *

@@ -4,10 +4,10 @@ set( SRCS
   ${BASE}/name_table.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
-  ${BASE}/schemed_block_reader.cpp
-  ${BASE}/schemed_block_writer.cpp
-  ${BASE}/schemed_chunk_reader.cpp
-  ${BASE}/schemed_chunk_writer.cpp
+  ${BASE}/schemaful_block_reader.cpp
+  ${BASE}/schemaful_block_writer.cpp
+  ${BASE}/schemaful_chunk_reader.cpp
+  ${BASE}/schemaful_chunk_writer.cpp
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp
   ${BASE}/versioned_block_writer.cpp
@@ -29,12 +29,12 @@ set( HDRS
   ${BASE}/row_base.h
   ${BASE}/reader.h
   ${BASE}/schema.h
-  ${BASE}/schemed_block_reader.h
-  ${BASE}/schemed_block_writer.h
-  ${BASE}/schemed_chunk_reader.h
-  ${BASE}/schemed_chunk_writer.h
-  ${BASE}/schemed_reader.h
-  ${BASE}/schemed_writer.h
+  ${BASE}/schemaful_block_reader.h
+  ${BASE}/schemaful_block_writer.h
+  ${BASE}/schemaful_chunk_reader.h
+  ${BASE}/schemaful_chunk_writer.h
+  ${BASE}/schemaful_reader.h
+  ${BASE}/schemaful_writer.h
   ${BASE}/unversioned_row.h
   ${BASE}/versioned_block_writer.h
   ${BASE}/versioned_block_reader.h

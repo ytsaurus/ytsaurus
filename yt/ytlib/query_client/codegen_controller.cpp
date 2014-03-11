@@ -17,8 +17,8 @@
 #include "cg_types.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/row_buffer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schema.h>
@@ -1150,7 +1150,7 @@ public:
     TError Run(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer)
+        ISchemafulWriterPtr writer)
     {
         return EvaluateViaCache(
             callbacks,
@@ -1164,7 +1164,7 @@ private:
     TError EvaluateViaCache(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer)
+        ISchemafulWriterPtr writer)
     {
         auto result = Cache_.Codegen(
             fragment,
@@ -1260,7 +1260,7 @@ TCodegenController::~TCodegenController()
 TError TCodegenController::Run(
     IEvaluateCallbacks* callbacks,
     const TPlanFragment& fragment,
-    ISchemedWriterPtr writer)
+    ISchemafulWriterPtr writer)
 {
     return Impl_->Run(callbacks, fragment, std::move(writer));
 }

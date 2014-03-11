@@ -1,14 +1,14 @@
 #include "stdafx.h"
 
-#include "schemed_chunk_writer.h"
+#include "schemaful_chunk_writer.h"
 
-#include "schemed_block_writer.h"
+#include "schemaful_block_writer.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "name_table.h"
 #include "private.h"
 #include "schema.h"
-#include "schemed_writer.h"
+#include "schemaful_writer.h"
 #include "unversioned_row.h"
 #include "writer.h"
 
@@ -38,7 +38,7 @@ static const int TimestampIndex = 0;
 
 class TChunkWriter
     : public IWriter
-    , public ISchemedWriter
+    , public ISchemafulWriter
 {
 public:
     TChunkWriter(
@@ -446,7 +446,7 @@ IWriterPtr CreateChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemedWriterPtr CreateSchemedChunkWriter(
+ISchemafulWriterPtr CreateSchemafulChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     NChunkClient::IAsyncWriterPtr asyncWriter)

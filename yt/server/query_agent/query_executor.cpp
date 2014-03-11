@@ -13,9 +13,9 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/schemed_chunk_reader.h>
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
+#include <ytlib/new_table_client/schemaful_chunk_reader.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/pipe.h>
 
 #include <ytlib/query_client/plan_fragment.h>
@@ -58,18 +58,18 @@ static auto& Logger = QueryAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLazySchemedReader
-    : public ISchemedReader
+class TLazySchemafulReader
+    : public ISchemafulReader
 {
 public:
-    explicit TLazySchemedReader(TFuture<TErrorOr<ISchemedReaderPtr>> futureUnderlyingReader)
+    explicit TLazySchemafulReader(TFuture<TErrorOr<ISchemafulReaderPtr>> futureUnderlyingReader)
         : FutureUnderlyingReader_(std::move(futureUnderlyingReader))
     { }
 
     virtual TAsyncError Open(const TTableSchema& schema) override
     {
         return FutureUnderlyingReader_.Apply(
-            BIND(&TLazySchemedReader::DoOpen, MakeStrong(this), schema));
+            BIND(&TLazySchemafulReader::DoOpen, MakeStrong(this), schema));
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -85,12 +85,12 @@ public:
     }
 
 private:
-    TFuture<TErrorOr<ISchemedReaderPtr>> FutureUnderlyingReader_;
+    TFuture<TErrorOr<ISchemafulReaderPtr>> FutureUnderlyingReader_;
 
-    ISchemedReaderPtr UnderlyingReader_;
+    ISchemafulReaderPtr UnderlyingReader_;
 
 
-    TAsyncError DoOpen(const TTableSchema& schema, TErrorOr<ISchemedReaderPtr> readerOrError)
+    TAsyncError DoOpen(const TTableSchema& schema, TErrorOr<ISchemafulReaderPtr> readerOrError)
     {
         if (!readerOrError.IsOK()) {
             return MakeFuture(TError(readerOrError));
@@ -128,7 +128,7 @@ public:
     // IExecutor implementation.
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer) override
+        ISchemafulWriterPtr writer) override
     {
         return Coordinator_->Execute(fragment, std::move(writer));
     }
@@ -158,11 +158,11 @@ public:
         return result;
     }
 
-    virtual ISchemedReaderPtr Delegate(
+    virtual ISchemafulReaderPtr Delegate(
         const TPlanFragment& fragment,
         const TDataSplit& /*collocatedSplit*/) override
     {
-        auto pipe = New<TSchemedPipe>();
+        auto pipe = New<TSchemafulPipe>();
         Evaluator_->Execute(fragment, pipe->GetWriter())
             .Subscribe(BIND([pipe] (TError error) {
                 if (!error.IsOK()) {
@@ -172,7 +172,7 @@ public:
         return pipe->GetReader();
     }
 
-    virtual ISchemedReaderPtr GetReader(
+    virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
         TPlanContextPtr context) override
     {
@@ -199,7 +199,7 @@ private:
     IExecutorPtr Evaluator_;
 
 
-    ISchemedReaderPtr DoGetChunkReader(
+    ISchemafulReaderPtr DoGetChunkReader(
         const TDataSplit& split,
         TPlanContextPtr context)
     {
@@ -207,10 +207,10 @@ private:
             .Guarded()
             .AsyncVia(Bootstrap_->GetControlInvoker())
             .Run(split, std::move(context));
-        return New<TLazySchemedReader>(std::move(futureReader));
+        return New<TLazySchemafulReader>(std::move(futureReader));
     }
 
-    ISchemedReaderPtr DoControlGetChunkReader(
+    ISchemafulReaderPtr DoControlGetChunkReader(
         const TDataSplit& split,
         TPlanContextPtr context)
     {
@@ -247,7 +247,7 @@ private:
                 chunkId);
         }
 
-        return CreateSchemedChunkReader(
+        return CreateSchemafulChunkReader(
             Config_->ChunkReader,
             std::move(chunkReader),
             lowerBound,
@@ -256,7 +256,7 @@ private:
     }
 
 
-    ISchemedReaderPtr DoGetTabletReader(
+    ISchemafulReaderPtr DoGetTabletReader(
         const TDataSplit& split,
         TPlanContextPtr context)
     {
@@ -282,14 +282,14 @@ private:
                 ThrowNoSuchTablet(tabletId);
             }
 
-            return New<TLazySchemedReader>(futureReader);
+            return New<TLazySchemafulReader>(futureReader);
         } catch (const std::exception& ex) {
-            auto futureReader = MakeFuture(TErrorOr<ISchemedReaderPtr>(ex));
-            return New<TLazySchemedReader>(futureReader);
+            auto futureReader = MakeFuture(TErrorOr<ISchemafulReaderPtr>(ex));
+            return New<TLazySchemafulReader>(futureReader);
         }
     }
 
-    ISchemedReaderPtr DoAutomatonGetTabletReader(
+    ISchemafulReaderPtr DoAutomatonGetTabletReader(
         const TTabletId& tabletId,
         TTabletSlotPtr slot,
         const TDataSplit& split,
@@ -325,7 +325,7 @@ private:
             ~ToString(upperBound),
             timestamp);
 
-        return CreateSchemedTabletReader(
+        return CreateSchemafulTabletReader(
             tablet,
             std::move(lowerBound),
             std::move(upperBound),

@@ -11,7 +11,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Writes a schemed versioned rowset.
+//! Writes a schemaful versioned rowset.
 /*!
  *  Writes versioned rowset with given schema.
  *  Useful for: compactions.

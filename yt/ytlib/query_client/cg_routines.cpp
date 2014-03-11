@@ -6,8 +6,8 @@
 #include "callbacks.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -27,7 +27,7 @@ using namespace NConcurrency;
 void WriteRow(
     TRow row,
     std::vector<TRow>* batch,
-    ISchemedWriter* writer)
+    ISchemafulWriter* writer)
 {
     YASSERT(batch->size() < batch->capacity());
 

@@ -35,7 +35,7 @@ struct IEvaluateCallbacks
     { }
 
     //! Returns a reader for a given split.
-    virtual ISchemedReaderPtr GetReader(
+    virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
         TPlanContextPtr context) = 0;
 
@@ -75,7 +75,7 @@ struct ICoordinateCallbacks
         TPlanContextPtr context) = 0;
 
     //! Delegates fragment execution to be collocated with a given split.
-    virtual ISchemedReaderPtr Delegate(
+    virtual ISchemafulReaderPtr Delegate(
         const TPlanFragment& fragment,
         const TDataSplit& collocatedSplit) = 0;
 

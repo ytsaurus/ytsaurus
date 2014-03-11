@@ -7,8 +7,8 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemed_reader.h>
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_reader.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
@@ -29,11 +29,11 @@ static const auto PresetResult = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWireProtocolWriter::TSchemedRowsetWriter
-    : public ISchemedWriter
+class TWireProtocolWriter::TSchemafulRowsetWriter
+    : public ISchemafulWriter
 {
 public:
-    explicit TSchemedRowsetWriter(TWireProtocolWriter* writer)
+    explicit TSchemafulRowsetWriter(TWireProtocolWriter* writer)
         : Writer_(writer)
     { }
 
@@ -280,18 +280,18 @@ void TWireProtocolWriter::WriteUnversionedRowset(
     Impl_->WriteUnversionedRowset(rowset, idMapping);
 }
 
-ISchemedWriterPtr TWireProtocolWriter::CreateSchemedRowsetWriter()
+ISchemafulWriterPtr TWireProtocolWriter::CreateSchemafulRowsetWriter()
 {
-    return New<TSchemedRowsetWriter>(this);
+    return New<TSchemafulRowsetWriter>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWireProtocolReader::TSchemedRowsetReader
-    : public ISchemedReader
+class TWireProtocolReader::TSchemafulRowsetReader
+    : public ISchemafulReader
 {
 public:
-    explicit TSchemedRowsetReader(TWireProtocolReader* reader)
+    explicit TSchemafulRowsetReader(TWireProtocolReader* reader)
         : Reader_(reader)
         , Finished_(false)
     { }
@@ -547,9 +547,9 @@ void TWireProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* ro
     Impl_->ReadUnversionedRowset(rowset);
 }
 
-ISchemedReaderPtr TWireProtocolReader::CreateSchemedRowsetReader()
+ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader()
 {
-    return New<TSchemedRowsetReader>(this);
+    return New<TSchemafulRowsetReader>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

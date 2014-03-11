@@ -33,7 +33,7 @@ public:
 
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer) override
+        ISchemafulWriterPtr writer) override
     {
 #ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
@@ -69,7 +69,7 @@ public:
 
     virtual TAsyncError Execute(
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer) override
+        ISchemafulWriterPtr writer) override
     {
 #ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);

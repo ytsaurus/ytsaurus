@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "schemed_block_reader.h"
+#include "schemaful_block_reader.h"
 #include "unversioned_row.h"
 
 #include <core/misc/varint.h>

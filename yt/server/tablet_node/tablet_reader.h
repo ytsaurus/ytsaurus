@@ -14,7 +14,7 @@ namespace NTabletNode {
 /*!
  *  Must be called from the automaton thread.
  */
-NVersionedTableClient::ISchemedReaderPtr CreateSchemedTabletReader(
+NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTablet* tablet,
     NVersionedTableClient::TOwningKey lowerBound,
     NVersionedTableClient::TOwningKey upperBound,

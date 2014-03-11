@@ -43,7 +43,7 @@
 
 #include <ytlib/hydra/rpc_helpers.h>
 
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/executor.h>
@@ -169,7 +169,7 @@ public:
         (path, keys, options))
     IMPLEMENT_METHOD(void, SelectRows, (
         const Stroka& query,
-        ISchemedWriterPtr writer,
+        ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options),
         (query, writer, options))
 
@@ -177,9 +177,9 @@ public:
         const Stroka& query,
         const TSelectRowsOptions& options) override
     {
-        ISchemedWriterPtr writer;
+        ISchemafulWriterPtr writer;
         TPromise<TErrorOr<IRowsetPtr>> rowset;
-        std::tie(writer, rowset) = CreateSchemedRowsetWriter();
+        std::tie(writer, rowset) = CreateSchemafulRowsetWriter();
         SelectRows(query, writer, options).Subscribe(BIND([=] (TError error) mutable {
             if (!error.IsOK()) {
                 // It's uncommon to have the promise set here but let's be sloppy about it.
@@ -496,7 +496,7 @@ private:
 
     void DoSelectRows(
         const Stroka& query,
-        ISchemedWriterPtr writer,
+        ISchemafulWriterPtr writer,
         TSelectRowsOptions options)
     {
         auto fragment = TPlanFragment::Prepare(
@@ -944,7 +944,7 @@ public:
         (path, keys, options))
     DELEGATE_TIMESTAMPTED_METHOD(TAsyncError, SelectRows, (
         const Stroka& query,
-        ISchemedWriterPtr writer,
+        ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options),
         (query, writer, options))
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (

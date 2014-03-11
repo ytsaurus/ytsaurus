@@ -10,7 +10,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Writes a unschemed unversioned rowset.
+//! Writes a unschemaful unversioned rowset.
 /*!
  *  Writes unversioned rowset with schema and variable columns.
  *  Useful for: mapreduce jobs, write command.

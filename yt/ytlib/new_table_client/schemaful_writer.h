@@ -14,7 +14,7 @@ namespace NVersionedTableClient {
  *  Writes non-versioned, fixed-width, strictly typed rowset with given schema.
  *  Useful for: query engine.
  */
-struct ISchemedWriter
+struct ISchemafulWriter
     : public virtual TRefCounted
 {
     virtual TAsyncError Open(
@@ -31,7 +31,7 @@ struct ISchemedWriter
 
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchemedWriter)
+DEFINE_REFCOUNTED_TYPE(ISchemafulWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

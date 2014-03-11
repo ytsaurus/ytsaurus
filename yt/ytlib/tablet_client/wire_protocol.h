@@ -85,13 +85,13 @@ public:
     void WriteUnversionedRowset(
         const std::vector<NVersionedTableClient::TUnversionedRow>& rowset,
         const TColumnIdMapping* idMapping = nullptr);
-    NVersionedTableClient::ISchemedWriterPtr CreateSchemedRowsetWriter();
+    NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter();
 
     Stroka GetData();
 
 private:
     class TImpl;
-    class TSchemedRowsetWriter;
+    class TSchemafulRowsetWriter;
 
     std::unique_ptr<TImpl> Impl_;
 
@@ -115,11 +115,11 @@ public:
 
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
     void ReadUnversionedRowset(std::vector<NVersionedTableClient::TUnversionedRow>* rowset);
-    NVersionedTableClient::ISchemedReaderPtr CreateSchemedRowsetReader();
+    NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulRowsetReader();
 
 private:
     class TImpl;
-    class TSchemedRowsetReader;
+    class TSchemafulRowsetReader;
 
     std::unique_ptr<TImpl> Impl_;
 

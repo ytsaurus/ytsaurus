@@ -39,7 +39,7 @@ IReaderPtr CreateChunkReader(
 
 //! Creates a reader for new, versioned, chunk format on top of any
 //! NChunkClient::IAsyncReader, e.g. TMemoryReader, TReplicationReader etc.
-ISchemedReaderPtr CreateSchemedChunkReader(
+ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr asyncReader,
     const NChunkClient::TReadLimit& startLimit = NChunkClient::TReadLimit(),
@@ -48,7 +48,7 @@ ISchemedReaderPtr CreateSchemedChunkReader(
 
 //! Creates a universal reader for any chunk, of any format, no matter local or remote
 //! it is. Should be particularly handy for reading old chunks.
-ISchemedReaderPtr CreateSchemedChunkReader(
+ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
     NRpc::IChannelPtr masterChannel,

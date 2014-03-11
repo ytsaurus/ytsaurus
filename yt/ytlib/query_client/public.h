@@ -43,10 +43,10 @@ typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 typedef std::vector<TDataSplit> TDataSplits;
 typedef std::vector<TDataSplits> TGroupedDataSplits;
 
-using NVersionedTableClient::ISchemedReader;
-using NVersionedTableClient::ISchemedReaderPtr;
-using NVersionedTableClient::ISchemedWriter;
-using NVersionedTableClient::ISchemedWriterPtr;
+using NVersionedTableClient::ISchemafulReader;
+using NVersionedTableClient::ISchemafulReaderPtr;
+using NVersionedTableClient::ISchemafulWriter;
+using NVersionedTableClient::ISchemafulWriterPtr;
 
 using NVersionedTableClient::EValueType;
 

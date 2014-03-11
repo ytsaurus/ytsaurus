@@ -9,19 +9,19 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A pipe connecting a schemed writer to a schemed reader.
-class TSchemedPipe
+//! A pipe connecting a schemaful writer to a schemaful reader.
+class TSchemafulPipe
     : public TIntrinsicRefCounted
 {
 public:
-    TSchemedPipe();
-    ~TSchemedPipe();
+    TSchemafulPipe();
+    ~TSchemafulPipe();
 
     //! Returns the reader side of the pipe.
-    ISchemedReaderPtr GetReader() const;
+    ISchemafulReaderPtr GetReader() const;
 
     //! Returns the writer side of the pipe.
-    ISchemedWriterPtr GetWriter() const;
+    ISchemafulWriterPtr GetWriter() const;
 
     //! When called, propagates the error to the reader.
     void Fail(const TError& error);
@@ -44,7 +44,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemedPipe)
+DEFINE_REFCOUNTED_TYPE(TSchemafulPipe)
 
 ////////////////////////////////////////////////////////////////////////////////
 

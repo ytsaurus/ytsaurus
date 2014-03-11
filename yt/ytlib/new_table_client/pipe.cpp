@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "pipe.h"
-#include "schemed_reader.h"
-#include "schemed_writer.h"
+#include "schemaful_reader.h"
+#include "schemaful_writer.h"
 #include "row_buffer.h"
 
 #include <core/misc/ring_queue.h>
@@ -15,7 +15,7 @@ static auto PresetResult = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchemedPipe::TData
+struct TSchemafulPipe::TData
     : public TIntrinsicRefCounted
 {
     TData()
@@ -51,8 +51,8 @@ struct TSchemedPipe::TData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemedPipe::TReader
-    : public ISchemedReader
+class TSchemafulPipe::TReader
+    : public ISchemafulReader
 {
 public:
     explicit TReader(TDataPtr data)
@@ -129,8 +129,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemedPipe::TWriter
-    : public ISchemedWriter
+class TSchemafulPipe::TWriter
+    : public ISchemafulWriter
 {
 public:
     explicit TWriter(TDataPtr data)
@@ -223,7 +223,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemedPipe::TImpl
+class TSchemafulPipe::TImpl
     : public TIntrinsicRefCounted
 {
 public:
@@ -233,12 +233,12 @@ public:
         , Writer_(New<TWriter>(Data_))
     { }
 
-    ISchemedReaderPtr GetReader() const
+    ISchemafulReaderPtr GetReader() const
     {
         return Reader_;
     }
 
-    ISchemedWriterPtr  GetWriter() const
+    ISchemafulWriterPtr  GetWriter() const
     {
         return Writer_;
     }
@@ -273,24 +273,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemedPipe::TSchemedPipe()
+TSchemafulPipe::TSchemafulPipe()
     : Impl_(New<TImpl>())
 { }
 
-TSchemedPipe::~TSchemedPipe()
+TSchemafulPipe::~TSchemafulPipe()
 { }
 
-ISchemedReaderPtr TSchemedPipe::GetReader() const
+ISchemafulReaderPtr TSchemafulPipe::GetReader() const
 {
     return Impl_->GetReader();
 }
 
-ISchemedWriterPtr TSchemedPipe::GetWriter() const
+ISchemafulWriterPtr TSchemafulPipe::GetWriter() const
 {
     return Impl_->GetWriter();
 }
 
-void TSchemedPipe::Fail(const TError& error)
+void TSchemafulPipe::Fail(const TError& error)
 {
     Impl_->Fail(error);
 }

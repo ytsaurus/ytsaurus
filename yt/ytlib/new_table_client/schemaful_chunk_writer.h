@@ -17,7 +17,7 @@ IWriterPtr CreateChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemedWriterPtr CreateSchemedChunkWriter(
+ISchemafulWriterPtr CreateSchemafulChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     NChunkClient::IAsyncWriterPtr asyncWriter);

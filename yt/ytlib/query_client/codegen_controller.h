@@ -17,7 +17,7 @@ public:
     TError Run(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
-        ISchemedWriterPtr writer);
+        ISchemafulWriterPtr writer);
 
 private:
     class TImpl;

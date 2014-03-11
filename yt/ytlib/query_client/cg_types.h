@@ -66,7 +66,7 @@ typedef void (*TCodegenedFunction)(
     TPassedFragmentParams* passedFragmentParams,
     std::vector<TRow>* batch, // TODO(lukyan): remove this
     TRowBuffer* rowBuffer, // TODO(lukyan): remove this
-    ISchemedWriter* writer);
+    ISchemafulWriter* writer);
 
 static const int MaxRowsPerRead = 512;
 static const int MaxRowsPerWrite = 512;
@@ -136,7 +136,7 @@ using namespace NVersionedTableClient;
 // Opaque types
 
 template <bool cross>
-class TypeBuilder<ISchemedWriter*, cross>
+class TypeBuilder<ISchemafulWriter*, cross>
     : public TypeBuilder<void*, cross>
 { };
 

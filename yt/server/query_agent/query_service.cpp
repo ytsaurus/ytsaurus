@@ -5,7 +5,7 @@
 
 #include <core/rpc/service_detail.h>
 
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/executor.h>
@@ -58,7 +58,7 @@ private:
         planFragment.GetContext()->GetNodeDirectory()->MergeFrom(request->node_directory());
 
         TWireProtocolWriter protocolWriter;
-        auto rowsetWriter = protocolWriter.CreateSchemedRowsetWriter();
+        auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
 
         auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);

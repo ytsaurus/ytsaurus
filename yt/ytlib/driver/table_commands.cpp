@@ -23,13 +23,13 @@
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/table_producer.h>
 
-#include <ytlib/new_table_client/schemed_chunk_reader.h>
-#include <ytlib/new_table_client/schemed_chunk_writer.h>
+#include <ytlib/new_table_client/schemaful_chunk_reader.h>
+#include <ytlib/new_table_client/schemaful_chunk_writer.h>
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/reader.h>
-#include <ytlib/new_table_client/schemed_writer.h>
+#include <ytlib/new_table_client/schemaful_writer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
