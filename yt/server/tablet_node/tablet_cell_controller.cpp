@@ -229,13 +229,12 @@ public:
         auto it = TabletIdToSlot_.begin();
         while (it != TabletIdToSlot_.end()) {
             auto jt = it++;
-            if (it->second == slot) {
+            if (jt->second == slot) {
                 LOG_INFO("Tablet-to-slot mapping removed (TabletId: %s, CellGuid: %s)",
-                    ~ToString(it->first),
-                    ~ToString(it->second->GetCellGuid()));
-                TabletIdToSlot_.erase(it);
+                    ~ToString(jt->first),
+                    ~ToString(jt->second->GetCellGuid()));
+                TabletIdToSlot_.erase(jt);
             }
-            it = jt;
         }
     }
 
@@ -313,6 +312,11 @@ private:
                 auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
                 if (!invoker)
                     continue;
+
+                auto cc = New<TCancelableContext>();
+                invoker = cc->CreateInvoker(invoker);
+
+                cc->Cancel();
 
                 awaiter->Await(BIND([this, this_, slot] () {
                         Owner_->SlotScan_.Fire(slot);
