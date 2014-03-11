@@ -101,7 +101,7 @@ public:
             .Default(1);
         RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
             .GreaterThan(0)
-            .Default(2);
+            .Default(1);
 
         RegisterParameter("writer", Writer)
             .DefaultNew();
@@ -115,12 +115,16 @@ class TStoreCompactorConfig
 {
 public:
     int ThreadPoolSize;
+    int MaxConcurrentCompactions;
 
     TIntrusivePtr<TStoreWriterConfig> Writer;
 
     TStoreCompactorConfig()
     {
         RegisterParameter("thread_pool_size", ThreadPoolSize)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
             .GreaterThan(0)
             .Default(1);
 

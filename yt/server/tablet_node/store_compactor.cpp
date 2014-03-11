@@ -13,6 +13,7 @@
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
+#include <core/concurrency/async_semaphore.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -63,6 +64,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreCompact"))
+        , Semaphore_(Config_->MaxConcurrentCompactions)
     { }
 
     void Start()
@@ -76,6 +78,8 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
+
+    TAsyncSemaphore Semaphore_;
 
 
     void ScanSlot(TTabletSlotPtr slot)
@@ -117,6 +121,10 @@ private:
         if (dataSize <= config->EdenPartitioningDataSize && storeCount <= config->EdenPartitioningStoreCount)
             return;
 
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        if (!guard)
+            return;
+
         for (auto store : stores) {
             store->SetState(EStoreState::Compacting);
         }
@@ -129,13 +137,16 @@ private:
         tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
             &TStoreCompactor::PartitionEden,
             MakeStrong(this),
+            Passed(std::move(guard)),
             eden,
             pivotKeys,
             stores,
             dataSize));
     }
 
+
     void PartitionEden(
+        TAsyncSemaphoreGuard /*guard*/,
         TPartition* eden,
         const std::vector<TOwningKey>& pivotKeys,
         const std::vector<IStorePtr>& stores,
