@@ -163,13 +163,13 @@ def import_table(object, args):
             mr_user=params.mr_user)
 
     if mr.is_empty(src):
-        logger.info("Table '%s' is empty", src)
-        return None if args.skip_empty_tables else -1
+        logger.info("Source table '%s' is empty, import cancelled", src)
+        return None
 
     record_count = mr.records_count(src)
     sorted = mr.is_sorted(src)
 
-    logger.info("Import table '%s' (row count: %d, sorted: %d, method: %s)", src, record_count, sorted, params.import_type)
+    logger.info("Importing table '%s' (row count: %d, sorted: %d, method: %s)", src, record_count, sorted, params.import_type)
 
     if params.force:
         yt.remove(dst, recursive=True, force=True)
@@ -180,7 +180,7 @@ def import_table(object, args):
                 return
     yt.create_table(dst, recursive=True, ignore_existing=True)
 
-    logger.info("Import destination '%s' created", dst)
+    logger.info("Destination table '%s' created", dst)
 
     try:
         if params.import_type == "pull":
@@ -238,7 +238,7 @@ def import_table(object, args):
     except yt.YtError:
         logger.exception("Error occured while import")
         yt.remove(dst, force=True)
-        return -1
+        return
 
 def main():
     yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
@@ -275,8 +275,6 @@ def main():
 
     parser.add_argument("--force", action="store_true", default=False,
                         help="always drop destination table")
-    parser.add_argument("--skip-empty-tables", action="store_true", default=False,
-                        help="do not return empty source tables back to queue")
     parser.add_argument("--fastbone", action="store_true", default=False)
 
     parser.add_argument("--yt-binary")
