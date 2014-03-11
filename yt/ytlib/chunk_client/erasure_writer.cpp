@@ -328,7 +328,6 @@ TError TErasureWriter::EncodeAndWriteParityBlocks()
 
         i64 end = std::min(begin + Config_->ErasureWindowSize, ParityDataSize_);
 
-
         TDispatcher::Get()->GetErasureInvoker()->Invoke(BIND([this, this_, windowIndex, begin, end] () {
             // Generate bytes from [begin, end) for parity blocks.
             std::vector<TSharedRef> slices;
