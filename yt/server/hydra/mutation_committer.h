@@ -41,12 +41,12 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    NElection::TCellManagerPtr CellManager;
-    TDecoratedAutomatonPtr DecoratedAutomaton;
-    IInvokerPtr EpochControlInvoker;
-    IInvokerPtr EpochAutomatonInvoker;
-    NProfiling::TRateCounter CommitCounter;
-    NProfiling::TRateCounter BatchFlushCounter;
+    NElection::TCellManagerPtr CellManager_;
+    TDecoratedAutomatonPtr DecoratedAutomaton_;
+    IInvokerPtr EpochControlInvoker_;
+    IInvokerPtr EpochAutomatonInvoker_;
+    NProfiling::TRateCounter CommitCounter_;
+    NProfiling::TRateCounter BatchFlushCounter_;
 
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;
@@ -125,10 +125,10 @@ private:
         TFuture<void> localResult);
     void FlushCurrentBatch();
 
-    TDistributedHydraManagerConfigPtr Config;
-    IChangelogStorePtr ChangelogStore;
-    TFollowerTrackerPtr FollowerTracker;
-    TEpochId EpochId;
+    TDistributedHydraManagerConfigPtr Config_;
+    IChangelogStorePtr ChangelogStore_;
+    TFollowerTrackerPtr FollowerTracker_;
+    TEpochId EpochId_;
 
     struct TPendingMutation
     {
@@ -136,12 +136,12 @@ private:
         TPromise<TErrorOr<TMutationResponse>> CommitPromise;
     };
     
-    bool LoggingSuspended;
-    TRingQueue<TPendingMutation> PendingMutations;
+    bool LoggingSuspended_;
+    TRingQueue<TPendingMutation> PendingMutations_;
 
-    TSpinLock BatchSpinLock;
-    TBatchPtr CurrentBatch;
-    NConcurrency::TDelayedExecutor::TCookie BatchTimeoutCookie;
+    TSpinLock BatchSpinLock_;
+    TBatchPtr CurrentBatch_;
+    NConcurrency::TDelayedExecutor::TCookie BatchTimeoutCookie_;
 
 };
 

@@ -6,10 +6,6 @@
 #include <core/actions/invoker_util.h>
 #include <core/actions/cancelable_context.h>
 
-#include <core/misc/nullable.h>
-
-#include <core/profiling/profiler.h>
-
 namespace NYT {
 namespace NConcurrency {
 
@@ -19,23 +15,11 @@ class TParallelAwaiter
     : public TRefCounted
 {
 public:
-    explicit TParallelAwaiter(
-        IInvokerPtr invoker);
-
-    TParallelAwaiter(
-        IInvokerPtr invoker,
-        NProfiling::TProfiler* profiler,
-        const NYPath::TYPath& timingPath);
+    explicit TParallelAwaiter(IInvokerPtr invoker);
 
     template <class T>
     void Await(
         TFuture<T> result,
-        TCallback<void(T)> onResult = TCallback<void(T)>(),
-        TClosure onCancel = TClosure());
-    template <class T>
-    void Await(
-        TFuture<T> result,
-        const NProfiling::TTagIdList& tagIds,
         TCallback<void(T)> onResult = TCallback<void(T)>(),
         TClosure onCancel = TClosure());
 
@@ -44,16 +28,8 @@ public:
         TFuture<void> result,
         TCallback<void()> onResult = TCallback<void()>(),
         TClosure onCancel = TClosure());
-    //! Specialization of #Await for |T = void|.
-    void Await(
-        TFuture<void> result,
-        const NProfiling::TTagIdList& tagIds,
-        TCallback<void()> onResult = TCallback<void()>(),
-        TClosure onCancel = TClosure());
 
-    TFuture<void> Complete(
-        TClosure onComplete = TClosure(),
-        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+    TFuture<void> Complete(TClosure onComplete = TClosure());
     
     void Cancel();
 
@@ -73,7 +49,6 @@ private:
     bool Completed_;
     TPromise<void> CompletedPromise_;
     TClosure OnComplete_;
-    NProfiling::TTagIdList CompletedTagIds_;
 
     bool Terminated_;
 
@@ -83,34 +58,19 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    NProfiling::TProfiler* Profiler_;
-    NProfiling::TTimer Timer_;
-
-
-    void Init(
-        IInvokerPtr invoker,
-        NProfiling::TProfiler* profiler,
-        const TNullable<NYPath::TYPath>& timingPath);
 
     bool TryAwait();
 
     void Terminate();
 
     template <class T>
-    void HandleResult(
-        const NProfiling::TTagIdList& tagIds,
-        TCallback<void(T)> onResult,
-        T result);
+    void HandleResult(TCallback<void(T)> onResult, T result);
+    void HandleResult(TCallback<void()> onResult);
 
-    void HandleResult(
-        const NProfiling::TTagIdList& tagIds,
-        TCallback<void()> onResult);
+    void HandleCancel(TClosure onCancel);
 
-    void HandleCancel(
-        const NProfiling::TTagIdList& tagIds,
-        TClosure onCancel);
+    void HandleResponse();
 
-    void HandleResponse(const NProfiling::TTagIdList& tagIds);
     void DoFireCompleted(TClosure onComplete);
 
 };

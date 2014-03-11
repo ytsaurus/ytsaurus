@@ -10,6 +10,8 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 
+#include <core/profiling/profiler.h>
+
 #include <ytlib/election/cell_manager.h>
 
 namespace NYT {
@@ -27,23 +29,23 @@ TCommitter::TCommitter(
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochAutomatonInvoker,
     const NProfiling::TProfiler& profiler)
-    : CellManager(cellManager)
-    , DecoratedAutomaton(decoratedAutomaton)
-    , EpochControlInvoker(epochControlInvoker)
-    , EpochAutomatonInvoker(epochAutomatonInvoker)
-    , CommitCounter("/commit_rate")
-    , BatchFlushCounter("/batch_flush_rate")
+    : CellManager_(cellManager)
+    , DecoratedAutomaton_(decoratedAutomaton)
+    , EpochControlInvoker_(epochControlInvoker)
+    , EpochAutomatonInvoker_(epochAutomatonInvoker)
+    , CommitCounter_("/commit_rate")
+    , BatchFlushCounter_("/batch_flush_rate")
     , Logger(HydraLogger)
     , Profiler(profiler)
 {
-    YCHECK(DecoratedAutomaton);
-    YCHECK(EpochControlInvoker);
-    YCHECK(EpochAutomatonInvoker);
+    YCHECK(DecoratedAutomaton_);
+    YCHECK(EpochControlInvoker_);
+    YCHECK(EpochAutomatonInvoker_);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(epochAutomatonInvoker, AutomatonThread);
 
     Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(CellManager->GetCellGuid())));
+        ~ToString(CellManager_->GetCellGuid())));
 }
 
 TCommitter::~TCommitter()
@@ -58,139 +60,148 @@ public:
     TBatch(
         TLeaderCommitter* owner,
         TVersion startVersion)
-        : Owner(owner)
-        , StartVersion(startVersion)
+        : Owner_(owner)
+        , StartVersion_(startVersion)
         // The local flush is also counted.
-        , FlushCount(0)
-        , LocalFlushResult(NewPromise())
-        , QuorumFlushResult(NewPromise())
-        , Logger(Owner->Logger)
+        , FlushCount_(0)
+        , LocalFlushResult_(NewPromise())
+        , QuorumFlushResult_(NewPromise())
+        , Logger(Owner_->Logger)
     {
-        Logger.AddTag(Sprintf("StartVersion: %s", ~ToString(StartVersion)));
+        Logger.AddTag(Sprintf("StartVersion: %s", ~ToString(StartVersion_)));
     }
 
     void AddMutation(const TSharedRef& recordData)
     {
         TVersion currentVersion(
-            StartVersion.SegmentId,
-            StartVersion.RecordId + BatchedRecordsData.size());
-        BatchedRecordsData.push_back(recordData);
+            StartVersion_.SegmentId,
+            StartVersion_.RecordId + BatchedRecordsData_.size());
+        BatchedRecordsData_.push_back(recordData);
 
         LOG_DEBUG("Mutation is batched at version %s", ~ToString(currentVersion));
     }
 
     void SetLocalFlushResult(TFuture<void> result)
     {
-        LocalFlushResult = std::move(result);
+        LocalFlushResult_ = std::move(result);
     }
 
     TFuture<void> GetQuorumFlushResult()
     {
-        return QuorumFlushResult;
+        return QuorumFlushResult_;
     }
 
     void Flush()
     {
-        int mutationCount = static_cast<int>(BatchedRecordsData.size());
+        int mutationCount = static_cast<int>(BatchedRecordsData_.size());
         Logger.AddTag(Sprintf("MutationCount: %d", mutationCount));
-        CommittedVersion = TVersion(StartVersion.SegmentId, StartVersion.RecordId + mutationCount);
+        CommittedVersion_ = TVersion(StartVersion_.SegmentId, StartVersion_.RecordId + mutationCount);
 
-        Owner->Profiler.Enqueue("/commit_batch_size", mutationCount);
+        Owner_->Profiler.Enqueue("/commit_batch_size", mutationCount);
 
-        Awaiter = New<TParallelAwaiter>(
-            Owner->EpochControlInvoker,
-            &Owner->Profiler,
-            "/changelog_flush_time");
+        Awaiter_ = New<TParallelAwaiter>(Owner_->EpochControlInvoker_);
 
-        if (!BatchedRecordsData.empty()) {
-            YCHECK(LocalFlushResult);
-            Awaiter->Await(
-                LocalFlushResult,
-                Owner->CellManager->GetPeerTags(Owner->CellManager->GetSelfId()),
+        Timer_ = Owner_->Profiler.TimingStart(
+            "/changelog_flush_time",
+            NProfiling::EmptyTagIds,
+            NProfiling::ETimerMode::Parallel);
+
+        if (!BatchedRecordsData_.empty()) {
+            YCHECK(LocalFlushResult_);
+            Awaiter_->Await(
+                LocalFlushResult_,
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
 
-            for (auto followerId = 0; followerId < Owner->CellManager->GetPeerCount(); ++followerId) {
-                if (followerId == Owner->CellManager->GetSelfId())
+            for (auto followerId = 0; followerId < Owner_->CellManager_->GetPeerCount(); ++followerId) {
+                if (followerId == Owner_->CellManager_->GetSelfId())
                     continue;
 
-                auto channel = Owner->CellManager->GetPeerChannel(followerId);
+                auto channel = Owner_->CellManager_->GetPeerChannel(followerId);
                 if (!channel)
                     continue;
 
                 LOG_DEBUG("Sending mutations to follower %d", followerId);
 
                 THydraServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Owner->Config->RpcTimeout);
+                proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
 
-                const auto committedVersion = Owner->DecoratedAutomaton->GetAutomatonVersion();
+                const auto committedVersion = Owner_->DecoratedAutomaton_->GetAutomatonVersion();
 
                 auto request = proxy.LogMutations();
-                ToProto(request->mutable_epoch_id(), Owner->EpochId);
-                request->set_start_revision(StartVersion.ToRevision());
+                ToProto(request->mutable_epoch_id(), Owner_->EpochId_);
+                request->set_start_revision(StartVersion_.ToRevision());
                 request->set_committed_revision(committedVersion.ToRevision());
-                for (const auto& mutation : BatchedRecordsData) {
-                    request->Attachments().push_back(mutation);
-                }
-                Awaiter->Await(
+                request->Attachments().insert(
+                    request->Attachments().end(),
+                    BatchedRecordsData_.begin(),
+                    BatchedRecordsData_.end());
+
+                Awaiter_->Await(
                     request->Invoke(),
-                    Owner->CellManager->GetPeerTags(followerId),
                     BIND(&TBatch::OnRemoteFlush, MakeStrong(this), followerId));
             }
         }
 
-        Awaiter->Complete(
-            BIND(&TBatch::OnCompleted, MakeStrong(this)),
-            Owner->CellManager->GetPeerQuorumTags());
+        Awaiter_->Complete(BIND(&TBatch::OnCompleted, MakeStrong(this)));
     }
 
     int GetMutationCount() const
     {
-        return static_cast<int>(BatchedRecordsData.size());
+        return static_cast<int>(BatchedRecordsData_.size());
     }
 
     TVersion GetStartVersion() const
     {
-        return StartVersion;
+        return StartVersion_;
     }
 
     TVersion GetCommittedVersion() const
     {
-        return CommittedVersion;
+        return CommittedVersion_;
     }
 
 private:
     bool CheckQuorum()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        if (FlushCount < Owner->CellManager->GetQuorumCount())
+        if (FlushCount_ < Owner_->CellManager_->GetQuorumCount())
             return false;
 
         LOG_DEBUG("Mutations are flushed by quorum");
 
-        Awaiter->Cancel();
-        QuorumFlushResult.Set();
+        Owner_->Profiler.TimingCheckpoint(
+            Timer_,
+            Owner_->CellManager_->GetPeerQuorumTags());
+
+        Awaiter_->Cancel();
+
+        QuorumFlushResult_.Set();
 
         return true;
     }
 
-    void OnRemoteFlush(TPeerId peerId, THydraServiceProxy::TRspLogMutationsPtr response)
+    void OnRemoteFlush(TPeerId followerId, THydraServiceProxy::TRspLogMutationsPtr response)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+
+        Owner_->Profiler.TimingCheckpoint(
+            Timer_,
+            Owner_->CellManager_->GetPeerTags(followerId));
 
         if (!response->IsOK()) {
             LOG_WARNING(*response, "Error logging mutations at follower %d",
-                peerId);
+                followerId);
             return;
         }
 
         if (response->logged()) {
-            LOG_DEBUG("Mutations are flushed by follower %d", peerId);
+            LOG_DEBUG("Mutations are flushed by follower %d", followerId);
 
-            ++FlushCount;
+            ++FlushCount_;
             CheckQuorum();
         } else {
-            LOG_DEBUG("Mutations are acknowledged by follower %d", peerId);
+            LOG_DEBUG("Mutations are acknowledged by follower %d", followerId);
         }
     }
 
@@ -198,35 +209,49 @@ private:
     {
         LOG_DEBUG("Mutations are flushed locally");
 
-        ++FlushCount;
+        Owner_->Profiler.TimingCheckpoint(
+            Timer_,
+            Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfId()));
+
+        ++FlushCount_;
         CheckQuorum();
     }
 
     void OnCompleted()
     {
+        Owner_->Profiler.TimingCheckpoint(
+            Timer_,
+            Owner_->CellManager_->GetPeerQuorumTags());
+
         auto error = TError(
             NHydra::EErrorCode::MaybeCommitted,
             "Mutations are uncertain: %d out of %d commits were successful",
-            FlushCount,
-            Owner->CellManager->GetQuorumCount());
-        Owner->EpochAutomatonInvoker->Invoke(
-            BIND(&TLeaderCommitter::OnBatchCommitted, Owner, MakeStrong(this), error));
+            FlushCount_,
+            Owner_->CellManager_->GetQuorumCount());
+
+        Owner_->EpochAutomatonInvoker_->Invoke(BIND(
+            &TLeaderCommitter::OnBatchCommitted,
+            MakeStrong(Owner_),
+            MakeStrong(this),
+            error));
     }
 
 
     // NB: TBatch cannot outlive its owner.
-    TLeaderCommitter* Owner;
-    TVersion StartVersion;
+    TLeaderCommitter* Owner_;
+    TVersion StartVersion_;
 
-    int FlushCount;
+    int FlushCount_;
 
-    TParallelAwaiterPtr Awaiter;
-    TFuture<void> LocalFlushResult;
-    TPromise<void> QuorumFlushResult;
-    std::vector<TSharedRef> BatchedRecordsData;
-    TVersion CommittedVersion;
+    TParallelAwaiterPtr Awaiter_;
+    TFuture<void> LocalFlushResult_;
+    TPromise<void> QuorumFlushResult_;
+    std::vector<TSharedRef> BatchedRecordsData_;
+    TVersion CommittedVersion_;
 
     NLog::TTaggedLogger Logger;
+    
+    NProfiling::TTimer Timer_;
 
 };
 
@@ -248,16 +273,16 @@ TLeaderCommitter::TLeaderCommitter(
         epochControlInvoker,
         epochAutomatonInvoker,
         profiler)
-    , Config(config)
-    , ChangelogStore(changelogStore)
-    , FollowerTracker(followerTracker)
-    , EpochId(epochId)
-    , LoggingSuspended(false)
+    , Config_(config)
+    , ChangelogStore_(changelogStore)
+    , FollowerTracker_(followerTracker)
+    , EpochId_(epochId)
+    , LoggingSuspended_(false)
 {
-    YCHECK(Config);
-    YCHECK(CellManager);
-    YCHECK(ChangelogStore);
-    YCHECK(FollowerTracker);
+    YCHECK(Config_);
+    YCHECK(CellManager_);
+    YCHECK(ChangelogStore_);
+    YCHECK(FollowerTracker_);
 }
 
 TLeaderCommitter::~TLeaderCommitter()
@@ -267,20 +292,20 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (LoggingSuspended) {
+    if (LoggingSuspended_) {
         TPendingMutation pendingMutation;
         pendingMutation.Request = request;
         pendingMutation.CommitPromise = NewPromise<TErrorOr<TMutationResponse>>();
-        PendingMutations.push(pendingMutation);
+        PendingMutations_.push(pendingMutation);
 
         return pendingMutation.CommitPromise;
     } else {
-        auto version = DecoratedAutomaton->GetLoggedVersion();
+        auto version = DecoratedAutomaton_->GetLoggedVersion();
 
         TSharedRef recordData;
         TFuture<void> logResult;
         auto commitResult = NewPromise<TErrorOr<TMutationResponse>>();
-        DecoratedAutomaton->LogMutationAtLeader(
+        DecoratedAutomaton_->LogMutationAtLeader(
             request,
             &recordData,
             &logResult,
@@ -288,7 +313,7 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
 
         AddToBatch(version, std::move(recordData), std::move(logResult));
 
-        auto period = Config->LeaderCommitter->ChangelogRotationPeriod;
+        auto period = Config_->LeaderCommitter->ChangelogRotationPeriod;
         if (period && (version.RecordId + 1) % *period == 0) {
             ChangelogLimitReached_.Fire();
         }
@@ -301,8 +326,8 @@ void TLeaderCommitter::Flush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TGuard<TSpinLock> guard(BatchSpinLock);
-    if (CurrentBatch) {
+    TGuard<TSpinLock> guard(BatchSpinLock_);
+    if (CurrentBatch_) {
         FlushCurrentBatch();
     }
 }
@@ -311,35 +336,35 @@ TFuture<void> TLeaderCommitter::GetQuorumFlushResult()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TGuard<TSpinLock> guard(BatchSpinLock);
-    return CurrentBatch ? CurrentBatch->GetQuorumFlushResult() : MakeFuture();
+    TGuard<TSpinLock> guard(BatchSpinLock_);
+    return CurrentBatch_ ? CurrentBatch_->GetQuorumFlushResult() : MakeFuture();
 }
 
 void TLeaderCommitter::SuspendLogging()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!LoggingSuspended);
+    YCHECK(!LoggingSuspended_);
 
     LOG_DEBUG("Mutations logging suspended");
 
-    LoggingSuspended = true;
-    YCHECK(PendingMutations.empty());
+    LoggingSuspended_ = true;
+    YCHECK(PendingMutations_.empty());
 }
 
 void TLeaderCommitter::ResumeLogging()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(LoggingSuspended);
+    YCHECK(LoggingSuspended_);
 
     LOG_DEBUG("Mutations logging resumed");
 
-    while (!PendingMutations.empty()) {
-        auto& pendingMutation = PendingMutations.front();
-        auto version = DecoratedAutomaton->GetAutomatonVersion();
+    while (!PendingMutations_.empty()) {
+        auto& pendingMutation = PendingMutations_.front();
+        auto version = DecoratedAutomaton_->GetAutomatonVersion();
 
         TSharedRef recordData;
         TFuture<void> logResult;
-        DecoratedAutomaton->LogMutationAtLeader(
+        DecoratedAutomaton_->LogMutationAtLeader(
             pendingMutation.Request,
             &recordData,
             &logResult,
@@ -347,11 +372,11 @@ void TLeaderCommitter::ResumeLogging()
 
         AddToBatch(version, recordData, logResult);
 
-        PendingMutations.pop();
+        PendingMutations_.pop();
     }
 
-    LoggingSuspended = false;
-    YCHECK(PendingMutations.empty());
+    LoggingSuspended_ = false;
+    YCHECK(PendingMutations_.empty());
 }
 
 void TLeaderCommitter::AddToBatch(
@@ -359,56 +384,56 @@ void TLeaderCommitter::AddToBatch(
     const TSharedRef& recordData,
     TFuture<void> localResult)
 {
-    TGuard<TSpinLock> guard(BatchSpinLock);
+    TGuard<TSpinLock> guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(version);
     batch->AddMutation(recordData);
     batch->SetLocalFlushResult(localResult);
-    if (batch->GetMutationCount() >= Config->LeaderCommitter->MaxBatchSize) {
+    if (batch->GetMutationCount() >= Config_->LeaderCommitter->MaxBatchSize) {
         FlushCurrentBatch();
     }
 }
 
 void TLeaderCommitter::FlushCurrentBatch()
 {
-    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
-    YCHECK(CurrentBatch);
+    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock_);
+    YCHECK(CurrentBatch_);
 
-    CurrentBatch->Flush();
-    CurrentBatch.Reset();
+    CurrentBatch_->Flush();
+    CurrentBatch_.Reset();
 
-    TDelayedExecutor::CancelAndClear(BatchTimeoutCookie);
+    TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
 
-    Profiler.Increment(BatchFlushCounter);
+    Profiler.Increment(BatchFlushCounter_);
 }
 
 TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
+    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock_);
 
-    if (!CurrentBatch) {
-        CurrentBatch = New<TBatch>(this, version);
+    if (!CurrentBatch_) {
+        CurrentBatch_ = New<TBatch>(this, version);
 
-        CurrentBatch->GetQuorumFlushResult().Subscribe(
-            BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this), CurrentBatch, TError())
-                .Via(EpochAutomatonInvoker));
+        CurrentBatch_->GetQuorumFlushResult().Subscribe(
+            BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this), CurrentBatch_, TError())
+                .Via(EpochAutomatonInvoker_));
 
-        YCHECK(!BatchTimeoutCookie);
-        BatchTimeoutCookie = TDelayedExecutor::Submit(
-            BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch)
-                .Via(EpochControlInvoker),
-            Config->LeaderCommitter->MaxBatchDelay);
+        YCHECK(!BatchTimeoutCookie_);
+        BatchTimeoutCookie_ = TDelayedExecutor::Submit(
+            BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
+                .Via(EpochControlInvoker_),
+            Config_->LeaderCommitter->MaxBatchDelay);
     }
 
-    return CurrentBatch;
+    return CurrentBatch_;
 }
 
 void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TGuard<TSpinLock> guard(BatchSpinLock);
-    if (batch != CurrentBatch)
+    TGuard<TSpinLock> guard(BatchSpinLock_);
+    if (batch != CurrentBatch_)
         return;
 
     LOG_DEBUG("Flushing batched mutations");
@@ -420,7 +445,7 @@ void TLeaderCommitter::OnBatchCommitted(TBatchPtr batch, TError error)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    DecoratedAutomaton->CommitMutations(batch->GetCommittedVersion());
+    DecoratedAutomaton_->CommitMutations(batch->GetCommittedVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -449,8 +474,8 @@ TAsyncError TFollowerCommitter::LogMutations(
     VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(!recordsData.empty());
 
-    Profiler.Increment(CommitCounter, recordsData.size());
-    Profiler.Increment(BatchFlushCounter);
+    Profiler.Increment(CommitCounter_, recordsData.size());
+    Profiler.Increment(BatchFlushCounter_);
 
     return
         BIND(
@@ -458,7 +483,7 @@ TAsyncError TFollowerCommitter::LogMutations(
             MakeStrong(this),
             expectedVersion,
             recordsData)
-        .AsyncVia(EpochAutomatonInvoker)
+        .AsyncVia(EpochAutomatonInvoker_)
         .Run();
 }
 
@@ -468,7 +493,7 @@ TAsyncError TFollowerCommitter::DoLogMutations(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto currentVersion = DecoratedAutomaton->GetLoggedVersion();
+    auto currentVersion = DecoratedAutomaton_->GetLoggedVersion();
     if (currentVersion != expectedVersion) {
         return MakeFuture(TError(
             NHydra::EErrorCode::OutOfOrderMutations,
@@ -479,7 +504,7 @@ TAsyncError TFollowerCommitter::DoLogMutations(
 
     TFuture<void> logResult;
     for (const auto& recordData : recordsData) {
-        DecoratedAutomaton->LogMutationAtFollower(recordData, &logResult);
+        DecoratedAutomaton_->LogMutationAtFollower(recordData, &logResult);
     }
 
     return logResult.Apply(BIND([] () -> TError {

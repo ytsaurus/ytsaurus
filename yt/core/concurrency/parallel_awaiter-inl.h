@@ -5,31 +5,12 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/profiling/timing.h>
-
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TParallelAwaiter::TParallelAwaiter(
-    IInvokerPtr invoker)
-{
-    Init(invoker, nullptr, Null);
-}
-
-inline TParallelAwaiter::TParallelAwaiter(
-    IInvokerPtr invoker,
-    NProfiling::TProfiler* profiler,
-    const NYPath::TYPath& timingPath)
-{
-    Init(invoker, profiler, timingPath);
-}
-
-inline void TParallelAwaiter::Init(
-    IInvokerPtr invoker,
-    NProfiling::TProfiler* profiler,
-    const TNullable<NYPath::TYPath>& timingPath)
+inline TParallelAwaiter::TParallelAwaiter(IInvokerPtr invoker)
 {
     YCHECK(invoker);
 
@@ -45,15 +26,6 @@ inline void TParallelAwaiter::Init(
 
     CancelableContext_ = New<TCancelableContext>();
     CancelableInvoker_ = CancelableContext_->CreateInvoker(invoker);
-
-    Profiler_ = profiler;
-
-    if (Profiler_ && timingPath) {
-        Timer_ = Profiler_->TimingStart(
-            *timingPath,
-            NProfiling::EmptyTagIds,
-            NProfiling::ETimerMode::Parallel);
-    }
 }
 
 inline bool TParallelAwaiter::TryAwait()
@@ -71,7 +43,6 @@ inline bool TParallelAwaiter::TryAwait()
 template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
-    const NProfiling::TTagIdList& tagIds,
     TCallback<void(T)> onResult,
     TClosure onCancel)
 {
@@ -81,19 +52,16 @@ void TParallelAwaiter::Await(
         result.Subscribe(BIND(
             &TParallelAwaiter::HandleResult<T>,
             MakeStrong(this),
-            tagIds,
             Passed(std::move(onResult))));
         result.OnCanceled(BIND(
             &TParallelAwaiter::HandleCancel,
             MakeStrong(this),
-            tagIds,
             Passed(std::move(onCancel))));
     }
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
-    const NProfiling::TTagIdList& tagIds,
     TCallback<void(void)> onResult,
     TClosure onCancel)
 {
@@ -101,79 +69,45 @@ inline void TParallelAwaiter::Await(
 
     if (TryAwait()) {
         result.Subscribe(BIND(
-            (void(TParallelAwaiter::*)(const NProfiling::TTagIdList&, TCallback<void()>)) &TParallelAwaiter::HandleResult,
+            (void(TParallelAwaiter::*)(TCallback<void()>)) &TParallelAwaiter::HandleResult,
             MakeStrong(this),
-            tagIds,
             Passed(std::move(onResult))));
         result.OnCanceled(BIND(
             &TParallelAwaiter::HandleCancel,
             MakeStrong(this),
-            tagIds,
             Passed(std::move(onCancel))));
     }
 }
 
 template <class T>
-void TParallelAwaiter::Await(
-    TFuture<T> result,
-    TCallback<void(T)> onResult,
-    TClosure onCancel)
-{
-    Await(
-        std::move(result),
-        NProfiling::EmptyTagIds,
-        std::move(onResult),
-        std::move(onCancel));
-}
-
-inline void TParallelAwaiter::Await(
-    TFuture<void> result,
-    TCallback<void()> onResult,
-    TClosure onCancel)
-{
-    Await(
-        std::move(result),
-        NProfiling::EmptyTagIds,
-        std::move(onResult),
-        std::move(onCancel));
-}
-
-template <class T>
-void TParallelAwaiter::HandleResult(
-    const NProfiling::TTagIdList& tagIds,
-    TCallback<void(T)> onResult,
-    T result)
+void TParallelAwaiter::HandleResult(TCallback<void(T)> onResult, T result)
 {
     if (onResult) {
-        CancelableInvoker_->Invoke(BIND(onResult, result));
+        CancelableInvoker_->Invoke(BIND(onResult, std::move(result)));
     }
 
-    HandleResponse(tagIds);
+    HandleResponse();
 }
 
-inline void TParallelAwaiter::HandleResult(
-    const NProfiling::TTagIdList& tagIds,
-    TCallback<void()> onResult)
+inline void TParallelAwaiter::HandleResult(TCallback<void()> onResult)
 {
     if (onResult) {
         CancelableInvoker_->Invoke(onResult);
     }
 
-    HandleResponse(tagIds);
+    HandleResponse();
 }
 
-inline void TParallelAwaiter::HandleCancel(
-    const NProfiling::TTagIdList& tagIds,
-    TCallback<void()> onCancel)
+inline void TParallelAwaiter::HandleCancel(TCallback<void()> onCancel)
 {
     if (onCancel) {
         CancelableInvoker_->Invoke(onCancel);
     }
 
-    HandleResponse(tagIds);
+    HandleResponse();
 }
 
-inline void TParallelAwaiter::HandleResponse(const NProfiling::TTagIdList& tagIds)
+inline void TParallelAwaiter::HandleResponse()
 {
     bool fireCompleted = false;
     TClosure onComplete;
@@ -182,10 +116,6 @@ inline void TParallelAwaiter::HandleResponse(const NProfiling::TTagIdList& tagId
 
         if (Canceled_ || Terminated_)
             return;
-
-        if (Profiler_) {
-            Profiler_->TimingCheckpoint(Timer_, tagIds);
-        }
 
         ++ResponseCount_;
 
@@ -202,9 +132,7 @@ inline void TParallelAwaiter::HandleResponse(const NProfiling::TTagIdList& tagId
     }
 }
 
-inline TFuture<void> TParallelAwaiter::Complete(
-    TClosure onComplete,
-    const NProfiling::TTagIdList& tagIds)
+inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
 {
     bool fireCompleted;
     {
@@ -216,7 +144,6 @@ inline TFuture<void> TParallelAwaiter::Complete(
         }
 
         OnComplete_ = onComplete;
-        CompletedTagIds_ = tagIds;
         Completed_ = true;
 
         fireCompleted = (RequestCount_ == ResponseCount_);
@@ -283,13 +210,6 @@ inline bool TParallelAwaiter::IsCanceled() const
 inline void TParallelAwaiter::Terminate()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-    if (Terminated_)
-        return;
-
-    if (Completed_ && Profiler_) {
-        Profiler_->TimingStop(Timer_, CompletedTagIds_);
-    }
 
     OnComplete_.Reset();
     Terminated_ = true;
