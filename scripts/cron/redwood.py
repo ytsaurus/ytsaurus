@@ -6,6 +6,11 @@ import os
 import argparse
 from datetime import date, timedelta
 
+def assign_list(old, new):
+    old[:] = []
+    for elem in new:
+        old.append(elem)
+
 def process_logs(import_list, remove_list, link_queue, destination_dir, source_pattern, destination_pattern, days, make_link):
     def get_dst(elem):
         if isinstance(elem, dict):
@@ -13,9 +18,9 @@ def process_logs(import_list, remove_list, link_queue, destination_dir, source_p
         return elem
 
     if days is None:
-        count = 7
+        count = 15
     else:
-        count = days + 7
+        count = days + 15
 
     if destination_pattern is None:
         destination_pattern = source_pattern
@@ -36,8 +41,8 @@ def process_logs(import_list, remove_list, link_queue, destination_dir, source_p
                 if make_link:
                     remove_list.append(dst_link)
                 remove_list.append(dst)
-            link_queue = [elem for elem in link_queue if elem["src"] == dst]
-            import_queue = [elem for elem in import_list if get_dst(elem) == dst]
+            assign_list(link_queue, [elem for elem in link_queue if elem["src"] != dst])
+            assign_list(import_list, [elem for elem in import_list if get_dst(elem) != dst])
         else: # Import case
             if dst in map(get_dst, import_list):
                 continue
@@ -62,7 +67,7 @@ def main():
         process_logs(tables_to_import, tables_to_remove, link_queue, args.path, source, destination, days, link)
 
     process("user_sessions/{}",        None,                      50,   True)
-    process("user_sessions/{}/frauds", "user_sessions_frauds/{}", None, False)
+    process("user_sessions/{}/frauds", "user_sessions_frauds/{}", 50,   True)
     process("user_intents/{}",         None,                      None, False)
     process("reqregscdata/{}/www",     None,                      None, False)
     process("reqregscdata/{}/xml",     None,                      None, False)
