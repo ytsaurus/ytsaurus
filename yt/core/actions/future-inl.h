@@ -102,6 +102,7 @@ public:
     template <class U>
     explicit TPromiseState(U&& value)
         : Value_(std::forward<U>(value))
+        , Canceled_(false)
     {
         static_assert(
             NMpl::TIsConvertible<U, T>::Value,
