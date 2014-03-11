@@ -65,7 +65,7 @@ public:
 
     void Release();
 
-    bool IsAcquired() const;
+    explicit operator bool() const;
 
 private:
     TAsyncSemaphore* Semaphore_;

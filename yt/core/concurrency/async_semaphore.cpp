@@ -174,7 +174,7 @@ void TAsyncSemaphoreGuard::Release()
     }
 }
 
-bool TAsyncSemaphoreGuard::IsAcquired() const
+TAsyncSemaphoreGuard::operator bool() const
 {
     return Semaphore_ != nullptr;
 }
