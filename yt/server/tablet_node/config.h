@@ -52,11 +52,6 @@ public:
     i64 UnalignedPoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
-    int KeyCountRotationThreshold;
-    int ValueCountRotationThreshold;
-    i64 AlignedPoolSizeRotationThreshold;
-    i64 UnalignedPoolSizeRotationThreshold;
-
     TDuration ErrorBackoffTime;
 
     TIntrusivePtr<TTabletChunkReaderConfig> ChunkReader;
