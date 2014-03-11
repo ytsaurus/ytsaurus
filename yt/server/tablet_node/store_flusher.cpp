@@ -13,6 +13,7 @@
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/fiber.h>
+#include <core/concurrency/async_semaphore.h>
 
 #include <core/ytree/attribute_helpers.h>
 
@@ -70,6 +71,9 @@ static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStoreFlusher;
+typedef TIntrusivePtr<TStoreFlusher> TStoreFlusherPtr;
+
 class TStoreFlusher
     : public TRefCounted
 {
@@ -80,6 +84,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreFlush"))
+        , Semaphore_(Config_->MaxConcurrentFlushes)
     { }
 
     void Start()
@@ -93,6 +98,8 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
+
+    TAsyncSemaphore Semaphore_;
 
 
     void ScanSlot(TTabletSlotPtr slot)
@@ -119,13 +126,25 @@ private:
         if (store->GetState() != EStoreState::PassiveDynamic)
             return;
 
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        if (!guard)
+            return;
+
         store->SetState(EStoreState::Flushing);
 
-        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(
-            BIND(&TStoreFlusher::FlushStore, MakeStrong(this), tablet, store));
+        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
+            &TStoreFlusher::FlushStore,
+            MakeStrong(this),
+            Passed(std::move(guard)),
+            tablet,
+            store));
     }
 
-    void FlushStore(TTablet* tablet, IStorePtr store)
+
+    void FlushStore(
+        TAsyncSemaphoreGuard /*guard*/,
+        TTablet* tablet,
+        IStorePtr store)
     {
         YCHECK(store->GetState() == EStoreState::Flushing);
 

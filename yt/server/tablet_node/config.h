@@ -90,6 +90,7 @@ class TStoreFlusherConfig
 {
 public:
     int ThreadPoolSize;
+    int MaxConcurrentFlushes;
 
     TIntrusivePtr<TStoreWriterConfig> Writer;
 
@@ -98,6 +99,9 @@ public:
         RegisterParameter("thread_pool_size", ThreadPoolSize)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
+            .GreaterThan(0)
+            .Default(2);
 
         RegisterParameter("writer", Writer)
             .DefaultNew();
