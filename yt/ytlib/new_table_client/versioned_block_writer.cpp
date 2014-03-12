@@ -14,14 +14,16 @@ using NTransactionClient::TimestampValueMask;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 NullValue = 0;
+static const i64 NullValue = 0;
 
-int TSimpleVersionedBlockWriter::FormatVersion = ETableChunkFormat::SimpleVersioned;
+const int TSimpleVersionedBlockWriter::FormatVersion = ETableChunkFormat::SimpleVersioned;
 
 // 8 bytes for value and 8 bytes for timestamp.
-int TSimpleVersionedBlockWriter::ValueSize = 16;
+const int TSimpleVersionedBlockWriter::ValueSize = 16;
 
-int TSimpleVersionedBlockWriter::TimestampSize = 8;
+const int TSimpleVersionedBlockWriter::TimestampSize = 8;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     const TTableSchema& schema,
@@ -72,9 +74,9 @@ void TSimpleVersionedBlockWriter::WriteRow(
             ++valueCount;
         }
 
-        TTimestamp ts = value.Timestamp & TimestampValueMask;
-        MaxTimestamp_ = std::max(MaxTimestamp_, ts);
-        MinTimestamp_ = std::min(MinTimestamp_, ts);
+        auto timestamp = value.Timestamp & TimestampValueMask;
+        MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
+        MinTimestamp_ = std::min(MinTimestamp_, timestamp);
     }
 
     while (lastId < SchemaColumnCount_) {

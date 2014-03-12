@@ -37,9 +37,9 @@ public:
     static int GetKeySize(int keyColumnCount, int schemaColumnCount);
     static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);
 
-    static int FormatVersion;
-    static int ValueSize;
-    static int TimestampSize;
+    static const int FormatVersion;
+    static const int ValueSize;
+    static const int TimestampSize;
 
 private:
     typedef TAppendOnlyBitMap<ui64> TBitMap;
