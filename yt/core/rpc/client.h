@@ -5,7 +5,6 @@
 
 #include <core/misc/property.h>
 #include <core/concurrency/delayed_executor.h>
-#include <core/misc/metric.h>
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/compression/public.h>

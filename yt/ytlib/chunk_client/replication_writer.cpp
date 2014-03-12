@@ -7,7 +7,6 @@
 #include "chunk_ypath_proxy.h"
 #include "data_node_service_proxy.h"
 
-#include <core/misc/metric.h>
 #include <core/misc/string.h>
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>

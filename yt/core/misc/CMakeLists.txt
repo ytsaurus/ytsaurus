@@ -22,7 +22,6 @@ set( SRCS
   ${BASE}/id_generator.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/lfalloc_helpers.cpp
-  ${BASE}/metric.cpp
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/phoenix.cpp
@@ -75,7 +74,6 @@ set( HDRS
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
   ${BASE}/lfalloc_helpers.h
-  ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/nullable.h
   ${BASE}/object_pool-inl.h
