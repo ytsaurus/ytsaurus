@@ -12,14 +12,14 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager;
-typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TTransactionManager)
+DECLARE_REFCOUNTED_CLASS(TTimestampManager)
+
+DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TTimestampManagerConfig)
 
 class TTransaction;
 typedef SmallVector<TTransaction*, 4> TTransactionPath;
-
-class TTransactionManagerConfig;
-typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

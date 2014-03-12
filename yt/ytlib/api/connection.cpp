@@ -17,8 +17,6 @@
 #include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/hive/cell_directory.h>
-#include <ytlib/hive/timestamp_provider.h>
-#include <ytlib/hive/remote_timestamp_provider.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 #include <ytlib/tablet_client/wire_protocol.h>
@@ -28,6 +26,9 @@
 #include <ytlib/query_client/plan_context.h>
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/query_service_proxy.h>
+
+#include <ytlib/transaction_client/timestamp_provider.h>
+#include <ytlib/transaction_client/remote_timestamp_provider.h>
 
 #include <ytlib/driver/dispatcher.h>
 
@@ -44,7 +45,6 @@
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 
-
 namespace NYT {
 namespace NApi {
 
@@ -57,6 +57,7 @@ using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NQueryClient;
 using namespace NVersionedTableClient;
+using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NTableClient;  // TODO(babenko): consider removing
 using namespace NNodeTrackerClient;

@@ -6,6 +6,8 @@
 
 #include <ytlib/hive/config.h>
 
+#include <ytlib/transaction_client/config.h>
+
 #include <server/hydra/config.h>
 
 #include <server/hive/config.h>
@@ -71,9 +73,9 @@ public:
 
     NTabletServer::TTabletManagerConfigPtr TabletManager;
 
-    NHive::TTimestampManagerConfigPtr TimestampManager;
+    NTransactionServer::TTimestampManagerConfigPtr TimestampManager;
 
-    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
 

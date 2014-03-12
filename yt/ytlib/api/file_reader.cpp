@@ -16,7 +16,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/transaction_client/rpc_helpers.h>
+#include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_spec.h>

@@ -7,7 +7,6 @@ set( SRCS
   ${BASE}/mailbox.cpp
   ${BASE}/transaction_supervisor.cpp
   ${BASE}/commit.cpp
-  ${BASE}/timestamp_manager.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -19,7 +18,6 @@ set( HDRS
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
   ${BASE}/commit.h
-  ${BASE}/timestamp_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -30,4 +28,3 @@ list(APPEND YT_SOURCE_FILES
 protoc( ${BASE}/hive_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/hive_manager.proto YT_SOURCE_FILES )
 protoc( ${BASE}/transaction_supervisor.proto YT_SOURCE_FILES )
-protoc( ${BASE}/timestamp_manager.proto YT_SOURCE_FILES )

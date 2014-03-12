@@ -13,7 +13,7 @@
 #include <core/ytree/attribute_helpers.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/rpc_helpers.h>
+#include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_spec.h>

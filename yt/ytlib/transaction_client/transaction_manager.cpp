@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
+#include "timestamp_provider.h"
 #include "config.h"
 #include "private.h"
 
@@ -18,7 +19,6 @@
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/hive/cell_directory.h>
-#include <ytlib/hive/timestamp_provider.h>
 #include <ytlib/hive/transaction_supervisor_service_proxy.h>
 
 #include <ytlib/tablet_client/tablet_service_proxy.h>
@@ -130,7 +130,7 @@ public:
         PingAncestors_ = options.PingAncestors;
         Timeout_ = options.Timeout;
 
-        return Owner_->TimestampProvider_->GenerateNewTimestamp()
+        return Owner_->TimestampProvider_->GenerateTimestamps()
             .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
     }
 

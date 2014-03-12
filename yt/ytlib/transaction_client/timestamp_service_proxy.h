@@ -4,10 +4,10 @@
 
 #include <core/rpc/client.h>
 
-#include <ytlib/hive/timestamp_service.pb.h>
+#include <ytlib/transaction_client/timestamp_service.pb.h>
 
 namespace NYT {
-namespace NHive {
+namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,12 +24,12 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, GetTimestamp);
+    DEFINE_RPC_PROXY_METHOD(NProto, GenerateTimestamps);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NTransactionClient
 } // namespace NYT
 

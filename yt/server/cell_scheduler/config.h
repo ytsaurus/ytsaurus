@@ -33,7 +33,7 @@ public:
 
     NHydra::TPeerDiscoveryConfigPtr Masters;
     NHive::TCellDirectoryConfigPtr CellDirectory;
-    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NScheduler::TSchedulerConfigPtr Scheduler;
 

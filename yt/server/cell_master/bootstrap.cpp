@@ -33,8 +33,9 @@
 
 #include <ytlib/election/cell_manager.h>
 
-#include <ytlib/hive/timestamp_provider.h>
-#include <ytlib/hive/remote_timestamp_provider.h>
+#include <ytlib/transaction_client/timestamp_provider.h>
+#include <ytlib/transaction_client/remote_timestamp_provider.h>
+
 #include <ytlib/hive/cell_directory.h>
 
 #include <server/hydra/changelog.h>
@@ -45,7 +46,6 @@
 #include <server/hydra/local_snapshot_store.h>
 
 #include <server/hive/hive_manager.h>
-#include <server/hive/timestamp_manager.h>
 #include <server/hive/transaction_manager.h>
 #include <server/hive/transaction_supervisor.h>
 
@@ -56,6 +56,7 @@
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/cypress_integration.h>
+#include <server/transaction_server/timestamp_manager.h>
 
 #include <server/cypress_server/cypress_manager.h>
 #include <server/cypress_server/cypress_integration.h>
@@ -315,7 +316,6 @@ void TBootstrap::Run()
     auto timestampManager = New<TTimestampManager>(
         Config->TimestampManager,
         MetaStateFacade->GetInvoker(),
-        RpcServer,
         MetaStateFacade->GetManager(),
         MetaStateFacade->GetAutomaton());
     
@@ -369,6 +369,7 @@ void TBootstrap::Run()
     
     SetBuildAttributes(orchidRoot, "master");
 
+    RpcServer->RegisterService(timestampManager->GetRpcService());
     RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore));
     RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));

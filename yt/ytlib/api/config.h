@@ -32,7 +32,7 @@ class TConnectionConfig
 {
 public:
     NHydra::TPeerDiscoveryConfigPtr Masters;
-    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;

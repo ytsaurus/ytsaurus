@@ -143,7 +143,7 @@ public:
         TTransactionManagerConfigPtr config,
         const NHive::TCellGuid& masterCellGuid,
         NRpc::IChannelPtr masterChannel,
-        NHive::ITimestampProviderPtr timestampProvider,
+        ITimestampProviderPtr timestampProvider,
         NHive::TCellDirectoryPtr cellDirectory);
 
     ~TTransactionManager();

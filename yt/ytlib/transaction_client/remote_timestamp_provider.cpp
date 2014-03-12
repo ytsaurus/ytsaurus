@@ -9,7 +9,7 @@
 #include <ytlib/hydra/peer_channel.h>
 
 namespace NYT {
-namespace NHive {
+namespace NTransactionClient {
 
 using namespace NRpc;
 using namespace NHydra;
@@ -24,45 +24,50 @@ public:
     TRemoteTimestampProvider(
         TRemoteTimestampProviderConfigPtr config,
         IChannelFactoryPtr channelFactory)
-        : Config(config)
-        , Channel(CreatePeerChannel(config, channelFactory, EPeerRole::Leader))
-        , Proxy(Channel)
-        , LatestTimestamp(NullTimestamp)
+        : Config_(config)
+        , Channel_(CreatePeerChannel(config, channelFactory, EPeerRole::Leader))
+        , Proxy(Channel_)
+        , LatestTimestamp_(NullTimestamp)
     { }
 
-    virtual TFuture<TErrorOr<TTimestamp>> GenerateNewTimestamp() override
+    virtual TFuture<TErrorOr<TTimestamp>> GenerateTimestamps(int count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto req = Proxy.GetTimestamp();
-        return req->Invoke().Apply(
-            BIND(&TRemoteTimestampProvider::OnGetTimestampResponse, MakeStrong(this)));
+        auto req = Proxy.GenerateTimestamps();
+        req->set_count(count);
+        return req->Invoke().Apply(BIND(
+            &TRemoteTimestampProvider::OnGenerateTimestampsResponse,
+            MakeStrong(this),
+            count));
     }
 
     virtual TTimestamp GetLatestTimestamp() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return LatestTimestamp;
+        return LatestTimestamp_;
     }
 
 
 private:
-    TRemoteTimestampProviderConfigPtr Config;
+    TRemoteTimestampProviderConfigPtr Config_;
 
-    IChannelPtr Channel;
+    IChannelPtr Channel_;
     TTimestampServiceProxy Proxy;
 
-    TSpinLock Spinlock;
-    TTimestamp LatestTimestamp;
+    TSpinLock SpinLock_;
+    TTimestamp LatestTimestamp_;
 
 
-    TErrorOr<TTimestamp> OnGetTimestampResponse(TTimestampServiceProxy::TRspGetTimestampPtr rsp)
+    TErrorOr<TTimestamp> OnGenerateTimestampsResponse(
+        int count,
+        TTimestampServiceProxy::TRspGenerateTimestampsPtr rsp)
     {
         if (rsp->IsOK()) {
-            TGuard<TSpinLock> guard(Spinlock);
+            TGuard<TSpinLock> guard(SpinLock_);
             auto timestamp = TTimestamp(rsp->timestamp());
-            LatestTimestamp = std::max(LatestTimestamp, timestamp);
+            LatestTimestamp_ = std::max(LatestTimestamp_, timestamp + count - 1);
             return TErrorOr<TTimestamp>(timestamp);
         } else {
             return TErrorOr<TTimestamp>(rsp->GetError());
@@ -82,6 +87,6 @@ ITimestampProviderPtr CreateRemoteTimestampProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NTransactionClient
 } // namespace NYT
 

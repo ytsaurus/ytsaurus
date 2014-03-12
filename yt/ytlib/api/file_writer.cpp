@@ -22,7 +22,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/transaction_client/rpc_helpers.h>
+#include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 

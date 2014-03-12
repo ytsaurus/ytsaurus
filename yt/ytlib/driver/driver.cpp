@@ -23,7 +23,7 @@
 
 #include <core/rpc/scoped_channel.h>
 
-#include <ytlib/hive/timestamp_provider.h>
+#include <ytlib/transaction_client/timestamp_provider.h>
 
 #include <ytlib/hive/cell_directory.h>
 

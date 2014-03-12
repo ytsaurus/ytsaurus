@@ -29,7 +29,7 @@
 #include <core/ypath/token.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/rpc_helpers.h>
+#include <ytlib/transaction_client/helpers.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>

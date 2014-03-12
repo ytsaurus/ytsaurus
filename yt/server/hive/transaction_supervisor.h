@@ -27,7 +27,7 @@ public:
         NHydra::TCompositeAutomatonPtr automaton,
         THiveManagerPtr hiveManager,
         ITransactionManagerPtr transactionManager,
-        NHive::ITimestampProviderPtr timestampProvider);
+        NTransactionClient::ITimestampProviderPtr timestampProvider);
 
     ~TTransactionSupervisor();
 
@@ -38,9 +38,11 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

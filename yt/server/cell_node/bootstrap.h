@@ -70,7 +70,7 @@ public:
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
     NHive::TCellDirectoryPtr GetCellDirectory() const;
-    NHive::ITimestampProviderPtr GetTimestampProvider() const;
+    NTransactionClient::ITimestampProviderPtr GetTimestampProvider() const;
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
@@ -116,7 +116,7 @@ private:
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
     NHive::TCellDirectoryPtr CellDirectory;
-    NHive::ITimestampProviderPtr TimestampProvider;
+    NTransactionClient::ITimestampProviderPtr TimestampProvider;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;

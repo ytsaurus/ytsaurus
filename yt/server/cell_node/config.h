@@ -53,7 +53,7 @@ public:
     NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
 
     //! Timestamp provider configuration for transaction coordination.
-    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
     //! Transaction manager configuration used by tablets for e.g. flushing stores.
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;

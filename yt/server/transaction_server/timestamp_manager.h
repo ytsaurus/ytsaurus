@@ -9,7 +9,7 @@
 #include <server/hydra/public.h>
 
 namespace NYT {
-namespace NHive {
+namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,19 +20,22 @@ public:
     TTimestampManager(
         TTimestampManagerConfigPtr config,
         IInvokerPtr automatonInvoker,
-        NRpc::IServerPtr rpcServer,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
 
     ~TTimestampManager();
 
+    NRpc::IServicePtr GetRpcService();
+
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TTimestampManager)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NTransactionServer
 } // namespace NYT

@@ -625,7 +625,7 @@ THiveManager::THiveManager(
     IServerPtr rpcServer,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         selfCellGuid,
         config,
         cellRegistry,
@@ -640,50 +640,50 @@ THiveManager::~THiveManager()
 
 void THiveManager::Start()
 {
-    Impl->Start();
+    Impl_->Start();
 }
 
 void THiveManager::Stop()
 {
-    Impl->Stop();
+    Impl_->Stop();
 }
 
 const TCellGuid& THiveManager::GetSelfCellGuid() const
 {
-    return Impl->GetSelfCellGuid();
+    return Impl_->GetSelfCellGuid();
 }
 
 TMailbox* THiveManager::CreateMailbox(const TCellGuid& cellGuid)
 {
-    return Impl->CreateMailbox(cellGuid);
+    return Impl_->CreateMailbox(cellGuid);
 }
 
 TMailbox* THiveManager::GetOrCreateMailbox(const TCellGuid& cellGuid)
 {
-    return Impl->GetOrCreateMailbox(cellGuid);
+    return Impl_->GetOrCreateMailbox(cellGuid);
 }
 
 TMailbox* THiveManager::GetMailboxOrThrow(const TCellGuid& cellGuid)
 {
-    return Impl->GetMailboxOrThrow(cellGuid);
+    return Impl_->GetMailboxOrThrow(cellGuid);
 }
 
 void THiveManager::RemoveMailbox(const TCellGuid& cellGuid)
 {
-    Impl->RemoveMailbox(cellGuid);
+    Impl_->RemoveMailbox(cellGuid);
 }
 
 void THiveManager::PostMessage(TMailbox* mailbox, const TMessage& message)
 {
-    Impl->PostMessage(mailbox, message);
+    Impl_->PostMessage(mailbox, message);
 }
 
 void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
 {
-    Impl->PostMessage(mailbox, message);
+    Impl_->PostMessage(mailbox, message);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, TCellGuid, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, TCellGuid, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

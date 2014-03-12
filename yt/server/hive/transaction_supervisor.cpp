@@ -17,7 +17,8 @@
 #include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/hive/transaction_supervisor_service_proxy.h>
-#include <ytlib/hive/timestamp_provider.h>
+
+#include <ytlib/transaction_client/timestamp_provider.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/hydra_manager.h>
@@ -36,6 +37,7 @@ namespace NHive {
 using namespace NRpc;
 using namespace NHydra;
 using namespace NHive::NProto;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NConcurrency;
 
@@ -542,7 +544,7 @@ private:
 
     void RunCommit(TCommit* commit)
     {
-        TimestampProvider->GenerateNewTimestamp()
+        TimestampProvider->GenerateTimestamps()
             .Subscribe(BIND(&TImpl::OnCommitTimestampGenerated, MakeStrong(this), commit->GetTransactionId())
                 .Via(EpochAutomatonInvoker));
     }
@@ -729,7 +731,7 @@ TTransactionSupervisor::TTransactionSupervisor(
     THiveManagerPtr hiveManager,
     ITransactionManagerPtr transactionManager,
     ITimestampProviderPtr timestampProvider)
-    : Impl(New<TImpl>(
+    : Impl_(New<TImpl>(
         config,
         automatonInvoker,
         rpcServer,
@@ -745,17 +747,17 @@ TTransactionSupervisor::~TTransactionSupervisor()
 
 void TTransactionSupervisor::Start()
 {
-    Impl->Start();
+    Impl_->Start();
 }
 
 void TTransactionSupervisor::Stop()
 {
-    Impl->Stop();
+    Impl_->Stop();
 }
 
 TMutationPtr TTransactionSupervisor::CreateAbortTransactionMutation(const TReqAbortTransaction& request)
 {
-    return Impl->CreateAbortTransactionMutation(request);
+    return Impl_->CreateAbortTransactionMutation(request);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,14 +25,5 @@ public:
 DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TRemoteTimestampProviderConfig
-    : public NHydra::TPeerDiscoveryConfig
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NHive
 } // namespace NYT

@@ -18,6 +18,7 @@
 #include <core/rpc/scoped_channel.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/timestamp_provider.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -39,7 +40,6 @@
 #include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/hive/cell_directory.h>
-#include <ytlib/hive/timestamp_provider.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 

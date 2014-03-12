@@ -40,6 +40,8 @@ struct ITransactionManager
 
 };
 
+DEFINE_REFCOUNTED_TYPE(ITransactionManager)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHive

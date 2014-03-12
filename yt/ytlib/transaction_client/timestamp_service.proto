@@ -1,11 +1,13 @@
-package NYT.NHive.NProto;
+package NYT.NTransactionClient.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetTimestamp
-{ }
+message TReqGenerateTimestamps
+{
+    optional int32 count = 1 [default = 1];
+}
 
-message TRspGetTimestamp
+message TRspGenerateTimestamps
 {
     required int64 timestamp = 1;
 }

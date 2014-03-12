@@ -13,10 +13,7 @@ namespace NHive {
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectory)
 
-DECLARE_REFCOUNTED_STRUCT(ITimestampProvider)
-
 DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
-DECLARE_REFCOUNTED_CLASS(TRemoteTimestampProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,6 +28,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(THiveManagerConfig)
+
 class TTransactionSupervisorConfig
     : public TYsonSerializable
 {
@@ -36,18 +38,7 @@ public:
     { }
 };
 
-class TTimestampManagerConfig
-    : public TYsonSerializable
-{
-public:
-    int BatchSize;
-
-    TTimestampManagerConfig()
-    {
-        RegisterParameter("batch_size", BatchSize)
-            .Default(10000);
-    }
-};
+DEFINE_REFCOUNTED_TYPE(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/hydra/config.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -24,6 +26,14 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteTimestampProviderConfig
+    : public NHydra::TPeerDiscoveryConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,29 +9,17 @@ namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THiveManager;
-typedef TIntrusivePtr<THiveManager> THiveManagerPtr;
+DECLARE_REFCOUNTED_CLASS(THiveManager)
 
 struct TMessage;
 class TMailbox;
 
-struct ITransactionManager;
-typedef TIntrusivePtr<ITransactionManager> ITransactionManagerPtr;
+DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 
-class TTimestampManager;
-typedef TIntrusivePtr<TTimestampManager> TTimestampManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
 
-class TTransactionSupervisor;
-typedef TIntrusivePtr<TTransactionSupervisor> TTransactionSupervisorPtr;
-
-class THiveManagerConfig;
-typedef TIntrusivePtr<THiveManagerConfig> THiveManagerConfigPtr;
-
-class TTransactionSupervisorConfig;
-typedef TIntrusivePtr<TTransactionSupervisorConfig> TTransactionSupervisorConfigPtr;
-
-class TTimestampManagerConfig;
-typedef TIntrusivePtr<TTimestampManagerConfig> TTimestampManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(THiveManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

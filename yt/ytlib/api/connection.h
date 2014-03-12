@@ -35,7 +35,7 @@ struct IConnection
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
-    virtual NHive::ITimestampProviderPtr GetTimestampProvider() = 0;
+    virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual NQueryClient::IPrepareCallbacks* GetQueryPrepareCallbacks() = 0;
     virtual NQueryClient::ICoordinateCallbacks* GetQueryCoordinateCallbacks() = 0;

@@ -42,11 +42,11 @@
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <ytlib/hive/cell_directory.h>
-#include <ytlib/hive/timestamp_provider.h>
-#include <ytlib/hive/remote_timestamp_provider.h>
-
+#include <ytlib/transaction_client/timestamp_provider.h>
+#include <ytlib/transaction_client/remote_timestamp_provider.h>
 #include <ytlib/transaction_client/transaction_manager.h>
+
+#include <ytlib/hive/cell_directory.h>
 
 #include <server/misc/build_attributes.h>
 
@@ -108,6 +108,7 @@ using namespace NJobProxy;
 using namespace NDataNode;
 using namespace NTabletNode;
 using namespace NHive;
+using namespace NTransactionClient;
 using namespace NQueryAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
