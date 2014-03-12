@@ -33,8 +33,7 @@ using NObjectClient::NullTransactionId;
 /*!
  *  Timestamp is represented as a 64-bit unsigned integer of the following structure:
  *  bits 0-29:   auto-incrementing counter (allowing up to ~10^9 timestamps per second)
- *  bits 30-60:  Unix time in seconds (from 1 Jan 1970)
- *  bit  61:     sentinel flag (see sentinel timestamp values)
+ *  bits 30-61:  Unix time in seconds (from 1 Jan 1970)
  *  bit  62:     incremental flag (see #IncrementalTimestampMask)
  *  bit  63:     tombstone flag (see #TombstoneTimestampMask)
  */
@@ -46,14 +45,14 @@ const int TimestampCounterWidth = 30;
 // Uninitialized/invalid timestamp.
 const TTimestamp NullTimestamp = 0;
 
-// Valid timestamps.
+// Timestamp values range.
 const TTimestamp MinTimestamp = 0x0000000000000001ULL;
-const TTimestamp MaxTimestamp = 0x0fffffffffffffffULL;
+const TTimestamp MaxTimestamp = 0x3fffffffffffff00ULL;
 
 // Sentinels.
-const TTimestamp LastCommittedTimestamp = 0x2000000000000000ULL;
-const TTimestamp UncommittedTimestamp   = 0x2000000000000001ULL;
-const TTimestamp AllCommittedTimestamp  = 0x2000000000000002ULL;
+const TTimestamp LastCommittedTimestamp = 0x3fffffffffffff01ULL;
+const TTimestamp UncommittedTimestamp   = 0x3fffffffffffff02ULL;
+const TTimestamp AllCommittedTimestamp  = 0x3fffffffffffff03ULL;
 
 // Masks.
 const TTimestamp TimestampValueMask       = 0x3fffffffffffffffULL;
