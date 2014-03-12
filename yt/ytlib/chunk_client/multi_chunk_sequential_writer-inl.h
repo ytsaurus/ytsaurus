@@ -193,8 +193,7 @@ void TMultiChunkSequentialWriter<TProvider>::OnChunkCreated(
         return;
     }
 
-    LOG_DEBUG("Chunk created (ChunkId: %s)",
-        ~ToString(chunkId));
+    LOG_DEBUG("Chunk created (ChunkId: %s)", ~ToString(chunkId));
 
     session.ChunkId = chunkId;
 
