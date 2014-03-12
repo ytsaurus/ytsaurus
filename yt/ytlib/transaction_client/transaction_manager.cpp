@@ -427,8 +427,11 @@ private:
     void Unregister()
     {
         if (AutoAbort_) {
-            TGuard<TSpinLock> guard(Owner_->SpinLock_);
-            YCHECK(Owner_->AliveTransactions_.erase(this) == 1);
+            {
+                TGuard<TSpinLock> guard(Owner_->SpinLock_);
+                // NB: Instance is not neccessarily registered.
+                Owner_->AliveTransactions_.erase(this);
+            }
 
             if (State_ == EState::Active) {
                 SendAbort();
