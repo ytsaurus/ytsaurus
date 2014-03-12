@@ -13,6 +13,7 @@
 
 #include <util/system/yield.h>
 #include <util/system/info.h>
+#include <util/system/execpath.h>
 
 #ifdef _unix_
     #include <spawn.h>
@@ -124,84 +125,80 @@ void KillallByUid(int uid)
 {
     YCHECK(uid > 0);
 
-    auto pidsToKill = GetPidsByUid(uid);
-    if (pidsToKill.empty()) {
-        return;
-    }
+    Stroka serverPath = GetExecPath();
+    std::vector<Stroka> arguments;
+    arguments.push_back(serverPath);
+    arguments.push_back("--killer");
+    arguments.push_back("--uid");
+    arguments.push_back(ToString(uid));
+
+    auto throwError = [=] (const Stroka& msg, const TError& error) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to kill processes owned by %d: %s",
+            uid,
+            ~msg) << error;
+    };
 
     while (true) {
-        auto pids = GetPidsByUid(uid);
-        if (pids.empty())
-            break;
-
-        LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
-            uid,
-            ~JoinToString(pids));
-
         // We are forking here in order not to give the root privileges to the parent process ever,
         // because we cannot know what other threads are doing.
-        int forkedPid = fork();
-        if (forkedPid < 0) {
-            THROW_ERROR_EXCEPTION("Failed to kill processes: fork failed")
-                << TError::FromSystem();
+        int pid;
+        try {
+            pid = Spawn(
+                ~serverPath,
+                arguments);
+        } catch (const std::exception& ex) {
+            // Failed to exec job proxy
+            throwError("spawn failed", TError(ex));
         }
-
-        if (forkedPid == 0) {
-            // In child process.
-            YCHECK(setuid(0) == 0);
-
-            for (int pid : pids) {
-                auto result = kill(pid, 9);
-                if (result == -1) {
-                    YCHECK(errno == ESRCH);
-                }
-            }
-
-            _exit(0);
-        }
-
-        // In parent process.
+        YCHECK(pid > 0);
 
         int status = 0;
         {
-            int result = waitpid(forkedPid, &status, WUNTRACED);
+            int result = waitpid(pid, &status, WUNTRACED);
             if (result < 0) {
-                THROW_ERROR_EXCEPTION("Failed to kill processes: waitpid failed")
-                    << TError::FromSystem();
+                throwError("waitpid failed", TError::FromSystem());
             }
-            YCHECK(result == forkedPid);
+            YCHECK(result == pid);
         }
 
         auto statusError = StatusToError(status);
         if (!statusError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to kill processes: killer failed")
-                << statusError;
+            throwError("killer failed", statusError);
         }
 
         ThreadYield();
     }
 }
 
+void DoKillallByUid(int uid)
+{
+    auto pids = GetPidsByUid(uid);
+    if (pids.empty())
+        return;
+
+    LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
+              uid,
+              ~JoinToString(pids));
+
+    YCHECK(setuid(0) == 0);
+
+    for (int pid : pids) {
+        auto result = kill(pid, 9);
+        if (result == -1) {
+            YCHECK(errno == ESRCH);
+        }
+    }
+}
+
 void RemoveDirAsRoot(const Stroka& path)
 {
-    // Allocation after fork can lead to a deadlock inside LFAlloc.
-    // To avoid allocation we list contents of the directory before fork.
-
-    auto pid = fork();
-    // We are forking here in order not to give the root privileges to the parent process ever,
-    // because we cannot know what other threads are doing.
-    if (pid == 0) {
-        // Child process
-        YCHECK(setuid(0) == 0);
-        execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
-
-        fprintf(
-            stderr,
-            "Failed to remove directory (/bin/rm -rf %s): %s",
-            ~path,
-            ~ToString(TError::FromSystem()));
-        _exit(1);
-    }
+    Stroka serverPath = GetExecPath();
+    std::vector<Stroka> arguments;
+    arguments.push_back(serverPath);
+    arguments.push_back("--cleaner");
+    arguments.push_back("--dir-to-remove");
+    arguments.push_back(path);
 
     auto throwError = [=] (const Stroka& msg, const TError& error) {
         THROW_ERROR_EXCEPTION(
@@ -210,10 +207,17 @@ void RemoveDirAsRoot(const Stroka& path)
             ~msg) << error;
     };
 
-    // Parent process
-    if (pid < 0) {
-        throwError("fork failed", TError::FromSystem());
+    int pid;
+    try {
+        pid = Spawn(
+            ~serverPath,
+            arguments);
+    } catch (const std::exception& ex) {
+        // Failed to exec job proxy
+        throwError("spawn failed", TError(ex));
     }
+
+    YCHECK(pid > 0);
 
     int status = 0;
     {
@@ -228,6 +232,17 @@ void RemoveDirAsRoot(const Stroka& path)
     if (!statusError.IsOK()) {
         throwError("invalid exit status", statusError);
     }
+}
+
+void DoRemoveDirAsRoot(const Stroka& path)
+{
+    // Child process
+    YCHECK(setuid(0) == 0);
+    execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
+
+    THROW_ERROR_EXCEPTION("Failed to remove directory %s: %s",
+        ~path,
+        "execl failed") << TError::FromSystem();
 }
 
 TError StatusToError(int status)
@@ -359,7 +374,7 @@ int Spawn(const char* path, std::vector<Stroka>& arguments)
 
 #else
 
-void KilallByUid(int uid)
+void KillallByUid(int uid)
 {
     UNUSED(uid);
     YUNIMPLEMENTED();
