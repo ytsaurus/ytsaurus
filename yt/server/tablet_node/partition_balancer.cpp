@@ -103,33 +103,32 @@ private:
                 ->Commit();
         }
         
-        if (dataSize < config->MinPartitionDataSize && partitionCount > 1) {
-            // TODO(babenko)
-            //int firstPartitionIndex = partition->GetIndex();
-            //int lastPartitionIndex = firstPartitionIndex + 1;
+        if (dataSize + tablet->GetEden()->GetTotalDataSize() < config->MinPartitionDataSize && partitionCount > 1) {
+            int firstPartitionIndex = partition->GetIndex();
+            int lastPartitionIndex = firstPartitionIndex + 1;
 
-            //if (lastPartitionIndex == partitionCount) {
-            //    --firstPartitionIndex;
-            //    --lastPartitionIndex;
-            //}
+            if (lastPartitionIndex == partitionCount) {
+                --firstPartitionIndex;
+                --lastPartitionIndex;
+            }
 
-            //for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            //    if (tablet->Partitions()[index]->GetState() != EPartitionState::None)
-            //        return;
-            //}
+            for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
+                if (tablet->Partitions()[index]->GetState() != EPartitionState::None)
+                    return;
+            }
 
-            //for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            //    tablet->Partitions()[index]->SetState(EPartitionState::Splitting);
-            //}
+            for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
+                tablet->Partitions()[index]->SetState(EPartitionState::Splitting);
+            }
 
-            //auto hydraManager = slot->GetHydraManager();
+            auto hydraManager = slot->GetHydraManager();
 
-            //TReqMergePartitions request;
-            //ToProto(request.mutable_tablet_id(), tablet->GetId());
-            //ToProto(request.mutable_pivot_key(), tablet->Partitions()[firstPartitionIndex]->GetPivotKey());
-            //request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
-            //CreateMutation(hydraManager, request)
-            //    ->Commit();
+            TReqMergePartitions request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            ToProto(request.mutable_pivot_key(), tablet->Partitions()[firstPartitionIndex]->GetPivotKey());
+            request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
+            CreateMutation(hydraManager, request)
+                ->Commit();
         }
     }
 
