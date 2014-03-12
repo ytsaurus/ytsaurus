@@ -38,7 +38,6 @@ DECLARE_REFCOUNTED_STRUCT(TTabletInfo)
 DECLARE_REFCOUNTED_CLASS(TTableMountCache)
 
 DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 
 class TWireProtocolReader;
 class TWireProtocolWriter;

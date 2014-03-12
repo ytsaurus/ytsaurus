@@ -59,7 +59,7 @@ TTablet::TTablet(
 TTablet::~TTablet()
 { }
 
-const NTabletClient::TTableMountConfigPtr& TTablet::GetConfig()
+const TTableMountConfigPtr& TTablet::GetConfig()
 {
     return Config_;
 }

@@ -17,6 +17,68 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableMountConfig
+    : public TYsonSerializable
+{
+public:
+    int KeyCountFlushThreshold;
+    int ValueCountFlushThreshold;
+    i64 AlignedPoolSizeFlushThreshold;
+    i64 UnalignedPoolSizeFlushThreshold;
+
+    i64 MaxPartitionDataSize;
+    i64 MinPartitionDataSize;
+
+    int MaxPartitionCount;
+
+    i64 EdenPartitioningDataSize;
+    int EdenPartitioningStoreCount;
+
+    TTableMountConfig()
+    {
+        RegisterParameter("key_count_flush_threshold", KeyCountFlushThreshold)
+            .GreaterThan(0)
+            .Default(1000000);
+        RegisterParameter("value_count_flush_threshold", ValueCountFlushThreshold)
+            .GreaterThan(0)
+            .Default(10000000);
+        RegisterParameter("aligned_pool_size_flush_threshold", AlignedPoolSizeFlushThreshold)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("unaligned_pool_size_flush_threshold", UnalignedPoolSizeFlushThreshold)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
+
+        RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
+            .Default((i64) 256 * 1024 * 1024)
+            .GreaterThan(0);
+        RegisterParameter("min_partition_data_size", MinPartitionDataSize)
+            .Default((i64) 16 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("max_partition_count", MaxPartitionCount)
+            .Default(64)
+            .GreaterThan(0);
+
+        RegisterParameter("eden_partitioning_data_size", EdenPartitioningDataSize)
+            .Default((i64) 256 * 1024 * 1024)
+            .GreaterThan(0);
+        RegisterParameter("eden_partitioning_store_count", EdenPartitioningStoreCount)
+            .Default(8)
+            .GreaterThan(0);
+
+        RegisterValidator([&] () {
+            if (MinPartitionDataSize >= MaxPartitionDataSize) {
+                THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"max_partition_data_size\"");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableMountConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManagerConfig
     : public TYsonSerializable
 {

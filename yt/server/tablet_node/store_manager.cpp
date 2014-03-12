@@ -309,10 +309,10 @@ bool TStoreManager::IsRotationNeeded() const
     const auto& store = Tablet_->GetActiveStore();
     const auto& config = Tablet_->GetConfig();
     return
-        store->GetKeyCount() >= config->KeyCountRotationThreshold ||
-        store->GetValueCount() >= config->ValueCountRotationThreshold ||
-        store->GetAlignedPoolSize() >= config->AlignedPoolSizeRotationThreshold ||
-        store->GetUnalignedPoolSize() >= config->UnalignedPoolSizeRotationThreshold;
+        store->GetKeyCount() >= config->KeyCountFlushThreshold ||
+        store->GetValueCount() >= config->ValueCountFlushThreshold ||
+        store->GetAlignedPoolSize() >= config->AlignedPoolSizeFlushThreshold ||
+        store->GetUnalignedPoolSize() >= config->UnalignedPoolSizeFlushThreshold;
 }
 
 void TStoreManager::SetRotationScheduled()

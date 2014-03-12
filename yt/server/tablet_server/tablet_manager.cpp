@@ -32,7 +32,7 @@
 
 #include <server/table_server/table_node.h>
 
-#include <server/tablet_node/public.h>
+#include <server/tablet_node/config.h>
 #include <server/tablet_node/tablet_manager.pb.h>
 
 #include <server/hive/hive_manager.h>
@@ -73,6 +73,8 @@ using namespace NTabletNode::NProto;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NCellMaster;
+
+using NTabletNode::TTableMountConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

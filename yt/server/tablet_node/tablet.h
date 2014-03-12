@@ -40,7 +40,7 @@ public:
 public:
     explicit TTablet(const TTabletId& id);
     TTablet(
-        NTabletClient::TTableMountConfigPtr config,
+        TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& id,
         TTabletSlot* slot,
@@ -51,7 +51,7 @@ public:
 
     ~TTablet();
 
-    const NTabletClient::TTableMountConfigPtr& GetConfig();
+    const TTableMountConfigPtr& GetConfig();
     const TTabletWriterOptionsPtr& GetWriterOptions();
 
     const TStoreManagerPtr& GetStoreManager() const;
@@ -99,7 +99,7 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue);
 
 private:
-    NTabletClient::TTableMountConfigPtr Config_;
+    TTableMountConfigPtr Config_;
     TTabletWriterOptionsPtr WriterOptions_;
 
     TStoreManagerPtr StoreManager_;
