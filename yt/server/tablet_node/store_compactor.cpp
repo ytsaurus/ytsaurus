@@ -97,10 +97,17 @@ private:
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
         ScanEden(slot, tablet->GetEden());
+
+        for (auto& partition : tablet->Partitions()) {
+            ScanPartition(slot, partition.get());
+        }
     }
 
     void ScanEden(TTabletSlotPtr slot, TPartition* eden)
     {
+        if (eden->GetState() != EPartitionState::None)
+            return;
+
         std::vector<IStorePtr> stores;
         for (auto store : eden->Stores()) {
             if (store->GetState() == EStoreState::ActiveDynamic ||
@@ -129,6 +136,8 @@ private:
             store->SetState(EStoreState::Compacting);
         }
 
+        eden->SetState(EPartitionState::Compacting);
+
         std::vector<TOwningKey> pivotKeys;
         for (const auto& partition : tablet->Partitions()) {
             pivotKeys.push_back(partition->GetPivotKey());
@@ -140,8 +149,56 @@ private:
             Passed(std::move(guard)),
             eden,
             pivotKeys,
-            stores,
-            dataSize));
+            stores));
+    }
+
+    void ScanPartition(TTabletSlotPtr slot, TPartition* partition)
+    {
+        if (partition->GetState() != EPartitionState::None)
+            return;
+
+        std::vector<IStorePtr> allStores;
+        for (auto store : partition->Stores()) {
+            if (store->GetState() != EStoreState::Persistent)
+                return;
+            allStores.push_back(std::move(store));
+        }
+
+        auto compactionStores = PickStoresForCompaction(allStores);
+        if (compactionStores.empty())
+            return;
+
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        if (!guard)
+            return;
+
+        for (auto store : compactionStores) {
+            store->SetState(EStoreState::Compacting);
+        }
+
+        partition->SetState(EPartitionState::Compacting);
+
+        auto* tablet = partition->GetTablet();
+        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
+            &TStoreCompactor::CompactPartition,
+            MakeStrong(this),
+            Passed(std::move(guard)),
+            partition,
+            compactionStores));
+    }
+
+
+    std::vector<IStorePtr> PickStoresForCompaction(std::vector<IStorePtr>& allStores)
+    {
+        std::sort(
+            allStores.begin(),
+            allStores.end(),
+            [&] (const IStorePtr& lhs, const IStorePtr& rhs) {
+                return lhs->GetMinTimestamp() < rhs->GetMinTimestamp();
+            });
+
+        // TODO(babenko): need some smart code here
+        return allStores.size() >= 3 ? allStores : std::vector<IStorePtr>();
     }
 
 
@@ -149,8 +206,7 @@ private:
         TAsyncSemaphoreGuard /*guard*/,
         TPartition* eden,
         const std::vector<TOwningKey>& pivotKeys,
-        const std::vector<IStorePtr>& stores,
-        i64 dataSize)
+        const std::vector<IStorePtr>& stores)
     {
         auto* tablet = eden->GetTablet();
         auto* slot = tablet->GetSlot();
@@ -162,10 +218,15 @@ private:
         Logger.AddTag(Sprintf("TabletId: %s",
             ~ToString(tablet->GetId())));
 
-        auto automatonInvoker = tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
+        auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
         try {
+            i64 dataSize = 0;
+            for (auto store : stores) {
+                dataSize += store->GetDataSize();
+            }
+
             LOG_INFO("Eden partitioning started (PartitionCount: %d, DataSize: % " PRId64 ", ChunkCount: %d)",
                 static_cast<int>(pivotKeys.size()),
                 dataSize,
@@ -184,11 +245,11 @@ private:
         
             TTransactionPtr transaction;
             {
-                LOG_INFO("Creating store flush transaction");
+                LOG_INFO("Creating Eden partitioning transaction");
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Partitioning Eden, tablet %s",
+                attributes->Set("title", Sprintf("Eden partitioning, tablet %s",
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(transactionManager->Start(options));
@@ -357,6 +418,142 @@ private:
                 tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
             }
         }
+
+        YCHECK(eden->GetState() == EPartitionState::Compacting);
+        eden->SetState(EPartitionState::None);
+    }
+
+    void CompactPartition(
+        TAsyncSemaphoreGuard /*guard*/,
+        TPartition* partition,
+        const std::vector<IStorePtr>& stores)
+    {
+        auto* tablet = partition->GetTablet();
+        auto* slot = tablet->GetSlot();
+        auto tabletManager = slot->GetTabletManager();
+
+        NLog::TTaggedLogger Logger(TabletNodeLogger);
+        Logger.AddTag(Sprintf("TabletId: %s, PartitionRange: %s .. %s",
+            ~ToString(tablet->GetId()),
+            ~ToString(partition->GetPivotKey()),
+            ~ToString(partition->GetNextPivotKey())));
+
+        auto automatonInvoker = GetCurrentInvoker();
+        auto poolInvoker = ThreadPool_->GetInvoker();
+
+        try {
+            i64 dataSize = 0;
+            for (auto store : stores) {
+                dataSize += store->GetDataSize();
+            }
+
+            LOG_INFO("Partition compaction started (DataSize: % " PRId64 ", ChunkCount: %d)",
+                dataSize,
+                static_cast<int>(stores.size()));
+
+            auto reader = CreateVersionedTabletReader(
+                tablet,
+                stores,
+                tablet->GetPivotKey(),
+                tablet->GetNextPivotKey(),
+                AllCommittedTimestamp);
+
+            SwitchTo(poolInvoker);
+
+            auto transactionManager = Bootstrap_->GetTransactionManager();
+        
+            TTransactionPtr transaction;
+            {
+                LOG_INFO("Creating partition compaction transaction");
+                NTransactionClient::TTransactionStartOptions options;
+                options.AutoAbort = false;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("title", Sprintf("Partition compaction, tablet %s",
+                    ~ToString(tablet->GetId())));
+                options.Attributes = attributes.get();
+                auto transactionOrError = WaitFor(transactionManager->Start(options));
+                THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+                transaction = transactionOrError.Value();
+            }
+
+            TReqCommitTabletStoresUpdate updateStoresRequest;
+            ToProto(updateStoresRequest.mutable_tablet_id(), tablet->GetId());
+
+            for (auto store : stores) {
+                auto* descriptor = updateStoresRequest.add_stores_to_remove();
+                ToProto(descriptor->mutable_store_id(), store->GetId());
+            }
+            
+            auto writerProvider = New<TVersionedChunkWriterProvider>(
+                Config_->Writer,
+                tablet->GetWriterOptions(),
+                tablet->Schema(),
+                tablet->KeyColumns());
+
+            auto writer = New<TVersionedMultiChunkWriter>(
+                Config_->Writer,
+                tablet->GetWriterOptions(),
+                writerProvider,
+                Bootstrap_->GetMasterChannel(),
+                transaction->GetId());
+
+            {
+                auto result = WaitFor(reader->Open());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            {
+                auto result = WaitFor(writer->Open());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            std::vector<TVersionedRow> rows;
+
+            while (reader->Read(&rows)) {
+                if (rows.empty()) {
+                    auto result = WaitFor(reader->GetReadyEvent());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    continue;
+                }
+
+                if (!writer->Write(rows)) {
+                    auto result = WaitFor(writer->GetReadyEvent());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                }
+            }
+
+            {
+                auto result = WaitFor(writer->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+                auto* descriptor = updateStoresRequest.add_stores_to_add();
+                descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
+                descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+            }
+
+            SwitchTo(automatonInvoker);
+
+            CreateMutation(slot->GetHydraManager(), updateStoresRequest)
+                ->Commit();
+
+            LOG_INFO("Partition compaction completed");
+
+            // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error compacting partition, backing off");
+
+            SwitchTo(automatonInvoker);
+
+            for (auto store : stores) {
+                YCHECK(store->GetState() == EStoreState::Compacting);
+                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+            }
+        }
+
+        YCHECK(partition->GetState() == EPartitionState::Compacting);
+        partition->SetState(EPartitionState::None);
     }
 
 };
