@@ -429,7 +429,7 @@ private:
         if (AutoAbort_) {
             {
                 TGuard<TSpinLock> guard(Owner_->SpinLock_);
-                // NB: Instance is not neccessarily registered.
+                // NB: Instance is not necessarily registered.
                 Owner_->AliveTransactions_.erase(this);
             }
 
