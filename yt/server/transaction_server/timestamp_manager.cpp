@@ -136,6 +136,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GenerateTimestamps)
     {
+        if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
+            context->SetRequestInfo("Count: %d", request->count());
+        }
+
         DoGenerateTimestamps(std::move(context));
     }
 
@@ -174,6 +178,10 @@ private:
 
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;
+
+        if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
+            context->SetRequestInfo("Timestamp: %" PRId64, result);
+        }
 
         context->Response().set_timestamp(result);
         context->Reply();
