@@ -44,7 +44,7 @@ public:
             PendingRequests_.push_back(request);
             if (!RequestInProgress_) {
                 YCHECK(PendingRequests_.size() == 1);
-                SendRequest();
+                SendRequest(guard);
             }
         }
 
@@ -77,7 +77,7 @@ private:
     std::vector<TRequest> PendingRequests_;
 
 
-    void SendRequest()
+    void SendRequest(TGuard<TSpinLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
         YCHECK(!RequestInProgress_);
@@ -94,6 +94,7 @@ private:
         req->set_count(count);
 
         RequestInProgress_ = true;
+        guard.Release();
 
         req->Invoke().Subscribe(BIND(
             &TRemoteTimestampProvider::OnResponse,
@@ -122,7 +123,7 @@ private:
         }
 
         if (!PendingRequests_.empty()) {
-            SendRequest();
+            SendRequest(guard);
         }
     }
 
