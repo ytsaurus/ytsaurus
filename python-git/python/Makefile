@@ -1,7 +1,7 @@
 PYTHON ?= `which python`
 PROJECT = `dpkg-parsechangelog | awk -F': ' '$1 == "Source" { print $2; }'`
 BUILDIR = $(CURDIR)/debian/$(PROJECT)
-VERSION=$(shell dpkg-parsechangelog | grep "Version:" | awk '{print $$2}')
+WRAPPER_VERSION=$(shell dpkg-parsechangelog -lyandex-yt-python/debian/changelog | grep "Version:" | awk '{print $$2}')
 
 all:
 	@echo "make source - Create source package"
@@ -9,7 +9,7 @@ all:
 	@echo "make clean - Get rid of scratch and byte files"
 
 version:
-	echo "VERSION='$(VERSION)'" > yt/wrapper/version.py
+	echo "VERSION='$(WRAPPER_VERSION)'" > yt/wrapper/version.py
 
 source:
 	$(PYTHON) setup.py sdist
