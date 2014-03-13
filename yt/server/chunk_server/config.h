@@ -34,10 +34,10 @@ public:
     TDuration JobTimeout;
 
     //! Maximum total size of chunks assigned for replication (per node).
-    i64 MaxTotalReplicationJobsSize;
+    i64 MaxReplicationJobsSize;
 
     //! Maximum total size of chunks assigned for repair (per node).
-    i64 MaxTotalRepairJobsSize;
+    i64 MaxRepairJobsSize;
 
     //! Memory usage assigned to every repair job.
     i64 RepairJobMemoryUsage;
@@ -74,10 +74,10 @@ public:
         RegisterParameter("job_timeout", JobTimeout)
             .Default(TDuration::Minutes(5));
 
-        RegisterParameter("max_total_replication_jobs_size", MaxTotalReplicationJobsSize)
+        RegisterParameter("max_replication_jobs_size", MaxReplicationJobsSize)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThanOrEqual(0);
-        RegisterParameter("max_total_repair_jobs_size", MaxTotalRepairJobsSize)
+        RegisterParameter("max_repair_jobs_size", MaxRepairJobsSize)
             .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThanOrEqual(0);
 

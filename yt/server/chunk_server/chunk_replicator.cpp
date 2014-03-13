@@ -681,7 +681,7 @@ void TChunkReplicator::ScheduleNewJobs(
         while (it != queue.end()) {
             if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
                 break;
-            if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
+            if (runningReplicationSize > Config->MaxReplicationJobsSize)
                 break;
 
             auto jt = it++;
@@ -705,7 +705,7 @@ void TChunkReplicator::ScheduleNewJobs(
         while (it != RepairQueue.end()) {
             if (resourceUsage.repair_slots() >= resourceLimits.repair_slots())
                 break;
-            if (runningRepairSize > Config->MaxTotalRepairJobsSize)
+            if (runningRepairSize > Config->MaxRepairJobsSize)
                 break;
 
             auto jt = it++;
@@ -759,7 +759,7 @@ void TChunkReplicator::ScheduleNewJobs(
         FOREACH (auto chunkWithIndex, chunksToBalance) {
             if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
                 break;
-            if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
+            if (runningReplicationSize > Config->MaxReplicationJobsSize)
                 break;
 
             TJobPtr job;
