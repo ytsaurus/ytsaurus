@@ -188,8 +188,6 @@ public:
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     virtual const std::vector<int> GetWrittenIndexes() const override;
 
-    Stroka GetDebugInfo();
-
 private:
     friend class TGroup;
 

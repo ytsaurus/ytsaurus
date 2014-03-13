@@ -1,16 +1,14 @@
 #include "stdafx.h"
+
 #include "versioned_chunk_reader.h"
+
+#include "cached_versioned_chunk_meta.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "schema.h"
 #include "versioned_block_reader.h"
 #include "versioned_reader.h"
 #include "unversioned_row.h"
-#include "cached_versioned_chunk_meta.h"
-
-#include <core/concurrency/fiber.h>
-
-#include <core/compression/public.h>
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -18,13 +16,17 @@
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 
+#include <core/compression/public.h>
+
+#include <core/concurrency/fiber.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
-using namespace NVersionedTableClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NVersionedTableClient::NProto;
 
 using NChunkClient::TReadLimit;
 
