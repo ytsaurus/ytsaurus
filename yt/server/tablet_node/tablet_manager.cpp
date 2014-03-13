@@ -190,6 +190,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ValidateTabletMounted(tablet);
+        transaction->ValidateActive();
 
         const auto& store = tablet->GetActiveStore();
 
