@@ -771,8 +771,6 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None):
     if last_tablet_index is not None:
         params["last_tablet_index"] = last_tablet_index
 
-    print >>sys.stderr, "AAAA"
-
     make_request("mount_table", params)
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None):
