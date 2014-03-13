@@ -36,6 +36,15 @@ public:
     //! Maximum total size of chunks assigned for replication (per node).
     i64 MaxReplicationJobsSize;
 
+    //! Maximum number of replication/balancing jobs writing to each target node.
+    /*!
+     *  This limit is approximate and is only maintained when scheduling balancing jobs.
+     *  This makes sense since balancing jobs specifically target nodes with lowest fill factor
+     *  and thus risk overloading them.
+     *  Replication jobs distribute data evenly across he cluster and thus pose no threat.
+     */
+    int MaxReplicationWriteSessions;
+
     //! Maximum total size of chunks assigned for repair (per node).
     i64 MaxRepairJobsSize;
 
@@ -67,8 +76,10 @@ public:
             .Default(0.5);
 
         RegisterParameter("min_chunk_balancing_fill_factor_diff", MinBalancingFillFactorDiff)
+            .InRange(0.0, 0.1)
             .Default(0.2);
         RegisterParameter("min_chunk_balancing_fill_factor", MinBalancingFillFactor)
+            .InRange(0.0, 0.1)
             .Default(0.1);
 
         RegisterParameter("job_timeout", JobTimeout)
@@ -77,6 +88,9 @@ public:
         RegisterParameter("max_replication_jobs_size", MaxReplicationJobsSize)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThanOrEqual(0);
+        RegisterParameter("max_replication_write_sessions", MaxReplicationWriteSessions)
+            .GreaterThanOrEqual(1)
+            .Default(128);
         RegisterParameter("max_repair_jobs_size", MaxRepairJobsSize)
             .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThanOrEqual(0);

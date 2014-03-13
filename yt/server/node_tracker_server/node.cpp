@@ -165,12 +165,26 @@ void TNode::AddSessionHint(EWriteSessionType sessionType)
     }
 }
 
+int TNode::GetSessionCount(EWriteSessionType sessionType) const
+{
+    switch (sessionType) {
+        case EWriteSessionType::User:
+            return Statistics_.total_user_session_count() + HintedUserSessionCount_;
+        case EWriteSessionType::Replication:
+            return Statistics_.total_replication_session_count() + HintedReplicationSessionCount_;
+        case EWriteSessionType::Repair:
+            return Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
+        default:
+            YUNREACHABLE();
+    }
+}
+
 int TNode::GetTotalSessionCount() const
 {
     return
-        Statistics_.total_user_session_count() + HintedUserSessionCount_ +
-        Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ +
-        Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
+        GetSessionCount(EWriteSessionType::User) +
+        GetSessionCount(EWriteSessionType::Replication) +
+        GetSessionCount(EWriteSessionType::Repair);
 }
 
 TAtomic TNode::GenerateVisitMark()
