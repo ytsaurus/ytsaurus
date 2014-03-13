@@ -145,7 +145,7 @@ int GetSymbol(void* pc, char* buffer, int length)
     }
 #else
     formatter.AppendString("0x");
-    formatter.AppendNumber(pc, 16);
+    formatter.AppendNumber((uintptr_t)pc, 16);
 #endif
     return formatter.GetBytesWritten();
 }
