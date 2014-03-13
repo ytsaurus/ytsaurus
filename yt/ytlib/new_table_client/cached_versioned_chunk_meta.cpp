@@ -85,10 +85,6 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
 void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 {
     auto chunkKeyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-
-    auto x = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
-    NYT::FromProto<TTableSchema>(x);
-
     auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(chunkKeyColumnsExt);   
     if (KeyColumns_ != chunkKeyColumns) {
         THROW_ERROR_EXCEPTION("Incorrect key columns: actual [%s], expected [%s]",
