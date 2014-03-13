@@ -189,6 +189,9 @@ public:
     //! Number of writer threads per location.
     int WriteThreadCount;
 
+    //! Maximum number of concurrent balancing write sessions.
+    int MaxWriteSessions;
+
 
     TDataNodeConfig()
     {
@@ -247,6 +250,9 @@ public:
             .DefaultNew();
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
+            .GreaterThanOrEqual(1);
+        RegisterParameter("max_write_sessions", MaxWriteSessions)
+            .Default(1000)
             .GreaterThanOrEqual(1);
     }
 };
