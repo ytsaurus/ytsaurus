@@ -2,6 +2,7 @@
 #include "proc.h"
 #include "string.h"
 
+#include <core/profiling/profiler.h>
 #include <core/logging/log.h>
 #include <core/misc/string.h>
 
@@ -28,6 +29,7 @@
 namespace NYT {
 
 static NLog::TLogger SILENT_UNUSED Logger("Proc");
+static NProfiling::TProfiler Profiler("/proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -354,26 +356,27 @@ int Spawn(const char* path, std::vector<Stroka>& arguments)
     }
     args.push_back(NULL);
 
-    int pid = vfork();
-    if (pid < 0) {
-        THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
-            << TErrorAttribute("path", path)
-            << TErrorAttribute("arguments", arguments)
-            << TError::FromSystem(pid);
-    }
-
-    if (pid == 0) {
-        execvp(path, &args[0]);
-        const int errorCode = errno;
-        int i = 0;
-        while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
-            ++i;
+    PROFILE_TIMING ("spawning") {
+        int pid = vfork();
+        if (pid < 0) {
+            THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
+                << TErrorAttribute("path", path)
+                << TErrorAttribute("arguments", arguments)
+                << TError::FromSystem(pid);
         }
 
-        _exit(BASE_EXIT_CODE - i);
-    }
+        if (pid == 0) {
+            execvp(path, &args[0]);
+            const int errorCode = errno;
+            int i = 0;
+            while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
+                ++i;
+            }
 
-    return pid;
+            _exit(BASE_EXIT_CODE - i);
+        }
+        return pid;
+    }
 }
 
 #else
