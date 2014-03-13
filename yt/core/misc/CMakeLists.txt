@@ -26,6 +26,7 @@ set( SRCS
   ${BASE}/pattern_formatter.cpp
   ${BASE}/phoenix.cpp
   ${BASE}/proc.cpp
+  ${BASE}/process.cpp
   ${BASE}/protobuf_helpers.cpp
   ${BASE}/random.cpp
   ${BASE}/ref.cpp
@@ -83,6 +84,7 @@ set( HDRS
   ${BASE}/phoenix.h
   ${BASE}/preprocessor.h
   ${BASE}/proc.h
+  ${BASE}/process.h
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h

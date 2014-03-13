@@ -6,6 +6,7 @@
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/proc.h>
+#include <core/misc/process.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -69,7 +70,8 @@ public:
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
         , Logger(ExecAgentLogger)
-        , ProcessId(-1)
+        , Process(~proxyPath)
+        , Waited(false)
         , EnvironmentBuilder(envBuilder)
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
@@ -84,37 +86,25 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
-        std::vector<Stroka> arguments;
-        arguments.push_back(ProxyPath);
-        arguments.push_back("--job-proxy");
-        arguments.push_back("--config");
-        arguments.push_back(ProxyConfigFileName);
-        arguments.push_back("--job-id");
-        arguments.push_back(ToString(JobId));
-        arguments.push_back("--working-dir");
-        arguments.push_back(WorkingDirectory);
-        arguments.push_back("--close-all-fds");
+        Process.AddArgument("--job-proxy");
+        Process.AddArgument("--config");
+        Process.AddArgument(~ProxyConfigFileName);
+        Process.AddArgument("--job-id");
+        Process.AddArgument(~ToString(JobId));
+        Process.AddArgument("--working-dir");
+        Process.AddArgument(~WorkingDirectory);
+        Process.AddArgument("--close-all-fds");
 
         LOG_INFO("Spawning a job proxy (Path: %s)", ~ProxyPath);
 
-        try {
-            ProcessId = Spawn(
-                ~ProxyPath,
-                arguments);
-        } catch (const std::exception& ex) {
-            // Failed to exec job proxy
+        auto error = Process.Spawn();
+        if (!error.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")
-                << ex
-                << TError::FromSystem();
-        }
-
-        if (ProcessId < 0) {
-            THROW_ERROR_EXCEPTION("Failed to start job proxy: fork failed")
-                << TError::FromSystem();
+                << error;
         }
 
         LOG_INFO("Job proxy started (ProcessId: %d)",
-            ProcessId);
+            Process.GetProcessId());
 
         // Unref is called in the thread.
         Ref();
@@ -134,9 +124,9 @@ public:
 
         SetError(error);
 
-        int pid = ProcessId;
+        int pid = Process.GetProcessId();
 
-        if (pid > 0) {
+        if ((pid > 0) && !Waited) {
             auto result = kill(pid, 9);
             if (result != 0) {
                 switch (errno) {
@@ -185,28 +175,13 @@ private:
     {
         LOG_INFO("Waiting for job proxy to finish");
 
-        int status = 0;
-        {
-            int pid = ProcessId;
-            int result = waitpid(pid, &status, WUNTRACED);
+        auto error = Process.Wait();
+        Waited = true;
 
-            // Set ProcessId back to -1, so that we don't try to kill it ever after.
-            ProcessId = -1;
-            if (result < 0) {
-                SetError(TError("Failed to wait for job proxy to finish: waitpid failed")
-                    << TError::FromSystem());
-                OnExit.Set(Error);
-                return;
-            }
-            YASSERT(result == pid);
-        }
-
-        auto statusError = StatusToError(status);
-        auto wrappedError = statusError.IsOK()
+        auto wrappedError = error.IsOK()
             ? TError()
-            : TError("Job proxy failed") << statusError;
+            : TError("Job proxy failed") << error;
         SetError(wrappedError);
-
         LOG_INFO(wrappedError, "Job proxy finished");
 
         OnExit.Set(Error);
@@ -219,7 +194,8 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    int ProcessId;
+    TProcess Process;
+    bool Waited;
     TIntrusivePtr<TUnsafeEnvironmentBuilder> EnvironmentBuilder;
 
     TSpinLock SpinLock;

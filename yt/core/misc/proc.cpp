@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "proc.h"
 #include "string.h"
+#include "process.h"
 
 #include <core/profiling/profiler.h>
 #include <core/logging/log.h>
@@ -127,18 +128,15 @@ void KillallByUid(int uid)
 {
     YCHECK(uid > 0);
 
-    Stroka serverPath = GetExecPath();
-    std::vector<Stroka> arguments;
-    arguments.push_back(serverPath);
-    arguments.push_back("--killer");
-    arguments.push_back("--uid");
-    arguments.push_back(ToString(uid));
+    TProcess process(~GetExecPath());
+    process.AddArgument("--killer");
+    process.AddArgument("--uid");
+    process.AddArgument(~ToString(uid));
 
-    auto throwError = [=] (const Stroka& msg, const TError& error) {
+    auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
-            "Failed to kill processes owned by %d: %s",
-            uid,
-            ~msg) << error;
+            "Failed to kill processes owned by %d.",
+            uid) << error;
     };
 
     while (true) {
@@ -148,29 +146,14 @@ void KillallByUid(int uid)
 
         // We are forking here in order not to give the root privileges to the parent process ever,
         // because we cannot know what other threads are doing.
-        int pid;
-        try {
-            pid = Spawn(
-                ~serverPath,
-                arguments);
-        } catch (const std::exception& ex) {
-            // Failed to exec job proxy
-            throwError("spawn failed", TError(ex));
-        }
-        YCHECK(pid > 0);
-
-        int status = 0;
-        {
-            int result = waitpid(pid, &status, WUNTRACED);
-            if (result < 0) {
-                throwError("waitpid failed", TError::FromSystem());
-            }
-            YCHECK(result == pid);
+        auto error = process.Spawn();
+        if (!error.IsOK()) {
+            throwError(error);
         }
 
-        auto statusError = StatusToError(status);
-        if (!statusError.IsOK()) {
-            throwError("killer failed", statusError);
+        error = process.Wait();
+        if (!error.IsOK()) {
+            throwError(error);
         }
 
         ThreadYield();
@@ -199,44 +182,25 @@ void DoKillallByUid(int uid)
 
 void RemoveDirAsRoot(const Stroka& path)
 {
-    Stroka serverPath = GetExecPath();
-    std::vector<Stroka> arguments;
-    arguments.push_back(serverPath);
-    arguments.push_back("--cleaner");
-    arguments.push_back("--dir-to-remove");
-    arguments.push_back(path);
+    TProcess process(~GetExecPath());
+    process.AddArgument("--cleaner");
+    process.AddArgument("--dir-to-remove");
+    process.AddArgument(~path);
 
-    auto throwError = [=] (const Stroka& msg, const TError& error) {
+    auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
             "Failed to remove directory %s: %s",
-            ~path,
-            ~msg) << error;
+            ~path) << error;
     };
 
-    int pid;
-    try {
-        pid = Spawn(
-            ~serverPath,
-            arguments);
-    } catch (const std::exception& ex) {
-        // Failed to exec job proxy
-        throwError("spawn failed", TError(ex));
+    auto error = process.Spawn();
+    if (!error.IsOK()) {
+        throwError(error);
     }
 
-    YCHECK(pid > 0);
-
-    int status = 0;
-    {
-        int result = waitpid(pid, &status, WUNTRACED);
-        if (result < 0) {
-            throwError("waitpid failed", TError());
-        }
-        YCHECK(result == pid);
-    }
-
-    auto statusError = StatusToError(status);
-    if (!statusError.IsOK()) {
-        throwError("invalid exit status", statusError);
+    error = process.Wait();
+    if (!error.IsOK()) {
+        throwError(error);
     }
 }
 
