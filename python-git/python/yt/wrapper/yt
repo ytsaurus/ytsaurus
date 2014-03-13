@@ -283,7 +283,7 @@ def mount_table(args):
                    last_tablet_index=args.last_tablet_index)
 
 def add_mount_table_parser(add_parser):
-    parser = add_parser("mount-table", help="mount table")
+    parser = add_parser("mount-table", help="mount table (or part of it)")
     parser.add_argument("path")
     parser.add_argument("--first-tablet-index", type=int)
     parser.add_argument("--last-tablet-index", type=int)
@@ -296,7 +296,7 @@ def unmount_table(args):
                      force=args.force)
 
 def add_unmount_table_parser(add_parser):
-    parser = add_parser("unmount-table", help="mount table")
+    parser = add_parser("unmount-table", help="unmount table (or part of it)")
     parser.add_argument("path")
     parser.add_argument("--first-tablet-index", type=int)
     parser.add_argument("--last-tablet-index", type=int)
@@ -310,7 +310,7 @@ def reshard_table(args):
                      last_tablet_index=args.last_tablet_index)
 
 def add_reshard_table_parser(add_parser):
-    parser = add_parser("reshard-table", help="unmount table")
+    parser = add_parser("reshard-table", help="change pivot keys separating tablets of a given table")
     parser.add_argument("path")
     parser.add_argument("pivot_keys", action=ParseStructuredArgument, nargs="+")
     parser.add_argument("--first-tablet-index", type=int)
