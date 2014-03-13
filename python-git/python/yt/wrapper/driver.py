@@ -11,7 +11,6 @@ from yt.yson.convert import json_to_yson
 import yt.packages.requests as requests
 
 import sys
-import socket
 import simplejson as json
 
 def escape_utf8(obj):

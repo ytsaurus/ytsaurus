@@ -5,7 +5,7 @@ from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool
                    chunk_iter_lines
 from errors import YtError, YtNetworkError
 from version import VERSION
-from driver import read_content, get_host_for_heavy_operation
+from driver import read_content, get_host_for_heavy_operation, make_request
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                           move, mkdir, find_free_subpath, create, get_type, \
@@ -763,4 +763,43 @@ def run_map(binary, source_table, destination_table, **kwargs):
 def run_reduce(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "reduce"
     run_operation(binary, source_table, destination_table, **kwargs)
+
+def mount_table(path, first_tablet_index=None, last_tablet_index=None):
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    print >>sys.stderr, "AAAA"
+
+    make_request("mount_table", params)
+
+def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None):
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+    if force is not None:
+        params["force"] = bool_to_string(force)
+
+    make_request("unmount_table", params)
+
+def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None):
+    params = {"path": path,
+              "pivot_keys": pivot_keys}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    make_request("reshard_table", params)
+
+def select(query, timestamp=None):
+    params = {"query": query}
+    if timestamp is not None:
+        params["timestamp"] = timestamp
+
+    make_request("select", params)
 
