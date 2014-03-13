@@ -76,10 +76,10 @@ public:
             .Default(0.5);
 
         RegisterParameter("min_chunk_balancing_fill_factor_diff", MinBalancingFillFactorDiff)
-            .InRange(0.0, 0.1)
+            .InRange(0.0, 1.0)
             .Default(0.2);
         RegisterParameter("min_chunk_balancing_fill_factor", MinBalancingFillFactor)
-            .InRange(0.0, 0.1)
+            .InRange(0.0, 1.0)
             .Default(0.1);
 
         RegisterParameter("job_timeout", JobTimeout)
