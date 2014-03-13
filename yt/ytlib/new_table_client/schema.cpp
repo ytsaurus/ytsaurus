@@ -8,6 +8,7 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/table_client/table_chunk_meta.pb.h> // TODO(babenko): remove after migration
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -222,4 +223,24 @@ namespace NYTree {
 } // namespace NYTree
 
 } // namespace NYT
+
+
+namespace NYT {
+namespace NTableClient {
+namespace NProto {
+
+void ToProto(TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns)
+{
+    NYT::ToProto(protoKeyColumns->mutable_names(), keyColumns);
+}
+
+void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
+{
+    *keyColumns = NYT::FromProto<Stroka>(protoKeyColumns.names());
+}
+
+}
+}
+}
+
 

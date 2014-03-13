@@ -64,10 +64,6 @@ message TBlockIndexExt
 }
 
 // Chunk meta extension.
-message TKeyColumnsExt
-{
-    repeated string names = 1;
-}
 
 message TBoundaryKeysExt
 {

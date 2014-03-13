@@ -60,6 +60,8 @@ using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NTableClient;  // TODO(babenko): consider removing
+using namespace NTableClient::NProto;
+using namespace NVersionedTableClient::NProto;
 using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,10 +316,6 @@ public:
     }
 
 private:
-    typedef NTableClient::NProto::TOldBoundaryKeysExt TProtoBoundaryKeys;
-    typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
-    typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
-
     TConnectionConfigPtr Config_;
 
     IChannelPtr MasterChannel_;
@@ -405,12 +403,12 @@ private:
         context->GetNodeDirectory()->MergeFrom(rsp->node_directory());
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-        auto keyColumns = FromProto<Stroka>(GetProtoExtension<TProtoKeyColumns>(split.chunk_meta().extensions()).names());
-        auto schema = FromProto<TTableSchema>(GetProtoExtension<TProtoTableSchema>(split.chunk_meta().extensions()));
+        auto keyColumns = FromProto<TKeyColumns>(GetProtoExtension<TKeyColumnsExt>(split.chunk_meta().extensions()));
+        auto schema = FromProto<TTableSchema>(GetProtoExtension<TTableSchemaExt>(split.chunk_meta().extensions()));
 
         for (auto& chunkSpec : chunkSpecs) {
-            auto chunkKeyColumns = FindProtoExtension<TProtoKeyColumns>(chunkSpec.chunk_meta().extensions());
-            auto chunkSchema = FindProtoExtension<TProtoTableSchema>(chunkSpec.chunk_meta().extensions());
+            auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
+            auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
 
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
@@ -420,7 +418,7 @@ private:
             SetKeyColumns(&chunkSpec, keyColumns);
             SetTableSchema(&chunkSpec, schema);
 
-            auto boundaryKeys = FindProtoExtension<TProtoBoundaryKeys>(chunkSpec.chunk_meta().extensions());
+            auto boundaryKeys = FindProtoExtension<TOldBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
             if (boundaryKeys) {
                 auto chunkLowerBound = NYT::FromProto<TOwningKey>(boundaryKeys->start());
                 auto chunkUpperBound = NYT::FromProto<TOwningKey>(boundaryKeys->end());
@@ -462,8 +460,8 @@ private:
 
         auto nodeDirectory = context->GetNodeDirectory();
 
-        auto keyColumns = FromProto<Stroka>(GetProtoExtension<TProtoKeyColumns>(split.chunk_meta().extensions()).names());
-        auto schema = FromProto<TTableSchema>(GetProtoExtension<TProtoTableSchema>(split.chunk_meta().extensions()));
+        auto keyColumns = FromProto<TKeyColumns>(GetProtoExtension<TKeyColumnsExt>(split.chunk_meta().extensions()));
+        auto schema = FromProto<TTableSchema>(GetProtoExtension<TTableSchemaExt>(split.chunk_meta().extensions()));
 
         std::vector<TDataSplit> subsplits;
         for (auto it = tabletIt; it != tableInfo->Tablets.end(); ++it) {

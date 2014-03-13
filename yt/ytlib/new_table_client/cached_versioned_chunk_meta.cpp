@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "cached_versioned_chunk_meta.h"
+#include "schema.h"
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -7,6 +8,9 @@
 #include <core/concurrency/fiber.h>
 
 #include <core/misc/string.h>
+
+#include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -80,8 +84,12 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
 
 void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 {
-    auto protoChunkKeyColumns = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    auto chunkKeyColumns = NYT::FromProto<Stroka>(protoChunkKeyColumns.names());   
+    auto chunkKeyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+
+    auto x = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
+    NYT::FromProto<TTableSchema>(x);
+
+    auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(chunkKeyColumnsExt);   
     if (KeyColumns_ != chunkKeyColumns) {
         THROW_ERROR_EXCEPTION("Incorrect key columns: actual [%s], expected [%s]",
             ~JoinToString(chunkKeyColumns),

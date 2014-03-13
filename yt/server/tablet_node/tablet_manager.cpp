@@ -413,7 +413,7 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto schema = FromProto<TTableSchema>(request.schema());
-        auto keyColumns = FromProto<Stroka>(request.key_columns().names());
+        auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
         auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
         auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));

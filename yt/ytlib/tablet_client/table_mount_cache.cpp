@@ -179,7 +179,7 @@ private:
         tableInfo->Path = path;
         tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
         tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
-        tableInfo->KeyColumns = FromProto<Stroka>(rsp->key_columns().names());
+        tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
         tableInfo->Sorted = rsp->sorted();
 
         auto nodeDirectory = New<TNodeDirectory>();

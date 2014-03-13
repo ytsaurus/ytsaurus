@@ -12,15 +12,16 @@
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
+#include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
+
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NConcurrency;
-using namespace NProto;
-
-using NChunkClient::NProto::TChunkMeta;
-using NChunkClient::NProto::TDataStatistics;
+using namespace NTableClient::NProto;
+using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -272,7 +273,6 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
     for (auto name : KeyColumns_) {
         keyColumnsExt.add_names(name);
     }
-
     SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
 
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);

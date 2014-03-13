@@ -8,6 +8,11 @@
 #include <ytlib/table_client/public.h>
 #include <ytlib/chunk_client/public.h>
 
+// TODO(babenko): remove after migration
+namespace NYT { namespace NTableClient { namespace NProto {
+    class TKeyColumnsExt;
+} } }
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -16,6 +21,14 @@ namespace NVersionedTableClient {
 namespace NProto {
 
 class TNameTableExt;
+class TColumnSchema;
+class TTableSchemaExt;
+using NTableClient::NProto::TKeyColumnsExt; // TODO(babenko): remove after migration
+class TBoundaryKeysExt;
+class TBlockIndexesExt;
+class TBlockMetaExt;
+class TBlockMeta;
+class TSimpleVersionedBlockMeta;
 
 } // namespace NProto
 
@@ -28,7 +41,7 @@ using NTransactionClient::MaxTimestamp;
 using NTransactionClient::LastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
 
-using NTableClient::TKeyColumns;
+using NTableClient::TKeyColumns; // TODO(babenko): remove after migration
 
 ////////////////////////////////////////////////////////////////////////////////
 

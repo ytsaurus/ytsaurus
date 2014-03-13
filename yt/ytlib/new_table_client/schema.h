@@ -16,16 +16,6 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// For serialization.
-namespace NProto {
-
-class TColumnSchema;
-class TTableSchemaExt;
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TColumnSchema
 {
     TColumnSchema();
@@ -80,4 +70,22 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
+} // namespace NYT
+
+
+// TODO(babenko): move to NVersionedTableClient after migration
+// NB: Need to place this into NProto for ADL to work properly since TKeyColumns is std::vector.
+namespace NYT {
+namespace NTableClient {
+namespace NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns);
+void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyColumns);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProto
+} // namespace NTableClient
 } // namespace NYT

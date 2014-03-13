@@ -1,29 +1,33 @@
 #include "stdafx.h"
 #include "public.h"
 
-#include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/read_limit.h>
-
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schema.h>
-
 #include <core/misc/protobuf_helpers.h>
 
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+
+#include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
+
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NQueryClient {
+
+using namespace NChunkClient::NProto;
+using namespace NTableClient::NProto;
+using namespace NVersionedTableClient::NProto;
 
 using NChunkClient::TReadLimit;
 using NVersionedTableClient::MinKey;
 using NVersionedTableClient::MaxKey;
 
-typedef NChunkClient::NProto::TMiscExt TMiscProto;
-typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchemaProto;
-typedef NTableClient::NProto::TOldBoundaryKeysExt TOldBoundaryKeysProto;
-typedef NTableClient::NProto::TKeyColumnsExt TKeyColumnsProto;
+//typedef NChunkClient::NProto::TMiscExt TMiscProto;
+//typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchemaProto;
+//typedef NTableClient::NProto::TOldBoundaryKeysExt TOldBoundaryKeysProto;
+//typedef NTableClient::NProto::TKeyColumnsExt TKeyColumnsProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,16 +38,16 @@ NObjectClient::TObjectId GetObjectIdFromDataSplit(const TDataSplit& dataSplit)
 
 TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
 {
-    auto tableSchemaProto = GetProtoExtension<TTableSchemaProto>(
+    auto tableSchemaProto = GetProtoExtension<TTableSchemaExt>(
         dataSplit.chunk_meta().extensions());
     return NYT::FromProto<TTableSchema>(tableSchemaProto);
 }
 
 TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
 {
-    auto keyColumnsProto = GetProtoExtension<TKeyColumnsProto>(
+    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(
         dataSplit.chunk_meta().extensions());
-    return NYT::FromProto<Stroka>(keyColumnsProto.names());
+    return FromProto<TKeyColumns>(keyColumnsExt);
 }
 
 TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
@@ -80,13 +84,9 @@ TTimestamp GetTimestampFromDataSplit(const TDataSplit& dataSplit)
 
 bool IsSorted(const TDataSplit& dataSplit)
 {
-    auto miscProto = FindProtoExtension<TMiscProto>(
+    auto miscProto = FindProtoExtension<TMiscExt>(
         dataSplit.chunk_meta().extensions());
-    if (miscProto) {
-        return miscProto->sorted();
-    } else {
-        return false;
-    }
+    return miscProto ? miscProto->sorted(): false;
 }
 
 void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId)
@@ -96,20 +96,16 @@ void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId
 
 void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema)
 {
-    TTableSchemaProto tableSchemaProto;
-    ToProto(&tableSchemaProto, tableSchema);
-    SetProtoExtension<TTableSchemaProto>(
+    SetProtoExtension(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
-        tableSchemaProto);
+        ToProto<TTableSchemaExt>(tableSchema));
 }
 
 void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns)
 {
-    TKeyColumnsProto keyColumnsProto;
-    ToProto(keyColumnsProto.mutable_names(), keyColumns);
-    SetProtoExtension<TKeyColumnsProto>(
+    SetProtoExtension(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
-        keyColumnsProto);
+        ToProto<TKeyColumnsExt>(keyColumns));
 }
 
 void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound)
@@ -151,13 +147,13 @@ void SetTimestamp(TDataSplit* dataSplit, TTimestamp timestamp)
 
 void SetSorted(TDataSplit* dataSplit, bool isSorted)
 {
-    auto miscProto = FindProtoExtension<TMiscProto>(
+    auto miscProto = FindProtoExtension<TMiscExt>(
         dataSplit->chunk_meta().extensions());
     if (!miscProto) {
-        miscProto = TMiscProto();
+        miscProto = TMiscExt();
     }
     miscProto->set_sorted(isSorted);
-    SetProtoExtension<TMiscProto>(
+    SetProtoExtension<TMiscExt>(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
         *miscProto);
 }
