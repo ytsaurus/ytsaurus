@@ -4,6 +4,10 @@
 
 #include "private.h"
 
+#include <core/misc/lazy_ptr.h>
+
+#include <core/concurrency/action_queue.h>
+
 #include <llvm/ADT/Triple.h>
 
 #include <llvm/IR/DiagnosticInfo.h>
@@ -28,6 +32,11 @@ namespace NYT {
 namespace NQueryClient {
 
 static auto& Logger = QueryClientLogger;
+
+// XXX(sandello): Due to http://llvm.org/bugs/show_bug.cgi?id=15750
+// we have to serialize all MCJIT operations through a single thread.
+static TLazyIntrusivePtr<NConcurrency::TActionQueue> McjitThread(
+    NConcurrency::TActionQueue::CreateFactory("Mcjit"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,7 +155,10 @@ public:
     TCodegenedFunction GetCompiledMainFunction()
     {
         if (!CompiledMainFunction_) {
-            Compile();
+            BIND(&TCGFragment::TImpl::Compile, this)
+                .AsyncVia(McjitThread->GetInvoker())
+                .Run()
+                .Get();
         }
         YCHECK(CompiledMainFunction_);
         return CompiledMainFunction_;
