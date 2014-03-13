@@ -277,6 +277,55 @@ def add_link_parser(add_parser):
     parser.add_argument("-i", "--ignore-existing", action="store_true", default=False)
     parser.set_defaults(func=link)
 
+def mount_table(args):
+    yt.mount_table(args.path,
+                   first_tablet_index=args.first_tablet_index,
+                   last_tablet_index=args.last_tablet_index)
+
+def add_mount_table_parser(add_parser):
+    parser = add_parser("mount-table", help="mount table")
+    parser.add_argument("path")
+    parser.add_argument("--first-tablet-index", type=int)
+    parser.add_argument("--last-tablet-index", type=int)
+    parser.set_defaults(func=mount_table)
+
+def unmount_table(args):
+    yt.unmount_table(args.path,
+                     first_tablet_index=args.first_tablet_index,
+                     last_tablet_index=args.last_tablet_index,
+                     force=args.force)
+
+def add_unmount_table_parser(add_parser):
+    parser = add_parser("unmount-table", help="mount table")
+    parser.add_argument("path")
+    parser.add_argument("--first-tablet-index", type=int)
+    parser.add_argument("--last-tablet-index", type=int)
+    parser.add_argument("--force", action="store_true", default=False)
+    parser.set_defaults(func=unmount_table)
+
+def reshard_table(args):
+    yt.reshard_table(args.path,
+                     pivot_keys=args.pivot_keys,
+                     first_tablet_index=args.first_tablet_index,
+                     last_tablet_index=args.last_tablet_index)
+
+def add_reshard_table_parser(add_parser):
+    parser = add_parser("reshard-table", help="unmount table")
+    parser.add_argument("path")
+    parser.add_argument("pivot_keys", action=ParseStructuredArgument, nargs="+")
+    parser.add_argument("--first-tablet-index", type=int)
+    parser.add_argument("--last-tablet-index", type=int)
+    parser.set_defaults(func=reshard_table)
+
+def select(args):
+    yt.select(args.query, args.timestamp)
+
+def add_select_parser(add_parser):
+    parser = add_parser("select", help="select records from table")
+    parser.add_argument("query")
+    parser.add_argument("--timestamp", type=int)
+    parser.set_defaults(func=select)
+
 #def upload(args):
 #    if args.type == "file":
 #        if args.format is not None:
@@ -567,6 +616,10 @@ def main():
     add_move_parser(add_parser)
     add_link_parser(add_parser)
     add_remove_parser(add_parser)
+    add_mount_table_parser(add_parser)
+    add_unmount_table_parser(add_parser)
+    add_reshard_table_parser(add_parser)
+    add_select_parser(add_parser)
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)
     add_sort_parser(add_parser)
