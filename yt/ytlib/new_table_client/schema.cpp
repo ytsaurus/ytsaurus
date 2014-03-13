@@ -2,7 +2,6 @@
 #include "schema.h"
 
 #include <core/ytree/serialize.h>
-
 #include <core/ytree/convert.h>
 
 #include <core/misc/protobuf_helpers.h>
@@ -214,14 +213,6 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
-
-// XXX(sandello): Apparently we have to explicitly ask for ConvertToYsonString.
-namespace NYTree {
-    template TYsonString ConvertToYsonString<
-        NVersionedTableClient::EValueType
-    >(const NVersionedTableClient::EValueType&);
-} // namespace NYTree
-
 } // namespace NYT
 
 

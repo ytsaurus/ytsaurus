@@ -14,10 +14,13 @@
 #include "parser.hpp"
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schema.h>
 
 #include <core/concurrency/fiber.h>
+
+#include <core/ytree/convert.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -210,7 +213,7 @@ void TPrepareController::TypecheckExpressions()
             auto actualType = filterOp->GetPredicate()->GetType(filterOp->GetSource()->GetTableSchema());
             auto expectedType = EValueType(EValueType::Integer);
             if (actualType != expectedType) {
-                THROW_ERROR_EXCEPTION("WHERE-clause is not of valid type")
+                THROW_ERROR_EXCEPTION("WHERE-clause is not of a valid type")
                     << TErrorAttribute("actual_type", actualType)
                     << TErrorAttribute("expected_type", expectedType);
             }
