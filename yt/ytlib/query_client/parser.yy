@@ -54,6 +54,7 @@
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
+%token KwBetween "keyword `BETWEEN`"
 
 %token <TStringBuf> Identifier "identifier"
 
@@ -224,6 +225,12 @@ relational-op-expr
     : relational-op-expr[lhs] relational-op[opcode] additive-op-expr[rhs]
         {
             $$ = context->TrackedNew<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+        }
+    | atomic-expr[expr] KwBetween atomic-expr[lbexpr] KwAnd atomic-expr[rbexpr]
+        {
+            $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::And, 
+                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Greater, $expr, $lbexpr), 
+                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Less, $expr, $rbexpr));
         }
     | additive-op-expr
         { $$ = $1; }

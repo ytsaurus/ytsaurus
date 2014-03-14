@@ -27,8 +27,9 @@ typedef TParser::token_type TToken;
     kw_as = 'as'i;
     kw_and = 'and'i;
     kw_or = 'or'i;
+    kw_between = 'between'i;
 
-    keyword = kw_from | kw_where | kw_group_by | kw_as | kw_and | kw_or;
+    keyword = kw_from | kw_where | kw_group_by | kw_as | kw_and | kw_or | kw_between;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
     fltexp = [Ee] [+\-]? digit+;
@@ -66,6 +67,7 @@ typedef TParser::token_type TToken;
         kw_as => { type = TToken::KwAs; fbreak; };
         kw_and => { type = TToken::KwAnd; fbreak; };
         kw_or => { type = TToken::KwOr; fbreak; };
+        kw_between => { type = TToken::KwBetween; fbreak; };
 
         identifier => {
             type = TToken::Identifier;
