@@ -49,6 +49,7 @@ def prepare(options):
 
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
+    options.build_enable_perl = os.environ["BUILD_ENABLE_PERL"]
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = re.sub(r"/0.\d\d$", "", options.branch)
