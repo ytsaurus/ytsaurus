@@ -83,8 +83,6 @@ private:
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
     virtual bool DoInvoke(IServiceContextPtr context) override;
 
-    virtual void ValidateFetch() override;
-
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);
@@ -275,16 +273,6 @@ ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)
         : ELockMode::Exclusive;
 }
 
-void TTableNodeProxy::ValidateFetch()
-{
-    TBase::ValidateFetch();
-
-    const auto* node = GetThisTypedImpl();
-    if (!node->Tablets().empty()) {
-        THROW_ERROR_EXCEPTION("Cannot fetch a table with tablets");
-    }
-}
-
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     DeclareMutating();
@@ -298,7 +286,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto* node = LockThisTypedImpl();
 
     if (node->GetUpdateMode() != EUpdateMode::Overwrite) {
-        THROW_ERROR_EXCEPTION("Table must be in \"overwrite\" mode");
+        THROW_ERROR_EXCEPTION("Table node must be in \"overwrite\" mode");
     }
 
     node->KeyColumns() = keyColumns;
