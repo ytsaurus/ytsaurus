@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import to_yson_type
 
 import time
 import os
@@ -184,7 +185,8 @@ class TestChunkServer(YTEnvSetup):
         chunk_ids = get('//tmp/t/@chunk_ids', tx=tx)
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
-        assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
+        assert get('#' + chunk_id + '/@owning_nodes') == \
+            [to_yson_type('//tmp/t', attributes = {'transaction_id' : tx})]
 
     def _test_decommission(self, erasure_codec, replica_count):
         create('table', '//tmp/t')

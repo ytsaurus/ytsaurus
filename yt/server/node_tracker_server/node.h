@@ -96,6 +96,8 @@ public:
 
     void ResetSessionHints();
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
+
+    int GetSessionCount(NChunkClient::EWriteSessionType sessionType) const;
     int GetTotalSessionCount() const;
 
     static TAtomic GenerateVisitMark();

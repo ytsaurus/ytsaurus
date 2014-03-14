@@ -294,6 +294,12 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/scheduler/event_log",
+                transactionId,
+                EObjectType::Table);
+
+            CreateNode(
+                rootService,
                 "//sys/operations",
                 transactionId,
                 EObjectType::MapNode,

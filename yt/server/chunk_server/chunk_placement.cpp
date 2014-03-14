@@ -46,6 +46,7 @@ void TChunkPlacement::Initialize()
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
 {
+    // Maintain LoadRankToNode.
     {
         int loadFactor = GetLoadFactor(node);
         int i = 0;
@@ -60,7 +61,9 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
         LoadRankToNode[i] = node;
         node->SetLoadRank(i);
     }
-    {
+
+    // Maintain FillFactorToNode.
+    if (node->GetSessionCount(EWriteSessionType::Replication) < Config->MaxReplicationWriteSessions) {
         double fillFactor = GetFillFactor(node);
         auto it = FillFactorToNode.insert(std::make_pair(fillFactor, node));
         YCHECK(NodeToFillFactorIt.insert(std::make_pair(node, it)).second);
@@ -69,6 +72,7 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
 
 void TChunkPlacement::OnNodeUnregistered(TNode* node)
 {
+    // Maintain LoadRankToNode.
     {
         for (int i = node->GetLoadRank(); i < LoadRankToNode.size() - 1; i++) {
             LoadRankToNode[i] = LoadRankToNode[i + 1];
@@ -77,20 +81,23 @@ void TChunkPlacement::OnNodeUnregistered(TNode* node)
         LoadRankToNode.resize(LoadRankToNode.size() - 1);
         node->SetLoadRank(-1);
     }
+
+    // Maintain FillFactorToNode.
     {
         auto itIt = NodeToFillFactorIt.find(node);
-        YCHECK(itIt != NodeToFillFactorIt.end());
-        auto it = itIt->second;
-        FillFactorToNode.erase(it);
-        NodeToFillFactorIt.erase(itIt);
+        if (itIt != NodeToFillFactorIt.end()) {
+            auto it = itIt->second;
+            FillFactorToNode.erase(it);
+            NodeToFillFactorIt.erase(itIt);
+        }
     }
 }
 
 void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
+    node->ResetSessionHints();
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
-    node->ResetSessionHints();
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
@@ -382,6 +389,8 @@ bool TChunkPlacement::IsFull(TNode* node)
 void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)
 {
     node->AddSessionHint(sessionType);
+
+    // Maintain LoadRankToNode.
     for (int i = node->GetLoadRank();
          i + 1 < LoadRankToNode.size() &&
          GetLoadFactor(LoadRankToNode[i + 1]) < GetLoadFactor(LoadRankToNode[i]);
@@ -390,6 +399,16 @@ void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)
         std::swap(LoadRankToNode[i], LoadRankToNode[i + 1]);
         LoadRankToNode[i]->SetLoadRank(i);
         LoadRankToNode[i + 1]->SetLoadRank(i + 1);
+    }
+
+    // Maintain FillFactorToNode.
+    if (node->GetSessionCount(EWriteSessionType::Replication) >= Config->MaxReplicationWriteSessions) {
+        auto itIt = NodeToFillFactorIt.find(node);
+        if (itIt != NodeToFillFactorIt.end()) {
+            auto it = itIt->second;
+            FillFactorToNode.erase(it);
+            NodeToFillFactorIt.erase(itIt);
+        }        
     }
 }
 

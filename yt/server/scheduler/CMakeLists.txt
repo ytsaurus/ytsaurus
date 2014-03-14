@@ -57,6 +57,7 @@ set( HDRS
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/sort_controller.h
+  ${BASE}/event_log.h
 )
 
 list(APPEND YT_SOURCE_FILES

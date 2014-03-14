@@ -668,6 +668,10 @@ TSessionPtr TSessionManager::StartSession(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    if (static_cast<int>(SessionMap.size()) >= Config->MaxWriteSessions) {
+        THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %d has been reached");
+    }
+    
     auto chunkStore = Bootstrap->GetChunkStore();
     auto location = chunkStore->GetNewChunkLocation();
 

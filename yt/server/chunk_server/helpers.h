@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <core/yson/public.h>
+
+#include <server/cypress_server/public.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -34,6 +38,11 @@ void AttachToChunkList(
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
+
+void SerializeOwningNodesPaths(
+    NCypressServer::TCypressManagerPtr cypressManager,
+    TChunkTree* chunkTree,
+    NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

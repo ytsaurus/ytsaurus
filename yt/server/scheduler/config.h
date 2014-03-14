@@ -4,11 +4,13 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/rpc/config.h>
+
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/file_client/config.h>
 
-#include <core/rpc/retrying_channel.h>
+#include <ytlib/ypath/public.h>
 
 #include <server/job_proxy/config.h>
 
@@ -50,7 +52,18 @@ public:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
+class TEventLogConfig
+    : public NTableClient::TBufferedTableWriterConfig
+{
+public:
+    NYPath::TYPath Path;
+
+    TEventLogConfig()
+    {
+        RegisterParameter("path", Path)
+            .Default("//sys/scheduler/event_log");
+    }
+};
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
@@ -179,6 +192,8 @@ public:
     Stroka SnapshotTempPath;
     NFileClient::TFileReaderConfigPtr SnapshotReader;
     NFileClient::TFileWriterConfigPtr SnapshotWriter;
+
+    TEventLogConfigPtr EventLog;
 
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
@@ -317,9 +332,6 @@ public:
         RegisterParameter("environment", Environment)
             .Default(yhash_map<Stroka, Stroka>());
 
-        RegisterParameter("node_channel", NodeChannel)
-            .DefaultNew();
-
         RegisterParameter("snapshot_timeout", SnapshotTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("snapshot_period", SnapshotPeriod)
@@ -334,6 +346,12 @@ public:
         RegisterParameter("snapshot_reader", SnapshotReader)
             .DefaultNew();
         RegisterParameter("snapshot_writer", SnapshotWriter)
+            .DefaultNew();
+
+        RegisterParameter("event_log", EventLog)
+            .DefaultNew();
+
+        RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
     }
 };

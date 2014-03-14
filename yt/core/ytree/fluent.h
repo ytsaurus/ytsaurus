@@ -24,9 +24,9 @@ struct TFluentYsonUnwrapper
 {
     typedef T TUnwrapped;
 
-    static TUnwrapped Unwrap(const T& t)
+    static TUnwrapped Unwrap(T t)
     {
-        return t;
+        return std::move(t);
     }
 };
 
@@ -77,16 +77,16 @@ public:
         NYson::IYsonConsumer* Consumer;
         TParent Parent;
 
-        TFluentBase(NYson::IYsonConsumer* consumer, const TParent& parent)
+        TFluentBase(NYson::IYsonConsumer* consumer, TParent parent)
             : Consumer(consumer)
-            , Parent(parent)
+            , Parent(std::move(parent))
         { }
 
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         TUnwrappedParent GetUnwrappedParent()
         {
-            return TFluentYsonUnwrapper<TParent>::Unwrap(Parent);
+            return TFluentYsonUnwrapper<TParent>::Unwrap(std::move(Parent));
         }
 
     };
@@ -100,8 +100,8 @@ public:
         typedef TThis<TFluentYsonVoid> TShallowThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TFluentFragmentBase(NYson::IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentBase<TParent>(consumer, parent)
+        explicit TFluentFragmentBase(NYson::IYsonConsumer* consumer, TParent parent = TParent())
+            : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
         TDeepThis& Do(TYsonProducer producer)
@@ -162,7 +162,6 @@ public:
             return *static_cast<TDeepThis*>(this);
         }
 
-    protected :
     };
 
     template <class TParent>
@@ -172,8 +171,8 @@ public:
     public:
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        TAnyWithoutAttributes(NYson::IYsonConsumer* consumer, const TParent& parent)
-            : TFluentBase<TParent>(consumer, parent)
+        TAnyWithoutAttributes(NYson::IYsonConsumer* consumer, TParent parent)
+            : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
         TUnwrappedParent Do(TYsonProducer producer)
@@ -309,8 +308,8 @@ public:
     public:
         typedef TAnyWithoutAttributes<TParent> TBase;
 
-        explicit TAny(NYson::IYsonConsumer* consumer, const TParent& parent)
-            : TBase(consumer, parent)
+        explicit TAny(NYson::IYsonConsumer* consumer, TParent parent)
+            : TBase(consumer, std::move(parent))
         { }
 
         TAttributes<TBase> BeginAttributes()
@@ -330,11 +329,11 @@ public:
         typedef TAttributes<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        TAttributes(NYson::IYsonConsumer* consumer, const TParent& parent)
-            : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, parent)
+        TAttributes(NYson::IYsonConsumer* consumer, TParent parent)
+            : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, std::move(parent))
         { }
 
-        TAny<TThis> Item(const Stroka& key)
+        TAny<TThis> Item(const TStringBuf& key)
         {
             this->Consumer->OnKeyedItem(key);
             return TAny<TThis>(this->Consumer, *this);
@@ -374,8 +373,8 @@ public:
         typedef TList<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TList(NYson::IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, parent)
+        explicit TList(NYson::IYsonConsumer* consumer, TParent parent = TParent())
+            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, std::move(parent))
         { }
 
         TAny<TThis> Item()
@@ -408,11 +407,11 @@ public:
         typedef TMap<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TMap(NYson::IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, parent)
+        explicit TMap(NYson::IYsonConsumer* consumer, TParent parent = TParent())
+            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, std::move(parent))
         { }
 
-        TAny<TThis> Item(const Stroka& key)
+        TAny<TThis> Item(const TStringBuf& key)
         {
             this->Consumer->OnKeyedItem(key);
             return TAny<TThis>(this->Consumer, *this);
