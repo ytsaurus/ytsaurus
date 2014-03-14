@@ -4,6 +4,7 @@
 import yt
 
 import parser
+import writer
 
 import convert
 import yson_to_bash
@@ -134,8 +135,12 @@ class YsonParserTestBase(object):
 
         self.assertEqual(convert.json_to_yson("abc"), "abc")
 
-class Test(unittest.TestCase, YsonParserTestBase):
+class TestParser(unittest.TestCase, YsonParserTestBase):
     YsonParserTestBase.parser = parser
+
+class TestWriter(unittest.TestCase):
+    def test_slash(self):
+        self.assertEqual(writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\";}')
 
 if __name__ == "__main__":
     unittest.main()
