@@ -99,6 +99,7 @@ def configure(options):
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
+        "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_CC_COMPILER={0}".format(options.cc),
         options.checkout_directory],
