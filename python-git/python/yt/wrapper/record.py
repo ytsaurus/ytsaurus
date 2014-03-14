@@ -78,7 +78,7 @@ def record_to_line(rec, format=None, eoln=True):
     elif format.name() == "dsv":
         body = "\t".join("%s=%s" % (escape_key(str(item[0])), escape_value(str(item[1]))) for item in rec.iteritems())
     elif format.name() == "yson":
-        body = yson.dumps(rec) + ";"
+        body = yson.dumps(rec, yson_format="text") + ";"
     elif format.name() == "schemed_dsv":
         body = "\t".join(map(escape_value, (rec[key] for key in format.attributes()["columns"])))
     else:
