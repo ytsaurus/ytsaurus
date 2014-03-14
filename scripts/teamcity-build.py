@@ -49,6 +49,9 @@ def prepare(options):
 
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
+
+    options.build_enable_nodejs = os.environ.get("BUILD_ENABLE_NODEJS", "YES")
+    options.build_enable_python = os.environ.get("BUILD_ENABLE_PYTHON", "YES")
     options.build_enable_perl = os.environ.get("BUILD_ENABLE_PERL", "YES")
     options.build_enable_llvm = os.environ.get("BUILD_ENABLE_LLVM", "YES")
 
@@ -101,6 +104,8 @@ def configure(options):
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
+        "-DYT_BUILD_ENABLE_NODEJS={0}".format(options.build_enable_nodejs),
+        "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
         "-DYT_BUILD_ENABLE_LLVM={0}".format(options.build_enable_llvm),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
