@@ -42,6 +42,18 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     : Bootstrap(bootstrap)
 { }
 
+TError TNontemplateCypressNodeTypeHandlerBase::CheckLock(
+    TCypressNodeBase* /*trunkNode*/,
+    TTransaction* transaction,
+    const TLockRequest& request)
+{
+    if (request.Mode == ELockMode::Snapshot && !transaction) {
+        return TError("%s lock requires a transaction",
+            ~FormatEnum(request.Mode).Quote());
+    }
+    return TError();
+}
+
 bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 {
     return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();

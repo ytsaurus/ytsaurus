@@ -32,6 +32,11 @@ class TNontemplateCypressNodeTypeHandlerBase
 public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
+    virtual TError CheckLock(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        const TLockRequest& request) override;
+
 protected:
     NCellMaster::TBootstrap* Bootstrap;
 
@@ -176,6 +181,24 @@ public:
         return clonedNode;
     }
 
+    virtual TError CheckLock(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        const TLockRequest& request) override
+    {
+        auto error = TNontemplateCypressNodeTypeHandlerBase::CheckLock(
+            trunkNode,
+            transaction,
+            request);
+        if (!error.IsOK()) {
+            return error;
+        }
+
+        return DoCheckLock(
+            dynamic_cast<TImpl*>(trunkNode),
+            transaction,
+            request);
+    }
 
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
@@ -209,6 +232,14 @@ protected:
         TImpl* /*clonedNode*/,
         ICypressNodeFactoryPtr /*factory*/)
     { }
+
+    virtual TError DoCheckLock(
+        TImpl* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        const TLockRequest& request)
+    {
+        return TError();
+    }
 
 };
 
