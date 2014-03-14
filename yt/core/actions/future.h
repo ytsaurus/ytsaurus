@@ -607,7 +607,8 @@ public:
 
     TFutureCancelationGuard<T>& operator=(TFutureCancelationGuard<T>&& other);
 
-    friend void swap(TFutureCancelationGuard<T>& lhs, TFutureCancelationGuard<T>& rhs);
+    template <class U>
+    friend void swap(TFutureCancelationGuard<U>& lhs, TFutureCancelationGuard<U>& rhs);
 
     void Release();
 
