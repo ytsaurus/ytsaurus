@@ -36,8 +36,6 @@ void CloseAllDescriptors();
 
 int GetErrNoFromExitCode(int exitCode);
 
-int Spawn(const char* path, std::vector<Stroka>& arguments);
-
 
 DECLARE_ENUM(EExitStatus,
     ((ExitCodeBase)         (10000))

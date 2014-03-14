@@ -3,7 +3,6 @@
 #include "string.h"
 #include "process.h"
 
-#include <core/profiling/profiler.h>
 #include <core/logging/log.h>
 #include <core/misc/string.h>
 
@@ -18,19 +17,16 @@
 #include <util/system/execpath.h>
 
 #ifdef _unix_
-    #include <spawn.h>
     #include <stdio.h>
     #include <dirent.h>
     #include <sys/types.h>
     #include <sys/stat.h>
-    #include <sys/wait.h>
     #include <unistd.h>
 #endif
 
 namespace NYT {
 
 static NLog::TLogger SILENT_UNUSED Logger("Proc");
-static NProfiling::TProfiler Profiler("/proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,69 +276,6 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
-static const int BASE_EXIT_CODE = 127;
-static const int EXEC_ERR_CODE[] = {
-    E2BIG,
-    EACCES,
-    EFAULT,
-    EINVAL,
-    EIO,
-    EISDIR,
-#ifdef _linux_
-    ELIBBAD,
-#endif
-    ELOOP,
-    EMFILE,
-    ENAMETOOLONG,
-    ENFILE,
-    ENOENT,
-    ENOEXEC,
-    ENOMEM,
-    ENOTDIR,
-    EPERM,
-    ETXTBSY,
-    0
-};
-
-int GetErrNoFromExitCode(int exitCode) {
-    int index = BASE_EXIT_CODE - exitCode;
-    if (index >= 0) {
-        return EXEC_ERR_CODE[index];
-    }
-    return 0;
-}
-
-int Spawn(const char* path, std::vector<Stroka>& arguments)
-{
-    std::vector<char *> args;
-    for (auto& x : arguments) {
-        args.push_back(x.begin());
-    }
-    args.push_back(NULL);
-
-    PROFILE_TIMING ("spawning") {
-        int pid = vfork();
-        if (pid < 0) {
-            THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("arguments", arguments)
-                << TError::FromSystem(pid);
-        }
-
-        if (pid == 0) {
-            execvp(path, &args[0]);
-            const int errorCode = errno;
-            int i = 0;
-            while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
-                ++i;
-            }
-
-            _exit(BASE_EXIT_CODE - i);
-        }
-        return pid;
-    }
-}
-
 #else
 
 void KillallByUid(int uid)
@@ -370,13 +303,6 @@ void CloseAllDescriptors()
 
 void SafeClose(int fd, bool ignoreInvalidFd)
 {
-    YUNIMPLEMENTED();
-}
-
-int Spawn(const char* path, std::vector<Stroka>& arguments)
-{
-    UNUSED(path);
-    UNUSED(arguments);
     YUNIMPLEMENTED();
 }
 
