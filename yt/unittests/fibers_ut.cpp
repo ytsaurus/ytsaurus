@@ -1029,6 +1029,45 @@ TEST_F(TFiberTest, AbandonYieldedFiber3)
     EXPECT_EQ(3, state.Destructors);
 }
 
+TEST_F(TFiberTest, ConcurrentCancelation)
+{
+    auto promise = NewPromise<void>();
+
+    auto fiber = New<TFiber>(BIND([&] {
+        promise.ToFuture().Get();
+        Yield();
+        YUNREACHABLE();
+    }));
+
+    auto fiberFuture = BIND(&TFiber::Run, fiber)
+        .AsyncVia(Queue1->GetInvoker())
+        .Run();
+
+    int spins = 0;
+    int numberOfSpins = 1000;
+    for (spins = 0; spins < numberOfSpins && fiber->GetState() != EFiberState::Running; ++spins) {
+        Sleep(TDuration::MilliSeconds(1));
+    }
+    if (spins == numberOfSpins) {
+        ADD_FAILURE();
+        return;
+    }
+
+    EXPECT_FALSE(fiber->IsCanceled());
+    EXPECT_EQ(EFiberState::Running, fiber->GetState());
+
+    fiber->Cancel();
+
+    EXPECT_TRUE(fiber->IsCanceled());
+    EXPECT_EQ(EFiberState::Running, fiber->GetState());
+
+    promise.Set();
+    fiberFuture.Get();
+
+    EXPECT_TRUE(fiber->IsCanceled());
+    EXPECT_EQ(EFiberState::Canceled, fiber->GetState());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Stress tests.
 //

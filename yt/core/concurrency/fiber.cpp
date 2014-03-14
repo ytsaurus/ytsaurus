@@ -354,8 +354,8 @@ public:
         YCHECK(!WaitFor_);
         YCHECK(!SwitchTo_);
 
-        YCHECK(!Terminating_);
-        Terminating_ = true;
+        YCHECK(!Terminating_.load(std::memory_order_acquire));
+        Terminating_.store(true, std::memory_order_release);
 
         // Give the fiber a chance to cleanup.
         if (State_ == EFiberState::Blocked || State_ == EFiberState::Suspended) {
@@ -396,7 +396,7 @@ public:
 
     bool IsCanceled() const
     {
-        return Canceled_;
+        return Canceled_.load(std::memory_order_acquire);
     }
 
     EFiberState Run()
@@ -405,7 +405,7 @@ public:
         YCHECK(caller->Impl_->State_ == EFiberState::Running);
         caller->Impl_->State_ = EFiberState::Blocked;
 
-        if (Canceled_) {
+        if (Canceled_.load(std::memory_order_acquire)) {
             // When fiber is being cancelled control is always transfered
             // to the local closure for cleanup. All descendant fibers
             // will be cancelled automatically.
@@ -457,7 +457,7 @@ public:
         if (yieldedFrom == caller) {
             // Fiber was interrupted while waiting for a child.
             // This usually means that fiber is canceled.
-            YCHECK(caller->Impl_->Canceled_);
+            YCHECK(caller->Impl_->Canceled_.load(std::memory_order_acquire));
             throw TFiberCanceledException();
         } else {
             // In normal case fiber must receive control back from one of
@@ -500,8 +500,8 @@ public:
             case EFiberState::Suspended: {
                 // Fiber stack could be suspended in multiple layers.
                 // So the yielder may not be equal to |This_|.
-                YCHECK(!Terminating_);
-                YCHECK(!Canceled_);
+                YCHECK(!Terminating_.load(std::memory_order_acquire));
+                YCHECK(!Canceled_.load(std::memory_order_acquire));
 
                 State_ = state;
                 ResumeTo_ = yieldedFrom;
@@ -540,23 +540,20 @@ public:
         // from a root fiber.
         YCHECK(!Root_);
 
-        // Failure here indicates that the callee has declined our kind offer
-        // to exit gracefully and has called |Yield| once again.
-        YCHECK(!Canceled_);
-
         YCHECK(Caller_);
         YCHECK(target);
         YASSERT(DescendsFrom(target)); // This is expensive check.
 
         YCHECK(State_ == EFiberState::Running);
-        State_ = EFiberState::Suspended;
+        if (Canceled_.load(std::memory_order_acquire)) {
+            throw TFiberCanceledException();
+        }
 
+        State_ = EFiberState::Suspended;
         TransferTo(target->Impl_.get());
 
         YCHECK(State_ == EFiberState::Running);
-
-        // Throw TFiberCanceledException if a cancellation is requested.
-        if (Canceled_) {
+        if (Canceled_.load(std::memory_order_acquire)) {
             throw TFiberCanceledException();
         }
 
@@ -578,7 +575,7 @@ public:
     void Reset()
     {
         YASSERT(Stack_);
-        YASSERT(!Terminating_);
+        YASSERT(!Terminating_.load(std::memory_order_acquire));
         YASSERT(!Caller_);
         YASSERT(Exception_ == std::exception_ptr());
         YASSERT(!WaitFor_);
@@ -597,7 +594,7 @@ public:
             this);
 
         State_ = EFiberState::Initialized;
-        Canceled_ = false;
+        Canceled_.store(false, std::memory_order_release);
         Forked_ = false;
         ResumeTo_ = This_;
         CurrentInvoker_ = GetSyncInvoker();
@@ -633,19 +630,20 @@ public:
             case EFiberState::Terminated:
             case EFiberState::Canceled:
             case EFiberState::Exception:
-                Canceled_ = true;
+                Canceled_.store(true, std::memory_order_release);
                 break;
 
             case EFiberState::Running:
-                // Failure here indicates that fiber is being canceled
-                // from other thread.
-                YCHECK(GetCurrent() == This_);
-                Canceled_ = true;
-                throw TFiberCanceledException();
+                Canceled_.store(true, std::memory_order_release);
+                // If this is a current fiber then we can unwind it.
+                if (GetCurrent() == This_) {
+                    throw TFiberCanceledException();
+                }
+                break;
 
             case EFiberState::Blocked:
             case EFiberState::Suspended:
-                Canceled_ = true;
+                Canceled_.store(true, std::memory_order_release);
                 Run();
                 break;
 
@@ -731,8 +729,9 @@ private:
     TFiber* const This_;
     bool const Root_;
 
-    volatile bool Terminating_;
-    bool Canceled_;
+    std::atomic<bool> Terminating_;
+    std::atomic<bool> Canceled_;
+
     bool Forked_;
 
     TClosure Callee_;
@@ -784,13 +783,13 @@ private:
         YASSERT(fiber);
 
         if (CurrentFiber != fiber) {
-            if (!CurrentFiber->Impl_->Terminating_) {
+            if (!CurrentFiber->Impl_->Terminating_.load(std::memory_order_acquire)) {
                 CurrentFiber->Unref();
             }
 
             CurrentFiber = fiber;
 
-            if (!CurrentFiber->Impl_->Terminating_) {
+            if (!CurrentFiber->Impl_->Terminating_.load(std::memory_order_acquire)) {
                 CurrentFiber->Ref();
             }
         }
@@ -798,8 +797,8 @@ private:
 
     void Init()
     {
-        Terminating_ = false;
-        Canceled_ = false;
+        Terminating_.store(false, std::memory_order_release);
+        Canceled_.store(false, std::memory_order_release);
         Forked_ = false;
         Caller_ = nullptr;
         ResumeTo_ = This_;
@@ -841,7 +840,7 @@ private:
 
         if (Exception_) {
             State_ = EFiberState::Exception;
-        } else if (Canceled_) {
+        } else if (Canceled_.load(std::memory_order_acquire)) {
             State_ = EFiberState::Canceled;
         } else {
             try {
@@ -855,7 +854,7 @@ private:
             } catch (...) {
                 // Failure here indicates that an unhandled exception
                 // was thrown during fiber cancellation.
-                YCHECK(!Canceled_);
+                YCHECK(!Canceled_.load(std::memory_order_acquire));
 
                 Exception_ = std::current_exception();
                 State_ = EFiberState::Exception;
