@@ -307,10 +307,11 @@ namespace NYT { namespace NQueryClient {
         KwAnd = 263,
         KwOr = 264,
         KwBetween = 265,
-        Identifier = 266,
-        IntegerLiteral = 267,
-        DoubleLiteral = 268,
-        YPathLiteral = 269,
+        KwIn = 266,
+        Identifier = 267,
+        IntegerLiteral = 268,
+        DoubleLiteral = 269,
+        YPathLiteral = 270,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -320,11 +321,11 @@ namespace NYT { namespace NQueryClient {
         OpMinus = 45,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 270,
+        OpLessOrEqual = 271,
         OpEqual = 61,
-        OpNotEqual = 271,
+        OpNotEqual = 272,
         OpGreater = 62,
-        OpGreaterOrEqual = 272
+        OpGreaterOrEqual = 273
       };
     };
 
@@ -485,6 +486,10 @@ namespace NYT { namespace NQueryClient {
 
     static inline
     symbol_type
+    make_KwIn (const location_type& l);
+
+    static inline
+    symbol_type
     make_Identifier (const TStringBuf& v, const location_type& l);
 
     static inline
@@ -640,7 +645,7 @@ namespace NYT { namespace NQueryClient {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const signed char yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const signed char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -755,13 +760,13 @@ namespace NYT { namespace NQueryClient {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 54,           //< Last index in yytable_.
+      yylast_ = 61,           //< Last index in yytable_.
       yynnts_ = 22,  //< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 22, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 29    //< Number of tokens.
+      yyntokens_ = 30    //< Number of tokens.
     };
 
 

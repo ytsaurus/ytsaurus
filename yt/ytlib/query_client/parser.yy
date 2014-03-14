@@ -55,6 +55,8 @@
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
 %token KwBetween "keyword `BETWEEN`"
+%token KwIn "keyword `IN`"
+
 
 %token <TStringBuf> Identifier "identifier"
 
@@ -231,6 +233,18 @@ relational-op-expr
             $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::And, 
                 context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Greater, $expr, $lbexpr), 
                 context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Less, $expr, $rbexpr));
+        }
+    | atomic-expr[expr] KwIn LeftParenthesis function-expr-args[args] RightParenthesis
+        {
+            $$ = context->TrackedNew<TIntegerLiteralExpression>(@$, 0);
+
+            for (const TExpression* current : $args) {
+                $$ = context->TrackedNew<TBinaryOpExpression>(
+                    @$,
+                    EBinaryOp::Or,
+                    context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Equal, $expr, current),
+                    $$);
+            }
         }
     | additive-op-expr
         { $$ = $1; }

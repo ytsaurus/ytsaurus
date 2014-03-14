@@ -230,72 +230,72 @@ namespace NYT { namespace NQueryClient {
   {
       switch (other.type_get ())
     {
-      case 42: // relational-op
-      case 44: // additive-op
-      case 46: // multiplicative-op
+      case 43: // relational-op
+      case 45: // additive-op
+      case 47: // multiplicative-op
         value.copy< EBinaryOp > (other.value);
         break;
 
-      case 38: // expression
-      case 39: // or-op-expr
-      case 40: // and-op-expr
-      case 41: // relational-op-expr
-      case 43: // additive-op-expr
-      case 45: // multiplicative-op-expr
-      case 47: // atomic-expr
+      case 39: // expression
+      case 40: // or-op-expr
+      case 41: // and-op-expr
+      case 42: // relational-op-expr
+      case 44: // additive-op-expr
+      case 46: // multiplicative-op-expr
+      case 48: // atomic-expr
         value.copy< TExpression* > (other.value);
         break;
 
-      case 34: // where-clause
+      case 35: // where-clause
         value.copy< TFilterOperator* > (other.value);
         break;
 
-      case 49: // function-expr
+      case 50: // function-expr
         value.copy< TFunctionExpression* > (other.value);
         break;
 
-      case 50: // function-expr-args
+      case 51: // function-expr-args
         value.copy< TFunctionExpression::TArguments > (other.value);
         break;
 
-      case 35: // group-by-clause
+      case 36: // group-by-clause
         value.copy< TGroupOperator* > (other.value);
         break;
 
-      case 37: // named-expression
+      case 38: // named-expression
         value.copy< TNamedExpression > (other.value);
         break;
 
-      case 36: // named-expression-list
+      case 37: // named-expression-list
         value.copy< TNamedExpressionList > (other.value);
         break;
 
-      case 31: // head-clause
+      case 32: // head-clause
         value.copy< TOperator* > (other.value);
         break;
 
-      case 32: // select-clause
+      case 33: // select-clause
         value.copy< TProjectOperator* > (other.value);
         break;
 
-      case 48: // reference-expr
+      case 49: // reference-expr
         value.copy< TReferenceExpression* > (other.value);
         break;
 
-      case 33: // from-clause
+      case 34: // from-clause
         value.copy< TScanOperator* > (other.value);
         break;
 
-      case 11: // "identifier"
-      case 14: // "YPath literal"
+      case 12: // "identifier"
+      case 15: // "YPath literal"
         value.copy< TStringBuf > (other.value);
         break;
 
-      case 13: // "double literal"
+      case 14: // "double literal"
         value.copy< double > (other.value);
         break;
 
-      case 12: // "integer literal"
+      case 13: // "integer literal"
         value.copy< i64 > (other.value);
         break;
 
@@ -316,72 +316,72 @@ namespace NYT { namespace NQueryClient {
     (void) v;
       switch (this->type_get ())
     {
-      case 42: // relational-op
-      case 44: // additive-op
-      case 46: // multiplicative-op
+      case 43: // relational-op
+      case 45: // additive-op
+      case 47: // multiplicative-op
         value.copy< EBinaryOp > (v);
         break;
 
-      case 38: // expression
-      case 39: // or-op-expr
-      case 40: // and-op-expr
-      case 41: // relational-op-expr
-      case 43: // additive-op-expr
-      case 45: // multiplicative-op-expr
-      case 47: // atomic-expr
+      case 39: // expression
+      case 40: // or-op-expr
+      case 41: // and-op-expr
+      case 42: // relational-op-expr
+      case 44: // additive-op-expr
+      case 46: // multiplicative-op-expr
+      case 48: // atomic-expr
         value.copy< TExpression* > (v);
         break;
 
-      case 34: // where-clause
+      case 35: // where-clause
         value.copy< TFilterOperator* > (v);
         break;
 
-      case 49: // function-expr
+      case 50: // function-expr
         value.copy< TFunctionExpression* > (v);
         break;
 
-      case 50: // function-expr-args
+      case 51: // function-expr-args
         value.copy< TFunctionExpression::TArguments > (v);
         break;
 
-      case 35: // group-by-clause
+      case 36: // group-by-clause
         value.copy< TGroupOperator* > (v);
         break;
 
-      case 37: // named-expression
+      case 38: // named-expression
         value.copy< TNamedExpression > (v);
         break;
 
-      case 36: // named-expression-list
+      case 37: // named-expression-list
         value.copy< TNamedExpressionList > (v);
         break;
 
-      case 31: // head-clause
+      case 32: // head-clause
         value.copy< TOperator* > (v);
         break;
 
-      case 32: // select-clause
+      case 33: // select-clause
         value.copy< TProjectOperator* > (v);
         break;
 
-      case 48: // reference-expr
+      case 49: // reference-expr
         value.copy< TReferenceExpression* > (v);
         break;
 
-      case 33: // from-clause
+      case 34: // from-clause
         value.copy< TScanOperator* > (v);
         break;
 
-      case 11: // "identifier"
-      case 14: // "YPath literal"
+      case 12: // "identifier"
+      case 15: // "YPath literal"
         value.copy< TStringBuf > (v);
         break;
 
-      case 13: // "double literal"
+      case 14: // "double literal"
         value.copy< double > (v);
         break;
 
-      case 12: // "integer literal"
+      case 13: // "integer literal"
         value.copy< i64 > (v);
         break;
 
@@ -521,72 +521,72 @@ namespace NYT { namespace NQueryClient {
     // Type destructor.
     switch (yytype)
     {
-      case 42: // relational-op
-      case 44: // additive-op
-      case 46: // multiplicative-op
+      case 43: // relational-op
+      case 45: // additive-op
+      case 47: // multiplicative-op
         value.template destroy< EBinaryOp > ();
         break;
 
-      case 38: // expression
-      case 39: // or-op-expr
-      case 40: // and-op-expr
-      case 41: // relational-op-expr
-      case 43: // additive-op-expr
-      case 45: // multiplicative-op-expr
-      case 47: // atomic-expr
+      case 39: // expression
+      case 40: // or-op-expr
+      case 41: // and-op-expr
+      case 42: // relational-op-expr
+      case 44: // additive-op-expr
+      case 46: // multiplicative-op-expr
+      case 48: // atomic-expr
         value.template destroy< TExpression* > ();
         break;
 
-      case 34: // where-clause
+      case 35: // where-clause
         value.template destroy< TFilterOperator* > ();
         break;
 
-      case 49: // function-expr
+      case 50: // function-expr
         value.template destroy< TFunctionExpression* > ();
         break;
 
-      case 50: // function-expr-args
+      case 51: // function-expr-args
         value.template destroy< TFunctionExpression::TArguments > ();
         break;
 
-      case 35: // group-by-clause
+      case 36: // group-by-clause
         value.template destroy< TGroupOperator* > ();
         break;
 
-      case 37: // named-expression
+      case 38: // named-expression
         value.template destroy< TNamedExpression > ();
         break;
 
-      case 36: // named-expression-list
+      case 37: // named-expression-list
         value.template destroy< TNamedExpressionList > ();
         break;
 
-      case 31: // head-clause
+      case 32: // head-clause
         value.template destroy< TOperator* > ();
         break;
 
-      case 32: // select-clause
+      case 33: // select-clause
         value.template destroy< TProjectOperator* > ();
         break;
 
-      case 48: // reference-expr
+      case 49: // reference-expr
         value.template destroy< TReferenceExpression* > ();
         break;
 
-      case 33: // from-clause
+      case 34: // from-clause
         value.template destroy< TScanOperator* > ();
         break;
 
-      case 11: // "identifier"
-      case 14: // "YPath literal"
+      case 12: // "identifier"
+      case 15: // "YPath literal"
         value.template destroy< TStringBuf > ();
         break;
 
-      case 13: // "double literal"
+      case 14: // "double literal"
         value.template destroy< double > ();
         break;
 
-      case 12: // "integer literal"
+      case 13: // "integer literal"
         value.template destroy< i64 > ();
         break;
 
@@ -604,72 +604,72 @@ namespace NYT { namespace NQueryClient {
     super_type::move(s);
       switch (this->type_get ())
     {
-      case 42: // relational-op
-      case 44: // additive-op
-      case 46: // multiplicative-op
+      case 43: // relational-op
+      case 45: // additive-op
+      case 47: // multiplicative-op
         value.move< EBinaryOp > (s.value);
         break;
 
-      case 38: // expression
-      case 39: // or-op-expr
-      case 40: // and-op-expr
-      case 41: // relational-op-expr
-      case 43: // additive-op-expr
-      case 45: // multiplicative-op-expr
-      case 47: // atomic-expr
+      case 39: // expression
+      case 40: // or-op-expr
+      case 41: // and-op-expr
+      case 42: // relational-op-expr
+      case 44: // additive-op-expr
+      case 46: // multiplicative-op-expr
+      case 48: // atomic-expr
         value.move< TExpression* > (s.value);
         break;
 
-      case 34: // where-clause
+      case 35: // where-clause
         value.move< TFilterOperator* > (s.value);
         break;
 
-      case 49: // function-expr
+      case 50: // function-expr
         value.move< TFunctionExpression* > (s.value);
         break;
 
-      case 50: // function-expr-args
+      case 51: // function-expr-args
         value.move< TFunctionExpression::TArguments > (s.value);
         break;
 
-      case 35: // group-by-clause
+      case 36: // group-by-clause
         value.move< TGroupOperator* > (s.value);
         break;
 
-      case 37: // named-expression
+      case 38: // named-expression
         value.move< TNamedExpression > (s.value);
         break;
 
-      case 36: // named-expression-list
+      case 37: // named-expression-list
         value.move< TNamedExpressionList > (s.value);
         break;
 
-      case 31: // head-clause
+      case 32: // head-clause
         value.move< TOperator* > (s.value);
         break;
 
-      case 32: // select-clause
+      case 33: // select-clause
         value.move< TProjectOperator* > (s.value);
         break;
 
-      case 48: // reference-expr
+      case 49: // reference-expr
         value.move< TReferenceExpression* > (s.value);
         break;
 
-      case 33: // from-clause
+      case 34: // from-clause
         value.move< TScanOperator* > (s.value);
         break;
 
-      case 11: // "identifier"
-      case 14: // "YPath literal"
+      case 12: // "identifier"
+      case 15: // "YPath literal"
         value.move< TStringBuf > (s.value);
         break;
 
-      case 13: // "double literal"
+      case 14: // "double literal"
         value.move< double > (s.value);
         break;
 
-      case 12: // "integer literal"
+      case 13: // "integer literal"
         value.move< i64 > (s.value);
         break;
 
@@ -771,6 +771,13 @@ namespace NYT { namespace NQueryClient {
   TParser::make_KwBetween (const location_type& l)
   {
     return symbol_type (token::KwBetween, l);
+
+  }
+
+  TParser::symbol_type
+  TParser::make_KwIn (const location_type& l)
+  {
+    return symbol_type (token::KwIn, l);
 
   }
 
@@ -944,72 +951,72 @@ namespace NYT { namespace NQueryClient {
   {
       switch (that.type_get ())
     {
-      case 42: // relational-op
-      case 44: // additive-op
-      case 46: // multiplicative-op
+      case 43: // relational-op
+      case 45: // additive-op
+      case 47: // multiplicative-op
         value.move< EBinaryOp > (that.value);
         break;
 
-      case 38: // expression
-      case 39: // or-op-expr
-      case 40: // and-op-expr
-      case 41: // relational-op-expr
-      case 43: // additive-op-expr
-      case 45: // multiplicative-op-expr
-      case 47: // atomic-expr
+      case 39: // expression
+      case 40: // or-op-expr
+      case 41: // and-op-expr
+      case 42: // relational-op-expr
+      case 44: // additive-op-expr
+      case 46: // multiplicative-op-expr
+      case 48: // atomic-expr
         value.move< TExpression* > (that.value);
         break;
 
-      case 34: // where-clause
+      case 35: // where-clause
         value.move< TFilterOperator* > (that.value);
         break;
 
-      case 49: // function-expr
+      case 50: // function-expr
         value.move< TFunctionExpression* > (that.value);
         break;
 
-      case 50: // function-expr-args
+      case 51: // function-expr-args
         value.move< TFunctionExpression::TArguments > (that.value);
         break;
 
-      case 35: // group-by-clause
+      case 36: // group-by-clause
         value.move< TGroupOperator* > (that.value);
         break;
 
-      case 37: // named-expression
+      case 38: // named-expression
         value.move< TNamedExpression > (that.value);
         break;
 
-      case 36: // named-expression-list
+      case 37: // named-expression-list
         value.move< TNamedExpressionList > (that.value);
         break;
 
-      case 31: // head-clause
+      case 32: // head-clause
         value.move< TOperator* > (that.value);
         break;
 
-      case 32: // select-clause
+      case 33: // select-clause
         value.move< TProjectOperator* > (that.value);
         break;
 
-      case 48: // reference-expr
+      case 49: // reference-expr
         value.move< TReferenceExpression* > (that.value);
         break;
 
-      case 33: // from-clause
+      case 34: // from-clause
         value.move< TScanOperator* > (that.value);
         break;
 
-      case 11: // "identifier"
-      case 14: // "YPath literal"
+      case 12: // "identifier"
+      case 15: // "YPath literal"
         value.move< TStringBuf > (that.value);
         break;
 
-      case 13: // "double literal"
+      case 14: // "double literal"
         value.move< double > (that.value);
         break;
 
-      case 12: // "integer literal"
+      case 13: // "integer literal"
         value.move< i64 > (that.value);
         break;
 
@@ -1028,72 +1035,72 @@ namespace NYT { namespace NQueryClient {
     state = that.state;
       switch (that.type_get ())
     {
-      case 42: // relational-op
-      case 44: // additive-op
-      case 46: // multiplicative-op
+      case 43: // relational-op
+      case 45: // additive-op
+      case 47: // multiplicative-op
         value.copy< EBinaryOp > (that.value);
         break;
 
-      case 38: // expression
-      case 39: // or-op-expr
-      case 40: // and-op-expr
-      case 41: // relational-op-expr
-      case 43: // additive-op-expr
-      case 45: // multiplicative-op-expr
-      case 47: // atomic-expr
+      case 39: // expression
+      case 40: // or-op-expr
+      case 41: // and-op-expr
+      case 42: // relational-op-expr
+      case 44: // additive-op-expr
+      case 46: // multiplicative-op-expr
+      case 48: // atomic-expr
         value.copy< TExpression* > (that.value);
         break;
 
-      case 34: // where-clause
+      case 35: // where-clause
         value.copy< TFilterOperator* > (that.value);
         break;
 
-      case 49: // function-expr
+      case 50: // function-expr
         value.copy< TFunctionExpression* > (that.value);
         break;
 
-      case 50: // function-expr-args
+      case 51: // function-expr-args
         value.copy< TFunctionExpression::TArguments > (that.value);
         break;
 
-      case 35: // group-by-clause
+      case 36: // group-by-clause
         value.copy< TGroupOperator* > (that.value);
         break;
 
-      case 37: // named-expression
+      case 38: // named-expression
         value.copy< TNamedExpression > (that.value);
         break;
 
-      case 36: // named-expression-list
+      case 37: // named-expression-list
         value.copy< TNamedExpressionList > (that.value);
         break;
 
-      case 31: // head-clause
+      case 32: // head-clause
         value.copy< TOperator* > (that.value);
         break;
 
-      case 32: // select-clause
+      case 33: // select-clause
         value.copy< TProjectOperator* > (that.value);
         break;
 
-      case 48: // reference-expr
+      case 49: // reference-expr
         value.copy< TReferenceExpression* > (that.value);
         break;
 
-      case 33: // from-clause
+      case 34: // from-clause
         value.copy< TScanOperator* > (that.value);
         break;
 
-      case 11: // "identifier"
-      case 14: // "YPath literal"
+      case 12: // "identifier"
+      case 15: // "YPath literal"
         value.copy< TStringBuf > (that.value);
         break;
 
-      case 13: // "double literal"
+      case 14: // "double literal"
         value.copy< double > (that.value);
         break;
 
-      case 12: // "integer literal"
+      case 13: // "integer literal"
         value.copy< i64 > (that.value);
         break;
 
@@ -1327,72 +1334,72 @@ namespace NYT { namespace NQueryClient {
        variants.  */
       switch (yyr1_[yyn])
     {
-      case 42: // relational-op
-      case 44: // additive-op
-      case 46: // multiplicative-op
+      case 43: // relational-op
+      case 45: // additive-op
+      case 47: // multiplicative-op
         yylhs.value.build< EBinaryOp > ();
         break;
 
-      case 38: // expression
-      case 39: // or-op-expr
-      case 40: // and-op-expr
-      case 41: // relational-op-expr
-      case 43: // additive-op-expr
-      case 45: // multiplicative-op-expr
-      case 47: // atomic-expr
+      case 39: // expression
+      case 40: // or-op-expr
+      case 41: // and-op-expr
+      case 42: // relational-op-expr
+      case 44: // additive-op-expr
+      case 46: // multiplicative-op-expr
+      case 48: // atomic-expr
         yylhs.value.build< TExpression* > ();
         break;
 
-      case 34: // where-clause
+      case 35: // where-clause
         yylhs.value.build< TFilterOperator* > ();
         break;
 
-      case 49: // function-expr
+      case 50: // function-expr
         yylhs.value.build< TFunctionExpression* > ();
         break;
 
-      case 50: // function-expr-args
+      case 51: // function-expr-args
         yylhs.value.build< TFunctionExpression::TArguments > ();
         break;
 
-      case 35: // group-by-clause
+      case 36: // group-by-clause
         yylhs.value.build< TGroupOperator* > ();
         break;
 
-      case 37: // named-expression
+      case 38: // named-expression
         yylhs.value.build< TNamedExpression > ();
         break;
 
-      case 36: // named-expression-list
+      case 37: // named-expression-list
         yylhs.value.build< TNamedExpressionList > ();
         break;
 
-      case 31: // head-clause
+      case 32: // head-clause
         yylhs.value.build< TOperator* > ();
         break;
 
-      case 32: // select-clause
+      case 33: // select-clause
         yylhs.value.build< TProjectOperator* > ();
         break;
 
-      case 48: // reference-expr
+      case 49: // reference-expr
         yylhs.value.build< TReferenceExpression* > ();
         break;
 
-      case 33: // from-clause
+      case 34: // from-clause
         yylhs.value.build< TScanOperator* > ();
         break;
 
-      case 11: // "identifier"
-      case 14: // "YPath literal"
+      case 12: // "identifier"
+      case 15: // "YPath literal"
         yylhs.value.build< TStringBuf > ();
         break;
 
-      case 13: // "double literal"
+      case 14: // "double literal"
         yylhs.value.build< double > ();
         break;
 
-      case 12: // "integer literal"
+      case 13: // "integer literal"
         yylhs.value.build< i64 > ();
         break;
 
@@ -1544,120 +1551,134 @@ namespace NYT { namespace NQueryClient {
     break;
 
   case 22:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
+    {
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TIntegerLiteralExpression>(yylhs.location, 0);
+
+            for (const TExpression* current : yystack_[1].value.as< TFunctionExpression::TArguments > ()) {
+                yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(
+                    yylhs.location,
+                    EBinaryOp::Or,
+                    context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::Equal, yystack_[4].value.as< TExpression* > (), current),
+                    yylhs.value.as< TExpression* > ());
+            }
+        }
     break;
 
   case 23:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
   case 24:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
     break;
 
   case 25:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Less; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
     break;
 
   case 26:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::LessOrEqual; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Less; }
     break;
 
   case 27:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Greater; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::LessOrEqual; }
     break;
 
   case 28:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::GreaterOrEqual; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Greater; }
     break;
 
   case 29:
-    {
-            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
-        }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::GreaterOrEqual; }
     break;
 
   case 30:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-    break;
-
-  case 31:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Plus; }
-    break;
-
-  case 32:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Minus; }
-    break;
-
-  case 33:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 34:
+  case 31:
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
+  case 32:
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Plus; }
+    break;
+
+  case 33:
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Minus; }
+    break;
+
+  case 34:
+    {
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
+        }
+    break;
+
   case 35:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Multiply; }
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
   case 36:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Divide; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Multiply; }
     break;
 
   case 37:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Divide; }
     break;
 
   case 38:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TReferenceExpression* > (); }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
     break;
 
   case 39:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TFunctionExpression* > (); }
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TReferenceExpression* > (); }
     break;
 
   case 40:
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TFunctionExpression* > (); }
+    break;
+
+  case 41:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TIntegerLiteralExpression>(yylhs.location, yystack_[0].value.as< i64 > ());
         }
     break;
 
-  case 41:
+  case 42:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TDoubleLiteralExpression>(yylhs.location, yystack_[0].value.as< double > ());
         }
     break;
 
-  case 42:
+  case 43:
     {
             yylhs.value.as< TExpression* > () = yystack_[1].value.as< TExpression* > ();
         }
     break;
 
-  case 43:
+  case 44:
     {
             yylhs.value.as< TReferenceExpression* > () = context->TrackedNew<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
         }
     break;
 
-  case 44:
+  case 45:
     {
             yylhs.value.as< TFunctionExpression* > () = context->TrackedNew<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > ());
             yylhs.value.as< TFunctionExpression* > ()->Arguments().assign(yystack_[1].value.as< TFunctionExpression::TArguments > ().begin(), yystack_[1].value.as< TFunctionExpression::TArguments > ().end());
         }
     break;
 
-  case 45:
+  case 46:
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().swap(yystack_[2].value.as< TFunctionExpression::TArguments > ());
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 46:
+  case 47:
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
@@ -1920,92 +1941,97 @@ namespace NYT { namespace NQueryClient {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -34;
+  const signed char TParser::yypact_ninf_ = -33;
 
   const signed char TParser::yytable_ninf_ = -14;
 
   const signed char
   TParser::yypact_[] =
   {
-      23,   -10,   -34,   -34,    23,    17,   -34,    19,    12,   -34,
-      14,    28,    30,     3,     1,    -4,    31,     4,   -34,    23,
-      -2,   -34,   -34,    26,     7,    23,    32,    23,    23,   -34,
-     -34,   -34,   -34,   -34,   -34,    23,   -34,   -34,    23,   -34,
-     -34,   -34,    23,    23,   -34,    -1,   -34,   -34,    23,    23,
-      36,   -34,   -34,   -34,    30,     3,     1,   -34,    -4,   -34,
-      39,   -34,    23,    28,    12,   -34,    23,   -34,   -34
+       4,     7,   -33,   -33,     4,    14,   -33,    18,    19,   -33,
+      34,    36,    35,     3,    13,    -4,    -3,     5,   -33,     4,
+      -5,   -33,   -33,    27,    33,     4,    37,     4,     4,   -33,
+     -33,   -33,   -33,   -33,   -33,     4,   -33,   -33,     4,   -33,
+     -33,   -33,     4,     4,    31,   -33,     2,   -33,   -33,     4,
+       4,    45,   -33,   -33,   -33,    35,     3,    13,   -33,    -4,
+     -33,    44,     4,   -33,     4,    36,    19,   -33,     4,    16,
+     -33,   -33,   -33
   };
 
   const unsigned char
   TParser::yydefact_[] =
   {
-       0,    43,    40,    41,     0,     0,     2,     0,     7,    12,
-       0,    15,    17,    19,    22,    30,    34,    38,    39,     0,
-       0,    38,     1,     0,     3,     0,     0,     0,     0,    25,
-      26,    23,    24,    27,    28,     0,    31,    32,     0,    37,
-      35,    36,     0,     0,    46,     0,    42,     8,     0,     0,
-       4,     6,    11,    14,    16,    18,    20,    34,    29,    33,
-       0,    44,     0,     9,    10,     5,     0,    45,    21
+       0,    44,    41,    42,     0,     0,     2,     0,     7,    12,
+       0,    15,    17,    19,    23,    31,    35,    39,    40,     0,
+       0,    39,     1,     0,     3,     0,     0,     0,     0,    26,
+      27,    24,    25,    28,    29,     0,    32,    33,     0,    38,
+      36,    37,     0,     0,     0,    47,     0,    43,     8,     0,
+       0,     4,     6,    11,    14,    16,    18,    20,    35,    30,
+      34,     0,     0,    45,     0,     9,    10,     5,     0,     0,
+      46,    21,    22
   };
 
   const signed char
   TParser::yypgoto_[] =
   {
-     -34,   -34,   -34,   -34,   -34,   -34,    -6,     2,    25,   -16,
-      -3,    21,    24,   -34,    18,   -34,    16,   -34,   -33,     0,
-     -34,   -34
+     -33,   -33,   -33,   -33,   -33,   -33,     6,     8,    28,   -18,
+      -2,    29,    26,   -33,    20,   -33,    21,   -33,   -32,     0,
+     -33,    -1
   };
 
   const signed char
   TParser::yydefgoto_[] =
   {
-      -1,     5,     6,     7,    24,    50,    51,     8,     9,    10,
+      -1,     5,     6,     7,    24,    51,    52,     8,     9,    10,
       11,    12,    13,    35,    14,    38,    15,    42,    16,    21,
-      18,    45
+      18,    46
   };
 
   const signed char
   TParser::yytable_[] =
   {
-      17,    20,    57,    44,   -13,    57,    19,    27,   -13,    59,
-      60,    39,    48,    49,    40,    46,    61,    22,    41,    62,
-      36,    26,    37,    23,   -13,    17,    29,    30,    31,    32,
-      33,    34,    25,    68,     1,     2,     3,    27,    28,     4,
-      47,    43,    49,    53,    65,    63,    67,    66,    54,    17,
-      52,    64,    55,    56,    58
+      17,    45,    20,    58,    27,   -13,    58,    43,    44,   -13,
+      60,    61,    39,    47,    22,    40,     1,     2,     3,    41,
+      63,     4,    23,    64,    19,    17,   -13,    29,    30,    31,
+      32,    33,    34,    36,    72,    37,    71,    64,    49,    50,
+      25,    26,    48,    28,    45,    27,    70,    65,    62,    54,
+      17,    50,    68,    53,    56,    57,    55,    67,    66,    59,
+       0,    69
   };
 
-  const unsigned char
+  const signed char
   TParser::yycheck_[] =
   {
-       0,     4,    35,    19,     0,    38,    16,     9,     4,    42,
-      43,    15,     5,     6,    18,    17,    17,     0,    22,    20,
-      19,     7,    21,     4,    20,    25,    23,    24,    25,    26,
-      27,    28,    20,    66,    11,    12,    13,     9,     8,    16,
-      14,    10,     6,    11,    50,    48,    62,     8,    27,    49,
-      25,    49,    28,    35,    38
+       0,    19,     4,    35,     9,     0,    38,    10,    11,     4,
+      42,    43,    16,    18,     0,    19,    12,    13,    14,    23,
+      18,    17,     4,    21,    17,    25,    21,    24,    25,    26,
+      27,    28,    29,    20,    18,    22,    68,    21,     5,     6,
+      21,     7,    15,     8,    62,     9,    64,    49,    17,    12,
+      50,     6,     8,    25,    28,    35,    27,    51,    50,    38,
+      -1,    62
   };
 
   const unsigned char
   TParser::yystos_[] =
   {
-       0,    11,    12,    13,    16,    30,    31,    32,    36,    37,
-      38,    39,    40,    41,    43,    45,    47,    48,    49,    16,
-      39,    48,     0,     4,    33,    20,     7,     9,     8,    23,
-      24,    25,    26,    27,    28,    42,    19,    21,    44,    15,
-      18,    22,    46,    10,    38,    50,    17,    14,     5,     6,
-      34,    35,    37,    11,    40,    41,    43,    47,    45,    47,
-      47,    17,    20,    39,    36,    35,     8,    38,    47
+       0,    12,    13,    14,    17,    31,    32,    33,    37,    38,
+      39,    40,    41,    42,    44,    46,    48,    49,    50,    17,
+      40,    49,     0,     4,    34,    21,     7,     9,     8,    24,
+      25,    26,    27,    28,    29,    43,    20,    22,    45,    16,
+      19,    23,    47,    10,    11,    39,    51,    18,    15,     5,
+       6,    35,    36,    38,    12,    41,    42,    44,    48,    46,
+      48,    48,    17,    18,    21,    40,    37,    36,     8,    51,
+      39,    48,    18
   };
 
   const unsigned char
   TParser::yyr1_[] =
   {
-       0,    29,    30,    31,    31,    31,    31,    32,    33,    34,
-      35,    36,    36,    37,    37,    38,    39,    39,    40,    40,
-      41,    41,    41,    42,    42,    42,    42,    42,    42,    43,
-      43,    44,    44,    45,    45,    46,    46,    46,    47,    47,
-      47,    47,    47,    48,    49,    50,    50
+       0,    30,    31,    32,    32,    32,    32,    33,    34,    35,
+      36,    37,    37,    38,    38,    39,    40,    40,    41,    41,
+      42,    42,    42,    42,    43,    43,    43,    43,    43,    43,
+      44,    44,    45,    45,    46,    46,    47,    47,    47,    48,
+      48,    48,    48,    48,    49,    50,    51,    51
   };
 
   const unsigned char
@@ -2013,9 +2039,9 @@ namespace NYT { namespace NQueryClient {
   {
        0,     2,     1,     2,     3,     4,     3,     1,     2,     2,
        2,     3,     1,     1,     3,     1,     3,     1,     3,     1,
-       3,     5,     1,     1,     1,     1,     1,     1,     1,     3,
-       1,     1,     1,     3,     1,     1,     1,     1,     1,     1,
-       1,     1,     3,     1,     4,     3,     1
+       3,     5,     5,     1,     1,     1,     1,     1,     1,     1,
+       3,     1,     1,     1,     3,     1,     1,     1,     1,     1,
+       1,     1,     1,     3,     1,     4,     3,     1
   };
 
 
@@ -2028,27 +2054,27 @@ namespace NYT { namespace NQueryClient {
   "\"end of stream\"", "error", "$undefined", "\"lexer failure\"",
   "\"keyword `FROM`\"", "\"keyword `WHERE`\"", "\"keyword `GROUP BY`\"",
   "\"keyword `AS`\"", "\"keyword `AND`\"", "\"keyword `OR`\"",
-  "\"keyword `BETWEEN`\"", "\"identifier\"", "\"integer literal\"",
-  "\"double literal\"", "\"YPath literal\"", "\"`%`\"", "\"`(`\"",
-  "\"`)`\"", "\"`*`\"", "\"`+`\"", "\"`,`\"", "\"`-`\"", "\"`/`\"",
-  "\"`<`\"", "\"`<=`\"", "\"`=`\"", "\"`!=`\"", "\"`>`\"", "\"`>=`\"",
-  "$accept", "head", "head-clause", "select-clause", "from-clause",
-  "where-clause", "group-by-clause", "named-expression-list",
-  "named-expression", "expression", "or-op-expr", "and-op-expr",
-  "relational-op-expr", "relational-op", "additive-op-expr", "additive-op",
-  "multiplicative-op-expr", "multiplicative-op", "atomic-expr",
-  "reference-expr", "function-expr", "function-expr-args", YY_NULL
+  "\"keyword `BETWEEN`\"", "\"keyword `IN`\"", "\"identifier\"",
+  "\"integer literal\"", "\"double literal\"", "\"YPath literal\"",
+  "\"`%`\"", "\"`(`\"", "\"`)`\"", "\"`*`\"", "\"`+`\"", "\"`,`\"",
+  "\"`-`\"", "\"`/`\"", "\"`<`\"", "\"`<=`\"", "\"`=`\"", "\"`!=`\"",
+  "\"`>`\"", "\"`>=`\"", "$accept", "head", "head-clause", "select-clause",
+  "from-clause", "where-clause", "group-by-clause",
+  "named-expression-list", "named-expression", "expression", "or-op-expr",
+  "and-op-expr", "relational-op-expr", "relational-op", "additive-op-expr",
+  "additive-op", "multiplicative-op-expr", "multiplicative-op",
+  "atomic-expr", "reference-expr", "function-expr", "function-expr-args", YY_NULL
   };
 
 #if YT_QL_YYDEBUG
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   112,   112,   119,   124,   130,   137,   146,   154,   163,
-     171,   179,   184,   191,   195,   202,   207,   211,   216,   220,
-     225,   229,   235,   240,   242,   244,   246,   248,   250,   255,
-     259,   264,   266,   271,   275,   280,   282,   284,   289,   291,
-     293,   297,   301,   308,   315,   323,   328
+       0,   114,   114,   121,   126,   132,   139,   148,   156,   165,
+     173,   181,   186,   193,   197,   204,   209,   213,   218,   222,
+     227,   231,   237,   249,   254,   256,   258,   260,   262,   264,
+     269,   273,   278,   280,   285,   289,   294,   296,   298,   303,
+     305,   307,   311,   315,   322,   329,   337,   342
   };
 
   // Print the state stack on the debug stream.
@@ -2092,10 +2118,10 @@ namespace NYT { namespace NQueryClient {
      0,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,    15,     2,     2,
-      16,    17,    18,    19,    20,    21,     2,    22,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,    16,     2,     2,
+      17,    18,    19,    20,    21,    22,     2,    23,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-      23,    25,    27,     2,     2,     2,     2,     2,     2,     2,
+      24,    26,    28,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -2116,9 +2142,9 @@ namespace NYT { namespace NQueryClient {
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     3,     1,     2,     4,
        5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
-      24,    26,    28
+      15,    25,    27,    29
     };
-    const unsigned int user_token_number_max_ = 272;
+    const unsigned int user_token_number_max_ = 273;
     const token_number_type undef_token_ = 2;
 
     if (static_cast<int>(t) <= yyeof_)

@@ -1365,6 +1365,29 @@ TEST_F(TQueryCodegenTest, SimpleBetweenAnd)
     SUCCEED();
 }
 
+TEST_F(TQueryCodegenTest, SimpleIn)
+{
+    auto simpleSplit = MakeSplit("//t", 
+        {
+            { "a", EValueType::Integer },
+            { "b", EValueType::Integer },
+            { "c", EValueType::Integer }
+        });
+
+    std::vector<TUnversionedOwningRow> source;
+    source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
+    source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+    source.push_back(BuildRow("a=15;b=11", simpleSplit, false));
+    
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
+    result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+
+    CodegenAndEvaluate("a, b FROM [//t] where a in (4, 10)", source, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryCodegenTest, SimpleWithNull)
 {
     auto simpleSplit = MakeSplit("//t", 

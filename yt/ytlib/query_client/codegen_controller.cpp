@@ -649,6 +649,14 @@ Value* TCGContext::CodegenFunctionExpr(
     YUNIMPLEMENTED();
 }
 
+Type* GetCommonType(Type* a, Type* b)
+{
+    if (a->isIntegerTy()) {
+        return a->getIntegerBitWidth() > b->getIntegerBitWidth()? a : b;
+    }
+    YUNIMPLEMENTED();
+}
+
 Value* TCGContext::CodegenBinaryOpExpr(
     TIRBuilder& builder,
     const TBinaryOpExpression* expr,
@@ -703,9 +711,13 @@ Value* TCGContext::CodegenBinaryOpExpr(
 #define XX(opcode, optype) \
         case EBinaryOp::opcode: \
             switch (expr->GetType(tableSchema)) { \
-                case EValueType::Integer: \
-                    result = builder.CreateBinOp(Instruction::BinaryOps::optype, lhsValue, rhsValue, ~expr->GetName()); \
-                    break; \
+                case EValueType::Integer: { \
+                    Type* commonType = GetCommonType(lhsValue->getType(), rhsValue->getType()); \
+                    result = builder.CreateBinOp(Instruction::BinaryOps::optype, \
+                        builder.CreateIntCast(lhsValue, commonType, true), \
+                        builder.CreateIntCast(rhsValue, commonType, true), \
+                        ~expr->GetName()); \
+                    break; }\
                 default: \
                     YUNREACHABLE(); /* Typechecked. */ \
             } \
