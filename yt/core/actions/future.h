@@ -622,7 +622,16 @@ class TFutureCancelationGuard
 {
 public:
     explicit TFutureCancelationGuard(TFuture<T> future);
+    TFutureCancelationGuard(TFutureCancelationGuard<T>&& other);
     ~TFutureCancelationGuard();
+
+    TFutureCancelationGuard<T>& operator=(TFutureCancelationGuard<T>&& other);
+
+    friend void swap(TFutureCancelationGuard<T>& lhs, TFutureCancelationGuard<T>& rhs);
+
+    void Release();
+
+    explicit operator bool() const;
 
 private:
     TFuture<T> Future_;

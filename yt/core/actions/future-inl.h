@@ -1326,11 +1326,43 @@ TFutureCancelationGuard<T>::TFutureCancelationGuard(TFuture<T> future)
 { }
 
 template <class T>
+TFutureCancelationGuard<T>::TFutureCancelationGuard(TFutureCancelationGuard&& other)
+    : Future_(std::move(other.Future_))
+{ }
+
+template <class T>
 TFutureCancelationGuard<T>::~TFutureCancelationGuard()
+{
+    Release();
+}
+
+template <class T>
+TFutureCancelationGuard<T>& TFutureCancelationGuard<T>::operator=(TFutureCancelationGuard<T>&& other)
+{
+    if (this != &other) {
+        Future_ = std::move(other.Future_);
+    }
+    return *this;
+}
+
+template <class T>
+void swap(TFutureCancelationGuard<T>& lhs, TFutureCancelationGuard<T>& rhs)
+{
+    std::swap(lhs.Future_, rhs.Future_);
+}
+
+template <class T>
+void TFutureCancelationGuard<T>::Release()
 {
     if (Future_) {
         Future_.Cancel();
     }
+}
+
+template <class T>
+TFutureCancelationGuard<T>::operator bool() const
+{
+    return static_cast<bool>(Future_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
