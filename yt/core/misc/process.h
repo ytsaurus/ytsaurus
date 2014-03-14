@@ -24,6 +24,7 @@ private:
     bool IsFinished_;
     int Status_;
     int ProcessId_;
+    int Pipe_[2];
     std::vector<char> Path_;
     std::vector<std::vector<char>> Holder_;
     std::vector<char* > Args_;
@@ -31,6 +32,7 @@ private:
     std::vector<char> Stack_;
 
     char* Copy(const char* arg);
+    void ClosePipe();
     int DoSpawn();
 
     friend int child(void*);
