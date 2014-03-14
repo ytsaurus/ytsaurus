@@ -655,6 +655,18 @@ void TChunkOwnerNodeProxy::ValidatePathAttributes(
 void TChunkOwnerNodeProxy::Clear()
 { }
 
+void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
+{
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    if (node->GetUpdateMode() != EUpdateMode::None) {
+        THROW_ERROR_EXCEPTION("Node is already in %s mode",
+            ~FormatEnum(node->GetUpdateMode()).Quote());
+    }
+}
+
+void TChunkOwnerNodeProxy::ValidateFetch()
+{ }
+
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
     DeclareMutating();
@@ -670,11 +682,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
         NSecurityServer::EPermission::Write);
 
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
-
-    if (node->GetUpdateMode() != EUpdateMode::None) {
-        THROW_ERROR_EXCEPTION("Node is already in %s mode",
-            ~FormatEnum(node->GetUpdateMode()).Quote());
-    }
+    ValidatePrepareForUpdate();
 
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
@@ -759,6 +767,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         NSecurityServer::EPermission::Read);
 
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    ValidateFetch();
 
     auto attributes = NYTree::FromProto(request->attributes());
     auto channelAttribute = attributes->Find<TChannel>("channel");

@@ -46,6 +46,9 @@ protected:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
+    virtual void ValidatePrepareForUpdate();
+    virtual void ValidateFetch();
+
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
 
