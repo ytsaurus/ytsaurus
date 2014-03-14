@@ -30,6 +30,7 @@ private:
     std::vector<char* > Env_;
     std::vector<char> Stack_;
 
+    char* Copy(const char* arg);
     int DoSpawn();
 
     friend int child(void*);

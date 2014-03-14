@@ -66,14 +66,24 @@ TProcess::TProcess(const char* path)
 
 void TProcess::AddArgument(const char* arg)
 {
-    size_t size = strlen(arg);
-    Holder_.push_back(std::vector<char>(arg, arg + size + 1));
-    Args_.push_back(&(Holder_[Holder_.size() - 1].front()));
+    YCHECK((ProcessId_ == -1) && !IsFinished_);
+
+    Args_.push_back(Copy(arg));
 }
 
 TError TProcess::Spawn()
 {
     YCHECK((ProcessId_ == -1) && !IsFinished_);
+
+    // copy env
+    char** iterator = environ;
+    while (*iterator != 0) {
+        const char* const item = (*iterator);
+        Env_.push_back(Copy(item));
+
+        ++iterator;
+    }
+    Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
     int pid = clone(child,
@@ -93,7 +103,7 @@ TError TProcess::Spawn()
 
 int TProcess::DoSpawn()
 {
-    execvp(&Path_.front(), &(Args_.front()));
+    execve(&Path_.front(), &(Args_.front()), &(Env_.front()));
     const int errorCode = errno;
     int i = 0;
     while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
@@ -125,6 +135,13 @@ const char* TProcess::GetPath() const
 int TProcess::GetProcessId() const
 {
     return ProcessId_;
+}
+
+char* TProcess::Copy(const char* arg)
+{
+    size_t size = strlen(arg);
+    Holder_.push_back(std::vector<char>(arg, arg + size + 1));
+    return &(Holder_[Holder_.size() - 1].front());
 }
 
 } // NYT
