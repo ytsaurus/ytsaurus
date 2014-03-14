@@ -646,7 +646,7 @@ TEST_F(TFiberTest, CancelTerminatedFiber)
     EXPECT_NO_THROW({ fiber->Cancel(); });
 
     EXPECT_EQ(EFiberState::Terminated, fiber->GetState());
-    EXPECT_FALSE(fiber->IsCanceled());
+    EXPECT_TRUE(fiber->IsCanceled());
 }
 
 TEST_F(TFiberTest, CancelExceptionFiber)
@@ -660,7 +660,7 @@ TEST_F(TFiberTest, CancelExceptionFiber)
     EXPECT_NO_THROW({ fiber->Cancel(); });
 
     EXPECT_EQ(EFiberState::Exception, fiber->GetState());
-    EXPECT_FALSE(fiber->IsCanceled());
+    EXPECT_TRUE(fiber->IsCanceled());
 }
 
 TEST_F(TFiberTest, YieldTo1)

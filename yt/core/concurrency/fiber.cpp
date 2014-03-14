@@ -424,8 +424,15 @@ public:
             YCHECK(!Caller_);
             YCHECK(
                 ResumeTo_->Impl_->State_ == EFiberState::Initialized ||
-                ResumeTo_->Impl_->State_ == EFiberState::Suspended);
-            ResumeTo_->Impl_->State_ = EFiberState::Running;
+                ResumeTo_->Impl_->State_ == EFiberState::Suspended ||
+                ResumeTo_->Impl_->IsCanceled());
+
+            // XXX(sandello): This is temporary fix until fiber rewrite.
+            if (ResumeTo_->Impl_->IsCanceled()) {
+                throw TFiberCanceledException();
+            } else {
+                ResumeTo_->Impl_->State_ = EFiberState::Running;
+            }
 
             if (ResumeTo_ != This_) {
                 // We are yielding to a suspended descendant
@@ -623,12 +630,10 @@ public:
     {
         switch (State_) {
             case EFiberState::Initialized:
-                Canceled_ = true;
-                break;
-
             case EFiberState::Terminated:
             case EFiberState::Canceled:
             case EFiberState::Exception:
+                Canceled_ = true;
                 break;
 
             case EFiberState::Running:
@@ -694,8 +699,8 @@ public:
     static int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
     {
         AcquireSpinLock(&FlsSlotsLock);
-		int result = AtomicGet(FlsSlotsSize);
-		YCHECK(result < MaxFlsSlots);
+        int result = AtomicGet(FlsSlotsSize);
+        YCHECK(result < MaxFlsSlots);
         auto& slot = FlsSlots[result];
         slot.Ctor = ctor;
         slot.Dtor = dtor;
