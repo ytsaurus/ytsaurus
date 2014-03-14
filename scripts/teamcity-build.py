@@ -50,6 +50,7 @@ def prepare(options):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
     options.build_enable_perl = os.environ["BUILD_ENABLE_PERL"]
+    options.build_enable_llvm = os.environ["BUILD_ENABLE_LLVM"]
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = re.sub(r"/0.\d\d$", "", options.branch)
@@ -101,6 +102,7 @@ def configure(options):
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
+        "-DYT_BUILD_ENABLE_LLVM={0}".format(options.build_enable_llvm),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_CC_COMPILER={0}".format(options.cc),
         options.checkout_directory],
