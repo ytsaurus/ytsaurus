@@ -9,7 +9,8 @@ namespace NYT {
 class TProcess
 {
 public:
-    TProcess(const char* path);
+    explicit TProcess(const char* path);
+    TProcess(const TProcess&) = delete;
 
     void AddArgument(const char* arg);
 
@@ -18,6 +19,7 @@ public:
 
     const char* GetPath() const;
     int GetProcessId() const;
+
 private:
     bool IsFinished_;
     int Status_;
@@ -27,6 +29,10 @@ private:
     std::vector<char* > Args_;
     std::vector<char* > Env_;
     std::vector<char> Stack_;
+
+    int DoSpawn();
+
+    friend int child(void*);
 };
 
 } // NYT

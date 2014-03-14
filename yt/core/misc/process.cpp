@@ -39,6 +39,12 @@ static const int EXEC_ERR_CODE[] = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int child(void* this_)
+{
+    TProcess* process = static_cast<TProcess*>(this_);
+    return process->DoSpawn();
+}
+
 TProcess::TProcess(const char* path)
     : IsFinished_(false)
     , Status_(0)
@@ -70,25 +76,31 @@ TError TProcess::Spawn()
     YCHECK((ProcessId_ == -1) && !IsFinished_);
     Args_.push_back(nullptr);
 
-    int pid = vfork();
+    int pid = clone(child,
+        (&Stack_.front()) + Stack_.size(),
+        CLONE_VM|SIGCHLD,
+        this);
+
     if (pid < 0) {
         return TError("Error starting child process: vfork failed")
             << TErrorAttribute("path", GetPath())
             << TError::FromSystem();
     }
 
-    if (pid == 0) {
-        execvp(&Path_.front(), &(Args_.front()));
-        const int errorCode = errno;
-        int i = 0;
-        while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
-            ++i;
-        }
-
-        _exit(BASE_EXIT_CODE - i);
-    }
     ProcessId_ = pid;
     return TError();
+}
+
+int TProcess::DoSpawn()
+{
+    execvp(&Path_.front(), &(Args_.front()));
+    const int errorCode = errno;
+    int i = 0;
+    while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
+        ++i;
+    }
+
+    _exit(BASE_EXIT_CODE - i);
 }
 
 TError TProcess::Wait()
