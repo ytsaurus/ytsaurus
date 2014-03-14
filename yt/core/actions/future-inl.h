@@ -508,6 +508,24 @@ private:
     }
 };
 
+template <class T>
+struct TPromiseSetter
+{
+    static void Do(TPromise<T> promise, T value)
+    {
+        promise.Set(std::move(value));
+    }
+};
+
+template <>
+struct TPromiseSetter<void>
+{
+    static void Do(TPromise<void> promise)
+    {
+        promise.Set();
+    }
+};
+
 inline void TPromiseState<void>::Subscribe(
     TDuration timeout,
     TResultHandler onResult,
