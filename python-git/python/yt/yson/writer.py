@@ -44,8 +44,6 @@ from collections import Iterable, Mapping
 
 from yson_types import YsonEntity
 
-import sys
-
 __all__ = ["dump", "dumps"]
 
 def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
@@ -56,12 +54,17 @@ def dump(object, stream, yson_format=None, indent=None, check_circular=True, enc
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
     '''Serialize ``object`` as a Yson formatted string'''
-    if yson_format is not None and yson_format != "pretty":
-        raise YsonError("binary and text formats are not supported")
     if indent is None:
         indent = 4
     if isinstance(indent, int):
         indent = " " * indent
+    if yson_format is None:
+        yson_format = "pretty"
+    if yson_format not in ["pretty", "text"]:
+        raise YsonError("%s format is not supported" % yson_format)
+    if yson_format == "text":
+        indent = None
+
     d = Dumper(check_circular, encoding, indent, yson_type)
     return d.dumps(object)
 
@@ -186,8 +189,8 @@ def _fix_repr(s):
     representation (as he usually does).
     See PyString_Repr() function in python sources for details.'''
     if s.startswith("'"):
-        s = s.replace(r"\'", "'").replace('"', r'\"')
-        return '"%s"' % s[1:-1]
+        s = s[1:-1].replace(r"\'", "'").replace('"', r'\"')
+        return '"%s"' % s
     else:
         return s
 
