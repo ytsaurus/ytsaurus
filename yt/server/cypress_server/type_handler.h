@@ -93,12 +93,6 @@ struct INodeTypeHandler
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory) = 0;
 
-    //! Checks if a given node can be locked.
-    virtual TError CheckLock(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        const TLockRequest& request) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

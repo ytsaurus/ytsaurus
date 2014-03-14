@@ -663,7 +663,7 @@ ICypressNodeProxyPtr TCypressManager::GetNodeProxy(
     return handler->GetProxy(trunkNode, transaction);
 }
 
-TError TCypressManager::CheckLock(
+TError TCypressManager::ValidateLock(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request,
@@ -674,12 +674,10 @@ TError TCypressManager::CheckLock(
 
     *isMandatory = true;
 
-    {
-        auto handler = GetHandler(trunkNode);
-        auto error = handler->CheckLock(trunkNode, transaction, request);
-        if (!error.IsOK()) {
-            return error;
-        }
+    // Snapshot locks can only be taken inside a transaction.
+    if (request.Mode == ELockMode::Snapshot && !transaction) {
+        return TError("%s lock requires a transaction",
+            ~FormatEnum(request.Mode).Quote());
     }
 
     // Check for conflicts with other transactions.
@@ -1003,7 +1001,7 @@ TCypressNodeBase* TCypressManager::LockNode(
         auto* trunkChild = child->GetTrunkNode();
 
         bool isChildMandatory;
-        auto error = CheckLock(
+        auto error = ValidateLock(
             trunkChild,
             transaction,
             request,
@@ -1059,7 +1057,7 @@ TLock* TCypressManager::CreateLock(
 
     // Try to lock without waiting in the queue.
     bool isMandatory;
-    auto error = CheckLock(
+    auto error = ValidateLock(
         trunkNode,
         transaction,
         request,
@@ -1103,7 +1101,7 @@ void TCypressManager::CheckPendingLocks(TCypressNodeBase* trunkNode)
         auto* lock = *jt;
 
         bool isMandatory;
-        auto error = CheckLock(
+        auto error = ValidateLock(
             trunkNode,
             lock->GetTransaction(),
             lock->Request(),

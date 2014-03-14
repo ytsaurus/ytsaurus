@@ -26,8 +26,6 @@ struct INodeTypeHandler;
 typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
 
 class TCypressNodeBase;
-
-struct TLockRequest;
 class TLock;
 
 struct ICypressNodeFactory;

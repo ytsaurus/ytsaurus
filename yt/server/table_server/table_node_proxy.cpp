@@ -77,6 +77,7 @@ private:
         const TNullable<TChannel>& channel,
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override;
+    virtual void ValidatePrepareForUpdate() override;
     virtual void Clear() override;
 
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
@@ -145,6 +146,16 @@ void TTableNodeProxy::ValidatePathAttributes(
 
     if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
         THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
+    }
+}
+
+void TTableNodeProxy::ValidatePrepareForUpdate()
+{
+    TChunkOwnerNodeProxy::ValidatePrepareForUpdate();
+
+    auto* node = GetThisTypedImpl();
+    if (!node->Tablets().empty()) {
+        THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
     }
 }
 

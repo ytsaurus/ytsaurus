@@ -193,7 +193,7 @@ private:
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
 
-    TError CheckLock(
+    TError ValidateLock(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,

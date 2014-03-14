@@ -190,17 +190,6 @@ protected:
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
     }
 
-    virtual TError DoCheckLock(
-        TTableNode* trunkNode,
-        TTransaction* /*transaction*/,
-        const TLockRequest& /*request*/)
-    {
-        if (!trunkNode->Tablets().empty()) {
-            return TError("Cannot lock a table with tablets");
-        }
-        return TError();
-    }
-
 };
 
 INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
