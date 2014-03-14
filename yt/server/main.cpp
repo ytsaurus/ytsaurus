@@ -191,14 +191,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
             THROW_ERROR_EXCEPTION("A path should contain at least 4 slashes. Path: %s", ~path);
         }
 
-        DoRemoveDirAsRoot(path);
+        RemoveDirAsRoot(path);
 
         return EExitCode::OK;
     }
 
     if (isKiller) {
         int uid = parser.Uid.getValue();
-        DoKillallByUid(uid);
+        KillallByUid(uid);
 
         return EExitCode::OK;
     }
