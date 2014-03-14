@@ -621,10 +621,10 @@ def main():
 
     parser.add_argument(
         "--cc",
-        type=str, action="store", required=False, default="gcc-4.7")
+        type=str, action="store", required=False, default="gcc-4.8")
     parser.add_argument(
         "--cxx",
-        type=str, action="store", required=False, default="g++-4.7")
+        type=str, action="store", required=False, default="g++-4.8")
 
     options = parser.parse_args()
     status = 0
