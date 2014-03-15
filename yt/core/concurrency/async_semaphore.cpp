@@ -14,7 +14,7 @@ TAsyncSemaphore::TAsyncSemaphore(i64 totalSlots)
     : TotalSlots_(totalSlots)
     , FreeSlots_(totalSlots)
 {
-    YCHECK(maxFreeSlots > 0);
+    YCHECK(TotalSlots_ > 0);
 }
 
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
