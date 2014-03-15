@@ -10,9 +10,9 @@ namespace NConcurrency {
 
 static const auto PresetResult = MakeFuture();
 
-TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
-    : TotalSlots_(maxFreeSlots)
-    , FreeSlots_(maxFreeSlots)
+TAsyncSemaphore::TAsyncSemaphore(i64 totalSlots)
+    : TotalSlots_(totalSlots)
+    , FreeSlots_(totalSlots)
 {
     YCHECK(maxFreeSlots > 0);
 }
