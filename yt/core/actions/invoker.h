@@ -20,7 +20,7 @@ struct IInvoker
     : public virtual TRefCounted
 {
     //! Schedules invocation of a given callback.
-    virtual bool Invoke(const TClosure& action) = 0;
+    virtual void Invoke(const TClosure& callback) = 0;
 
     //! Returns the thread id this invoker is bound to.
     //! For invokers not bound to any particular thread,
@@ -33,7 +33,7 @@ struct IPrioritizedInvoker
 {
     using IInvoker::Invoke;
 
-    virtual bool Invoke(const TClosure& action, i64 priority) = 0;
+    virtual void Invoke(const TClosure& callback, i64 priority) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

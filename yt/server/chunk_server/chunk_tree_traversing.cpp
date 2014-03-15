@@ -175,8 +175,7 @@ protected:
                 childUpperBound.SetRowIndex(
                     entry.ChildIndex == chunkList->Children().size() - 1
                         ? chunkList->Statistics().RowCount
-                        : chunkList->RowCountSums()[entry.ChildIndex]
-                );
+                        : chunkList->RowCountSums()[entry.ChildIndex]);
             } else if (entry.LowerBound.HasRowIndex()) {
                 childLowerBound.SetRowIndex(childLowerRowIndex);
             }
@@ -195,8 +194,7 @@ protected:
                 childUpperBound.SetChunkIndex(
                     entry.ChildIndex == chunkList->Children().size() - 1
                         ? chunkList->Statistics().ChunkCount
-                        : chunkList->ChunkCountSums()[entry.ChildIndex]
-                );
+                        : chunkList->ChunkCountSums()[entry.ChildIndex]);
             } else if (entry.LowerBound.HasChunkIndex()) {
                 childLowerBound.SetChunkIndex(childLowerChunkIndex);
             }
@@ -215,8 +213,7 @@ protected:
                 childUpperBound.SetOffset(
                     entry.ChildIndex == chunkList->Children().size() - 1
                         ? chunkList->Statistics().UncompressedDataSize
-                        : chunkList->DataSizeSums()[entry.ChildIndex]
-                );
+                        : chunkList->DataSizeSums()[entry.ChildIndex]);
             } else if (entry.LowerBound.HasOffset()) {
                 childLowerBound.SetOffset(childLowerOffset);
             }
@@ -276,14 +273,9 @@ protected:
         }
 
         // Schedule continuation.
-        {
-            auto invoker = TraverserCallbacks_->GetInvoker();
-            auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
-            if (!result) {
-                Shutdown();
-                Visitor_->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
-            }
-        }
+        TraverserCallbacks_
+            ->GetInvoker()
+            ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
 
     int GetStartChildIndex(

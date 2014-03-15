@@ -572,19 +572,20 @@ struct TAsyncViaHelper<W, U(TArgs...)>
             RegisterFiberCancelation(promise);
             promise.Set(this_.Run(std::forward<TArgs>(args)...));
         });
-        auto outer = BIND([=] (TArgs... args) -> FR {
+
+        auto canceler = BIND([] (FR future) {
+            future.Cancel();
+        });
+
+        return BIND([=] (TArgs... args) -> FR {
             auto promise = NewPromise<R>();
             auto future = promise.ToFuture();
-            auto result = invoker->Invoke(BIND(
-                inner,
-                promise,
-                std::forward<TArgs>(args)...));
-            if (!result) {
-                future.Cancel();
-            }
+            GuardedInvoke(
+                invoker,
+                BIND(inner, promise, std::forward<TArgs>(args)...),
+                BIND(canceler, future));
             return future;
         });
-        return outer;
     }
 };
 
@@ -607,19 +608,20 @@ struct TAsyncViaHelper<W, void(TArgs...)>
             this_.Run(std::forward<TArgs>(args)...);
             promise.Set();
         });
-        auto outer = BIND([=] (TArgs... args) -> FR {
+
+        auto canceler = BIND([] (FR future) {
+            future.Cancel();
+        });
+
+        return BIND([=] (TArgs... args) -> FR {
             auto promise = NewPromise<R>();
             auto future = promise.ToFuture();
-            bool result = invoker->Invoke(BIND(
-                inner,
-                promise,
-                std::forward<TArgs>(args)... ));
-            if (!result) {
-                future.Cancel();
-            }
+            GuardedInvoke(
+                invoker,
+                BIND(inner, promise, std::forward<TArgs>(args)... ),
+                BIND(canceler, future));
             return future;
         });
-        return outer;
     }
 };
 
@@ -642,19 +644,20 @@ struct TAsyncViaHelper<true, U(TArgs...)>
             this_.Run(std::forward<TArgs>(args)...)
                 .Subscribe(BIND(&TPromiseSetter<R>::Do, promise));
         });
-        auto outer = BIND([=] (TArgs... args) -> FR {
+
+        auto canceler = BIND([] (FR future) {
+            future.Cancel();
+        });
+
+        return BIND([=] (TArgs... args) -> FR {
             auto promise = NewPromise<R>();
             auto future = promise.ToFuture();
-            bool result = invoker->Invoke(BIND(
-                inner,
-                promise,
-                std::forward<TArgs>(args)...));
-            if (!result) {
-                future.Cancel();
-            }
+            GuardedInvoke(
+                invoker,
+                BIND(inner, promise, std::forward<TArgs>(args)...),
+                BIND(canceler, future));
             return future;
         });
-        return outer;
     }
 };
 

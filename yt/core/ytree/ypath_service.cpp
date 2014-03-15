@@ -71,21 +71,13 @@ private:
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
         auto this_ = MakeStrong(this);
-        auto handler = BIND([this, this_, context] () {
+        Invoker->Invoke(BIND([this, this_, context] () {
             try {
                 ExecuteVerb(UnderlyingService, context);
             } catch (const std::exception& ex) {
                 context->Reply(ex);
             }
-        });
-
-        bool result = Invoker->Invoke(handler);
-        if (!result) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Service unavailable"));
-        }
-
+        }));
         return true;
     }
 };

@@ -17,10 +17,9 @@ class TSyncInvoker
     : public IInvoker
 {
 public:
-    virtual bool Invoke(const TClosure& action) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        action.Run();
-        return true;
+        callback.Run();
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
@@ -42,6 +41,57 @@ IInvokerPtr GetCurrentInvoker()
 void SetCurrentInvoker(IInvokerPtr invoker)
 {
     TFiber::GetCurrent()->SetCurrentInvoker(std::move(invoker));
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+void GuardedInvoke(
+    IInvokerPtr invoker,
+    TClosure onSuccess,
+    TClosure onCancel)
+{
+    YASSERT(invoker);
+    YASSERT(onSuccess);
+    YASSERT(onCancel);
+
+    class TGuard
+    {
+    public:
+        explicit TGuard(TClosure onCancel)
+            : OnCancel_(std::move(onCancel))
+        { }
+
+        TGuard(TGuard&& other)
+            : OnCancel_(std::move(other.OnCancel_))
+        { }
+
+        ~TGuard()
+        {
+            if (OnCancel_) {
+                OnCancel_.Run();
+            }
+        }
+
+        void Release()
+        {
+            OnCancel_.Reset();
+        }
+
+    private:
+        TClosure OnCancel_;
+
+    };
+
+    auto doInvoke = [] (TClosure onSuccess, TGuard guard) {
+        guard.Release();
+        onSuccess.Run();
+    };
+
+    invoker->Invoke(BIND(
+        doInvoke,
+        Passed(std::move(onSuccess)),
+        Passed(std::move(TGuard(std::move(onCancel))))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

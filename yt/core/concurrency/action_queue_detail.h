@@ -61,7 +61,7 @@ public:
 
     void SetThreadId(TThreadId threadId);
 
-    virtual bool Invoke(const TClosure& callback) override;
+    virtual void Invoke(const TClosure& callback) override;
     virtual TThreadId GetThreadId() const override;
 
     void Shutdown();

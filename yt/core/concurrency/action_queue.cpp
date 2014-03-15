@@ -48,21 +48,21 @@ public:
         const Stroka& threadName,
         bool enableLogging,
         bool enableProfiling)
-        : Queue(New<TInvokerQueue>(
-            &EventCount,
+        : Queue_(New<TInvokerQueue>(
+            &EventCount_,
             GetThreadTagIds(threadName),
             enableLogging,
             enableProfiling))
-        , Thread(New<TSingleQueueExecutorThread>(
-            Queue,
-            &EventCount,
+        , Thread_(New<TSingleQueueExecutorThread>(
+            Queue_,
+            &EventCount_,
             threadName,
             GetThreadTagIds(threadName),
             enableLogging,
             enableProfiling))
     {
-        Thread->Start();
-        Queue->SetThreadId(Thread->GetId());
+        Thread_->Start();
+        Queue_->SetThreadId(Thread_->GetId());
     }
 
     ~TImpl()
@@ -72,19 +72,19 @@ public:
 
     void Shutdown()
     {
-        Queue->Shutdown();
-        Thread->Shutdown();
+        Queue_->Shutdown();
+        Thread_->Shutdown();
     }
 
     IInvokerPtr GetInvoker()
     {
-        return Queue;
+        return Queue_;
     }
 
 private:
-    TEventCount EventCount;
-    TInvokerQueuePtr Queue;
-    TSingleQueueExecutorThreadPtr Thread;
+    TEventCount EventCount_;
+    TInvokerQueuePtr Queue_;
+    TSingleQueueExecutorThreadPtr Thread_;
 
 };
 
@@ -183,7 +183,7 @@ private:
     std::vector<TBucket> Buckets;
     TCpuInstant StartInstant;
 
-    TEnqueuedAction CurrentAction;
+    TEnqueuedAction Currentcallback;
     TBucket* CurrentBucket;
     
 
@@ -209,7 +209,7 @@ private:
     {
         YCHECK(!CurrentBucket);
 
-        // Check if any action is ready at all.
+        // Check if any callback is ready at all.
         CurrentBucket = GetStarvingBucket();
         if (!CurrentBucket) {
             return EBeginExecuteResult::QueueEmpty;
@@ -222,7 +222,7 @@ private:
 
         // Pump the starving queue.
         StartInstant = GetCpuInstant();
-        return CurrentBucket->Queue->BeginExecute(&CurrentAction);
+        return CurrentBucket->Queue->BeginExecute(&Currentcallback);
     }
 
     virtual void EndExecute() override
@@ -230,7 +230,7 @@ private:
         if (!CurrentBucket)
             return;
 
-        CurrentBucket->Queue->EndExecute(&CurrentAction);
+        CurrentBucket->Queue->EndExecute(&Currentcallback);
         CurrentBucket->ExcessTime += (GetCpuInstant() - StartInstant);
         CurrentBucket = nullptr;
     }
@@ -342,11 +342,10 @@ public:
         , Lock(0)
     { }
 
-    virtual bool Invoke(const TClosure& action) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        Queue.Enqueue(action);
+        Queue.Enqueue(callback);
         TrySchedule();
-        return true;
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
@@ -372,11 +371,11 @@ private:
 
     void DoInvoke()
     {
-        // Execute as many actions as possible to minimize context switches.
-        TClosure action;
-        while (Queue.Dequeue(&action)) {
+        // Execute as many callbacks as possible to minimize context switches.
+        TClosure callback;
+        while (Queue.Dequeue(&callback)) {
             TCurrentInvokerGuard guard(this);
-            action.Run();
+            callback.Run();
         }
 
         AtomicUnlock(&Lock);
@@ -398,10 +397,10 @@ class TPrioritizedInvoker
 {
 public:
     explicit TPrioritizedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker(std::move(underlyingInvoker))
+        : UnderlyingInvoker_(std::move(underlyingInvoker))
     { }
 
-    virtual bool Invoke(const TClosure& callback, i64 priority) override
+    virtual void Invoke(const TClosure& callback, i64 priority) override
     {
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -411,24 +410,21 @@ public:
             EntryHeap.emplace_back(std::move(entry));
             std::push_heap(EntryHeap.begin(), EntryHeap.end());
         }
-        // TODO(babenko): there's no easy way to evict the entry; for now, we do not allow the
-        // underlying invoker to reject the action.
-        YCHECK(UnderlyingInvoker->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this))));
-        return true;
+        UnderlyingInvoker_->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
     }
 
-    virtual bool Invoke(const TClosure& callback) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        return UnderlyingInvoker->Invoke(callback);
+        UnderlyingInvoker_->Invoke(callback);
     }
 
     virtual TThreadId GetThreadId() const override
     {
-        return UnderlyingInvoker->GetThreadId();
+        return UnderlyingInvoker_->GetThreadId();
     }
 
 private:
-    IInvokerPtr UnderlyingInvoker;
+    IInvokerPtr UnderlyingInvoker_;
 
     struct TEntry
     {
@@ -471,12 +467,12 @@ public:
         : UnderlyingInvoker(std::move(underlyingInvoker))
     { }
 
-    virtual bool Invoke(const TClosure& callback, i64 /*priority*/) override
+    virtual void Invoke(const TClosure& callback, i64 /*priority*/) override
     {
         return UnderlyingInvoker->Invoke(callback);
     }
 
-    virtual bool Invoke(const TClosure& callback) override
+    virtual void Invoke(const TClosure& callback) override
     {
         return UnderlyingInvoker->Invoke(callback);
     }

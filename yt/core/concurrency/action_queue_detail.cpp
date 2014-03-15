@@ -53,14 +53,14 @@ void TInvokerQueue::SetThreadId(TThreadId threadId)
     ThreadId = threadId;
 }
 
-bool TInvokerQueue::Invoke(const TClosure& callback)
+void TInvokerQueue::Invoke(const TClosure& callback)
 {
     if (!Running) {
         LOG_TRACE_IF(
             EnableLogging,
             "Queue had been shut down, incoming action ignored: %p",
             callback.GetHandle());
-        return false;
+        return;
     }
 
     AtomicIncrement(QueueSize);
@@ -76,8 +76,6 @@ bool TInvokerQueue::Invoke(const TClosure& callback)
     Queue.Enqueue(action);
 
     EventCount->Notify();
-
-    return true;
 }
 
 TThreadId TInvokerQueue::GetThreadId() const

@@ -4,10 +4,11 @@
 #include <core/actions/future.h>
 #include <core/actions/bind.h>
 #include <core/actions/callback.h>
+#include <core/actions/invoker_util.h>
+#include <core/actions/cancelable_context.h>
 
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/parallel_collector.h>
-#include <core/actions/invoker_util.h>
 
 #include <util/system/thread.h>
 
@@ -618,6 +619,16 @@ TEST(TFutureTest, ParallelCollectorError)
     collector->Collect(AsyncDivide(30, 0, TDuration::Seconds(2)));
     auto resultOrError = collector->Complete().Get();
     EXPECT_FALSE(resultOrError.IsOK());
+}
+
+TEST(TFutureTest, AsyncViaCanceledInvoker)
+{
+    auto context = New<TCancelableContext>();
+    auto invoker = context->CreateInvoker(GetSyncInvoker());
+    auto generator = BIND([]() {}).AsyncVia(invoker);
+    context->Cancel();
+    auto future = generator.Run();
+    ASSERT_TRUE(future.IsCanceled());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

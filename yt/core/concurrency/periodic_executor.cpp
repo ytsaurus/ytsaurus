@@ -84,19 +84,22 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
 void TPeriodicExecutor::PostCallback()
 {
     auto this_ = MakeStrong(this);
-    bool result = Invoker->Invoke(BIND([this, this_] () {
-        if (AtomicGet(Started) && !AtomicGet(Busy)) {
-            AtomicSet(Busy, true);
-            TDelayedExecutor::CancelAndClear(Cookie);
-            Callback.Run();
-            if (Mode == EPeriodicExecutorMode::Automatic) {
-                ScheduleNext();
+    GuardedInvoke(
+        Invoker,
+        BIND([this, this_] () {
+            if (AtomicGet(Started) && !AtomicGet(Busy)) {
+                AtomicSet(Busy, true);
+                TDelayedExecutor::CancelAndClear(Cookie);
+                Callback.Run();
+                if (Mode == EPeriodicExecutorMode::Automatic) {
+                    ScheduleNext();
+                }
             }
-        }
-    }));
-    if (!result) {
-        PostDelayedCallback(Period);
-    }
+        }),
+        BIND(
+            &TPeriodicExecutor::PostDelayedCallback,
+            this_,
+            Period));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

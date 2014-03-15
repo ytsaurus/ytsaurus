@@ -19,6 +19,8 @@
 #include <ytlib/hydra/version.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NHydra {
 
@@ -87,6 +89,8 @@ public:
     TMutationContext* GetMutationContext();
 
 private:
+    class TUserLockGuard;
+    class TSystemLockGuard;
     class TGuardedUserInvoker;
     class TSystemInvoker;
     class TSnapshotBuilder;
@@ -98,8 +102,8 @@ private:
     IInvokerPtr AutomatonInvoker_;
     IInvokerPtr ControlInvoker_;
 
-    TAtomic UserEnqueueLock_;
-    TAtomic SystemLock_;
+    std::atomic<int> UserLock_;
+    std::atomic<int> SystemLock_;
     IInvokerPtr SystemInvoker_;
 
     ISnapshotStorePtr SnapshotStore_;
@@ -141,8 +145,8 @@ private:
 
     IChangelogPtr GetCurrentChangelog();
 
-    bool AcquireUserEnqueueLock();
-    void ReleaseUserEnqueueLock();
+    bool TryAcquireUserLock();
+    void ReleaseUserLock();
     void AcquireSystemLock();
     void ReleaseSystemLock();
 

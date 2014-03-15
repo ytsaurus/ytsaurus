@@ -117,13 +117,10 @@ private:
             }
 
             // Schedule continuation.
-            {
-                auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
-                auto result = invoker->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
-                if (!result) {
-                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Yield error");
-                }
-            }
+            Bootstrap
+                ->GetMetaStateFacade()
+                ->GetGuardedInvoker()
+                ->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
         } catch (const std::exception& ex) {
             Visitor->OnError(ex);
         }

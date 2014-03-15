@@ -23,6 +23,14 @@ IInvokerPtr GetCurrentInvoker();
 //! Set a given invoker as the current one.
 void SetCurrentInvoker(IInvokerPtr invoker);
 
+//! Tries to invoke #onSuccess via #invoker.
+//! If the invoker discards the callback without executing it then
+//! #onCancel is run.
+void GuardedInvoke(
+    IInvokerPtr invoker,
+    TClosure onSuccess,
+    TClosure onCancel);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Ensures that calls to #SetCurrentInvoker come in pairs.

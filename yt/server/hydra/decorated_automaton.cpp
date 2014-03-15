@@ -29,6 +29,79 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDecoratedAutomaton::TUserLockGuard
+{
+public:
+    TUserLockGuard(TUserLockGuard&& other)
+        : Automaton_(std::move(other.Automaton_))
+    { }
+
+    ~TUserLockGuard()
+    {
+        if (Automaton_) {
+            Automaton_->ReleaseUserLock();
+        }
+    }
+
+    explicit operator bool()
+    {
+        return static_cast<bool>(Automaton_);
+    }
+
+    static TUserLockGuard TryAcquire(TDecoratedAutomatonPtr automaton)
+    {
+        return automaton->TryAcquireUserLock()
+            ? TUserLockGuard(std::move(automaton))
+            : TUserLockGuard();
+    }
+
+private:
+    TUserLockGuard()
+    { }
+
+    explicit TUserLockGuard(TDecoratedAutomatonPtr automaton)
+        : Automaton_(std::move(automaton))
+    { }
+
+
+    TDecoratedAutomatonPtr Automaton_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecoratedAutomaton::TSystemLockGuard
+{
+public:
+    TSystemLockGuard(TSystemLockGuard&& other)
+        : Automaton_(std::move(other.Automaton_))
+    { }
+
+    ~TSystemLockGuard()
+    {
+        if (Automaton_) {
+            Automaton_->ReleaseSystemLock();
+        }
+    }
+
+    static TSystemLockGuard Acquire(TDecoratedAutomatonPtr automaton)
+    {
+        automaton->AcquireSystemLock();
+        return TSystemLockGuard(std::move(automaton));
+    }
+
+private:
+    explicit TSystemLockGuard(TDecoratedAutomatonPtr automaton)
+        : Automaton_(std::move(automaton))
+    { }
+
+
+    TDecoratedAutomatonPtr Automaton_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDecoratedAutomaton::TGuardedUserInvoker
     : public IInvoker
 {
@@ -36,41 +109,39 @@ public:
     TGuardedUserInvoker(
         TDecoratedAutomatonPtr decoratedAutomaton,
         IInvokerPtr underlyingInvoker)
-        : DecoratedAutomaton(decoratedAutomaton)
-        , UnderlyingInvoker(underlyingInvoker)
+        : Owner_(decoratedAutomaton)
+        , UnderlyingInvoker_(underlyingInvoker)
     { }
 
-    virtual bool Invoke(const TClosure& action) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        if (!DecoratedAutomaton->AcquireUserEnqueueLock()) {
-            return false;
-        }
+        auto guard = TUserLockGuard::TryAcquire(Owner_);
+        if (!guard)
+            return;
 
-        if (DecoratedAutomaton->GetState() != EPeerState::Leading &&
-            DecoratedAutomaton->GetState() != EPeerState::Following)
-        {
-            DecoratedAutomaton->ReleaseUserEnqueueLock();
-            return false;
-        }
+        if (Owner_->GetState() != EPeerState::Leading &&
+            Owner_->GetState() != EPeerState::Following)
+            return;
 
-        auto this_ = MakeStrong(this);
-        bool result = UnderlyingInvoker->Invoke(BIND([this_, action] () {
-            TCurrentInvokerGuard guard(this_);
-            action.Run();
-        }));
+        auto doInvoke = [] (IInvokerPtr invoker, const TClosure& callback) {
+            TCurrentInvokerGuard guard(std::move(invoker));
+            callback.Run();
+        };
 
-        DecoratedAutomaton->ReleaseUserEnqueueLock();
-        return result;
+        UnderlyingInvoker_->Invoke(BIND(
+            doInvoke,
+            MakeStrong(this),
+            callback));
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
-        return UnderlyingInvoker->GetThreadId();
+        return UnderlyingInvoker_->GetThreadId();
     }
 
 private:
-    TDecoratedAutomatonPtr DecoratedAutomaton;
-    IInvokerPtr UnderlyingInvoker;
+    TDecoratedAutomatonPtr Owner_;
+    IInvokerPtr UnderlyingInvoker_;
 
 };
 
@@ -81,39 +152,32 @@ class TDecoratedAutomaton::TSystemInvoker
 {
 public:
     explicit TSystemInvoker(TDecoratedAutomaton* decoratedAutomaton)
-        : DecoratedAutomaton(decoratedAutomaton)
+        : Owner_(decoratedAutomaton)
     { }
 
-    virtual bool Invoke(const TClosure& action) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        DecoratedAutomaton->AcquireSystemLock();
+        auto guard = TSystemLockGuard::Acquire(Owner_);
 
-        auto this_ = MakeStrong(this);
-        bool result = DecoratedAutomaton->AutomatonInvoker_->Invoke(BIND([this, this_, action] () {
-            try {
-                TCurrentInvokerGuard guard(this_);
-                action.Run();
-            } catch (...) {
-                DecoratedAutomaton->ReleaseSystemLock();
-                throw;
-            }
-            DecoratedAutomaton->ReleaseSystemLock();
-        }));
+        auto doInvoke = [] (IInvokerPtr invoker, const TClosure& callback, TSystemLockGuard /*guard*/) {
+            TCurrentInvokerGuard guard(std::move(invoker));
+            callback.Run();
+        };
 
-        if (!result) {
-            DecoratedAutomaton->ReleaseSystemLock();
-        }
-
-        return result;
+        Owner_->AutomatonInvoker_->Invoke(BIND(
+            doInvoke,
+            MakeStrong(this),
+            callback,
+            Passed(std::move(guard))));
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
-        return DecoratedAutomaton->AutomatonInvoker_->GetThreadId();
+        return Owner_->AutomatonInvoker_->GetThreadId();
     }
 
 private:
-    TDecoratedAutomaton* DecoratedAutomaton;
+    TDecoratedAutomaton* Owner_;
 
 };
 
@@ -204,7 +268,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , Automaton_(automaton)
     , AutomatonInvoker_(automatonInvoker)
     , ControlInvoker_(controlInvoker)
-    , UserEnqueueLock_(0)
+    , UserLock_(0)
     , SystemLock_(0)
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
@@ -680,39 +744,39 @@ TMutationContext* TDecoratedAutomaton::GetMutationContext()
     return MutationContext_;
 }
 
-bool TDecoratedAutomaton::AcquireUserEnqueueLock()
+bool TDecoratedAutomaton::TryAcquireUserLock()
 {
-    if (SystemLock_ != 0) {
+    if (SystemLock_.load() != 0) {
         return false;
     }
-    AtomicIncrement(UserEnqueueLock_);
-    if (AtomicGet(SystemLock_) != 0) {
-        AtomicDecrement(UserEnqueueLock_);
+    ++UserLock_;
+    if (SystemLock_.load() != 0) {
+        --UserLock_;
         return false;
     }
     return true;
 }
 
-void TDecoratedAutomaton::ReleaseUserEnqueueLock()
+void TDecoratedAutomaton::ReleaseUserLock()
 {
-    AtomicDecrement(UserEnqueueLock_);
+    --UserLock_;
 }
 
 void TDecoratedAutomaton::AcquireSystemLock()
 {
-    AtomicIncrement(SystemLock_);
-    while (AtomicGet(UserEnqueueLock_) != 0) {
+    int result = ++SystemLock_;
+    while (UserLock_.load() != 0) {
         SpinLockPause();
     }
-    LOG_DEBUG("System lock acquired (Lock: %" PRISZT ")",
-        SystemLock_);
+    LOG_DEBUG("System lock acquired (Lock: %d)",
+        result);
 }
 
 void TDecoratedAutomaton::ReleaseSystemLock()
 {
-    AtomicDecrement(SystemLock_);
-    LOG_DEBUG("System lock released (Lock: %" PRISZT ")",
-        SystemLock_);
+    int result = --SystemLock_;
+    LOG_DEBUG("System lock released (Lock: %d)",
+        result);
 }
 
 void TDecoratedAutomaton::Reset()
