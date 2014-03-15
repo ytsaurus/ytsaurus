@@ -20,13 +20,13 @@ std::vector<int> GetPidsByUid(int uid);
  */
 i64 GetProcessRss(int pid = -1);
 
-void RunKiller(int uid);
+void DoKillallByUid(int uid);
 
 void KillallByUid(int uid);
 
 TError StatusToError(int status);
 
-void RunCleaner(const Stroka& path);
+void DoRemoveDirAsRoot(const Stroka& path);
 
 void RemoveDirAsRoot(const Stroka& path);
 

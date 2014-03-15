@@ -120,7 +120,7 @@ i64 GetUserRss(int uid)
 }
 
 // The caller must be sure that it has root privileges.
-void RunKiller(int uid)
+void KillallByUid(int uid)
 {
     YCHECK(uid > 0);
 
@@ -156,7 +156,7 @@ void RunKiller(int uid)
     }
 }
 
-void KillallByUid(int uid)
+void DoKillallByUid(int uid)
 {
     auto pids = GetPidsByUid(uid);
     if (pids.empty())
@@ -176,7 +176,7 @@ void KillallByUid(int uid)
     }
 }
 
-void RunCleaner(const Stroka& path)
+void RemoveDirAsRoot(const Stroka& path)
 {
     TProcess process(~GetExecPath());
     process.AddArgument("--cleaner");
@@ -200,7 +200,7 @@ void RunCleaner(const Stroka& path)
     }
 }
 
-void RemoveDirAsRoot(const Stroka& path)
+void DoRemoveDirAsRoot(const Stroka& path)
 {
     // Child process
     YCHECK(setuid(0) == 0);
@@ -284,12 +284,6 @@ void KillallByUid(int uid)
     YUNIMPLEMENTED();
 }
 
-void RunKiller(int uid)
-{
-    UNUSED(uid);
-    YUNIMPLEMENTED();
-}
-
 TError StatusToError(int status)
 {
     UNUSED(status);
@@ -297,12 +291,6 @@ TError StatusToError(int status)
 }
 
 void RemoveDirAsRoot(const Stroka& path)
-{
-    UNUSED(path);
-    YUNIMPLEMENTED();
-}
-
-void RunCleaner(const Stroka& path)
 {
     UNUSED(path);
     YUNIMPLEMENTED();
