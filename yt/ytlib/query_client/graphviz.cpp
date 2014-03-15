@@ -10,7 +10,7 @@
 #include "plan_context.h"
 
 #include <core/misc/assert.h>
-#include <core/misc/process.h>
+#include <core/misc/proc.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -22,6 +22,10 @@
 #include <util/stream/file.h>
 
 #include <sys/types.h>
+
+#ifndef _win_
+#include <sys/wait.h>
+#endif
 
 // Required in printing visitor.
 #include <core/misc/guid.h>
@@ -130,17 +134,19 @@ Stroka EscapeHtml(const Stroka& s)
 
 void ViewGraph(const Stroka& file)
 {
-    TProcess p("/usr/bin/xdot");
-    p.AddArgument("xdot");
-    p.AddArgument("-f");
-    p.AddArgument("dot");
-    p.AddArgument(~file);
+    std::vector<Stroka> args;
 
-    auto error = p.Spawn();
-    YCHECK(error.IsOK());
+    args.clear();
+    args.push_back("xdot");
+    args.push_back("-f");
+    args.push_back("dot");
+    args.push_back(file);
 
-    error = p.Wait();
-    YCHECK(error.IsOK());
+    int pid = Spawn("/usr/bin/xdot", args);
+    int status = 0;
+    int result = ::waitpid(pid, &status, WUNTRACED);
+
+    YCHECK(result > 0);
 }
 
 #endif

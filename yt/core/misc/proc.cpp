@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "proc.h"
 #include "string.h"
-#include "process.h"
 
 #include <core/logging/log.h>
 #include <core/misc/string.h>
@@ -14,13 +13,14 @@
 
 #include <util/system/yield.h>
 #include <util/system/info.h>
-#include <util/system/execpath.h>
 
 #ifdef _unix_
+    #include <spawn.h>
     #include <stdio.h>
     #include <dirent.h>
     #include <sys/types.h>
     #include <sys/stat.h>
+    #include <sys/wait.h>
     #include <unistd.h>
 #endif
 
@@ -124,91 +124,110 @@ void KillallByUid(int uid)
 {
     YCHECK(uid > 0);
 
-    TProcess process(~GetExecPath());
-    process.AddArgument("--killer");
-    process.AddArgument("--uid");
-    process.AddArgument(~ToString(uid));
-
-    auto throwError = [=] (const TError& error) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to kill processes owned by %d.",
-            uid) << error;
-    };
+    auto pidsToKill = GetPidsByUid(uid);
+    if (pidsToKill.empty()) {
+        return;
+    }
 
     while (true) {
         auto pids = GetPidsByUid(uid);
         if (pids.empty())
-            return;
+            break;
+
+        LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
+            uid,
+            ~JoinToString(pids));
 
         // We are forking here in order not to give the root privileges to the parent process ever,
         // because we cannot know what other threads are doing.
-        auto error = process.Spawn();
-        if (!error.IsOK()) {
-            throwError(error);
+        int forkedPid = fork();
+        if (forkedPid < 0) {
+            THROW_ERROR_EXCEPTION("Failed to kill processes: fork failed")
+                << TError::FromSystem();
         }
 
-        error = process.Wait();
-        if (!error.IsOK()) {
-            throwError(error);
+        if (forkedPid == 0) {
+            // In child process.
+            YCHECK(setuid(0) == 0);
+
+            for (int pid : pids) {
+                auto result = kill(pid, 9);
+                if (result == -1) {
+                    YCHECK(errno == ESRCH);
+                }
+            }
+
+            _exit(0);
+        }
+
+        // In parent process.
+
+        int status = 0;
+        {
+            int result = waitpid(forkedPid, &status, WUNTRACED);
+            if (result < 0) {
+                THROW_ERROR_EXCEPTION("Failed to kill processes: waitpid failed")
+                    << TError::FromSystem();
+            }
+            YCHECK(result == forkedPid);
+        }
+
+        auto statusError = StatusToError(status);
+        if (!statusError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to kill processes: killer failed")
+                << statusError;
         }
 
         ThreadYield();
     }
 }
 
-void DoKillallByUid(int uid)
-{
-    auto pids = GetPidsByUid(uid);
-    if (pids.empty())
-        return;
-
-    LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
-              uid,
-              ~JoinToString(pids));
-
-    YCHECK(setuid(0) == 0);
-
-    for (int pid : pids) {
-        auto result = kill(pid, 9);
-        if (result == -1) {
-            YCHECK(errno == ESRCH);
-        }
-    }
-}
-
 void RemoveDirAsRoot(const Stroka& path)
 {
-    TProcess process(~GetExecPath());
-    process.AddArgument("--cleaner");
-    process.AddArgument("--dir-to-remove");
-    process.AddArgument(~path);
+    // Allocation after fork can lead to a deadlock inside LFAlloc.
+    // To avoid allocation we list contents of the directory before fork.
 
-    auto throwError = [=] (const TError& error) {
+    auto pid = fork();
+    // We are forking here in order not to give the root privileges to the parent process ever,
+    // because we cannot know what other threads are doing.
+    if (pid == 0) {
+        // Child process
+        YCHECK(setuid(0) == 0);
+        execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
+
+        fprintf(
+            stderr,
+            "Failed to remove directory (/bin/rm -rf %s): %s",
+            ~path,
+            ~ToString(TError::FromSystem()));
+        _exit(1);
+    }
+
+    auto throwError = [=] (const Stroka& msg, const TError& error) {
         THROW_ERROR_EXCEPTION(
             "Failed to remove directory %s: %s",
-            ~path) << error;
+            ~path,
+            ~msg) << error;
     };
 
-    auto error = process.Spawn();
-    if (!error.IsOK()) {
-        throwError(error);
+    // Parent process
+    if (pid < 0) {
+        throwError("fork failed", TError::FromSystem());
     }
 
-    error = process.Wait();
-    if (!error.IsOK()) {
-        throwError(error);
+    int status = 0;
+    {
+        int result = waitpid(pid, &status, WUNTRACED);
+        if (result < 0) {
+            throwError("waitpid failed", TError());
+        }
+        YCHECK(result == pid);
     }
-}
 
-void DoRemoveDirAsRoot(const Stroka& path)
-{
-    // Child process
-    YCHECK(setuid(0) == 0);
-    execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
-
-    THROW_ERROR_EXCEPTION("Failed to remove directory %s: %s",
-        ~path,
-        "execl failed") << TError::FromSystem();
+    auto statusError = StatusToError(status);
+    if (!statusError.IsOK()) {
+        throwError("invalid exit status", statusError);
+    }
 }
 
 TError StatusToError(int status)
@@ -276,9 +295,71 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
+static const int BASE_EXIT_CODE = 127;
+static const int EXEC_ERR_CODE[] = {
+    E2BIG,
+    EACCES,
+    EFAULT,
+    EINVAL,
+    EIO,
+    EISDIR,
+#ifdef _linux_
+    ELIBBAD,
+#endif
+    ELOOP,
+    EMFILE,
+    ENAMETOOLONG,
+    ENFILE,
+    ENOENT,
+    ENOEXEC,
+    ENOMEM,
+    ENOTDIR,
+    EPERM,
+    ETXTBSY,
+    0
+};
+
+int GetErrNoFromExitCode(int exitCode) {
+    int index = BASE_EXIT_CODE - exitCode;
+    if (index >= 0) {
+        return EXEC_ERR_CODE[index];
+    }
+    return 0;
+}
+
+int Spawn(const char* path, std::vector<Stroka>& arguments)
+{
+    std::vector<char *> args;
+    for (auto& x : arguments) {
+        args.push_back(x.begin());
+    }
+    args.push_back(NULL);
+
+    int pid = vfork();
+    if (pid < 0) {
+        THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
+            << TErrorAttribute("path", path)
+            << TErrorAttribute("arguments", arguments)
+            << TError::FromSystem(pid);
+    }
+
+    if (pid == 0) {
+        execvp(path, &args[0]);
+        const int errorCode = errno;
+        int i = 0;
+        while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
+            ++i;
+        }
+
+        _exit(BASE_EXIT_CODE - i);
+    }
+
+    return pid;
+}
+
 #else
 
-void KillallByUid(int uid)
+void KilallByUid(int uid)
 {
     UNUSED(uid);
     YUNIMPLEMENTED();
@@ -303,6 +384,13 @@ void CloseAllDescriptors()
 
 void SafeClose(int fd, bool ignoreInvalidFd)
 {
+    YUNIMPLEMENTED();
+}
+
+int Spawn(const char* path, std::vector<Stroka>& arguments)
+{
+    UNUSED(path);
+    UNUSED(arguments);
     YUNIMPLEMENTED();
 }
 
