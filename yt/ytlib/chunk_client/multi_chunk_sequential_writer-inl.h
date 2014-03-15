@@ -3,12 +3,12 @@
 #endif
 #undef MULTI_CHUNK_SEQUENTIAL_WRITER_INL_H_
 
-#include "async_writer.h"
+#include "private.h"
 #include "chunk_list_ypath_proxy.h"
 #include "chunk_ypath_proxy.h"
 #include "dispatcher.h"
+#include "chunk_ypath_proxy.h"
 #include "erasure_writer.h"
-#include "private.h"
 #include "replication_writer.h"
 
 #include <core/erasure/codec.h>
