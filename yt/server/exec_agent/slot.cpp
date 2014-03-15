@@ -73,7 +73,7 @@ void TSlot::DoClean()
             if (UserId == EmptyUserId) {
                 RemoveDirWithContents(SandboxPath);
             } else {
-                RemoveDirAsRoot(SandboxPath);
+                RunCleaner(SandboxPath);
             }
         }
         IsClean = true;
