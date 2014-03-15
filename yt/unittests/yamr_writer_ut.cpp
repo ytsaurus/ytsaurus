@@ -100,19 +100,6 @@ TEST(TYamrWriterTest, WritingWithoutSubkey)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TYamrWriterTest, NonStringValues)
-{
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    TYamrWriter writer(&outputStream, config);
-
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("subkey");
-        EXPECT_THROW(writer.OnDoubleScalar(0.1), std::exception);
-}
-
 TEST(TYamrWriterTest, SkippedKey)
 {
     TStringStream outputStream;
