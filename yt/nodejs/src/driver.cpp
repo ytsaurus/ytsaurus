@@ -101,12 +101,14 @@ public:
         uv_close((uv_handle_t*)&AsyncHandle, nullptr);
     }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual bool Invoke(const TClosure& action) override
     {
-        Queue.Enqueue(callback);
+        Queue.Enqueue(action);
         AtomicIncrement(QueueSize);
 
         YCHECK(uv_async_send(&AsyncHandle) == 0);
+
+        return true;
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
