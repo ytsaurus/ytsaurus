@@ -26,7 +26,7 @@ message TReqFinishChunk
     required NYT.NProto.TGuid chunk_id = 1;
     required TChunkMeta chunk_meta = 2;
 
-    // Used to ensure that we received exactly the same amount of blocks that we sent.
+    // Used to ensure that we received exactly the same number of blocks that we sent.
     required int32 block_count = 3;
 }
 
@@ -63,7 +63,7 @@ message TRspSendBlocks
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqFlushBlock
-  {
+{
     required NYT.NProto.TGuid chunk_id = 1;
     required int32 block_index = 2;
 }
