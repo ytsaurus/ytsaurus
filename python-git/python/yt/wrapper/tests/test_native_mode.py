@@ -6,6 +6,7 @@ from yt.environment import YTEnv
 import yt.wrapper as yt
 
 import os
+import time
 import tempfile
 import subprocess
 import simplejson as json
@@ -447,29 +448,36 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
-    def FAILED_test_mount_unmount(self):
+    def test_mount_unmount(self):
         table = TEST_DIR + "/table"
         yt.create_table(table)
-        yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
+        yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
         yt.set(table + "/@key_columns", ["x"])
 
+        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+        while yt.get("//sys/tablet_cells/{}/@health".format(tablet_id)) != 'good':
+            time.sleep(0.1)
+
         yt.mount_table(table)
+        while yt.get("{}/@tablets/0/state".format(table)) != 'mounted':
+            time.sleep(0.1)
+
         yt.unmount_table(table)
+        while yt.get("{}/@tablets/0/state".format(table)) != 'unmounted':
+            time.sleep(0.1)
 
-        yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
-
-        yt.mount_table(table)
-        yt.unmount_table(table)
-
-    def FAILED_test_select(self):
+    def test_select(self):
         table = TEST_DIR + "/table"
+
         yt.create_table(table)
+        yt.run_sort(table, sort_by=["x"])
+
         yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
         yt.set(table + "/@key_columns", ["x"])
 
         self.check([], yt.select("x from [{}]".format(table)))
 
-        yt.write_table(table, ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+        yt.write_table(yt.TablePath(table, append=True, sorted_by=True), ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
 
         self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
 
