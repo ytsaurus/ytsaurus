@@ -447,6 +447,32 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
+    def FAILED_test_mount_unmount(self):
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+        yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
+        yt.set(table + "/@key_columns", ["x"])
+
+        yt.mount_table(table)
+        yt.unmount_table(table)
+
+        yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
+
+        yt.mount_table(table)
+        yt.unmount_table(table)
+
+    def FAILED_test_select(self):
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+        yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
+        yt.set(table + "/@key_columns", ["x"])
+
+        self.check([], yt.select("x from [{}]".format(table)))
+
+        yt.write_table(table, ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+
+        self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
+
 
 # Map method for test operations with python entities
 class ChangeX__(object):
