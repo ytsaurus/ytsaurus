@@ -663,7 +663,7 @@ ICypressNodeProxyPtr TCypressManager::GetNodeProxy(
     return handler->GetProxy(trunkNode, transaction);
 }
 
-TError TCypressManager::ValidateLock(
+TError TCypressManager::CheckLock(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request,
@@ -1001,7 +1001,7 @@ TCypressNodeBase* TCypressManager::LockNode(
         auto* trunkChild = child->GetTrunkNode();
 
         bool isChildMandatory;
-        auto error = ValidateLock(
+        auto error = CheckLock(
             trunkChild,
             transaction,
             request,
@@ -1057,7 +1057,7 @@ TLock* TCypressManager::CreateLock(
 
     // Try to lock without waiting in the queue.
     bool isMandatory;
-    auto error = ValidateLock(
+    auto error = CheckLock(
         trunkNode,
         transaction,
         request,
@@ -1101,7 +1101,7 @@ void TCypressManager::CheckPendingLocks(TCypressNodeBase* trunkNode)
         auto* lock = *jt;
 
         bool isMandatory;
-        auto error = ValidateLock(
+        auto error = CheckLock(
             trunkNode,
             lock->GetTransaction(),
             lock->Request(),
