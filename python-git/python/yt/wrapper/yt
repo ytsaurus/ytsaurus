@@ -318,12 +318,13 @@ def add_reshard_table_parser(add_parser):
     parser.set_defaults(func=reshard_table)
 
 def select(args):
-    yt.select(args.query, args.timestamp)
+    writelines_silently(yt.select(args.query, args.timestamp, format=args.format, response_type="iter_content"))
 
 def add_select_parser(add_parser):
     parser = add_parser("select", help="select records from table")
     parser.add_argument("query")
     parser.add_argument("--timestamp", type=int)
+    parser.add_argument("--format", action=ParseFormat)
     parser.set_defaults(func=select)
 
 #def upload(args):

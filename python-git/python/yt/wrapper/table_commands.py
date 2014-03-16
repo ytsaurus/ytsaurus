@@ -794,10 +794,19 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
 
     make_request("reshard_table", params)
 
-def select(query, timestamp=None):
-    params = {"query": query}
+def select(query, timestamp=None, format=None, response_type=None):
+    format = _prepare_format(format)
+    params = {
+        "query": query,
+        "output_format": format.json()}
     if timestamp is not None:
         params["timestamp"] = timestamp
 
-    make_request("select", params)
+    response = _make_transactional_request(
+        "select",
+        params,
+        proxy=get_host_for_heavy_operation(),
+        return_raw_response=True)
+
+    return read_content(response, get_value(response_type, "iter_lines"))
 
