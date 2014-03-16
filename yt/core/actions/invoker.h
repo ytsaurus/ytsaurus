@@ -33,6 +33,14 @@ struct IPrioritizedInvoker
 {
     using IInvoker::Invoke;
 
+    //! Schedules invocation of a given callback with a given priority.
+    /*
+     *  Larger priority values dominate over smaller ones.
+     *  
+     *  While a typical invoker executes callbacks in the order they were
+     *  enqueued via IInvoker::Invoke (holds for most but not all invoker types),
+     *  callbacks enqueued via IPrioritizedInvoker::Invoke are subject to reordering.
+     */
     virtual void Invoke(const TClosure& callback, i64 priority) = 0;
 };
 
