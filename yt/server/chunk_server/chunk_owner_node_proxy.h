@@ -38,7 +38,6 @@ protected:
         const TNullable<NChunkClient::TChannel>& channel,
         const NChunkClient::TReadLimit& upperLimit,
         const NChunkClient::TReadLimit& lowerLimit);
-    virtual void ValidatePrepareForUpdate();
     virtual void Clear();
 
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
@@ -46,6 +45,9 @@ protected:
     virtual NCypressClient::ELockMode GetLockMode(NChunkClient::EUpdateMode updateMode) = 0;
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+
+    virtual void ValidatePrepareForUpdate();
+    virtual void ValidateFetch();
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);

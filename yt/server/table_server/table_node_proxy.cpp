@@ -77,11 +77,13 @@ private:
         const TNullable<TChannel>& channel,
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override;
-    virtual void ValidatePrepareForUpdate() override;
     virtual void Clear() override;
 
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
     virtual bool DoInvoke(IServiceContextPtr context) override;
+
+    virtual void ValidateFetch() override;
+    virtual void ValidatePrepareForUpdate() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
@@ -144,16 +146,6 @@ void TTableNodeProxy::ValidatePathAttributes(
 
     if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
         THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
-    }
-}
-
-void TTableNodeProxy::ValidatePrepareForUpdate()
-{
-    TChunkOwnerNodeProxy::ValidatePrepareForUpdate();
-
-    auto* node = GetThisTypedImpl();
-    if (!node->Tablets().empty()) {
-        THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
     }
 }
 
@@ -273,6 +265,26 @@ ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)
         : ELockMode::Exclusive;
 }
 
+void TTableNodeProxy::ValidateFetch()
+{
+    TBase::ValidateFetch();
+
+    const auto* node = GetThisTypedImpl();
+    if (!node->Tablets().empty()) {
+        THROW_ERROR_EXCEPTION("Cannot fetch a table with tablets");
+    }
+}
+
+void TTableNodeProxy::ValidatePrepareForUpdate()
+{
+    TBase::ValidatePrepareForUpdate();
+
+    const auto* trunkNode = GetThisTypedImpl()->GetTrunkNode();
+    if (!trunkNode->Tablets().empty()) {
+        THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
+    }
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     DeclareMutating();
@@ -286,7 +298,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto* node = LockThisTypedImpl();
 
     if (node->GetUpdateMode() != EUpdateMode::Overwrite) {
-        THROW_ERROR_EXCEPTION("Table node must be in \"overwrite\" mode");
+        THROW_ERROR_EXCEPTION("Table must be in \"overwrite\" mode");
     }
 
     node->KeyColumns() = keyColumns;

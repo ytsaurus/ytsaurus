@@ -43,8 +43,7 @@ class TFetchChunkVisitor
     : public IChunkVisitor
 {
 public:
-    typedef NYT::NRpc::TTypedServiceContext<TReqFetch, TRspFetch> TCtxFetch;
-
+    typedef NRpc::TTypedServiceContext<TReqFetch, TRspFetch> TCtxFetch;
     typedef TIntrusivePtr<TCtxFetch> TCtxFetchPtr;
 
     TFetchChunkVisitor(
@@ -652,17 +651,19 @@ void TChunkOwnerNodeProxy::ValidatePathAttributes(
     const TReadLimit& /*lowerLimit*/)
 { }
 
+void TChunkOwnerNodeProxy::Clear()
+{ }
+
 void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
 {
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     if (node->GetUpdateMode() != EUpdateMode::None) {
         THROW_ERROR_EXCEPTION("Node is already in %s mode",
             ~FormatEnum(node->GetUpdateMode()).Quote());
     }
 }
 
-void TChunkOwnerNodeProxy::Clear()
+void TChunkOwnerNodeProxy::ValidateFetch()
 { }
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
@@ -765,6 +766,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         NSecurityServer::EPermission::Read);
 
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    ValidateFetch();
 
     auto attributes = NYTree::FromProto(request->attributes());
     auto channelAttribute = attributes->Find<TChannel>("channel");
