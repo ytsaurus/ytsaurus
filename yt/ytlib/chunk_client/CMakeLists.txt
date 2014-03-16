@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/encoding_writer.cpp
   ${BASE}/erasure_reader.cpp
   ${BASE}/erasure_writer.cpp
+  ${BASE}/fetcher_base.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
   ${BASE}/memory_reader.cpp
@@ -47,6 +48,7 @@ set( HDRS
   ${BASE}/encoding_writer.h
   ${BASE}/erasure_reader.h
   ${BASE}/erasure_writer.h
+  ${BASE}/fetcher_base.h
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h

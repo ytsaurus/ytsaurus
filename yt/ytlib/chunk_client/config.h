@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
-
-#include <core/ytree/yson_serializable.h>
-
 #include <core/compression/public.h>
 #include <core/erasure/public.h>
+#include <core/misc/error.h>
+#include <core/rpc/config.h>
+
+#include <core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -374,6 +374,27 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TFetcherConfig
+    : public virtual TYsonSerializable
+{
+public:
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
+
+    TDuration NodeRpcTimeout;
+
+    TFetcherConfig()
+    {
+        RegisterParameter("node_channel", NodeChannel)
+            .DefaultNew();
+        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+            .Default(TDuration::Seconds(30));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFetcherConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

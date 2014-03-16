@@ -1,0 +1,58 @@
+#pragma once
+
+#include "public.h"
+#include "unversioned_row.h"
+
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/fetcher_base.h>
+
+#include <ytlib/node_tracker_client/public.h>
+
+namespace NYT {
+namespace NVersionedTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Fetches samples for a bunch of table chunks by requesting
+//! them directly from data nodes.
+class TSamplesFetcher
+    : public NChunkClient::TFetcherBase
+{
+public:
+    TSamplesFetcher(
+        NChunkClient::TFetcherConfigPtr config,
+        i64 desiredSampleCount,
+        const TKeyColumns& keyColumns,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        IInvokerPtr invoker,
+        NLog::TTaggedLogger& logger);
+
+    virtual void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk) override;
+    virtual TAsyncError Fetch() override;
+
+    const std::vector<TOwningKey>& GetSamples() const;
+
+private:
+    TKeyColumns KeyColumns_;
+    i64 DesiredSampleCount_;
+
+    i64 SizeBetweenSamples_;
+    i64 TotalDataSize_;
+
+    //! All samples fetched so far.
+    std::vector<TOwningKey> Samples_;
+
+    virtual TFuture<void> FetchFromNode(
+        const NNodeTrackerClient::TNodeId& nodeId,
+        std::vector<int>&& chunkIndexes) override;
+
+    void DoFetchFromNode(
+        const NNodeTrackerClient::TNodeId& nodeId,
+        const std::vector<int>& chunkIndexes);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVersionedTableClient
+} // namespace NYT

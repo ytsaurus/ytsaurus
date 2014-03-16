@@ -117,6 +117,12 @@ typedef TIntrusivePtr<IReader> IReaderPtr;
 struct IWriter;
 typedef TIntrusivePtr<IWriter> IWriterPtr;
 
+class TSamplesFetcher;
+typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
+
+class TChunkSplitsFetcher;
+typedef TIntrusivePtr<TChunkSplitsFetcher> TChunkSplitsFetcherPtr;
+
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemafulWriter)
 DECLARE_REFCOUNTED_CLASS(TSchemafulPipe)

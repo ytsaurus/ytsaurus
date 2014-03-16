@@ -2,13 +2,15 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <ytlib/chunk_client/config.h>
 
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/file_client/config.h>
 
 #include <core/rpc/retrying_channel.h>
+
+#include <core/ytree/yson_serializable.h>
 
 #include <server/job_proxy/config.h>
 
@@ -73,9 +75,6 @@ public:
     TDuration LockTransactionTimeout;
 
     TDuration OperationTransactionTimeout;
-
-    //! Timeout used for direct RPC requests to nodes.
-    TDuration NodeRpcTimeout;
 
     TDuration ChunkScratchPeriod;
 
@@ -177,7 +176,7 @@ public:
     NFileClient::TFileReaderConfigPtr SnapshotReader;
     NFileClient::TFileWriterConfigPtr SnapshotWriter;
 
-    NRpc::TRetryingChannelConfigPtr NodeChannel;
+    NChunkClient::TFetcherConfigPtr Fetcher;
 
     TSchedulerConfig()
     {
@@ -197,8 +196,6 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Minutes(60));
-        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(15));
 
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
@@ -310,9 +307,6 @@ public:
         RegisterParameter("environment", Environment)
             .Default(yhash_map<Stroka, Stroka>());
 
-        RegisterParameter("node_channel", NodeChannel)
-            .DefaultNew();
-
         RegisterParameter("snapshot_timeout", SnapshotTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("snapshot_period", SnapshotPeriod)
@@ -327,6 +321,9 @@ public:
         RegisterParameter("snapshot_reader", SnapshotReader)
             .DefaultNew();
         RegisterParameter("snapshot_writer", SnapshotWriter)
+            .DefaultNew();
+
+        RegisterParameter("fetcher", Fetcher)
             .DefaultNew();
     }
 };

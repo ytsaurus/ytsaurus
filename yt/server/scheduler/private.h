@@ -30,21 +30,6 @@ struct IChunkPoolOutput;
 struct IChunkPool;
 struct IShuffleChunkPool;
 
-template <class TFetcher>
-class TChunkInfoCollector;
-
-class TSamplesFetcher;
-typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
-
-typedef TChunkInfoCollector<TSamplesFetcher> TSamplesCollector;
-typedef TIntrusivePtr<TSamplesCollector> TSamplesCollectorPtr;
-
-class TChunkSplitsFetcher;
-typedef TIntrusivePtr<TChunkSplitsFetcher> TChunkSplitsFetcherPtr;
-
-typedef TChunkInfoCollector<TChunkSplitsFetcher> TChunkSplitsCollector;
-typedef TIntrusivePtr<TChunkSplitsCollector> TChunkSplitsCollectorPtr;
-
 class TSnapshotBuilder;
 typedef TIntrusivePtr<TSnapshotBuilder> TSnapshotBuilderPtr;
 

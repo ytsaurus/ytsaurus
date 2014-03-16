@@ -6,8 +6,6 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
-#include "chunk_splits_fetcher.h"
-#include "chunk_info_collector.h"
 #include "helpers.h"
 
 #include <core/concurrency/fiber.h>
@@ -20,6 +18,8 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+
+#include <ytlib/new_table_client/chunk_splits_fetcher.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -928,7 +928,6 @@ protected:
     std::vector<Stroka> KeyColumns;
 
     TChunkSplitsFetcherPtr ChunkSplitsFetcher;
-    TChunkSplitsCollectorPtr ChunkSplitsCollector;
 
     TJobSpec ManiacJobSpecTemplate;
 
@@ -964,23 +963,18 @@ protected:
         CalculateSizes();
 
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
-            Config,
-            Spec,
-            Operation->GetOperationId(),
+            Config->Fetcher,
+            ChunkSliceSize,
             KeyColumns,
-            ChunkSliceSize);
-
-        ChunkSplitsCollector = New<TChunkSplitsCollector>(
             NodeDirectory,
-            ChunkSplitsFetcher,
-            Host->GetBackgroundInvoker());
+            Host->GetBackgroundInvoker(),
+            Logger);
 
         ProcessInputs();
 
         {
-            auto asyncCollectorResult = ChunkSplitsCollector->Run();
-            auto collectorResult = WaitFor(asyncCollectorResult);
-            THROW_ERROR_EXCEPTION_IF_FAILED(collectorResult);
+            auto result = WaitFor(ChunkSplitsFetcher->Fetch());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
         CollectEndpoints();
@@ -997,7 +991,7 @@ protected:
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
         chunkSpec->set_partition_tag(PartitionTag);
-        ChunkSplitsCollector->AddChunk(chunkSpec);
+        ChunkSplitsFetcher->AddChunk(chunkSpec);
         ++PartitionTag;
     }
 

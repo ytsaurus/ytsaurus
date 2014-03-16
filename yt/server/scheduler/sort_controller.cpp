@@ -4,8 +4,6 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
-#include "samples_fetcher.h"
-#include "chunk_info_collector.h"
 #include "job_resources.h"
 #include "helpers.h"
 
@@ -20,6 +18,7 @@
 #include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
+#include <ytlib/new_table_client/samples_fetcher.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -1689,41 +1688,41 @@ private:
         if (TotalInputDataSize == 0)
             return;
 
-        auto samplesFetcher = New<TSamplesFetcher>(
-            Config,
-            Spec,
-            Operation->GetOperationId());
-
-        auto samplesCollector = New<TSamplesCollector>(
-            NodeDirectory,
-            samplesFetcher,
-            Host->GetBackgroundInvoker());
+        TSamplesFetcherPtr samplesFetcher;
 
         TAsyncError asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
             auto chunks = CollectInputChunks();
+            int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
+
+            samplesFetcher = New<TSamplesFetcher>(
+                Config->Fetcher,
+                sampleCount,
+                Spec->SortBy,
+                NodeDirectory,
+                Host->GetBackgroundInvoker(),
+                Logger);
+
             for (const auto& chunk : chunks) {
-                samplesCollector->AddChunk(chunk);
+                samplesFetcher->AddChunk(chunk);
             }
 
-            samplesFetcher->SetDesiredSampleCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
-            asyncSamplesResult = samplesCollector->Run();
+            asyncSamplesResult = samplesFetcher->Fetch();
         }
 
         auto samplesResult = WaitFor(asyncSamplesResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(samplesResult);
 
         PROFILE_TIMING ("/samples_processing_time") {
-            auto sortedSamples = SortSamples(samplesFetcher);
+            auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
         }
 
         InitJobSpecTemplates();
     }
 
-    std::vector<const TOwningKey*> SortSamples(TSamplesFetcherPtr samplesFetcher)
+    std::vector<const TOwningKey*> SortSamples(const std::vector<TOwningKey>& samples)
     {
-        const auto& samples = samplesFetcher->GetSamples();
         int sampleCount = static_cast<int>(samples.size());
         LOG_INFO("Sorting %d samples", sampleCount);
 

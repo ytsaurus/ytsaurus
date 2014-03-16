@@ -3,7 +3,6 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/scheduler )
 set( SRCS
   ${BASE}/chunk_list_pool.cpp
   ${BASE}/chunk_pool.cpp
-  ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/exec_node.cpp
   ${BASE}/fair_share_strategy.cpp
   ${BASE}/helpers.cpp
@@ -18,7 +17,6 @@ set( SRCS
   ${BASE}/operation_controller_detail.cpp
   ${BASE}/private.cpp
   ${BASE}/progress_counter.cpp
-  ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_service.cpp
   ${BASE}/serialize.cpp
@@ -27,11 +25,8 @@ set( SRCS
   ${BASE}/sort_controller.cpp
 )
 set( HDRS
-  ${BASE}/chunk_info_collector-inl.h
-  ${BASE}/chunk_info_collector.h
   ${BASE}/chunk_list_pool.h
   ${BASE}/chunk_pool.h
-  ${BASE}/chunk_splits_fetcher.h
   ${BASE}/config.h
   ${BASE}/exec_node.h
   ${BASE}/fair_share_strategy.h
@@ -49,7 +44,6 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/progress_counter.h
   ${BASE}/public.h
-  ${BASE}/samples_fetcher.h
   ${BASE}/scheduler.h
   ${BASE}/scheduler_service.h
   ${BASE}/scheduler_strategy.h

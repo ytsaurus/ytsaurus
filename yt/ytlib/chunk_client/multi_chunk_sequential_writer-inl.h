@@ -426,12 +426,14 @@ TAsyncError TMultiChunkSequentialWriter<TProvider>::Close()
 {
     YCHECK(!State.HasRunningOperation());
 
-    State.StartOperation();
-    FinishCurrentSession();
+    if (State.IsActive()) {
+        State.StartOperation();
+        FinishCurrentSession();
 
-    CloseChunksAwaiter->Complete(BIND(
-        &TMultiChunkSequentialWriter::AttachChunks,
-        MakeWeak(this)));
+        CloseChunksAwaiter->Complete(BIND(
+            &TMultiChunkSequentialWriter::AttachChunks,
+            MakeWeak(this)));
+    }
 
     return State.GetOperationError();
 }

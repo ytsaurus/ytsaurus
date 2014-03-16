@@ -1,8 +1,13 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client )
 set( SRCS
+  ${BASE}/cached_versioned_chunk_meta.cpp
+  ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/name_table.cpp
+  ${BASE}/pipe.cpp
   ${BASE}/private.cpp
+  ${BASE}/row_buffer.cpp
+  ${BASE}/samples_fetcher.cpp
   ${BASE}/schema.cpp
   ${BASE}/schemaful_block_reader.cpp
   ${BASE}/schemaful_block_writer.cpp
@@ -15,19 +20,21 @@ set( SRCS
   ${BASE}/versioned_chunk_writer.cpp
   ${BASE}/versioned_multi_chunk_writer.cpp
   ${BASE}/versioned_row.cpp
-  ${BASE}/cached_versioned_chunk_meta.cpp
-  ${BASE}/pipe.cpp
-  ${BASE}/row_buffer.cpp
 )
 
 set( HDRS
+  ${BASE}/cached_versioned_chunk_meta.h
   ${BASE}/chunk_meta_extensions.h
+  ${BASE}/chunk_splits_fetcher.h
   ${BASE}/config.h
   ${BASE}/name_table.h
+  ${BASE}/pipe.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/row_base.h
   ${BASE}/reader.h
+  ${BASE}/row_buffer.h
+  ${BASE}/samples_fetcher.h
   ${BASE}/schema.h
   ${BASE}/schemaful_block_reader.h
   ${BASE}/schemaful_block_writer.h
@@ -36,6 +43,7 @@ set( HDRS
   ${BASE}/schemaful_reader.h
   ${BASE}/schemaful_writer.h
   ${BASE}/unversioned_row.h
+  ${BASE}/unversioned_writer.h
   ${BASE}/versioned_block_writer.h
   ${BASE}/versioned_block_reader.h
   ${BASE}/versioned_chunk_reader.h
@@ -45,10 +53,6 @@ set( HDRS
   ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h
   ${BASE}/writer.h
-  ${BASE}/unversioned_writer.h
-  ${BASE}/cached_versioned_chunk_meta.h
-  ${BASE}/pipe.h
-  ${BASE}/row_buffer.h
 )
 
 list(APPEND YT_SOURCE_FILES
