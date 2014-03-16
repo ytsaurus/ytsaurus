@@ -49,7 +49,9 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
         command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
     else:
         use_fastbone = "-opt net_table=fastbone" if fastbone else ""
-        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, source)
+        shared_tx = "-sharedtransactionid yt" if mr.supports_shared_transactions else ""
+        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey {}'\
+                    .format(use_fastbone, source, shared_tx)
 
     debug_str = 'echo "{}" 1>&2; '.format(command.replace('"', "'"))
     command = 'while true; do '\
