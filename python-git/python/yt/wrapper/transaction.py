@@ -113,7 +113,7 @@ class PingTransaction(Thread):
 
 class PingableTransaction(object):
     def __init__(self, timeout=None, attributes=None):
-        self.timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
+        self.timeout = get_value(timeout, config.http.REQUEST_TIMEOUT)
         self.attributes = attributes
 
     def __enter__(self):
