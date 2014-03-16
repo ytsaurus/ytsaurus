@@ -115,7 +115,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     }
     if path is not None:
         params["path"] = prepare_path(path)
-    return _make_transactional_request("create", params)
+    return _make_formatted_transactional_request("create", params, format=None)
 
 def mkdir(path, recursive=None):
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
