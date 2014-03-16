@@ -19,6 +19,9 @@ class Mr(object):
         self.use_cache = cache
         self.mr_user = mr_user
 
+        self.supports_shared_transactions = \
+            subprocess.call("{} --help | grep sharedtransaction &>/dev/null".format(self.binary), shell=True) == 0
+
         logger.info("Yamr options configured (binary: %s, server: %s, http_server: %s, proxies: [%s])",
                     self.binary, self.server, self.http_server, ", ".join(self.proxies))
 
