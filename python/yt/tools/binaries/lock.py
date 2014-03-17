@@ -31,7 +31,7 @@ def main():
         while True:
             if not tx.ping.is_alive():
                 logger.error("Pinging thread failed. Terminating command.")
-                proc.signal(2)
+                proc.send_signal(2)
                 time.sleep(args.step)
                 proc.terminate()
                 time.sleep(args.step)

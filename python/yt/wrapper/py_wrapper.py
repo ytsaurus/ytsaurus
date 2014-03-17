@@ -58,7 +58,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                 continue
             if hasattr(module, "__file__"):
                 file = find_file(module.__file__)
-                if file is None:
+                if file is None or not os.path.isfile(file):
                     logger.warning("Cannot find file of module %s", module.__file__)
                     continue
 
@@ -66,8 +66,8 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                     file = file[:-1]
 
                 relpath = module_relpath(module.__name__, file)
-                if relpath is None and config.PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES:
-                    raise YtError("Cannot determine relative path of module " + str(module))
+                if relpath is None:
+                    continue
 
                 if relpath in compressed_files:
                     continue
