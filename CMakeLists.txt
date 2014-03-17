@@ -40,8 +40,6 @@ include(LocalXCode)
 include(Version)
 include(PCH)
 
-include(MakefileHelpers)
-include(FindPerl2)
 ################################################################################
 # Create CompilationDatabase (build/compile_commands.json).
 
@@ -175,7 +173,10 @@ add_subdirectory(library/httpserver)
 add_subdirectory(library/lfalloc)
 
 add_subdirectory(yt)
-add_subdirectory(perl)
+
+if (YT_BUILD_ENABLE_PERL)
+  add_subdirectory(perl)
+endif()
 
 if(YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(cmake/deps-pycxx)
