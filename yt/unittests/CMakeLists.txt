@@ -33,6 +33,7 @@ set( SRCS
   ${BASE}/phoenix_ut.cpp
   ${BASE}/pipes_ut.cpp
   ${BASE}/preprocessor_ut.cpp
+  ${BASE}/process_ut.cpp
   ${BASE}/random_ut.cpp
   ${BASE}/ref_counted_tracker_ut.cpp
   ${BASE}/rpc_ut.cpp
@@ -43,7 +44,6 @@ set( SRCS
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   #${BASE}/snapshot_ut.cpp
-  ${BASE}/spawn_ut.cpp
   ${BASE}/string_ut.cpp
   ${BASE}/table_consumer_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
