@@ -71,7 +71,11 @@ public:
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
+        , Cleaner("", "cleaner", "start cleaner")
+        , Killer("", "killer", "start killer")
         , CloseAllFds("", "close-all-fds", "close all file descriptors")
+        , DirToRemove("", "dir-to-remove", "directory to remove (for cleaner mode)", false, "", "DIR")
+        , Uid("", "uid", "uid of processes to kill (for killer mode)", false, -1, "UID")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
@@ -81,7 +85,11 @@ public:
         CmdLine.add(CellMaster);
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
+        CmdLine.add(Cleaner);
+        CmdLine.add(Killer);
         CmdLine.add(CloseAllFds);
+        CmdLine.add(DirToRemove);
+        CmdLine.add(Uid);
         CmdLine.add(JobId);
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
@@ -94,8 +102,12 @@ public:
     TCLAP::SwitchArg CellMaster;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
+    TCLAP::SwitchArg Cleaner;
+    TCLAP::SwitchArg Killer;
     TCLAP::SwitchArg CloseAllFds;
 
+    TCLAP::ValueArg<Stroka> DirToRemove;
+    TCLAP::ValueArg<int> Uid;
     TCLAP::ValueArg<Stroka> JobId;
     TCLAP::ValueArg<Stroka> WorkingDirectory;
     TCLAP::ValueArg<Stroka> Config;
@@ -117,6 +129,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isCellNode = parser.CellNode.getValue();
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
+    bool isCleaner = parser.Cleaner.getValue();
+    bool isKiller = parser.Killer.getValue();
 
     bool doCloseAllFds = parser.CloseAllFds.getValue();
 
@@ -140,6 +154,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
 
+    if (isCleaner) {
+        ++modeCount;
+    }
+
+    if (isKiller) {
+        ++modeCount;
+    }
+
     if (modeCount != 1) {
         TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
@@ -151,6 +173,34 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (!workingDirectory.empty()) {
         ChDir(workingDirectory);
+    }
+
+    if (isCleaner) {
+        Stroka path = parser.DirToRemove.getValue();
+        if (path.empty() || path[0] != '/') {
+            THROW_ERROR_EXCEPTION("A path should be absolute. Path: %s", ~path);
+        }
+        int counter = 0;
+        size_t nextSlash = 0;
+        while (nextSlash != Stroka::npos) {
+            nextSlash = path.find('/', nextSlash + 1);
+            ++counter;
+        }
+
+        if (counter <= 3) {
+            THROW_ERROR_EXCEPTION("A path should contain at least 4 slashes. Path: %s", ~path);
+        }
+
+        DoRemoveDirAsRoot(path);
+
+        return EExitCode::OK;
+    }
+
+    if (isKiller) {
+        int uid = parser.Uid.getValue();
+        DoKillallByUid(uid);
+
+        return EExitCode::OK;
     }
 
     INodePtr configNode;
