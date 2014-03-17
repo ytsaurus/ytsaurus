@@ -35,8 +35,11 @@ TYamrWriter::~TYamrWriter()
 void TYamrWriter::OnIntegerScalar(i64 value)
 {
     if (State == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Integer values are not supported by YAMR");
+        StringStorage_.push_back(::ToString(value));
+        OnStringScalar(StringStorage_.back());
+        return;
     }
+
     YASSERT(State == EState::ExpectAttributeValue);
 
     switch (ControlAttribute) {
@@ -65,7 +68,12 @@ void TYamrWriter::OnIntegerScalar(i64 value)
 void TYamrWriter::OnDoubleScalar(double value)
 {
     YASSERT(State == EState::ExpectValue || State == EState::ExpectAttributeValue);
-    THROW_ERROR_EXCEPTION("Double values are not supported by YAMR");
+    if (State == EState::ExpectValue) {
+        StringStorage_.push_back(::ToString(value));
+        OnStringScalar(StringStorage_.back());
+        return;
+    }
+    THROW_ERROR_EXCEPTION("Double attributes are not supported by YAMR");
 }
 
 void TYamrWriter::OnStringScalar(const TStringBuf& value)
