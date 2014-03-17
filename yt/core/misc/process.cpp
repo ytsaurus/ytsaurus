@@ -76,9 +76,10 @@ TProcess::TProcess(const char* path)
     : IsFinished_(false)
     , Status_(0)
     , ProcessId_(-1)
-    , Pipe_{-1, -1}
     , Stack_(StackSize, 0)
 {
+    Pipe_[0] = Pipe_[1] = -1;
+
     size_t size = strlen(path);
     Path_.insert(Path_.end(), path, path + size + 1);
 
