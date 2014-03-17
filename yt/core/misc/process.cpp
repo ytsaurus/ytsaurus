@@ -5,18 +5,22 @@
 
 #include <string.h>
 
-#ifdef _linux_
+#ifndef _win_
   #include <unistd.h>
   #include <errno.h>
   #include <sys/wait.h>
-#else
+#endif
+
+#ifdef _darwin_
+  #include <crt_externs.h>
+  #define environ (*_NSGetEnviron())
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
+#ifndef _win_
 
 static const int BASE_EXIT_CODE = 127;
 static const int EXEC_ERR_CODE[] = {
@@ -88,7 +92,7 @@ void TProcess::AddArgument(const char* arg)
     Args_.push_back(Copy(arg));
 }
 
-#ifdef _linux_
+#ifndef _win_
 
 TError TProcess::Spawn()
 {
@@ -128,10 +132,17 @@ TError TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
+#ifdef _linux_
     int pid = ::clone(child,
         (&Stack_.front()) + Stack_.size(),
         CLONE_VM|SIGCHLD,
         this);
+#else
+    int pid = vfork();
+    if (pid == 0) {
+        DoSpawn();
+    }
+#endif
 
     ::close(Pipe_[1]);
 
@@ -208,7 +219,7 @@ int TProcess::DoSpawn()
     return 0;
 }
 
-#endif // _linux_
+#endif // _win_
 
 const char* TProcess::GetPath() const
 {
