@@ -62,6 +62,18 @@ private:
         const NTableClient::TKeyColumns& keyColumns,
         TChunk::TGetMetaResult result);
 
+    void ProcessOldChunkSamples(
+        const TReqGetTableSamples::TSampleRequest* sampleRequest,
+        TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const NTableClient::TKeyColumns& keyColumns,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
+    void ProcessVersionedChunkSamples(
+        const TReqGetTableSamples::TSampleRequest* sampleRequest,
+        TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const NTableClient::TKeyColumns& keyColumns,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
     void MakeChunkSplits(
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
         NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,

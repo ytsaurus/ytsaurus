@@ -67,10 +67,14 @@ private:
     std::unique_ptr<TBlockWriter> BlockWriter_;
 
     TBlockMetaExt BlockMetaExt_;
-    int BlockMetaExtSize_;
+    i64 BlockMetaExtSize_;
 
     TBlockIndexExt BlockIndexExt_;
-    int BlockIndexExtSize_;
+    i64 BlockIndexExtSize_;
+
+    TSamplesExt SamplesExt_;
+    i64 SamplesExtSize_;
+    double AverageSampleSize_;
 
     TBoundaryKeysExt BoundaryKeysExt_;
 
@@ -84,11 +88,15 @@ private:
         const TUnversionedValue* beginPreviousKey,
         const TUnversionedValue* endPreviousKey);
 
+    void EmitSample(TVersionedRow row);
+
     void FinishBlockIfLarge(TVersionedRow row);
     void FinishBlock();
 
     TError DoClose();
     void FillCommonMeta(TChunkMeta* meta) const;
+
+    i64 GetUncompressedSize() const;
 
 };
 
@@ -109,6 +117,8 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
     , BlockWriter_(new TBlockWriter(Schema_, KeyColumns_))
     , BlockMetaExtSize_(0)
     , BlockIndexExtSize_(0)
+    , SamplesExtSize_(0)
+    , AverageSampleSize_(0.0)
     , RowCount_(0)
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
@@ -133,6 +143,7 @@ bool TVersionedChunkWriter<TBlockWriter>::Write(const std::vector<TVersionedRow>
         ToProto(
             BoundaryKeysExt_.mutable_min(),
             TOwningKey(rows.front().BeginKeys(), rows.front().EndKeys()));
+        EmitSample(rows.front());
     }
 
     WriteRow(rows.front(), LastKey_.Begin(), LastKey_.End());
@@ -219,8 +230,25 @@ void TVersionedChunkWriter<TBlockWriter>::WriteRow(
     const TUnversionedValue* beginPreviousKey,
     const TUnversionedValue* endPreviousKey)
 {
+    double sampleProbability =
+        Config_->SampleRate * GetUncompressedSize() *
+        EncodingChunkWriter_->GetCompressionRatio() / AverageSampleSize_;
+
+    if (RandomNumber<double>() < sampleProbability) {
+        EmitSample(row);
+    }
+
     ++RowCount_;
     BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
+}
+
+template <class TBlockWriter>
+void TVersionedChunkWriter<TBlockWriter>::EmitSample(TVersionedRow row)
+{
+    auto entry = SerializeToString(row.BeginKeys(), row.EndKeys());
+    SamplesExt_.add_entries(entry);
+    SamplesExtSize_ += entry.length();
+    AverageSampleSize_ = static_cast<double>(SamplesExtSize_) / SamplesExt_.entries_size();
 }
 
 template <class TBlockWriter>
@@ -277,6 +305,7 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
 
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(meta.mutable_extensions(), BlockIndexExt_);
+    SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);
@@ -294,6 +323,16 @@ void TVersionedChunkWriter<TBlockWriter>::FillCommonMeta(TChunkMeta* meta) const
     meta->set_version(TBlockWriter::FormatVersion);
 
     SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
+}
+
+template <class TBlockWriter>
+i64 TVersionedChunkWriter<TBlockWriter>::GetUncompressedSize() const 
+{
+    i64 size = EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
+    if (BlockWriter_) {
+        size += BlockWriter_->GetBlockSize();
+    }
+    return size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

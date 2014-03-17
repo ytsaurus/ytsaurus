@@ -71,4 +71,9 @@ message TBoundaryKeysExt
     required bytes max = 2;
 }
 
+message TSamplesExt
+{
+    repeated bytes entries = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

@@ -289,6 +289,8 @@ const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b);
 //! Ties are broken in favour of the first argument.
 const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b);
 
+Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end);
+
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void ToProto(

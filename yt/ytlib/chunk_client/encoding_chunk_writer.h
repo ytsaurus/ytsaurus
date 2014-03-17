@@ -30,6 +30,8 @@ public:
     TAsyncError GetReadyEvent() const;
     bool IsReady() const;
 
+    double GetCompressionRatio() const;
+
     NProto::TDataStatistics GetDataStatistics() const;
 
 private:

@@ -25,6 +25,8 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/private.h>
 
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -619,17 +621,29 @@ void TDataNodeService::ProcessSample(
         return;
     }
 
-    // XXX(psushin): implement sampling for new chunks.
-    if (chunkMeta.version() != 1) {
-        // Only old chunks support sampling now.
-        auto error = TError("Invalid chunk version: expected: 1, actual: %d",
-            chunkMeta.version());
-        LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
-            ~ToString(chunkId));
-        ToProto(chunkSamples->mutable_error(), error);
-        return;
-    }
+    switch (chunkMeta.version()) {
+        case ETableChunkFormat::Old:
+            ProcessOldChunkSamples(sampleRequest, chunkSamples, keyColumns, chunkMeta);
+            break;
 
+        case ETableChunkFormat::SimpleVersioned:
+            ProcessVersionedChunkSamples(sampleRequest, chunkSamples, keyColumns, chunkMeta);
+            break;
+
+        default:
+            auto error = TError("Invalid chunk version %d", chunkMeta.version());
+            LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
+                ~ToString(chunkId));
+            ToProto(chunkSamples->mutable_error(), error);
+    }
+}
+
+void TDataNodeService::ProcessOldChunkSamples(
+    const TReqGetTableSamples::TSampleRequest* sampleRequest,
+    TRspGetTableSamples::TChunkSamples* chunkSamples,
+    const TKeyColumns& keyColumns,
+    const TChunkMeta& chunkMeta)
+{
     auto samplesExt = GetProtoExtension<NTableClient::NProto::TOldSamplesExt>(chunkMeta.extensions());
     std::vector<NTableClient::NProto::TSample> samples;
     RandomSampleN(
@@ -652,7 +666,7 @@ void TDataNodeService::ProcessSample(
                 column,
                 [] (const NTableClient::NProto::TSamplePart& part, const Stroka& column) {
                     return part.column() < column;
-            });
+                });
 
             TUnversionedValue keyPart = MakeUnversionedSentinelValue(EValueType::Null);
             size += sizeof(keyPart); // part type
@@ -684,6 +698,38 @@ void TDataNodeService::ProcessSample(
     }
 }
 
+void TDataNodeService::ProcessVersionedChunkSamples(
+    const TReqGetTableSamples::TSampleRequest* sampleRequest,
+    TRspGetTableSamples::TChunkSamples* chunkSamples,
+    const TKeyColumns& keyColumns,
+    const TChunkMeta& chunkMeta)
+{
+    auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
+
+    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(chunkMeta.extensions());
+    auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+
+    if (chunkKeyColumns != keyColumns) {
+        auto error = TError("Key columns mismatch (Actual: [%s], Expected: [%s])", 
+                ~JoinToString(chunkKeyColumns),
+                ~JoinToString(keyColumns));
+        LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
+            ~ToString(chunkId));
+        ToProto(chunkSamples->mutable_error(), error);
+        return;
+    }
+
+    auto samplesExt = GetProtoExtension<NVersionedTableClient::NProto::TSamplesExt>(chunkMeta.extensions());
+    std::vector<Stroka> samples;
+    RandomSampleN(
+        samplesExt.entries().begin(),
+        samplesExt.entries().end(),
+        std::back_inserter(samples),
+        sampleRequest->sample_count());
+
+    ToProto(chunkSamples->mutable_items(), samples);
+}
+
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
 {
     context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MinSplitSize: %" PRId64,
@@ -692,7 +738,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
         request->min_split_size());
 
     auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
-    auto keyColumns = FromProto<Stroka>(request->key_columns());
+    auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
 
     for (const auto& chunkSpec : request->chunk_specs()) {
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());

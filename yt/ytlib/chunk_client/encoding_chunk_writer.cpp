@@ -66,6 +66,11 @@ bool TEncodingChunkWriter::IsReady() const
     return EncodingWriter_->IsReady();
 }
 
+double TEncodingChunkWriter::GetCompressionRatio() const
+{
+    return EncodingWriter_->GetCompressionRatio();
+}
+
 NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 {
     NProto::TDataStatistics result = NChunkClient::NProto::ZeroDataStatistics();
