@@ -16,7 +16,7 @@ message TSample
     repeated TSamplePart parts = 1;
 }
 
-message TSamplesExt
+message TOldSamplesExt
 {
     repeated TSample items = 1;
 }

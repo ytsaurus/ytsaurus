@@ -126,7 +126,7 @@ private:
     // Size of static part of meta, computed during initialization.
     i64 BasicMetaSize;
 
-    NProto::TSamplesExt SamplesExt;
+    NProto::TOldSamplesExt SamplesExt;
     NProto::TSample FirstSample;
 
     //! Only for sorted tables.

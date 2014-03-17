@@ -630,7 +630,7 @@ void TDataNodeService::ProcessSample(
         return;
     }
 
-    auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(chunkMeta.extensions());
+    auto samplesExt = GetProtoExtension<NTableClient::NProto::TOldSamplesExt>(chunkMeta.extensions());
     std::vector<NTableClient::NProto::TSample> samples;
     RandomSampleN(
         samplesExt.items().begin(),
