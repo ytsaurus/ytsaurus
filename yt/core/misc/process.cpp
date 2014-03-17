@@ -4,14 +4,19 @@
 #include <core/misc/error.h>
 
 #include <string.h>
-#include <unistd.h>
-#include <errno.h>
 
-#include <sys/wait.h>
+#ifdef _linux_
+  #include <unistd.h>
+  #include <errno.h>
+  #include <sys/wait.h>
+#else
+#endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
 
 static const int BASE_EXIT_CODE = 127;
 static const int EXEC_ERR_CODE[] = {
@@ -36,6 +41,9 @@ static const int EXEC_ERR_CODE[] = {
     ETXTBSY,
     0
 };
+
+#endif
+
 static const size_t StackSize = 4096;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,6 +87,8 @@ void TProcess::AddArgument(const char* arg)
 
     Args_.push_back(Copy(arg));
 }
+
+#ifdef _linux_
 
 TError TProcess::Spawn()
 {
@@ -180,6 +190,25 @@ TError TProcess::Wait()
     YCHECK(result == ProcessId_);
     return StatusToError(Status_);
 }
+
+#else
+
+TError TProcess::Spawn()
+{
+    return TError();
+}
+
+TError TProcess::Wait()
+{
+    return TError();
+}
+
+int TProcess::DoSpawn()
+{
+    return 0;
+}
+
+#endif // _linux_
 
 const char* TProcess::GetPath() const
 {
