@@ -23,7 +23,7 @@ public:
         TFetcherConfigPtr config,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NLog::TTaggedLogger& logger);
+        const NLog::TTaggedLogger& logger);
 
     virtual void AddChunk(TRefCountedChunkSpecPtr chunk);
     virtual TAsyncError Fetch();

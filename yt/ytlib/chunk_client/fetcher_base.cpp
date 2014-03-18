@@ -29,7 +29,7 @@ TFetcherBase::TFetcherBase(
     TFetcherConfigPtr config,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    NLog::TTaggedLogger& logger)
+    const NLog::TTaggedLogger& logger)
     : Config_(config)
     , NodeDirectory_(nodeDirectory)
     , Invoker_(invoker)
