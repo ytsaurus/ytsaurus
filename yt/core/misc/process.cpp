@@ -113,7 +113,7 @@ TError TProcess::Spawn()
                 << TError::FromSystem();
         }
 
-        int setResult = ::fcntl(Pipe_[index], F_SETFL, setResult | O_CLOEXEC);
+        int setResult = ::fcntl(Pipe_[index], F_SETFL, getResult | O_CLOEXEC);
         if (setResult == -1) {
             return TError("Error spawning child process: fcntl failed to set descriptor flags")
                 << TError::FromSystem();
@@ -136,6 +136,9 @@ TError TProcess::Spawn()
         Stack_.data() + Stack_.size(),
         CLONE_VM|SIGCHLD,
         this);
+
+    ::close(Pipe_[1]);
+
     if (pid < 0) {
         return TError("Error starting child process: clone failed")
             << TErrorAttribute("path", GetPath())
