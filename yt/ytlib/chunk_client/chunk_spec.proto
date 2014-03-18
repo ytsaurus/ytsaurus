@@ -24,8 +24,7 @@ message TChunkSpec
     // Column filter.
     optional TChannel channel = 5;
 
-    // Deprecated.
-    // required NYT::NProto::TExtensionSet extensions = 6;
+    // Deprecated = 6;
 
     optional int32 table_index = 7 [default = -1];
 
