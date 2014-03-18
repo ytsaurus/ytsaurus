@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "schemaful_chunk_reader.h"
-#include "reader.h"
 #include "config.h"
 #include "private.h"
 #include "schemaful_block_reader.h"
@@ -53,22 +52,15 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReader
-    : public IReader
-    , public ISchemafulReader
+    : public ISchemafulReader
 {
 public:
     TChunkReader(
         TChunkReaderConfigPtr config,
         NChunkClient::IAsyncReaderPtr asyncReader,
-        const TReadLimit& startLimit,
-        const TReadLimit& endLimit,
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit,
         TTimestamp timestamp);
-
-    // ToDo (psushin): deprecated.
-    virtual TAsyncError Open(
-        TNameTablePtr nameTable, 
-        const TTableSchema& schema,
-        bool includeAllColumns) final override;
 
     virtual TAsyncError Open(const TTableSchema& schema) final override;
 
@@ -107,6 +99,12 @@ private:
 
     NLog::TTaggedLogger Logger;
 
+    // ToDo (psushin): refactor it.
+    TAsyncError Open(
+        TNameTablePtr nameTable, 
+        const TTableSchema& schema,
+        bool includeAllColumns);
+
     void DoOpen();
     void OnNextBlock(TError error);
 
@@ -115,8 +113,8 @@ private:
 TChunkReader::TChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr asyncReader,
-    const TReadLimit& startLimit,
-    const TReadLimit& endLimit,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
     TTimestamp timestamp)
     : Config(config)
     , UnderlyingReader(asyncReader)
@@ -125,8 +123,8 @@ TChunkReader::TChunkReader(
     , Logger(TableReaderLogger)
 {
     YCHECK(timestamp == NullTimestamp);
-    YCHECK(IsTrivial(startLimit));
-    YCHECK(IsTrivial(endLimit));
+    YCHECK(IsTrivial(lowerLimit));
+    YCHECK(IsTrivial(upperLimit));
 }
 
 TAsyncError TChunkReader::Open(const TTableSchema& schema)
@@ -350,129 +348,74 @@ void TChunkReader::OnNextBlock(TError error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReaderPtr CreateChunkReader(
-    TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr asyncReader,
-    const TReadLimit& startLimit,
-    const TReadLimit& endLimit,
-    TTimestamp timestamp)
-{
-    return New<TChunkReader>(config, asyncReader, startLimit, endLimit, timestamp);
-}
-
-ISchemafulReaderPtr CreateSchemafulChunkReader(
-    TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr asyncReader,
-    const TReadLimit& startLimit,
-    const TReadLimit& endLimit,
-    TTimestamp timestamp)
-{
-    return New<TChunkReader>(config, asyncReader, startLimit, endLimit, timestamp);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Adapter for old chunks.
 class TTableChunkReaderAdapter
-    : public IReader
-    , public ISchemafulReader
+    : public ISchemafulReader
 {
 public:
-    TSequentialReaderPtr SequentialReader;
-    TTableChunkReaderAdapter(TTableChunkSequenceReaderPtr underlyingReader);
+    TTableChunkReaderAdapter(TTableChunkReaderPtr underlyingReader);
 
-    // ToDo (psushin): deprecated.
-    virtual TAsyncError Open(
-        TNameTablePtr nameTable,
-        const TTableSchema& schema,
-        bool includeAllColumns) override;
-
-    virtual TAsyncError Open(const TTableSchema& schema) final override;
+    virtual TAsyncError Open(const TTableSchema& schema) override;
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TAsyncError GetReadyEvent() override;
 
 private:
-    TTableChunkSequenceReaderPtr UnderlyingReader;
-
-    bool IncludeAllColumns;
-    TTableSchema Schema;
-    TNameTablePtr NameTable;
-    std::vector<int> SchemaNameIndexes;
-
-    TChunkedMemoryPool MemoryPool;
+    TTableChunkReaderPtr UnderlyingReader_;
+    TTableSchema Schema_;
+    TChunkedMemoryPool MemoryPool_;
 
     void ThrowIncompatibleType(const TColumnSchema& schema);
 
 };
 
 TTableChunkReaderAdapter::TTableChunkReaderAdapter(
-    TTableChunkSequenceReaderPtr underlyingReader)
-    : UnderlyingReader(underlyingReader)
-    , IncludeAllColumns(false)
+    TTableChunkReaderPtr underlyingReader)
+    : UnderlyingReader_(underlyingReader)
 { }
-
-TAsyncError TTableChunkReaderAdapter::Open(
-    TNameTablePtr nameTable,
-    const TTableSchema& schema,
-    bool includeAllColumns)
-{
-    IncludeAllColumns = includeAllColumns;
-    Schema = schema;
-    NameTable = nameTable;
-
-    SchemaNameIndexes.reserve(Schema.Columns().size());
-    for (const auto& column : Schema.Columns()) {
-        SchemaNameIndexes.push_back(NameTable->GetIdOrRegisterName(column.Name));
-    }
-
-    return UnderlyingReader->AsyncOpen();
-}
 
 TAsyncError TTableChunkReaderAdapter::Open(const TTableSchema& schema)
 {
-    auto nameTable = New<TNameTable>();
-    return Open(nameTable, schema, false);
+    Schema_ = schema;
+    return UnderlyingReader_->AsyncOpen();
 }
 
 bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow> *rows)
 {
     YCHECK(rows->capacity() > 0);
+    rows->clear();
 
     std::vector<int> schemaIndexes;
-    std::vector<int> variableIndexes;
 
     while (rows->size() < rows->capacity()) {
-        auto* facade = UnderlyingReader->GetFacade();
+        auto* facade = UnderlyingReader_->GetFacade();
         if (!facade) {
             return false;
         }
 
-        schemaIndexes.resize(Schema.Columns().size(), -1);
+        schemaIndexes.resize(Schema_.Columns().size(), -1);
         auto& chunkRow = facade->GetRow();
         for (int i = 0; i < chunkRow.size(); ++i) {
-            auto* schemaColumn = Schema.FindColumn(chunkRow[i].first);
+            auto* schemaColumn = Schema_.FindColumn(chunkRow[i].first);
             if (schemaColumn) {
-                int schemaIndex = Schema.GetColumnIndex(*schemaColumn);
+                int schemaIndex = Schema_.GetColumnIndex(*schemaColumn);
                 schemaIndexes[schemaIndex] =  i;
-            } else if (IncludeAllColumns) {
-                variableIndexes.push_back(i);
             }
         }
 
-        rows->push_back(TUnversionedRow::Allocate(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
+        rows->push_back(TUnversionedRow::Allocate(&MemoryPool_, Schema_.Columns().size()));
         auto& outputRow = rows->back();
 
-        for (int i = 0; i < schemaIndexes.size(); ++i) {
-            if (schemaIndexes[i] < 0) {
-                outputRow[i].Type = EValueType::Null;
+        for (int id = 0; id < schemaIndexes.size(); ++id) {
+            if (schemaIndexes[id] < 0) {
+                outputRow[id].Type = EValueType::Null;
             } else {
-                const auto& schemaColumn = Schema.Columns()[i];
-                auto& value = outputRow[i];
-                value.Id = SchemaNameIndexes[i];
+                const auto& schemaColumn = Schema_.Columns()[id];
+                auto& value = outputRow[id];
+                value.Id = id;
                 value.Type = schemaColumn.Type;
 
-                const auto& pair = chunkRow[schemaIndexes[i]];
+                const auto& pair = chunkRow[schemaIndexes[id]];
 
                 if (value.Type == EValueType::Any) {
                     value.Data.String = pair.second.begin();
@@ -549,33 +492,6 @@ void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReaderPtr CreateChunkReader(
-    TChunkReaderConfigPtr config,
-    const TChunkSpec& chunkSpec,
-    NRpc::IChannelPtr masterChannel,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    IBlockCachePtr blockCache,
-    TTimestamp timestamp)
-{
-    std::vector<TChunkSpec> chunkSpecs;
-    chunkSpecs.push_back(chunkSpec);
-
-    auto provider = New<TTableChunkReaderProvider>(
-        chunkSpecs,
-        config,
-        New<TChunkReaderOptions>());
-
-    auto multiChunkReaderConfig = New<TMultiChunkReaderConfig>();
-    auto reader = New<TTableChunkSequenceReader>(
-        multiChunkReaderConfig,
-        masterChannel,
-        blockCache,
-        nodeDirectory,
-        std::move(chunkSpecs),
-        provider);
-
-    return New<TTableChunkReaderAdapter>(reader);
-}
 
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,

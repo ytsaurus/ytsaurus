@@ -28,7 +28,6 @@
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>

@@ -11,7 +11,6 @@
 #include <yt/ytlib/new_table_client/public.h>
 #include <yt/ytlib/new_table_client/schema.h>
 #include <yt/ytlib/new_table_client/name_table.h>
-#include <yt/ytlib/new_table_client/reader.h>
 #include <yt/ytlib/new_table_client/writer.h>
 #include <yt/ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <yt/ytlib/new_table_client/schemaful_chunk_writer.h>

@@ -5,7 +5,6 @@
 #include <ytlib/new_table_client/schemaful_chunk_writer.h>
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/reader.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/writer.h>

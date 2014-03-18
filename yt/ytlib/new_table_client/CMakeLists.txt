@@ -32,7 +32,6 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/row_base.h
-  ${BASE}/reader.h
   ${BASE}/row_buffer.h
   ${BASE}/samples_fetcher.h
   ${BASE}/schema.h
