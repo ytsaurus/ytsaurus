@@ -527,7 +527,7 @@ private:
                     << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit)
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
-                KillallByUid(uid);
+                RunKiller(uid);
                 return;
             }
 
@@ -543,7 +543,7 @@ private:
             }
         } catch (const std::exception& ex) {
             SetError(ex);
-            KillallByUid(uid);
+            RunKiller(uid);
         }
     }
 

@@ -33,7 +33,7 @@ void TSlot::Initialize()
     try {
         if (UserId > 0) {
             // Kill all processes of this pseudo-user for sanity reasons.
-            KillallByUid(UserId);
+            RunKiller(UserId);
         }
     } catch (const std::exception& ex) {
         // ToDo(psushin): think about more complex logic of handling fs errors.
@@ -73,7 +73,7 @@ void TSlot::DoClean()
             if (UserId == EmptyUserId) {
                 RemoveDirWithContents(SandboxPath);
             } else {
-                RemoveDirAsRoot(SandboxPath);
+                RunCleaner(SandboxPath);
             }
         }
         IsClean = true;
