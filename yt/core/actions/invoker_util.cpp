@@ -91,7 +91,7 @@ void GuardedInvoke(
     invoker->Invoke(BIND(
         doInvoke,
         Passed(std::move(onSuccess)),
-        Passed(std::move(TGuard(std::move(onCancel))))));
+        Passed(TGuard(std::move(onCancel)))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
