@@ -250,6 +250,7 @@ private:
         return CreateSchemafulChunkReader(
             Config_->ChunkReader,
             std::move(chunkReader),
+            split.chunk_meta(),
             lowerBound,
             upperBound,
             timestamp);

@@ -25,9 +25,6 @@
 #include <core/concurrency/fiber.h>
 
 // TableChunkReaderAdapter stuff
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
-#include <ytlib/chunk_client/config.h>
-
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/config.h>
 #include <ytlib/table_client/table_chunk_reader.h>
@@ -457,22 +454,11 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow> *rows)
             }
         }
 
-        for (int i = 0; i < variableIndexes.size(); ++i) {
-            auto& value = outputRow[schemaIndexes.size() + i];
-            const auto& pair = chunkRow[variableIndexes[i]];
-
-            value.Id = NameTable->GetIdOrRegisterName(pair.first);
-            value.Type = EValueType::Any;
-            value.Length = pair.second.size();
-            value.Data.String = pair.second.begin();
-        }
-
-        if (!UnderlyingReader->FetchNext()) {
+        if (!UnderlyingReader_->FetchNext()) {
             return true;
         }
 
         schemaIndexes.clear();
-        variableIndexes.clear();
     }
 
     return true;
@@ -480,7 +466,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow> *rows)
 
 TAsyncError TTableChunkReaderAdapter::GetReadyEvent()
 {
-    return UnderlyingReader->GetReadyEvent();
+    return UnderlyingReader_->GetReadyEvent();
 }
 
 void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema)
@@ -492,33 +478,38 @@ void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
-    const TChunkSpec& chunkSpec,
-    NRpc::IChannelPtr masterChannel,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    IBlockCachePtr blockCache,
+    NChunkClient::IAsyncReaderPtr asyncReader,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
     TTimestamp timestamp)
 {
-    std::vector<TChunkSpec> chunkSpecs;
-    chunkSpecs.push_back(chunkSpec);
+    YCHECK(chunkMeta.type() == EChunkType::Table);
+    switch (chunkMeta.version()) {
+        case ETableChunkFormat::Old: {
+            auto tableChunkReader = New<TTableChunkReader>(
+                nullptr,
+                config, 
+                TChannel::Universal(), 
+                asyncReader, 
+                lowerLimit, 
+                upperLimit,
+                0,
+                0,
+                DefaultPartitionTag,
+                New<TChunkReaderOptions>());
 
-    auto provider = New<TTableChunkReaderProvider>(
-        chunkSpecs,
-        config,
-        New<TChunkReaderOptions>());
+            return New<TTableChunkReaderAdapter>(tableChunkReader);
+        }
 
-    auto multiChunkReaderConfig = New<TMultiChunkReaderConfig>();
-    auto reader = New<TTableChunkSequenceReader>(
-        multiChunkReaderConfig,
-        masterChannel,
-        blockCache,
-        nodeDirectory,
-        std::move(chunkSpecs),
-        provider);
+        case ETableChunkFormat::Schemaful:
+            return New<TChunkReader>(config, asyncReader, lowerLimit, upperLimit, timestamp);
 
-    return New<TTableChunkReaderAdapter>(reader);
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

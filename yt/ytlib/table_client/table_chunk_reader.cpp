@@ -163,8 +163,8 @@ public:
         TSequentialReaderConfigPtr config,
         TTableChunkReaderPtr chunkReader,
         NChunkClient::IAsyncReaderPtr asyncReader,
-        const NChunkClient::NProto::TReadLimit& startLimit,
-        const NChunkClient::NProto::TReadLimit& endLimit)
+        const NChunkClient::TReadLimit& startLimit,
+        const NChunkClient::TReadLimit& endLimit)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
@@ -737,8 +737,8 @@ TTableChunkReader::TTableChunkReader(
     TSequentialReaderConfigPtr config,
     const TChannel& channel,
     NChunkClient::IAsyncReaderPtr chunkReader,
-    const NChunkClient::NProto::TReadLimit& startLimit,
-    const NChunkClient::NProto::TReadLimit& endLimit,
+    const NChunkClient::TReadLimit& startLimit,
+    const NChunkClient::TReadLimit& endLimit,
     int tableIndex,
     i64 startTableRowIndex,
     int partitionTag,
@@ -758,7 +758,6 @@ TTableChunkReader::TTableChunkReader(
     , OnRowFetchedCallback(BIND(&TTableChunkReader::OnRowFetched, MakeWeak(this)))
     , SuccessResult(MakePromise(TError()))
 {
-    YCHECK(Provider);
     YCHECK(config);
     YCHECK(chunkReader);
 
@@ -873,8 +872,8 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
 
     MakeCurrentRow();
 
-    if (ValidateRow()) {
-        ++Provider->RowIndex_;
+    if (ValidateRow() && Provider) {
+            ++Provider->RowIndex_;
     }
 
     if (RowState.HasRunningOperation())
@@ -1031,8 +1030,8 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
         Config,
         chunkSpec.has_channel() ? TChannel::FromProto(chunkSpec.channel()) : TChannel::Universal(),
         chunkReader,
-        chunkSpec.upper_limit(),
-        chunkSpec.lower_limit(),
+        FromProto<TReadLimit>(chunkSpec.upper_limit()),
+        FromProto<TReadLimit>(chunkSpec.lower_limit()),
         chunkSpec.table_index(),
         chunkSpec.table_row_index(),
         chunkSpec.partition_tag(),
