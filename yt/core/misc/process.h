@@ -6,11 +6,14 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TProcess
+    : private TNonCopyable
 {
 public:
     explicit TProcess(const char* path);
-    TProcess(const TProcess&) = delete;
+    ~TProcess();
 
     void AddArgument(const char* arg);
 
@@ -21,7 +24,7 @@ public:
     int GetProcessId() const;
 
 private:
-    bool IsFinished_;
+    bool Finished_;
     int Status_;
     int ProcessId_;
     int Pipe_[2];
@@ -31,11 +34,14 @@ private:
     std::vector<char* > Env_;
     std::vector<char> Stack_;
 
+    // TODO(babenko): rename (or better get rid of)
     char* Copy(const char* arg);
-    void ClosePipe();
+
+    static int ChildMain(void*);
     int DoSpawn();
 
-    friend int child(void*);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // NYT

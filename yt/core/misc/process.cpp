@@ -1,20 +1,24 @@
+#include "stdafx.h"
 #include "process.h"
 #include "proc.h"
 
 #include <core/misc/error.h>
 
 #include <string.h>
-#include <unistd.h>
 #include <errno.h>
 
-#include <sys/wait.h>
+#ifndef _win_
+    #include <unistd.h>
+    #include <sys/wait.h>
+#endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int BASE_EXIT_CODE = 127;
-static const int EXEC_ERR_CODE[] = {
+static const int BaseExitCode = 127;
+
+static const int ExecErrorCodes[] = {
     E2BIG,
     EACCES,
     EFAULT,
@@ -36,16 +40,12 @@ static const int EXEC_ERR_CODE[] = {
     ETXTBSY,
     0
 };
+
 static const size_t StackSize = 4096;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int child(void* this_)
-{
-    TProcess* process = static_cast<TProcess*>(this_);
-    return process->DoSpawn();
-}
-
+// TODO(babenko): Replace with NFS::GetFileName.
 const char* GetFilename(const char* path)
 {
     const char* name = strrchr(path, '/');
@@ -61,56 +61,69 @@ const char* GetFilename(const char* path)
 ////////////////////////////////////////////////////////////////////////////////
 
 TProcess::TProcess(const char* path)
-    : IsFinished_(false)
+    : Finished_(false)
     , Status_(0)
     , ProcessId_(-1)
-    , Pipe_{-1, -1}
     , Stack_(StackSize, 0)
 {
+    Pipe_[0] = Pipe_[1] = -1;
+
     size_t size = strlen(path);
     Path_.insert(Path_.end(), path, path + size + 1);
 
     AddArgument(GetFilename(path));
 }
 
+TProcess::~TProcess()
+{
+    for (int index = 0; index < 2; ++index) {
+        if (Pipe_[index] != -1) {
+            ::close(Pipe_[index]);
+            Pipe_[index] = -1;
+        }
+    }
+}
+
 void TProcess::AddArgument(const char* arg)
 {
-    YCHECK((ProcessId_ == -1) && !IsFinished_);
+    YCHECK(ProcessId_ == -1 && !Finished_);
 
     Args_.push_back(Copy(arg));
 }
 
 TError TProcess::Spawn()
 {
-    YCHECK((ProcessId_ == -1) && !IsFinished_);
+#ifdef _win_
+    return TError("Windows is not supported");
+#else
+    YCHECK(ProcessId_ == -1 && !Finished_);
 
-    auto res = pipe(Pipe_);
-    if (res == -1) {
-        ClosePipe();
-        return TError("Unable to creation failed") << TError::FromSystem();
+    {
+        int result = pipe(Pipe_);
+        if (result == -1) {
+            return TError("Error spawning child process: pipe creation failed")
+                << TError::FromSystem();
+        }
     }
 
-    for (int i = 0; i < 2; ++i) {
-        res = ::fcntl(Pipe_[i], F_GETFL);
-
-        if (res == -1) {
-            ClosePipe();
-            return TError("fcntl failed to get descriptor flags")
+    for (int index = 0; index < 2; ++index) {
+        int getResult = ::fcntl(Pipe_[index], F_GETFL);
+        if (getResult == -1) {
+            return TError("Error spawning child process: fcntl failed to get descriptor flags")
                 << TError::FromSystem();
         }
 
-        res = ::fcntl(Pipe_[i], F_SETFL, res | O_CLOEXEC);
-
-        if (res == -1) {
-            return TError("fcntl failed to set descriptor flags")
+        int setResult = ::fcntl(Pipe_[index], F_SETFL, setResult | O_CLOEXEC);
+        if (setResult == -1) {
+            return TError("Error spawning child process: fcntl failed to set descriptor flags")
                 << TError::FromSystem();
         }
     }
 
     // copy env
     char** iterator = environ;
-    while (*iterator != 0) {
-        const char* const item = (*iterator);
+    while (*iterator) {
+        const char* const item = *iterator;
         Env_.push_back(Copy(item));
 
         ++iterator;
@@ -118,17 +131,12 @@ TError TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
-    int pid = ::clone(child,
-        (&Stack_.front()) + Stack_.size(),
+    int pid = ::clone(
+        &TProcess::ChildMain,
+        Stack_.data() + Stack_.size(),
         CLONE_VM|SIGCHLD,
         this);
-
-    ::close(Pipe_[1]);
-
     if (pid < 0) {
-        ::close(Pipe_[0]);
-        Pipe_[0] = -1;
-
         return TError("Error starting child process: clone failed")
             << TErrorAttribute("path", GetPath())
             << TError::FromSystem();
@@ -136,49 +144,43 @@ TError TProcess::Spawn()
 
     ProcessId_ = pid;
     return TError();
-}
-
-int TProcess::DoSpawn()
-{
-    ::close(Pipe_[0]);
-    ::execve(&Path_.front(), &(Args_.front()), &(Env_.front()));
-    const int errorCode = errno;
-    int i = 0;
-    while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
-        ++i;
-    }
-
-    while (::write(Pipe_[1], &errorCode, sizeof(int)) < 0);
-
-    _exit(BASE_EXIT_CODE - i);
+#endif
 }
 
 TError TProcess::Wait()
 {
+#ifdef _win_
+    return TError("Windows is not supported");
+#else
     YCHECK(ProcessId_ != -1);
     YCHECK(Pipe_[0] != -1);
 
     {
         int errCode;
         if (::read(Pipe_[0], &errCode, sizeof(int)) != sizeof(int)) {
+            // TODO(babenko): can't understand why we're doing this: nobody's gonna use this value anyway
             errCode = 0;
         } else {
             ::waitpid(ProcessId_, nullptr, 0);
-            ::close(Pipe_[0]);
-            Pipe_[0] = Pipe_[1] = -1;
-            IsFinished_ = true;
-            return TError("execve failed") << TError::FromSystem(errCode);
+            Finished_ = true;
+            return TError("Error waiting for child process to finish: execve failed")
+                << TError::FromSystem(errCode);
         }
     }
 
-    int result = ::waitpid(ProcessId_, &Status_, WUNTRACED);
-    IsFinished_ = true;
+    {
+        int result = ::waitpid(ProcessId_, &Status_, WUNTRACED);
+        Finished_ = true;
 
-    if (result < 0) {
-        return TError::FromSystem();
+        if (result < 0) {
+            return TError::FromSystem();
+        }
+
+        YCHECK(result == ProcessId_);
     }
-    YCHECK(result == ProcessId_);
+
     return StatusToError(Status_);
+#endif
 }
 
 const char* TProcess::GetPath() const
@@ -198,15 +200,29 @@ char* TProcess::Copy(const char* arg)
     return &(Holder_[Holder_.size() - 1].front());
 }
 
-void TProcess::ClosePipe()
+int TProcess::ChildMain(void* this_)
 {
-    if (Pipe_[0] != -1) {
-        ::close(Pipe_[0]);
-    }
-    if (Pipe_[1] != -1) {
-        ::close(Pipe_[1]);
-    }
-    Pipe_[0] = Pipe_[1] = -1;
+    auto* process = static_cast<TProcess*>(this_);
+    return process->DoSpawn();
 }
+
+int TProcess::DoSpawn()
+{
+    ::close(Pipe_[0]);
+    ::execve(Path_.data(), Args_.data(), Env_.data());
+
+    const int errorCode = errno;
+    int i = 0;
+    while ((ExecErrorCodes[i] != errorCode) && (ExecErrorCodes[i] != 0)) {
+        ++i;
+    }
+
+    while (::write(Pipe_[1], &errorCode, sizeof(int)) < 0);
+
+    // TODO(babenko): why "minus"? who needs this exit code, anyway?
+    _exit(BaseExitCode - i);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // NYT
