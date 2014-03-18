@@ -44,7 +44,7 @@ def export_table(object, args):
     try:
         yt.config.set_proxy(params.yt_proxy)
         if yt.exists(dst) and yt.records_count(dst) != 0:
-            if not params.force:
+            if params.force:
                 yt.remove(dst)
             else:
                 logger.error("Destination table '%s' is not empty" % dst)
