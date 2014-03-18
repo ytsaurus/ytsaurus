@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "async_writer.h"
 #include "non_block_writer.h"
 
@@ -6,6 +7,8 @@
 
 namespace NYT {
 namespace NPipes {
+
+////////////////////////////////////////////////////////////////////////////////
 
 static const size_t WriteBufferSize = 64 * 1024;
 
@@ -24,8 +27,7 @@ TAsyncWriter::TAsyncWriter(int fd)
 }
 
 TAsyncWriter::~TAsyncWriter()
-{
-}
+{ }
 
 void TAsyncWriter::OnRegistered(TError status)
 {
@@ -49,7 +51,7 @@ void TAsyncWriter::OnRegistered(TError status)
 void TAsyncWriter::OnUnregister(TError status)
 {
     if (!status.IsOK()) {
-        LOG_ERROR(status, "Failed to unregister");
+        LOG_ERROR(status, "Failed to unregister the pipe writer");
     }
 }
 

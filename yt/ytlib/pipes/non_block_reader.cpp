@@ -1,17 +1,17 @@
+#include "stdafx.h"
 #include "non_block_reader.h"
 
 #include "private.h"
 
 namespace NYT {
 namespace NPipes {
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t ReadBufferSize = 64 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
 
 TNonblockingReader::TNonblockingReader(int fd)
     : FD_(fd)
@@ -41,7 +41,7 @@ void TNonblockingReader::ReadToBuffer()
         } while (size == -1 && errno == EINTR);
 
         if (size == -1) {
-            LOG_DEBUG(TError::FromSystem(), "Failed to read");
+            LOG_DEBUG(TError::FromSystem(), "Failed to read from pipe");
 
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 LastSystemError_ = errno;
@@ -63,12 +63,12 @@ void TNonblockingReader::Close()
         int errCode = close(FD_);
 
         if (errCode == -1 && errno != EAGAIN) {
-            LOG_DEBUG(TError::FromSystem(), "Failed to close");
+            LOG_DEBUG(TError::FromSystem(), "Failed to close the pipe reader");
 
-            // please, read
+            // Please read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
             // http://rb.yandex-team.ru/arc/r/44030/
-            // before editing
+            // before editing.
             LastSystemError_ = errno;
         }
         Closed_ = true;
@@ -123,9 +123,8 @@ bool TNonblockingReader::IsReady() const
     return InFailedState() || ReachedEOF() || !IsBufferEmpty();
 }
 
-} // NDetail
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDetail
 } // namespace NPipes
 } // namespace NYT

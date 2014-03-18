@@ -1,10 +1,15 @@
+#include "stdafx.h"
 #include "private.h"
 
 namespace NYT {
 namespace NPipes {
 
-NLog::TLogger WriterLogger("AsyncWriter");
-NLog::TLogger ReaderLogger("AsyncReader");
+////////////////////////////////////////////////////////////////////////////////
+
+NLog::TLogger WriterLogger("PipeWriter");
+NLog::TLogger ReaderLogger("PipeReader");
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPipes
 } // namespace NYT
