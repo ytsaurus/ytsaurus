@@ -10,8 +10,6 @@
 
 #include <ytlib/transaction_client/config.h>
 
-#include <ytlib/file_client/config.h>
-
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/new_table_client/config.h>
@@ -31,8 +29,8 @@ class TDriverConfig
     : public NApi::TConnectionConfig
 {
 public:
-    NFileClient::TFileReaderConfigPtr FileReader;
-    NFileClient::TFileWriterConfigPtr FileWriter;
+    NApi::TFileReaderConfigPtr FileReader;
+    NApi::TFileWriterConfigPtr FileWriter;
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
     NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above

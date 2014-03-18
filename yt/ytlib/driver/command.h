@@ -253,6 +253,12 @@ protected:
         NCypressClient::SetTransactionId(request, this->GetTransactionId(allowNullTransaction));
     }
 
+    void SetTransactionalOptions(NApi::TTransactionalOptions* options)
+    {
+        options->TransactionId = this->Request->TransactionId;
+        options->PingAncestors = this->Request->PingAncestors;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -316,6 +322,11 @@ protected:
         NCypressClient::SetSuppressAccessTracking(
             &request->Header(),
             this->Request->SuppressAccessTracking);
+    }
+
+    void SetSuppressableAccessTrackingOptions(NApi::TSuppressableAccessTrackingOptions* options)
+    {
+        options->SuppressAccessTracking = this->Request->SuppressAccessTracking;
     }
 
 };

@@ -3,15 +3,17 @@
 #include "config.h"
 #include "driver.h"
 
-#include <core/concurrency/fiber.h>
+#include <ytlib/api/file_reader.h>
+#include <ytlib/api/file_writer.h>
 
-#include <ytlib/file_client/file_reader.h>
-#include <ytlib/file_client/file_writer.h>
+#include <ytlib/chunk_client/chunk_spec.h>
+
+#include <core/concurrency/fiber.h>
 
 namespace NYT {
 namespace NDriver {
 
-using namespace NFileClient;
+using namespace NApi;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,14 +28,16 @@ void TDownloadCommand::DoExecute()
         config,
         Request->GetOptions());
 
-    auto reader = New<TAsyncReader>(
-        config,
-        Context->GetClient()->GetMasterChannel(),
-        Context->GetClient()->GetConnection()->GetBlockCache(),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Request->Path,
-        Request->Offset,
-        Request->Length);
+    TFileReaderOptions options;
+    options.Offset = Request->Offset;
+    options.Length = Request->Length;
+    SetTransactionalOptions(&options);
+    SetSuppressableAccessTrackingOptions(&options);
+
+    auto reader = Context->GetClient()->CreateFileReader(
+        Request->Path.GetPath(),
+        options,
+        config);
 
     {
         auto result = WaitFor(reader->Open());
@@ -66,12 +70,14 @@ void TUploadCommand::DoExecute()
         Context->GetConfig()->FileWriter,
         Request->FileWriter);
 
-    auto writer = New<TAsyncWriter>(
-        config,
-        Context->GetClient()->GetMasterChannel(),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context->GetClient()->GetTransactionManager(),
-        Request->Path);
+    TFileWriterOptions options;
+    options.Overwrite = NChunkClient::ExtractOverwriteFlag(Request->Path.Attributes());
+    SetTransactionalOptions(&options);
+
+    auto writer = Context->GetClient()->CreateFileWriter(
+        Request->Path.GetPath(),
+        options,
+        config);
 
     {
         auto result = WaitFor(writer->Open());
