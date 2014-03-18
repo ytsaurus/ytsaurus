@@ -1,7 +1,5 @@
 #!/bin/sh -eux
 
-export YT_PROXY="kant.yt.yandex.net"
-
 IMPORT_PATH="//userdata"
 IMPORT_QUEUE="//sys/cron/tables_to_import_from_redwood"
 REMOVE_QUEUE="//sys/cron/tables_to_remove"
