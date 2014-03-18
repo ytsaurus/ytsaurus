@@ -387,7 +387,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     }
 
     Meta.set_type(EChunkType::Table);
-    Meta.set_version(FormatVersion);
+    Meta.set_version(ETableChunkFormat::Schemaful);
 
     SetProtoExtension(Meta.mutable_extensions(), BlockMetaExt);
     SetProtoExtension(Meta.mutable_extensions(), NYT::ToProto<NProto::TTableSchemaExt>(Schema));

@@ -61,6 +61,7 @@ DECLARE_ENUM(EValueType,
 DECLARE_ENUM(ETableChunkFormat,
     ((Old)                (1))
     ((SimpleVersioned)    (2))
+    ((Schemaful)          (3))
 );
 
 struct TColumnIdMapping
