@@ -499,6 +499,7 @@ void CodegenAggregateFunction(
 
     Value* newValueIsNullPtr = builder.CreateAlloca(
         TypeBuilder<llvm::types::i<1>, false>::get(context), 0, "newValueIsNullPtr");
+    builder.CreateStore(ConstantInt::getFalse(context), newValueIsNullPtr);
     Value* newValue = CodegenValueFromRow(builder, newRow, index, type, newValueIsNullPtr);
 
     auto* aggregateBB = BasicBlock::Create(context, "aggregate", function);
@@ -510,6 +511,7 @@ void CodegenAggregateFunction(
 
     Value* isNullPtr = builder.CreateAlloca(
         TypeBuilder<llvm::types::i<1>, false>::get(context), 0, "isNullPtr");
+    builder.CreateStore(ConstantInt::getFalse(context), isNullPtr);
     CodegenIsNull(builder, row, index, isNullPtr);
 
     Value* valuePtr = CodegenDataPtrFromRow(builder, row, index, type);

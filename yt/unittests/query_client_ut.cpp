@@ -224,18 +224,15 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
     return dataSplit;
 }
 
-TDataSplit MakeSplit(
-    const TYPath& path,
-    const std::vector<TColumnSchema>& columns,
-    TKeyColumns keyColumns = TKeyColumns(),
-    ui64 counter = 0)
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
 {
     TDataSplit dataSplit;
 
     ToProto(
         dataSplit.mutable_chunk_id(),
-        MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
+        MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
+    TKeyColumns keyColumns;
     SetKeyColumns(&dataSplit, keyColumns);
 
     TTableSchema tableSchema;
@@ -1323,12 +1320,11 @@ protected:
 
 TEST_F(TQueryCodegenTest, Simple)
 {
-    auto simpleSplit = MakeSplit("//t", 
-        {
-            { "a", EValueType::Integer },
-            { "b", EValueType::Integer },
-            { "c", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
@@ -1345,12 +1341,11 @@ TEST_F(TQueryCodegenTest, Simple)
 
 TEST_F(TQueryCodegenTest, SimpleBetweenAnd)
 {
-    auto simpleSplit = MakeSplit("//t", 
-        {
-            { "a", EValueType::Integer },
-            { "b", EValueType::Integer },
-            { "c", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
@@ -1367,12 +1362,11 @@ TEST_F(TQueryCodegenTest, SimpleBetweenAnd)
 
 TEST_F(TQueryCodegenTest, SimpleIn)
 {
-    auto simpleSplit = MakeSplit("//t", 
-        {
-            { "a", EValueType::Integer },
-            { "b", EValueType::Integer },
-            { "c", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
@@ -1390,12 +1384,11 @@ TEST_F(TQueryCodegenTest, SimpleIn)
 
 TEST_F(TQueryCodegenTest, SimpleWithNull)
 {
-    auto simpleSplit = MakeSplit("//t", 
-        {
-            { "a", EValueType::Integer },
-            { "b", EValueType::Integer },
-            { "c", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, true));
@@ -1414,12 +1407,11 @@ TEST_F(TQueryCodegenTest, SimpleWithNull)
 
 TEST_F(TQueryCodegenTest, SimpleWithNull2)
 {
-    auto simpleSplit = MakeSplit("//t", 
-        {
-            { "a", EValueType::Integer },
-            { "b", EValueType::Integer },
-            { "c", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
     source.push_back(BuildRow("a=1;b=2;c=3", simpleSplit, true));
@@ -1429,11 +1421,10 @@ TEST_F(TQueryCodegenTest, SimpleWithNull2)
     source.push_back(BuildRow("a=10;b=1", simpleSplit, true));
     source.push_back(BuildRow("a=10;c=1", simpleSplit, true));
     
-    auto resultSplit = MakeSplit("",
-        {
-            { "a", EValueType::Integer },
-            { "x", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.emplace_back("a", EValueType::Integer);
+    resultColumns.emplace_back("x", EValueType::Integer);
+    auto resultSplit = MakeSplit(resultColumns);
 
     std::vector<TUnversionedOwningRow> result;
     result.push_back(BuildRow("a=1;x=5", resultSplit, true));
@@ -1448,12 +1439,11 @@ TEST_F(TQueryCodegenTest, SimpleWithNull2)
 
 TEST_F(TQueryCodegenTest, Complex)
 {
-    auto simpleSplit = MakeSplit("//t", 
-        {
-            { "a", EValueType::Integer },
-            { "b", EValueType::Integer },
-            { "c", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
         "a=1;b=10",
@@ -1483,12 +1473,11 @@ TEST_F(TQueryCodegenTest, Complex)
 
 TEST_F(TQueryCodegenTest, ComplexWithNull)
 {
-    auto simpleSplit = MakeSplit("//t", 
-        {
-            { "a", EValueType::Integer },
-            { "b", EValueType::Integer },
-            { "c", EValueType::Integer }
-        });
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
         "a=1;b=10",
@@ -1511,15 +1500,13 @@ TEST_F(TQueryCodegenTest, ComplexWithNull)
         source.push_back(BuildRow(row, simpleSplit, true));
     }
 
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.emplace_back("x", EValueType::Integer);
+    resultColumns.emplace_back("t", EValueType::Integer);
+    resultColumns.emplace_back("y", EValueType::Integer);
+    auto resultSplit = MakeSplit(resultColumns);
+
     std::vector<TUnversionedOwningRow> result;
-
-    auto resultSplit = MakeSplit("", 
-        {
-            { "x", EValueType::Integer },
-            { "t", EValueType::Integer },
-            { "y", EValueType::Integer }
-        });
-
     result.push_back(BuildRow("x=1;t=251;y=250", resultSplit, true));
     result.push_back(BuildRow("x=0;t=200;y=200", resultSplit, true));
     result.push_back(BuildRow("y=6", resultSplit, true));
