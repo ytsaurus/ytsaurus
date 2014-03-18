@@ -22,14 +22,14 @@ TAsyncIOBase::~TAsyncIOBase()
 
 void TAsyncIOBase::Register()
 {
-    // TODO(babenko): auto this_ = MakeStrong(this)
-    TIODispatcher::Get()->AsyncRegister(MakeStrong(this)).Subscribe(
-        BIND(&TAsyncIOBase::OnRegistered, MakeStrong(this)));
+    auto this_ = MakeStrong(this);
+    TIODispatcher::Get()->AsyncRegister(this_).Subscribe(
+        BIND(&TAsyncIOBase::OnRegistered, this_));
 }
 
 void TAsyncIOBase::Unregister()
 {
-    TGuard<TSpinLock> guard(FlagsLock);
+    TGuard<TSpinLock> guard(FlagsLock_);
 
     if (State_ == EAsyncIOState::Started) {
       auto error = TIODispatcher::Get()->AsyncUnregister(MakeStrong(this));
@@ -37,15 +37,12 @@ void TAsyncIOBase::Unregister()
         BIND(&TAsyncIOBase::OnUnregister, MakeStrong(this)));
     } else {
         State_ = EAsyncIOState::StartAborted;
-        // should I close a fd here????
-        // TODO(babenko): You should know better.
-        // Either close it or remove the comment.
     }
 }
 
 void TAsyncIOBase::Start(ev::dynamic_loop& eventLoop)
 {
-    TGuard<TSpinLock> guard(FlagsLock);
+    TGuard<TSpinLock> guard(FlagsLock_);
 
     if (State_ == EAsyncIOState::StartAborted) {
         // We should FAIL the registration process.
@@ -61,7 +58,7 @@ void TAsyncIOBase::Start(ev::dynamic_loop& eventLoop)
 
 void TAsyncIOBase::Stop()
 {
-    TGuard<TSpinLock> guard(FlagsLock);
+    TGuard<TSpinLock> guard(FlagsLock_);
 
     YCHECK(State_ == EAsyncIOState::Started);
 

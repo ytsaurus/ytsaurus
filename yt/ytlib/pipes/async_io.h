@@ -5,9 +5,6 @@
 #include <core/misc/error.h>
 #include <core/misc/enum.h>
 
-// should replace with forward declaration
-#include <contrib/libev/ev++.h>
-
 namespace NYT {
 namespace NPipes {
 
@@ -19,6 +16,15 @@ DECLARE_ENUM(EAsyncIOState,
     (Stopped)
     (StartAborted)
 );
+
+struct IFDWatcher
+    : public virtual TRefCounted
+{
+    virtual void Start(ev::dynamic_loop& eventLoop) = 0;
+    virtual void Stop() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IFDWatcher);
 
 class TAsyncIOBase
     : public IFDWatcher
@@ -42,8 +48,7 @@ protected:
 
     EAsyncIOState State_;
 
-    // TODO(babenko): FlagsLock_?
-    TSpinLock FlagsLock;
+    TSpinLock FlagsLock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

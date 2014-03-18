@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/core/misc/error.h>
-
 namespace NYT {
 namespace NPipes {
 
