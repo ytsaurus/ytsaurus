@@ -65,7 +65,7 @@ public:
             ListenTransaction(Transaction_);
         }
 
-        Logger.AddTag(Sprintf("Path_: %s, TransactionId: %s",
+        Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
             ~Path_,
             ~ToString(Options_.TransactionId)));
     }
