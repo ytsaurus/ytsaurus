@@ -377,7 +377,7 @@ TAsyncError TTableChunkReaderAdapter::Open(const TTableSchema& schema)
     return UnderlyingReader_->AsyncOpen();
 }
 
-bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow> *rows)
+bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
 {
     YCHECK(rows->capacity() > 0);
     rows->clear();
