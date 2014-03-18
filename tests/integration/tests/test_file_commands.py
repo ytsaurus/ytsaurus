@@ -121,3 +121,18 @@ class TestFileCommands(YTEnvSetup):
         assert len(get('//tmp/f/@chunk_ids')) == 2
         assert get('//tmp/f/@uncompressed_data_size') == 18
         assert download('//tmp/f') == content + content
+
+    def test_upload_inside_tx(self):
+        create('file', '//tmp/f')
+
+        tx = start_transaction()
+
+        content = "some_data"
+        upload('//tmp/f', content, tx=tx)
+
+        assert download('//tmp/f') == ""
+        assert download('//tmp/f', tx=tx) == content
+
+        commit_transaction(tx)
+
+        assert download('//tmp/f') == content
