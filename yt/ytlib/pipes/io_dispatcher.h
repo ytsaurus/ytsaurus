@@ -4,10 +4,10 @@
 
 #include <yt/core/misc/error.h>
 
-#include <memory>
-
 namespace NYT {
 namespace NPipes {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TIODispatcher
 {
@@ -18,6 +18,7 @@ public:
     static TIODispatcher* Get();
 
     void Shutdown();
+
 private:
     friend class TAsyncIOBase;
 
@@ -28,5 +29,7 @@ private:
     std::unique_ptr<TImpl> Impl;
 };
 
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPipes
+} // namespace NYT

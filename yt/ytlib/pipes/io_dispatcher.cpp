@@ -1,7 +1,6 @@
+#include "stdafx.h"
 #include "io_dispatcher.h"
 #include "io_dispatcher_impl.h"
-
-#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NPipes {
@@ -10,10 +9,10 @@ namespace NPipes {
 
 TIODispatcher::TIODispatcher()
     : Impl(new TImpl())
-{}
+{ }
 
 TIODispatcher::~TIODispatcher()
-{}
+{ }
 
 TIODispatcher* TIODispatcher::Get()
 {

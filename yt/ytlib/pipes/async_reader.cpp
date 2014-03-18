@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "async_reader.h"
 #include "non_block_reader.h"
 
@@ -20,8 +21,7 @@ TAsyncReader::TAsyncReader(int fd)
 }
 
 TAsyncReader::~TAsyncReader()
-{
-}
+{ }
 
 void TAsyncReader::OnRegistered(TError status)
 {
@@ -41,7 +41,7 @@ void TAsyncReader::OnRegistered(TError status)
 void TAsyncReader::OnUnregister(TError status)
 {
     if (!status.IsOK()) {
-        LOG_ERROR(status, "Failed to unregister");
+        LOG_ERROR(status, "Failed to unregister the pipe reader");
     }
 }
 
@@ -108,7 +108,7 @@ void TAsyncReader::OnRead(ev::io&, int eventType)
             }
         }
     } else {
-        // pause for a while
+        // Pause for a while.
         FDWatcher.stop();
     }
 }
@@ -150,7 +150,7 @@ TError TAsyncReader::Abort()
     Unregister();
 
     if (State_ == EAsyncIOState::StartAborted) {
-        // close the reader if TAsyncReader was aborted before registering
+        // Close the reader if TAsyncReader was aborted before registering.
         Reader->Close();
     }
 
@@ -159,7 +159,7 @@ TError TAsyncReader::Abort()
         ReadyPromise.Reset();
     }
 
-    // report the last reader error if any
+    // Report the last reader error if any.
     if (Reader->InFailedState()) {
         return TError::FromSystem(Reader->GetLastSystemError());
     } else {
@@ -175,7 +175,7 @@ bool TAsyncReader::CanReadSomeMore() const
 TError TAsyncReader::GetState() const
 {
     if (State_ == EAsyncIOState::StartAborted) {
-        return TError("Start of the reader was aborted");
+        return TError("Pipe reader aborted during startup");
     } else if (!RegistrationError.IsOK()) {
         return RegistrationError;
     } else if (Reader->ReachedEOF() || !Reader->IsBufferEmpty()) {
@@ -183,8 +183,7 @@ TError TAsyncReader::GetState() const
     } else if (Reader->InFailedState()) {
         return TError::FromSystem(Reader->GetLastSystemError());
     } else {
-        YCHECK(false);
-        return TError();
+        YUNREACHABLE();
     }
 }
 

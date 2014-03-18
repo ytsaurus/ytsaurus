@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "async_io.h"
 
 #include "io_dispatcher.h"
@@ -14,11 +15,14 @@ TAsyncIOBase::TAsyncIOBase()
 
 TAsyncIOBase::~TAsyncIOBase()
 {
-    YCHECK((State_ == EAsyncIOState::StartAborted) || (State_ == EAsyncIOState::Stopped));
+    YCHECK(
+        State_ == EAsyncIOState::StartAborted ||
+        State_ == EAsyncIOState::Stopped);
 }
 
 void TAsyncIOBase::Register()
 {
+    // TODO(babenko): auto this_ = MakeStrong(this)
     TIODispatcher::Get()->AsyncRegister(MakeStrong(this)).Subscribe(
         BIND(&TAsyncIOBase::OnRegistered, MakeStrong(this)));
 }
@@ -34,6 +38,8 @@ void TAsyncIOBase::Unregister()
     } else {
         State_ = EAsyncIOState::StartAborted;
         // should I close a fd here????
+        // TODO(babenko): You should know better.
+        // Either close it or remove the comment.
     }
 }
 
@@ -42,7 +48,7 @@ void TAsyncIOBase::Start(ev::dynamic_loop& eventLoop)
     TGuard<TSpinLock> guard(FlagsLock);
 
     if (State_ == EAsyncIOState::StartAborted) {
-        // We should FAIL the registration process
+        // We should FAIL the registration process.
         THROW_ERROR_EXCEPTION("Reader is already aborted");
     }
 

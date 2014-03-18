@@ -11,7 +11,14 @@
 namespace NYT {
 namespace NPipes {
 
-DECLARE_ENUM(EAsyncIOState, (Created)(Started)(Stopped)(StartAborted));
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EAsyncIOState,
+    (Created)
+    (Started)
+    (Stopped)
+    (StartAborted)
+);
 
 class TAsyncIOBase
     : public IFDWatcher
@@ -22,6 +29,7 @@ public:
 
     void Register();
     void Unregister();
+
 protected:
     virtual void Start(ev::dynamic_loop& eventLoop) override;
     virtual void Stop() override;
@@ -34,8 +42,11 @@ protected:
 
     EAsyncIOState State_;
 
+    // TODO(babenko): FlagsLock_?
     TSpinLock FlagsLock;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // NPipes
 } // NYT

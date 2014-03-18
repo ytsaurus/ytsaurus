@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "io_dispatcher_impl.h"
 
 namespace NYT {

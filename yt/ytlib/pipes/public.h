@@ -3,12 +3,21 @@
 #include <yt/core/actions/future.h>
 
 namespace ev {
-    struct dynamic_loop;
-}
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct dynamic_loop;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace ev
 
 namespace NYT {
 namespace NPipes {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): public.h must no contain definitions. Please move.
 
 struct IFDWatcher
     : public virtual TRefCounted
@@ -19,11 +28,14 @@ struct IFDWatcher
 
 typedef TIntrusivePtr<IFDWatcher> IFDWatcherPtr;
 
+// TODO(babenko): use DECLARE_REFCOUNTED_XXX/DEFINE_REFCOUNTED_TYPE
 class TAsyncReader;
 typedef TIntrusivePtr<TAsyncReader> TAsyncReaderPtr;
 
 class TAsyncWriter;
 typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
+
+// TODO(babenko): why do we need this custom-made smartpointer?
 
 template <typename T>
 class THolder
@@ -69,5 +81,7 @@ private:
     TIntrusivePtr<T> Object;
 };
 
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPipes
+} // namespace NYT

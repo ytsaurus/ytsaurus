@@ -5,16 +5,21 @@
 
 #include <core/misc/common.h>
 #include <core/misc/error.h>
+
 #include <core/actions/future.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <util/system/thread.h>
+
 #include <util/thread/lfqueue.h>
 
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NPipes {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TIODispatcher::TImpl
 {
@@ -28,6 +33,7 @@ public:
     TAsyncError AsyncUnregister(IFDWatcherPtr watcher);
 
 private:
+    // TODO(babenko): Thread -> Thread_ etc
     TThread Thread;
     ev::dynamic_loop EventLoop;
 
@@ -78,5 +84,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 };
 
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPipes
+} // namespace NYT

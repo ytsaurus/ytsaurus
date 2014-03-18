@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "non_block_writer.h"
 
 #include "private.h"
@@ -5,6 +6,8 @@
 namespace NYT {
 namespace NPipes {
 namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
 
 static const size_t WriteBufferSize = 64 * 1024;
 

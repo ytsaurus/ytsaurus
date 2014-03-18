@@ -1,16 +1,20 @@
 #pragma once
 
 #include <core/misc/blob.h>
+
 #include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NPipes {
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TNonblockingWriter
 {
 public:
-    TNonblockingWriter(int fd);
+    // TODO(babenko): Owns this fd?
+    explicit TNonblockingWriter(int fd);
     ~TNonblockingWriter();
 
     void WriteFromBuffer();
@@ -25,6 +29,7 @@ public:
     int GetLastSystemError() const;
 
     bool IsClosed() const;
+
 private:
     int FD_;
 
@@ -40,6 +45,8 @@ private:
     void TryCleanBuffer();
 };
 
-}
-}
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+} // namespace NPipes
+} // namespace NYT
