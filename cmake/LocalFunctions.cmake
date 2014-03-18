@@ -136,34 +136,47 @@ function(PERLXSCPP source result_variable)
   set(_input ${_realpath})
   string(REPLACE ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR} _output ${_dirname}/${_basename}.xs.cpp)
 
+  if (NOT TARGET ${CMAKE_CURRENT_BINARY_DIR}/ppport.h)
+    add_custom_command(
+      OUTPUT
+        ${CMAKE_CURRENT_BINARY_DIR}/ppport.h
+      COMMAND
+        ${PERL_EXECUTABLE}
+          -mDevel::PPPort
+          -eDevel::PPPort::WriteFile
+      WORKING_DIRECTORY
+        ${CMAKE_CURRENT_BINARY_DIR}
+      COMMENT
+        "Generating ppport.h..."
+    )
+  endif()
+
   add_custom_command(
     OUTPUT
       ${_output}
-      ${CMAKE_CURRENT_BINARY_DIR}/ppport.h
-    COMMAND
-      ${PERL_EXECUTABLE}
-        -mDevel::PPPort
-        -eDevel::PPPort::WriteFile
     COMMAND
       ${PERL_EXECUTABLE}
         ${PERL_PRIVLIB}/ExtUtils/xsubpp
         -typemap ${PERL_PRIVLIB}/ExtUtils/typemap
         -csuffix .cpp
         -prototypes
+        -hiertype
         -output ${_output}
         ${_input}
     MAIN_DEPENDENCY
       ${_input}
+    DEPENDS
+      ${_dirname}/typemap
     WORKING_DIRECTORY
       ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT
       "Building ${source} with perl (.xs.cpp)..."
-    )
+  )
 
   set_source_files_properties(
     ${_output}
     PROPERTIES
-    COMPILE_FLAGS ${PERL_EXTRA_C_FLAGS} -Wno-unused-variable -Wno-literal-suffix
+    COMPILE_FLAGS "${PERL_EXTRA_C_FLAGS} -Wno-unused-variable -Wno-literal-suffix"
     GENERATED TRUE
   )
 
