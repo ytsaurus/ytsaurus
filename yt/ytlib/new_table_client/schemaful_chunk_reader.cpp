@@ -263,8 +263,6 @@ void TChunkReader::DoOpen()
 
 bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
 {
-    YCHECK(rows->empty());
-
     if (!State.IsActive()) {
         const auto& error = State.GetCurrentError();
         return !error.IsOK();
@@ -279,6 +277,7 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
             BlockColumnTypes));
     }
 
+    rows->clear();
     MemoryPool.Clear();
     while (rows->size() < rows->capacity()) {
         if (IsVersionedChunk && !BlockReader->GetEndOfKeyFlag()) {
@@ -387,7 +386,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
     while (rows->size() < rows->capacity()) {
         auto* facade = UnderlyingReader_->GetFacade();
         if (!facade) {
-            return false;
+            return true;
         }
 
         schemaIndexes.resize(Schema_.Columns().size(), -1);
@@ -455,13 +454,13 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
         }
 
         if (!UnderlyingReader_->FetchNext()) {
-            return true;
+            return false;
         }
 
         schemaIndexes.clear();
     }
 
-    return true;
+    return false;
 }
 
 TAsyncError TTableChunkReaderAdapter::GetReadyEvent()
