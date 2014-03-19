@@ -52,6 +52,7 @@ using namespace NTableClient::NProto;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NVersionedTableClient;
+using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -376,13 +377,13 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                 for (const auto& peer : peers) {
                     ToProto(blockInfo->add_p2p_descriptors(), peer.Descriptor);
                 }
-                LOG_DEBUG("GetBlocks: %" PRISZT " peers suggested for block %d",
+                LOG_DEBUG(PRISZT " peers suggested for block %d",
                     peers.size(),
                     blockIndex);
             }
         } else {
             // Fetch the actual data (either from cache or from disk).
-            LOG_DEBUG("GetBlocks: Fetching block %d", blockIndex);
+            LOG_DEBUG("Fetching block %d", blockIndex);
             awaiter->Await(
                 blockStore->GetBlock(blockId, priority, enableCaching),
                 BIND([=] (TBlockStore::TGetBlockResult result) {
@@ -391,11 +392,11 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                         blockInfo->set_data_attached(true);
                         auto block = result.Value();
                         response->Attachments()[index] = block->GetData();
-                        LOG_DEBUG("GetBlocks: Fetched block %d", blockIndex);
+                        LOG_DEBUG("Fetched block %d", blockIndex);
                     } else if (result.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
                         // This is really sad. We neither have the full chunk nor this particular block.
                         blockInfo->set_data_attached(false);
-                        LOG_DEBUG("GetBlocks: Chunk is missing, block %d is not cached", blockIndex);
+                        LOG_DEBUG("Chunk is missing, block %d is not cached", blockIndex);
                     } else {
                         // Something went wrong while fetching the block.
                         // The most probable cause is that a non-existing block was requested.
@@ -524,7 +525,8 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PrecacheChunk)
 {
     auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
+    context->SetRequestInfo("ChunkId: %s",
+        ~ToString(chunkId));
 
     Bootstrap
         ->GetChunkCache()
@@ -570,24 +572,26 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
     for (const auto& sampleRequest : request->sample_requests()) {
-        auto* chunkSamples = response->add_samples();
+        auto* sampleResponse = response->add_sample_responses();
         auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
-            LOG_WARNING("GetTableSamples: No such chunk %s\n",
+            auto error = TError("No such chunk %s",
                 ~ToString(chunkId));
-            ToProto(chunkSamples->mutable_error(), TError("No such chunk"));
-        } else {
-            awaiter->Await(
-                chunk->GetMeta(context->GetPriority()),
-                BIND(
-                    &TDataNodeService::ProcessSample,
-                    MakeStrong(this),
-                    &sampleRequest,
-                    chunkSamples,
-                    keyColumns));
+            LOG_WARNING(error);
+            ToProto(sampleResponse->mutable_error(), error);
+            continue;
         }
+
+        awaiter->Await(
+            chunk->GetMeta(context->GetPriority()),
+            BIND(
+                &TDataNodeService::ProcessSample,
+                MakeStrong(this),
+                &sampleRequest,
+                sampleResponse,
+                keyColumns));
     }
 
     awaiter->Complete(BIND([=] () {
@@ -597,44 +601,48 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
 
 void TDataNodeService::ProcessSample(
     const TReqGetTableSamples::TSampleRequest* sampleRequest,
-    TRspGetTableSamples::TChunkSamples* chunkSamples,
+    TRspGetTableSamples::TChunkSamples* sampleResponse,
     const TKeyColumns& keyColumns,
     TChunk::TGetMetaResult result)
 {
     auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 
     if (!result.IsOK()) {
-        LOG_WARNING(result, "GetTableSamples: Error getting meta of chunk %s",
-            ~ToString(chunkId));
-        ToProto(chunkSamples->mutable_error(), result);
+        auto error = TError("Error getting meta of chunk %s",
+            ~ToString(chunkId))
+            << result;
+        LOG_WARNING(error);
+        ToProto(sampleResponse->mutable_error(), error);
         return;
     }
 
     const auto& chunkMeta = *result.Value();
     if (chunkMeta.type() != EChunkType::Table) {
-        auto error = TError("Invalid chunk type: actual: %s, expected: %s",
-            ~FormatEnum(EChunkType(chunkMeta.type())).Quote(),
-            ~FormatEnum(EChunkType(EChunkType::Table)).Quote());
-        LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
-            ~ToString(chunkId));
-        ToProto(chunkSamples->mutable_error(), error);
+        auto error = TError("Invalid type of chunk %s: expected %s, actual %s",
+            ~ToString(chunkId),
+            ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
+            ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
+        LOG_WARNING(error);
+        ToProto(sampleResponse->mutable_error(), error);
         return;
     }
 
     switch (chunkMeta.version()) {
         case ETableChunkFormat::Old:
-            ProcessOldChunkSamples(sampleRequest, chunkSamples, keyColumns, chunkMeta);
+            ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
             break;
 
         case ETableChunkFormat::SimpleVersioned:
-            ProcessVersionedChunkSamples(sampleRequest, chunkSamples, keyColumns, chunkMeta);
+            ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
             break;
 
         default:
-            auto error = TError("Invalid chunk version %d", chunkMeta.version());
-            LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
+            auto error = TError("Invalid version %d of chunk %s",
+                chunkMeta.version(),
                 ~ToString(chunkId));
-            ToProto(chunkSamples->mutable_error(), error);
+            LOG_WARNING(error);
+            ToProto(sampleResponse->mutable_error(), error);
+            break;
     }
 }
 
@@ -644,8 +652,8 @@ void TDataNodeService::ProcessOldChunkSamples(
     const TKeyColumns& keyColumns,
     const TChunkMeta& chunkMeta)
 {
-    auto samplesExt = GetProtoExtension<NTableClient::NProto::TOldSamplesExt>(chunkMeta.extensions());
-    std::vector<NTableClient::NProto::TSample> samples;
+    auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
+    std::vector<TSample> samples;
     RandomSampleN(
         samplesExt.items().begin(),
         samplesExt.items().end(),
@@ -654,7 +662,7 @@ void TDataNodeService::ProcessOldChunkSamples(
 
     for (const auto& sample : samples) {
         TUnversionedRowBuilder rowBuilder;
-        auto* key = chunkSamples->add_items();
+        auto* key = chunkSamples->add_keys();
         size_t size = 0;
         for (const auto& column : keyColumns) {
             if (size >= MaxKeySize)
@@ -664,7 +672,7 @@ void TDataNodeService::ProcessOldChunkSamples(
                 sample.parts().begin(),
                 sample.parts().end(),
                 column,
-                [] (const NTableClient::NProto::TSamplePart& part, const Stroka& column) {
+                [] (const TSamplePart& part, const Stroka& column) {
                     return part.column() < column;
                 });
 
@@ -706,20 +714,20 @@ void TDataNodeService::ProcessVersionedChunkSamples(
 {
     auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 
-    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(chunkMeta.extensions());
+    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
     auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
 
     if (chunkKeyColumns != keyColumns) {
-        auto error = TError("Key columns mismatch (Actual: [%s], Expected: [%s])", 
-                ~JoinToString(chunkKeyColumns),
-                ~JoinToString(keyColumns));
-        LOG_WARNING(error, "GetTableSamples: Failed to get samples for chunk %s",
-            ~ToString(chunkId));
+        auto error = TError("Key columns mismatch in chunk %s: expected [%s], actual [%s]",
+            ~ToString(chunkId),
+            ~JoinToString(keyColumns),
+            ~JoinToString(chunkKeyColumns));
+        LOG_WARNING(error);
         ToProto(chunkSamples->mutable_error(), error);
         return;
     }
 
-    auto samplesExt = GetProtoExtension<NVersionedTableClient::NProto::TSamplesExt>(chunkMeta.extensions());
+    auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
     std::vector<Stroka> samples;
     RandomSampleN(
         samplesExt.entries().begin(),
@@ -727,7 +735,7 @@ void TDataNodeService::ProcessVersionedChunkSamples(
         std::back_inserter(samples),
         sampleRequest->sample_count());
 
-    ToProto(chunkSamples->mutable_items(), samples);
+    ToProto(chunkSamples->mutable_keys(), samples);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
@@ -746,7 +754,8 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
-            auto error = TError("No such chunk %s", ~ToString(chunkId));
+            auto error = TError("No such chunk %s",
+                ~ToString(chunkId));
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
         } else {
@@ -777,8 +786,10 @@ void TDataNodeService::MakeChunkSplits(
     auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
     if (!result.IsOK()) {
-        auto error = TError("Error getting chunk meta") << result;
-        LOG_WARNING(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
+        auto error = TError("Error getting meta of chunk %s",
+            ~ToString(chunkId))
+            << result;
+        LOG_WARNING(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
@@ -786,9 +797,11 @@ void TDataNodeService::MakeChunkSplits(
     const auto& chunkMeta = *result.Value();
 
     if (chunkMeta.type() != EChunkType::Table) {
-        auto error =  TError("Invalid chunk type: expected: \"table\", actual %s",
+        auto error =  TError("Invalid type of chunk %s: expected %s, actual %s",
+            ~ToString(chunkId),
+            ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
             ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
-        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
+        LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
@@ -796,27 +809,30 @@ void TDataNodeService::MakeChunkSplits(
     // XXX(psushin): implement splitting for new chunks.
     if (chunkMeta.version() != 1) {
         // Only old chunks support splitting now.
-        auto error = TError("Invalid chunk version: expected: 1, actual %d",
+        auto error = TError("Invalid version of chunk %s: expected: 1, actual %d",
+            ~ToString(chunkId),
             chunkMeta.version());
-        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
+        LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
     auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     if (!miscExt.sorted()) {
-        auto error =  TError("Chunk is unsorted");
-        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
+        auto error =  TError("Chunk %s is not sorted",
+            ~ToString(chunkId));
+        LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
-    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(chunkMeta.extensions());
+    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
     if (keyColumnsExt.names_size() < keyColumns.size()) {
-        auto error = TError("Not enough key columns: expected %d, actual %d",
+        auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d",
+            ~ToString(chunkId),
             static_cast<int>(keyColumns.size()),
             static_cast<int>(keyColumnsExt.names_size()));
-        LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
+        LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
@@ -824,34 +840,34 @@ void TDataNodeService::MakeChunkSplits(
     for (int i = 0; i < keyColumns.size(); ++i) {
         const auto& value = keyColumnsExt.names(i);
         if (keyColumns[i] != value) {
-            auto error = TError("Invalid key column: expected %s, actual %s",
+            auto error = TError("Invalid key column in chunk %s: expected %s, actual %s",
+                ~ToString(chunkId),
                 ~keyColumns[i].Quote(),
                 ~value.Quote());
-            LOG_ERROR(error, "GetChunkSplits: Failed to split chunk %s", ~ToString(chunkId));
+            LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
         }
     }
 
-    auto indexExt = GetProtoExtension<NTableClient::NProto::TIndexExt>(chunkMeta.extensions());
+    auto indexExt = GetProtoExtension<TIndexExt>(chunkMeta.extensions());
     if (indexExt.items_size() == 1) {
         // Only one index entry available - no need to split.
         splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
         return;
     }
 
-    auto back = --indexExt.items().end();
+    auto backIt = --indexExt.items().end();
     auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
-        float(back->row_index()) /
+        static_cast<double>(backIt->row_index()) /
         miscExt.row_count() *
         miscExt.uncompressed_data_size() /
         indexExt.items_size()));
 
     using NChunkClient::TReadLimit;
-    using NVersionedTableClient::TOwningKey;
     auto comparer = [&] (
         const TReadLimit& limit,
-        const NTableClient::NProto::TIndexRow& indexRow,
+        const TIndexRow& indexRow,
         bool isStartLimit) -> int
     {
         if (!limit.HasRowIndex() && !limit.HasKey()) {
@@ -882,9 +898,7 @@ void TDataNodeService::MakeChunkSplits(
         indexExt.items().begin(),
         indexExt.items().end(),
         TReadLimit(chunkSpec->upper_limit()),
-        [&] (const NTableClient::NProto::TIndexRow& indexRow,
-             const TReadLimit& limit)
-        {
+        [&] (const TIndexRow& indexRow, const TReadLimit& limit) {
             return comparer(limit, indexRow, true) > 0;
         });
 
@@ -892,14 +906,12 @@ void TDataNodeService::MakeChunkSplits(
         beginIt,
         indexExt.items().end(),
         TReadLimit(chunkSpec->lower_limit()),
-        [&] (const TReadLimit& limit,
-             const NTableClient::NProto::TIndexRow& indexRow)
-        {
+        [&] (const TReadLimit& limit, const TIndexRow& indexRow) {
             return comparer(limit, indexRow, false) < 0;
         });
 
     TChunkSpec* currentSplit;
-    NTableClient::NProto::TOldBoundaryKeysExt boundaryKeysExt;
+    TOldBoundaryKeysExt boundaryKeysExt;
     i64 endRowIndex = beginIt->row_index();
     i64 startRowIndex;
     i64 dataSize;
@@ -907,7 +919,7 @@ void TDataNodeService::MakeChunkSplits(
     auto createNewSplit = [&] () {
         currentSplit = splittedChunk->add_chunk_specs();
         currentSplit->CopyFrom(*chunkSpec);
-        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TOldBoundaryKeysExt>(currentSplit->chunk_meta().extensions());
+        boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(currentSplit->chunk_meta().extensions());
         startRowIndex = endRowIndex;
         dataSize = 0;
     };

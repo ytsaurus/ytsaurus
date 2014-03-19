@@ -118,7 +118,7 @@ void TFetcherBase::StartFetchingRound()
 
 }
 
-IChannelPtr TFetcherBase::GetNodeChannel(const NNodeTrackerClient::TNodeId& nodeId)
+IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
     auto channel = LightNodeChannelFactory->CreateChannel(descriptor.Address);

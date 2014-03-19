@@ -37,13 +37,14 @@ private:
     //! All samples fetched so far.
     std::vector<NChunkClient::TRefCountedChunkSpecPtr> ChunkSplits_;
 
+
     virtual TFuture<void> FetchFromNode(
-        const NNodeTrackerClient::TNodeId& nodeId,
-        std::vector<int>&& chunkIndexes) override;
+        NNodeTrackerClient::TNodeId nodeId,
+        std::vector<int> chunkIndexes) override;
 
     void DoFetchFromNode(
-        const NNodeTrackerClient::TNodeId& nodeId,
-        const std::vector<int>& chunkIndexes);
+        NNodeTrackerClient::TNodeId nodeId,
+        std::vector<int> chunkIndexes);
 
 };
 

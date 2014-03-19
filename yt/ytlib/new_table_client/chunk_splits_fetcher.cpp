@@ -61,14 +61,14 @@ const std::vector<TRefCountedChunkSpecPtr>& TChunkSplitsFetcher::GetChunkSplits(
     return ChunkSplits_;
 }
 
-TFuture<void> TChunkSplitsFetcher::FetchFromNode(const TNodeId& nodeId, std::vector<int>&& chunkIndexes)
+TFuture<void> TChunkSplitsFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
-    return BIND(&TChunkSplitsFetcher::DoFetchFromNode, MakeWeak(this), nodeId, std::move(chunkIndexes))
+    return BIND(&TChunkSplitsFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-void TChunkSplitsFetcher::DoFetchFromNode(const TNodeId& nodeId, const std::vector<int>& chunkIndexes)
+void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int> chunkIndexes)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);

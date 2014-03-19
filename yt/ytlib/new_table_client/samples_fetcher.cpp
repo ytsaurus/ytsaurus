@@ -75,14 +75,14 @@ const std::vector<TOwningKey>& TSamplesFetcher::GetSamples() const
     return Samples_;
 }
 
-TFuture<void> TSamplesFetcher::FetchFromNode(const TNodeId& nodeId, std::vector<int>&& chunkIndexes)
+TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
-    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, std::move(chunkIndexes))
+    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-void TSamplesFetcher::DoFetchFromNode(const TNodeId& nodeId, const std::vector<int>& chunkIndexes)
+void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -120,30 +120,28 @@ void TSamplesFetcher::DoFetchFromNode(const TNodeId& nodeId, const std::vector<i
 
     auto rsp = WaitFor(req->Invoke());
 
-    if (rsp->IsOK()) {
-        for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
-            const auto& chunkSamples = rsp->samples(i);
-            if (chunkSamples.has_error()) {
-                OnChunkFailed(requestedChunkIndexes[i], nodeId);
-                continue;
-            }
-
-            LOG_TRACE("Received %d samples for chunk #%d",
-                chunkSamples.items_size(),
-                requestedChunkIndexes[i]);
-
-            for (const auto& sample : chunkSamples.items()) {
-                TOwningKey key;
-                FromProto(&key, sample);
-                Samples_.push_back(key);
-            }
-        }
-    } else {
+    if (!rsp->IsOK()) {
         LOG_WARNING("Failed to get samples from node (Address: %s, NodeId: %d)",
             ~NodeDirectory_->GetDescriptor(nodeId).Address,
             nodeId);
-
         OnNodeFailed(nodeId, requestedChunkIndexes);
+        return;
+    }
+
+    for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
+        const auto& sampleResponse = rsp->sample_responses(index);
+        if (sampleResponse.has_error()) {
+            OnChunkFailed(requestedChunkIndexes[index], nodeId);
+            continue;
+        }
+
+        LOG_TRACE("Received %d samples for chunk #%d",
+            sampleResponse.keys_size(),
+            requestedChunkIndexes[index]);
+
+        for (const auto& sample : sampleResponse.keys()) {
+            Samples_.push_back(NYT::FromProto<TOwningKey>(sample));
+        }
     }
 }
 

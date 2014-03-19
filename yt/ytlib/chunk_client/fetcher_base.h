@@ -40,15 +40,19 @@ protected:
 
 
     virtual TFuture<void> FetchFromNode(
-        const NNodeTrackerClient::TNodeId& nodeId,
-        std::vector<int>&& chunkIndexes) = 0;
+        NNodeTrackerClient::TNodeId nodeId,
+        std::vector<int> chunkIndexes) = 0;
 
-    NRpc::IChannelPtr GetNodeChannel(const NNodeTrackerClient::TNodeId& nodeId);
+    NRpc::IChannelPtr GetNodeChannel(NNodeTrackerClient::TNodeId nodeId);
 
     void StartFetchingRound();
 
-    void OnChunkFailed(NNodeTrackerClient::TNodeId nodeId, int chunkIndex);
-    void OnNodeFailed(NNodeTrackerClient::TNodeId nodeId, const std::vector<int>& chunkIndexes);
+    void OnChunkFailed(
+        NNodeTrackerClient::TNodeId nodeId,
+        int chunkIndex);
+    void OnNodeFailed(
+        NNodeTrackerClient::TNodeId nodeId,
+        const std::vector<int>& chunkIndexes);
 
 private:
     //! Indexes of chunks for which no info is fetched yet.
