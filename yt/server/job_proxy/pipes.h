@@ -5,6 +5,8 @@
 #include <ytlib/table_client/public.h>
 
 #include <ytlib/pipes/public.h>
+#include <ytlib/pipes/async_reader.h>
+#include <ytlib/pipes/async_writer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -94,7 +96,7 @@ private:
     bool IsClosed;
     TBlob Buffer;
 
-    NPipes::THolder<NPipes::TAsyncReader> Reader;
+    NPipes::TAsyncReader Reader;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -136,7 +138,7 @@ private:
     bool HasData;
     bool IsFinished;
 
-    NPipes::THolder<NPipes::TAsyncWriter> Writer;
+    NPipes::TAsyncWriter Writer;
 };
 
 ////////////////////////////////////////////////////////////////////

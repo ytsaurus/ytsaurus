@@ -7,10 +7,6 @@
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
 
-#include <ytlib/pipes/async_reader.h>
-#include <ytlib/pipes/async_writer.h>
-#include <ytlib/pipes/io_dispatcher.h>
-
 #include <core/misc/proc.h>
 #include <core/concurrency/fiber.h>
 
@@ -235,7 +231,7 @@ TError TOutputPipe::ReadAll()
     while (!isClosed)
     {
         TBlob data;
-        std::tie(data, isClosed) = Reader->Read(std::move(buffer));
+        std::tie(data, isClosed) = Reader.Read(std::move(buffer));
 
         if (data.Size() > 0) {
             try {
@@ -246,7 +242,7 @@ TError TOutputPipe::ReadAll()
             }
         } else {
             if (!isClosed) {
-                auto error = WaitFor(Reader->GetReadyEvent());
+                auto error = WaitFor(Reader.GetReadyEvent());
                 RETURN_IF_ERROR(error);
             }
         }
@@ -257,7 +253,7 @@ TError TOutputPipe::ReadAll()
 
 TError TOutputPipe::Close()
 {
-    return Reader->Abort();
+    return Reader.Abort();
 }
 
 void TOutputPipe::Finish()
@@ -321,23 +317,23 @@ TError TInputPipe::WriteAll()
 {
     while (HasData) {
         HasData = TableProducer->ProduceRow();
-        bool enough = Writer->Write(Buffer->Begin(), Buffer->Size());
+        bool enough = Writer.Write(Buffer->Begin(), Buffer->Size());
         Buffer->Clear();
 
         if (enough) {
-            auto error = WaitFor(Writer->GetReadyEvent());
+            auto error = WaitFor(Writer.GetReadyEvent());
             RETURN_IF_ERROR(error);
         }
     }
     {
-        auto error = WaitFor(Writer->AsyncClose());
+        auto error = WaitFor(Writer.AsyncClose());
         return error;
     }
 }
 
 TError TInputPipe::Close()
 {
-    return WaitFor(Writer->AsyncClose());
+    return WaitFor(Writer.AsyncClose());
 }
 
 void TInputPipe::Finish()

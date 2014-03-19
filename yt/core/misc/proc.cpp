@@ -122,6 +122,7 @@ i64 GetUserRss(int uid)
 // The caller must be sure that it has root privileges.
 void RunKiller(int uid)
 {
+    LOG_INFO("Kill %d processes", uid);
     YCHECK(uid > 0);
 
     TProcess process(~GetExecPath());
@@ -178,6 +179,8 @@ void KillallByUid(int uid)
 
 void RunCleaner(const Stroka& path)
 {
+    LOG_INFO("Clean %s", ~path);
+
     TProcess process(~GetExecPath());
     process.AddArgument("--cleaner");
     process.AddArgument("--dir-to-remove");

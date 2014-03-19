@@ -1,23 +1,29 @@
 #include "stdafx.h"
+
 #include "process.h"
 #include "proc.h"
 
 #include <core/misc/error.h>
 
 #include <string.h>
-#include <errno.h>
 
 #ifndef _win_
-    #include <unistd.h>
-    #include <sys/wait.h>
+  #include <unistd.h>
+  #include <errno.h>
+  #include <sys/wait.h>
+#endif
+
+#ifdef _darwin_
+  #include <crt_externs.h>
+  #define environ (*_NSGetEnviron())
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const size_t StackSize = 4096;
 static const int BaseExitCode = 127;
-
 static const int ExecErrorCodes[] = {
     E2BIG,
     EACCES,
@@ -41,11 +47,10 @@ static const int ExecErrorCodes[] = {
     0
 };
 
-static const size_t StackSize = 4096;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): Replace with NFS::GetFileName.
+
 const char* GetFilename(const char* path)
 {
     const char* name = strrchr(path, '/');
@@ -122,8 +127,9 @@ TError TProcess::Spawn()
 
     // copy env
     char** iterator = environ;
+
     while (*iterator) {
-        const char* const item = *iterator;
+        const char* const item = (*iterator);
         Env_.push_back(Copy(item));
 
         ++iterator;
@@ -131,13 +137,21 @@ TError TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
+#ifdef _linux_
     int pid = ::clone(
         &TProcess::ChildMain,
         Stack_.data() + Stack_.size(),
         CLONE_VM|SIGCHLD,
         this);
+#else
+    int pid = vfork();
+    if (pid == 0) {
+        DoSpawn();
+    }
+#endif
 
     ::close(Pipe_[1]);
+    Pipe_[1] = -1;
 
     if (pid < 0) {
         return TError("Error starting child process: clone failed")
@@ -150,13 +164,16 @@ TError TProcess::Spawn()
 #endif
 }
 
+
 TError TProcess::Wait()
 {
 #ifdef _win_
     return TError("Windows is not supported");
 #else
+
     YCHECK(ProcessId_ != -1);
     YCHECK(Pipe_[0] != -1);
+    YCHECK(Pipe_[1] == -1);
 
     {
         int errCode;
@@ -188,7 +205,7 @@ TError TProcess::Wait()
 
 const char* TProcess::GetPath() const
 {
-    return &Path_.front();
+    return Path_.data();
 }
 
 int TProcess::GetProcessId() const
