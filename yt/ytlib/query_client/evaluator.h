@@ -7,12 +7,12 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCodegenController
-    : public NNonCopyable::TNonCopyable
+class TEvaluator
 {
 public:
-    TCodegenController();
-    ~TCodegenController();
+    TEvaluator();
+
+    ~TEvaluator();
 
     TError Run(
         IEvaluateCallbacks* callbacks,

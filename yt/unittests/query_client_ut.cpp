@@ -11,7 +11,7 @@
 #include <ytlib/query_client/helpers.h>
 
 #include <ytlib/query_client/coordinate_controller.h>
-#include <ytlib/query_client/codegen_controller.h>
+#include <ytlib/query_client/evaluator.h>
 #include <ytlib/query_client/plan_node.h>
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/plan_visitor.h>
@@ -1224,7 +1224,7 @@ TUnversionedOwningRow BuildRow(
     return rowBuilder.GetRowAndReset();
 }
 
-class TQueryCodegenTest
+class TQueryEvaluateTest
     : public ::testing::Test
 {
 protected:
@@ -1244,12 +1244,12 @@ protected:
         ActionQueue_->Shutdown();
     }
 
-    void CodegenAndEvaluate(
+    void Evaluate(
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult)
     {
-        auto result = BIND(&TQueryCodegenTest::DoCodegenAndEvaluate, this)
+        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .Guarded()
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
@@ -1260,7 +1260,7 @@ protected:
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    void DoCodegenAndEvaluate(
+    void DoEvaluate(
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult)
@@ -1302,8 +1302,8 @@ protected:
                 .WillOnce(Return(WrapVoidInFuture()));
         }
 
-        TCodegenController controller;
-        auto error = controller.Run(
+        TEvaluator evaluator;
+        auto error = evaluator.Run(
             &EvaluateMock_,
             TPlanFragment::Prepare(query, NullTimestamp, &PrepareMock_),
             WriterMock_);
@@ -1318,7 +1318,7 @@ protected:
 
 };
 
-TEST_F(TQueryCodegenTest, Simple)
+TEST_F(TQueryEvaluateTest, Simple)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1334,12 +1334,12 @@ TEST_F(TQueryCodegenTest, Simple)
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    CodegenAndEvaluate("a, b FROM [//t]", source, result);
+    Evaluate("a, b FROM [//t]", source, result);
 
     SUCCEED();
 }
 
-TEST_F(TQueryCodegenTest, SimpleBetweenAnd)
+TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1355,12 +1355,12 @@ TEST_F(TQueryCodegenTest, SimpleBetweenAnd)
     std::vector<TUnversionedOwningRow> result;
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    CodegenAndEvaluate("a, b FROM [//t] where a between 9 and 11", source, result);
+    Evaluate("a, b FROM [//t] where a between 9 and 11", source, result);
 
     SUCCEED();
 }
 
-TEST_F(TQueryCodegenTest, SimpleIn)
+TEST_F(TQueryEvaluateTest, SimpleIn)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1377,12 +1377,12 @@ TEST_F(TQueryCodegenTest, SimpleIn)
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    CodegenAndEvaluate("a, b FROM [//t] where a in (4, 10)", source, result);
+    Evaluate("a, b FROM [//t] where a in (4, 10)", source, result);
 
     SUCCEED();
 }
 
-TEST_F(TQueryCodegenTest, SimpleWithNull)
+TEST_F(TQueryEvaluateTest, SimpleWithNull)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1400,12 +1400,12 @@ TEST_F(TQueryCodegenTest, SimpleWithNull)
     result.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
     result.push_back(BuildRow("a=16", simpleSplit, true));
 
-    CodegenAndEvaluate("a, b, c FROM [//t] where a > 3", source, result);
+    Evaluate("a, b, c FROM [//t] where a > 3", source, result);
 
     SUCCEED();
 }
 
-TEST_F(TQueryCodegenTest, SimpleWithNull2)
+TEST_F(TQueryEvaluateTest, SimpleWithNull2)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1432,12 +1432,12 @@ TEST_F(TQueryCodegenTest, SimpleWithNull2)
     result.push_back(BuildRow("a=5;", resultSplit, true));
     result.push_back(BuildRow("a=7;", resultSplit, true));
 
-    CodegenAndEvaluate("a, b + c as x FROM [//t] where a < 10", source, result);
+    Evaluate("a, b + c as x FROM [//t] where a < 10", source, result);
 
     SUCCEED();
 }
 
-TEST_F(TQueryCodegenTest, Complex)
+TEST_F(TQueryEvaluateTest, Complex)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1466,12 +1466,12 @@ TEST_F(TQueryCodegenTest, Complex)
     result.push_back(BuildRow("x=0;t=200", simpleSplit, false));
     result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
 
-    CodegenAndEvaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result);
 
     SUCCEED();
 }
 
-TEST_F(TQueryCodegenTest, ComplexWithNull)
+TEST_F(TQueryEvaluateTest, ComplexWithNull)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1511,7 +1511,7 @@ TEST_F(TQueryCodegenTest, ComplexWithNull)
     result.push_back(BuildRow("x=0;t=200;y=200", resultSplit, true));
     result.push_back(BuildRow("y=6", resultSplit, true));
 
-    CodegenAndEvaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", source, result);
+    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", source, result);
 
     SUCCEED();
 }

@@ -4,7 +4,7 @@
 #include "private.h"
 
 #include "coordinate_controller.h"
-#include "codegen_controller.h"
+#include "evaluator.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -38,7 +38,7 @@ public:
 #ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
         return BIND([this, this_, fragment, writer] () -> TError {
-                return CodegenController_.Run(Callbacks_, fragment, std::move(writer));
+                return Evaluator_.Run(Callbacks_, fragment, std::move(writer));
             })
             .AsyncVia(Invoker_)
             .Run();
@@ -51,7 +51,7 @@ private:
     IInvokerPtr Invoker_;
     IEvaluateCallbacks* Callbacks_;
 #ifdef YT_USE_LLVM
-    TCodegenController CodegenController_;
+    TEvaluator Evaluator_;
 #endif
 
 };
@@ -79,7 +79,7 @@ public:
                 auto error = coordinator.Run();
                 RETURN_IF_ERROR(error);
 
-                return CodegenController_.Run(
+                return Evaluator_.Run(
                     &coordinator,
                     coordinator.GetCoordinatorFragment(),
                     std::move(writer));
@@ -95,7 +95,7 @@ private:
     IInvokerPtr Invoker_;
     ICoordinateCallbacks* Callbacks_;
 #ifdef YT_USE_LLVM
-    TCodegenController CodegenController_;
+    TEvaluator Evaluator_;
 #endif
 
 };

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "codegen_controller.h"
+#include "evaluator.h"
 
 #include "private.h"
 #include "helpers.h"
@@ -994,7 +994,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCodegenController::TImpl
+class TEvaluator::TImpl
     : public NNonCopyable::TNonCopyable
 {
 public:
@@ -1107,14 +1107,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCodegenController::TCodegenController()
-    : Impl_(std::make_unique<TCodegenController::TImpl>())
+TEvaluator::TEvaluator()
+    : Impl_(std::make_unique<TEvaluator::TImpl>())
 { }
 
-TCodegenController::~TCodegenController()
+TEvaluator::~TEvaluator()
 { }
 
-TError TCodegenController::Run(
+TError TEvaluator::Run(
     IEvaluateCallbacks* callbacks,
     const TPlanFragment& fragment,
     ISchemafulWriterPtr writer)

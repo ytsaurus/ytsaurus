@@ -41,7 +41,7 @@ set( HDRS
 if (YT_BUILD_ENABLE_LLVM)
   set( SRCS
     ${SRCS}
-    ${BASE}/codegen_controller.cpp
+    ${BASE}/evaluator.cpp
     ${BASE}/cg_routine_registry.cpp
     ${BASE}/cg_routines.cpp
     ${BASE}/cg_cache.cpp
@@ -51,7 +51,7 @@ if (YT_BUILD_ENABLE_LLVM)
 
   set( HDRS
     ${HDRS}
-    ${BASE}/codegen_controller.h
+    ${BASE}/evaluator.h
     ${BASE}/cg_types.h
     ${BASE}/cg_routine_registry.h
     ${BASE}/cg_routines.h
