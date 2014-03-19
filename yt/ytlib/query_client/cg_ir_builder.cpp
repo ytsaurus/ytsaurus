@@ -66,8 +66,8 @@ Value* TContextIRBuilder::ViaClosure(Value* value, llvm::Twine name)
     Value* valueInParent = Parent_->ViaClosure(value, name);
 
     // Check if we have already captured this value.
-    auto insertResult = Parent_->Mapping_.insert(
-        std::make_pair(valueInParent, Parent_->Mapping_.size()));
+    auto insertResult = Mapping_.insert(
+        std::make_pair(valueInParent, Mapping_.size()));
     auto indexInClosure = insertResult.first->second;
     YCHECK(indexInClosure < MaxClosureSize);
 
