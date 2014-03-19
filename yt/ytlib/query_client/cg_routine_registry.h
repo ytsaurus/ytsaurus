@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include "cg_types.h"
 
 namespace NYT {
