@@ -27,6 +27,7 @@ private:
     int Status_;
     int ProcessId_;
     int Pipe_[2];
+    int ChildPipe_[2];
     std::vector<char> Path_;
     std::vector<std::vector<char>> Holder_;
     std::vector<char* > Args_;

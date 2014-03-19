@@ -57,6 +57,7 @@ TProcess::TProcess(const Stroka& path)
     , Stack_(StackSize, 0)
 {
     Pipe_[0] = Pipe_[1] = -1;
+    ChildPipe_[0] = ChildPipe_[1] = -1;
 
     Path_.insert(Path_.end(), path.begin(), path.end());
     Path_.push_back(0);
@@ -121,6 +122,10 @@ TError TProcess::Spawn()
     }
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
+
+    for (int index = 0; index < 2; ++index) {
+        ChildPipe_[index] = Pipe_[index];
+    }
 
 #ifdef _linux_
     int pid = ::clone(
@@ -213,7 +218,9 @@ int TProcess::ChildMain(void* this_)
 
 int TProcess::DoSpawn()
 {
-    ::close(Pipe_[0]);
+    YASSERT(ChildPipe_[1] != -1);
+
+    ::close(ChildPipe_[0]);
     ::execve(Path_.data(), Args_.data(), Env_.data());
 
     const int errorCode = errno;
@@ -222,7 +229,7 @@ int TProcess::DoSpawn()
         ++i;
     }
 
-    while (::write(Pipe_[1], &errorCode, sizeof(int)) < 0);
+    while (::write(ChildPipe_[1], &errorCode, sizeof(int)) < 0);
 
     // TODO(babenko): why "minus"? who needs this exit code, anyway?
     _exit(BaseExitCode - i);
