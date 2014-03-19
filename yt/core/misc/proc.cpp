@@ -125,11 +125,6 @@ void RunKiller(int uid)
     LOG_INFO("Kill %d processes", uid);
     YCHECK(uid > 0);
 
-    TProcess process(~GetExecPath());
-    process.AddArgument("--killer");
-    process.AddArgument("--uid");
-    process.AddArgument(~ToString(uid));
-
     auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
             "Failed to kill processes owned by %d.",
@@ -137,6 +132,11 @@ void RunKiller(int uid)
     };
 
     while (true) {
+        TProcess process(~GetExecPath());
+        process.AddArgument("--killer");
+        process.AddArgument("--uid");
+        process.AddArgument(~ToString(uid));
+
         auto pids = GetPidsByUid(uid);
         if (pids.empty())
             return;
