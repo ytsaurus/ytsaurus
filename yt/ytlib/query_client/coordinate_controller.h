@@ -41,6 +41,7 @@ public:
 private:
     std::vector<const TOperator*> Scatter(const TOperator* op);
     const TOperator* Gather(const std::vector<const TOperator*>& ops);
+
     const TOperator* Simplify(const TOperator*);
 
     TDataSplits Split(const TDataSplits& splits);

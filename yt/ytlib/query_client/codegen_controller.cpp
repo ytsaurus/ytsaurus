@@ -681,7 +681,7 @@ void TCGContext::CodegenScanOp(
     const TScanOperator* op,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto module = builder.GetModule();
+    auto module = builder.GetInsertBlock()->getParent()->getParent();
 
     // See ScanOpHelper.
     Function* function = Function::Create(
@@ -804,7 +804,7 @@ void TCGContext::CodegenGroupOp(
     const TGroupOperator* op,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto module = builder.GetModule();
+    auto module = builder.GetInsertBlock()->getParent()->getParent();
 
     // See GroupOpHelper.
     Function* function = Function::Create(

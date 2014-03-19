@@ -111,11 +111,6 @@ llvm::Value* TContextIRBuilder::GetClosure() const
     return Closure_;
 }
 
-llvm::Module* TContextIRBuilder::GetModule() const
-{
-    return GetInsertBlock()->getParent()->getParent();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

@@ -68,9 +68,6 @@ public:
     //! Returns the closure in the parent context.
     llvm::Value* GetClosure() const;
 
-    //! Returns module that holds current insertion point.
-    llvm::Module* GetModule() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
