@@ -111,23 +111,23 @@ void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns)
 void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound)
 {
     if (lowerBound == MinKey()) {
-        dataSplit->clear_upper_limit();
+        dataSplit->clear_lower_limit();
         return;
     }
     TReadLimit readLimit;
     readLimit.SetKey(lowerBound);
-    ToProto(dataSplit->mutable_upper_limit(), readLimit);
+    ToProto(dataSplit->mutable_lower_limit(), readLimit);
 }
 
 void SetUpperBound(TDataSplit* dataSplit, const TKey& upperBound)
 {
     if (upperBound == MaxKey()) {
-        dataSplit->clear_lower_limit();
+        dataSplit->clear_upper_limit();
         return;
     }
     TReadLimit readLimit;
     readLimit.SetKey(upperBound);
-    ToProto(dataSplit->mutable_lower_limit(), readLimit);
+    ToProto(dataSplit->mutable_upper_limit(), readLimit);
 }
 
 void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange)
