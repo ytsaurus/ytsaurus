@@ -9,15 +9,17 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProcess
-    : private TNonCopyable
 {
 public:
     explicit TProcess(const Stroka& path);
     ~TProcess();
 
+    TProcess(const TProcess& other) = delete;
+    TProcess(TProcess&& other) = default;
+
     void AddArgument(const Stroka& arg);
 
-    TError Spawn();
+    TError Spawn(int flags=CLONE_VM);
     TError Wait();
 
     int GetProcessId() const;
