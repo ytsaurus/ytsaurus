@@ -238,6 +238,13 @@ add_custom_target(
   COMMENT "Installing for package 'yandex-yt-http-proxy'..."
 )
 
+add_custom_target(
+  install-debian-yandex-yt-perl
+  ${CMAKE_COMMAND}
+    -DCOMPONENT=perl
+    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  COMMENT "Installing for package 'yandex-yt-perl'..."
+)
 
 if(YT_USE_FOLDERS)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -268,6 +275,7 @@ set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
 
 set_target_properties(install-debian-yandex-yt PROPERTIES FOLDER "Misc")
 set_target_properties(install-debian-yandex-yt-http-proxy PROPERTIES FOLDER "Misc")
+set_target_properties(install-debian-yandex-yt-perl PROPERTIES FOLDER "Misc")
 set_target_properties(package PROPERTIES FOLDER "Misc")
 set_target_properties(version PROPERTIES FOLDER "Misc")
 
