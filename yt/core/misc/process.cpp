@@ -24,29 +24,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t StackSize = 4096;
-static const int BaseExitCode = 127;
-static const int ExecErrorCodes[] = {
-    E2BIG,
-    EACCES,
-    EFAULT,
-    EINVAL,
-    EIO,
-    EISDIR,
-#ifdef _linux_
-    ELIBBAD,
-#endif
-    ELOOP,
-    EMFILE,
-    ENAMETOOLONG,
-    ENFILE,
-    ENOENT,
-    ENOEXEC,
-    ENOMEM,
-    ENOTDIR,
-    EPERM,
-    ETXTBSY,
-    0
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,15 +201,9 @@ int TProcess::DoSpawn()
     ::execve(Path_.data(), Args_.data(), Env_.data());
 
     const int errorCode = errno;
-    int i = 0;
-    while ((ExecErrorCodes[i] != errorCode) && (ExecErrorCodes[i] != 0)) {
-        ++i;
-    }
-
     while (::write(ChildPipe_[1], &errorCode, sizeof(int)) < 0);
 
-    // TODO(babenko): why "minus"? who needs this exit code, anyway?
-    _exit(BaseExitCode - i);
+    _exit(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
