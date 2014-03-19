@@ -263,7 +263,7 @@ void TChunkReader::DoOpen()
 
 bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
 {
-    YCHECK(rows->empty());
+    rows->clear();
 
     if (!State.IsActive()) {
         const auto& error = State.GetCurrentError();
@@ -380,6 +380,11 @@ TAsyncError TTableChunkReaderAdapter::Open(const TTableSchema& schema)
 bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
 {
     YCHECK(rows->capacity() > 0);
+
+    if (!UnderlyingReader_->GetReadyEvent().IsSet()) {
+        return true;
+    }
+
     rows->clear();
 
     std::vector<int> schemaIndexes;
