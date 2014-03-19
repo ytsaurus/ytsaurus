@@ -8,7 +8,8 @@
     #include <linux/futex.h>
     #include <sys/time.h>
 #else
-    #include <util/system/event.h>
+    #include <util/system/mutex.h>
+    #include <util/system/condvar.h>
 #endif
 
 #include <limits>
@@ -97,9 +98,6 @@ public:
     TEventCount()
         : Epoch(0)
         , Waiters(0)
-#ifndef _linux_
-        , Event_()
-#endif
     { }
 
     class TCookie
@@ -140,7 +138,8 @@ private:
     TAtomic Waiters;
 
 #ifndef _linux_
-    Event Event_;
+    TCondVar ConditionVariable_;
+    TMutex Mutex_;
 #endif
 
 };
@@ -160,12 +159,20 @@ inline void TEventCount::DoNotify(int n)
     // The order is important: Epoch is incremented before Waiters is checked.
     // prepareWait() increments Waiters before checking Epoch, so it is
     // impossible to miss a wakeup.
+#ifndef _linux_
+    TGuard<TMutex> guard(Mutex_);
+#endif
+
     AtomicIncrement(Epoch);
     if (AtomicGet(Waiters) != 0) {
 #ifdef _linux_
         NDetail::futex((int*) &Epoch, FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
 #else
-        Event_.Signal();
+        if (n == 1) {
+            ConditionVariable_.Signal();
+        } else {
+            ConditionVariable_.BroadCast();
+        }   
 #endif
     }
 }
@@ -188,11 +195,9 @@ inline void TEventCount::Wait(TCookie key)
         NDetail::futex((int*) &Epoch, FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
     }
 #else
+    TGuard<TMutex> guard(Mutex_);
     if (AtomicGet(Epoch) == key.Epoch) {
-        Event_.Reset();
-        if (AtomicGet(Epoch) == key.Epoch) {
-            YCHECK(Event_.Wait());
-        }
+        ConditionVariable_.WaitI(Mutex_);
     }
 #endif
     AtomicDecrement(Waiters);
