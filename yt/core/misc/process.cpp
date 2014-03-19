@@ -27,6 +27,44 @@ static const size_t StackSize = 4096;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError SafeAtomicCloseExecPipe(int pipefd[2])
+{
+#ifdef _linux_
+    auto result = pipe2(pipefd, O_CLOEXEC);
+    if (result == -1) {
+        return TError("Error creating pipe")
+            << TError::FromSystem();
+    }
+#else
+#ifdef _darwin_
+    {
+        int result = pipe(pipefd);
+        if (result == -1) {
+            return TError("Error creating pipe: pipe creation failed")
+                << TError::FromSystem();
+        }
+    }
+
+    for (int index = 0; index < 2; ++index) {
+        int getResult = ::fcntl(pipefd[index], F_GETFL);
+        if (getResult == -1) {
+            return TError("Error creating pipe: fcntl failed to get descriptor flags")
+                << TError::FromSystem();
+        }
+
+        int setResult = ::fcntl(pipefd[index], F_SETFL, getResult | FD_CLOEXEC);
+        if (setResult == -1) {
+            return TError("Error creating pipe: fcntl failed to set descriptor flags")
+                << TError::FromSystem();
+        }
+    }
+#else
+    return TError("Windows is not supported");
+#endif
+#endif
+    return TError();
+}
+
 TProcess::TProcess(const Stroka& path)
     : Finished_(false)
     , Status_(0)
@@ -66,26 +104,9 @@ TError TProcess::Spawn()
 #else
     YCHECK(ProcessId_ == -1 && !Finished_);
 
-    {
-        int result = pipe(Pipe_);
-        if (result == -1) {
-            return TError("Error spawning child process: pipe creation failed")
-                << TError::FromSystem();
-        }
-    }
-
-    for (int index = 0; index < 2; ++index) {
-        int getResult = ::fcntl(Pipe_[index], F_GETFL);
-        if (getResult == -1) {
-            return TError("Error spawning child process: fcntl failed to get descriptor flags")
-                << TError::FromSystem();
-        }
-
-        int setResult = ::fcntl(Pipe_[index], F_SETFL, getResult | O_CLOEXEC);
-        if (setResult == -1) {
-            return TError("Error spawning child process: fcntl failed to set descriptor flags")
-                << TError::FromSystem();
-        }
+    auto error = SafeAtomicCloseExecPipe(Pipe_);
+    if (!error.IsOK()) {
+        return error;
     }
 
     // copy env
