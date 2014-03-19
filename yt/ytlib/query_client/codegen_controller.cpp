@@ -75,8 +75,6 @@ using llvm::Value;
 
 static auto& Logger = QueryClientLogger;
 
-static TLazyIntrusivePtr<TActionQueue> CodegenQueue(TActionQueue::CreateFactory("Codegen"));
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void InitializeLlvmImpl()
@@ -242,6 +240,11 @@ public:
         return Closure_;
     }
 
+    Module* GetModule() const
+    {
+        return GetInsertBlock()->getParent()->getParent();
+    }
+
 };
 
 typedef TContextIRBuilder TIRBuilder;
@@ -259,7 +262,6 @@ public:
 private:
     TCGFragment& CGFragment_;
     llvm::LLVMContext& Context_;
-    llvm::Module* Module_;
     const TCGImmediates& Params_;
     Value* ConstantsRow_;
     Value* RowBuffers_;
@@ -274,7 +276,6 @@ private:
         Value* passedFragmentParamsPtr)
         : CGFragment_(cgFragment)
         , Context_(CGFragment_.GetContext())
-        , Module_(CGFragment_.GetModule())
         , Params_(params)
         , ConstantsRow_(constantsRow)
         , RowBuffers_(rowBuffers)
@@ -837,12 +838,14 @@ void TCGContext::CodegenScanOp(
     const TScanOperator* op,
     const TCodegenConsumer& codegenConsumer)
 {
+    auto module = builder.GetModule();
+
     // See ScanOpHelper.
     Function* function = Function::Create(
         TypeBuilder<void(void**, TRow*, int), false>::get(Context_),
         Function::ExternalLinkage,
         "ScanOpInner",
-        Module_);
+        module);
 
     auto args = function->arg_begin();
     Value* closure = args;
@@ -937,7 +940,7 @@ void TCGContext::CodegenProjectOp(
                 newRowPtrRef);
 
             Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
-            
+
             for (int index = 0; index < projectionCount; ++index) {
                 const auto& expr = op->GetProjection(index).Expression;
                 const auto& name = op->GetProjection(index).Name;
@@ -962,12 +965,14 @@ void TCGContext::CodegenGroupOp(
     const TGroupOperator* op,
     const TCodegenConsumer& codegenConsumer)
 {
+    auto module = builder.GetModule();
+
     // See GroupOpHelper.
     Function* function = Function::Create(
         TypeBuilder<void(void**, void*, void*), false>::get(Context_),
         Function::ExternalLinkage,
         "GroupOpInner",
-        Module_);
+        module);
 
     auto args = function->arg_begin();
     Value* closure = args;    
