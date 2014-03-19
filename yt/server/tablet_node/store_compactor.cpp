@@ -125,7 +125,7 @@ private:
 
         auto* tablet = eden->GetTablet();
         const auto& config = tablet->GetConfig();
-        if (dataSize <= config->EdenPartitioningDataSize && storeCount <= config->EdenPartitioningStoreCount)
+        if (dataSize <= config->MaxEdenDataSize && storeCount <= config->MaxEdenStoreCount)
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);

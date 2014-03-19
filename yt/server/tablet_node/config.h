@@ -31,8 +31,8 @@ public:
 
     int MaxPartitionCount;
 
-    i64 EdenPartitioningDataSize;
-    int EdenPartitioningStoreCount;
+    i64 MaxEdenDataSize;
+    int MaxEdenStoreCount;
 
     TTableMountConfig()
     {
@@ -60,10 +60,10 @@ public:
             .Default(64)
             .GreaterThan(0);
 
-        RegisterParameter("eden_partitioning_data_size", EdenPartitioningDataSize)
+        RegisterParameter("max_eden_data_size", MaxEdenDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-        RegisterParameter("eden_partitioning_store_count", EdenPartitioningStoreCount)
+        RegisterParameter("max_eden_store_count", MaxEdenStoreCount)
             .Default(8)
             .GreaterThan(0);
 
