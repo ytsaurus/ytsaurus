@@ -235,12 +235,12 @@ public:
             );
     }
 
-    Value* GetClosure() const
+    llvm::Value* GetClosure() const
     {
         return Closure_;
     }
 
-    Module* GetModule() const
+    llvm::Module* GetModule() const
     {
         return GetInsertBlock()->getParent()->getParent();
     }
@@ -261,7 +261,6 @@ public:
 
 private:
     TCGFragment& CGFragment_;
-    llvm::LLVMContext& Context_;
     const TCGImmediates& Params_;
     Value* ConstantsRow_;
     Value* RowBuffers_;
@@ -275,7 +274,6 @@ private:
         Value* rowBuffers,
         Value* passedFragmentParamsPtr)
         : CGFragment_(cgFragment)
-        , Context_(CGFragment_.GetContext())
         , Params_(params)
         , ConstantsRow_(constantsRow)
         , RowBuffers_(rowBuffers)
@@ -671,9 +669,9 @@ Value* TCGContext::CodegenBinaryOpExpr(
 
     Function* function = builder.GetInsertBlock()->getParent();
 
-    auto* getRhsValueBB = BasicBlock::Create(Context_, "getRhsValue", function);
-    auto* evalResultBB = BasicBlock::Create(Context_, "evalResult", function);
-    auto* resultBB = BasicBlock::Create(Context_, "result", function);
+    auto* getRhsValueBB = BasicBlock::Create(builder.getContext(), "getRhsValue", function);
+    auto* evalResultBB = BasicBlock::Create(builder.getContext(), "evalResult", function);
+    auto* resultBB = BasicBlock::Create(builder.getContext(), "result", function);
 
     auto* sourceBB = builder.GetInsertBlock();
     builder.CreateCondBr(builder.CreateLoad(isNullPtr), resultBB, getRhsValueBB);
@@ -842,7 +840,7 @@ void TCGContext::CodegenScanOp(
 
     // See ScanOpHelper.
     Function* function = Function::Create(
-        TypeBuilder<void(void**, TRow*, int), false>::get(Context_),
+        TypeBuilder<void(void**, TRow*, int), false>::get(builder.getContext()),
         Function::ExternalLinkage,
         "ScanOpInner",
         module);
@@ -857,7 +855,7 @@ void TCGContext::CodegenScanOp(
     YCHECK(++args == function->arg_end());
 
     TIRBuilder innerBuilder(
-        BasicBlock::Create(Context_, "entry", function),
+        BasicBlock::Create(builder.getContext(), "entry", function),
         &builder,
         closure);
 
@@ -874,7 +872,7 @@ void TCGContext::CodegenScanOp(
     builder.CreateCall4(
         CGFragment_.GetRoutine("ScanOpHelper"),
         passedFragmentParamsPtr,
-        ConstantInt::get(Type::getInt32Ty(Context_), dataSplitsIndex, true),
+        builder.getInt32(dataSplitsIndex),
         innerBuilder.GetClosure(),
         function);
 }
@@ -889,23 +887,22 @@ void TCGContext::CodegenFilterOp(
     CodegenOp(builder, op->GetSource(),
         [&] (TIRBuilder& innerBuilder, Value* row) {
 
-            Value* isNullPtr = innerBuilder.CreateAlloca(
-                TypeBuilder<llvm::types::i<1>, false>::get(Context_), 0, "isNullPtr");
-            innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+            Value* isNullPtr = innerBuilder.CreateAlloca(builder.getInt1Ty(), 0, "isNullPtr");
+            innerBuilder.CreateStore(builder.getFalse(), isNullPtr);
             
             Value* result = innerBuilder.CreateZExtOrBitCast(
                 CodegenExpr(innerBuilder, op->GetPredicate(), sourceTableSchema, row, isNullPtr),
-                TypeBuilder<i64, false>::get(Context_));
+                builder.getInt64Ty());
 
             Function* function = innerBuilder.GetInsertBlock()->getParent();
 
-            auto* ifBB = BasicBlock::Create(Context_, "if", function);
-            auto* endIfBB = BasicBlock::Create(Context_, "endif", function);
+            auto* ifBB = BasicBlock::Create(builder.getContext(), "if", function);
+            auto* endIfBB = BasicBlock::Create(builder.getContext(), "endif", function);
 
             innerBuilder.CreateCondBr(
                 innerBuilder.CreateICmpNE(
                     result,
-                    ConstantInt::get(Type::getInt64Ty(Context_), 0, true)),
+                    builder.getInt64(0)),
                 ifBB,
                 endIfBB);
 
@@ -927,7 +924,7 @@ void TCGContext::CodegenProjectOp(
     auto sourceTableSchema = op->GetSource()->GetTableSchema();
     auto nameTable = op->GetNameTable();
 
-    Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(Context_));
+    Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
     CodegenOp(builder, op->GetSource(),
         [&] (TIRBuilder& innerBuilder, Value* row) {
@@ -936,7 +933,7 @@ void TCGContext::CodegenProjectOp(
             innerBuilder.CreateCall3(
                 CGFragment_.GetRoutine("AllocateRow"),
                 GetRowBuffers(innerBuilder),
-                ConstantInt::get(Type::getInt32Ty(Context_), projectionCount, true),
+                builder.getInt32(projectionCount),
                 newRowPtrRef);
 
             Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
@@ -947,11 +944,8 @@ void TCGContext::CodegenProjectOp(
                 auto id = nameTable->GetId(name);
                 auto type = expr->GetType(sourceTableSchema);
 
-                Value* isNullPtr = innerBuilder.CreateAlloca(
-                    TypeBuilder<llvm::types::i<1>, false>::get(Context_),
-                    0,
-                    "isNullPtr");
-                innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+                Value* isNullPtr = innerBuilder.CreateAlloca(builder.getInt1Ty(), 0, "isNullPtr");
+                innerBuilder.CreateStore(builder.getFalse(), isNullPtr);
                 Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row, isNullPtr);
                 CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data, isNullPtr);
             }
@@ -969,7 +963,7 @@ void TCGContext::CodegenGroupOp(
 
     // See GroupOpHelper.
     Function* function = Function::Create(
-        TypeBuilder<void(void**, void*, void*), false>::get(Context_),
+        TypeBuilder<void(void**, void*, void*), false>::get(builder.getContext()),
         Function::ExternalLinkage,
         "GroupOpInner",
         module);
@@ -981,7 +975,7 @@ void TCGContext::CodegenGroupOp(
     YCHECK(++args == function->arg_end());
 
     TIRBuilder innerBuilder(
-        BasicBlock::Create(Context_, "entry", function),
+        BasicBlock::Create(builder.getContext(), "entry", function),
         &builder,
         closure);
 
@@ -991,7 +985,7 @@ void TCGContext::CodegenGroupOp(
     auto sourceTableSchema = op->GetSource()->GetTableSchema();
     auto nameTable = op->GetNameTable();
 
-    Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(Context_));
+    Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
     CodegenOp(innerBuilder, op->GetSource(), [&] (TIRBuilder& innerBuilder, Value* row) {
         Value* memoryPoolsRef = GetRowBuffers(innerBuilder);
@@ -1002,7 +996,8 @@ void TCGContext::CodegenGroupOp(
         innerBuilder.CreateCall3(
             CGFragment_.GetRoutine("AllocateRow"),
             memoryPoolsRef,
-            ConstantInt::get(Type::getInt32Ty(Context_), keySize + aggregateItemCount, true), newRowPtrRef);
+            builder.getInt32(keySize + aggregateItemCount),
+            newRowPtrRef);
 
         Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
 
@@ -1015,9 +1010,8 @@ void TCGContext::CodegenGroupOp(
             // TODO(sandello): Others are unsupported.
             YCHECK(type == EValueType::Integer);
 
-            Value* isNullPtr = innerBuilder.CreateAlloca(
-                TypeBuilder<llvm::types::i<1>, false>::get(Context_), 0, "isNullPtr");
-            innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+            Value* isNullPtr = innerBuilder.CreateAlloca(builder.getInt1Ty(), 0, "isNullPtr");
+            innerBuilder.CreateStore(builder.getFalse(), isNullPtr);
             Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row, isNullPtr);
             CodegenSetRowValue(innerBuilder, newRowRef, index, id, type, data, isNullPtr);
         }
@@ -1031,9 +1025,8 @@ void TCGContext::CodegenGroupOp(
             // TODO(sandello): Others are unsupported.
             YCHECK(type == EValueType::Integer);
 
-            Value* isNullPtr = innerBuilder.CreateAlloca(
-                TypeBuilder<llvm::types::i<1>, false>::get(Context_), 0, "isNullPtr");
-            innerBuilder.CreateStore(ConstantInt::getFalse(Context_), isNullPtr);
+            Value* isNullPtr = innerBuilder.CreateAlloca(builder.getInt1Ty(), 0, "isNullPtr");
+            innerBuilder.CreateStore(builder.getFalse(), isNullPtr);
             Value* data = CodegenExpr(innerBuilder, expr, sourceTableSchema, row, isNullPtr);
             CodegenSetRowValue(innerBuilder, newRowRef, keySize + index, id, type, data, isNullPtr);
         }
@@ -1045,9 +1038,9 @@ void TCGContext::CodegenGroupOp(
 
         Function* function = innerBuilder.GetInsertBlock()->getParent();
 
-        auto* ifBB = BasicBlock::Create(Context_, "if", function);
-        auto* elseBB = BasicBlock::Create(Context_, "else", function);
-        auto* endIfBB = BasicBlock::Create(Context_, "endif", function);
+        auto* ifBB = BasicBlock::Create(builder.getContext(), "if", function);
+        auto* elseBB = BasicBlock::Create(builder.getContext(), "else", function);
+        auto* endIfBB = BasicBlock::Create(builder.getContext(), "endif", function);
 
         innerBuilder.CreateCondBr(
             innerBuilder.CreateICmpNE(
@@ -1075,7 +1068,7 @@ void TCGContext::CodegenGroupOp(
             rowsRef,
             groupedRowsRef,
             newRowPtrRef,
-            ConstantInt::get(Type::getInt32Ty(Context_), keySize + aggregateItemCount, true));
+            builder.getInt32(keySize + aggregateItemCount));
         innerBuilder.CreateBr(endIfBB);
 
         innerBuilder.SetInsertPoint(endIfBB);
@@ -1091,8 +1084,8 @@ void TCGContext::CodegenGroupOp(
 
     builder.CreateCall4(
         CGFragment_.GetRoutine("GroupOpHelper"),
-        ConstantInt::get(Type::getInt32Ty(Context_), keySize, true),
-        ConstantInt::get(Type::getInt32Ty(Context_), aggregateItemCount, true),
+        builder.getInt32(keySize),
+        builder.getInt32(aggregateItemCount),
         innerBuilder.GetClosure(),
         function);
 }
