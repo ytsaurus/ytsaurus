@@ -33,6 +33,8 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TChunkStore();
 
+    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+
     // IStore implementation.
     virtual i64 GetDataSize() const override;
 

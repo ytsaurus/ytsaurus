@@ -76,6 +76,11 @@ TChunkStore::TChunkStore(
 TChunkStore::~TChunkStore()
 { }
 
+const TChunkMeta& TChunkStore::GetChunkMeta() const
+{
+    return ChunkMeta_;
+}
+
 i64 TChunkStore::GetDataSize() const
 {
     return DataSize_;

@@ -197,12 +197,38 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
+class TSamplesFetcherConfig
+    : public NChunkClient::TFetcherConfig
+{
+public:
+    //! Minimum number of samples needed for partitioning.
+    int MinSampleCount;
+
+    //! Maximum number of samples to request for partitioning.
+    int MaxSampleCount;
+
+    TSamplesFetcherConfig()
+    {
+        RegisterParameter("min_sample_count", MaxSampleCount)
+            .Default(10)
+            .GreaterThanOrEqual(3);
+        RegisterParameter("max_sample_count", MaxSampleCount)
+            .Default(1000)
+            .GreaterThanOrEqual(10);
+    }
+};
+
 class TPartitionBalancerConfig
     : public TYsonSerializable
 {
 public:
+    TIntrusivePtr<TSamplesFetcherConfig> SamplesFetcher;
+
     TPartitionBalancerConfig()
-    { }
+    {
+        RegisterParameter("samples_fetcher", SamplesFetcher)
+            .DefaultNew();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)

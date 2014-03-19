@@ -7,11 +7,22 @@
 #include "tablet.h"
 #include "partition.h"
 #include "store.h"
+#include "chunk_store.h"
 #include "private.h"
+
+#include <core/concurrency/fiber.h>
+
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/tablet_client/config.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/samples_fetcher.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
+#include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
@@ -23,8 +34,11 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NVersionedTableClient;
+using namespace NNodeTrackerClient;
+using namespace NChunkClient;
 using namespace NTabletNode::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,20 +101,9 @@ private:
             if (partition->GetState() != EPartitionState::None)
                 return;
 
-            auto splitKey = ChoosePartitionSplitKey(partition);
-            if (!splitKey) 
-                return;
-
             partition->SetState(EPartitionState::Splitting);
 
-            auto hydraManager = slot->GetHydraManager();
-
-            TReqSplitPartition request;
-            ToProto(request.mutable_tablet_id(), tablet->GetId());
-            ToProto(request.add_pivot_keys(), partition->GetPivotKey());
-            ToProto(request.add_pivot_keys(), splitKey);
-            CreateMutation(hydraManager, request)
-                ->Commit();
+            RunSplit(partition);
         }
         
         if (dataSize + tablet->GetEden()->GetTotalDataSize() < config->MinPartitionDataSize && partitionCount > 1) {
@@ -121,41 +124,136 @@ private:
                 tablet->Partitions()[index]->SetState(EPartitionState::Splitting);
             }
 
-            auto hydraManager = slot->GetHydraManager();
-
-            TReqMergePartitions request;
-            ToProto(request.mutable_tablet_id(), tablet->GetId());
-            ToProto(request.mutable_pivot_key(), tablet->Partitions()[firstPartitionIndex]->GetPivotKey());
-            request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
-            CreateMutation(hydraManager, request)
-                ->Commit();
+            RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
         }
     }
 
 
-    TOwningKey ChoosePartitionSplitKey(TPartition* partition)
+    void RunSplit(TPartition* partition)
     {
-        // TODO(babenko): rewrite using sample fetcher
-        auto isValidKey = [&] (const TOwningKey& key) {
-            return key > partition->GetPivotKey() && key < partition->GetNextPivotKey();
-        };
+        BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
+            .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write))
+            .Run(partition);
+    }
 
-        std::vector<TOwningKey> keys;
-        for (const auto& store : partition->Stores()) {
-            if (isValidKey(store->GetMinKey())) {
-                keys.push_back(store->GetMinKey());
-            }
-            if (isValidKey(store->GetMaxKey())) {
-                keys.push_back(store->GetMaxKey());
-            }
-        }
-        
-        if (keys.empty()) {
-            return TOwningKey();
-        }
+    void DoRunSplit(TPartition* partition)
+    {
+        auto Logger = BuildLogger(partition);
 
-        std::sort(keys.begin(), keys.end());
-        return keys[keys.size() / 2];
+        auto* tablet = partition->GetTablet();
+        auto slot = tablet->GetSlot();
+        auto hydraManager = slot->GetHydraManager();
+
+        LOG_INFO("Partition is eligible for split");
+
+        try {
+            auto nodeDirectory = New<TNodeDirectory>();
+
+            auto fetcher = New<TSamplesFetcher>(
+                Config_->SamplesFetcher,
+                Config_->SamplesFetcher->MaxSampleCount,
+                tablet->KeyColumns(),
+                nodeDirectory,
+                GetCurrentInvoker(),
+                Logger);
+
+            {
+                LOG_INFO("Locating store chunks");
+
+                TChunkServiceProxy proxy(Bootstrap_->GetMasterChannel());
+                auto req = proxy.LocateChunks();
+
+                for (auto store : partition->Stores()) {
+                    YCHECK(store->GetState() == EStoreState::Persistent);
+                    auto chunkId = store->GetId();
+                    ToProto(req->add_chunk_ids(), chunkId);
+                }
+
+                auto rsp = WaitFor(req->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+                LOG_INFO("Store chunks located");
+
+                nodeDirectory->MergeFrom(rsp->node_directory());
+
+                for (const auto& chunkInfo : rsp->chunks()) {
+                    auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                    auto store = tablet->GetStore(chunkId);
+                    auto* chunkStore = dynamic_cast<TChunkStore*>(store.Get());
+
+                    auto chunkSpec = New<TRefCountedChunkSpec>();
+                    chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
+                    chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
+                    chunkSpec->mutable_chunk_meta()->CopyFrom(chunkStore->GetChunkMeta());
+                    fetcher->AddChunk(chunkSpec);
+                }
+            }
+
+            {
+                auto result = WaitFor(fetcher->Fetch());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            auto samples = fetcher->GetSamples();
+            int sampleCount = static_cast<int>(samples.size());
+            if (sampleCount < Config_->SamplesFetcher->MinSampleCount) {
+                THROW_ERROR_EXCEPTION("Too few samples fetched: %d < %d",
+                    sampleCount,
+                    Config_->SamplesFetcher->MinSampleCount);
+            }
+
+            std::sort(samples.begin(), samples.end());
+
+            const auto& splitKey = samples[sampleCount / 2];
+            if (splitKey == partition->GetPivotKey() || splitKey == partition->GetNextPivotKey()) {
+                THROW_ERROR_EXCEPTION("No valid split key can be obtained from samples");
+            }
+
+            LOG_INFO("Split key is %s", ~ToString(splitKey));
+
+            TReqSplitPartition request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            ToProto(request.add_pivot_keys(), partition->GetPivotKey());
+            ToProto(request.add_pivot_keys(), splitKey);
+            CreateMutation(hydraManager, request)
+                ->Commit();
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Partitioning aborted");
+            partition->SetState(EPartitionState::None);
+        }
+    }
+
+
+    void RunMerge(
+        TPartition* partition,
+        int firstPartitionIndex,
+        int lastPartitionIndex)
+    {
+        auto Logger = BuildLogger(partition);
+
+        LOG_INFO("Partition is eligible for merge");
+
+        auto* tablet = partition->GetTablet();
+        auto slot = tablet->GetSlot();
+        auto hydraManager = slot->GetHydraManager();
+
+        TReqMergePartitions request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_pivot_key(), tablet->Partitions()[firstPartitionIndex]->GetPivotKey());
+        request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
+        CreateMutation(hydraManager, request)
+            ->Commit();
+    }
+
+
+    static NLog::TTaggedLogger BuildLogger(TPartition* partition)
+    {
+        NLog::TTaggedLogger logger(TabletNodeLogger);
+        logger.AddTag(Sprintf("TabletId: %s, PartitionKeys: %s .. %s",
+            ~ToString(partition->GetTablet()->GetId()),
+            ~ToString(partition->GetPivotKey()),
+            ~ToString(partition->GetNextPivotKey())));
+        return logger;
     }
 
 };
