@@ -776,6 +776,9 @@ TTableChunkReader::TTableChunkReader(
     }
 }
 
+TTableChunkReader::~TTableChunkReader()
+{ }
+
 TAsyncError TTableChunkReader::AsyncOpen()
 {
     ReaderState.StartOperation();

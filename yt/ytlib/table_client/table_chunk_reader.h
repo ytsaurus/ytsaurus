@@ -64,6 +64,7 @@ public:
         i64 tableRowIndex,
         int partitionTag,
         TChunkReaderOptionsPtr options);
+    ~TTableChunkReader();
 
     TAsyncError AsyncOpen();
 
