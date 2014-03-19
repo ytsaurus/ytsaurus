@@ -377,7 +377,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                 for (const auto& peer : peers) {
                     ToProto(blockInfo->add_p2p_descriptors(), peer.Descriptor);
                 }
-                LOG_DEBUG(PRISZT " peers suggested for block %d",
+                LOG_DEBUG("%" PRISZT " peers suggested for block %d",
                     peers.size(),
                     blockIndex);
             }
