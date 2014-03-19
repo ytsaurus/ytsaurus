@@ -15,9 +15,11 @@ public:
     TCGCache();
     ~TCGCache();
 
+    typedef std::function<llvm::Function*(const TPlanFragment&, const TCGImmediates&, TCGFragment&)> TCompiler;
+
     std::pair<TCodegenedFunction, TFragmentParams> Codegen(
         const TPlanFragment& fragment,
-        std::function<void(const TPlanFragment&, TCGFragment&, const TFragmentParams&)> compiler);
+        TCompiler compiler);
 
 private:
     class TCachedCGFragment;

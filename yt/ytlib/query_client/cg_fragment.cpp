@@ -72,8 +72,7 @@ class TCGFragment::TImpl
 {
 public:
     TImpl()
-        : MainFunction_(nullptr)
-        , CompiledMainFunction_(nullptr)
+        : CompiledBody_(nullptr)
     {
         Context_.setDiagnosticHandler(&TImpl::DiagnosticHandler, nullptr);
 
@@ -142,39 +141,32 @@ public:
         return it->second;
     }
 
-    void SetMainFunction(llvm::Function* mainFunction)
+    void Embody(llvm::Function* body)
     {
+        YCHECK(!CompiledBody_);
+
         auto parent = Module_;
         auto type = llvm::TypeBuilder<TCodegenedFunction, false>::get(Context_);
-        YCHECK(mainFunction->getParent() == parent);
-        YCHECK(mainFunction->getType() == type);
-        YCHECK(!MainFunction_);
-        MainFunction_ = mainFunction;
+
+        YCHECK(body->getParent() == parent);
+        YCHECK(body->getType() == type);
+
+        auto fp = BIND(&TCGFragment::TImpl::Compile, this)
+            .AsyncVia(McjitThread->GetInvoker())
+            .Run(body)
+            .Get();
+
+        CompiledBody_ = reinterpret_cast<TCodegenedFunction>(fp);
     }
 
-    TCodegenedFunction GetCompiledMainFunction()
+    TCodegenedFunction GetCompiledBody()
     {
-        if (!CompiledMainFunction_) {
-            BIND(&TCGFragment::TImpl::Compile, this)
-                .AsyncVia(McjitThread->GetInvoker())
-                .Run()
-                .Get();
-        }
-        YCHECK(CompiledMainFunction_);
-        return CompiledMainFunction_;
-    }
-
-    bool IsCompiled()
-    {
-        return CompiledMainFunction_;
+        return CompiledBody_;
     }
 
 private:
-    void Compile()
+    void* Compile(llvm::Function* body)
     {
-        YCHECK(MainFunction_);
-        YCHECK(!CompiledMainFunction_);
-
         YCHECK(!llvm::verifyModule(*Module_, &llvm::errs()));
 
         llvm::PassManagerBuilder passManagerBuilder;
@@ -206,8 +198,7 @@ private:
         //Module_->dump();
         Engine_->finalizeObject();
 
-        CompiledMainFunction_ = reinterpret_cast<TCodegenedFunction>(
-            Engine_->getPointerToFunction(MainFunction_));
+        return Engine_->getPointerToFunction(body);
     }
 
     static void DiagnosticHandler(const llvm::DiagnosticInfo& info, void* /*opaque*/)
@@ -264,8 +255,7 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    llvm::Function* MainFunction_;
-    TCodegenedFunction CompiledMainFunction_;
+    TCodegenedFunction CompiledBody_;
 
     std::unordered_map<Stroka, llvm::Function*> CachedRoutines_;
 
@@ -293,19 +283,14 @@ llvm::Function* TCGFragment::GetRoutine(const Stroka& symbol)
     return Impl_->GetRoutine(symbol);
 }
 
-void TCGFragment::SetMainFunction(llvm::Function* mainFunction)
+void TCGFragment::Embody(llvm::Function* body)
 {
-    Impl_->SetMainFunction(mainFunction);
+    Impl_->Embody(body);
 }
 
-TCodegenedFunction TCGFragment::GetCompiledMainFunction()
+TCodegenedFunction TCGFragment::GetCompiledBody()
 {
-    return Impl_->GetCompiledMainFunction();
-}
-
-bool TCGFragment::IsCompiled()
-{
-    return Impl_->IsCompiled();
+    return Impl_->GetCompiledBody();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

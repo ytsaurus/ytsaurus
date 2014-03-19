@@ -242,7 +242,7 @@ public:
 
     std::pair<TCodegenedFunction, TFragmentParams> Codegen(
         const TPlanFragment& fragment,
-        std::function<void(const TPlanFragment&, TCGFragment&, const TFragmentParams&)> compiler)
+        TCompiler compiler)
     {
         llvm::FoldingSetNodeID id;
         TFragmentParams params;
@@ -253,8 +253,8 @@ public:
         if (BeginInsert(&cookie)) {
             try {
                 auto newCGFragment = New<TCachedCGFragment>(id);
-                compiler(fragment, *newCGFragment, params);
-                newCGFragment->GetCompiledMainFunction();
+                newCGFragment->Embody(compiler(fragment, params, *newCGFragment));
+                newCGFragment->GetCompiledBody();
                 cookie.EndInsert(std::move(newCGFragment));
             } catch (const std::exception& ex) {
                 cookie.Cancel(ex);
@@ -262,11 +262,11 @@ public:
         }
 
         auto cgFragment = cookie.GetValue().Get().ValueOrThrow();
-        YCHECK(cgFragment->IsCompiled());
+        auto codegenedFunction = cgFragment->GetCompiledBody();
 
-        return std::make_pair(
-            cgFragment->GetCompiledMainFunction(),
-            std::move(params));
+        YCHECK(codegenedFunction);
+
+        return std::make_pair(codegenedFunction, std::move(params));
     }
 
 };
@@ -281,7 +281,7 @@ TCGCache::~TCGCache()
 
 std::pair<TCodegenedFunction, TFragmentParams> TCGCache::Codegen(
     const TPlanFragment& fragment,
-    std::function<void(const TPlanFragment&, TCGFragment&, const TFragmentParams&)> compiler)
+    TCompiler compiler)
 {
     return Impl_->Codegen(fragment, std::move(compiler));
 }

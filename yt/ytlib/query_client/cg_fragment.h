@@ -18,10 +18,9 @@ public:
 
     llvm::Function* GetRoutine(const Stroka& symbol);
 
-    void SetMainFunction(llvm::Function* function);
-    TCodegenedFunction GetCompiledMainFunction();
+    void Embody(llvm::Function* body);
 
-    bool IsCompiled();
+    TCodegenedFunction GetCompiledBody();
 
 private:
     class TImpl;

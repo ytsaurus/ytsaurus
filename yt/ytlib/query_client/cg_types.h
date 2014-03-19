@@ -15,7 +15,7 @@
 // of native and JIT'ed code; second, to map necessary C++ types to LLVM types.
 
 namespace llvm {
-    class Context;
+    class LLVMContext;
     class Function;
     class FunctionType;
     class Module;
