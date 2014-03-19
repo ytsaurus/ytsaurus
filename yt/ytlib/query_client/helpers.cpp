@@ -24,11 +24,6 @@ using NChunkClient::TReadLimit;
 using NVersionedTableClient::MinKey;
 using NVersionedTableClient::MaxKey;
 
-//typedef NChunkClient::NProto::TMiscExt TMiscProto;
-//typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchemaProto;
-//typedef NTableClient::NProto::TOldBoundaryKeysExt TOldBoundaryKeysProto;
-//typedef NTableClient::NProto::TKeyColumnsExt TKeyColumnsProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 NObjectClient::TObjectId GetObjectIdFromDataSplit(const TDataSplit& dataSplit)
@@ -52,21 +47,21 @@ TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
 
 TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 {
-    if (dataSplit.has_upper_limit()) {
-        auto readLimit = FromProto<TReadLimit>(dataSplit.upper_limit());
-        return readLimit.GetKey();
-    } else {
-        return MinKey();
-    }
-}
-
-TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
-{
     if (dataSplit.has_lower_limit()) {
         auto readLimit = FromProto<TReadLimit>(dataSplit.lower_limit());
         return readLimit.GetKey();
     } else {
         return MaxKey();
+    }
+}
+
+TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
+{
+    if (dataSplit.has_upper_limit()) {
+        auto readLimit = FromProto<TReadLimit>(dataSplit.upper_limit());
+        return readLimit.GetKey();
+    } else {
+        return MinKey();
     }
 }
 
