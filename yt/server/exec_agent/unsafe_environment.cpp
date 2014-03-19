@@ -70,7 +70,7 @@ public:
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
         , Logger(ExecAgentLogger)
-        , Process(~proxyPath)
+        , Process(proxyPath)
         , Waited(false)
         , EnvironmentBuilder(envBuilder)
         , OnExit(NewPromise<TError>())
@@ -88,11 +88,11 @@ public:
 
         Process.AddArgument("--job-proxy");
         Process.AddArgument("--config");
-        Process.AddArgument(~ProxyConfigFileName);
+        Process.AddArgument(ProxyConfigFileName);
         Process.AddArgument("--job-id");
-        Process.AddArgument(~ToString(JobId));
+        Process.AddArgument(ToString(JobId));
         Process.AddArgument("--working-dir");
-        Process.AddArgument(~WorkingDirectory);
+        Process.AddArgument(WorkingDirectory);
         Process.AddArgument("--close-all-fds");
 
         LOG_INFO("Spawning a job proxy (Path: %s)", ~ProxyPath);

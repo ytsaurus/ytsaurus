@@ -50,7 +50,7 @@ std::vector<int> GetPidsByUid(int uid)
 
         auto path = Sprintf("/proc/%d", pid);
         struct stat buf;
-        int res = ::stat(~path, &buf);
+        int res = ::stat(path.c_str(), &buf);
 
         if (res == 0) {
             if (buf.st_uid == uid) {
@@ -127,15 +127,15 @@ void RunKiller(int uid)
 
     auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
-            "Failed to kill processes owned by %d.",
+            "Failed to kill processes owned by %d",
             uid) << error;
     };
 
     while (true) {
-        TProcess process(~GetExecPath());
+        TProcess process(GetExecPath());
         process.AddArgument("--killer");
         process.AddArgument("--uid");
-        process.AddArgument(~ToString(uid));
+        process.AddArgument(ToString(uid));
 
         auto pids = GetPidsByUid(uid);
         if (pids.empty())
@@ -164,8 +164,8 @@ void KillallByUid(int uid)
         return;
 
     LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
-              uid,
-              ~JoinToString(pids));
+        uid,
+        ~JoinToString(pids));
 
     YCHECK(setuid(0) == 0);
 
@@ -181,10 +181,10 @@ void RunCleaner(const Stroka& path)
 {
     LOG_INFO("Clean %s", ~path);
 
-    TProcess process(~GetExecPath());
+    TProcess process(GetExecPath());
     process.AddArgument("--cleaner");
     process.AddArgument("--dir-to-remove");
-    process.AddArgument(~path);
+    process.AddArgument(path);
 
     auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
@@ -207,11 +207,10 @@ void RemoveDirAsRoot(const Stroka& path)
 {
     // Child process
     YCHECK(setuid(0) == 0);
-    execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
+    execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
-    THROW_ERROR_EXCEPTION("Failed to remove directory %s: %s",
-        ~path,
-        "execl failed") << TError::FromSystem();
+    THROW_ERROR_EXCEPTION("Failed to remove directory %s: execl failed",
+        ~path) << TError::FromSystem();
 }
 
 TError StatusToError(int status)
