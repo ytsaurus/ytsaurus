@@ -10,7 +10,7 @@
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
 
-#include <ytlib/query_client/coordinate_controller.h>
+#include <ytlib/query_client/coordinator.h>
 #include <ytlib/query_client/evaluator.h>
 #include <ytlib/query_client/plan_node.h>
 #include <ytlib/query_client/plan_helpers.h>
@@ -353,16 +353,16 @@ protected:
 
     void Coordinate(const Stroka& source)
     {
-        YCHECK(!Controller_);
-        Controller_.Emplace(
+        YCHECK(!Coordinator_);
+        Coordinator_.Emplace(
             &CoordinateMock_,
             TPlanFragment::Prepare(source, NullTimestamp, &PrepareMock_));
 
-        auto error = Controller_->Run();
+        auto error = Coordinator_->Run();
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
-        CoordinatorFragment_ = Controller_->GetCoordinatorFragment();
-        PeerFragments_ = Controller_->GetPeerFragments();
+        CoordinatorFragment_ = Coordinator_->GetCoordinatorFragment();
+        PeerFragments_ = Coordinator_->GetPeerFragments();
     }
 
     std::vector<const TDataSplit*> ExtractDataSplits(const TOperator* op)
@@ -372,7 +372,7 @@ protected:
             if (auto* scanOp = op->As<TScanOperator>()) {
                 for (const auto& dataSplit : scanOp->DataSplits()) {
                     result.emplace_back(&dataSplit);
-                }                
+                }
             }
         });
         return result;
@@ -381,7 +381,7 @@ protected:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     StrictMock<TCoordinateCallbacksMock> CoordinateMock_;
 
-    TNullable<TCoordinateController> Controller_;
+    TNullable<TCoordinator> Coordinator_;
 
     TNullable<TPlanFragment> CoordinatorFragment_;
     TNullable<std::vector<TPlanFragment>> PeerFragments_;

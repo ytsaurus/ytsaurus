@@ -10,7 +10,7 @@ set( SRCS
   ${BASE}/plan_fragment.cpp
   ${BASE}/private.cpp
   ${BASE}/helpers.cpp
-  ${BASE}/coordinate_controller.cpp
+  ${BASE}/coordinator.cpp
   ${BASE}/prepare_controller.cpp
   ${BASE}/executor.cpp
 )
@@ -23,7 +23,7 @@ set( HDRS
   ${BASE}/plan_node.h
   ${BASE}/plan_visitor.h
   ${BASE}/plan_helpers.h
-  ${BASE}/coordinate_controller.h
+  ${BASE}/coordinator.h
   ${BASE}/prepare_controller.h
   ${BASE}/executor.h
   ${BASE}/expression.h

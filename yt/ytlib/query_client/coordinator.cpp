@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "coordinate_controller.h"
+#include "coordinator.h"
 
 #include "private.h"
 #include "helpers.h"
@@ -32,7 +32,7 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCoordinateController::TCoordinateController(
+TCoordinator::TCoordinator(
     ICoordinateCallbacks* callbacks,
     const TPlanFragment& fragment)
     : Callbacks_(callbacks)
@@ -44,10 +44,10 @@ TCoordinateController::TCoordinateController(
         ~ToString(Fragment_.Id())));
 }
 
-TCoordinateController::~TCoordinateController()
+TCoordinator::~TCoordinator()
 { }
 
-TError TCoordinateController::Run()
+TError TCoordinator::Run()
 {
     try {
         LOG_DEBUG("Coordinating plan fragment");
@@ -82,12 +82,12 @@ TError TCoordinateController::Run()
     }
 }
 
-TPlanFragment TCoordinateController::GetCoordinatorFragment() const
+TPlanFragment TCoordinator::GetCoordinatorFragment() const
 {
     return Fragment_;
 }
 
-std::vector<TPlanFragment> TCoordinateController::GetPeerFragments() const
+std::vector<TPlanFragment> TCoordinator::GetPeerFragments() const
 {
     std::vector<TPlanFragment> result;
     result.reserve(Peers_.size());
@@ -98,7 +98,7 @@ std::vector<TPlanFragment> TCoordinateController::GetPeerFragments() const
 }
 
 
-std::vector<const TOperator*> TCoordinateController::Scatter(const TOperator* op)
+std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
 {
     auto* context = Fragment_.GetContext().Get();
     std::vector<const TOperator*> resultOps;
@@ -193,7 +193,7 @@ std::vector<const TOperator*> TCoordinateController::Scatter(const TOperator* op
     return resultOps;
 }
 
-const TOperator* TCoordinateController::Gather(const std::vector<const TOperator*>& ops)
+const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
 {
     auto* context = Fragment_.GetContext().Get();
 
@@ -238,7 +238,7 @@ const TOperator* TCoordinateController::Gather(const std::vector<const TOperator
     return resultOp;
 }
 
-const TOperator* TCoordinateController::Simplify(const TOperator* op)
+const TOperator* TCoordinator::Simplify(const TOperator* op)
 {
     // If we have delegated a segment locally, then we can omit extra data copy.
     // Basically, we would like to reduce
@@ -273,7 +273,7 @@ const TOperator* TCoordinateController::Simplify(const TOperator* op)
         });
 }
 
-TDataSplits TCoordinateController::Split(const TDataSplits& splits)
+TDataSplits TCoordinator::Split(const TDataSplits& splits)
 {
     TDataSplits result;
 
@@ -301,12 +301,12 @@ TDataSplits TCoordinateController::Split(const TDataSplits& splits)
     return result;
 }
 
-TGroupedDataSplits TCoordinateController::Regroup(const TDataSplits& splits)
+TGroupedDataSplits TCoordinator::Regroup(const TDataSplits& splits)
 {
     return Callbacks_->Regroup(splits, Fragment_.GetContext());
 }
 
-std::pair<bool, int> TCoordinateController::IsInternal(const TDataSplit& split)
+std::pair<bool, int> TCoordinator::IsInternal(const TDataSplit& split)
 {
     auto objectId = GetObjectIdFromDataSplit(split);
     auto type = TypeFromId(objectId);
@@ -319,7 +319,7 @@ std::pair<bool, int> TCoordinateController::IsInternal(const TDataSplit& split)
     }
 }
 
-void TCoordinateController::DelegateToPeers()
+void TCoordinator::DelegateToPeers()
 {
     for (auto& peer : Peers_) {
         if (!IsInternal(std::get<1>(peer)).first) {
@@ -328,7 +328,7 @@ void TCoordinateController::DelegateToPeers()
     }
 }
 
-ISchemafulReaderPtr TCoordinateController::GetReader(
+ISchemafulReaderPtr TCoordinator::GetReader(
     const TDataSplit& split,
     TPlanContextPtr context)
 {

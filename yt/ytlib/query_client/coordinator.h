@@ -11,16 +11,15 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoordinateController
-    : public NNonCopyable::TNonCopyable
-    , public IEvaluateCallbacks
+class TCoordinator
+    : public IEvaluateCallbacks
 {
 public:
-    TCoordinateController(
+    TCoordinator(
         ICoordinateCallbacks* callbacks,
         const TPlanFragment& fragment);
 
-    ~TCoordinateController();
+    ~TCoordinator();
 
     int GetPeerIndex(const TDataSplit& dataSplit);
 
