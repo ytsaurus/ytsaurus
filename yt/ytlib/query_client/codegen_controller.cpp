@@ -119,10 +119,10 @@ protected:
 };
 
 class TContextIRBuilder
-    : public llvm::IRBuilder<true, llvm::ConstantFolder, TContextPreservingInserter<true> >
+    : public llvm::IRBuilder<true, llvm::ConstantFolder, TContextPreservingInserter<true>>
 {
 private:
-    typedef llvm::IRBuilder<true, llvm::ConstantFolder, TContextPreservingInserter<true> > Base;
+    typedef llvm::IRBuilder<true, llvm::ConstantFolder, TContextPreservingInserter<true>> TBase;
 
     //! Builder associated with the parent context.
     TContextIRBuilder* Parent_;
@@ -136,13 +136,13 @@ private:
     Value* Closure_;
 
     //! Translates captured values in the parent context into their index in the closure.
-    yhash_map<Value*, int> Mapping_;
+    std::unordered_map<Value*, int> Mapping_;
 
     static const unsigned int MaxClosureSize = 32;
 
 public:
     TContextIRBuilder(llvm::BasicBlock* basicBlock, TContextIRBuilder* parent, Value* closurePtr)
-        : Base(basicBlock)
+        : TBase(basicBlock)
         , Parent_(parent)
         , ClosurePtr_(closurePtr)
     {
@@ -160,7 +160,7 @@ public:
     }
 
     TContextIRBuilder(llvm::BasicBlock* basicBlock)
-        : Base(basicBlock)
+        : TBase(basicBlock)
         , Parent_(nullptr)
         , ClosurePtr_(nullptr)
         , Closure_(nullptr)
@@ -174,7 +174,7 @@ public:
     Value* ViaClosure(Value* value, llvm::Twine name = llvm::Twine())
     {
         // If |value| belongs to the current context, then we can use it directly.
-        if (this->ValuesInContext_.count(value) > 0) {
+        if (ValuesInContext_.count(value) > 0) {
             return value;
         }
 
@@ -189,19 +189,14 @@ public:
         Value* valueInParent = Parent_->ViaClosure(value, name);
 
         // Check if we have already captured this value.
-        auto it = Mapping_.find(valueInParent);
-        int indexInClosure;
+        auto insertionResult = Parent_->Mapping_.insert(
+            std::make_pair(valueInParent, Parent_->Mapping_.size()));
+        auto indexInClosure = insertionResult.first->second;
+        YCHECK(indexInClosure < MaxClosureSize);
 
-        if (it != Mapping_.end()) {
-            // If yes, use the captured version.
-            indexInClosure = it->second;
-        } else {
-            // If no, save the value into the closure in the parent context.
-            indexInClosure = Mapping_.size();
-
-            YCHECK(indexInClosure < MaxClosureSize);
-            Mapping_[valueInParent] = indexInClosure;
-
+        if (insertionResult.second) {
+            // If it is a fresh value we have to save it
+            // into the closure in the parent context.
             Value* valueInParentPtr = Parent_->CreateAlloca(
                 valueInParent->getType(),
                 nullptr,
@@ -222,17 +217,16 @@ public:
 
         // Load the value to the current context through the closure.
         return
-            this->CreateLoad(
-                this->CreateLoad(
-                    this->CreatePointerCast(
-                        this->CreateConstGEP1_32(ClosurePtr_, indexInClosure),
+            CreateLoad(
+                CreateLoad(
+                    CreatePointerCast(
+                        CreateConstGEP1_32(ClosurePtr_, indexInClosure),
                         value->getType()->getPointerTo()->getPointerTo(),
                         name + "ClosureSlotPtr"
                     ),
                     name + "InParentPtr"
                 ),
-                name
-            );
+                name);
     }
 
     llvm::Value* GetClosure() const
@@ -265,7 +259,6 @@ private:
     Value* ConstantsRow_;
     Value* RowBuffers_;
     Value* PassedFragmentParamsPtr_;
-    std::map<void*, Function*> CachedRoutines_;
 
     TCGContext(
         TCGFragment& cgFragment,
