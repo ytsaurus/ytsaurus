@@ -46,6 +46,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_routines.cpp
     ${BASE}/cg_cache.cpp
     ${BASE}/cg_fragment.cpp
+    ${BASE}/cg_ir_builder.cpp
   )
 
   set( HDRS
@@ -56,6 +57,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_routines.h
     ${BASE}/cg_cache.h
     ${BASE}/cg_fragment.h
+    ${BASE}/cg_ir_builder.h
   )
 endif()
 

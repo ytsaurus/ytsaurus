@@ -20,6 +20,8 @@ namespace llvm {
     class FunctionType;
     class Module;
     class Twine;
+    class Value;
+    class Instruction;
 }
 
 namespace NYT {
