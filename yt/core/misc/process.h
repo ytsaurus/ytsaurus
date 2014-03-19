@@ -12,15 +12,14 @@ class TProcess
     : private TNonCopyable
 {
 public:
-    explicit TProcess(const char* path);
+    explicit TProcess(const Stroka& path);
     ~TProcess();
 
-    void AddArgument(const char* arg);
+    void AddArgument(const Stroka& arg);
 
     TError Spawn();
     TError Wait();
 
-    const char* GetPath() const;
     int GetProcessId() const;
 
 private:
@@ -34,6 +33,7 @@ private:
     std::vector<char* > Env_;
     std::vector<char> Stack_;
 
+    const char* GetPath() const;
     // TODO(babenko): rename (or better get rid of)
     char* Copy(const char* arg);
 

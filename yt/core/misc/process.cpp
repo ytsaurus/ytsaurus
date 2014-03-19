@@ -4,6 +4,7 @@
 #include "proc.h"
 
 #include <core/misc/error.h>
+#include <core/misc/fs.h>
 
 #include <string.h>
 
@@ -49,23 +50,7 @@ static const int ExecErrorCodes[] = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): Replace with NFS::GetFileName.
-
-const char* GetFilename(const char* path)
-{
-    const char* name = strrchr(path, '/');
-    if (name == nullptr) {
-        name = path;
-    } else {
-        // point after '/'
-        ++name;
-    }
-    return name;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TProcess::TProcess(const char* path)
+TProcess::TProcess(const Stroka& path)
     : Finished_(false)
     , Status_(0)
     , ProcessId_(-1)
@@ -73,10 +58,10 @@ TProcess::TProcess(const char* path)
 {
     Pipe_[0] = Pipe_[1] = -1;
 
-    size_t size = strlen(path);
-    Path_.insert(Path_.end(), path, path + size + 1);
+    Path_.insert(Path_.end(), path.begin(), path.end());
+    Path_.push_back(0);
 
-    AddArgument(GetFilename(path));
+    AddArgument(NFS::GetFileName(path));
 }
 
 TProcess::~TProcess()
@@ -89,11 +74,11 @@ TProcess::~TProcess()
     }
 }
 
-void TProcess::AddArgument(const char* arg)
+void TProcess::AddArgument(const Stroka& arg)
 {
     YCHECK(ProcessId_ == -1 && !Finished_);
 
-    Args_.push_back(Copy(arg));
+    Args_.push_back(Copy(~arg));
 }
 
 TError TProcess::Spawn()
@@ -150,14 +135,14 @@ TError TProcess::Spawn()
     }
 #endif
 
-    ::close(Pipe_[1]);
-    Pipe_[1] = -1;
-
     if (pid < 0) {
         return TError("Error starting child process: clone failed")
             << TErrorAttribute("path", GetPath())
             << TError::FromSystem();
     }
+
+    YCHECK(::close(Pipe_[1]) == 0);
+    Pipe_[1] = -1;
 
     ProcessId_ = pid;
     return TError();
