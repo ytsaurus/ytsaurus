@@ -80,6 +80,7 @@ TProcess::TProcess(const Stroka& path)
 
 TProcess::~TProcess()
 {
+    YCHECK(Finished_);
     for (int index = 0; index < 2; ++index) {
         if (Pipe_[index] != -1) {
             ::close(Pipe_[index]);
