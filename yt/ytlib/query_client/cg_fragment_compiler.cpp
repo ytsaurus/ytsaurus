@@ -44,8 +44,7 @@
 #include <mutex>
 
 // TODO(sandello):
-//  - Cleanup TFragmentParams, TPassedFragmentParams, TCGBinding & TCGContext
-//    and their usages
+//  - Cleanup TPassedFragmentParams & TCGContext and their usages
 //  - Implement basic logging & profiling within evaluation code
 //
 

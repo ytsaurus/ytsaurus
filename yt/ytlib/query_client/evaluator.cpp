@@ -74,7 +74,7 @@ public:
     explicit TFoldingProfiler(
         llvm::FoldingSetNodeID& id,
         TCGBinding& binding,
-        TFragmentParams& variables)
+        TCGVariables& variables)
         : Id_(id)
         , Binding_(binding)
         , Variables_(variables)
@@ -89,7 +89,7 @@ public:
 private:
     llvm::FoldingSetNodeID& Id_;
     TCGBinding& Binding_;
-    TFragmentParams& Variables_;
+    TCGVariables& Variables_;
 
 };
 
@@ -361,11 +361,11 @@ public:
     }
 
 private:
-    std::pair<TCodegenedFunction, TFragmentParams> Codegen(const TPlanFragment& fragment)
+    std::pair<TCodegenedFunction, TCGVariables> Codegen(const TPlanFragment& fragment)
     {
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
-        TFragmentParams variables;
+        TCGVariables variables;
 
         TFoldingProfiler(id, binding, variables).Profile(fragment.GetHead());
 

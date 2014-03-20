@@ -54,8 +54,7 @@ struct TCGBinding
     std::unordered_map<const TOperator*, int> ScanOpToDataSplits;
 };
 
-// TODO(sandello): Better names for these.
-struct TFragmentParams
+struct TCGVariables
 {
     std::vector<TValue> ConstantArray;
     std::vector<TDataSplits> DataSplitsArray;
