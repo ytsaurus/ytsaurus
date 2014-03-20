@@ -56,7 +56,6 @@ struct TCGBinding
 
 // TODO(sandello): Better names for these.
 struct TFragmentParams
-    : public TCGBinding
 {
     std::vector<TValue> ConstantArray;
     std::vector<TDataSplits> DataSplitsArray;

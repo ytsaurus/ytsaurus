@@ -73,9 +73,11 @@ class TFoldingProfiler
 public:
     explicit TFoldingProfiler(
         llvm::FoldingSetNodeID& id,
-        TFragmentParams& params)
+        TCGBinding& binding,
+        TFragmentParams& variables)
         : Id_(id)
-        , Params_(params)
+        , Binding_(binding)
+        , Variables_(variables)
     { }
 
     void Profile(const TOperator* op);
@@ -86,7 +88,8 @@ public:
 
 private:
     llvm::FoldingSetNodeID& Id_;
-    TFragmentParams& Params_;
+    TCGBinding& Binding_;
+    TFragmentParams& Variables_;
 
 };
 
@@ -100,9 +103,9 @@ void TFoldingProfiler::Profile(const TOperator* op)
 
             Profile(scanOp->GetTableSchema());
 
-            int index = Params_.DataSplitsArray.size();
-            Params_.DataSplitsArray.push_back(scanOp->DataSplits());
-            Params_.ScanOpToDataSplits[scanOp] = index;
+            int index = Variables_.DataSplitsArray.size();
+            Variables_.DataSplitsArray.push_back(scanOp->DataSplits());
+            Binding_.ScanOpToDataSplits[scanOp] = index;
 
             break;
         }
@@ -163,9 +166,9 @@ void TFoldingProfiler::Profile(const TExpression* expr)
             const auto* integerLiteralExpr = expr->As<TIntegerLiteralExpression>();
             Id_.AddInteger(EFoldingObjectType::IntegerLiteralExpr);
 
-            int index = Params_.ConstantArray.size();
-            Params_.ConstantArray.push_back(MakeIntegerValue<TValue>(integerLiteralExpr->GetValue()));
-            Params_.NodeToConstantIndex[expr] = index;
+            int index = Variables_.ConstantArray.size();
+            Variables_.ConstantArray.push_back(MakeIntegerValue<TValue>(integerLiteralExpr->GetValue()));
+            Binding_.NodeToConstantIndex[expr] = index;
 
             break;
         }
@@ -174,9 +177,9 @@ void TFoldingProfiler::Profile(const TExpression* expr)
             const auto* doubleLiteralExpr = expr->As<TDoubleLiteralExpression>();
             Id_.AddInteger(EFoldingObjectType::DoubleLiteralExpr);
 
-            int index = Params_.ConstantArray.size();
-            Params_.ConstantArray.push_back(MakeIntegerValue<TValue>(doubleLiteralExpr->GetValue()));
-            Params_.NodeToConstantIndex[expr] = index;
+            int index = Variables_.ConstantArray.size();
+            Variables_.ConstantArray.push_back(MakeIntegerValue<TValue>(doubleLiteralExpr->GetValue()));
+            Binding_.NodeToConstantIndex[expr] = index;
 
             break;
         }
@@ -361,9 +364,10 @@ private:
     std::pair<TCodegenedFunction, TFragmentParams> Codegen(const TPlanFragment& fragment)
     {
         llvm::FoldingSetNodeID id;
-        TFragmentParams params;
+        TCGBinding binding;
+        TFragmentParams variables;
 
-        TFoldingProfiler(id, params).Profile(fragment.GetHead());
+        TFoldingProfiler(id, binding, variables).Profile(fragment.GetHead());
 
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {
@@ -371,7 +375,7 @@ private:
             try {
                 LOG_DEBUG("Compiling fragment %s", ~ToString(fragment.Id()));
                 auto newCGFragment = New<TCachedCGFragment>(id);
-                newCGFragment->Embody(Compiler_(fragment, *newCGFragment, params));
+                newCGFragment->Embody(Compiler_(fragment, *newCGFragment, binding));
                 newCGFragment->GetCompiledBody();
                 cookie.EndInsert(std::move(newCGFragment));
             } catch (const std::exception& ex) {
@@ -387,7 +391,7 @@ private:
 
         YCHECK(codegenedFunction);
 
-        return std::make_pair(codegenedFunction, std::move(params));
+        return std::make_pair(codegenedFunction, std::move(variables));
     }
 
 private:
