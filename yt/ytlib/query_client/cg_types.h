@@ -36,10 +36,12 @@ class TCGFragment;
 
 struct TPassedFragmentParams
 {
-    // Constants?
     IEvaluateCallbacks* Callbacks;
     TPlanContext* Context;
     std::vector<TDataSplits>* DataSplitsArray;
+    TRowBuffer* RowBuffer;
+    ISchemafulWriter* Writer;
+    std::vector<TRow>* Batch;
 };
 
 namespace NDetail {
@@ -65,10 +67,11 @@ struct TCGVariables
 
 typedef void (*TCodegenedFunction)(
     TRow constants,
-    TPassedFragmentParams* passedFragmentParams,
-    std::vector<TRow>* batch, // TODO(lukyan): remove this
-    TRowBuffer* rowBuffer, // TODO(lukyan): remove this
-    ISchemafulWriter* writer);
+    TPassedFragmentParams* passedFragmentParams);
+
+typedef
+    typename std::remove_pointer<TCodegenedFunction>::type
+    TCodegenedFunctionSignature;
 
 static const int MaxRowsPerRead = 512;
 static const int MaxRowsPerWrite = 512;
@@ -131,29 +134,17 @@ namespace llvm {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT;
-using namespace NQueryClient;
-using namespace NVersionedTableClient;
+using NYT::NQueryClient::TRow;
+using NYT::NQueryClient::TRowHeader;
+using NYT::NQueryClient::TValue;
+using NYT::NQueryClient::TValueData;
+using NYT::NQueryClient::TLookupRows;
+using NYT::NQueryClient::TPassedFragmentParams;
 
 // Opaque types
 
 template <bool cross>
-class TypeBuilder<ISchemafulWriter*, cross>
-    : public TypeBuilder<void*, cross>
-{ };
-
-template <bool cross>
-class TypeBuilder<TRowBuffer*, cross>
-    : public TypeBuilder<void*, cross>
-{ };
-
-template <bool cross>
 class TypeBuilder<std::vector<TRow>*, cross>
-    : public TypeBuilder<void*, cross>
-{ };
-
-template <bool cross>
-class TypeBuilder<std::pair<std::vector<TRow>, TChunkedMemoryPool*>*, cross>
     : public TypeBuilder<void*, cross>
 { };
 

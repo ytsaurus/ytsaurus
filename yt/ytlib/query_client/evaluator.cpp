@@ -316,21 +316,19 @@ public:
             LOG_DEBUG("Writer opened (FragmentId: %s)",
                 ~ToString(fragment.Id()));
 
+            TRowBuffer rowBuffer;
+            std::vector<TRow> batch;
+            batch.reserve(MaxRowsPerWrite);
+
             TPassedFragmentParams passedFragmentParams;
             passedFragmentParams.Callbacks = callbacks;
             passedFragmentParams.Context = fragment.GetContext().Get();
             passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
+            passedFragmentParams.RowBuffer = &rowBuffer;
+            passedFragmentParams.Writer = writer.Get();
+            passedFragmentParams.Batch = &batch;
 
-            std::vector<TRow> batch;
-            batch.reserve(MaxRowsPerWrite);
-            TRowBuffer pools;
-
-            codegenedFunction(
-                constants,
-                &passedFragmentParams,
-                &batch,
-                &pools,
-                writer.Get());
+            codegenedFunction(constants, &passedFragmentParams);
 
             LOG_DEBUG("Flushing writer (FragmentId: %s)",
                 ~ToString(fragment.Id()));

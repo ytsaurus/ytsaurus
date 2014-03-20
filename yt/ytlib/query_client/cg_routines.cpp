@@ -24,11 +24,11 @@ namespace NRoutines {
 
 using namespace NConcurrency;
 
-void WriteRow(
-    TRow row,
-    std::vector<TRow>* batch,
-    ISchemafulWriter* writer)
+void WriteRow(TRow row, TPassedFragmentParams* P)
 {
+    auto batch = P->Batch;
+    auto writer = P->Writer;
+
     YASSERT(batch->size() < batch->capacity());
 
     batch->push_back(row);
@@ -43,14 +43,14 @@ void WriteRow(
 }
 
 void ScanOpHelper(
-    TPassedFragmentParams* passedFragmentParams,
+    TPassedFragmentParams* P,
     int dataSplitsIndex,
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, int size))
 {
-    auto callbacks = passedFragmentParams->Callbacks;
-    auto context = passedFragmentParams->Context;
-    auto dataSplits = (*passedFragmentParams->DataSplitsArray)[dataSplitsIndex];
+    auto callbacks = P->Callbacks;
+    auto context = P->Context;
+    auto dataSplits = (*P->DataSplitsArray)[dataSplitsIndex];
 
     for (const auto& dataSplit : dataSplits) {
         auto reader = callbacks->GetReader(dataSplit, context);
@@ -108,20 +108,20 @@ const TRow* FindRow(TLookupRows* rows, TRow row)
 }
 
 void AddRow(
-    TRowBuffer* rowBuffer,
-    TLookupRows* lookupRows, // lookup table
+    TPassedFragmentParams* P,
+    TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
     TRow* newRow,
     int rowSize)
 {
     groupedRows->push_back(*newRow);
     lookupRows->insert(groupedRows->back());
-    *newRow = TRow::Allocate(rowBuffer->GetAlignedPool(), rowSize);
+    *newRow = TRow::Allocate(P->RowBuffer->GetAlignedPool(), rowSize);
 }
 
-void AllocateRow(TRowBuffer* rowBuffer, int rowSize, TRow* rowPtr)
+void AllocateRow(TPassedFragmentParams* P, int rowSize, TRow* rowPtr)
 {
-    *rowPtr = TRow::Allocate(rowBuffer->GetAlignedPool(), rowSize);
+    *rowPtr = TRow::Allocate(P->RowBuffer->GetAlignedPool(), rowSize);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)
