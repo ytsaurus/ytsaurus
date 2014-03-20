@@ -226,6 +226,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
         }
 
         node->KeyColumns() = ConvertTo<TKeyColumns>(value);
+        node->SetSorted(!node->KeyColumns().empty());
         return true;
     }
 

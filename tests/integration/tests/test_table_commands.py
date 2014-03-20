@@ -511,7 +511,7 @@ class TestTableCommands(YTEnvSetup):
 
     def test_key_columns1(self):
         create('table', '//tmp/t', opt=['/attributes/key_columns=[a;b]'])
-        assert get('//tmp/t/@sorted') == 'false'
+        assert get('//tmp/t/@sorted') == 'true'
         assert get('//tmp/t/@key_columns') == ['a', 'b']
 
     def test_key_columns2(self):
