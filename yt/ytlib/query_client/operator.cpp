@@ -47,8 +47,7 @@ const TTableSchema& TScanOperator::GetTableSchema(bool ignoreCache) const
 {
     if (!TableSchema_ || ignoreCache) {
         TableSchema_ = std::make_unique<TTableSchema>(GetTableSchemaFromDataSplit(DataSplits()[0]));
-
-        // TODO(lukyan): assert that other splits hava the same table scheme
+        // TODO(lukyan): check that other splits have the same table scheme
     }
     return *TableSchema_;
 }
