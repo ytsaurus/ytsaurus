@@ -126,7 +126,7 @@ TError TProcess::Spawn(int flags)
     int pid = ::clone(
         &TProcess::ChildMain,
         Stack_.data() + Stack_.size(),
-        flags | SIGCHLD,
+        flags | CLONE_UNTRACED | SIGCHLD,
         this);
 #else
     int pid = vfork();
@@ -215,7 +215,6 @@ int TProcess::DoSpawn()
 {
     YASSERT(ChildPipe_[1] != -1);
 
-    ::close(ChildPipe_[0]);
     ::execve(Path_.data(), Args_.data(), Env_.data());
 
     const int errorCode = errno;
