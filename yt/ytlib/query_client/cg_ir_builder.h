@@ -68,6 +68,8 @@ public:
     //! Returns the closure in the parent context.
     llvm::Value* GetClosure() const;
 
+    //! Creates a new basic block within the current function.
+    llvm::BasicBlock* CreateBBHere(const llvm::Twine& name);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

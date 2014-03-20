@@ -77,7 +77,7 @@ Value* TContextIRBuilder::ViaClosure(Value* value, llvm::Twine name)
         Value* valueInParentPtr = Parent_->CreateAlloca(
             valueInParent->getType(),
             nullptr,
-            name + "InParentPtr");
+            name + ".inParentPtr");
 
         Parent_->CreateStore(
             valueInParent,
@@ -87,7 +87,7 @@ Value* TContextIRBuilder::ViaClosure(Value* value, llvm::Twine name)
             Parent_->CreatePointerCast(
                 Parent_->CreateConstGEP1_32(Closure_, indexInClosure),
                 valueInParentPtr->getType()->getPointerTo(),
-                name + "ClosureSlotPtr"
+                name + ".closureSlotPtr"
             )
         );
     }
@@ -99,9 +99,9 @@ Value* TContextIRBuilder::ViaClosure(Value* value, llvm::Twine name)
                 CreatePointerCast(
                     CreateConstGEP1_32(ClosurePtr_, indexInClosure),
                     value->getType()->getPointerTo()->getPointerTo(),
-                    name + "ClosureSlotPtr"
+                    name + ".closureSlotPtr"
                 ),
-                name + "InParentPtr"
+                name + ".inParentPtr"
             ),
             name);
 }
@@ -109,6 +109,11 @@ Value* TContextIRBuilder::ViaClosure(Value* value, llvm::Twine name)
 llvm::Value* TContextIRBuilder::GetClosure() const
 {
     return Closure_;
+}
+
+llvm::BasicBlock* TContextIRBuilder::CreateBBHere(const llvm::Twine& name)
+{
+    return llvm::BasicBlock::Create(getContext(), name, GetInsertBlock()->getParent());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
