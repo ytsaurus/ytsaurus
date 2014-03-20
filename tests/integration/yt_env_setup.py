@@ -47,8 +47,9 @@ class YTEnvSetup(YTEnv):
         cls.Env = cls()
         cls.Env.set_environment(path_to_run, pids_filename)
 
-        yt_commands.init_driver(cls.Env.configs['driver'])
-        yt.bindings.driver.configure_logging(cls.Env.driver_logging_config)
+        if cls.Env.configs['driver']:
+            yt_commands.init_driver(cls.Env.configs['driver'])
+            yt.bindings.driver.configure_logging(cls.Env.driver_logging_config)
 
     @classmethod
     def teardown_class(cls):
