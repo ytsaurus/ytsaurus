@@ -19,11 +19,12 @@ public:
 
     void AddArgument(const Stroka& arg);
 
-#ifdef _win_
+#ifndef _linux_
     static const int CLONE_VM = 0; // fake
+    static const int CLONE_VFORK = 0; // fake
 #endif
 
-    TError Spawn(int flags = CLONE_VM);
+    TError Spawn(int flags = CLONE_VM | CLONE_VFORK);
     TError Wait();
 
     int GetProcessId() const;
