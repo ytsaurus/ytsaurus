@@ -435,7 +435,7 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::
         > TInvokerHelperType;
 
         typedef TUnwrapTraits<typename std::tuple_element<0, typename TTypedBindState::TTuple>::type> TBoundUnwrapTraits0;
-		typedef typename TBoundUnwrapTraits0::TType TBoundArg0;
+        typedef typename TBoundUnwrapTraits0::TType TBoundArg0;
 
         return TInvokerHelperType::Run(state->Runnable_,
             TMaybeCopyHelper<BA0>::Do(
@@ -480,7 +480,7 @@ class TBindState<Runnable, R(TArgs...), void(S...)>
 {
 public:
     typedef TIsMethodHelper<Runnable> IsMethod;
-	typedef TBindStateIsWeakMethodHelper<IsMethod::Value, S...> IsWeakMethod;
+    typedef TBindStateIsWeakMethodHelper<IsMethod::Value, S...> IsWeakMethod;
 
     typedef Runnable TRunnableType;
 
@@ -512,7 +512,7 @@ public:
     TRunnableType Runnable_;
     typedef std::tuple<S...> TTuple;
 
-	TTuple State;
+    TTuple State;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
