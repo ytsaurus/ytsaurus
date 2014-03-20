@@ -42,6 +42,8 @@ def main():
         
     if args.proxy is not None:
         yt.config.set_proxy(args.proxy)
+    else:
+        yt.create("table", args.dst, ignore_existing=True)
 
     if args.dst is None:
         args.dst = args.src
