@@ -44,7 +44,7 @@
 #include <mutex>
 
 // TODO(sandello):
-//  - Cleanup TFragmentParams, TPassedFragmentParams, TCGImmediates & TCGContext
+//  - Cleanup TFragmentParams, TPassedFragmentParams, TCGBinding & TCGContext
 //    and their usages
 //  - Implement basic logging & profiling within evaluation code
 //
@@ -79,25 +79,25 @@ class TCGContext
 {
 public:
     static Function* CodegenEvaluate(
-        const TPlanFragment& fragment,
-        const TCGImmediates& params,
-        TCGFragment& cgFragment);
+        const TPlanFragment& planFragment,
+        const TCGFragment& cgFragment,
+        const TCGBinding& binding);
 
 private:
-    TCGFragment& CGFragment_;
-    const TCGImmediates& Params_;
+    const TCGFragment& Fragment_;
+    const TCGBinding& Binding_;
     Value* ConstantsRow_;
     Value* RowBuffers_;
     Value* PassedFragmentParamsPtr_;
 
     TCGContext(
-        TCGFragment& cgFragment,
-        const TCGImmediates& params,
+        const TCGFragment& cgFragment,
+        const TCGBinding& binding,
         Value* constantsRow,
         Value* rowBuffers,
         Value* passedFragmentParamsPtr)
-        : CGFragment_(cgFragment)
-        , Params_(params)
+        : Fragment_(cgFragment)
+        , Binding_(binding)
         , ConstantsRow_(constantsRow)
         , RowBuffers_(rowBuffers)
         , PassedFragmentParamsPtr_(passedFragmentParamsPtr)
@@ -599,8 +599,8 @@ Value* TCGContext::CodegenExpr(
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral:
         case EExpressionKind::DoubleLiteral: {
-            auto it = Params_.NodeToConstantIndex.find(expr);
-            YCHECK(it != Params_.NodeToConstantIndex.end());
+            auto it = Binding_.NodeToConstantIndex.find(expr);
+            YCHECK(it != Binding_.NodeToConstantIndex.end());
             int index = it->second;
 
             return CodegenValueFromRow(
@@ -688,12 +688,12 @@ void TCGContext::CodegenScanOp(
 
     Value* passedFragmentParamsPtr = GetPassedFragmentParamsPtr(builder);
 
-    auto it = Params_.ScanOpToDataSplits.find(op);
-    YCHECK(it != Params_.ScanOpToDataSplits.end());
+    auto it = Binding_.ScanOpToDataSplits.find(op);
+    YCHECK(it != Binding_.ScanOpToDataSplits.end());
     int dataSplitsIndex = it->second;
 
     builder.CreateCall4(
-        CGFragment_.GetRoutine("ScanOpHelper"),
+        Fragment_.GetRoutine("ScanOpHelper"),
         passedFragmentParamsPtr,
         builder.getInt32(dataSplitsIndex),
         innerBuilder.GetClosure(),
@@ -754,7 +754,7 @@ void TCGContext::CodegenProjectOp(
             Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
             
             innerBuilder.CreateCall3(
-                CGFragment_.GetRoutine("AllocateRow"),
+                Fragment_.GetRoutine("AllocateRow"),
                 GetRowBuffers(innerBuilder),
                 builder.getInt32(projectionCount),
                 newRowPtrRef);
@@ -817,7 +817,7 @@ void TCGContext::CodegenGroupOp(
         Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
 
         innerBuilder.CreateCall3(
-            CGFragment_.GetRoutine("AllocateRow"),
+            Fragment_.GetRoutine("AllocateRow"),
             memoryPoolsRef,
             builder.getInt32(keySize + aggregateItemCount),
             newRowPtrRef);
@@ -855,7 +855,7 @@ void TCGContext::CodegenGroupOp(
         }
 
         Value* foundRowPtr = innerBuilder.CreateCall2(
-            CGFragment_.GetRoutine("FindRow"),
+            Fragment_.GetRoutine("FindRow"),
             rowsRef,
             newRowRef);
 
@@ -886,7 +886,7 @@ void TCGContext::CodegenGroupOp(
 
         innerBuilder.SetInsertPoint(elseBB);
         innerBuilder.CreateCall5(
-            CGFragment_.GetRoutine("AddRow"),
+            Fragment_.GetRoutine("AddRow"),
             memoryPoolsRef,
             rowsRef,
             groupedRowsRef,
@@ -899,14 +899,14 @@ void TCGContext::CodegenGroupOp(
 
     CodegenForEachRow(
         innerBuilder,
-        innerBuilder.CreateCall(CGFragment_.GetRoutine("GetRowsData"), groupedRows),
-        innerBuilder.CreateCall(CGFragment_.GetRoutine("GetRowsSize"), groupedRows),
+        innerBuilder.CreateCall(Fragment_.GetRoutine("GetRowsData"), groupedRows),
+        innerBuilder.CreateCall(Fragment_.GetRoutine("GetRowsSize"), groupedRows),
         codegenConsumer);
 
     innerBuilder.CreateRetVoid();
 
     builder.CreateCall4(
-        CGFragment_.GetRoutine("GroupOpHelper"),
+        Fragment_.GetRoutine("GroupOpHelper"),
         builder.getInt32(keySize),
         builder.getInt32(aggregateItemCount),
         innerBuilder.GetClosure(),
@@ -914,20 +914,22 @@ void TCGContext::CodegenGroupOp(
 }
 
 Function* TCGContext::CodegenEvaluate(
-    const TPlanFragment& fragment,
-    const TCGImmediates& params,
-    TCGFragment& cgFragment)
+    const TPlanFragment& planFragment,
+    const TCGFragment& cgFragment,
+    const TCGBinding& binding)
 {
-    auto op = fragment.GetHead();
-
+    auto op = planFragment.GetHead();
     YASSERT(op);
+
+    auto* module = cgFragment.GetModule();
+    auto& context = module->getContext();
 
     // See TCodegenedFunction.
     Function* function = Function::Create(
-        TypeBuilder<void(TRow, TPassedFragmentParams*, void*, void*, void*), false>::get(cgFragment.GetContext()),
+        TypeBuilder<void(TRow, TPassedFragmentParams*, void*, void*, void*), false>::get(context),
         Function::ExternalLinkage,
         "Evaluate",
-        cgFragment.GetModule());
+        module);
 
     auto args = function->arg_begin();
     Value* constants = args;
@@ -942,9 +944,9 @@ Function* TCGContext::CodegenEvaluate(
     writer->setName("writer");
     YCHECK(++args == function->arg_end());
 
-    TIRBuilder builder(BasicBlock::Create(cgFragment.GetContext(), "entry", function));
+    TIRBuilder builder(BasicBlock::Create(context, "entry", function));
 
-    TCGContext ctx(cgFragment, params, constants, pools, passedFragmentParamsPtr);
+    TCGContext ctx(cgFragment, binding, constants, pools, passedFragmentParamsPtr);
 
     ctx.CodegenOp(builder, op,
         [&] (TIRBuilder& innerBuilder, Value* row) {

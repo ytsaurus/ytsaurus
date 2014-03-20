@@ -11,7 +11,12 @@ class TPlanFragment;
 class TCGFragment;
 struct TFragmentParams;
 
-typedef std::function<llvm::Function*(const TPlanFragment&, const TCGImmediates&, TCGFragment&)> TCGFragmentCompiler;
+typedef std::function<
+    llvm::Function*(
+        const TPlanFragment&,
+        const TCGFragment&,
+        const TCGBinding&)
+    > TCGFragmentCompiler;
 
 TCGFragmentCompiler CreateFragmentCompiler();
 

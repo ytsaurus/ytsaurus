@@ -371,7 +371,7 @@ private:
             try {
                 LOG_DEBUG("Compiling fragment %s", ~ToString(fragment.Id()));
                 auto newCGFragment = New<TCachedCGFragment>(id);
-                newCGFragment->Embody(Compiler_(fragment, params, *newCGFragment));
+                newCGFragment->Embody(Compiler_(fragment, *newCGFragment, params));
                 newCGFragment->GetCompiledBody();
                 cookie.EndInsert(std::move(newCGFragment));
             } catch (const std::exception& ex) {

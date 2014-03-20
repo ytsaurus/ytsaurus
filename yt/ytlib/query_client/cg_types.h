@@ -48,8 +48,7 @@ typedef
     std::unordered_set<TRow, NDetail::TGroupHasher, NDetail::TGroupComparer>
     TLookupRows;
 
-// TODO(sandello): Better names for these.
-struct TCGImmediates
+struct TCGBinding
 {
     std::unordered_map<const TExpression*, int> NodeToConstantIndex;
     std::unordered_map<const TOperator*, int> ScanOpToDataSplits;
@@ -57,7 +56,7 @@ struct TCGImmediates
 
 // TODO(sandello): Better names for these.
 struct TFragmentParams
-    : public TCGImmediates
+    : public TCGBinding
 {
     std::vector<TValue> ConstantArray;
     std::vector<TDataSplits> DataSplitsArray;
