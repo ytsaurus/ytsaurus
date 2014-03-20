@@ -106,10 +106,6 @@ public:
 
         Module_ = module.release();
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
-
-        LOG_DEBUG("Created a new codegenerated fragment (HostCpu: %s, HostTriple: %s)",
-            hostCpu.str().c_str(),
-            hostTriple.c_str());
     }
 
     llvm::LLVMContext& GetContext()

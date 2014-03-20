@@ -44,9 +44,8 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/evaluator.cpp
     ${BASE}/cg_routine_registry.cpp
     ${BASE}/cg_routines.cpp
-    ${BASE}/cg_cache.cpp
-    ${BASE}/cg_fragment.cpp
     ${BASE}/cg_ir_builder.cpp
+    ${BASE}/cg_fragment.cpp
     ${BASE}/cg_fragment_compiler.cpp
   )
 
@@ -56,9 +55,8 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_types.h
     ${BASE}/cg_routine_registry.h
     ${BASE}/cg_routines.h
-    ${BASE}/cg_cache.h
-    ${BASE}/cg_fragment.h
     ${BASE}/cg_ir_builder.h
+    ${BASE}/cg_fragment.h
     ${BASE}/cg_fragment_compiler.h
   )
 endif()

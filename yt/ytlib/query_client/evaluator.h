@@ -21,7 +21,7 @@ public:
 
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 
