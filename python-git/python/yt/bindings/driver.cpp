@@ -74,7 +74,6 @@ public:
         } catch(const TErrorException& error) {
             throw Py::RuntimeError("Fail while loading config: " + error.Error().GetMessage());
         }
-        NLog::TLogManager::Get()->Configure(configNode->AsMap()->FindChild("logging"));
         DriverInstance_ = CreateDriver(config);
     }
 
@@ -253,6 +252,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+
 class driver_module
     : public Py::ExtensionModule<driver_module>
 {
@@ -270,6 +270,8 @@ public:
         TDriverResponse::InitType();
         TCommandDescriptor::InitType();
 
+        add_keyword_method("configure_logging", &driver_module::ConfigureLogging, "configure logging of driver instances");
+
         initialize("Python bindings for driver");
 
         Py::Dict moduleDict(moduleDictionary());
@@ -277,6 +279,21 @@ public:
         moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
     }
 
+    Py::Object ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
+
+        if (args.length() > 0 || kwargs.length() > 0) {
+            throw CreateYtError("Incorrect arguments");
+        }
+
+        NLog::TLogManager::Get()->Configure(config->AsMap());
+
+        return Py::None();
+    }
     virtual ~driver_module()
     { }
 };

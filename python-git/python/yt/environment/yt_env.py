@@ -19,8 +19,25 @@ from collections import defaultdict
 GEN_PORT_ATTEMPTS = 10
 
 def init_logging(node, path, name):
-    for key, suffix in [('file', '.log'), ('raw', '.debug.log')]:
-        node['writers'][key]['file_name'] = os.path.join(path, name + suffix)
+    if not node:
+        node = configs.get_logging_pattern()
+
+    def process(node, key, value):
+        if isinstance(value, str):
+            node[key] = value.format(path=path, name=name)
+        else:
+            node[key] = traverse(value)
+
+    def traverse(node):
+        if isinstance(node, dict):
+            for key, value in node.iteritems():
+                process(node, key, value)
+        elif isinstance(node, list):
+            for i, value in enumerate(node):
+                process(node, i, value)
+        return node
+
+    return traverse(node)
 
 def write_config(config, filename):
     with open(filename, 'wt') as f:
@@ -44,7 +61,7 @@ def get_open_port():
         get_open_port.busy_ports.add(port)
 
         return port
-    
+
     raise RuntimeError("Failed to generate random port")
 
 class YTEnv(object):
@@ -93,9 +110,9 @@ class YTEnv(object):
         self._pids_filename = pids_filename
         self._kill_previously_run_services()
 
-        self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, set_driver=True, ports=ports)
+        self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, ports=ports)
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, set_driver, identifier="", ports=None):
+    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, identifier="", ports=None):
         get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
@@ -108,6 +125,7 @@ class YTEnv(object):
         scheduler_name = "scheduler" + identifier
         node_name = "node" + identifier
         driver_name = "driver" + identifier
+        console_driver_name = "console_driver" + identifier
         proxy_name = "proxy" + identifier
 
         list_ports(master_name, 2 * masters_count)
@@ -128,7 +146,8 @@ class YTEnv(object):
             self._run_masters(masters_count, master_name)
             self._run_schedulers(schedulers_count, scheduler_name)
             self._run_nodes(nodes_count, node_name)
-            self._prepare_driver(driver_name, set_driver)
+            self._prepare_driver(driver_name)
+            self._prepare_console_driver(console_driver_name, self.configs[driver_name])
             self._run_proxy(has_proxy, proxy_name)
         except:
             self.clear_environment()
@@ -255,7 +274,7 @@ class YTEnv(object):
                 os.path.join(current, 'changelogs')
             config['snapshots']['path'] = \
                     os.path.join(current, 'snapshots')
-            init_logging(config['logging'], current, 'master-' + str(i))
+            config['logging'] = init_logging(config['logging'], current, 'master-' + str(i))
 
             self.modify_master_config(config)
             update(config, self.DELTA_MASTER_CONFIG)
@@ -312,8 +331,9 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[node_name][2 * i]
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
-            config['masters']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config['timestamp_provider']['addresses'] = config['masters']['addresses']
+            config['cluster_connection']['masters']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['cluster_connection']['timestamp_provider']['addresses'] = config['cluster_connection']['masters']['addresses']
+
             config['data_node']['cache_location']['path'] = \
                 os.path.join(current, 'chunk_cache')
             config['data_node']['store_locations'].append(
@@ -330,8 +350,9 @@ class YTEnv(object):
 
             current_user += config['exec_agent']['job_controller']['resource_limits']['slots'] + 1
 
-            init_logging(config['logging'], current, 'node-%d' % i)
-            init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
+            config['logging'] = init_logging(config['logging'], current, 'node-%d' % i)
+            config['exec_agent']['job_proxy_logging'] = \
+                    init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
 
             self.modify_node_config(config)
             update(config, self.DELTA_NODE_CONFIG)
@@ -399,9 +420,10 @@ class YTEnv(object):
             os.mkdir(current)
 
             config = configs.get_scheduler_config()
-            config['masters']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
-            config['timestamp_provider']['addresses'] = config['masters']['addresses']
-            init_logging(config['logging'], current, 'scheduler-' + str(i))
+            config['cluster_connection']['masters']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
+            config['cluster_connection']['timestamp_provider']['addresses'] = config['cluster_connection']['masters']['addresses']
+
+            config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
 
             config['rpc_port'] = self._ports[scheduler_name][2 * i]
             config['monitoring_port'] = self._ports[scheduler_name][2 * i + 1]
@@ -441,18 +463,26 @@ class YTEnv(object):
         self.start_schedulers(scheduler_name)
 
 
-    def _prepare_driver(self, driver_name, set_driver):
+    def _prepare_driver(self, driver_name):
         config = configs.get_driver_config()
-        config['masters']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
-        config['timestamp_provider']['addresses'] = config['masters']['addresses']
-        config_path = os.path.join(self.path_to_run, driver_name + '_config.yson')
-        write_config(config, config_path)
+        config['timestamp_provider']['addresses'] = config['masters']['addresses'] = \
+            self._master_addresses[driver_name.replace("driver", "master", 1)]
 
         self.configs[driver_name] = config
-        self.config_paths[driver_name] = config_path
+        self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
 
-        if set_driver:
-            os.environ['YT_CONFIG'] = config_path
+
+    def _prepare_console_driver(self, console_driver_name, driver_config):
+        config = configs.get_console_driver_config()
+        config["driver"] = driver_config
+        config['logging'] = init_logging(config['logging'], self.path_to_run, 'console_driver')
+
+        config_path = os.path.join(self.path_to_run, 'console_driver_config.yson')
+        write_config(config, config_path)
+
+        self.configs[console_driver_name].append(config)
+        self.config_paths[console_driver_name].append(config_path)
+        self.log_paths[console_driver_name].append(config['logging']['writers']['file']['file_name'])
 
 
     def _prepare_proxy(self, has_proxy, proxy_name):
@@ -464,11 +494,9 @@ class YTEnv(object):
         driver_config = configs.get_driver_config()
         driver_config['masters']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
         driver_config['timestamp_provider']['addresses'] = driver_config['masters']['addresses']
-        init_logging(driver_config['logging'], current, 'node')
 
         proxy_config = configs.get_proxy_config()
-        proxy_config['proxy']['logging'] = driver_config['logging']
-        del driver_config['logging']
+        proxy_config['proxy']['logging'] = init_logging(proxy_config['proxy']['logging'], current, "http_proxy")
         proxy_config['proxy']['driver'] = driver_config
         proxy_config['port'] = self._ports[proxy_name][0]
         proxy_config['log_port'] = self._ports[proxy_name][1]

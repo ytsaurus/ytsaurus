@@ -3,6 +3,45 @@ import simplejson as json
 
 """This module provides default ytserver configs"""
 
+def get_logging_pattern():
+    return yson.loads(
+"""
+{
+    rules = [
+        {
+            min_level = Info;
+            writers = [ file ];
+            categories  = [ "*" ];
+        };
+        {
+            min_level = Debug;
+            writers = [ raw ];
+            categories  = [ "*" ];
+        };
+        {
+            min_level = Error;
+            writers = [ stderr ];
+            categories  = [ "*" ];
+        };
+    ];
+    writers = {
+        stderr = {
+            type = Stderr;
+            pattern = "$(datetime) $(level) $(category) $(message)";
+        };
+        file = {
+            type = File;
+            file_name = "{path}/{name}.log";
+            pattern = "$(datetime) $(level) $(category) $(message)";
+        };
+        raw = {
+            type = raw;
+            file_name = "{path}/{name}.debug.log";
+        };
+    };
+}
+""")
+
 def get_master_config():
     return yson.loads(
 """
@@ -18,7 +57,7 @@ def get_master_config():
     changelogs = {
         path = "";
     };
-    
+
     snapshots = {
         path = "";
     };
@@ -66,40 +105,7 @@ def get_master_config():
         rpc_timeout = 100;
     };
 
-    logging = {
-        rules = [
-            {
-                min_level = Info;
-                writers = [ file ];
-                categories  = [ "*" ];
-            };
-            {
-                min_level = Debug;
-                writers = [ raw ];
-                categories  = [ "*" ];
-            };
-            {
-                min_level = Error;
-                writers = [ stderr ];
-                categories  = [ "*" ];
-            };
-        ];
-        writers = {
-            stderr = {
-                type = Stderr;
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-            file = {
-                type = File;
-                file_name = "master-0.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-            raw = {
-                type = raw;
-                file_name = "master-0.debug.log";
-            };
-        }
-  };
+    logging = { };
 }
 """)
 
@@ -107,12 +113,18 @@ def get_scheduler_config():
     return yson.loads(
 """
 {
-    masters = {
-        addresses = [ ];
-    };
+    cluster_connection = {
+        masters = {
+            addresses = [ ];
+        };
 
-    timestamp_provider = {
-        addresses = [ ];
+        timestamp_provider = {
+            addresses = [ ];
+        };
+
+        transaction_manager = {
+            ping_period = 500;
+        };
     };
 
     scheduler = {
@@ -130,108 +142,7 @@ def get_scheduler_config():
         };
     };
 
-    transaction_manager = {
-        ping_period = 500;
-    };
-
-    logging = {
-        rules = [
-            {
-                min_level = Info;
-                writers = [ file ];
-                categories  = [ "*" ];
-            };
-            {
-                min_level = Debug;
-                writers = [ raw ];
-                categories  = [ "*" ];
-            };
-            {
-                min_level = Error;
-                writers = [ stderr ];
-                categories  = [ "*" ];
-            };
-        ];
-        writers = {
-            stderr = {
-                type = Stderr;
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-            file = {
-                type = File;
-                file_name = "scheduler-0.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-            raw = {
-                type = raw;
-                file_name = "scheduler-0.debug.log";
-            };
-        }
-    }
-}
-""")
-
-
-def get_driver_config():
-    return yson.loads(
-"""
-{
-    masters = {
-        addresses = [ ];
-        rpc_timeout = 30000;
-    };
-
-    timestamp_provider = {
-        addresses = [ ];
-    };
-
-    logging = {
-        rules = [
-            {
-                min_level = Info;
-                writers = [ file ];
-                categories  = [ "*" ];
-            };
-            {
-                min_level = Debug;
-                writers = [ raw ];
-                categories  = [ "*" ];
-            };
-            {
-                min_level = Error;
-                writers = [ stderr ];
-                categories  = [ "*" ];
-            };
-        ];
-        writers = {
-            stderr = {
-                type = Stderr;
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-            file = {
-                type = File;
-                file_name = "ytdriver.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-            raw = {
-                type = Raw;
-                file_name = "ytdriver.debug.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-        };
-    };
-    "format_defaults" = {
-        "structured" = <
-            "format" = "text"
-        > "yson";
-        "tabular" = <
-            "format" = "text"
-        > "yson"
-    };
-    "operation_wait_timeout" = 3000;
-    "transaction_manager" = {
-        "ping_period" = 5000
-    }
+    logging = { };
 }
 """)
 
@@ -239,6 +150,17 @@ def get_node_config():
     return yson.loads(
 """
 {
+    cluster_connection = {
+        masters = {
+            addresses = [];
+            rpc_timeout = 5000
+        };
+
+        timestamp_provider = {
+            addresses = [ ];
+        };
+    };
+
     data_node = {
         cache_location = {
             path = "";
@@ -271,40 +193,7 @@ def get_node_config():
             path = "";
         };
 
-        job_proxy_logging = {
-            rules = [
-                {
-                    min_level = Info;
-                    writers = [ file ];
-                    categories  = [ "*" ];
-                };
-                {
-                    min_level = Debug;
-                    writers = [ raw ];
-                    categories  = [ "*" ];
-                };
-                {
-                    min_level = Error;
-                    writers = [ stderr ];
-                    categories  = [ "*" ];
-                };
-            ];
-            writers = {
-                stderr = {
-                    type = Stderr;
-                    pattern = "$(datetime) $(level) $(category) $(message)";
-                };
-                file = {
-                    type = File;
-                    file_name = "job_proxy-0.log";
-                    pattern = "$(datetime) $(level) $(category) $(message)";
-                };
-                raw = {
-                    type = Raw;
-                    file_name = "job_proxy-0.debug.log";
-                };
-            }
-        };
+        job_proxy_logging = { };
     };
 
     tablet_node = {
@@ -317,15 +206,6 @@ def get_node_config():
     };
 
     query_agent = {
-    };
-
-    masters = {
-        addresses = [];
-        rpc_timeout = 5000
-    };
-
-    timestamp_provider = {
-        addresses = [ ];
     };
 
     logging = {
@@ -360,6 +240,43 @@ def get_node_config():
 }
 """)
 
+def get_driver_config():
+    return yson.loads(
+"""
+{
+    masters = {
+        addresses = [ ];
+        rpc_timeout = 30000;
+    };
+
+    timestamp_provider = {
+        addresses = [ ];
+    };
+
+    transaction_manager = {
+        ping_period = 5000
+    };
+
+    format_defaults = {
+        structured = <
+            format = text;
+        > yson;
+        tabular = <
+            format = text;
+        > yson
+    };
+}
+""")
+
+def get_console_driver_config():
+    return yson.loads(
+"""
+{
+    driver = { };
+    logging = { };
+}
+""")
+
 def get_proxy_config():
     return json.loads(
 """
@@ -387,10 +304,7 @@ def get_proxy_config():
     },
 
     "proxy" : {
-        "logging" : {
-            "rules" : [ ],
-            "writers" : { }
-        },
+        "logging" : { },
         "driver" : { }
     }
 }
