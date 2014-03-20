@@ -14,9 +14,9 @@ static const unsigned int MaxClosureSize = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TContextIRBuilder::TContextIRBuilder(
+TCGIRBuilder::TCGIRBuilder(
     llvm::BasicBlock* basicBlock,
-    TContextIRBuilder* parent,
+    TCGIRBuilder* parent,
     Value* closurePtr)
     : TBase(basicBlock)
     , Parent_(parent)
@@ -33,10 +33,10 @@ TContextIRBuilder::TContextIRBuilder(
         "closure");
 }
 
-TContextIRBuilder::~TContextIRBuilder()
+TCGIRBuilder::~TCGIRBuilder()
 { }
 
-TContextIRBuilder::TContextIRBuilder(llvm::BasicBlock* basicBlock)
+TCGIRBuilder::TCGIRBuilder(llvm::BasicBlock* basicBlock)
     : TBase(basicBlock)
     , Parent_(nullptr)
     , ClosurePtr_(nullptr)
@@ -48,7 +48,7 @@ TContextIRBuilder::TContextIRBuilder(llvm::BasicBlock* basicBlock)
     }
 }
 
-Value* TContextIRBuilder::ViaClosure(Value* value, llvm::Twine name)
+Value* TCGIRBuilder::ViaClosure(Value* value, llvm::Twine name)
 {
     // If |value| belongs to the current context, then we can use it directly.
     if (ValuesInContext_.count(value) > 0) {
@@ -106,12 +106,12 @@ Value* TContextIRBuilder::ViaClosure(Value* value, llvm::Twine name)
             name);
 }
 
-llvm::Value* TContextIRBuilder::GetClosure() const
+llvm::Value* TCGIRBuilder::GetClosure() const
 {
     return Closure_;
 }
 
-llvm::BasicBlock* TContextIRBuilder::CreateBBHere(const llvm::Twine& name)
+llvm::BasicBlock* TCGIRBuilder::CreateBBHere(const llvm::Twine& name)
 {
     return llvm::BasicBlock::Create(getContext(), name, GetInsertBlock()->getParent());
 }

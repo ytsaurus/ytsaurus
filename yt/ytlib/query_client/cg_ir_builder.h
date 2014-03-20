@@ -31,14 +31,14 @@ protected:
 
 };
 
-class TContextIRBuilder
+class TCGIRBuilder
     : public llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter>
 {
 private:
     typedef llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter> TBase;
 
     //! Builder associated with the parent context.
-    TContextIRBuilder* Parent_;
+    TCGIRBuilder* Parent_;
 
     //! Pointer to the closure.
     //! Note that this value belongs to the current context.
@@ -52,15 +52,15 @@ private:
     std::unordered_map<llvm::Value*, int> Mapping_;
 
 public:
-    TContextIRBuilder(
+    TCGIRBuilder(
         llvm::BasicBlock* basicBlock);
 
-    TContextIRBuilder(
+    TCGIRBuilder(
         llvm::BasicBlock* basicBlock,
-        TContextIRBuilder* parent,
+        TCGIRBuilder* parent,
         llvm::Value* closurePtr);
 
-    ~TContextIRBuilder();
+    ~TCGIRBuilder();
 
     //! Captures and passes a value from the parent context via the closure.
     llvm::Value* ViaClosure(llvm::Value* value, llvm::Twine name = llvm::Twine());
