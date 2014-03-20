@@ -23,10 +23,7 @@ TEST(TProcessTest, InvalidPath)
     TProcess p("/some/bad/path/binary");
     auto error = p.Spawn();
 
-    ASSERT_TRUE(error.IsOK());
-    error = p.Wait();
-
-    EXPECT_FALSE(error.IsOK());
+    ASSERT_FALSE(error.IsOK());
 }
 
 TEST(TProcessTest, ProcessReturnCode0)

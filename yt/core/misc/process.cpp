@@ -80,7 +80,10 @@ TProcess::TProcess(const Stroka& path)
 
 TProcess::~TProcess()
 {
-    YCHECK(Finished_);
+    if (ProcessId_ != -1) {
+        YCHECK(Finished_);
+    }
+
     for (int index = 0; index < 2; ++index) {
         if (Pipe_[index] != -1) {
             ::close(Pipe_[index]);
@@ -144,6 +147,16 @@ TError TProcess::Spawn(int flags)
     YCHECK(::close(Pipe_[1]) == 0);
     Pipe_[1] = -1;
 
+    {
+        int errCode;
+        if (::read(Pipe_[0], &errCode, sizeof(int)) == sizeof(int)) {
+            ::waitpid(pid, nullptr, 0);
+            Finished_ = true;
+            return TError("Error waiting for child process to finish: execve failed")
+                << TError::FromSystem(errCode);
+        }
+    }
+
     ProcessId_ = pid;
     return TError();
 #endif
@@ -156,33 +169,14 @@ TError TProcess::Wait()
     return TError("Windows is not supported");
 #else
 
-    YCHECK(ProcessId_ != -1);
-    YCHECK(Pipe_[0] != -1);
-    YCHECK(Pipe_[1] == -1);
+    int result = ::waitpid(ProcessId_, &Status_, WUNTRACED);
+    Finished_ = true;
 
-    {
-        int errCode;
-        if (::read(Pipe_[0], &errCode, sizeof(int)) != sizeof(int)) {
-            // TODO(babenko): can't understand why we're doing this: nobody's gonna use this value anyway
-            errCode = 0;
-        } else {
-            ::waitpid(ProcessId_, nullptr, 0);
-            Finished_ = true;
-            return TError("Error waiting for child process to finish: execve failed")
-                << TError::FromSystem(errCode);
-        }
+    if (result < 0) {
+        return TError::FromSystem();
     }
 
-    {
-        int result = ::waitpid(ProcessId_, &Status_, WUNTRACED);
-        Finished_ = true;
-
-        if (result < 0) {
-            return TError::FromSystem();
-        }
-
-        YCHECK(result == ProcessId_);
-    }
+    YCHECK(result == ProcessId_);
 
     return StatusToError(Status_);
 #endif
