@@ -31,6 +31,9 @@ namespace NQueryClient {
 
 using NVersionedTableClient::TRowBuffer;
 
+class TPlanFragment;
+class TCGFragment;
+
 struct TPassedFragmentParams
 {
     // Constants?
