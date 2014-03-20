@@ -155,7 +155,7 @@ private:
 
         {
             auto req = TFileYPathProxy::PrepareForUpdate(path);
-            req->set_mode(Options_.Overwrite ? EUpdateMode::Overwrite : EUpdateMode::Append);
+            req->set_mode(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite);
             NHydra::GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction_);
             batchReq->AddRequest(req, "prepare_for_update");

@@ -977,7 +977,7 @@ void TOperationControllerBase::Initialize()
     for (const auto& path : GetOutputTablePaths()) {
         TOutputTable table;
         table.Path = path;
-        if (NChunkClient::ExtractOverwriteFlag(path.Attributes())) {
+        if (!path.GetAppend()) {
             table.Clear = true;
             table.Overwrite = true;
             table.LockMode = ELockMode::Exclusive;
@@ -2363,13 +2363,10 @@ void TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "lock_in");
         }
         {
-            auto attributes = table.Path.Attributes().Clone();
-            if (table.ComplementFetch) {
-                attributes->Set("complement", !attributes->Get("complement", false));
-            }
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
-            ToProto(req->mutable_attributes(), *attributes);
+            req->set_complement(table.ComplementFetch);
+            InitializeFetchRequest(req.Get(), table.Path);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "fetch_in");
         }
@@ -2459,7 +2456,7 @@ void TOperationControllerBase::RequestInputs()
         {
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
-            ToProto(req->mutable_attributes(), file.Path.Attributes());
+            InitializeFetchRequest(req.Get(), file.Path);
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             batchReq->AddRequest(req, "fetch_table_file_chunks");
         }

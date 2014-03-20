@@ -87,7 +87,7 @@ TTableChunkWriter::TTableChunkWriter(
 
     for (int i = 0; i < static_cast<int>(Channels.size()); ++i) {
         const auto& channel = Channels[i];
-        *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
+        ToProto(ChannelsExt.add_items()->mutable_channel(), channel);
         auto channelWriter = New<TChannelWriter>(i, channel.GetColumns().size());
         Buffers.push_back(channelWriter);
         BuffersHeap.push_back(channelWriter.Get());

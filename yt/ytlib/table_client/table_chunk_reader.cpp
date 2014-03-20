@@ -368,7 +368,7 @@ private:
     {
         ChunkChannels.reserve(ChannelsExt.items_size());
         for (int i = 0; i < ChannelsExt.items_size(); ++i) {
-            ChunkChannels.push_back(TChannel::FromProto(ChannelsExt.items(i).channel()));
+            ChunkChannels.push_back(FromProto<TChannel>(ChannelsExt.items(i).channel()));
         }
 
         // Heuristic: first try to find a channel containing the whole read channel.
@@ -713,7 +713,7 @@ public:
             chunkReader->PartitionTag);
 
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(
-            TChannel::FromProto(channelsExt.items(0).channel())));
+            FromProto<TChannel>(channelsExt.items(0).channel())));
 
         chunkReader->CurrentKey = TKey::Allocate(&chunkReader->KeyMemoryPool, 0);
         chunkReader->DoFetchNextRow();
@@ -1031,7 +1031,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     return New<TTableChunkReader>(
         this,
         Config,
-        chunkSpec.has_channel() ? TChannel::FromProto(chunkSpec.channel()) : TChannel::Universal(),
+        chunkSpec.has_channel() ? FromProto<TChannel>(chunkSpec.channel()) : TChannel::Universal(),
         chunkReader,
         FromProto<TReadLimit>(chunkSpec.upper_limit()),
         FromProto<TReadLimit>(chunkSpec.lower_limit()),

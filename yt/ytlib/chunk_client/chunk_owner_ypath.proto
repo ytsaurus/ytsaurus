@@ -6,6 +6,7 @@ import "yt/core/misc/guid.proto";
 import "yt/core/ytree/attributes.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/schema.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,8 +33,12 @@ message TReqFetch
     // Not yet supported.
     repeated int32 extension_tags = 3;
 
-    // Range and column selectors etc.
-    optional NYT.NYTree.NProto.TAttributes attributes = 5;
+    // Deprecated = 5;
+
+	optional bool complement = 6 [default = false];
+	optional NChunkClient.NProto.TChannel channel = 7;
+	optional NChunkClient.NProto.TReadLimit lower_limit = 8;
+	optional NChunkClient.NProto.TReadLimit upper_limit = 9;
 }
 
 message TRspFetch

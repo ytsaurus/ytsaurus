@@ -73,7 +73,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     for (int i = 0; i < keyColumnCount; ++i) {
         KeyColumnIndexes[options->KeyColumns.Get()[i]] = i;
     }
-    *ChannelsExt.add_items()->mutable_channel() = TChannel::Universal().ToProto();
+    ToProto(ChannelsExt.add_items()->mutable_channel(), TChannel::Universal());
 
     int upperReserveLimit = TChannelWriter::MaxUpperReserveLimit;
     {

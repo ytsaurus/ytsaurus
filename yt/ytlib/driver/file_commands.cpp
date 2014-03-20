@@ -71,7 +71,7 @@ void TUploadCommand::DoExecute()
         Request->FileWriter);
 
     TFileWriterOptions options;
-    options.Overwrite = NChunkClient::ExtractOverwriteFlag(Request->Path.Attributes());
+    options.Append = Request->Path.GetAppend();
     SetTransactionalOptions(&options);
 
     auto writer = Context->GetClient()->CreateFileWriter(

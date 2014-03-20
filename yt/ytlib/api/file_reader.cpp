@@ -133,23 +133,14 @@ private:
         }
 
         {
-            auto attributes = CreateEphemeralAttributes();
-
-            i64 lowerLimit = Options_.Offset.Get(0);
-            if (Options_.Offset) {
-                TReadLimit limit;
-                limit.SetOffset(*Options_.Offset);
-                attributes->SetYson("lower_limit", ConvertToYsonString(limit));
-            }
-
-            if (Options_.Length) {
-                TReadLimit limit;
-                limit.SetOffset(lowerLimit + *Options_.Length);
-                attributes->SetYson("upper_limit", ConvertToYsonString(limit));
-            }
-
             auto req = TFileYPathProxy::Fetch(Path_);
-            ToProto(req->mutable_attributes(), *attributes);
+            i64 offset = Options_.Offset.Get(0);
+            if (Options_.Offset) {
+                req->mutable_lower_limit()->set_offset(offset);
+            }
+            if (Options_.Length) {
+                req->mutable_upper_limit()->set_offset(offset + *Options_.Length);
+            }
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);

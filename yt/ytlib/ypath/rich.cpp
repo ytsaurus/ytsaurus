@@ -12,18 +12,20 @@
 #include <core/ytree/fluent.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
+
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
 namespace NYT {
-
 namespace NYPath {
 
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
-using namespace  NVersionedTableClient;
+using namespace NTableClient;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -315,11 +317,11 @@ void ParseRowLimits(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
         ParseRowLimit(tokenizer, RangeToken, &lowerLimit);
         ParseRowLimit(tokenizer, EndRowSelectorToken, &upperLimit);
 
-        if (lowerLimit.HasKey() || lowerLimit.HasRowIndex()) {
-            attributes->SetYson("lower_limit", ConvertToYsonString(lowerLimit));
+        if (!lowerLimit.IsTrivial()) {
+            attributes->Set("lower_limit", lowerLimit);
         }
-        if (upperLimit.HasKey() || upperLimit.HasRowIndex()) {
-            attributes->SetYson("upper_limit", ConvertToYsonString(upperLimit));
+        if (!upperLimit.IsTrivial()) {
+            attributes->Set("upper_limit", upperLimit);
         }
     }
 }
@@ -350,7 +352,7 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
     return TRichYPath(path, *attributes);
 }
 
-TRichYPath TRichYPath::Simplify() const
+TRichYPath TRichYPath::Normalize() const
 {
     auto parsed = TRichYPath::Parse(Path_);
     parsed.Attributes().MergeFrom(Attributes());
@@ -371,6 +373,26 @@ void TRichYPath::Load(TStreamLoadContext& context)
     Load(context, Attributes_);
 }
 
+bool TRichYPath::GetAppend() const
+{
+    return Attributes_->Get("append", false);
+}
+
+TChannel TRichYPath::GetChannel() const
+{
+    return Attributes_->Get("channel", TChannel::Universal());
+}
+
+TReadLimit TRichYPath::GetLowerLimit() const
+{
+    return Attributes_->Get("lower_limit", TReadLimit());
+}
+
+TReadLimit TRichYPath::GetUpperLimit() const
+{
+    return Attributes_->Get("upper_limit", TReadLimit());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)
@@ -387,13 +409,39 @@ Stroka ToString(const TRichYPath& path)
         path.GetPath();
 }
 
-std::vector<TRichYPath> Simplify(const std::vector<TRichYPath>& paths)
+std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths)
 {
     std::vector<TRichYPath> result;
     for (const auto& path : paths) {
-        result.push_back(path.Simplify());
+        result.push_back(path.Normalize());
     }
     return result;
+}
+
+void InitializeFetchRequest(
+    NChunkClient::NProto::TReqFetch* request,
+    const TRichYPath& richPath)
+{
+    auto channel = richPath.GetChannel();
+    if (channel.IsUniversal()) {
+        request->clear_channel();
+    } else {
+        ToProto(request->mutable_channel(), channel);
+    }
+
+    auto lowerLimit = richPath.GetLowerLimit();
+    if (lowerLimit.IsTrivial()) {
+        request->clear_lower_limit();
+    } else {
+        ToProto(request->mutable_lower_limit(), lowerLimit);
+    }
+
+    auto upperLimit = richPath.GetUpperLimit();
+    if (upperLimit.IsTrivial()) {
+        request->clear_upper_limit();
+    } else {
+        ToProto(request->mutable_upper_limit(), upperLimit);
+    }
 }
 
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)

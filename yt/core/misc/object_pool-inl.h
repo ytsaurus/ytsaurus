@@ -98,25 +98,7 @@ typename TObjectPool<T>::THeader* TObjectPool<T>::GetHeader(T* obj)
 template <class T>
 TObjectPool<T>& ObjectPool()
 {
-#ifdef _MSC_VER
-    // XXX(babenko): MSVC (upto version 2013) does not support thread-safe static locals init :(
-    static TAtomic lock = 0;
-    static TAtomic pool = 0;
-    while (!pool) {
-        if (AtomicCas(&lock, 1, 0)) {
-            if (!pool) {
-                AtomicSet(pool, reinterpret_cast<intptr_t>(new TObjectPool<T>()));
-            }
-            AtomicSet(lock, 0);
-        } else {
-            SpinLockPause();
-        }
-    }
-    return *reinterpret_cast<TObjectPool<T>*>(pool);
-#else
-    static TObjectPool<T> pool;
-    return pool;
-#endif
+    return *Singleton<TObjectPool<T>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

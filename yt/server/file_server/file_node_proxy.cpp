@@ -73,12 +73,12 @@ private:
         return ELockMode::Exclusive;
     }
 
-    virtual void ValidatePathAttributes(
-        const TNullable<TChannel>& channel,
+    virtual void ValidateFetchParameters(
+        const TChannel& channel,
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override
     {
-        if (channel) {
+        if (!channel.IsUniversal()) {
             THROW_ERROR_EXCEPTION("Column selectors are not supported for files");
         }
 

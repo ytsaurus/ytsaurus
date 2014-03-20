@@ -73,8 +73,8 @@ private:
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override;
-    virtual void ValidatePathAttributes(
-        const TNullable<TChannel>& channel,
+    virtual void ValidateFetchParameters(
+        const TChannel& channel,
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override;
     virtual void Clear() override;
@@ -129,12 +129,12 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     TBase::ListSystemAttributes(attributes);
 }
 
-void TTableNodeProxy::ValidatePathAttributes(
-    const TNullable<TChannel>& channel,
+void TTableNodeProxy::ValidateFetchParameters(
+    const TChannel& channel,
     const TReadLimit& upperLimit,
     const TReadLimit& lowerLimit)
 {
-    TChunkOwnerNodeProxy::ValidatePathAttributes(
+    TChunkOwnerNodeProxy::ValidateFetchParameters(
         channel,
         upperLimit,
         lowerLimit);

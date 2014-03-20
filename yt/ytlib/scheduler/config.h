@@ -209,8 +209,8 @@ public:
     {
         TOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
     }
 };
 
@@ -289,8 +289,8 @@ public:
     {
         TMergeOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePath = OutputTablePath.Simplify();
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePath = OutputTablePath.Normalize();
     }
 };
 
@@ -326,7 +326,7 @@ public:
     {
         TMergeOperationSpecBase::OnLoaded();
 
-        TablePath = TablePath.Simplify();
+        TablePath = TablePath.Normalize();
     }
 };
 
@@ -362,8 +362,8 @@ public:
     {
         TMergeOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
     }
 };
 
@@ -441,7 +441,7 @@ public:
     {
         TOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
     }
 };
 
@@ -507,7 +507,7 @@ public:
     {
         TSortOperationSpecBase::OnLoaded();
 
-        OutputTablePath = OutputTablePath.Simplify();
+        OutputTablePath = OutputTablePath.Normalize();
     }
 };
 
@@ -592,7 +592,7 @@ public:
             ReduceBy = SortBy;
         }
 
-        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
     }
 };
 

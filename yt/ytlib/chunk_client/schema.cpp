@@ -11,6 +11,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,9 +21,9 @@ TRange::TRange(const Stroka& begin, const Stroka& end)
     , End_(end)
 {
     if (begin >= end) {
-        THROW_ERROR_EXCEPTION("Invalid range: [%s,%s]",
-            ~begin,
-            ~end);
+        THROW_ERROR_EXCEPTION("Invalid range [%s,%s]",
+            ~begin.Quote(),
+            ~end.Quote());
     }
 }
 
@@ -40,24 +41,6 @@ Stroka TRange::Begin() const
 Stroka TRange::End() const
 {
     return End_;
-}
-
-NProto::TRange TRange::ToProto() const
-{
-    NProto::TRange protoRange;
-    protoRange.set_begin(Begin_);
-    protoRange.set_end(End_);
-    protoRange.set_is_infinite(IsInfinite_);
-    return protoRange;
-}
-
-TRange TRange::FromProto(const NProto::TRange& protoRange)
-{
-    if (protoRange.is_infinite()) {
-        return TRange(protoRange.begin());
-    } else {
-        return TRange(protoRange.begin(), protoRange.end());
-    }
 }
 
 bool TRange::Contains(const TStringBuf& value) const
@@ -100,6 +83,13 @@ bool TRange::IsInfinite() const
 TChannel::TChannel()
 { }
 
+TChannel::TChannel(
+    const std::vector<Stroka> columns,
+    std::vector<TRange> ranges)
+    : Columns_(std::move(columns))
+    , Ranges_(std::move(ranges))
+{ }
+
 void TChannel::AddColumn(const Stroka& column)
 {
     for (const auto& existingColumn : Columns_) {
@@ -119,32 +109,6 @@ void TChannel::AddRange(const TRange& range)
 void TChannel::AddRange(const Stroka& begin, const Stroka& end)
 {
     Ranges_.push_back(TRange(begin, end));
-}
-
-NProto::TChannel TChannel::ToProto() const
-{
-    NProto::TChannel protoChannel;
-    for (const auto& column : Columns_) {
-        protoChannel.add_columns(~column);
-    }
-
-    for (const auto& range : Ranges_) {
-        *protoChannel.add_ranges() = range.ToProto();
-    }
-    return protoChannel;
-}
-
-NYT::NChunkClient::TChannel TChannel::FromProto(const NProto::TChannel& protoChannel)
-{
-    TChannel result;
-    for (int i = 0; i < protoChannel.columns_size(); ++i) {
-        result.AddColumn(protoChannel.columns(i));
-    }
-
-    for (int i = 0; i < protoChannel.ranges_size(); ++i) {
-        result.AddRange(TRange::FromProto(protoChannel.ranges(i)));
-    }
-    return result;
 }
 
 bool TChannel::Contains(const TStringBuf& column) const
@@ -267,18 +231,16 @@ TChannel CreateEmpty()
 
 } // namespace
 
-TChannel UniversalChannel = CreateUniversal();
-
 const TChannel& TChannel::Universal()
 {
-    return UniversalChannel;
+    static auto result = CreateUniversal();
+    return result;
 }
-
-TChannel EmptyChannel = CreateEmpty();
 
 const TChannel& TChannel::Empty()
 {
-    return EmptyChannel;
+    static auto result = CreateEmpty();
+    return result;
 }
 
 TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
@@ -331,6 +293,33 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TRange* protoRange, const TRange& range)
+{
+    protoRange->set_begin(range.Begin());
+    protoRange->set_end(range.End());
+    protoRange->set_is_infinite(range.IsInfinite());
+}
+
+void FromProto(TRange* range, const NProto::TRange& protoRange)
+{
+    *range = protoRange.is_infinite()
+        ? TRange(protoRange.begin())
+        : TRange(protoRange.begin(), protoRange.end());
+}
+
+void ToProto(NProto::TChannel* protoChannel, const TChannel& channel)
+{
+    NYT::ToProto(protoChannel->mutable_columns(), channel.GetColumns());
+    NYT::ToProto(protoChannel->mutable_ranges(), channel.GetRanges());
+}
+
+void FromProto(TChannel* channel, const NProto::TChannel& protoChannel)
+{
+    *channel = TChannel(
+        NYT::FromProto<Stroka>(protoChannel.columns()),
+        NYT::FromProto<TRange>(protoChannel.ranges()));
+}
 
 void Deserialize(TChannel& channel, INodePtr node)
 {
@@ -387,7 +376,7 @@ void Deserialize(TChannel& channel, INodePtr node)
     }
 }
 
-void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer)
+void Serialize(const TChannel& channel, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginList()
@@ -405,7 +394,6 @@ void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer)
         })
         .EndList();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

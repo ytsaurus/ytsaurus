@@ -123,11 +123,6 @@ TChunkId EncodeChunkId(
     return EncodeChunkId(chunkIdWithIndex);
 }
 
-bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes)
-{
-    return !attributes.Get<bool>("append", false);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

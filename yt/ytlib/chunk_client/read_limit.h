@@ -46,11 +46,13 @@ public:
     bool HasChunkIndex() const;
     void SetChunkIndex(i64 chunkIndex);
 
+    bool IsTrivial() const;
+
     void Persist(NPhoenix::TPersistenceContext& context);
 
 private:
-    NProto::TReadLimit ReadLimit;
-    NVersionedTableClient::TOwningKey Key;
+    NProto::TReadLimit ReadLimit_;
+    NVersionedTableClient::TOwningKey Key_;
 
     void InitKey();
     void InitCopy(const NProto::TReadLimit& readLimit);

@@ -256,10 +256,10 @@ struct TFileWriterOptions
     : public TTransactionalOptions
 {
     TFileWriterOptions()
-        : Overwrite(false)
+        : Append(true)
     { }
 
-    bool Overwrite;
+    bool Append;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

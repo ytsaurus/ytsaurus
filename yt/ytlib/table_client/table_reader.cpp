@@ -45,7 +45,7 @@ TAsyncTableReader::TAsyncTableReader(
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
     , NodeDirectory(New<TNodeDirectory>())
-    , RichPath(richPath.Simplify())
+    , RichPath(richPath.Normalize())
     , IsOpen(false)
     , IsReadStarted_(false)
     , ObjectProxy(masterChannel)
@@ -76,7 +76,7 @@ void TAsyncTableReader::Open()
 
     {
         auto req = TTableYPathProxy::Fetch(path);
-        ToProto(req->mutable_attributes(), RichPath.Attributes());
+        InitializeFetchRequest(req.Get(), RichPath);
         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         SetTransactionId(req, TransactionId);
         SetSuppressAccessTracking(req, Config->SuppressAccessTracking);

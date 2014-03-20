@@ -53,9 +53,6 @@ TChunkId EncodeChunkId(
     const NProto::TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId);
 
-// XXX(sandello): Why it is here?
-bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

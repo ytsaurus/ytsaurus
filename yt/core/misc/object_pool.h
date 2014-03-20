@@ -4,6 +4,8 @@
 
 #include <util/thread/lfqueue.h>
 
+#include <util/generic/singleton.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,8 +24,6 @@ class TObjectPool
 public:
     typedef std::shared_ptr<T> TValuePtr;
 
-    TObjectPool();
-
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();
 
@@ -40,9 +40,14 @@ private:
     TAtomic PoolSize_;
 
 
+    TObjectPool();
+
     T* AllocateInstance();
     void FreeInstance(T* obj);
     THeader* GetHeader(T* obj);
+
+
+    DECLARE_SINGLETON_FRIEND(TObjectPool<T>)
 
 };
 

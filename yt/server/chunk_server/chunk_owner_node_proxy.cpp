@@ -166,7 +166,7 @@ bool TFetchChunkVisitor::OnChunk(
     chunkSpec->set_table_row_index(rowIndex);
 
     if (!Channel.IsUniversal()) {
-        *chunkSpec->mutable_channel() = Channel.ToProto();
+        ToProto(chunkSpec->mutable_channel(), Channel);
     }
 
     auto erasureCodecId = chunk->GetErasureCodec();
@@ -645,8 +645,8 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
     return TNontemplateCypressNodeProxyBase::SetSystemAttribute(key, value);
 }
 
-void TChunkOwnerNodeProxy::ValidatePathAttributes(
-    const TNullable<TChannel>& /*channel*/,
+void TChunkOwnerNodeProxy::ValidateFetchParameters(
+    const TChannel& /*channel*/,
     const TReadLimit& /*upperLimit*/,
     const TReadLimit& /*lowerLimit*/)
 { }
@@ -764,20 +764,21 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Read);
-
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     ValidateFetch();
 
-    auto attributes = NYTree::FromProto(request->attributes());
-    auto channelAttribute = attributes->Find<TChannel>("channel");
-    auto lowerLimit = attributes->Get("lower_limit", TReadLimit());
-    auto upperLimit = attributes->Get("upper_limit", TReadLimit());
-    bool complement = attributes->Get("complement", false);
+    auto channel = request->has_channel()
+        ? NYT::FromProto<TChannel>(request->channel())
+        : TChannel::Universal();
+    auto lowerLimit = request->has_lower_limit()
+        ? NYT::FromProto<TReadLimit>(request->lower_limit())
+        : TReadLimit();
+    auto upperLimit = request->has_upper_limit()
+        ? NYT::FromProto<TReadLimit>(request->upper_limit())
+        : TReadLimit();
 
-    ValidatePathAttributes(channelAttribute, lowerLimit, upperLimit);
+    ValidateFetchParameters(channel, lowerLimit, upperLimit);
 
-    auto channel = channelAttribute.Get(TChannel::Universal());
-
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
@@ -786,7 +787,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         context,
         channel);
 
-    if (complement) {
+    if (request->complement()) {
         if (lowerLimit.HasRowIndex() || lowerLimit.HasKey()) {
             visitor->StartSession(TReadLimit(), lowerLimit);
         }

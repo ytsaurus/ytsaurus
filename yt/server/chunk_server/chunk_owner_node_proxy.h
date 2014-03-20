@@ -34,8 +34,8 @@ protected:
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue) override;
-    virtual void ValidatePathAttributes(
-        const TNullable<NChunkClient::TChannel>& channel,
+    virtual void ValidateFetchParameters(
+        const NChunkClient::TChannel& channel,
         const NChunkClient::TReadLimit& upperLimit,
         const NChunkClient::TReadLimit& lowerLimit);
     virtual void Clear();

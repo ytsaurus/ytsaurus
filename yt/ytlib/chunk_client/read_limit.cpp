@@ -42,103 +42,112 @@ TReadLimit& TReadLimit::operator= (NProto::TReadLimit&& protoLimit)
 
 const NProto::TReadLimit& TReadLimit::AsProto() const
 {
-    return ReadLimit;
+    return ReadLimit_;
 }
 
 const TOwningKey& TReadLimit::GetKey() const
 {
     YASSERT(HasKey());
-    return Key;
+    return Key_;
 }
 
 bool TReadLimit::HasKey() const
 {
-    return ReadLimit.has_key();
+    return ReadLimit_.has_key();
 }
 
 void TReadLimit::SetKey(const TOwningKey& key)
 {
-    Key = key;
-    ToProto(ReadLimit.mutable_key(), Key);
+    Key_ = key;
+    ToProto(ReadLimit_.mutable_key(), Key_);
 }
 
 void TReadLimit::SetKey(TOwningKey&& key)
 {
-    swap(Key, key);
-    ToProto(ReadLimit.mutable_key(), Key);
+    swap(Key_, key);
+    ToProto(ReadLimit_.mutable_key(), Key_);
 }
 
 i64 TReadLimit::GetRowIndex() const
 {
     YASSERT(HasRowIndex());
-    return ReadLimit.row_index();
+    return ReadLimit_.row_index();
 }
 
 bool TReadLimit::HasRowIndex() const
 {
-    return ReadLimit.has_row_index();
+    return ReadLimit_.has_row_index();
 }
 
 void TReadLimit::SetRowIndex(i64 rowIndex)
 {
-    ReadLimit.set_row_index(rowIndex);
+    ReadLimit_.set_row_index(rowIndex);
 }
 
 i64 TReadLimit::GetOffset() const
 {
     YASSERT(HasOffset());
-    return ReadLimit.offset();
+    return ReadLimit_.offset();
 }
 
 bool TReadLimit::HasOffset() const
 {
-    return ReadLimit.has_offset();
+    return ReadLimit_.has_offset();
 }
 
 void TReadLimit::SetOffset(i64 offset)
 {
-    ReadLimit.set_offset(offset);
+    ReadLimit_.set_offset(offset);
 }
 
 i64 TReadLimit::GetChunkIndex() const
 {
     YASSERT(HasChunkIndex());
-    return ReadLimit.chunk_index();
+    return ReadLimit_.chunk_index();
 }
 
 bool TReadLimit::HasChunkIndex() const
 {
-    return ReadLimit.has_chunk_index();
+    return ReadLimit_.has_chunk_index();
 }
 
 void TReadLimit::SetChunkIndex(i64 chunkIndex)
 {
-    ReadLimit.set_chunk_index(chunkIndex);
+    ReadLimit_.set_chunk_index(chunkIndex);
+}
+
+bool TReadLimit::IsTrivial() const
+{
+    return
+        !ReadLimit_.has_chunk_index() &&
+        !ReadLimit_.has_row_index() &&
+        !ReadLimit_.has_key() &&
+        !ReadLimit_.has_offset();
 }
 
 void TReadLimit::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, ReadLimit);
-    Persist(context, Key);
+    Persist(context, ReadLimit_);
+    Persist(context, Key_);
 }
 
 void TReadLimit::InitKey()
 {
-    if (ReadLimit.has_key()) {
-        FromProto(&Key, ReadLimit.key());
+    if (ReadLimit_.has_key()) {
+        FromProto(&Key_, ReadLimit_.key());
     }
 }
 
 void TReadLimit::InitCopy(const NProto::TReadLimit& readLimit)
 {
-    ReadLimit.CopyFrom(readLimit);
+    ReadLimit_.CopyFrom(readLimit);
     InitKey();
 }
 
 void TReadLimit::InitMove(NProto::TReadLimit&& readLimit)
 {
-    ReadLimit.Swap(&readLimit);
+    ReadLimit_.Swap(&readLimit);
     InitKey();
 }
 

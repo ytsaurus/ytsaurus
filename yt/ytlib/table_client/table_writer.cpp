@@ -199,8 +199,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
 
     auto path = RichPath.GetPath();
 
-    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
-    bool clear = Options->KeyColumns.HasValue() || overwrite;
+    bool clear = Options->KeyColumns.HasValue() || !RichPath.GetAppend();
     auto uploadTransactionId = UploadTransaction->GetId();
 
     auto batchReq = ObjectProxy.ExecuteBatch();
@@ -237,7 +236,6 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
 {
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting table info");
 
-    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table attributes");
@@ -254,7 +252,7 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
         }
 
         // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
-        if (Options->KeyColumns && !overwrite) {
+        if (Options->KeyColumns && RichPath.GetAppend()) {
             if (attributes.Get<i64>("row_count") > 0) {
                 THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
             }
