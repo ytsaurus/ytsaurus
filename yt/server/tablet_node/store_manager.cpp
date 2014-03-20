@@ -306,6 +306,10 @@ void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
 
 bool TStoreManager::IsRotationNeeded() const
 {
+    if (RotationScheduled_) {
+        return false;
+    }
+
     const auto& store = Tablet_->GetActiveStore();
     const auto& config = Tablet_->GetConfig();
     return
