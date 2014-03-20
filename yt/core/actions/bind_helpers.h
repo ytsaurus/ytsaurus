@@ -284,12 +284,6 @@ struct TUnwrapTraits< TConstRefWrapper<T> >
     }
 };
 
-template <class T>
-inline typename TUnwrapTraits<typename NMpl::TDecay<T>::TType>::TType Unwrap(T&& wrapper)
-{
-    return TUnwrapTraits<typename NMpl::TDecay<T>::TType>::Unwrap(std::forward<T>(wrapper));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
 } // namespace NDetail

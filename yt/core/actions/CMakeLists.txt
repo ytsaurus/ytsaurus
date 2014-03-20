@@ -9,8 +9,6 @@ set( SRCS
 set( HDRS
   ${BASE}/bind_helpers.h
   ${BASE}/bind_mpl.h
-  ${BASE}/bind_internal.h
-  ${BASE}/bind.h
   ${BASE}/callback.h
   ${BASE}/callback_forward.h
   ${BASE}/callback_internal.h
@@ -27,3 +25,6 @@ list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+PUMP( ${BASE}/bind.h.pump YT_SOURCE_FILES )
+PUMP( ${BASE}/bind_internal.h.pump YT_SOURCE_FILES )
