@@ -655,8 +655,7 @@ void TChunkReplicator::ScheduleNewJobs(
             size /= codec->GetTotalPartCount();
         }
 
-        // XXX(babenko): this static_cast is clearly redundant but required to compile it with VS2010.
-        switch (static_cast<int>(type)) {
+        switch (type) {
             case EJobType::ReplicateChunk:
                 runningReplicationSize += size;
                 break;
