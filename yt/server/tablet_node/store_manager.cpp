@@ -321,6 +321,9 @@ bool TStoreManager::IsRotationNeeded() const
 
 void TStoreManager::SetRotationScheduled()
 {
+    if (RotationScheduled_) 
+        return;
+    
     RotationScheduled_ = true;
 
     LOG_INFO("Tablet store rotation scheduled (TabletId: %s)",
@@ -329,11 +332,13 @@ void TStoreManager::SetRotationScheduled()
 
 void TStoreManager::ResetRotationScheduled()
 {
-    if (RotationScheduled_) {
-        RotationScheduled_ = false;
-        LOG_INFO("Tablet store rotation canceled (TabletId: %s)",
-            ~ToString(Tablet_->GetId()));
-    }
+    if (!RotationScheduled_)
+        return;
+
+    RotationScheduled_ = false;
+
+    LOG_INFO("Tablet store rotation canceled (TabletId: %s)",
+        ~ToString(Tablet_->GetId()));
 }
 
 void TStoreManager::Rotate(bool createNew)
