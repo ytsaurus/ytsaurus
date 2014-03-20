@@ -108,19 +108,15 @@ public:
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
     }
 
-    llvm::LLVMContext& GetContext()
-    {
-        return Context_;
-    }
-
-    llvm::Module* GetModule()
+    llvm::Module* GetModule() const
     {
         return Module_;
     }
 
-    llvm::Function* GetRoutine(const Stroka& symbol)
+    llvm::Function* GetRoutine(const Stroka& symbol) const
     {
-        auto type = TRoutineRegistry::Get()->GetTypeBuilder(symbol)(Context_);
+        auto type = TRoutineRegistry::Get()->GetTypeBuilder(symbol)(
+            const_cast<llvm::LLVMContext&>(Context_));
 
         auto it = CachedRoutines_.find(symbol);
         if (it == CachedRoutines_.end()) {
@@ -253,7 +249,7 @@ private:
 
     TCodegenedFunction CompiledBody_;
 
-    std::unordered_map<Stroka, llvm::Function*> CachedRoutines_;
+    mutable std::unordered_map<Stroka, llvm::Function*> CachedRoutines_;
 
 };
 
@@ -264,17 +260,12 @@ TCGFragment::TCGFragment()
 TCGFragment::~TCGFragment()
 { }
 
-llvm::LLVMContext& TCGFragment::GetContext()
-{
-    return Impl_->GetContext();
-}
-
-llvm::Module* TCGFragment::GetModule()
+llvm::Module* TCGFragment::GetModule() const
 {
     return Impl_->GetModule();
 }
 
-llvm::Function* TCGFragment::GetRoutine(const Stroka& symbol)
+llvm::Function* TCGFragment::GetRoutine(const Stroka& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }

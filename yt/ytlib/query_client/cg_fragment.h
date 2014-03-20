@@ -13,10 +13,9 @@ public:
     TCGFragment();
     ~TCGFragment();
 
-    llvm::LLVMContext& GetContext();
-    llvm::Module* GetModule();
+    llvm::Module* GetModule() const;
 
-    llvm::Function* GetRoutine(const Stroka& symbol);
+    llvm::Function* GetRoutine(const Stroka& symbol) const;
 
     void Embody(llvm::Function* body);
 
