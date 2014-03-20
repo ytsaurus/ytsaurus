@@ -662,6 +662,8 @@ void TChunkReplicator::ScheduleNewJobs(
             case EJobType::RepairChunk:
                 runningRepairSize += size;
                 break;
+            default:
+                break;
         }
     };
 
