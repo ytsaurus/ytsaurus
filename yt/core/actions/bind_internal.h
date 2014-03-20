@@ -1,24 +1,4 @@
-$$ Please, use Pump to convert this source file to valid C++ header.
-$$ Note that lines in this file could be longer than 80 symbols.
 #pragma once
-
-/*
-//==============================================================================
-// The following code is merely an adaptation of Chromium's Binds and Callbacks.
-// Kudos to Chromium authors.
-//
-// Original Chromium revision:
-//   - git-treeish: 206a2ae8a1ebd2b040753fff7da61bbca117757f
-//   - git-svn-id:  svn://svn.chromium.org/chrome/trunk/src@115607
-//
-// See bind.h for an extended commentary.
-//==============================================================================
-*/
-
-
-$$ See bind.h.pump.
-$var MAX_ARITY = 7
-$range ARITY 0..MAX_ARITY
 
 #include "bind_helpers.h"
 #include "bind_mpl.h"
@@ -46,7 +26,8 @@ namespace NDetail {
 // A typeclass that has a single Run() method and a Signature
 // typedef that corresponds to the type of Run(). A Runnable can declare that
 // it should treated like a method call by including a typedef named IsMethod.
-// The value of this typedef is not inspected, only the existence (see "bind_mpl.h").
+// The value of this typedef is not inspected, only the existence (see "
+// bind_mpl.h").
 // When a Runnable declares itself a method, #Bind() will enforce special
 // weak reference handling semantics for the first argument which is expected
 // to be an object (an invocation target).
@@ -61,8 +42,10 @@ namespace NDetail {
 // Usually just a convenience typedef.
 //
 // === (Bound)Args ===
-// A function type that is being (ab)used to store the types of set of arguments.
-// The "return" type is always void here. We use this hack so that we do not need
+// A function type that is being (ab)used to store the types of set of
+// arguments.
+// The "return" type is always void here. We use this hack so that we do not
+// need
 // a new type name for each arity of type. (eg., BindState1, BindState2, ...).
 // This makes forward declarations and friending much much easier.
 //
@@ -76,43 +59,35 @@ namespace NDetail {
 // === TRunnableAdapter ===
 // Wraps the various "function" pointer types into an object that adheres to the
 // Runnable interface.
-// There are |3 * ARITY| TRunnableAdapter types.
 //
 // === TSignatureTraits ===
 // Type traits that unwrap a function signature into a set of easier to use
 // typedefs. Used mainly for compile time asserts.
-// There are |ARITY| TSignatureTraits types.
 //
 // === TIgnoreResultInSignature ===
 // Helper class for translating function signatures to equivalent forms with
 // a "void" return type.
-// There are |ARITY| TIgnoreResultInSignature types.
 //
 // === TFunctorTraits ===
 // Type traits used determine the correct Signature and TRunnableType for
 // a Runnable. This is where function signature adapters are applied.
-// There are |O(1)| TFunctorTraits types.
 //
 // === MakeRunnable ===
 // Takes a Functor and returns an object in the Runnable typeclass that
 // represents the underlying Functor.
-// There are |O(1)| MakeRunnable types.
 //
 // === TInvokerHelper ===
 // Take a Runnable and arguments and actully invokes it. Also handles
 // the differing syntaxes needed for #TWeakPtr<> support and for ignoring
 // return values. This is separate from TInvoker to avoid creating multiple
 // version of #TInvoker<> which grows at |O(n^2)| with the arity.
-// There are |k * ARITY| TInvokerHelper types.
 //
 // === TInvoker ===
 // Unwraps the curried parameters and executes the Runnable.
-// There are |(ARITY^2 + ARITY)/2| Invoke types.
 //
 // === TBindState ===
 // Stores the curried parameters, and is the main entry point into the #Bind()
 // system, doing most of the type resolution.
-// There are |ARITY| TBindState types.
 //
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,20 +97,14 @@ namespace NDetail {
 template <class T, class Signature>
 class TCallableAdapter;
 
-$for ARITY [[
-$range ARG 1..ARITY
-
-// === Arity $(ARITY).
-
-template <class R, class T[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-class TCallableAdapter<T, R(T::*)($for ARG , [[A$(ARG)]])>
+template <class R, class T, class... TArgs>
+class TCallableAdapter<T, R(T::*)(TArgs...)>
 {
 public:
     typedef NMpl::TTrueType IsCallable;
 
-    enum { Arity = $(ARITY) };
-    typedef R (Signature)($for ARG , [[A$(ARG)]]);
+    enum { Arity = sizeof...(TArgs) };
+    typedef R (Signature)(TArgs...);
 
     explicit TCallableAdapter(const T& functor)
         : Functor(functor)
@@ -145,24 +114,23 @@ public:
         : Functor(std::move(functor))
     { }
 
-    R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
+    R Run(TArgs&&... args)
     {
-        return Functor($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        return Functor(std::forward<TArgs>(args)...);
     }
 
 private:
     T Functor;
 };
 
-template <class R, class T[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-class TCallableAdapter<T, R(T::*)($for ARG , [[A$(ARG)]]) const>
+template <class R, class T, class... TArgs>
+class TCallableAdapter<T, R(T::*)(TArgs...) const>
 {
 public:
     typedef NMpl::TTrueType IsCallable;
 
-    enum { Arity = $(ARITY) };
-    typedef R (Signature)($for ARG , [[A$(ARG)]]);
+    enum { Arity = sizeof...(TArgs) };
+    typedef R (Signature)(TArgs...);
 
     explicit TCallableAdapter(const T& functor)
         : Functor(functor)
@@ -172,16 +140,14 @@ public:
         : Functor(std::move(functor))
     { }
 
-    R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
+    R Run(TArgs&&... args)
     {
-        return Functor($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        return Functor(std::forward<TArgs>(args)...);
     }
 
 private:
     const T Functor;
 };
-
-]] $$ for ARITY
 
 ////////////////////////////////////////////////////////////////////////////////
 // #TRunnableAdapter<>
@@ -222,115 +188,73 @@ public:
     { }
 };
 
-$for ARITY [[
-$range ARG 1..ARITY
-
-// === Arity $(ARITY).
 
 // Function Adapter
-template <class R[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-class TRunnableAdapter<R(*)($for ARG , [[A$(ARG)]])>
+template <class R, class... TArgs>
+class TRunnableAdapter<R(*)(TArgs...)>
 {
 public:
-    enum { Arity = $(ARITY) };
-    typedef R (Signature)($for ARG , [[A$(ARG)]]);
+    enum { Arity = sizeof...(TArgs) };
+    typedef R (Signature)(TArgs...);
 
-    explicit TRunnableAdapter(R(*function)($for ARG , [[A$(ARG)]]))
+    explicit TRunnableAdapter(R(*function)(TArgs...))
         : Function(function)
     { }
 
-    R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
+    R Run(TArgs&&... args)
     {
-        return Function($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        return Function(std::forward<TArgs>(args)...);
     }
 
 private:
-    R (*Function)($for ARG , [[A$(ARG)]]);
+    R (*Function)(TArgs...);
 };
 
 // Bound Method Adapter
-template <class R, class T[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]])>
+template <class R, class T, class... TArgs>
+class TRunnableAdapter<R(T::*)(TArgs...)>
 {
 public:
     typedef NMpl::TTrueType IsMethod;
 
-    enum { Arity = 1 + $(ARITY) };
-    typedef R (Signature)(T*[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[A$(ARG)]]);
+    enum { Arity = 1 + sizeof...(TArgs) };
+    typedef R (Signature)(T*, TArgs...);
 
-    explicit TRunnableAdapter(R(T::*method)($for ARG , [[A$(ARG)]]))
+    explicit TRunnableAdapter(R(T::*method)(TArgs...))
         : Method(method)
     { }
 
-    R Run(T* target[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[A$(ARG)&& a$(ARG)]])
+    R Run(T* target, TArgs&&... args)
     {
-        return (target->*Method)($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        return (target->*Method)(std::forward<TArgs>(args)...);
     }
 
 private:
-    R (T::*Method)($for ARG , [[A$(ARG)]]);
+    R (T::*Method)(TArgs...);
 };
 
 // Const Bound Method Adapter
-template <class R, class T[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]]) const>
+template <class R, class T, class... TArgs>
+class TRunnableAdapter<R(T::*)(TArgs...) const>
 {
 public:
     typedef NMpl::TTrueType IsMethod;
 
-    enum { Arity = 1 + $(ARITY) };
-    typedef R (Signature)(const T*[[]]
-$if ARITY > 0[[, ]]
-$for ARG , [[A$(ARG)]]);
+    enum { Arity = 1 + sizeof...(TArgs) };
+    typedef R (Signature)(const T*, TArgs...);
 
-    explicit TRunnableAdapter(R(T::*method)($for ARG , [[A$(ARG)]]) const)
+    explicit TRunnableAdapter(R(T::*method)(TArgs...) const)
         : Method(method)
     { }
 
-    R Run(const T* target[[]]
-$if ARITY > 0[[, ]]
-$for ARG , [[A$(ARG)&& a$(ARG)]])
+    R Run(const T* target, TArgs&&... args)
     {
-        return (target->*Method)($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        return (target->*Method)(std::forward<TArgs>(args)...);
     }
 
 private:
-    R (T::*Method)($for ARG , [[A$(ARG)]]) const;
+    R (T::*Method)(TArgs...) const;
 };
-
-]] $$ for ARITY
-
-////////////////////////////////////////////////////////////////////////////////
-// #TSignatureTraits<>s
-////////////////////////////////////////////////////////////////////////////////
-
-template <class Signature>
-struct TSignatureTraits;
-
-$for ARITY [[
-$range ARG 1..ARITY
-
-// === Arity $(ARITY).
-template <class R[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-struct TSignatureTraits<R($for ARG , [[A$(ARG)]])>
-{
-    typedef R ReturnType;
-
-$for ARG [[
-    typedef A$(ARG) A$(ARG)Type;
-
-]]
-};
-
-]] $$ for ARITY
 
 ////////////////////////////////////////////////////////////////////////////////
 // #TIgnoreResultInSignature<>
@@ -339,18 +263,11 @@ $for ARG [[
 template <class Signature>
 struct TIgnoreResultInSignature;
 
-$for ARITY [[
-$range ARG 1..ARITY
-
-// === Arity $(ARITY).
-template <class R[[]]
-$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-struct TIgnoreResultInSignature<R($for ARG , [[A$(ARG)]])>
+template <class R, class... TArgs>
+struct TIgnoreResultInSignature<R(TArgs...)>
 {
-    typedef void(Signature)($for ARG , [[A$(ARG)]]);
+    typedef void(Signature)(TArgs...);
 };
-
-]] $$ for ARITY
 
 ////////////////////////////////////////////////////////////////////////////////
 // #TFunctorTraits<>
@@ -428,58 +345,36 @@ MakeRunnable(const TCallback<T>& x)
 template <bool IsWeakMethod, class Runnable, class ReturnType, class Args>
 struct TInvokerHelper;
 
-$for ARITY [[
-$range ARG 1..ARITY
-
-// === Arity $(ARITY).
-
-template <class Runnable, class R[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[class A$(ARG)]]>
-struct TInvokerHelper<false, Runnable, R,
-    void($for ARG , [[A$(ARG)]])>
+template <class Runnable, class R, class... TArgs>
+struct TInvokerHelper<false, Runnable, R, void(TArgs...)>
 {
-    static inline R Run(Runnable runnable[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[A$(ARG)&& a$(ARG)]])
+    static inline R Run(Runnable runnable, TArgs&&... args)
     {
-        return runnable.Run($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        return runnable.Run(std::forward<TArgs>(args)...);
     }
 };
 
-template <class Runnable[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[class A$(ARG)]]>
-struct TInvokerHelper<false, Runnable, void,
-    void($for ARG , [[A$(ARG)]])>
+template <class Runnable, class... TArgs>
+struct TInvokerHelper<false, Runnable, void, void(TArgs...)>
 {
-    static inline void Run(Runnable runnable[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[A$(ARG)&& a$(ARG)]])
+    static inline void Run(Runnable runnable, TArgs&&... args)
     {
-        runnable.Run($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        runnable.Run(std::forward<TArgs>(args)...);
     }
 };
 
-$if ARITY > 0 [[
-
-template <class Runnable[[]], $for ARG , [[class A$(ARG)]]>
-struct TInvokerHelper<true, Runnable, void,
-    void($for ARG , [[A$(ARG)]])>
+template <class Runnable, class A0, class... TArgs>
+struct TInvokerHelper<true, Runnable, void, void(A0, TArgs...)>
 {
-    static inline void Run(Runnable runnable[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[A$(ARG)&& a$(ARG)]])
+    static inline void Run(Runnable runnable, A0&& a0, TArgs&&... args)
     {
-        if (!a1) {
+        if (!a0) {
             return;
         }
 
-        runnable.Run($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
+        runnable.Run(std::forward<A0>(a0), std::forward<TArgs>(args)...);
     }
 };
-
-]] $$ if ARITY > 0
-
-]] $$ for ARITY
 
 template <class Runnable, class R, class Args>
 struct TInvokerHelper<true, Runnable, R, Args>
@@ -495,101 +390,62 @@ struct TInvokerHelper<true, Runnable, R, Args>
 // #TInvoker<>
 ////////////////////////////////////////////////////////////////////////////////
 
-template <int BoundArguments, class TTypedBindState, class Signature>
+template <class TTypedBindState, class R, class TBoundArgsPack, class TRunArgsPack, class TSequence>
 struct TInvoker;
 
-$for ARITY [[
-
-$$ Number of bound arguments.
-$range BOUND 0..ARITY
-$for BOUND [[
-
-$var UNBOUND = ARITY - BOUND
-$range ARG 1..ARITY
-$range BOUND_ARG 1..BOUND
-$range UNBOUND_ARG (ARITY - UNBOUND + 1)..ARITY
-
-// === Arity $(ARITY) -> $(UNBOUND) unbound.
-template <class TTypedBindState, class R[[]]
-$if ARITY > 0 [[, ]][[]]
-$for ARG , [[class A$(ARG)]]>
-struct TInvoker<$(BOUND), TTypedBindState, R($for ARG , [[A$(ARG)]])>
+template <class TTypedBindState, class R, class... TRunArgs>
+struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<> >
 {
-    typedef R(RunSignature)(TBindStateBase*[[]]
-$if UNBOUND != 0 [[, ]][[]]
-$for UNBOUND_ARG , [[A$(UNBOUND_ARG)&&]]);
-    typedef R(UnboundSignature)($for UNBOUND_ARG , [[A$(UNBOUND_ARG)]]);
+    typedef R(RunSignature)(TBindStateBase*, TRunArgs&&...);
+    typedef R(UnboundSignature)(TRunArgs...);
 
-    static R Run(TBindStateBase* stateBase[[]]
-$if UNBOUND != 0 [[, ]][[]]
-$for UNBOUND_ARG , [[A$(UNBOUND_ARG)&& a$(UNBOUND_ARG)]])
+    static R Run(TBindStateBase* stateBase, TRunArgs&&... runArgs)
     {
         TTypedBindState* state = static_cast<TTypedBindState*>(stateBase);
 
-        // Local references to make debugger stepping easier.
-        // If in a debugger you really want to warp ahead and step through the
-        // #TInvokerHelper<>::Run() call below.
-$for BOUND_ARG
-[[
-
-        typedef typename TTypedBindState::TBound$(BOUND_ARG)UnwrapTraits TBound$(BOUND_ARG)UnwrapTraits;
-]]
-
-$for BOUND_ARG
-[[
-
-        typedef typename TBound$(BOUND_ARG)UnwrapTraits::TType BoundA$(BOUND_ARG);
-]]
-
-
-$for BOUND_ARG
-[[
-
-        BoundA$(BOUND_ARG) a$(BOUND_ARG) = TBound$(BOUND_ARG)UnwrapTraits::Unwrap(state->S$(BOUND_ARG)_);
-]]
-
-
-        static_assert(!TTypedBindState::IsMethod::Value || ($BOUND > 0),
+        static_assert(!TTypedBindState::IsMethod::Value,
             "The target object for a bound method have to be bound.");
 
-        // If someone would like to change this, please expand target locking
-        // and extraction logic to the unbound arguments (specifically,
-        // change the code generation logic in the pump file).
-
-$if BOUND > 0 [[
-        typedef TMaybeCopyHelper<A1>
-            TTargetCopy;
-        typedef TMaybeLockHelper<TTypedBindState::IsMethod::Value, BoundA1>
-            TTargetLock;
-]]
-
-        return TInvokerHelper<
+        typedef TInvokerHelper<
             TTypedBindState::IsWeakMethod::Value,
             typename TTypedBindState::TRunnableType,
             R,
-            void($for ARG , [[A$(ARG)]])
-        >::Run(state->Runnable_
-$if ARITY > 0 [[, 
-]]
+            void(TRunArgs...)
+        > TInvokerHelperType;
 
-$for BOUND_ARG , [[
-$if BOUND_ARG == 1 [[
-TTargetCopy::Do(TTargetLock(std::forward<BoundA$(BOUND_ARG)>(a$(BOUND_ARG))).Lock().Get())
-]] $else [[
-TMaybeCopyHelper<A$(BOUND_ARG)>::Do(std::forward<BoundA$(BOUND_ARG)>(a$(BOUND_ARG)))
-]]]]
-
-$if UNBOUND > 0 [[$if BOUND > 0 [[, ]]]][[]]
-
-$for UNBOUND_ARG , [[
-std::forward<A$(UNBOUND_ARG)>(a$(UNBOUND_ARG))
-]]
-);
+        return TInvokerHelperType::Run(state->Runnable_, std::forward<TRunArgs>(runArgs)...);
     }
 };
 
-]] $$ for BOUND
-]] $$ for ARITY
+template <class TTypedBindState, class R, class BA0, class... TBoundArgs, class... TRunArgs, unsigned... BoundIndexes>
+struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<0, BoundIndexes...> >
+{
+    typedef R(RunSignature)(TBindStateBase*, TRunArgs&&...);
+    typedef R(UnboundSignature)(TRunArgs...);
+
+    static R Run(TBindStateBase* stateBase, TRunArgs&&... runArgs)
+    {
+        TTypedBindState* state = static_cast<TTypedBindState*>(stateBase);
+
+        typedef TInvokerHelper<
+            TTypedBindState::IsWeakMethod::Value,
+            typename TTypedBindState::TRunnableType,
+            R,
+            void(BA0, TBoundArgs..., TRunArgs...)
+        > TInvokerHelperType;
+
+        typedef TUnwrapTraits<typename std::tuple_element<0, typename TTypedBindState::TTuple>::type> TBoundUnwrapTraits0;
+		typedef typename TBoundUnwrapTraits0::TType TBoundArg0;
+
+        return TInvokerHelperType::Run(state->Runnable_,
+            TMaybeCopyHelper<BA0>::Do(
+                TMaybeLockHelper<TTypedBindState::IsMethod::Value, TBoundArg0>(
+                    std::forward<TBoundArg0>(
+                        TBoundUnwrapTraits0::Unwrap(std::get<0>(state->State)))).Lock().Get()),
+            TMaybeCopyHelper<TBoundArgs>::Do(Unwrap(std::get<BoundIndexes>(state->State)))...,
+            std::forward<TRunArgs>(runArgs)...);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // #TBindState<>
@@ -610,80 +466,54 @@ std::forward<A$(UNBOUND_ARG)>(a$(UNBOUND_ARG))
 template <class Runnable, class Signature, class BoundArgs>
 class TBindState;
 
-$for ARITY [[
-$range ARG 1..ARITY
+template <bool IsMethod, class... S>
+struct TBindStateIsWeakMethodHelper : NMpl::TFalseType
+{ };
 
-template <class Runnable, class Signature[[]]
-$if ARITY > 0 [[, ]]
-$for ARG , [[class S$(ARG)]]
->
-class TBindState<Runnable, Signature, void($for ARG , [[S$(ARG)]])>
+template <bool IsMethod, class S0, class... S>
+struct TBindStateIsWeakMethodHelper<IsMethod, S0, S...> : TIsWeakMethodHelper<IsMethod, S0>
+{ };
+
+template <class Runnable, class R, class... TArgs, class... S>
+class TBindState<Runnable, R(TArgs...), void(S...)>
     : public TBindStateBase
 {
 public:
     typedef TIsMethodHelper<Runnable> IsMethod;
+	typedef TBindStateIsWeakMethodHelper<IsMethod::Value, S...> IsWeakMethod;
 
-$if ARITY > 0 [[
-    typedef TIsWeakMethodHelper<IsMethod::Value, S1> IsWeakMethod;
-]] $else [[
-    typedef NMpl::TFalseType IsWeakMethod;
-]]
-
- 
     typedef Runnable TRunnableType;
-    typedef TInvoker<$(ARITY), TBindState, Signature> TInvokerType;
+
+    typedef NMpl::TSplitVariadic<sizeof...(S), NMpl::TTypesPack<>, NMpl::TTypesPack<TArgs...> > TSplitVariadicType;
+    typedef typename TSplitVariadicType::THead TBoundArgsPack;
+    typedef typename TSplitVariadicType::TTail TRunArgsPack;
+
+    typedef TInvoker<TBindState, R, TBoundArgsPack, TRunArgsPack, typename NMpl::TGenerateSequence<TBoundArgsPack::Size>::TType> TInvokerType;
     typedef typename TInvokerType::UnboundSignature UnboundSignature;
 
-$if ARITY > 0 [[
-
-    // Convenience typedefs for bound argument types.
-
-$for ARG [[
-    typedef TUnwrapTraits<S$(ARG)> TBound$(ARG)UnwrapTraits;
-
-]] $$ for ARG
-
-
-]] $$ if ARITY > 0
-
-$if ARITY > 0 [[
-    template<$for ARG , [[class P$(ARG)]]>
-
-]]
-$$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
-[[    ]]TBindState(
+    template<class... P>
+    TBindState(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
         const ::NYT::TSourceLocation& location,
 #endif
-        const Runnable& runnable
-$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
+        const TRunnableType& runnable, P&&... p)
 #ifdef ENABLE_BIND_LOCATION_TRACKING
         : TBindStateBase(location)
         , Runnable_(runnable)
 #else
         : Runnable_(runnable)
-#endif[[]]
-$if ARITY > 0 [[
-$for ARG [[
-
-        , S$(ARG)_(std::forward<P$(ARG)>(p$(ARG)))
-]] $$ for ARG
-]]
-
+#endif
+        , State(std::forward<P>(p)...)
     { }
 
     virtual ~TBindState()
     { }
 
     TRunnableType Runnable_;
+    typedef std::tuple<S...> TTuple;
 
-$for ARG [[
-    S$(ARG) S$(ARG)_;
-
-]] $$ for ARG
+	TTuple State;
 };
-
-]] $$ for ARITY
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */

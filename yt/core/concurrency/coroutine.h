@@ -34,23 +34,12 @@ public:
 
 };
 
-template <unsigned...>
-struct TSequence { };
-
-template <unsigned N, unsigned... Indexes>
-struct TGenerateSequence : TGenerateSequence<N - 1, N - 1, Indexes...> { };
-
-template <unsigned... Indexes>
-struct TGenerateSequence<0, Indexes...> {
-    typedef TSequence<Indexes...> TType;
-};
-
 template <class TCallee, class TCaller, class TArguments, unsigned... Indexes>
 void Invoke(
     TCallee& callee,
     TCaller& caller,
     TArguments&& arguments,
-    TSequence<Indexes...>)
+    NMpl::TSequence<Indexes...>)
 {
     callee.Run(
         caller,
@@ -117,7 +106,7 @@ private:
                 Callee_,
                 *this,
                 std::move(Arguments_),
-                typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
+                typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result_.Reset();
         } catch (...) {
             Result_.Reset();
@@ -187,7 +176,7 @@ private:
                 Callee_,
                 *this,
                 std::move(Arguments_),
-                typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
+                typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType());
             Result_ = false;
         } catch (...) {
             Result_ = false;

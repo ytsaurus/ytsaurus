@@ -322,5 +322,46 @@ struct TCallTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class... TTypes>
+struct TTypesPack
+{
+    const static size_t Size = sizeof...(TTypes);
+};
+
+template<unsigned N, class THead, class TTail>
+struct TSplitVariadicHelper;
+
+template<unsigned N, class THead, class TTail>
+struct TSplitVariadic : TSplitVariadicHelper<N, THead, TTail>
+{ };
+
+template<class THeadParam, class TTailParam>
+struct TSplitVariadic<0, THeadParam, TTailParam>
+{
+    typedef THeadParam THead;
+    typedef TTailParam TTail;
+};
+
+template<unsigned N, class... THead, class TPivot, class... TTail>
+struct TSplitVariadicHelper<N, TTypesPack<THead...>, TTypesPack<TPivot, TTail...> >
+    : TSplitVariadic<N - 1, TTypesPack<THead..., TPivot>, TTypesPack<TTail...> >
+{ };
+
+template <unsigned...>
+struct TSequence { };
+
+template <unsigned N, unsigned... Indexes>
+struct TGenerateSequence 
+    : TGenerateSequence<N - 1, N - 1, Indexes...>
+{ };
+
+template <unsigned... Indexes>
+struct TGenerateSequence<0, Indexes...>
+{
+    typedef TSequence<Indexes...> TType;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NMpl
 } // namespace NYT
