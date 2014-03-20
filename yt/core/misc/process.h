@@ -15,11 +15,11 @@ public:
     ~TProcess();
 
     TProcess(const TProcess& other) = delete;
-    TProcess(TProcess&& other) = default;
+    TProcess(TProcess&& other) = delete;
 
     void AddArgument(const Stroka& arg);
 
-    TError Spawn(int flags=CLONE_VM);
+    TError Spawn(bool cloneVM = true);
     TError Wait();
 
     int GetProcessId() const;

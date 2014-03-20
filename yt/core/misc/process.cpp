@@ -29,14 +29,14 @@ static const size_t StackSize = 4096;
 
 TError SafeAtomicCloseExecPipe(int pipefd[2])
 {
-#ifdef _linux_
+#if defined(_linux_)
     auto result = pipe2(pipefd, O_CLOEXEC);
     if (result == -1) {
         return TError("Error creating pipe")
             << TError::FromSystem();
     }
-#else
-#ifdef _darwin_
+    return TError();
+#elif defined(_darwin_)
     {
         int result = pipe(pipefd);
         if (result == -1) {
@@ -44,7 +44,6 @@ TError SafeAtomicCloseExecPipe(int pipefd[2])
                 << TError::FromSystem();
         }
     }
-
     for (int index = 0; index < 2; ++index) {
         int getResult = ::fcntl(pipefd[index], F_GETFL);
         if (getResult == -1) {
@@ -58,11 +57,10 @@ TError SafeAtomicCloseExecPipe(int pipefd[2])
                 << TError::FromSystem();
         }
     }
+    return TError();
 #else
     return TError("Windows is not supported");
 #endif
-#endif
-    return TError();
 }
 
 TProcess::TProcess(const Stroka& path)
@@ -97,7 +95,7 @@ void TProcess::AddArgument(const Stroka& arg)
     Args_.push_back(Copy(~arg));
 }
 
-TError TProcess::Spawn(int flags)
+TError TProcess::Spawn(bool cloneVM)
 {
 #ifdef _win_
     return TError("Windows is not supported");
@@ -109,14 +107,12 @@ TError TProcess::Spawn(int flags)
         return error;
     }
 
-    // copy env
-    char** iterator = environ;
-
-    while (*iterator) {
-        const char* const item = (*iterator);
+    // Prepare environment.
+    char** envIt = environ;
+    while (*envIt) {
+        const char* const item = *envIt;
         Env_.push_back(Copy(item));
-
-        ++iterator;
+        ++envIt;
     }
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
@@ -129,7 +125,7 @@ TError TProcess::Spawn(int flags)
     int pid = ::clone(
         &TProcess::ChildMain,
         Stack_.data() + Stack_.size(),
-        flags|SIGCHLD,
+        (cloneVM ? CLONE_VM : 0) | SIGCHLD,
         this);
 #else
     int pid = vfork();
