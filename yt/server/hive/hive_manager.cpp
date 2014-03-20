@@ -49,7 +49,7 @@ public:
     TImpl(
         const TCellGuid& cellGuid,
         THiveManagerConfigPtr config,
-        TCellDirectoryPtr cellRegistry,
+        TCellDirectoryPtr cellDirectory,
         IInvokerPtr automatonInvoker,
         NRpc::IServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
@@ -64,7 +64,7 @@ public:
             automaton)
         , SelfCellGuid(cellGuid)
         , Config(config)
-        , CellDirectory(cellRegistry)
+        , CellDirectory(cellDirectory)
         , RpcServer(rpcServer)
     {
         Automaton->RegisterPart(this);
@@ -620,7 +620,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, TCellGuid, M
 THiveManager::THiveManager(
     const TCellGuid& selfCellGuid,
     THiveManagerConfigPtr config,
-    TCellDirectoryPtr cellRegistry,
+    TCellDirectoryPtr cellDirectory,
     IInvokerPtr automatonInvoker,
     IServerPtr rpcServer,
     IHydraManagerPtr hydraManager,
@@ -628,7 +628,7 @@ THiveManager::THiveManager(
     : Impl_(New<TImpl>(
         selfCellGuid,
         config,
-        cellRegistry,
+        cellDirectory,
         automatonInvoker,
         rpcServer,
         hydraManager,

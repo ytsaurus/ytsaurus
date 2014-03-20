@@ -13,6 +13,8 @@ import string
 import random
 from copy import deepcopy
 
+import __builtin__
+
 def get(path, attributes=None, format=None, spec=None):
     """
     Gets the tree growning from path.
@@ -193,6 +195,7 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
         if object.attributes.get("opaque", False) and not ignore_opaque:
             walk(path, safe_get(path), depth, True)
             return
+        
         object_type = object.attributes["type"]
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
@@ -201,13 +204,17 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
             yson_path.attributes = dict(filter(lambda item: item[0] in attributes, object.attributes.iteritems()))
             result.append(yson_path)
 
-        if object_type == "map_node":
+        if object_type == "account_map":
+            object = safe_get(path)
+
+        if isinstance(object, dict):
             for key, value in object.iteritems():
                 walk("{0}/{1}".format(path, key), value, depth + 1)
 
-        if object_type == "list_node":
+        if isinstance(object, __builtin__.list):
             for index, value in enumerate(object):
                 walk("{0}/{1}".format(path, index), value, depth + 1)
+
 
     walk(root, safe_get(root), 0, True)
     return result

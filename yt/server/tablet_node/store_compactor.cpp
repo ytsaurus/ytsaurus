@@ -30,6 +30,9 @@
 
 #include <ytlib/chunk_client/config.h>
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/transaction.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 
@@ -42,7 +45,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NHydra;
 using namespace NVersionedTableClient;
-using namespace NTransactionClient;
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NTabletNode::NProto;
 
@@ -241,9 +244,7 @@ private:
 
             SwitchTo(poolInvoker);
 
-            auto transactionManager = Bootstrap_->GetTransactionManager();
-        
-            TTransactionPtr transaction;
+            ITransactionPtr transaction;
             {
                 LOG_INFO("Creating Eden partitioning transaction");
                 NTransactionClient::TTransactionStartOptions options;
@@ -252,7 +253,7 @@ private:
                 attributes->Set("title", Sprintf("Eden partitioning, tablet %s",
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(transactionManager->Start(options));
+                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.Value();
             }
@@ -293,7 +294,7 @@ private:
                     Config_->Writer,
                     tablet->GetWriterOptions(),
                     currentWriterProvider,
-                    Bootstrap_->GetMasterChannel(),
+                    Bootstrap_->GetMasterClient()->GetMasterChannel(),
                     transaction->GetId());
 
                 {
@@ -460,9 +461,9 @@ private:
 
             SwitchTo(poolInvoker);
 
-            auto transactionManager = Bootstrap_->GetTransactionManager();
+            auto transactionManager = Bootstrap_->GetMasterClient()->GetTransactionManager();
         
-            TTransactionPtr transaction;
+            ITransactionPtr transaction;
             {
                 LOG_INFO("Creating partition compaction transaction");
                 NTransactionClient::TTransactionStartOptions options;
@@ -471,7 +472,7 @@ private:
                 attributes->Set("title", Sprintf("Partition compaction, tablet %s",
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(transactionManager->Start(options));
+                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.Value();
             }
@@ -494,7 +495,7 @@ private:
                 Config_->Writer,
                 tablet->GetWriterOptions(),
                 writerProvider,
-                Bootstrap_->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 transaction->GetId());
 
             {

@@ -12,20 +12,17 @@
 #include <core/logging/tagged_logger.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <ytlib/file_client/file_writer.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <core/rpc/channel.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/helpers.h>
+#include <ytlib/api/transaction.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+#include <ytlib/api/file_writer.h>
 
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/attribute_helpers.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
 
 #include <server/cell_scheduler/bootstrap.h>
 
@@ -39,11 +36,9 @@ namespace NScheduler {
 
 using namespace NFS;
 using namespace NYTree;
-using namespace NFileClient;
-using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NTransactionClient;
 using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,12 +49,15 @@ static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 
 TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
-    NCellScheduler::TBootstrap* bootstrap)
+    TSchedulerPtr scheduler,
+    IClientPtr masterClient)
     : Config(config)
-    , Bootstrap(bootstrap)
+    , Scheduler(scheduler)
+    , MasterClient(masterClient)
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
+    YCHECK(Config);
+    YCHECK(Scheduler);
+    YCHECK(MasterClient);
 
     Logger = SchedulerLogger;
 }
@@ -76,8 +74,7 @@ TAsyncError TSnapshotBuilder::Run()
     }
 
     // Capture everything needed in Build.
-    auto scheduler = Bootstrap->GetScheduler();
-    for (auto operation : scheduler->GetOperations()) {
+    for (auto operation : Scheduler->GetOperations()) {
         if (operation->GetState() != EOperationState::Running)
             continue;
 
@@ -93,7 +90,7 @@ TAsyncError TSnapshotBuilder::Run()
 
     return TSnapshotBuilderBase::Run().Apply(
         BIND(&TSnapshotBuilder::OnBuilt, MakeStrong(this))
-            .AsyncVia(Bootstrap->GetScheduler()->GetSnapshotIOInvoker()));
+            .AsyncVia(Scheduler->GetSnapshotIOInvoker()));
 }
 
 TDuration TSnapshotBuilder::GetTimeout() const
@@ -163,14 +160,8 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
         auto snapshotPath = GetSnapshotPath(operation->GetOperationId());
 
-        auto masterChannel = Bootstrap->GetMasterChannel();
-        auto transactionManager = Bootstrap->GetTransactionManager();
-
-        TObjectServiceProxy proxy(masterChannel);
-
-        TTransactionPtr transaction;
-
         // Start outer transaction.
+        ITransactionPtr transaction;
         {
             TTransactionStartOptions options;
             auto attributes = CreateEphemeralAttributes();
@@ -178,40 +169,41 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 "title",
                 Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetOperationId())));
             options.Attributes = attributes.get();
-            auto transactionOrError = WaitFor(transactionManager->Start(options));
+            auto transactionOrError = WaitFor(MasterClient->StartTransaction(options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
             transaction = transactionOrError.Value();
         }
 
         // Remove previous snapshot, if exists.
         {
-            auto req = TYPathProxy::Remove(snapshotPath);
-            req->set_force(true);
-            SetTransactionId(req, transaction);
-            auto rsp = proxy.Execute(req).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error removing previous snapshot");
+            TRemoveNodeOptions options;
+            options.Force = true;
+            auto result = WaitFor(transaction->RemoveNode(
+                snapshotPath,
+                options));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error removing previous snapshot");
         }
 
         // Create new snapshot node.
         {
-            auto req = TCypressYPathProxy::Create(snapshotPath);
-            req->set_type(EObjectType::File);
+            TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("version", GetCurrentSnapshotVersion());
-            ToProto(req->mutable_node_attributes(), *attributes);
-            SetTransactionId(req, transaction);
-            auto rsp = proxy.Execute(req).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating snapshot node");
+            options.Attributes = attributes.get();
+            auto result = WaitFor(transaction->CreateNode(
+                snapshotPath,
+                EObjectType::File,
+                options));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error creating snapshot node");
         }
 
         // Upload new snapshot.
         {
-            auto writer = New<TAsyncWriter>(
-                Config->SnapshotWriter,
-                Bootstrap->GetMasterChannel(),
-                transaction,
-                transactionManager,
-                snapshotPath);
+            TFileWriterOptions options;
+            auto writer = MasterClient->CreateFileWriter(
+                snapshotPath,
+                options,
+                Config->SnapshotWriter);
 
             {
                 auto result = WaitFor(writer->Open());

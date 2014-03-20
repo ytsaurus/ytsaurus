@@ -102,11 +102,13 @@ class Holder(WinNode, Server):
         params = Template('--node --config %(config_path)s')
 
         config = Template({
-            'masters' : {
-              'addresses' : MasterAddresses
-            },
-            'timestamp_provider' : {
-                'addresses' : MasterAddresses
+            'cluster_connection' : {
+                'masters' : {
+                    'addresses' : MasterAddresses
+                },
+                'timestamp_provider' : {
+                    'addresses' : MasterAddresses
+                },
             },
             'query_agent': {
             },

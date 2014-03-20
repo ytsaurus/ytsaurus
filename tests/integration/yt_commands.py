@@ -14,12 +14,14 @@ from cStringIO import StringIO
 
 only_linux = pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
 
+driver = None
+
 def get_driver():
-    config_path = os.environ['YT_CONFIG']
-    if not hasattr(get_driver, "driver") or (hasattr(get_driver, "config_path") and config_path != get_driver.config_path):
-        get_driver.driver = Driver(config=yson.loads(open(config_path).read()))
-        get_driver.config_path = config_path
-    return get_driver.driver
+    return driver
+
+def init_driver(config):
+    global driver
+    driver = Driver(config=config)
 
 def set_branch(dict, path, value):
     root = dict

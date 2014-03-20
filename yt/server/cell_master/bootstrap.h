@@ -58,7 +58,7 @@ public:
     NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
     NTabletServer::TTabletManagerPtr GetTabletManager() const;
     NHive::THiveManagerPtr GetHiveManager() const;
-    NHive::TCellDirectoryPtr GetCellRegistry() const;
+    NHive::TCellDirectoryPtr GetCellDirectory() const;
     IInvokerPtr GetControlInvoker() const;
 
     void Run();
@@ -82,7 +82,7 @@ private:
     NSecurityServer::TSecurityManagerPtr SecurityManager;
     NTabletServer::TTabletManagerPtr TabletManager;
     NHive::THiveManagerPtr HiveManager;
-    NHive::TCellDirectoryPtr CellRegistry;
+    NHive::TCellDirectoryPtr CellDirectory;
     NConcurrency::TActionQueuePtr ControlQueue;
 
 };

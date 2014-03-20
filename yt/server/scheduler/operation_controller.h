@@ -8,13 +8,11 @@
 #include <core/actions/invoker.h>
 #include <core/actions/cancelable_context.h>
 
-#include <ytlib/scheduler/job.pb.h>
-
-#include <ytlib/transaction_client/public.h>
-
 #include <core/ytree/public.h>
 
-#include <core/rpc/public.h>
+#include <ytlib/scheduler/job.pb.h>
+
+#include <ytlib/api/public.h>
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
@@ -34,17 +32,12 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    virtual NApi::IClientPtr GetMasterClient() = 0;
 
     /*!
      *  \note Thread affinity: any
      */
     virtual TMasterConnector* GetMasterConnector() = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
     //! Returns the control invoker of the scheduler.
     /*!

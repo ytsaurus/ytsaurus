@@ -79,7 +79,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , Proxy(Bootstrap->GetMasterChannel())
+        , Proxy(Bootstrap->GetMasterClient()->GetMasterChannel())
         , Connected(false)
     { }
 
@@ -515,7 +515,7 @@ private:
 
                 TTransactionAttachOptions options(transactionId);
                 options.AutoAbort = true;
-                auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+                auto transactionManager = Owner->Bootstrap->GetMasterClient()->GetTransactionManager();
                 Owner->LockTransaction = transactionManager->Attach(options);
 
                 LOG_INFO("Lock transaction is %s", ~ToString(transactionId));
@@ -873,7 +873,7 @@ private:
 
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap->GetMasterClient()->GetTransactionManager();
 
         TTransactionPtr userTransaction;
         {
@@ -1134,7 +1134,7 @@ private:
     {
         LOG_DEBUG("Operation update list registered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
-        TUpdateList list(Bootstrap->GetMasterChannel(), operation);
+        TUpdateList list(Bootstrap->GetMasterClient()->GetMasterChannel(), operation);
         auto pair = UpdateLists.insert(std::make_pair(operation->GetOperationId(), list));
         YCHECK(pair.second);
         return &pair.first->second;
@@ -1617,7 +1617,10 @@ private:
         if (!Config->EnableSnapshotBuilding)
             return;
 
-        auto builder = New<TSnapshotBuilder>(Config, Bootstrap);
+        auto builder = New<TSnapshotBuilder>(
+            Config,
+            Bootstrap->GetScheduler(),
+            Bootstrap->GetMasterClient());
         builder->Run().Subscribe(BIND(&TImpl::OnSnapshotBuilt, MakeWeak(this))
             .Via(CancelableControlInvoker));
     }

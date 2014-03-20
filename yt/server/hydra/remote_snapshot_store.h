@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
+#include <ytlib/api/public.h>
 
 #include <ytlib/ypath/public.h>
 
@@ -19,8 +19,7 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
     const NElection::TCellGuid& cellGuid,
     const NYPath::TYPath& remotePath,
-    NRpc::IChannelPtr masterChannel,
-    NTransactionClient::TTransactionManagerPtr transactionManager);
+    NApi::IClientPtr masterClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 

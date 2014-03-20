@@ -26,6 +26,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/api/client.h>
+
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
@@ -189,7 +191,7 @@ private:
             RemoteReader = CreateReplicationReader(
                 Owner->Config->CacheRemoteReader,
                 Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
-                Owner->Bootstrap->GetMasterChannel(),
+                Owner->Bootstrap->GetMasterClient()->GetMasterChannel(),
                 NodeDirectory,
                 Owner->Bootstrap->GetLocalDescriptor(),
                 ChunkId);

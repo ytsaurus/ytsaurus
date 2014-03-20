@@ -25,6 +25,9 @@
 
 #include <ytlib/transaction_client/timestamp_provider.h>
 
+#include <ytlib/api/connection.h>
+#include <ytlib/api/client.h>
+
 #include <server/election/election_manager.h>
 
 #include <server/hydra/changelog.h>
@@ -312,7 +315,7 @@ public:
             HiveManager_ = New<THiveManager>(
                 CellGuid_,
                 Config_->TabletNode->HiveManager,
-                Bootstrap_->GetCellDirectory(),
+                Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Write),
                 rpcServer,
                 HydraManager_,
@@ -338,7 +341,7 @@ public:
                 Automaton_,
                 HiveManager_,
                 TransactionManager_,
-                Bootstrap_->GetTimestampProvider());
+                Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider());
 
             TabletService_ = CreateTabletService(
                 Owner_,

@@ -216,9 +216,9 @@ THiveManagerPtr TBootstrap::GetHiveManager() const
     return HiveManager;
 }
 
-TCellDirectoryPtr TBootstrap::GetCellRegistry() const
+TCellDirectoryPtr TBootstrap::GetCellDirectory() const
 {
-    return CellRegistry;
+    return CellDirectory;
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker() const
@@ -283,15 +283,15 @@ void TBootstrap::Run()
 
     WorldInitializer = New<TWorldInitializer>(Config, this);
     
-    CellRegistry = New<TCellDirectory>(
+    CellDirectory = New<TCellDirectory>(
         Config->CellDirectory,
         GetBusChannelFactory());
-    CellRegistry->RegisterCell(Config->Masters);
+    CellDirectory->RegisterCell(Config->Masters);
 
     HiveManager = New<THiveManager>(
         GetCellGuid(),
         Config->HiveManager,
-        CellRegistry,
+        CellDirectory,
         MetaStateFacade->GetInvoker(),
         RpcServer,
         MetaStateFacade->GetManager(),

@@ -25,6 +25,9 @@
 #include <ytlib/node_tracker_client/node_statistics.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <ytlib/api/connection.h>
+#include <ytlib/api/client.h>
+
 #include <server/job_agent/job_controller.h>
 
 #include <server/tablet_node/tablet_cell_controller.h>
@@ -179,7 +182,7 @@ void TMasterConnector::SendRegister()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterClient()->GetMasterChannel());
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
     ToProto(req->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
@@ -270,7 +273,7 @@ void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegister
 
 void TMasterConnector::SendFullNodeHeartbeat()
 {
-    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterClient()->GetMasterChannel());
     auto request = proxy.FullHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4)
         ->SetTimeout(Config->FullHeartbeatTimeout);
@@ -300,7 +303,7 @@ void TMasterConnector::SendFullNodeHeartbeat()
 
 void TMasterConnector::SendIncrementalNodeHeartbeat()
 {
-    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterClient()->GetMasterChannel());
     auto request = proxy.IncrementalHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4);
 
@@ -334,8 +337,8 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         info->set_config_version(slot->GetCellConfig().version());
     }
 
-    auto cellRegistry = Bootstrap->GetCellDirectory();
-    auto cellMap = cellRegistry->GetRegisteredCells();
+    auto cellDirectory = Bootstrap->GetMasterClient()->GetConnection()->GetCellDirectory();
+    auto cellMap = cellDirectory->GetRegisteredCells();
     for (const auto& pair : cellMap) {
         auto* info = request->add_hive_cells();
         ToProto(info->mutable_cell_guid(), pair.first);
@@ -481,11 +484,11 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         tabletCellController->ConfigureSlot(slot, info);
     }
 
-    auto cellRegistry = Bootstrap->GetCellDirectory();
+    auto cellDirectory = Bootstrap->GetMasterClient()->GetConnection()->GetCellDirectory();
 
     for (const auto& info : rsp->hive_cells_to_unregister()) {
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
-        if (cellRegistry->UnregisterCell(cellGuid)) {
+        if (cellDirectory->UnregisterCell(cellGuid)) {
             LOG_DEBUG("Hive cell unregistered (CellGuid: %s)",
                 ~ToString(cellGuid));
         }
@@ -493,7 +496,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
 
     for (const auto& info : rsp->hive_cells_to_reconfigure()) {
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
-        if (cellRegistry->RegisterCell(cellGuid, info.config())) {
+        if (cellDirectory->RegisterCell(cellGuid, info.config())) {
             LOG_DEBUG("Hive cell reconfigured (CellGuid: %s, ConfigVersion: %d)",
                 ~ToString(cellGuid),
                 info.config().version());
@@ -515,7 +518,7 @@ void TMasterConnector::SendJobHeartbeat()
     YCHECK(NodeId != InvalidNodeId);
     YCHECK(State == EState::Online);
 
-    TJobTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    TJobTrackerServiceProxy proxy(Bootstrap->GetMasterClient()->GetMasterChannel());
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap->GetJobController();

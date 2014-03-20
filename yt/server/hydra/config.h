@@ -8,7 +8,7 @@
 
 #include <core/rpc/config.h>
 
-#include <ytlib/file_client/config.h>
+#include <ytlib/api/config.h>
 
 #include <server/election/config.h>
 
@@ -154,8 +154,8 @@ public:
     //! A temporary path where snapshots are written before being uploaded.
     Stroka TempPath;
 
-    NFileClient::TFileReaderConfigPtr Reader;
-    NFileClient::TFileWriterConfigPtr Writer;
+    NApi::TFileReaderConfigPtr Reader;
+    NApi::TFileWriterConfigPtr Writer;
 
     TRemoteSnapshotStoreConfig()
     {

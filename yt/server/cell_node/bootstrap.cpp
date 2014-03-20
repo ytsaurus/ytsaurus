@@ -19,10 +19,6 @@
 #include <core/rpc/redirector_service.h>
 #include <core/rpc/throttling_channel.h>
 
-#include <ytlib/hydra/peer_channel.h>
-
-#include <ytlib/hydra/config.h>
-
 #include <ytlib/orchid/orchid_service.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
@@ -36,17 +32,12 @@
 
 #include <core/profiling/profiling_manager.h>
 
-#include <ytlib/scheduler/scheduler_channel.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <ytlib/transaction_client/timestamp_provider.h>
-#include <ytlib/transaction_client/remote_timestamp_provider.h>
-#include <ytlib/transaction_client/transaction_manager.h>
-
-#include <ytlib/hive/cell_directory.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
 
 #include <server/misc/build_attributes.h>
 
@@ -107,9 +98,8 @@ using namespace NExecAgent;
 using namespace NJobProxy;
 using namespace NDataNode;
 using namespace NTabletNode;
-using namespace NHive;
-using namespace NTransactionClient;
 using namespace NQueryAgent;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,7 +130,7 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",
         ~ToString(LocalDescriptor),
-        ~JoinToString(Config->Masters->Addresses));
+        ~JoinToString(Config->ClusterConnection->Masters->Addresses));
 
     {
         auto result = MemoryUsageTracker.TryAcquire(
@@ -152,15 +142,8 @@ void TBootstrap::Run()
         }
     }
 
-    MasterChannel = CreatePeerChannel(
-        Config->Masters,
-        GetBusChannelFactory(),
-        EPeerRole::Leader);
-
-    SchedulerChannel = CreateSchedulerChannel(
-        Config->ExecAgent->SchedulerConnector,
-        GetBusChannelFactory(),
-        MasterChannel);
+    auto connection = CreateConnection(Config->ClusterConnection);
+    MasterClient = CreateClient(connection);
 
     ControlQueue = New<TActionQueue>("Control");
 
@@ -181,7 +164,7 @@ void TBootstrap::Run()
 
     auto jobToMasterChannel = CreateThrottlingChannel(
         Config->JobsToMasterChannel,
-        MasterChannel);
+        MasterClient->GetMasterChannel());
     RpcServer->RegisterService(CreateRedirectorService(
         NObjectClient::TObjectServiceProxy::GetServiceName(),
         jobToMasterChannel));
@@ -290,22 +273,6 @@ void TBootstrap::Run()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
-    CellDirectory = New<TCellDirectory>(
-        Config->CellDirectory,
-        GetBusChannelFactory());
-    CellDirectory->RegisterCell(Config->Masters);
-
-    TimestampProvider = CreateRemoteTimestampProvider(
-        Config->TimestampProvider,
-        GetBusChannelFactory());
-
-    TransactionManager = New<NTransactionClient::TTransactionManager>(
-        Config->TransactionManager,
-        Config->Masters->CellGuid,
-        MasterChannel,
-        TimestampProvider,
-        CellDirectory);
-
     TabletCellController = New<TTabletCellController>(Config, this);
 
     auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
@@ -391,14 +358,9 @@ IInvokerPtr TBootstrap::GetQueryWorkerInvoker() const
     return QueryWorkerPool->GetInvoker();
 }
 
-IChannelPtr TBootstrap::GetMasterChannel() const
+IClientPtr TBootstrap::GetMasterClient() const
 {
-    return MasterChannel;
-}
-
-IChannelPtr TBootstrap::GetSchedulerChannel() const
-{
-    return SchedulerChannel;
+    return MasterClient;
 }
 
 IServerPtr TBootstrap::GetRpcServer() const
@@ -486,21 +448,6 @@ NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
     return MasterConnector;
 }
 
-TCellDirectoryPtr TBootstrap::GetCellDirectory() const
-{
-    return CellDirectory;
-}
-
-ITimestampProviderPtr TBootstrap::GetTimestampProvider() const
-{
-    return TimestampProvider;
-}
-
-NTransactionClient::TTransactionManagerPtr TBootstrap::GetTransactionManager() const
-{
-    return TransactionManager;
-}
-
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
     return LocalDescriptor;
@@ -508,7 +455,7 @@ const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() cons
 
 const TGuid& TBootstrap::GetCellGuid() const
 {
-    return Config->Masters->CellGuid;
+    return Config->ClusterConnection->Masters->CellGuid;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const

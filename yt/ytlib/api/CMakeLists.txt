@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/api )
 set( SRCS
   ${BASE}/public.cpp
   ${BASE}/private.cpp
+  ${BASE}/config.cpp
   ${BASE}/client.cpp
   ${BASE}/connection.cpp
   ${BASE}/transaction.cpp

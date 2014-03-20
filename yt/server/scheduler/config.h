@@ -6,7 +6,7 @@
 
 #include <ytlib/table_client/config.h>
 
-#include <ytlib/file_client/config.h>
+#include <ytlib/api/config.h>
 
 #include <core/rpc/retrying_channel.h>
 
@@ -173,8 +173,8 @@ public:
     bool EnableSnapshotLoading;
 
     Stroka SnapshotTempPath;
-    NFileClient::TFileReaderConfigPtr SnapshotReader;
-    NFileClient::TFileWriterConfigPtr SnapshotWriter;
+    NApi::TFileReaderConfigPtr SnapshotReader;
+    NApi::TFileWriterConfigPtr SnapshotWriter;
 
     NChunkClient::TFetcherConfigPtr Fetcher;
 

@@ -31,6 +31,8 @@
 #include <ytlib/chunk_client/replication_writer.h>
 #include <ytlib/chunk_client/replication_reader.h>
 
+#include <ytlib/api/client.h>
+
 #include <server/job_agent/job.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -454,7 +456,7 @@ private:
             auto reader = CreateReplicationReader(
                 config->RepairReader,
                 Bootstrap->GetBlockStore()->GetBlockCache(),
-                Bootstrap->GetMasterChannel(),
+                Bootstrap->GetMasterClient()->GetMasterChannel(),
                 nodeDirectory,
                 Bootstrap->GetLocalDescriptor(),
                 partId,

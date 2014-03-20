@@ -25,6 +25,8 @@
 
 #include <ytlib/tablet_client/public.h>
 
+#include <ytlib/api/client.h>
+
 #include <server/data_node/block_store.h>
 
 #include <server/tablet_node/tablet_cell_controller.h>
@@ -234,7 +236,7 @@ private:
                 timestamp);
 
             auto blockCache = Bootstrap_->GetBlockStore()->GetBlockCache();
-            auto masterChannel = Bootstrap_->GetMasterChannel();
+            auto masterChannel = Bootstrap_->GetMasterClient()->GetMasterChannel();
             auto nodeDirectory = context->GetNodeDirectory();
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?

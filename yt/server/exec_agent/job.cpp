@@ -26,7 +26,6 @@
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/file_client/config.h>
-#include <ytlib/file_client/file_reader.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
 #include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
@@ -78,6 +77,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NConcurrency;
+using namespace NApi;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NScheduler::NProto::TUserJobSpec;
@@ -640,7 +640,7 @@ private:
 
         auto reader = New<TReader>(
             config,
-            Bootstrap->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetBlockCache(),
             NodeDirectory,
             std::move(chunks),
@@ -699,7 +699,7 @@ private:
 
         auto asyncReader = New<TTableChunkSequenceReader>(
             config,
-            Bootstrap->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetBlockCache(),
             NodeDirectory,
             std::move(chunks),

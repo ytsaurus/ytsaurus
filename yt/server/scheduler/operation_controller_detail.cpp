@@ -269,7 +269,7 @@ TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
         Controller->GetCancelableControlInvoker(),
         BIND(&TInputChunkScratcher::LocateChunks, MakeWeak(this)),
         Controller->Config->ChunkScratchPeriod))
-    , Proxy(Controller->Host->GetMasterChannel())
+    , Proxy(Controller->Host->GetMasterClient()->GetMasterChannel())
     , Started(false)
     , Logger(Controller->Logger)
 { }
@@ -928,7 +928,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Host(host)
     , Operation(operation)
     , AuthenticatedMasterChannel(CreateAuthenticatedChannel(
-        host->GetMasterChannel(),
+        host->GetMasterClient()->GetMasterChannel(),
         operation->GetAuthenticatedUser()))
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
@@ -1149,7 +1149,7 @@ void TOperationControllerBase::InitChunkListPool()
 {
     ChunkListPool = New<TChunkListPool>(
         Config,
-        Host->GetMasterChannel(),
+        Host->GetMasterClient()->GetMasterChannel(),
         CancelableControlInvoker,
         Operation->GetOperationId(),
         Operation->GetOutputTransaction()->GetId());
@@ -2077,7 +2077,7 @@ void TOperationControllerBase::DoOperationFailed(const TError& error)
 void TOperationControllerBase::CreateLivePreviewTables()
 {
     // NB: use root credentials.
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterClient()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (
@@ -2142,7 +2142,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 {
     // NB: use root credentials.
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterClient()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {

@@ -24,6 +24,8 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
+#include <ytlib/api/client.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 
@@ -160,7 +162,7 @@ private:
             {
                 LOG_INFO("Locating store chunks");
 
-                TChunkServiceProxy proxy(Bootstrap_->GetMasterChannel());
+                TChunkServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
                 auto req = proxy.LocateChunks();
 
                 for (auto store : partition->Stores()) {

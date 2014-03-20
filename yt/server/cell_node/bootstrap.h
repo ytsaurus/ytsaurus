@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <core/concurrency/throughput_throttler.h>
-
 #include <core/concurrency/action_queue.h>
 
 #include <core/bus/public.h>
@@ -16,9 +15,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/hive/public.h>
-
-#include <ytlib/transaction_client/public.h>
+#include <ytlib/api/public.h>
 
 #include <server/data_node/public.h>
 
@@ -31,8 +28,6 @@
 #include <server/job_proxy/public.h>
 
 #include <server/tablet_node/public.h>
-
-#include <server/hive/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -50,8 +45,7 @@ public:
     TCellNodeConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     IInvokerPtr GetQueryWorkerInvoker() const;
-    NRpc::IChannelPtr GetMasterChannel() const;
-    NRpc::IChannelPtr GetSchedulerChannel() const;
+    NApi::IClientPtr GetMasterClient() const;
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
@@ -69,9 +63,6 @@ public:
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
-    NHive::TCellDirectoryPtr GetCellDirectory() const;
-    NTransactionClient::ITimestampProviderPtr GetTimestampProvider() const;
-    NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -95,7 +86,7 @@ private:
     NConcurrency::TActionQueuePtr ControlQueue;
     NConcurrency::TThreadPoolPtr QueryWorkerPool;
     NBus::IBusServerPtr BusServer;
-    NRpc::IChannelPtr MasterChannel;
+    NApi::IClientPtr MasterClient;
     NRpc::IChannelPtr SchedulerChannel;
     NRpc::IServerPtr RpcServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
@@ -115,9 +106,6 @@ private:
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
-    NHive::TCellDirectoryPtr CellDirectory;
-    NTransactionClient::ITimestampProviderPtr TimestampProvider;
-    NTransactionClient::TTransactionManagerPtr TransactionManager;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;

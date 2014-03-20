@@ -9,8 +9,9 @@
 
 #include <ytlib/ypath/rich.h>
 
+#include <ytlib/api/config.h>
+
 #include <ytlib/table_client/config.h>
-#include <ytlib/file_client/config.h>
 
 #include <ytlib/formats/format.h>
 
@@ -25,7 +26,7 @@ class TJobIOConfig
 public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
-    NFileClient::TFileWriterConfigPtr ErrorFileWriter;
+    NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     TJobIOConfig()
     {
@@ -728,6 +729,8 @@ public:
             .Default(TDuration::Seconds(60));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////
 

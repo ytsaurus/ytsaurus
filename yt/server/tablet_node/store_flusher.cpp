@@ -38,6 +38,9 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/transaction.h>
+
 #include <server/tablet_server/tablet_manager.pb.h>
 
 #include <server/tablet_node/tablet_manager.pb.h>
@@ -53,7 +56,7 @@ namespace NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
-using namespace NTransactionClient;
+using namespace NApi;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NNodeTrackerClient;
@@ -160,7 +163,7 @@ private:
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
         auto poolInvoker = ThreadPool_->GetInvoker();
 
-        TObjectServiceProxy proxy(Bootstrap_->GetMasterChannel());
+        TObjectServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
 
         try {
             LOG_INFO("Store flush started");
@@ -183,19 +186,17 @@ private:
 
             SwitchTo(poolInvoker);
 
-            auto transactionManager = Bootstrap_->GetTransactionManager();
-        
-            TTransactionPtr transaction;
+            ITransactionPtr transaction;
             {
                 LOG_INFO("Creating store flush transaction");
-                NTransactionClient::TTransactionStartOptions options;
+                TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Flushing store %s, tablet %s",
                     ~ToString(store->GetId()),
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(transactionManager->Start(options));
+                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.Value();
             }
@@ -210,7 +211,7 @@ private:
                 Config_->Writer,
                 tablet->GetWriterOptions(),
                 writerProvider,
-                Bootstrap_->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 transaction->GetId());
 
             {

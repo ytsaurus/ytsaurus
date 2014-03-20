@@ -7,23 +7,15 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/file_client/file_reader.h>
-
-#include <ytlib/chunk_client/client_block_cache.h>
-
-#include <core/ytree/ypath_proxy.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/file_reader.h>
 
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
 namespace NScheduler {
 
-using namespace NObjectClient;
-using namespace NFileClient;
-using namespace NChunkClient;
-using namespace NYTree;
+using namespace NApi;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,13 +40,13 @@ void TSnapshotDownloader::Run()
 {
     LOG_INFO("Starting downloading snapshot");
 
+    auto client = Bootstrap->GetMasterClient();
+
     auto snapshotPath = GetSnapshotPath(Operation->GetOperationId());
-    auto reader = New<TAsyncReader>(
-        Config->SnapshotReader,
-        Bootstrap->GetMasterChannel(),
-        CreateClientBlockCache(New<TClientBlockCacheConfig>()),
-        nullptr,
-        snapshotPath);
+    auto reader = client->CreateFileReader(
+        snapshotPath,
+        TFileReaderOptions(),
+        Config->SnapshotReader);
 
     {
         auto result = WaitFor(reader->Open());

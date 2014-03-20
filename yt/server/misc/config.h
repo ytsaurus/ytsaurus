@@ -13,7 +13,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
 public:
     TAddressResolverConfigPtr AddressResolver;

@@ -6,6 +6,7 @@
 #include <core/misc/nullable.h>
 
 #include <core/ytree/yson_string.h>
+#include <core/ytree/attribute_provider.h>
 
 #include <core/rpc/public.h>
 
@@ -141,7 +142,7 @@ struct TGetNodeOptions
     { }
 
     NYTree::IAttributeDictionary* Options;
-    std::vector<Stroka> Attributes;
+    NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
 };
 

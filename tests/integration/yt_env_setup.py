@@ -1,6 +1,7 @@
 import yt_commands
 
 from yt.environment import YTEnv
+import yt.bindings.driver
 
 import os
 import logging
@@ -45,6 +46,9 @@ class YTEnvSetup(YTEnv):
         cls.path_to_test = path_to_test
         cls.Env = cls()
         cls.Env.set_environment(path_to_run, pids_filename)
+
+        yt_commands.init_driver(cls.Env.configs['driver'])
+        yt.bindings.driver.configure_logging(cls.Env.driver_logging_config)
 
     @classmethod
     def teardown_class(cls):

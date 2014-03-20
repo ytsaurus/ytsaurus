@@ -6,6 +6,8 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <ytlib/api/client.h>
+
 #include <server/job_agent/job_controller.h>
 
 #include <server/data_node/master_connector.h>
@@ -64,7 +66,7 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    TJobTrackerServiceProxy proxy(Bootstrap->GetSchedulerChannel());
+    TJobTrackerServiceProxy proxy(Bootstrap->GetMasterClient()->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap->GetJobController();

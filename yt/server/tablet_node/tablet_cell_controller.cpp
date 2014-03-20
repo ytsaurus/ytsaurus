@@ -250,8 +250,7 @@ public:
             Config_->TabletNode->Snapshots,
             cellGuid,
             Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellGuid)),
-            Bootstrap_->GetMasterChannel(),
-            Bootstrap_->GetTransactionManager());
+            Bootstrap_->GetMasterClient());
     }
 
 

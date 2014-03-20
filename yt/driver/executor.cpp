@@ -135,8 +135,8 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     NLog::TLogManager::Get()->Configure(Config->Logging);
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
-    TDispatcher::Get()->Configure(Config->HeavyPoolSize);
-    Driver = CreateDriver(Config);
+    TDispatcher::Get()->Configure(Config->Driver->HeavyPoolSize);
+    Driver = CreateDriver(Config->Driver);
 
     return DoExecute();
 }

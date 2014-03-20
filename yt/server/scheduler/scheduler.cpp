@@ -270,6 +270,7 @@ public:
         }
 
         // Attach user transaction if any. Don't ping it.
+        auto transactionManager = GetMasterClient()->GetTransactionManager();
         TTransactionAttachOptions userAttachOptions(transactionId);
         userAttachOptions.AutoAbort = false;
         userAttachOptions.Ping = false;
@@ -277,7 +278,7 @@ public:
         auto userTransaction =
             transactionId == NullTransactionId
             ? nullptr
-            : GetTransactionManager()->Attach(userAttachOptions);
+            : transactionManager->Attach(userAttachOptions);
 
         // Create operation object.
         auto operationId = TOperationId::Create();
@@ -536,14 +537,9 @@ public:
 
 
     // IOperationHost implementation
-    virtual NRpc::IChannelPtr GetMasterChannel() override
+    virtual NApi::IClientPtr GetMasterClient() override
     {
-        return Bootstrap->GetMasterChannel();
-    }
-
-    virtual TTransactionManagerPtr GetTransactionManager() override
-    {
-        return Bootstrap->GetTransactionManager();
+        return Bootstrap->GetMasterClient();
     }
 
     virtual IInvokerPtr GetControlInvoker() override
@@ -866,7 +862,7 @@ private:
         LOG_INFO("Starting sync scheduler transaction (OperationId: %s)",
             ~ToString(operationId));
 
-        TObjectServiceProxy proxy(GetMasterChannel());
+        TObjectServiceProxy proxy(GetMasterClient()->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
         {
@@ -896,7 +892,7 @@ private:
             throw TFiberCanceledException();
         }
 
-        auto transactionManager = GetTransactionManager();
+        auto transactionManager = GetMasterClient()->GetTransactionManager();
 
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx");
@@ -920,7 +916,7 @@ private:
         LOG_INFO("Starting async scheduler transaction (OperationId: %s)",
             ~ToString(operationId));
 
-        TObjectServiceProxy proxy(GetMasterChannel());
+        TObjectServiceProxy proxy(GetMasterClient()->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
         {
@@ -948,7 +944,7 @@ private:
             throw TFiberCanceledException();
         }
 
-        auto transactionManager = GetTransactionManager();
+        auto transactionManager = GetMasterClient()->GetTransactionManager();
 
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx");
@@ -972,7 +968,7 @@ private:
         LOG_INFO("Starting IO transactions (OperationId: %s)",
             ~ToString(operationId));
 
-        TObjectServiceProxy proxy(GetMasterChannel());
+        TObjectServiceProxy proxy(GetMasterClient()->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
         auto parentTransactionId = operation->GetSyncSchedulerTransaction()->GetId();
 
@@ -1018,7 +1014,7 @@ private:
             throw TFiberCanceledException();
         }
 
-        auto transactionManager = GetTransactionManager();
+        auto transactionManager = GetMasterClient()->GetTransactionManager();
 
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_in_tx");
@@ -1504,7 +1500,7 @@ private:
 
     void ReleaseStderrChunk(TJobPtr job, const TChunkId& chunkId)
     {
-        TObjectServiceProxy proxy(GetMasterChannel());
+        TObjectServiceProxy proxy(GetMasterClient()->GetMasterChannel());
         auto transaction = job->GetOperation()->GetAsyncSchedulerTransaction();
         if (!transaction)
             return;

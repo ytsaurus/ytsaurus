@@ -112,8 +112,7 @@ typedef TIntrusivePtr<TFairShareOperationSpec> TFairShareOperationSpecPtr;
 class TFairShareOperationRuntimeParams;
 typedef TIntrusivePtr<TFairShareOperationRuntimeParams> TFairShareOperationRuntimeParamsPtr;
 
-class TSchedulerConnectionConfig;
-typedef TIntrusivePtr<TSchedulerConnectionConfig> TSchedulerConnectionConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

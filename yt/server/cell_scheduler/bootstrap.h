@@ -3,9 +3,10 @@
 #include "public.h"
 
 #include <core/concurrency/action_queue.h>
+
 #include <core/bus/public.h>
-#include <core/rpc/public.h>
-#include <ytlib/transaction_client/public.h>
+
+#include <ytlib/api/public.h>
 
 #include <server/scheduler/public.h>
 
@@ -28,10 +29,9 @@ public:
     ~TBootstrap();
 
     TCellSchedulerConfigPtr GetConfig() const;
-    NRpc::IChannelPtr GetMasterChannel() const;
+    NApi::IClientPtr GetMasterClient() const;
     const Stroka& GetLocalAddress() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
-    NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
 
     void Run();
@@ -42,9 +42,8 @@ private:
 
     NConcurrency::TFairShareActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
-    NRpc::IChannelPtr MasterChannel;
+    NApi::IClientPtr MasterClient;
     Stroka LocalAddress;
-    NTransactionClient::TTransactionManagerPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;
 
 };

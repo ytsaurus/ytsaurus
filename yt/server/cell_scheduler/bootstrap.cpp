@@ -16,6 +16,9 @@
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/bus_channel.h>
 
+#include <ytlib/api/connection.h>
+#include <ytlib/api/client.h>
+
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
 
@@ -64,6 +67,7 @@ using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NHive;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,34 +93,16 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting scheduler (LocalAddress: %s, MasterAddresses: [%s])",
         ~LocalAddress,
-        ~JoinToString(Config->Masters->Addresses));
+        ~JoinToString(Config->ClusterConnection->Masters->Addresses));
 
-    MasterChannel = CreatePeerChannel(
-        Config->Masters,
-        GetBusChannelFactory(),
-        EPeerRole::Leader);
+    auto connection = CreateConnection(Config->ClusterConnection);
+    MasterClient = CreateClient(connection);
 
     ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
     auto rpcServer = CreateBusServer(BusServer);
-
-    auto timestampProvider = CreateRemoteTimestampProvider(
-        Config->TimestampProvider,
-        GetBusChannelFactory());
-
-    auto cellDirectory = New<TCellDirectory>(
-        Config->CellDirectory,
-        GetBusChannelFactory());
-    cellDirectory->RegisterCell(Config->Masters);
-
-    TransactionManager = New<TTransactionManager>(
-        Config->TransactionManager,
-        Config->Masters->CellGuid,
-        MasterChannel,
-        timestampProvider,
-        cellDirectory);
 
     Scheduler = New<TScheduler>(Config->Scheduler, this);
 
@@ -179,9 +165,9 @@ TCellSchedulerConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IChannelPtr TBootstrap::GetMasterChannel() const
+IClientPtr TBootstrap::GetMasterClient() const
 {
-    return MasterChannel;
+    return MasterClient;
 }
 
 const Stroka& TBootstrap::GetLocalAddress() const
@@ -192,11 +178,6 @@ const Stroka& TBootstrap::GetLocalAddress() const
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 {
     return ControlQueue->GetInvoker(queue);
-}
-
-TTransactionManagerPtr TBootstrap::GetTransactionManager() const
-{
-    return TransactionManager;
 }
 
 TSchedulerPtr TBootstrap::GetScheduler() const

@@ -4,9 +4,9 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <ytlib/hydra/config.h>
+#include <ytlib/hydra/public.h>
 
-#include <ytlib/transaction_client/config.h>
+#include <ytlib/transaction_client/public.h>
 
 #include <ytlib/file_client/config.h>
 
@@ -14,13 +14,13 @@
 
 #include <ytlib/chunk_client/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/new_table_client/public.h>
 
-#include <ytlib/scheduler/config.h>
+#include <ytlib/scheduler/public.h>
 
-#include <ytlib/hive/config.h>
+#include <ytlib/hive/public.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <ytlib/tablet_client/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -28,7 +28,7 @@ namespace NApi {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnectionConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
 public:
     NHydra::TPeerDiscoveryConfigPtr Masters;
@@ -39,21 +39,7 @@ public:
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
 
-    TConnectionConfig()
-    {
-        RegisterParameter("masters", Masters);
-        RegisterParameter("timestamp_provider", TimestampProvider);
-        RegisterParameter("cell_directory", CellDirectory)
-            .DefaultNew();
-        RegisterParameter("scheduler", Scheduler)
-            .DefaultNew();
-        RegisterParameter("transaction_manager", TransactionManager)
-            .DefaultNew();
-        RegisterParameter("block_cache", BlockCache)
-            .DefaultNew();
-        RegisterParameter("table_mount_cache", TableMountCache)
-            .DefaultNew();
-    }
+    TConnectionConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)

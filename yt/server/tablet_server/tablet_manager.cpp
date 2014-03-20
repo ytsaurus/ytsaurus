@@ -1165,12 +1165,12 @@ private:
 
         TabletTracker_->Start();
 
-        auto cellRegistry = Bootstrap->GetCellRegistry();
-        cellRegistry->Clear();
+        auto cellDirectory = Bootstrap->GetCellDirectory();
+        cellDirectory->Clear();
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            UpdateCellRegistry(cell);
+            UpdateCellDirectory(cell);
         }
     }
 
@@ -1199,17 +1199,17 @@ private:
             peerInfo->set_peer_id(index);
         }
 
-        UpdateCellRegistry(cell);
+        UpdateCellDirectory(cell);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %s, Version: %d)",
             ~ToString(cell->GetId()),
             config.version());
     }
 
-    void UpdateCellRegistry(TTabletCell* cell)
+    void UpdateCellDirectory(TTabletCell* cell)
     {
-        auto cellRegistry = Bootstrap->GetCellRegistry();
-        cellRegistry->RegisterCell(cell->GetId(), cell->Config());
+        auto cellDirectory = Bootstrap->GetCellDirectory();
+        cellDirectory->RegisterCell(cell->GetId(), cell->Config());
     }
 
 

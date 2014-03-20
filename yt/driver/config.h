@@ -42,9 +42,10 @@ typedef TIntrusivePtr<TFormatDefaultsConfig> TFormatDefaultsConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecutorConfig
-    : public NDriver::TDriverConfig
+    : public TYsonSerializable
 {
 public:
+    NDriver::TDriverConfigPtr Driver;
     NYTree::INodePtr Logging;
     TAddressResolverConfigPtr AddressResolver;
     TFormatDefaultsConfigPtr FormatDefaults;
@@ -52,6 +53,7 @@ public:
 
     TExecutorConfig()
     {
+        RegisterParameter("driver", Driver);
         RegisterParameter("logging", Logging);
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();

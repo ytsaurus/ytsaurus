@@ -2,13 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/hydra/public.h>
-
-#include <ytlib/transaction_client/config.h>
-
-#include <ytlib/hive/config.h>
-
-#include <core/rpc/retrying_channel.h>
+#include <ytlib/api/config.h>
 
 #include <server/misc/config.h>
 
@@ -23,6 +17,7 @@ class TCellSchedulerConfig
     : public TServerConfig
 {
 public:
+    //! Orchid cache expiration timeout.
     TDuration OrchidCacheExpirationPeriod;
 
     //! RPC interface port number.
@@ -31,10 +26,9 @@ public:
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    NHydra::TPeerDiscoveryConfigPtr Masters;
-    NHive::TCellDirectoryConfigPtr CellDirectory;
-    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
-    NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
+    //! Node-to-master connection.
+    NApi::TConnectionConfigPtr ClusterConnection;
+
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     TCellSchedulerConfig()
@@ -45,16 +39,13 @@ public:
             .Default(9001);
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10001);
-        RegisterParameter("masters", Masters);
-        RegisterParameter("cell_directory", CellDirectory)
-            .DefaultNew();
-        RegisterParameter("timestamp_provider", TimestampProvider);
-        RegisterParameter("transaction_manager", TransactionManager)
-            .DefaultNew();
+        RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TCellSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

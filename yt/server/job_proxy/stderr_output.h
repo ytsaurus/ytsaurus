@@ -8,6 +8,8 @@
 
 #include <ytlib/file_client/public.h>
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/chunk_client/public.h>
@@ -22,7 +24,7 @@ class TErrorOutput
 {
 public:
     TErrorOutput(
-        NFileClient::TFileWriterConfigPtr config,
+        NApi::TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         i64 maxSize);
@@ -36,7 +38,7 @@ private:
     void DoFinish();
 
 private:
-    NFileClient::TFileWriterConfigPtr Config;
+    NApi::TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::TTransactionId TransactionId;
     const i64 MaxSize;

@@ -39,6 +39,7 @@
 
 #include <ytlib/new_table_client/name_table.h>
 
+#include <ytlib/hive/config.h>
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
@@ -573,8 +574,7 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, options.Attributes);
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
             req->set_max_size(*options.MaxSize);
         }

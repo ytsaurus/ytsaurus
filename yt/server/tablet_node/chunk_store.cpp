@@ -17,6 +17,8 @@
 #include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
+#include <ytlib/api/client.h>
+
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/read_limit.h>
@@ -125,7 +127,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         chunkReader = CreateReplicationReader(
             Config_->ChunkReader,
             Bootstrap_->GetBlockStore()->GetBlockCache(),
-            Bootstrap_->GetMasterChannel(),
+            Bootstrap_->GetMasterClient()->GetMasterChannel(),
             New<TNodeDirectory>(),
             Bootstrap_->GetLocalDescriptor(),
             Id_);

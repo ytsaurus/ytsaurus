@@ -9,8 +9,6 @@
 
 #include <core/concurrency/fiber.h>
 
-#include <core/rpc/channel.h>
-
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/convert.h>
 #include <core/ytree/attribute_helpers.h>
@@ -19,17 +17,12 @@
 
 #include <core/logging/tagged_logger.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/client_block_cache.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
-#include <ytlib/file_client/file_reader.h>
-#include <ytlib/file_client/file_writer.h>
+#include <ytlib/api/config.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+#include <ytlib/api/transaction.h>
+#include <ytlib/api/file_reader.h>
+#include <ytlib/api/file_writer.h>
 
 namespace NYT {
 namespace NHydra {
@@ -37,14 +30,10 @@ namespace NHydra {
 using namespace NFS;
 using namespace NConcurrency;
 using namespace NYPath;
-using namespace NRpc;
 using namespace NElection;
 using namespace NObjectClient;
-using namespace NCypressClient;
 using namespace NYTree;
-using namespace NChunkClient;
-using namespace NFileClient;
-using namespace NTransactionClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,14 +48,11 @@ public:
         TRemoteSnapshotStoreConfigPtr config,
         const TCellGuid& cellGuid,
         const TYPath& remotePath,
-        IChannelPtr masterChannel,
-        TTransactionManagerPtr transactionManager)
+        IClientPtr masterClient)
         : Config_(config)
         , CellGuid_(cellGuid)
         , RemotePath_(remotePath)
-        , MasterChannel_(masterChannel)
-        , TransactionManager_(transactionManager)
-        , Proxy_(MasterChannel_)
+        , MasterClient_(masterClient)
         , Logger(HydraLogger)
     {
         Logger.AddTag(Sprintf("CellGuid: %s", ~ToString(CellGuid_)));
@@ -125,10 +111,7 @@ private:
     TRemoteSnapshotStoreConfigPtr Config_;
     TCellGuid CellGuid_;
     TYPath RemotePath_;
-    IChannelPtr MasterChannel_;
-    TTransactionManagerPtr TransactionManager_;
-
-    TObjectServiceProxy Proxy_;
+    IClientPtr MasterClient_;
 
     NLog::TTaggedLogger Logger;
 
@@ -140,12 +123,10 @@ private:
         TReaderStream(TRemoteSnapshotStorePtr store, int snapshotId)
             : Store_(store)
             , SnapshotId_(snapshotId)
-            , Reader_(New<NFileClient::TAsyncReader>(
-                Store_->Config_->Reader,
-                Store_->MasterChannel_,
-                CreateClientBlockCache(New<TClientBlockCacheConfig>()),
-                nullptr,
-                Store_->GetRemotePath(snapshotId)))
+            , Reader_(Store_->MasterClient_->CreateFileReader(
+                Store_->GetRemotePath(snapshotId),
+                TFileReaderOptions(),
+                Store_->Config_->Reader))
             , CurrentOffset_(-1)
         { }
 
@@ -184,7 +165,7 @@ private:
         TRemoteSnapshotStorePtr Store_;
         int SnapshotId_;
 
-        NFileClient::TAsyncReaderPtr Reader_;
+        IFileReaderPtr Reader_;
 
         TSharedRef CurrentBlock_;
         size_t CurrentOffset_;
@@ -233,16 +214,15 @@ private:
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
         LOG_DEBUG("Requesting snapshot list from the remote store");
-        auto req = TYPathProxy::List(RemotePath_);
 
-        auto rsp = WaitFor(Proxy_.Execute(req));
-        if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
+        auto resultOrError = WaitFor(MasterClient_->ListNodes(RemotePath_));
+        if (resultOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
             return NonexistingSegmentId;
         }
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
         LOG_DEBUG("Snapshot list received");
 
-        auto keys = ConvertTo<std::vector<Stroka>>(TYsonString(rsp->keys()));
+        auto keys = ConvertTo<std::vector<Stroka>>(resultOrError.Value());
         int lastestSnapshotId = NonexistingSegmentId;
         for (const auto& key : keys) {
             try {
@@ -270,7 +250,7 @@ private:
         auto params = reader->GetParams();
 
         LOG_DEBUG("Starting transaction");
-        TTransactionPtr transaction;
+        ITransactionPtr transaction;
         {
             TTransactionStartOptions options;
             auto attributes = CreateEphemeralAttributes();
@@ -278,29 +258,31 @@ private:
                 ~ToString(CellGuid_),
                 snapshotId));
             options.Attributes = attributes.get();
-            auto transactionOrError = WaitFor(TransactionManager_->Start(options));
+            auto transactionOrError = WaitFor(MasterClient_->StartTransaction(options));
             transaction = transactionOrError.ValueOrThrow();
         }
 
+        auto snapshotPath = GetRemotePath(snapshotId);
+
         LOG_DEBUG("Creating snapshot node");
         {
-            auto req = TCypressYPathProxy::Create(GetRemotePath(snapshotId));
-            req->set_type(EObjectType::File);
+            TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("prev_record_count", params.PrevRecordCount);
-            ToProto(req->mutable_node_attributes(), *attributes);
-            auto rsp = WaitFor(Proxy_.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+            options.Attributes = attributes.get();
+            auto result = WaitFor(MasterClient_->CreateNode(
+                snapshotPath,
+                EObjectType::File,
+                options));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
         LOG_DEBUG("Writing snapshot data");
 
-        auto writer = New<NFileClient::TAsyncWriter>(
-            Config_->Writer,
-            MasterChannel_,
-            transaction,
-            TransactionManager_,
-            GetRemotePath(snapshotId));
+        auto writer = MasterClient_->CreateFileWriter(
+            snapshotPath,
+            TFileWriterOptions(),
+            Config_->Writer);
 
         {
             auto result = WaitFor(writer->Open());
@@ -338,16 +320,17 @@ private:
     {
         LOG_DEBUG("Requesting parameters for snapshot %d from the remote store",
             snapshotId);
-        auto req = TYPathProxy::Get(GetRemotePath(snapshotId));
-        TAttributeFilter filter(EAttributeFilterMode::MatchingOnly);
-        filter.Keys.push_back("prev_record_count");
-        ToProto(req->mutable_attribute_filter(), filter);
 
-        auto rsp = WaitFor(Proxy_.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto snapshotPath = GetRemotePath(snapshotId);
+
+        TGetNodeOptions options;
+        options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
+        options.AttributeFilter.Keys.push_back("prev_record_count");
+        auto resultOrError = WaitFor(MasterClient_->GetNode(snapshotPath, options));
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
         LOG_DEBUG("Snapshot parameters received");
 
-        auto node = ConvertToNode(TYsonString(rsp->value()));
+        auto node = ConvertToNode(resultOrError.Value());
         const auto& attributes = node->Attributes();
 
         TSnapshotParams params;
@@ -376,15 +359,13 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
     const TCellGuid& cellGuid,
     const TYPath& remotePath,
-    IChannelPtr masterChannel,
-    TTransactionManagerPtr transactionManager)
+    IClientPtr masterClient)
 {
     return New<TRemoteSnapshotStore>(
         config,
         cellGuid,
         remotePath,
-        masterChannel,
-        transactionManager);
+        masterClient);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
