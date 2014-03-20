@@ -189,19 +189,13 @@ class YTEnv(object):
                 ok = False
             message += p_message
 
+        assert ok, message
+
         self._process_to_kill[name] = []
-        return (ok, message)
 
     def clear_environment(self):
-        full_status = True
-        summary = ""
         for name in self.configs:
-            status, message = self._kill_service(name)
-            full_status = full_status and status
-            if len(message) > 0:
-                summary += message
-
-        assert full_status, summary
+            self._kill_service(name)
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + '\n')
