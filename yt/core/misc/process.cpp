@@ -95,7 +95,7 @@ void TProcess::AddArgument(const Stroka& arg)
     Args_.push_back(Copy(~arg));
 }
 
-TError TProcess::Spawn(bool cloneVM)
+TError TProcess::Spawn(int flags)
 {
 #ifdef _win_
     return TError("Windows is not supported");
@@ -125,7 +125,7 @@ TError TProcess::Spawn(bool cloneVM)
     int pid = ::clone(
         &TProcess::ChildMain,
         Stack_.data() + Stack_.size(),
-        (cloneVM ? CLONE_VM : 0) | SIGCHLD,
+        flags | SIGCHLD,
         this);
 #else
     int pid = vfork();

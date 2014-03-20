@@ -19,7 +19,11 @@ public:
 
     void AddArgument(const Stroka& arg);
 
-    TError Spawn(bool cloneVM = true);
+#ifdef _win_
+    static const int CLONE_VM = 0; // fake
+#endif
+
+    TError Spawn(int flags = CLONE_VM);
     TError Wait();
 
     int GetProcessId() const;
