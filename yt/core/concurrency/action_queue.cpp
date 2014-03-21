@@ -183,7 +183,7 @@ private:
     std::vector<TBucket> Buckets;
     TCpuInstant StartInstant;
 
-    TEnqueuedAction Currentcallback;
+    TEnqueuedAction CurrentCallback;
     TBucket* CurrentBucket;
     
 
@@ -222,7 +222,7 @@ private:
 
         // Pump the starving queue.
         StartInstant = GetCpuInstant();
-        return CurrentBucket->Queue->BeginExecute(&Currentcallback);
+        return CurrentBucket->Queue->BeginExecute(&CurrentCallback);
     }
 
     virtual void EndExecute() override
@@ -230,7 +230,7 @@ private:
         if (!CurrentBucket)
             return;
 
-        CurrentBucket->Queue->EndExecute(&Currentcallback);
+        CurrentBucket->Queue->EndExecute(&CurrentCallback);
         CurrentBucket->ExcessTime += (GetCpuInstant() - StartInstant);
         CurrentBucket = nullptr;
     }
