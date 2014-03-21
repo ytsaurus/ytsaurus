@@ -187,7 +187,7 @@ void TPrepareController::CheckAndPruneReferences()
                                 return false;
                             } else {
                                 LOG_DEBUG(
-                                    "Prunning column %s from the table schema",
+                                    "Pruning column %s from the table schema",
                                     ~columnSchema.Name.Quote());
                                 return true;
                             }
