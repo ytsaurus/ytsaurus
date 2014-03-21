@@ -125,7 +125,7 @@ TError TProcess::Spawn(int flags)
         ChildPipe_[index] = Pipe_[index];
     }
 
-#ifdef _linux_
+#ifdef _linux_for_the_brave_
     int pid = ::clone(
         &TProcess::ChildMain,
         Stack_.data() + Stack_.size(),
