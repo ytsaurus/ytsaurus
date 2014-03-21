@@ -90,22 +90,25 @@ public:
         auto it = PathToEntry.find(path);
         if (it == PathToEntry.end()) {
             TTableEntry entry;
-            entry.Promise = NewPromise<TErrorOr<TTableMountInfoPtr>>();
-            it = PathToEntry.insert(std::make_pair(path, entry)).first;
+            auto promise = entry.Promise = NewPromise<TErrorOr<TTableMountInfoPtr>>();
+            YCHECK(PathToEntry.insert(std::make_pair(path, entry)).second);
+            guard.Release();
             RequestTableMountInfo(path);
-            return entry.Promise;
+            return promise;
         }
 
         auto& entry = it->second;
-        if (!entry.Promise.IsSet()) {
-            return entry.Promise;
+        auto promise = entry.Promise;
+        if (!promise.IsSet()) {
+            return promise;
         }
 
-        const auto& infoOrError = entry.Promise.Get();
+        const auto& infoOrError = promise.Get();
         auto now = TInstant::Now();
         if (infoOrError.IsOK()) {
             if (entry.Timestamp < now - Config_->SuccessExpirationTime) {
                 // Return what we already have but refresh the cache in background.
+                guard.Release();
                 RequestTableMountInfo(path);
             }
         } else {
@@ -117,7 +120,7 @@ public:
             }
         }
 
-        return entry.Promise;
+        return promise;
     }
 
 private:
