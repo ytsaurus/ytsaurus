@@ -187,7 +187,7 @@ template <class TBlockWriter>
 i64 TVersionedChunkWriter<TBlockWriter>::GetMetaSize() const
 {
     // Other meta parts are negligible.
-    return BlockIndexExtSize_ + BlockMetaExtSize_;
+    return BlockIndexExtSize_ + BlockMetaExtSize_ + SamplesExtSize_;
 }
 
 template <class TBlockWriter>
@@ -230,9 +230,8 @@ void TVersionedChunkWriter<TBlockWriter>::WriteRow(
     const TUnversionedValue* beginPreviousKey,
     const TUnversionedValue* endPreviousKey)
 {
-    double sampleProbability =
-        Config_->SampleRate * GetUncompressedSize() *
-        EncodingChunkWriter_->GetCompressionRatio() / AverageSampleSize_;
+    double avgRowSize = EncodingChunkWriter_->GetCompressionRatio() * GetUncompressedSize() / RowCount_;
+    double sampleProbability = Config_->SampleRate * avgRowSize / AverageSampleSize_;
 
     if (RandomNumber<double>() < sampleProbability) {
         EmitSample(row);
