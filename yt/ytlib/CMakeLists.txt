@@ -61,10 +61,6 @@ if (YT_BUILD_ENABLE_LLVM)
   target_link_libraries( ytlib ${REQUIRED_LLVM_LIBRARIES} )
 endif()
 
-if (HAVE_LIBUNWIND)
-  target_link_libraries( ytlib unwind )
-endif()
-
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt

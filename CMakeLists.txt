@@ -57,13 +57,16 @@ message(STATUS "Configuring YT ${YT_VERSION}")
 check_include_files(cxxabi.h       HAVE_CXXABI_H)
 check_include_files(dlfcn.h        HAVE_DLFCN_H)
 check_include_files(execinfo.h     HAVE_EXECINFO_H)
-check_include_files(libunwind.h    HAVE_LIBUNWIND_H)
 check_include_files(pthread.h      HAVE_PTHREAD_H)
 check_include_files(sys/types.h    HAVE_SYS_TYPES_H)
 check_include_files(sys/ucontext.h HAVE_SYS_UCONTEXT_H)
 check_include_files(ucontext.h     HAVE_UCONTEXT_H)
-check_include_files(unwind.h       HAVE_UNWIND_H)
 check_include_files(unistd.h       HAVE_UNISTD_H)
+
+# XXX(sandello): libunwind support is broken.
+# check_include_files(libunwind.h    HAVE_LIBUNWIND_H)
+# check_include_files(unwind.h       HAVE_UNWIND_H)
+# find_library(HAVE_LIBUNWIND unwind)
 
 # For some reason this header cannot be reliably located with CMake.
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -71,7 +74,6 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 include(PCFromUcontext)
-find_library(HAVE_LIBUNWIND unwind)
 
 # Write down configuration.
 configure_file(
