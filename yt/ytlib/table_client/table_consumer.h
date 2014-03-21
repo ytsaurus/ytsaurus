@@ -10,7 +10,6 @@
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
 
-#include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
@@ -175,40 +174,6 @@ protected:
     };
 
     std::vector<TColumnDescriptor> SchemaColumnDescriptors_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TWritingTableConsumer
-    : public TTableConsumerBase
-{
-public:
-    TWritingTableConsumer(
-        const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        NVersionedTableClient::IWriterPtr writer);
-
-    TWritingTableConsumer(
-        const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        std::vector<NVersionedTableClient::IWriterPtr> writers,
-        int tableIndex);
-
-private:
-    virtual TError AttachLocationAttributes(TError error) override;
-
-    virtual void OnControlIntegerScalar(i64 value) override;
-    virtual void OnControlStringScalar(const TStringBuf& value) override;
-
-    virtual void OnBeginRow() override;
-    virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
-    virtual void OnEndRow() override;
-
-
-    int CurrentTableIndex_;
-    std::vector<NVersionedTableClient::IWriterPtr> Writers_;
-    NVersionedTableClient::IWriterPtr CurrentWriter_;
 
 };
 

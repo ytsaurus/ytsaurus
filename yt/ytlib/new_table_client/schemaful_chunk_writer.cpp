@@ -10,7 +10,6 @@
 #include "schema.h"
 #include "schemaful_writer.h"
 #include "unversioned_row.h"
-#include "writer.h"
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
@@ -32,31 +31,16 @@ using namespace NConcurrency;
 using NChunkClient::NProto::TChunkMeta;
 using NProto::TBlockMetaExt;
 
-static const int TimestampIndex = 0;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkWriter
-    : public IWriter
-    , public ISchemafulWriter
+    : public ISchemafulWriter
 {
 public:
     TChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         IAsyncWriterPtr asyncWriter);
-
-    // ToDo(psushin): deprecated.
-    virtual void Open(
-        TNameTablePtr nameTable,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns = TKeyColumns()) final override;
-
-    // ToDo(psushin): deprecated.
-    virtual void WriteValue(const TUnversionedValue& value) final override;
-
-    // ToDo(psushin): deprecated.
-    virtual bool EndRow() final override;
 
     virtual TAsyncError Open(
         const TTableSchema& schema,
@@ -67,8 +51,6 @@ public:
     virtual TAsyncError GetReadyEvent() final override;
 
     virtual TAsyncError Close() final override;
-
-    virtual i64 GetRowIndex() const final override;
 
 private:
     struct TColumnDescriptor
@@ -125,6 +107,18 @@ private:
     TChunkMeta Meta;
     TBlockMetaExt BlockMetaExt;
     TTableSchema Schema;
+
+    // ToDo(psushin): refactor.
+    void Open(
+        TNameTablePtr nameTable,
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns);
+
+    // ToDo(psushin): refactor.
+    void WriteValue(const TUnversionedValue& value);
+
+    // ToDo(psushin): refactor.
+    bool EndRow();
 
     void DoClose(TAsyncErrorPromise result);
     void FlushPreviousBlock();
@@ -362,11 +356,6 @@ TAsyncError TChunkWriter::Close()
     return result;
 }
 
-i64 TChunkWriter::GetRowIndex() const 
-{
-    return RowIndex;
-}
-
 void TChunkWriter::DoClose(TAsyncErrorPromise result)
 {
     if (CurrentBlock->GetSize() > 0) {
@@ -426,22 +415,12 @@ void TChunkWriter::FlushPreviousBlock()
 {
     auto block = PreviousBlock->FlushBlock();
     EncodingWriter->WriteBlock(std::move(block.Data));
-    block.Meta.set_chunk_row_count(GetRowIndex());
+    block.Meta.set_chunk_row_count(RowIndex);
     *BlockMetaExt.add_entries() = block.Meta;
     if (block.Meta.block_size() > LargestBlockSize) {
         LargestBlockSize = block.Meta.block_size();
     }
     PreviousBlock.reset();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-IWriterPtr CreateChunkWriter(
-    TChunkWriterConfigPtr config,
-    TChunkWriterOptionsPtr options,
-    IAsyncWriterPtr asyncWriter)
-{
-    return New<TChunkWriter>(config, options, asyncWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

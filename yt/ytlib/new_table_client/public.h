@@ -110,10 +110,6 @@ class TRowBuffer;
 
 class TBlockWriter;
 
-// TODO(babenko): deprecated, remove
-struct IWriter;
-typedef TIntrusivePtr<IWriter> IWriterPtr;
-
 class TSamplesFetcher;
 typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
 
