@@ -227,6 +227,8 @@ private:
         int firstPartitionIndex,
         int lastPartitionIndex)
     {
+        auto* tablet = partition->GetTablet();
+
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             if (tablet->Partitions()[index]->GetState() != EPartitionState::None)
                 return;
