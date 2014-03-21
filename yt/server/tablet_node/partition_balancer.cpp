@@ -100,11 +100,6 @@ private:
         const auto& config = tablet->GetConfig();
 
         if (dataSize >  config->MaxPartitionDataSize && partitionCount < config->MaxPartitionCount) {
-            if (partition->GetState() != EPartitionState::None)
-                return;
-
-            partition->SetState(EPartitionState::Splitting);
-
             RunSplit(partition);
         }
         
@@ -117,15 +112,6 @@ private:
                 --lastPartitionIndex;
             }
 
-            for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-                if (tablet->Partitions()[index]->GetState() != EPartitionState::None)
-                    return;
-            }
-
-            for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-                tablet->Partitions()[index]->SetState(EPartitionState::Splitting);
-            }
-
             RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
         }
     }
@@ -133,6 +119,16 @@ private:
 
     void RunSplit(TPartition* partition)
     {
+        if (partition->GetState() != EPartitionState::None)
+            return;
+
+        for (auto store : partition->Stores()) {
+            if (store->GetState() != EStoreState::Persistent)
+                return;
+        }
+
+        partition->SetState(EPartitionState::Splitting);
+
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write))
             .Run(partition);
@@ -231,6 +227,15 @@ private:
         int firstPartitionIndex,
         int lastPartitionIndex)
     {
+        for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
+            if (tablet->Partitions()[index]->GetState() != EPartitionState::None)
+                return;
+        }
+
+        for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
+            tablet->Partitions()[index]->SetState(EPartitionState::Merging);
+        }
+
         auto Logger = BuildLogger(partition);
 
         LOG_INFO("Partition is eligible for merge");
