@@ -242,7 +242,6 @@ private:
 
         LOG_INFO("Partition is eligible for merge");
 
-        auto* tablet = partition->GetTablet();
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
