@@ -42,7 +42,7 @@ def main():
 
     find_packages("yt/packages")
     setup(
-        name = "Yt",
+        name = "YandexYt",
         version = version,
         packages = ["yt", "yt.wrapper", "yt.yson"] + recursive("yt/packages"),
         scripts = scripts,
