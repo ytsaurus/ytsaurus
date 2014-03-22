@@ -989,6 +989,14 @@ bool TChunkReplicator::IsEnabled()
     auto chunkManager = Bootstrap->GetChunkManager();
     auto nodeTracker = Bootstrap->GetNodeTracker();
 
+    if (Config->DisableChunkReplicator) {
+        if (!LastEnabled || LastEnabled.Get()) {
+            LOG_INFO("Chunk replicator disabled by configuration settings");
+            LastEnabled = false;
+        }
+        return false;
+    }
+
     if (Config->SafeOnlineNodeCount) {
         int needOnline = *Config->SafeOnlineNodeCount;
         int gotOnline = nodeTracker->GetOnlineNodeCount();

@@ -16,6 +16,9 @@ class TChunkManagerConfig
     : public TYsonSerializable
 {
 public:
+    //! If |true| then replicator is disabled regardless of anything else.
+    bool DisableChunkReplicator;
+
     //! When the number of online nodes drops below this margin,
     //! replicator gets disabled.
     TNullable<int> SafeOnlineNodeCount;
@@ -68,6 +71,8 @@ public:
 
     TChunkManagerConfig()
     {
+        RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
+            .Default(false);
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThan(0)
             .Default(1);
