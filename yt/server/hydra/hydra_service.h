@@ -19,20 +19,17 @@ protected:
         const NRpc::TServiceId& serviceId,
         const Stroka& loggingCategory);
 
-    IInvokerPtr AutomatonInvoker;
-    IInvokerPtr EpochAutomatonInvoker;
+    IInvokerPtr AutomatonInvoker_;
+    IInvokerPtr EpochAutomatonInvoker_;
 
     void ValidateActiveLeader();
 
 private:
     // Avoid name clash when inheriting from both THydraServiceBase and TCompositeAutomatonPart.
-    IHydraManagerPtr ServiceHydraManager;
+    IHydraManagerPtr ServiceHydraManager_;
 
     void OnLeaderActive();
     void OnStopLeading();
-    void OnStopFollowing();
-
-    void OnStopEpoch();
 
 };
 

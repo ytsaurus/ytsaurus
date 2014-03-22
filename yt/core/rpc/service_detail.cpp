@@ -197,22 +197,22 @@ void TServiceBase::Init(
 {
     YCHECK(defaultInvoker);
 
-    DefaultInvoker = defaultInvoker;
-    ServiceId = serviceId;
-    LoggingCategory = loggingCategory;
+    DefaultInvoker_ = defaultInvoker;
+    ServiceId_ = serviceId;
+    LoggingCategory_ = loggingCategory;
 
-    ServiceTagId = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceId.ServiceName);
+    ServiceTagId_ = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
     {
         NProfiling::TTagIdList tagIds;
-        tagIds.push_back(ServiceTagId);
-        RequestCounter = TRateCounter("/request_rate", tagIds);
+        tagIds.push_back(ServiceTagId_);
+        RequestCounter_ = TRateCounter("/request_rate", tagIds);
     }
 }
 
 TServiceId TServiceBase::GetServiceId() const
 {
-    return ServiceId;
+    return ServiceId_;
 }
 
 void TServiceBase::OnRequest(
@@ -220,7 +220,7 @@ void TServiceBase::OnRequest(
     TSharedRefArray message,
     IBusPtr replyBus)
 {
-    Profiler.Increment(RequestCounter);
+    Profiler.Increment(RequestCounter_);
 
     const auto& verb = header->verb();
     bool oneWay = header->one_way();
@@ -231,7 +231,7 @@ void TServiceBase::OnRequest(
         auto error = TError(
             EErrorCode::NoSuchVerb,
             "Unknown verb %s:%s",
-            ~ServiceId.ServiceName,
+            ~ServiceId_.ServiceName,
             ~verb)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
@@ -246,7 +246,7 @@ void TServiceBase::OnRequest(
         auto error = TError(
             EErrorCode::ProtocolError,
             "One-way flag mismatch for verb %s:%s: expected %s, actual %s",
-            ~ServiceId.ServiceName,
+            ~ServiceId_.ServiceName,
             ~verb,
             ~FormatBool(runtimeInfo->Descriptor.OneWay),
             ~FormatBool(oneWay))
@@ -301,13 +301,9 @@ void TServiceBase::OnRequest(
         std::move(header),
         message,
         replyBus,
-        LoggingCategory);
+        LoggingCategory_);
 
     if (!oneWay) {
-        {
-            TGuard<TSpinLock> guard(ActiveRequestsLock);
-            YCHECK(ActiveRequests.insert(activeRequest).second);
-        }
         Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
     }
 
@@ -334,11 +330,8 @@ void TServiceBase::OnInvocationPrepared(
     IServiceContextPtr context,
     TLiteHandler handler)
 {
-    if (!handler) {
-        TGuard<TSpinLock> guard(ActiveRequestsLock);
-        ActiveRequests.erase(activeRequest);
+    if (!handler)
         return;
-    }
 
     auto wrappedHandler = BIND([=] () {
         const auto& runtimeInfo = activeRequest->RuntimeInfo;
@@ -383,7 +376,7 @@ void TServiceBase::OnInvocationPrepared(
     const auto& runtimeInfo = activeRequest->RuntimeInfo;
     auto invoker = runtimeInfo->Descriptor.Invoker;
     if (!invoker) {
-        invoker = DefaultInvoker;
+        invoker = DefaultInvoker_;
     }
 
     if (runtimeInfo->Descriptor.EnableReorder) {
@@ -395,45 +388,36 @@ void TServiceBase::OnInvocationPrepared(
 
 void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message)
 {
+    TGuard<TSpinLock> guard(activeRequest->SpinLock);
+
     const auto& runtimeInfo = activeRequest->RuntimeInfo;
+
+    YASSERT(!activeRequest->Completed);
+    activeRequest->Completed = true;
+
+    activeRequest->ReplyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
+
+    // NB: This counter is also used to track queue size limit so
+    // it must be maintained even if the profiler is OFF.
+    Profiler.Increment(runtimeInfo->QueueSizeCounter, -1);
+
+    if (Profiler.GetEnabled()) {
+        auto now = GetCpuInstant();
     
-    bool active;
-    {
-        TGuard<TSpinLock> guard(ActiveRequestsLock);
-        active = ActiveRequests.erase(activeRequest) == 1;
-    }
-
-    {
-        TGuard<TSpinLock> guard(activeRequest->SpinLock);
-
-        YASSERT(!activeRequest->Completed);
-        activeRequest->Completed = true;
-
-        if (active) {
-            activeRequest->ReplyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
-            // NB: This counter is also used to track queue size limit so
-            // it must be maintained even if the profiler is OFF.
-            Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
+        if (activeRequest->RunningSync) {
+            activeRequest->SyncStopTime = now;
+            auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
+            Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
         }
 
-        if (Profiler.GetEnabled()) {
-            auto now = GetCpuInstant();
+        {
+            auto value = CpuDurationToValue(now - activeRequest->SyncStopTime);
+            Profiler.Aggregate(runtimeInfo->AsyncTimeCounter, value);
+        }
 
-            if (activeRequest->RunningSync) {
-                activeRequest->SyncStopTime = now;
-                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
-                Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
-            }
-
-            {
-                auto value = CpuDurationToValue(now - activeRequest->SyncStopTime);
-                Profiler.Aggregate(runtimeInfo->AsyncTimeCounter, value);
-            }
-
-            {
-                auto value = CpuDurationToValue(now - activeRequest->ArrivalTime);
-                Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
-            }
+        {
+            auto value = CpuDurationToValue(now - activeRequest->ArrivalTime);
+            Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
         }
     }
 }
@@ -445,9 +429,9 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", descriptor.Verb));
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
 
-    TWriterGuard guard(MethodMapLock);
+    TWriterGuard guard(MethodMapLock_);
     // Failure here means that such verb is already registered.
-    YCHECK(MethodMap.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
+    YCHECK(MethodMap_.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
 
     return runtimeInfo;
 }
@@ -463,7 +447,7 @@ void TServiceBase::Configure(INodePtr configNode)
             if (!runtimeInfo) {
                 THROW_ERROR_EXCEPTION("Cannot find RPC method %s in service %s to configure",
                     ~methodName.Quote(),
-                    ~ServiceId.ServiceName.Quote());
+                    ~ServiceId_.ServiceName.Quote());
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
@@ -482,33 +466,17 @@ void TServiceBase::Configure(INodePtr configNode)
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %s",
-            ~ServiceId.ServiceName.Quote())
+            ~ServiceId_.ServiceName.Quote())
             << ex;
-    }
-}
-
-void TServiceBase::CancelActiveRequests(const TError& error)
-{
-    yhash_set<TActiveRequestPtr> requestsToCancel;
-    {
-        TGuard<TSpinLock> guard(ActiveRequestsLock);
-        requestsToCancel.swap(ActiveRequests);
-    }
-
-    for (auto activeRequest : requestsToCancel) {
-        Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
-
-        auto errorMessage = CreateErrorResponseMessage(activeRequest->Id, error);
-        activeRequest->ReplyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
     }
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& method)
 {
-    TReaderGuard guard(MethodMapLock);
+    TReaderGuard guard(MethodMapLock_);
 
-    auto it = MethodMap.find(method);
-    return it == MethodMap.end() ? nullptr : it->second;
+    auto it = MethodMap_.find(method);
+    return it == MethodMap_.end() ? nullptr : it->second;
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& method)
@@ -520,7 +488,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& me
 
 IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 {
-    return DefaultInvoker;
+    return DefaultInvoker_;
 }
 
 void TServiceBase::BeforeInvoke()

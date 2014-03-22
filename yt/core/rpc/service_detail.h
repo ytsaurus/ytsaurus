@@ -444,9 +444,6 @@ protected:
     //! Configures the service.
     virtual void Configure(NYTree::INodePtr configNode) override;
 
-    //! Replies #error to every request in #ActiveRequests, clears the latter one.
-    void CancelActiveRequests(const TError& error);
-
     //! Returns a reference to TRuntimeMethodInfo for a given method's name
     //! or |nullptr| if no such method is registered.
     TRuntimeMethodInfoPtr FindMethodInfo(const Stroka& method);
@@ -463,18 +460,15 @@ protected:
 private:
     class TServiceContext;
 
-    IPrioritizedInvokerPtr DefaultInvoker;
-    TServiceId ServiceId;
-    Stroka LoggingCategory;
+    IPrioritizedInvokerPtr DefaultInvoker_;
+    TServiceId ServiceId_;
+    Stroka LoggingCategory_;
 
-    NProfiling::TTagId ServiceTagId;
-    NProfiling::TRateCounter RequestCounter;
+    NProfiling::TTagId ServiceTagId_;
+    NProfiling::TRateCounter RequestCounter_;
 
-    NConcurrency::TReaderWriterSpinLock MethodMapLock;
-    yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap;
-
-    TSpinLock ActiveRequestsLock;
-    yhash_set<TActiveRequestPtr> ActiveRequests;
+    NConcurrency::TReaderWriterSpinLock MethodMapLock_;
+    yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
 
 
     void Init(

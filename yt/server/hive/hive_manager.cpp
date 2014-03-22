@@ -321,7 +321,7 @@ private:
     {
         TDelayedExecutor::Submit(
             BIND(&TImpl::OnPingTick, MakeWeak(this), mailbox->GetCellGuid())
-                .Via(EpochAutomatonInvoker),
+                .Via(EpochAutomatonInvoker_),
             Config->PingPeriod);
     }
 
@@ -358,7 +358,7 @@ private:
         ToProto(req->mutable_src_cell_guid(), SelfCellGuid);
         req->Invoke().Subscribe(
             BIND(&TImpl::OnPingResponse, MakeStrong(this), mailbox->GetCellGuid())
-                .Via(EpochAutomatonInvoker));
+                .Via(EpochAutomatonInvoker_));
     }
 
     void OnPingResponse(const TCellGuid& cellGuid, THiveServiceProxy::TRspPingPtr rsp)
@@ -428,7 +428,7 @@ private:
 
         req->Invoke().Subscribe(
             BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), mailbox->GetCellGuid())
-                .Via(EpochAutomatonInvoker));
+                .Via(EpochAutomatonInvoker_));
     }
 
     void OnPostMessagesResponse(const TCellGuid& cellGuid, THiveServiceProxy::TRspPostMessagesPtr rsp)

@@ -20,43 +20,29 @@ THydraServiceBase::THydraServiceBase(
         hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
         serviceId,
         loggingCategory)
-    , AutomatonInvoker(automatonInvoker)
-    , ServiceHydraManager(hydraManager)
+    , AutomatonInvoker_(automatonInvoker)
+    , ServiceHydraManager_(hydraManager)
 {
-    ServiceHydraManager->SubscribeLeaderActive(BIND(&THydraServiceBase::OnLeaderActive, MakeWeak(this)));
-    ServiceHydraManager->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopLeading, MakeWeak(this)));
-    ServiceHydraManager->SubscribeStopFollowing(BIND(&THydraServiceBase::OnStopFollowing, MakeWeak(this)));
+    ServiceHydraManager_->SubscribeLeaderActive(BIND(&THydraServiceBase::OnLeaderActive, MakeWeak(this)));
+    ServiceHydraManager_->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopLeading, MakeWeak(this)));
 }
 
 void THydraServiceBase::OnLeaderActive()
 {
-    EpochAutomatonInvoker = ServiceHydraManager
+    EpochAutomatonInvoker_ = ServiceHydraManager_
         ->GetEpochContext()
         ->CancelableContext
-        ->CreateInvoker(AutomatonInvoker);
+        ->CreateInvoker(AutomatonInvoker_);
 }
 
 void THydraServiceBase::OnStopLeading()
 {
-    EpochAutomatonInvoker.Reset();
-    OnStopEpoch();
-}
-
-void THydraServiceBase::OnStopFollowing()
-{
-    OnStopEpoch();
-}
-
-void THydraServiceBase::OnStopEpoch()
-{
-    CancelActiveRequests(TError(
-        NRpc::EErrorCode::Unavailable,
-        "Service is restarting"));
+    EpochAutomatonInvoker_.Reset();
 }
 
 void THydraServiceBase::ValidateActiveLeader()
 {
-    if (!ServiceHydraManager->IsActiveLeader()) {
+    if (!ServiceHydraManager_->IsActiveLeader()) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::Unavailable,
             "Not an active leader");

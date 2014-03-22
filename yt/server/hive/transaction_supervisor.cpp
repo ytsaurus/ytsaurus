@@ -546,7 +546,7 @@ private:
     {
         TimestampProvider->GenerateTimestamps()
             .Subscribe(BIND(&TImpl::OnCommitTimestampGenerated, MakeStrong(this), commit->GetTransactionId())
-                .Via(EpochAutomatonInvoker));
+                .Via(EpochAutomatonInvoker_));
     }
 
     void OnCommitTimestampGenerated(
