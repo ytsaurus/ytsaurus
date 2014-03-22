@@ -25,7 +25,7 @@ def main():
     version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
 
     setup(
-        name = "YtTools",
+        name = "YandexYtTools",
         version = version,
         packages = ["yt.tools"],
 

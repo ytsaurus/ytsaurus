@@ -1,14 +1,12 @@
 from setuptools import setup
-from distutils.extension import Extension
 
-import os
 import subprocess
 
 def main():
     version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
 
     setup(
-        name = "YtYsonBindings",
+        name = "YandexYtYsonBindings",
         version = version,
         packages = ["yt.bindings.yson"],
         package_data = {"yt.bindings.yson": ["yson_lib.so"] },
