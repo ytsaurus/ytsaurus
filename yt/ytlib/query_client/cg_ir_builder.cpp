@@ -9,13 +9,16 @@ namespace NQueryClient {
 using llvm::BasicBlock;
 using llvm::TypeBuilder;
 using llvm::Value;
+using llvm::Twine;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static const unsigned int MaxClosureSize = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGIRBuilder::TCGIRBuilder(
-    llvm::BasicBlock* basicBlock,
+    BasicBlock* basicBlock,
     TCGIRBuilder* parent,
     Value* closurePtr)
     : TBase(basicBlock)
@@ -36,7 +39,7 @@ TCGIRBuilder::TCGIRBuilder(
 TCGIRBuilder::~TCGIRBuilder()
 { }
 
-TCGIRBuilder::TCGIRBuilder(llvm::BasicBlock* basicBlock)
+TCGIRBuilder::TCGIRBuilder(BasicBlock* basicBlock)
     : TBase(basicBlock)
     , Parent_(nullptr)
     , ClosurePtr_(nullptr)
@@ -48,7 +51,7 @@ TCGIRBuilder::TCGIRBuilder(llvm::BasicBlock* basicBlock)
     }
 }
 
-Value* TCGIRBuilder::ViaClosure(Value* value, llvm::Twine name)
+Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
 {
     // If |value| belongs to the current context, then we can use it directly.
     if (ValuesInContext_.count(value) > 0) {
@@ -66,8 +69,9 @@ Value* TCGIRBuilder::ViaClosure(Value* value, llvm::Twine name)
     Value* valueInParent = Parent_->ViaClosure(value, name);
 
     // Check if we have already captured this value.
-    auto insertResult = Mapping_.insert(
-        std::make_pair(valueInParent, Mapping_.size()));
+    auto insertResult = Mapping_.insert(std::make_pair(
+        valueInParent,
+        static_cast<int>(Mapping_.size())));
     auto indexInClosure = insertResult.first->second;
     YCHECK(indexInClosure < MaxClosureSize);
 
@@ -106,14 +110,14 @@ Value* TCGIRBuilder::ViaClosure(Value* value, llvm::Twine name)
             name);
 }
 
-llvm::Value* TCGIRBuilder::GetClosure() const
+Value* TCGIRBuilder::GetClosure() const
 {
     return Closure_;
 }
 
-llvm::BasicBlock* TCGIRBuilder::CreateBBHere(const llvm::Twine& name)
+BasicBlock* TCGIRBuilder::CreateBBHere(const Twine& name)
 {
-    return llvm::BasicBlock::Create(getContext(), name, GetInsertBlock()->getParent());
+    return BasicBlock::Create(getContext(), name, GetInsertBlock()->getParent());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
