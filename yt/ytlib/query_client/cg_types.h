@@ -22,7 +22,7 @@ namespace llvm {
     class Twine;
     class Value;
     class Instruction;
-}
+} // namespace llvm
 
 namespace NYT {
 namespace NQueryClient {
@@ -47,7 +47,7 @@ struct TPassedFragmentParams
 namespace NDetail {
     class TGroupHasher;
     class TGroupComparer;
-}
+} // namespace NDetail
 
 typedef
     std::unordered_set<TRow, NDetail::TGroupHasher, NDetail::TGroupComparer>
@@ -70,11 +70,11 @@ typedef void (*TCodegenedFunction)(
     TPassedFragmentParams* passedFragmentParams);
 
 typedef
-    typename std::remove_pointer<TCodegenedFunction>::type
+    std::remove_pointer<TCodegenedFunction>::type
     TCodegenedFunctionSignature;
 
-static const int MaxRowsPerRead = 512;
-static const int MaxRowsPerWrite = 512;
+const int MaxRowsPerRead  = 512;
+const int MaxRowsPerWrite = 512;
 
 namespace NDetail {
 
@@ -92,6 +92,7 @@ public:
     explicit TGroupHasher(int keySize)
         : KeySize_(keySize)
     { }
+
     size_t operator() (TRow key) const
     {
         size_t result = 0;
@@ -100,8 +101,10 @@ public:
         }
         return result;
     }
+
 private:
     int KeySize_;
+
 };
 
 class TGroupComparer
@@ -110,6 +113,7 @@ public:
     explicit TGroupComparer(int keySize)
         : KeySize_(keySize)
     { }
+
     bool operator() (TRow lhs, TRow rhs) const
     {
         for (int i = 0; i < KeySize_; ++i) {
@@ -119,8 +123,10 @@ public:
         }
         return true;
     }
+
 private:
     int KeySize_;
+
 };
 
 } // namespace NDetail
@@ -143,25 +149,25 @@ using NYT::NQueryClient::TPassedFragmentParams;
 
 // Opaque types
 
-template <bool cross>
-class TypeBuilder<std::vector<TRow>*, cross>
-    : public TypeBuilder<void*, cross>
+template <bool Cross>
+class TypeBuilder<std::vector<TRow>*, Cross>
+    : public TypeBuilder<void*, Cross>
 { };
 
-template <bool cross>
-class TypeBuilder<TLookupRows*, cross>
-    : public TypeBuilder<void*, cross>
+template <bool Cross>
+class TypeBuilder<TLookupRows*, Cross>
+    : public TypeBuilder<void*, Cross>
 { };
 
-template <bool cross>
-class TypeBuilder<TPassedFragmentParams*, cross>
-    : public TypeBuilder<void*, cross>
+template <bool Cross>
+class TypeBuilder<TPassedFragmentParams*, Cross>
+    : public TypeBuilder<void*, Cross>
 { };
 
 // Aggregate types
 
-template <bool cross>
-class TypeBuilder<TValueData, cross>
+template <bool Cross>
+class TypeBuilder<TValueData, Cross>
 {
 public:
     static Type* get(LLVMContext& context)
@@ -175,7 +181,7 @@ public:
 
         static_assert(UnionSize2 == sizeof(i64), "Unexpected union size");
 
-        return TypeBuilder<i64, cross>::get(context);
+        return TypeBuilder<i64, Cross>::get(context);
     }
 
     enum Fields
@@ -189,27 +195,27 @@ public:
     {
         switch (dataFields) {
             case Fields::Integer:
-                return TypeBuilder<i64*, cross>::get(context);
+                return TypeBuilder<i64*, Cross>::get(context);
             case Fields::Double:
-                return TypeBuilder<double*, cross>::get(context);
+                return TypeBuilder<double*, Cross>::get(context);
             case Fields::String:
-                return TypeBuilder<const char**, cross>::get(context);
+                return TypeBuilder<const char**, Cross>::get(context);
         }
         YUNREACHABLE();
     }
 };
 
-template <bool cross>
-class TypeBuilder<TValue, cross>
+template <bool Cross>
+class TypeBuilder<TValue, Cross>
 {
 public:
     static StructType* get(LLVMContext& context)
     {
         return StructType::get(
-            TypeBuilder<ui16, cross>::get(context),
-            TypeBuilder<ui16, cross>::get(context),
-            TypeBuilder<ui32, cross>::get(context),
-            TypeBuilder<TValueData, cross>::get(context),
+            TypeBuilder<ui16, Cross>::get(context),
+            TypeBuilder<ui16, Cross>::get(context),
+            TypeBuilder<ui32, Cross>::get(context),
+            TypeBuilder<TValueData, Cross>::get(context),
             nullptr);
     }
 
@@ -222,15 +228,15 @@ public:
     };
 };
 
-template <bool cross>
-class TypeBuilder<TRowHeader, cross>
+template <bool Cross>
+class TypeBuilder<TRowHeader, Cross>
 {
 public:
     static StructType* get(LLVMContext& context)
     {
         return StructType::get(
-            TypeBuilder<ui32, cross>::get(context),
-            TypeBuilder<ui32, cross>::get(context),
+            TypeBuilder<ui32, Cross>::get(context),
+            TypeBuilder<ui32, Cross>::get(context),
             nullptr);
     }
 
@@ -241,14 +247,14 @@ public:
     };
 };
 
-template <bool cross>
-class TypeBuilder<TRow, cross>
+template <bool Cross>
+class TypeBuilder<TRow, Cross>
 {
 public:
     static StructType* get(LLVMContext& context)
     {
         return StructType::get(
-            TypeBuilder<TRowHeader*, cross>::get(context),
+            TypeBuilder<TRowHeader*, Cross>::get(context),
             nullptr);
     }
 
