@@ -140,6 +140,7 @@ public:
 
 
     virtual TFuture<TErrorOr<ITransactionPtr>> StartTransaction(
+        ETransactionType type,
         const TTransactionStartOptions& options) override;
 
 #define DROP_BRACES(...) __VA_ARGS__
@@ -885,11 +886,14 @@ public:
 
 
     virtual TFuture<TErrorOr<ITransactionPtr>> StartTransaction(
+        ETransactionType type,
         const TTransactionStartOptions& options) override
     {
         auto adjustedOptions = options;
         adjustedOptions.ParentId = GetId();
-        return Client_->StartTransaction(adjustedOptions);
+        return Client_->StartTransaction(
+            type,
+            adjustedOptions);
     }
 
         
@@ -1225,10 +1229,12 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TTransaction)
 
-TFuture<TErrorOr<ITransactionPtr>> TClient::StartTransaction(const TTransactionStartOptions& options)
+TFuture<TErrorOr<ITransactionPtr>> TClient::StartTransaction(
+    ETransactionType type,
+    const TTransactionStartOptions& options)
 {
     auto this_ = MakeStrong(this);
-    return TransactionManager_->Start(options).Apply(
+    return TransactionManager_->Start(type, options).Apply(
         BIND([=] (TErrorOr<NTransactionClient::TTransactionPtr> transactionOrError) -> TErrorOr<ITransactionPtr> {
             if (!transactionOrError.IsOK()) {
                 return TError(transactionOrError);

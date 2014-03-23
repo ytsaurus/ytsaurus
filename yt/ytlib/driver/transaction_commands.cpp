@@ -40,7 +40,9 @@ void TStartTransactionCommand::DoExecute()
     }
 
     auto transactionManager = Context_->GetClient()->GetTransactionManager();
-    auto transactionOrError = WaitFor(transactionManager->Start(options));
+    auto transactionOrError = WaitFor(transactionManager->Start(
+        ETransactionType::Master,
+        options));
     auto transaction = transactionOrError.ValueOrThrow();
     transaction->Detach();
 

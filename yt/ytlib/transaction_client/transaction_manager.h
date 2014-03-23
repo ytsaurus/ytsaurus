@@ -155,7 +155,9 @@ public:
      *  If |options.PingAncestors| is |true| then the above renewal will also apply to all
      *  ancestor transactions.
      */
-    TFuture<TErrorOr<TTransactionPtr>> Start(const TTransactionStartOptions& options);
+    TFuture<TErrorOr<TTransactionPtr>> Start(
+        ETransactionType type,
+        const TTransactionStartOptions& options);
     
     //! Attaches to an existing transaction.
     /*!

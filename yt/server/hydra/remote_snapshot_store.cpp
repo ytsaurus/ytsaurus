@@ -258,7 +258,9 @@ private:
                 ~ToString(CellGuid_),
                 snapshotId));
             options.Attributes = attributes.get();
-            auto transactionOrError = WaitFor(MasterClient_->StartTransaction(options));
+            auto transactionOrError = WaitFor(MasterClient_->StartTransaction(
+                NTransactionClient::ETransactionType::Master,
+                options));
             transaction = transactionOrError.ValueOrThrow();
         }
 

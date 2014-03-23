@@ -124,7 +124,9 @@ private:
             options.Attributes = attributes.get();
 
             auto transactionManager = Client_->GetTransactionManager();
-            auto transactionOrError = WaitFor(transactionManager->Start(options));
+            auto transactionOrError = WaitFor(transactionManager->Start(
+                ETransactionType::Master,
+                options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
             UploadTransaction_ = transactionOrError.Value();
         }

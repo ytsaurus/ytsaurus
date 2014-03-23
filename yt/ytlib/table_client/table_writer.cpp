@@ -150,7 +150,9 @@ void TAsyncTableWriter::Open()
     auto attributes = CreateEphemeralAttributes();
     attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
     options.Attributes = attributes.get();
-    auto transactionOrError = WaitFor(TransactionManager->Start(options));
+    auto transactionOrError = WaitFor(TransactionManager->Start(
+        ETransactionType::Master,
+        options));
 
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
 

@@ -196,7 +196,9 @@ private:
                     ~ToString(store->GetId()),
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(options));
+                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
+                    NTransactionClient::ETransactionType::Master,
+                    options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.Value();
             }

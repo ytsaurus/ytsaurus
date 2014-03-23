@@ -111,14 +111,12 @@ struct TCheckPermissionResult
 struct TTransactionStartOptions
 {
     TTransactionStartOptions()
-        : Type(NTransactionClient::ETransactionType::Master)
-        , AutoAbort(true)
+        : AutoAbort(true)
         , Ping(true)
         , PingAncestors(false)
         , Attributes(nullptr)
     { }
 
-    NTransactionClient::ETransactionType Type;
     TNullable<TDuration> Timeout;
     NTransactionClient::TTransactionId ParentId;
     bool AutoAbort;
@@ -287,7 +285,8 @@ struct IClientBase
 {
     // Transactions
     virtual TFuture<TErrorOr<ITransactionPtr>> StartTransaction(
-        const TTransactionStartOptions& options) = 0;
+        NTransactionClient::ETransactionType type,
+        const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
 
 
     // Tables

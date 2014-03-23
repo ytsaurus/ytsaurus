@@ -169,7 +169,9 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 "title",
                 Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetOperationId())));
             options.Attributes = attributes.get();
-            auto transactionOrError = WaitFor(MasterClient->StartTransaction(options));
+            auto transactionOrError = WaitFor(MasterClient->StartTransaction(
+                NTransactionClient::ETransactionType::Master,
+                options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
             transaction = transactionOrError.Value();
         }

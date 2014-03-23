@@ -74,7 +74,9 @@ public:
         ITimestampProviderPtr timestampProvider,
         TCellDirectoryPtr cellDirectory);
 
-    TFuture<TErrorOr<TTransactionPtr>> Start(const TTransactionStartOptions& options);
+    TFuture<TErrorOr<TTransactionPtr>> Start(
+        ETransactionType type,
+        const TTransactionStartOptions& options);
 
     TTransactionPtr Attach(const TTransactionAttachOptions& options);
 
@@ -116,15 +118,17 @@ public:
     }
 
 
-    TAsyncError Start(const TTransactionStartOptions& options)
+    TAsyncError Start(
+        ETransactionType type,
+        const TTransactionStartOptions& options)
     {
         try {
-            ValidateStartOptions(options);
+            ValidateStartOptions(type, options);
         } catch (const std::exception& ex) {
             return MakeFuture(TError(ex));
         }
 
-        Type_ = options.Type;
+        Type_ = type;
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
@@ -382,9 +386,11 @@ private:
 
     
 
-    static void ValidateStartOptions(const TTransactionStartOptions& options)
+    static void ValidateStartOptions(
+        ETransactionType type,
+        const TTransactionStartOptions& options)
     {
-        switch (options.Type)
+        switch (type)
         {
             case ETransactionType::Master:
                 ValidateMasterStartOptions(options);
@@ -461,7 +467,7 @@ private:
             StartTimestamp_,
             ~ToString(Type_));
 
-        switch (options.Type) {
+        switch (Type_) {
             case ETransactionType::Master:
                 return StartMasterTransaction(options);
             case ETransactionType::Tablet:
@@ -864,19 +870,19 @@ TTransactionManager::TImpl::TImpl(
     YCHECK(CellDirectory_);
 }
 
-TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::Start(const TTransactionStartOptions& options)
+TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::Start(
+    ETransactionType type,
+    const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    typedef TErrorOr<TTransactionPtr> TOutput;
-
     auto transaction = New<TTransaction::TImpl>(this);
-    return transaction->Start(options).Apply(
-        BIND([=] (TError error) -> TOutput {
+    return transaction->Start(type, options).Apply(
+        BIND([=] (TError error) -> TErrorOr<TTransactionPtr> {
             if (!error.IsOK()) {
-                return TOutput(error);
+                return error;
             }
-            return TOutput(New<TTransaction>(transaction));
+            return New<TTransaction>(transaction);
     }));
 }
 
@@ -979,9 +985,11 @@ TTransactionManager::TTransactionManager(
 TTransactionManager::~TTransactionManager()
 { }
 
-TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::Start(const TTransactionStartOptions& options)
+TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::Start(
+    ETransactionType type,
+    const TTransactionStartOptions& options)
 {
-    return Impl_->Start(options);
+    return Impl_->Start(type, options);
 }
 
 TTransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)

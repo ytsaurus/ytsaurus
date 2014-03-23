@@ -253,7 +253,9 @@ private:
                 attributes->Set("title", Sprintf("Eden partitioning, tablet %s",
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(options));
+                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
+                    NTransactionClient::ETransactionType::Master,
+                    options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.Value();
             }
@@ -472,7 +474,9 @@ private:
                 attributes->Set("title", Sprintf("Partition compaction, tablet %s",
                     ~ToString(tablet->GetId())));
                 options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(options));
+                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
+                    NTransactionClient::ETransactionType::Master,
+                    options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.Value();
             }

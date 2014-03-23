@@ -295,9 +295,7 @@ void TInsertCommand::DoExecute()
 
     // Write data into the tablets.
 
-    NApi::TTransactionStartOptions startOptions;
-    startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(startOptions));
+    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(ETransactionType::Tablet));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.Value();
 
@@ -438,9 +436,7 @@ void TLookupCommand::DoExecute()
 
 void TDeleteCommand::DoExecute()
 {
-    NTransactionClient::TTransactionStartOptions startOptions;
-    startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(startOptions));
+    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(ETransactionType::Tablet));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.Value();
 
