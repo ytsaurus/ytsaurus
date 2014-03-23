@@ -7,6 +7,7 @@
 
 #include <core/ytree/yson_string.h>
 #include <core/ytree/attribute_provider.h>
+#include <core/ytree/permission.h>
 
 #include <core/rpc/public.h>
 
@@ -23,6 +24,8 @@
 #include <ytlib/new_table_client/public.h>
 
 #include <ytlib/tablet_client/public.h>
+
+#include <ytlib/security_client/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -95,7 +98,15 @@ struct TRemoveMemberOptions
 { };
 
 struct TCheckPermissionOptions
+    : public TTransactionalOptions
 { };
+
+struct TCheckPermissionResult
+{
+    NSecurityClient::ESecurityAction Action;
+    NObjectClient::TObjectId ObjectId;
+    TNullable<Stroka> Subject;
+};
 
 struct TTransactionStartOptions
 {
@@ -168,7 +179,7 @@ struct TListNodesOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
 {
-    std::vector<Stroka> Attributes;
+    NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
 };
 
@@ -426,7 +437,11 @@ struct IClient
         const Stroka& member,
         const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
 
-    // TODO(babenko): CheckPermission
+    virtual TFuture<TErrorOr<TCheckPermissionResult>> CheckPermission(
+        const Stroka& user,
+        const NYPath::TYPath& path,
+        NYTree::EPermission permission,
+        const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
 
 };
 

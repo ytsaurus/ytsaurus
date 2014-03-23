@@ -30,7 +30,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     req->set_type(type);
     ToProto(req->mutable_transaction_id(), GetTransactionId(EAllowNullTransaction::Yes));
     GenerateMutationId(req);
-    req->set_spec(ConvertToYsonString(Request->Spec).Data());
+    req->set_spec(ConvertToYsonString(Request_->Spec).Data());
 
     auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -85,9 +85,9 @@ void TMapReduceCommand::DoExecute()
 
 void TAbortOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context->GetClient()->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context_->GetClient()->GetSchedulerChannel());
     auto req = proxy.AbortOperation();
-    ToProto(req->mutable_operation_id(), Request->OperationId);
+    ToProto(req->mutable_operation_id(), Request_->OperationId);
 
     auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -97,9 +97,9 @@ void TAbortOperationCommand::DoExecute()
 
 void TSuspendOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context->GetClient()->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context_->GetClient()->GetSchedulerChannel());
     auto req = proxy.SuspendOperation();
-    ToProto(req->mutable_operation_id(), Request->OperationId);
+    ToProto(req->mutable_operation_id(), Request_->OperationId);
 
     auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -109,9 +109,9 @@ void TSuspendOperationCommand::DoExecute()
 
 void TResumeOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context->GetClient()->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context_->GetClient()->GetSchedulerChannel());
     auto req = proxy.ResumeOperation();
-    ToProto(req->mutable_operation_id(), Request->OperationId);
+    ToProto(req->mutable_operation_id(), Request_->OperationId);
 
     auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

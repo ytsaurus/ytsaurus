@@ -64,28 +64,28 @@ using namespace NApi;
 
 void TReadCommand::DoExecute()
 {
-    // COMPAT(babenko): remove Request->TableReader
+    // COMPAT(babenko): remove Request_->TableReader
     auto config = UpdateYsonSerializable(
-        Context->GetConfig()->TableReader,
-        Request->TableReader);
+        Context_->GetConfig()->TableReader,
+        Request_->TableReader);
     config = UpdateYsonSerializable(
         config,
-        Request->GetOptions());
+        Request_->GetOptions());
 
     auto reader = New<TAsyncTableReader>(
         config,
-        Context->GetClient()->GetMasterChannel(),
+        Context_->GetClient()->GetMasterChannel(),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context->GetClient()->GetConnection()->GetBlockCache(),
-        Request->Path);
+        Context_->GetClient()->GetConnection()->GetBlockCache(),
+        Request_->Path);
 
-    auto output = Context->Request().OutputStream;
+    auto output = Context_->Request().OutputStream;
 
     // TODO(babenko): provide custom allocation tag
     TBlobOutput buffer;
-    i64 bufferLimit = Context->GetConfig()->ReadBufferSize;
+    i64 bufferLimit = Context_->GetConfig()->ReadBufferSize;
 
-    auto format = Context->GetOutputFormat();
+    auto format = Context_->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
     reader->Open();
@@ -103,7 +103,7 @@ void TReadCommand::DoExecute()
         return;
     }
 
-    BuildYsonMapFluently(Context->Request().ResponseParametersConsumer)
+    BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
     auto flushBuffer = [&] () {
@@ -135,33 +135,33 @@ void TReadCommand::DoExecute()
 
 void TWriteCommand::DoExecute()
 {
-    // COMPAT(babenko): remove Request->TableWriter
+    // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
-        Context->GetConfig()->TableWriter,
-        Request->TableWriter);
+        Context_->GetConfig()->TableWriter,
+        Request_->TableWriter);
     config = UpdateYsonSerializable(
         config,
-        Request->GetOptions());
+        Request_->GetOptions());
 
     auto writer = CreateAsyncTableWriter(
         config,
-        Context->GetClient()->GetMasterChannel(),
+        Context_->GetClient()->GetMasterChannel(),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context->GetClient()->GetTransactionManager(),
-        Request->Path,
-        Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
+        Context_->GetClient()->GetTransactionManager(),
+        Request_->Path,
+        Request_->Path.Attributes().Find<TKeyColumns>("sorted_by"));
 
     writer->Open();
 
     TTableConsumer consumer(writer);
 
-    auto format = Context->GetInputFormat();
+    auto format = Context_->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
 
     struct TWriteBufferTag { };
     auto buffer = TSharedRef::Allocate<TWriteBufferTag>(config->BlockSize);
 
-    auto input = Context->Request().InputStream;
+    auto input = Context_->Request().InputStream;
 
     while (true) {
         if (!input->Read(buffer.Begin(), buffer.Size())) {
@@ -190,15 +190,15 @@ void TWriteCommand::DoExecute()
 void TMountTableCommand::DoExecute()
 {
     TMountTableOptions options;
-    if (Request->FirstTabletIndex) {
-        options.FirstTabletIndex = *Request->FirstTabletIndex;
+    if (Request_->FirstTabletIndex) {
+        options.FirstTabletIndex = *Request_->FirstTabletIndex;
     }
-    if (Request->LastTabletIndex) {
-        options.LastTabletIndex = *Request->LastTabletIndex;
+    if (Request_->LastTabletIndex) {
+        options.LastTabletIndex = *Request_->LastTabletIndex;
     }
 
-    auto result = WaitFor(Context->GetClient()->MountTable(
-        Request->Path.GetPath(),
+    auto result = WaitFor(Context_->GetClient()->MountTable(
+        Request_->Path.GetPath(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
@@ -208,16 +208,16 @@ void TMountTableCommand::DoExecute()
 void TUnmountTableCommand::DoExecute()
 {
     TUnmountTableOptions options;
-    if (Request->FirstTabletIndex) {
-        options.FirstTabletIndex = *Request->FirstTabletIndex;
+    if (Request_->FirstTabletIndex) {
+        options.FirstTabletIndex = *Request_->FirstTabletIndex;
     }
-    if (Request->LastTabletIndex) {
-        options.LastTabletIndex = *Request->LastTabletIndex;
+    if (Request_->LastTabletIndex) {
+        options.LastTabletIndex = *Request_->LastTabletIndex;
     }
-    options.Force = Request->Force;
+    options.Force = Request_->Force;
 
-    auto result = WaitFor(Context->GetClient()->UnmountTable(
-        Request->Path.GetPath(),
+    auto result = WaitFor(Context_->GetClient()->UnmountTable(
+        Request_->Path.GetPath(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
@@ -227,20 +227,20 @@ void TUnmountTableCommand::DoExecute()
 void TReshardTableCommand::DoExecute()
 {
     TReshardTableOptions options;
-    if (Request->FirstTabletIndex) {
-        options.FirstTabletIndex = *Request->FirstTabletIndex;
+    if (Request_->FirstTabletIndex) {
+        options.FirstTabletIndex = *Request_->FirstTabletIndex;
     }
-    if (Request->LastTabletIndex) {
-        options.LastTabletIndex = *Request->LastTabletIndex;
+    if (Request_->LastTabletIndex) {
+        options.LastTabletIndex = *Request_->LastTabletIndex;
     }
     
     std::vector<TUnversionedRow> pivotKeys;
-    for (const auto& key : Request->PivotKeys) {
+    for (const auto& key : Request_->PivotKeys) {
         pivotKeys.push_back(key.Get());
     }
     
-    auto result = WaitFor(Context->GetClient()->ReshardTable(
-        Request->Path.GetPath(),
+    auto result = WaitFor(Context_->GetClient()->ReshardTable(
+        Request_->Path.GetPath(),
         pivotKeys,
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -250,16 +250,16 @@ void TReshardTableCommand::DoExecute()
 
 void TInsertCommand::DoExecute()
 {
-    // COMPAT(babenko): remove Request->TableWriter
+    // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
-        Context->GetConfig()->TableWriter,
-        Request->TableWriter);
+        Context_->GetConfig()->TableWriter,
+        Request_->TableWriter);
     config = UpdateYsonSerializable(
         config,
-        Request->GetOptions());
+        Request_->GetOptions());
 
-    auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request->Path.GetPath()));
+    auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
+    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
     const auto& tableInfo = tableInfoOrError.Value();
 
@@ -267,16 +267,16 @@ void TInsertCommand::DoExecute()
     TBuildingTableConsumer consumer(
         tableInfo->Schema,
         tableInfo->KeyColumns);
-    consumer.SetTreatMissingAsNull(!Request->Update);
+    consumer.SetTreatMissingAsNull(!Request_->Update);
     consumer.SetAllowNonSchemaColumns(false);
 
-    auto format = Context->GetInputFormat();
+    auto format = Context_->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
 
     struct TWriteBufferTag { };
     auto buffer = TSharedRef::Allocate<TWriteBufferTag>(config->BlockSize);
 
-    auto input = Context->Request().InputStream;
+    auto input = Context_->Request().InputStream;
 
     while (true) {
         if (!input->Read(buffer.Begin(), buffer.Size())) {
@@ -297,7 +297,7 @@ void TInsertCommand::DoExecute()
 
     NApi::TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(Context->GetClient()->StartTransaction(startOptions));
+    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.Value();
 
@@ -308,7 +308,7 @@ void TInsertCommand::DoExecute()
     }
 
     transaction->WriteRows(
-        Request->Path.GetPath(),
+        Request_->Path.GetPath(),
         consumer.GetNameTable(),
         std::move(rows));
 
@@ -322,10 +322,10 @@ void TSelectCommand::DoExecute()
 {
     // TODO(babenko): read output via streaming
     TSelectRowsOptions options;
-    options.Timestamp = Request->Timestamp;
+    options.Timestamp = Request_->Timestamp;
 
-    auto rowsetOrError = WaitFor(Context->GetClient()->SelectRows(
-        Request->Query,
+    auto rowsetOrError = WaitFor(Context_->GetClient()->SelectRows(
+        Request_->Query,
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError);
 
@@ -333,7 +333,7 @@ void TSelectCommand::DoExecute()
     auto nameTable = rowset->GetNameTable();
 
     TBlobOutput buffer;
-    auto format = Context->GetOutputFormat();
+    auto format = Context_->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
     for (auto row : rowset->GetRows()) {
@@ -364,7 +364,7 @@ void TSelectCommand::DoExecute()
         consumer->OnEndMap();
     }
 
-    auto output = Context->Request().OutputStream;
+    auto output = Context_->Request().OutputStream;
     if (!output->Write(buffer.Begin(), buffer.Size())) {
         auto result = WaitFor(output->GetReadyEvent());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -376,19 +376,19 @@ void TSelectCommand::DoExecute()
 
 void TLookupCommand::DoExecute()
 {
-    auto tableMountCache = Context->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request->Path.GetPath()));
+    auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
+    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
     const auto& tableInfo = tableInfoOrError.Value();
     auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
 
     TLookupRowsOptions options;
-    options.Timestamp = Request->Timestamp;
-    options.ColumnNames = Request->ColumnNames;
+    options.Timestamp = Request_->Timestamp;
+    options.ColumnNames = Request_->ColumnNames;
 
-    auto lookupResult = WaitFor(Context->GetClient()->LookupRow(
-        Request->Path.GetPath(),
-        Request->Key.Get(),
+    auto lookupResult = WaitFor(Context_->GetClient()->LookupRow(
+        Request_->Path.GetPath(),
+        Request_->Key.Get(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
     
@@ -397,7 +397,7 @@ void TLookupCommand::DoExecute()
     auto row = rowset->GetRows()[0];
     if (row) {
         TBlobOutput buffer;
-        auto format = Context->GetOutputFormat();
+        auto format = Context_->GetOutputFormat();
         auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
         
         consumer->OnListItem();
@@ -426,7 +426,7 @@ void TLookupCommand::DoExecute()
         }
         consumer->OnEndMap();
 
-        auto output = Context->Request().OutputStream;
+        auto output = Context_->Request().OutputStream;
         if (!output->Write(buffer.Begin(), buffer.Size())) {
             auto result = WaitFor(output->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -440,11 +440,11 @@ void TDeleteCommand::DoExecute()
 {
     NTransactionClient::TTransactionStartOptions startOptions;
     startOptions.Type = ETransactionType::Tablet;
-    auto transactionOrError = WaitFor(Context->GetClient()->StartTransaction(startOptions));
+    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(startOptions));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.Value();
 
-    transaction->DeleteRow(Request->Path.GetPath(), Request->Key.Get());
+    transaction->DeleteRow(Request_->Path.GetPath(), Request_->Key.Get());
 
     auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);

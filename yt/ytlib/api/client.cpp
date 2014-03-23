@@ -295,6 +295,12 @@ public:
         const Stroka& member,
         const TRemoveMemberOptions& options),
         (group, member, options))
+    IMPLEMENT_METHOD(TCheckPermissionResult, CheckPermission, (
+        const Stroka& user,
+        const TYPath& path,
+        EPermission permission,
+        const TCheckPermissionOptions& options),
+        (user, path, permission, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -624,8 +630,7 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, options.Attributes);
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
             req->set_max_size(*options.MaxSize);
         }
@@ -796,6 +801,28 @@ private:
         auto rsp = WaitFor(ObjectProxy_->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
+
+    TCheckPermissionResult DoCheckPermission(
+        const Stroka& user,
+        const TYPath& path,
+        EPermission permission,
+        TCheckPermissionOptions options)
+    {
+        auto req = TObjectYPathProxy::CheckPermission(path);
+        req->set_user(user);
+        req->set_permission(permission);
+        SetTransactionId(req, options, true);
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+        TCheckPermissionResult result;
+        result.Action = ESecurityAction(rsp->action());
+        result.ObjectId = rsp->has_object_id() ? FromProto<TObjectId>(rsp->object_id()) : NullObjectId;
+        result.Subject = rsp->has_subject() ? MakeNullable(rsp->subject()) : Null;
+        return result;
+    }
+
 
 };
 

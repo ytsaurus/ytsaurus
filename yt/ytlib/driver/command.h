@@ -26,8 +26,6 @@
 
 #include <ytlib/security_client/public.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -137,10 +135,10 @@ class TCommandBase
     : public ICommand
 {
 protected:
-    ICommandContextPtr Context;
-    bool Replied;
+    ICommandContextPtr Context_;
+    bool Replied_;
 
-    std::unique_ptr<NObjectClient::TObjectServiceProxy> ObjectProxy;
+    // TODO(babenko): deprecate
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 
     TCommandBase();
@@ -161,7 +159,7 @@ class TTypedCommandBase
 public:
     virtual void Execute(ICommandContextPtr context)
     {
-        Context = context;
+        Context_ = context;
         try {
             ParseRequest();
             
@@ -170,7 +168,7 @@ public:
             DoExecute();
 
             // Assume empty successful reply by default.
-            if (!Replied) {
+            if (!Replied_) {
                 Reply();
             }
         } catch (const std::exception& ex) {
@@ -179,17 +177,17 @@ public:
     }
 
 protected:
-    TIntrusivePtr<TRequest> Request;
+    TIntrusivePtr<TRequest> Request_;
 
     virtual void DoExecute() = 0;
 
 private:
     void ParseRequest()
     {
-        Request = New<TRequest>();
+        Request_ = New<TRequest>();
         try {
-            auto arguments = Context->Request().Arguments;;
-            Request = NYTree::ConvertTo<TIntrusivePtr<TRequest>>(arguments);
+            auto arguments = Context_->Request().Arguments;;
+            Request_ = NYTree::ConvertTo<TIntrusivePtr<TRequest>>(arguments);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing command arguments") << ex;
         }
@@ -229,12 +227,12 @@ protected:
     NTransactionClient::TTransactionPtr GetTransaction(EAllowNullTransaction allowNullTransaction, EPingTransaction pingTransaction)
     {
         if (allowNullTransaction == EAllowNullTransaction::No &&
-            this->Request->TransactionId == NTransactionClient::NullTransactionId)
+            this->Request_->TransactionId == NTransactionClient::NullTransactionId)
         {
             THROW_ERROR_EXCEPTION("Transaction is required");
         }
 
-        auto transactionId = this->Request->TransactionId;
+        auto transactionId = this->Request_->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {
             return nullptr;
         }
@@ -242,9 +240,9 @@ protected:
         NTransactionClient::TTransactionAttachOptions options(transactionId);
         options.AutoAbort = false;
         options.Ping = (pingTransaction == EPingTransaction::Yes);
-        options.PingAncestors = this->Request->PingAncestors;
+        options.PingAncestors = this->Request_->PingAncestors;
 
-        auto transactionManager = this->Context->GetClient()->GetTransactionManager();
+        auto transactionManager = this->Context_->GetClient()->GetTransactionManager();
         return transactionManager->Attach(options);
     }
 
@@ -255,8 +253,8 @@ protected:
 
     void SetTransactionalOptions(NApi::TTransactionalOptions* options)
     {
-        options->TransactionId = this->Request->TransactionId;
-        options->PingAncestors = this->Request->PingAncestors;
+        options->TransactionId = this->Request_->TransactionId;
+        options->PingAncestors = this->Request_->PingAncestors;
     }
 
 };
@@ -280,6 +278,11 @@ protected:
         NHydra::SetMutationId(request, this->GenerateMutationId());
     }
 
+    void SetMutatingOptions(NApi::TMutatingOptions* options)
+    {
+        options->MutationId = this->GenerateMutationId();
+    }
+
     NHydra::TMutationId GenerateMutationId()
     {
         auto result = this->CurrentMutationId;
@@ -297,10 +300,11 @@ private:
         TTypedCommandBase<TRequest>::Prepare();
 
         this->CurrentMutationId =
-            this->Request->MutationId == NHydra::NullMutationId
+            this->Request_->MutationId == NHydra::NullMutationId
             ? NHydra::GenerateMutationId()
-            : this->Request->MutationId;
+            : this->Request_->MutationId;
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,16 +321,9 @@ class TSuppressableAccessTrackingCommmandBase <
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    void SetSuppressAccessTracking(NRpc::IClientRequestPtr request)
-    {
-        NCypressClient::SetSuppressAccessTracking(
-            &request->Header(),
-            this->Request->SuppressAccessTracking);
-    }
-
     void SetSuppressableAccessTrackingOptions(NApi::TSuppressableAccessTrackingOptions* options)
     {
-        options->SuppressAccessTracking = this->Request->SuppressAccessTracking;
+        options->SuppressAccessTracking = this->Request_->SuppressAccessTracking;
     }
 
 };

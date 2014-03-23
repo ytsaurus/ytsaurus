@@ -26,20 +26,20 @@ using namespace NConcurrency;
 void TStartTransactionCommand::DoExecute()
 {
     TTransactionStartOptions options;
-    options.Timeout = Request->Timeout;
-    options.ParentId = Request->TransactionId;
-    options.MutationId = Request->MutationId;
+    options.Timeout = Request_->Timeout;
+    options.ParentId = Request_->TransactionId;
+    options.MutationId = Request_->MutationId;
     options.Ping = true;
     options.AutoAbort = false;
-    options.PingAncestors = Request->PingAncestors;
+    options.PingAncestors = Request_->PingAncestors;
 
     std::unique_ptr<IAttributeDictionary> attributes;
-    if (Request->Attributes) {
-        attributes = ConvertToAttributes(Request->Attributes);
+    if (Request_->Attributes) {
+        attributes = ConvertToAttributes(Request_->Attributes);
         options.Attributes = attributes.get();
     }
 
-    auto transactionManager = Context->GetClient()->GetTransactionManager();
+    auto transactionManager = Context_->GetClient()->GetTransactionManager();
     auto transactionOrError = WaitFor(transactionManager->Start(options));
     auto transaction = transactionOrError.ValueOrThrow();
     transaction->Detach();
@@ -53,7 +53,7 @@ void TStartTransactionCommand::DoExecute()
 void TPingTransactionCommand::DoExecute()
 {
     // Specially for evvers@ :)
-    if (Request->TransactionId == NullTransactionId)
+    if (Request_->TransactionId == NullTransactionId)
         return;
 
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);

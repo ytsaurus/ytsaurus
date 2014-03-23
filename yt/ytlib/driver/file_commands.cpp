@@ -20,22 +20,22 @@ using namespace NConcurrency;
 
 void TDownloadCommand::DoExecute()
 {
-    // COMPAT(babenko): remove Request->FileReader
+    // COMPAT(babenko): remove Request_->FileReader
     auto config = UpdateYsonSerializable(
-        Context->GetConfig()->FileReader,
-        Request->FileReader);
+        Context_->GetConfig()->FileReader,
+        Request_->FileReader);
     config = UpdateYsonSerializable(
         config,
-        Request->GetOptions());
+        Request_->GetOptions());
 
     TFileReaderOptions options;
-    options.Offset = Request->Offset;
-    options.Length = Request->Length;
+    options.Offset = Request_->Offset;
+    options.Length = Request_->Length;
     SetTransactionalOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
 
-    auto reader = Context->GetClient()->CreateFileReader(
-        Request->Path.GetPath(),
+    auto reader = Context_->GetClient()->CreateFileReader(
+        Request_->Path.GetPath(),
         options,
         config);
 
@@ -44,7 +44,7 @@ void TDownloadCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    auto output = Context->Request().OutputStream;
+    auto output = Context_->Request().OutputStream;
 
     while (true) {
         auto blockOrError = WaitFor(reader->Read());
@@ -67,15 +67,15 @@ void TDownloadCommand::DoExecute()
 void TUploadCommand::DoExecute()
 {
     auto config = UpdateYsonSerializable(
-        Context->GetConfig()->FileWriter,
-        Request->FileWriter);
+        Context_->GetConfig()->FileWriter,
+        Request_->FileWriter);
 
     TFileWriterOptions options;
-    options.Append = Request->Path.GetAppend();
+    options.Append = Request_->Path.GetAppend();
     SetTransactionalOptions(&options);
 
-    auto writer = Context->GetClient()->CreateFileWriter(
-        Request->Path.GetPath(),
+    auto writer = Context_->GetClient()->CreateFileWriter(
+        Request_->Path.GetPath(),
         options,
         config);
 
@@ -87,7 +87,7 @@ void TUploadCommand::DoExecute()
     struct TUploadBufferTag { };
     auto buffer = TSharedRef::Allocate<TUploadBufferTag>(config->BlockSize);
 
-    auto input = Context->Request().InputStream;
+    auto input = Context_->Request().InputStream;
 
     while (true) {
         if (!input->Read(buffer.Begin(), buffer.Size())) {
