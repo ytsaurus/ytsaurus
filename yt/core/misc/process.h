@@ -19,12 +19,7 @@ public:
 
     void AddArgument(const Stroka& arg);
 
-#ifndef _linux_
-    static const int CLONE_VM = 0; // fake
-    static const int CLONE_VFORK = 0; // fake
-#endif
-
-    TError Spawn(int flags = CLONE_VM | CLONE_VFORK);
+    TError Spawn();
     TError Wait();
 
     int GetProcessId() const;
@@ -39,13 +34,11 @@ private:
     std::vector<std::vector<char>> Holder_;
     std::vector<char*> Args_;
     std::vector<char*> Env_;
-    std::vector<char> Stack_;
 
     const char* GetPath() const;
     // TODO(babenko): rename (or better get rid of)
     char* Copy(const char* arg);
 
-    static int ChildMain(void*);
     int DoSpawn();
 
 };

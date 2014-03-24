@@ -23,10 +23,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t StackSize = 4096;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TError SafeAtomicCloseExecPipe(int pipefd[2])
 {
 #if defined(_linux_)
@@ -67,7 +63,6 @@ TProcess::TProcess(const Stroka& path)
     : Finished_(false)
     , Status_(0)
     , ProcessId_(-1)
-    , Stack_(StackSize, 0)
 {
     Pipe_[0] = Pipe_[1] = -1;
     ChildPipe_[0] = ChildPipe_[1] = -1;
@@ -99,7 +94,7 @@ void TProcess::AddArgument(const Stroka& arg)
     Args_.push_back(Copy(~arg));
 }
 
-TError TProcess::Spawn(int flags)
+TError TProcess::Spawn()
 {
 #ifdef _win_
     return TError("Windows is not supported");
@@ -125,18 +120,10 @@ TError TProcess::Spawn(int flags)
         ChildPipe_[index] = Pipe_[index];
     }
 
-#ifdef _linux_
-    int pid = ::clone(
-        &TProcess::ChildMain,
-        Stack_.data() + Stack_.size(),
-        flags | CLONE_UNTRACED | SIGCHLD,
-        this);
-#else
     int pid = vfork();
     if (pid == 0) {
         DoSpawn();
     }
-#endif
 
     if (pid < 0) {
         return TError("Error starting child process: clone failed")
@@ -197,12 +184,6 @@ char* TProcess::Copy(const char* arg)
     size_t size = strlen(arg);
     Holder_.push_back(std::vector<char>(arg, arg + size + 1));
     return &(Holder_[Holder_.size() - 1].front());
-}
-
-int TProcess::ChildMain(void* this_)
-{
-    auto* process = static_cast<TProcess*>(this_);
-    return process->DoSpawn();
 }
 
 int TProcess::DoSpawn()
