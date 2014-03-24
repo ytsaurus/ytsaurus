@@ -99,16 +99,29 @@ TKeyRange RefineKeyRange(
             }
             key = builder.GetRowAndReset();
             AdvanceToValueSuccessor(key[keySize - 1]);
+        } else if (key.GetCount() != keySize) {
+            TUnversionedOwningRowBuilder builder(keySize);
+            for (size_t index = 0; index < keySize; ++index) {
+                if (index < key.GetCount()) {
+                    builder.AddValue(key[index]);
+                } else {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
+                }
+            }
+            key = builder.GetRowAndReset();
         }
     };
 
     normalizeKey(result.first);
     normalizeKey(result.second);
 
+    YCHECK(result.first.GetCount() == keySize);
+    YCHECK(result.second.GetCount() == keySize);
+
     // Computes key index for a given column name.
     auto columnNameToKeyPartIndex =
     [&] (const Stroka& columnName) -> size_t {
-        for (size_t index = 0; index < keyColumns.size(); ++index) {
+        for (size_t index = 0; index < keySize; ++index) {
             if (keyColumns[index] == columnName) {
                 return index;
             }
@@ -206,7 +219,7 @@ TKeyRange RefineKeyRange(
         }
     };
 
-    while (keyPartIndex < keyColumns.size() && constraintIndex < constraints.size()) {
+    while (keyPartIndex < keySize && constraintIndex < constraints.size()) {
         const auto& constraint = constraints[constraintIndex];
 
         auto& currentLeftBound = result.first[keyPartIndex];
@@ -240,7 +253,7 @@ TKeyRange RefineKeyRange(
                 }
                 if (rightTernaryCmp > 0) {
                     currentRightBound = constraintBound;
-                    if (keyPartIndex + 1 < keyColumns.size()) {
+                    if (keyPartIndex + 1 < keySize) {
                         extendToRightWithMax(result.second, keyPartIndex);
                     } else {
                         AdvanceToValueSuccessor(currentRightBound);
@@ -269,7 +282,7 @@ TKeyRange RefineKeyRange(
             case EBinaryOp::LessOrEqual:
                 if (rightTernaryCmp > 0) {
                     currentRightBound = constraintBound;
-                    if (keyPartIndex + 1 < keyColumns.size()) {
+                    if (keyPartIndex + 1 < keySize) {
                         extendToRightWithMax(result.second, keyPartIndex);
                     } else {
                         AdvanceToValueSuccessor(currentRightBound);
