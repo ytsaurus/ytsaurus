@@ -520,8 +520,8 @@ public:
 
             case EPeerState::FollowerRecovery:
                 if (!epochContext->FollowerRecovery) {
-                    LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s)",
-                        ~ToString(committedVersion),
+                    LOG_INFO("Received sync ping from leader (Version: %s, EpochId: %s)",
+                        ~ToString(loggedVersion),
                         ~ToString(epochId));
 
                     epochContext->FollowerRecovery = New<TFollowerRecovery>(
