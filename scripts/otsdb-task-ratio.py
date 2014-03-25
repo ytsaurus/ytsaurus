@@ -29,12 +29,18 @@ def load_data(timestamp, metric, fetch_window):
     params = {'start' : get_timestamp_str(timestamp - fetch_window),
               'end' : get_timestamp_str(timestamp),
               'm' : 'sum:' + metric + CONFIG['tags']}
-    for host in CONFIG['hosts']:
+    print >>sys.stderr, 'Loading data'
+    hosts = CONFIG['hosts']
+    for i in xrange(0, len(hosts)):
+        host = hosts[i]
         try:
+            print >>sys.stderr, 'Trying to collect data from ' + host + '\n'
             otsdb_url = 'http://' + host + '/q?'
             otsdb_url += urllib.urlencode(params).replace('%3A', ':').replace('%2F', '/')
             otsdb_url += '&ascii'
-            return urllib2.urlopen(otsdb_url, timeout = 30).read()
+            hosts[0], hosts[i] = hosts[i], hosts[0]
+            print >>sys.stderr, 'Data collected from ' + host + '\n'
+            return urllib2.urlopen(otsdb_url, timeout = 10).read()
         except:
             print >>sys.stderr, 'Failed to collect data from ' + host + '\n' + \
                                 traceback.format_exc()
