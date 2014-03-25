@@ -70,7 +70,7 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
     YCHECK(snapshotId <= targetVersion.SegmentId);
     YCHECK(currentVersion <= targetVersion);
 
-    LOG_INFO("Recovering from %s to %s",
+    LOG_INFO("Recoverying from %s to %s",
         ~ToString(currentVersion),
         ~ToString(targetVersion));
 
