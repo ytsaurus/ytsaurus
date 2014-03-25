@@ -417,6 +417,16 @@ def add_reduce_parser(add_parser):
     parser.add_argument("--reduce-by", action="append")
     parser.set_defaults(func=reduce)
 
+def remote_copy(args):
+    yt.run_remote_copy(args.src, args.dst, args.cluster)
+
+def add_remote_copy_parser(add_parser):
+    parser = add_parser("remote-copy", help="run reduce operation")
+    parser.add_argument("--src", action="append", required=True)
+    parser.add_argument("--dst", required=True)
+    parser.add_argument("--cluster", required=True)
+    parser.set_defaults(func=remote_copy)
+
 def map_reduce(args):
     yt.run_map_reduce(args.mapper, args.reducer, args.src, args.dst,
                       map_files=args.map_local_file, map_file_paths=args.map_file,
@@ -627,6 +637,7 @@ def main():
     add_map_parser(add_parser)
     add_reduce_parser(add_parser)
     add_map_reduce_parser(add_parser)
+    add_remote_copy_parser(add_parser)
     add_abort_op_parser(add_parser)
     add_suspend_op_parser(add_parser)
     add_resume_op_parser(add_parser)
