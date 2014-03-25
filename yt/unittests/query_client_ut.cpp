@@ -1093,6 +1093,52 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
     EXPECT_EQ(BuildKey("50;" _MAX_ ";" _MAX_), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, NormalizeExtraMinToSuccessor)
+{
+    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TIntegerLiteralExpression>(1));
+    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("l"),
+        Make<TIntegerLiteralExpression>(1));
+    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("m"),
+        Make<TIntegerLiteralExpression>(1));
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns(),
+        std::make_pair(BuildKey("1;1;1"), BuildKey("2;2;1;" _MIN_)),
+        Make<TBinaryOpExpression>(EBinaryOp::And,
+            Make<TBinaryOpExpression>(EBinaryOp::And,
+                conj1, conj2), conj3));
+
+    EXPECT_EQ(BuildKey("1;1;1"), result.first);
+    EXPECT_EQ(BuildKey("1;1;2"), result.second);
+}
+
+TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
+{
+    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TIntegerLiteralExpression>(1));
+    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("l"),
+        Make<TIntegerLiteralExpression>(2));
+    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("m"),
+        Make<TIntegerLiteralExpression>(3));
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns(),
+        std::make_pair(BuildKey("1"), BuildKey("2")),
+        Make<TBinaryOpExpression>(EBinaryOp::And,
+            Make<TBinaryOpExpression>(EBinaryOp::And,
+                conj1, conj2), conj3));
+
+    EXPECT_EQ(BuildKey("1;2;3"), result.first);
+    EXPECT_EQ(BuildKey("1;2;4"), result.second);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)

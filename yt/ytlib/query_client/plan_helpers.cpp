@@ -79,37 +79,36 @@ TKeyRange RefineKeyRange(
     TKeyRange result = keyRange;
     TConstraints constraints;
 
-    const size_t keySize = keyColumns.size();
+    const int keySize = static_cast<int>(keyColumns.size());
 
     auto normalizeKey =
     [&] (TKey& key) {
         if (keySize == 0) {
             return;
         }
-        if (key.GetCount() == 0) {
-            TUnversionedOwningRowBuilder builder(keySize);
-            for (size_t index = 0; index < keySize; ++index) {
-                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
+        int lastMinIndex = key.GetCount();
+        while (lastMinIndex > 0) {
+            if (key[lastMinIndex - 1].Type != EValueType::Min) {
+                break;
             }
-            key = builder.GetRowAndReset();
-        } else if (key.GetCount() == keySize + 1 && key[keySize].Type == EValueType::Min) {
-            TUnversionedOwningRowBuilder builder(keySize);
-            for (size_t index = 0; index < keySize; ++index) {
-                builder.AddValue(key[index]);
-            }
-            key = builder.GetRowAndReset();
-            AdvanceToValueSuccessor(key[keySize - 1]);
-        } else if (key.GetCount() != keySize) {
-            TUnversionedOwningRowBuilder builder(keySize);
-            for (size_t index = 0; index < keySize; ++index) {
-                if (index < key.GetCount()) {
-                    builder.AddValue(key[index]);
-                } else {
-                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
-                }
-            }
-            key = builder.GetRowAndReset();
+            --lastMinIndex;
         }
+        YCHECK(lastMinIndex <= keySize);
+        YCHECK(key.GetCount() <= 1 + keySize);
+        TUnversionedOwningRowBuilder builder(keySize);
+        // Copy non-MIN components.
+        for (int index = 0; index < lastMinIndex; ++index) {
+            builder.AddValue(key[index]);
+        }
+        // Pad with MINs.
+        for (int index = lastMinIndex; index < keySize; ++index) {
+            builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
+        }
+        // Absorb extra explicit MIN if any.
+        if (lastMinIndex != key.GetCount() && lastMinIndex == keySize && lastMinIndex > 0) {
+            AdvanceToValueSuccessor(key[lastMinIndex - 1]);
+        }
+        key = builder.GetRowAndReset();
     };
 
     normalizeKey(result.first);
