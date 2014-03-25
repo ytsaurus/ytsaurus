@@ -244,8 +244,6 @@ void OnYPathResponse(
 TFuture<TSharedRefArray>
 ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 {
-    NLog::TLogger Logger(service->GetLoggingCategory());
-
     IYPathServicePtr suffixService;
     TYPath suffixPath;
     try {
