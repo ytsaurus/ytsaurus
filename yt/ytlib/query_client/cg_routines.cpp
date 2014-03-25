@@ -68,7 +68,8 @@ void ScanOpHelper(
             bool hasMoreData = reader->Read(&rows);
             bool shouldWait = rows.empty();
 
-            consumeRows(consumeRowsClosure, rows.data(), rows.size());
+            std::vector<TRow> ownedRows =  P->RowBuffer->Capture(rows);
+            consumeRows(consumeRowsClosure, ownedRows.data(), ownedRows.size());
             rows.clear();
 
             if (!hasMoreData) {

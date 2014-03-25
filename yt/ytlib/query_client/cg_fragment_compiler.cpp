@@ -141,9 +141,9 @@ Constant* CodegenNullValue(TCGIRBuilder& builder, Type* type)
         return ConstantInt::get(type, 0);
     } else if (type->isDoubleTy()) {
         return ConstantFP::get(type, 0);
+    } else { // string
+        return llvm::ConstantAggregateZero::get(TypeBuilder<TGCString, false>::get(builder.getContext()));
     }
-
-    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +219,22 @@ Value* CodegenTypePtrFromRow(
     return typePtr;
 }
 
+Value* CodegenLengthPtrFromRow(
+    TCGIRBuilder& builder,
+    Value* row,
+    int index,
+    Twine name = Twine())
+{
+    Value* valuesPtr = CodegenValuesPtrFromRow(builder, row);
+    Value* typePtr = builder.CreateConstGEP2_32(
+        valuesPtr,
+        index,
+        TypeBuilder<TValue, false>::Fields::Length,
+        name + ".lengthPtr");
+
+    return typePtr;
+}
+
 void CodegenIsNull(
     TCGIRBuilder& builder,
     Value* row,
@@ -258,7 +274,29 @@ Value* CodegenDataFromRow(
     builder.SetInsertPoint(getterBB);
 
     Value* dataPtr = CodegenDataPtrFromRow(builder, row, index, type, name);
-    Value* data = builder.CreateLoad(dataPtr);
+    Value* data = nullptr;
+
+    if (type == EValueType::String) {
+        Value* strValue = builder.CreateAlloca(TypeBuilder<TGCString, false>::get(builder.getContext()));
+        Value* lengthPtr = CodegenLengthPtrFromRow(builder, row, index);
+
+        builder.CreateStore(builder.CreateLoad(lengthPtr), builder.CreateConstGEP2_32(
+            strValue,
+            0,
+            TypeBuilder<TGCString, false>::Fields::Length,
+            "strLen"));
+
+        builder.CreateStore(builder.CreateLoad(dataPtr), builder.CreateConstGEP2_32(
+            strValue,
+            0,
+            TypeBuilder<TGCString, false>::Fields::Ptr,
+            "strPtr"));
+
+        data = builder.CreateLoad(strValue);
+    } else {
+        data = builder.CreateLoad(dataPtr);
+    }
+
     builder.CreateBr(resultBB);
     getterBB = builder.GetInsertBlock();
 
@@ -300,8 +338,7 @@ void CodegenSetRowValue(
 {
     Value* idPtr = CodegenIdPtrFromRow(builder, row, index);
     Value* typePtr = CodegenTypePtrFromRow(builder, row, index);
-    Value* dataPtr = CodegenDataPtrFromRow(builder, row, index, type);
-
+    
     builder.CreateStore(builder.getInt16(id), idPtr);
     builder.CreateStore(
         builder.CreateSelect(
@@ -309,7 +346,22 @@ void CodegenSetRowValue(
             builder.getInt16(EValueType::Null),
             builder.getInt16(type)),
         typePtr);
-    builder.CreateStore(data, dataPtr);
+
+    Value* dataPtr = CodegenDataPtrFromRow(builder, row, index, type);
+
+    if (type == EValueType::String) {
+        Value* lengthPtr = CodegenLengthPtrFromRow(builder, row, index);
+
+        builder.CreateStore(
+            builder.CreateExtractValue(data, TypeBuilder<TGCString, false>::Fields::Length),
+            lengthPtr);
+
+        builder.CreateStore(
+            builder.CreateExtractValue(data, TypeBuilder<TGCString, false>::Fields::Ptr),
+            dataPtr);
+    } else {
+        builder.CreateStore(data, dataPtr);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -811,9 +863,6 @@ void TCGContext::CodegenGroupOp(
             const auto& name = op->GetGroupItem(index).Name;
             auto id = nameTable->GetId(name);
             auto type = expr->GetType(sourceTableSchema);
-
-            // TODO(sandello): Others are unsupported.
-            YCHECK(type == EValueType::Integer);
 
             Value* isNullPtr = innerBuilder.CreateAlloca(builder.getInt1Ty(), 0, "isNullPtr");
             innerBuilder.CreateStore(builder.getFalse(), isNullPtr);

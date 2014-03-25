@@ -76,6 +76,9 @@ typedef
 const int MaxRowsPerRead  = 512;
 const int MaxRowsPerWrite = 512;
 
+struct TGCString
+{ };
+
 namespace NDetail {
 
 template <class T>
@@ -146,6 +149,7 @@ using NYT::NQueryClient::TValue;
 using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TPassedFragmentParams;
+using NYT::NQueryClient::TGCString;
 
 // Opaque types
 
@@ -261,6 +265,25 @@ public:
     enum Fields
     {
         Header
+    };
+};
+
+template <bool Cross>
+class TypeBuilder<TGCString, Cross>
+{
+public:
+    static StructType* get(LLVMContext& context)
+    {
+        return StructType::get(
+            TypeBuilder<ui32, Cross>::get(context),
+            TypeBuilder<const char*, Cross>::get(context),
+            nullptr);
+    }
+
+    enum Fields
+    {
+        Length,
+        Ptr
     };
 };
 

@@ -1276,9 +1276,6 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
-            .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
-
         ReaderMock_ = New<StrictMock<TReaderMock>>();
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
@@ -1293,7 +1290,8 @@ protected:
     void Evaluate(
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
-        const std::vector<TUnversionedOwningRow>& owningResult)
+        const std::vector<TUnversionedOwningRow>& owningResult,
+        const TDataSplit& dataSplit)
     {
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .Guarded()
@@ -1301,7 +1299,8 @@ protected:
             .Run(
                 query,
                 owningSource,
-                owningResult)
+                owningResult,
+                dataSplit)
             .Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
@@ -1309,8 +1308,12 @@ protected:
     void DoEvaluate(
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
-        const std::vector<TUnversionedOwningRow>& owningResult)
+        const std::vector<TUnversionedOwningRow>& owningResult,
+        const TDataSplit& dataSplit)
     {
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillOnce(Return(WrapInFuture(dataSplit)));
+
         std::vector<TRow> source(owningSource.size());
         std::vector<TRow> result(owningResult.size());
         typedef const TRow (TUnversionedOwningRow::*TGetFunction)() const;
@@ -1380,7 +1383,28 @@ TEST_F(TQueryEvaluateTest, Simple)
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t]", source, result);
+    Evaluate("a, b FROM [//t]", source, result, simpleSplit);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, SimpleStrings)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::String);
+    auto simpleSplit = MakeSplit(columns);
+
+    std::vector<TUnversionedOwningRow> source;
+    source.push_back(BuildRow("a=4;b=5;c=abc", simpleSplit, false));
+    source.push_back(BuildRow("a=10;b=11;c=cde", simpleSplit, false));
+    
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("a=4;b=5;c=abc", simpleSplit, false));
+    result.push_back(BuildRow("a=10;b=11;c=cde", simpleSplit, false));
+
+    Evaluate("a, b, c FROM [//t]", source, result, simpleSplit);
 
     SUCCEED();
 }
@@ -1401,7 +1425,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
     std::vector<TUnversionedOwningRow> result;
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a between 9 and 11", source, result);
+    Evaluate("a, b FROM [//t] where a between 9 and 11", source, result, simpleSplit);
 
     SUCCEED();
 }
@@ -1423,7 +1447,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a in (4, 10)", source, result);
+    Evaluate("a, b FROM [//t] where a in (4, 10)", source, result, simpleSplit);
 
     SUCCEED();
 }
@@ -1446,7 +1470,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
     result.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
     result.push_back(BuildRow("a=16", simpleSplit, true));
 
-    Evaluate("a, b, c FROM [//t] where a > 3", source, result);
+    Evaluate("a, b, c FROM [//t] where a > 3", source, result, simpleSplit);
 
     SUCCEED();
 }
@@ -1478,7 +1502,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
     result.push_back(BuildRow("a=5;", resultSplit, true));
     result.push_back(BuildRow("a=7;", resultSplit, true));
 
-    Evaluate("a, b + c as x FROM [//t] where a < 10", source, result);
+    Evaluate("a, b + c as x FROM [//t] where a < 10", source, result, simpleSplit);
 
     SUCCEED();
 }
@@ -1512,7 +1536,50 @@ TEST_F(TQueryEvaluateTest, Complex)
     result.push_back(BuildRow("x=0;t=200", simpleSplit, false));
     result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
 
-    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result, simpleSplit);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, ComplexStrings)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::String);
+    columns.emplace_back("b", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=x;b=10",
+        "a=y;b=20",
+        "a=x;b=30",
+        "a=x;b=40",
+        "b=42",
+        "a=x;b=50",
+        "a=y;b=60",
+        "a=yz;b=70",
+        "b=13",
+        "a=y;b=80",
+        "b=3",
+        "a=x;b=90"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, true));
+    }
+
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.emplace_back("x", EValueType::String);
+    resultColumns.emplace_back("t", EValueType::Integer);
+    auto resultSplit = MakeSplit(resultColumns);
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("x=y;t=160", resultSplit, true));
+    result.push_back(BuildRow("x=x;t=210", resultSplit, true));
+    result.push_back(BuildRow("t=55", resultSplit, true));
+    result.push_back(BuildRow("x=yz;t=70", resultSplit, true));
+
+    Evaluate("x, sum(b) as t FROM [//t] where b > 10 group by a as x", source, result, simpleSplit);
 
     SUCCEED();
 }
@@ -1557,7 +1624,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     result.push_back(BuildRow("x=0;t=200;y=200", resultSplit, true));
     result.push_back(BuildRow("y=6", resultSplit, true));
 
-    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", source, result);
+    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", source, result, simpleSplit);
 
     SUCCEED();
 }
