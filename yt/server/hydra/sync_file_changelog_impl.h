@@ -120,12 +120,6 @@ struct TChangelogIndexRecord
         : FilePosition(filePosition)
         , RecordId(recordIndex)
     { }
-
-
-    bool operator < (const TChangelogIndexRecord& other) const
-    {
-        return RecordId < other.RecordId;
-    }
 };
 
 static_assert(sizeof(TChangelogIndexRecord) == 12, "Binary size of TLogIndexRecord has changed.");
@@ -219,7 +213,7 @@ private:
     void ReadIndex();
 
     //! Reads piece of changelog containing both #firstRecordId and #lastRecordId.
-    TEnvelopeData ReadEnvelope(int firstRecordId, int lastRecordId);
+    TEnvelopeData ReadEnvelope(int firstRecordId, int lastRecordId, i64 maxBytes = -1);
 
     //! Reads changelog starting from the last indexed record until the end of file.
     void ReadChangelogUntilEnd();

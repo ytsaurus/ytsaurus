@@ -148,6 +148,16 @@ size_t GetMaxCorrectIndexPrefix(
 
 // This method uses forward iterator instead of reverse because they work faster.
 // Asserts if last not greater element is absent.
+bool RecordIdComparator(const TChangelogIndexRecord& lhs, const TChangelogIndexRecord& rhs)
+{
+    return lhs.RecordId < rhs.RecordId;
+}
+
+bool FilePositionComparator(const TChangelogIndexRecord& lhs, const TChangelogIndexRecord& rhs)
+{
+    return lhs.FilePosition < rhs.FilePosition;
+}
+
 template <class T>
 typename std::vector<T>::const_iterator LastNotGreater(
     const std::vector<T>& vec,
@@ -159,12 +169,33 @@ typename std::vector<T>::const_iterator LastNotGreater(
     return res;
 }
 
+template <class T, class TComparator>
+typename std::vector<T>::const_iterator LastNotGreater(
+    const std::vector<T>& vec,
+    const T& value,
+    TComparator comparator)
+{
+    auto res = std::upper_bound(vec.begin(), vec.end(), value, comparator);
+    YCHECK(res != vec.begin());
+    --res;
+    return res;
+}
+
 template <class T>
 typename std::vector<T>::const_iterator FirstGreater(
     const std::vector<T>& vec,
     const T& value)
 {
     return std::upper_bound(vec.begin(), vec.end(), value);
+}
+
+template <class T, class TComparator>
+typename std::vector<T>::const_iterator FirstGreater(
+    const std::vector<T>& vec,
+    const T& value,
+    TComparator comparator)
+{
+    return std::upper_bound(vec.begin(), vec.end(), value, comparator);
 }
 
 } // namespace
@@ -342,15 +373,13 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
     int lastRecordId = firstRecordId + maxRecords;
 
     // Read envelope piece of changelog.
-    // TODO(babenko): use maxBytes limit
-    auto envelope = ReadEnvelope(firstRecordId, lastRecordId);
+    auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
 
     // Read records from envelope data and save them to the records.
-    // TODO(babenko): this is suboptimal since for small maxSize values we actually read way more than needed.
     i64 readSize = 0;
     TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
     for (int recordId = envelope.GetStartRecordId();
-         recordId < envelope.GetEndRecordId() && readSize <= maxBytes;
+         recordId < envelope.GetEndRecordId();
          ++recordId)
     {
         // Read and check header.
@@ -419,7 +448,7 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
                 ? envelope.LowerBound
                 : envelope.UpperBound;
             auto indexPosition =
-                std::lower_bound(Index_.begin(), Index_.end(), cutBound) -
+                std::lower_bound(Index_.begin(), Index_.end(), cutBound, RecordIdComparator) -
                 Index_.begin();
             Index_.resize(indexPosition);
         }
@@ -619,7 +648,8 @@ void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd()
 
 TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope(
     int firstRecordId,
-    int lastRecordId)
+    int lastRecordId,
+    i64 maxBytes)
 {
     YCHECK(!Index_.empty());
 
@@ -627,9 +657,13 @@ TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope
     TGuard<TMutex> guard(Mutex_);
 
     TEnvelopeData result;
-    result.LowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1));
+    result.LowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1), RecordIdComparator);
     
-    auto it = FirstGreater(Index_, TChangelogIndexRecord(lastRecordId, -1));
+    auto it = FirstGreater(Index_, TChangelogIndexRecord(lastRecordId, -1), RecordIdComparator);
+    if (maxBytes != -1) {
+        i64 maxFilePosition = result.LowerBound.FilePosition + maxBytes;
+        it = std::min(it, FirstGreater(Index_, TChangelogIndexRecord(-1, maxFilePosition), FilePositionComparator));
+    }
     result.UpperBound =
         it != Index_.end() ?
         *it :
