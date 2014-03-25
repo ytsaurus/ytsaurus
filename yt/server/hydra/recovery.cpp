@@ -445,7 +445,7 @@ TError TFollowerRecovery::PostponeChangelogRotation(
         ~ToString(PostponedVersion));
 
     ++PostponedVersion.SegmentId;
-    PostponedVersion.SegmentId = 0;
+    PostponedVersion.RecordId = 0;
 
     return TError();
 }
