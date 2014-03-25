@@ -637,8 +637,6 @@ public:
 
             case EPeerState::FollowerRecovery:
                 if (epochContext->FollowerRecovery) {
-                    LOG_DEBUG("AdvanceSegment: postponing changelog rotation");
-
                     auto error = epochContext->FollowerRecovery->PostponeChangelogRotation(version);
                     if (!error.IsOK()) {
                         LOG_ERROR(error);
