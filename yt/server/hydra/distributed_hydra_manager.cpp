@@ -939,6 +939,7 @@ public:
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        AutomatonEpochContext_ = epochContext;
         DecoratedAutomaton_->OnStartLeading();
         StartLeading_.Fire();
 
@@ -965,8 +966,6 @@ public:
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-            AutomatonEpochContext_ = epochContext;
 
             auto version = DecoratedAutomaton_->GetLoggedVersion();
             auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(version);
@@ -1067,6 +1066,7 @@ public:
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        AutomatonEpochContext_ = epochContext;
         DecoratedAutomaton_->OnStartFollowing();
         StartFollowing_.Fire();
     }
@@ -1080,8 +1080,6 @@ public:
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-            AutomatonEpochContext_ = epochContext;
 
             auto asyncRecoveryResult = epochContext->FollowerRecovery->Run(syncVersion);
             auto recoveryResult = WaitFor(asyncRecoveryResult);
