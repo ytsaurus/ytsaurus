@@ -8,7 +8,7 @@ from acl_commands import check_permission, add_member, remove_member
 from table_commands import create_table, create_temp_table, write_table, read_table, \
                            records_count, is_sorted, is_empty, \
                            run_erase, run_sort, run_merge, \
-                           run_map, run_reduce, run_map_reduce, \
+                           run_map, run_reduce, run_map_reduce, run_remote_copy, \
                            mount_table, unmount_table, reshard_table, select
 from operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation, WaitStrategy, AsyncStrategy
 from file_commands import download_file, upload_file, smart_upload_file
