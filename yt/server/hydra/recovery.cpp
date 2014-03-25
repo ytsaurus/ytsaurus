@@ -83,12 +83,14 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
         auto reader = readerOrError.Value();
 
         DecoratedAutomaton->LoadSnapshot(snapshotId, reader->GetStream());
+
+        currentVersion = TVersion(snapshotId, 0);
     } else {
         // Recover using changelogs only.
         LOG_INFO("Not using any snapshot for recovery");
     }
 
-    int prevRecordCount = ComputePrevRecordCount(targetVersion.SegmentId);
+    int prevRecordCount = ComputePrevRecordCount(currentVersion.SegmentId);
     ReplayChangelogs(targetVersion, prevRecordCount);
 }
 
