@@ -42,10 +42,19 @@
     #endif
 }
 
+// Special stray tokens to control parser flow.
+
+// NB: Enumerate stray tokens in decreasing order, e. g. 999, 998, and so on
+//     so that actual tokens won't change their identifiers.
+// NB: And keep one-character tokens consistent with their ASCII codes
+//     to simplify lexing.
+
 %token End 0 "end of stream"
 %token Failure 256 "lexer failure"
 
-// NB: Keep one-character tokens consistent with ASCII codes to simplify lexing.
+%token StrayWillParseQuery 999
+
+// Language tokens.
 
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
@@ -56,7 +65,6 @@
 %token KwOr "keyword `OR`"
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
-
 
 %token <TStringBuf> Identifier "identifier"
 
@@ -111,7 +119,7 @@
 %%
 
 head
-    : head-clause
+    : StrayWillParseQuery head-clause
         {
             *head = $[head-clause];
         }

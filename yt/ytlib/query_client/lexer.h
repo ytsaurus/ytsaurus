@@ -8,7 +8,10 @@ namespace NQueryClient {
 class TLexer
 {
 public:
-    TLexer(TPlanContext* context, const Stroka& source);
+    TLexer(
+        TPlanContext* context,
+        const Stroka& source,
+        TParser::token_type strayToken);
 
     TParser::token_type GetNextToken(
         TParser::semantic_type* yyval,
@@ -19,6 +22,9 @@ private:
 
 private:
     TPlanContext* Context_;
+
+    TParser::token_type StrayToken_;
+    bool InjectedStrayToken_;
 
     // Ragel state variables.
     // See Ragel User Manual for host interface specification.

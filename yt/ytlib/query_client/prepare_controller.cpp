@@ -121,7 +121,7 @@ void TPrepareController::ParseSource()
     // Hook up with debug information for better error messages.
     Context_->SetSource(Source_);
 
-    TLexer lexer(Context_.Get(), Source_);
+    TLexer lexer(Context_.Get(), Source_, TParser::token::StrayWillParseQuery);
     TParser parser(lexer, Context_.Get(), &Head_);
 
     int result = parser.parse();

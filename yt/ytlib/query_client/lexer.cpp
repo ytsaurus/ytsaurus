@@ -29,8 +29,13 @@ static const int Lexer_en_main = 6;
 
 } // namespace anonymous
 
-TLexer::TLexer(TPlanContext* context, const Stroka& source)
+TLexer::TLexer(
+    TPlanContext* context,
+    const Stroka& source,
+    TParser::token_type strayToken)
     : Context_(context)
+    , StrayToken_(strayToken)
+    , InjectedStrayToken_(false)
     , p(nullptr)
     , pe(nullptr)
     , eof(nullptr)
@@ -65,6 +70,13 @@ TParser::token_type TLexer::GetNextToken(
     TParser::location_type* location
 )
 {
+    if (!InjectedStrayToken_) {
+        InjectedStrayToken_ = true;
+        location->first = 0;
+        location->second = 0;
+        return StrayToken_;
+    }
+
     TParser::token_type type = TToken::End;
 
     location->first = p - s;
