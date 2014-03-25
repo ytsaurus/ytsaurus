@@ -59,6 +59,13 @@ protected:
      */
     void ReplayChangelog(IChangelogPtr changelog, int targetRecordId);
 
+    //! Computes the previous record count parameter for a given segment id.
+    /*!
+     *  First tries to open the corresponding changelog and extract its record count.
+     *  If no changelog exists, then tries to consult the corresponding snapshot.
+     */
+    int ComputePrevRecordCount(int segmentId);
+
 
     TDistributedHydraManagerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;

@@ -83,26 +83,13 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
         auto reader = readerOrError.Value();
 
         DecoratedAutomaton->LoadSnapshot(snapshotId, reader->GetStream());
-
-        auto snapshotParamsOrError = WaitFor(SnapshotStore->GetSnapshotParams(snapshotId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error getting snapshot parameters");
-        const auto& snapshotParams = snapshotParamsOrError.Value();
-
-        ReplayChangelogs(targetVersion, snapshotParams.PrevRecordCount);
     } else {
         // Recover using changelogs only.
         LOG_INFO("Not using any snapshot for recovery");
-
-        int prevRecordCount;
-        if (currentVersion.SegmentId == 0) {
-            prevRecordCount = NonexistingSegmentId;
-        } else {
-            auto changelog = ChangelogStore->OpenChangelogOrThrow(currentVersion.SegmentId - 1);
-            prevRecordCount = changelog->GetRecordCount();
-        }
-
-        ReplayChangelogs(targetVersion, prevRecordCount);
     }
+
+    int prevRecordCount = ComputePrevRecordCount(targetVersion.SegmentId);
+    ReplayChangelogs(targetVersion, prevRecordCount);
 }
 
 void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordCount)
@@ -290,6 +277,27 @@ void TRecovery::ReplayChangelog(IChangelogPtr changelog, int targetRecordId)
             DecoratedAutomaton->ApplyMutationDuringRecovery(data);
         }
     }
+}
+
+int TRecovery::ComputePrevRecordCount(int segmentId)
+{
+    YCHECK(segmentId >= 0);
+
+    if (segmentId == 0) {
+        return NonexistingSegmentId;
+    }
+
+    // Extract from changelog.
+    auto changelog = ChangelogStore->TryOpenChangelog(segmentId - 1);
+    if (changelog) {
+        return changelog->GetRecordCount();
+    }
+
+    // Extract from snapshot.
+    auto snapshotParamsOrError = WaitFor(SnapshotStore->GetSnapshotParams(segmentId));
+    THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error getting snapshot parameters");
+    const auto& snapshotParams = snapshotParamsOrError.Value();
+    return snapshotParams.PrevRecordCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
