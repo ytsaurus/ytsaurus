@@ -30,7 +30,7 @@ THydraServiceBase::THydraServiceBase(
 void THydraServiceBase::OnLeaderActive()
 {
     EpochAutomatonInvoker_ = ServiceHydraManager_
-        ->GetEpochContext()
+        ->GetAutomatonEpochContext()
         ->CancelableContext
         ->CreateInvoker(AutomatonInvoker_);
 }

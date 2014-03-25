@@ -267,7 +267,10 @@ private:
 
         auto this_ = MakeStrong(this);
         auto persistentTimestamp = PersistentTimestamp_;
-        auto invoker = HydraManager_->GetEpochContext()->CancelableContext->CreateInvoker(TimestampInvoker_);
+        auto invoker = HydraManager_
+            ->GetAutomatonEpochContext()
+            ->CancelableContext
+            ->CreateInvoker(TimestampInvoker_);
         auto callback = BIND([this, this_, persistentTimestamp] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 

@@ -804,7 +804,7 @@ void TObjectProxyBase::ValidateActiveLeader() const
 void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
 {
     auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    auto epochContext = hydraManager->GetEpochContext();
+    auto epochContext = hydraManager->GetAutomatonEpochContext();
 
     LOG_DEBUG("Forwarding request to leader");
 

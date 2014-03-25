@@ -246,8 +246,17 @@ public:
         return EpochContext_;
     }
 
+    virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return AutomatonEpochContext_;
+    }
+
     virtual bool IsMutating() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return GetMutationContext() != nullptr;
     }
 
@@ -340,6 +349,8 @@ public:
         const TMutationId& mutationId,
         const TMutationResponse& response) override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         DecoratedAutomaton_->RegisterKeptResponse(
             mutationId,
             response);
@@ -347,11 +358,15 @@ public:
 
     virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return DecoratedAutomaton_->FindKeptResponse(mutationId);
     }
 
     virtual TMutationContext* GetMutationContext() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return DecoratedAutomaton_->GetMutationContext();
     }
 
@@ -366,10 +381,11 @@ public:
     TAtomic ReadOnly_;
     EPeerState ControlState_;
 
-    NElection::TElectionManagerPtr ElectionManager_;
+    TElectionManagerPtr ElectionManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
     TEpochContextPtr EpochContext_;
+    TEpochContextPtr AutomatonEpochContext_;
 
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;
@@ -948,6 +964,8 @@ public:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+            AutomatonEpochContext_ = epochContext;
+
             auto version = DecoratedAutomaton_->GetLoggedVersion();
             auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(version);
             auto recoveryResult = WaitFor(asyncRecoveryResult);
@@ -1016,6 +1034,7 @@ public:
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        AutomatonEpochContext_.Reset();
         StopLeading_.Fire();
         DecoratedAutomaton_->OnStopLeading();
     }
@@ -1060,6 +1079,8 @@ public:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+            AutomatonEpochContext_ = epochContext;
+
             auto asyncRecoveryResult = epochContext->FollowerRecovery->Run(syncVersion);
             auto recoveryResult = WaitFor(asyncRecoveryResult);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1102,6 +1123,7 @@ public:
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        AutomatonEpochContext_.Reset();
         StopFollowing_.Fire();
         DecoratedAutomaton_->OnStopFollowing();
     }

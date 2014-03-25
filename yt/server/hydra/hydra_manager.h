@@ -55,11 +55,17 @@ struct IHydraManager
      */
     virtual bool IsActiveLeader() const = 0;
 
-    //! Returns the epoch context of the aggregated Election Manager.
+    //! Returns the current epoch context, unsynchronized and possibly racy.
     /*!
      *  \note Thread affinity: any
      */
     virtual NElection::TEpochContextPtr GetEpochContext() const = 0;
+
+    //! Returns the current epoch context, as viewed by the Automaton Thread.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const = 0;
 
     //! Commits a mutation.
     /*!

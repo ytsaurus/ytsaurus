@@ -519,7 +519,7 @@ private:
         EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
         for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
             EpochAutomatonInvokers_[queue] = HydraManager_
-                ->GetEpochContext()
+                ->GetAutomatonEpochContext()
                 ->CancelableContext
                 ->CreateInvoker(GetAutomatonInvoker(queue));
         }

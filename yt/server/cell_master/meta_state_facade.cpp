@@ -162,7 +162,9 @@ private:
     {
         YCHECK(EpochInvokers.empty());
 
-        auto cancelableContext = HydraManager->GetEpochContext()->CancelableContext;
+        auto cancelableContext = HydraManager
+            ->GetAutomatonEpochContext()
+            ->CancelableContext;
         for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
             EpochInvokers.push_back(cancelableContext->CreateInvoker(AutomatonQueue->GetInvoker(index)));
         }
