@@ -251,31 +251,44 @@ void TRecovery::ReplayChangelog(IChangelogPtr changelog, int targetRecordId)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(DecoratedAutomaton->GetAutomatonVersion().SegmentId == changelog->GetId());
 
-    int startRecordId = DecoratedAutomaton->GetAutomatonVersion().RecordId;
-    int recordCount = targetRecordId - startRecordId;
-    if (recordCount == 0)
-        return;
-
-    LOG_INFO("Reading records %d-%d from changelog %d",
-        startRecordId,
-        targetRecordId - 1,
-        changelog->GetId());
-
-    auto recordsData = changelog->Read(startRecordId, recordCount, std::numeric_limits<i64>::max());
-    if (recordsData.size() != recordCount) {
-        LOG_FATAL("Not enough records in changelog %d: expected %d, found %d",
+    if (changelog->GetRecordCount() < targetRecordId) {
+        LOG_FATAL("Not enough records in changelog %d: expected %d, actual %d",
             changelog->GetId(),
-            recordCount,
-            static_cast<int>(recordsData.size()));
+            targetRecordId,
+            changelog->GetRecordCount());
     }
 
-    LOG_INFO("Applying records %d-%d from changelog %d",
-        startRecordId,
-        targetRecordId - 1,
-        changelog->GetId());
+    while (true) {
+        int startRecordId = DecoratedAutomaton->GetAutomatonVersion().RecordId;
+        int recordsNeeded = targetRecordId - startRecordId;
+        YCHECK(recordsNeeded >= 0);
+        if (recordsNeeded == 0)
+            break;
+    
+        LOG_INFO("Trying to read records %d-%d from changelog %d",
+            startRecordId,
+            targetRecordId - 1,
+            changelog->GetId());
 
-    for (const auto& data : recordsData)  {
-        DecoratedAutomaton->ApplyMutationDuringRecovery(data);
+        auto recordsData = changelog->Read(
+            startRecordId,
+            recordsNeeded,
+            Config->MaxChangelogReadSize);
+        int recordsRead = static_cast<int>(recordsData.size());
+
+        LOG_INFO("Finished reading records %d-%d from changelog %d",
+            startRecordId,
+            startRecordId + recordsRead - 1,
+            changelog->GetId());
+
+        LOG_INFO("Applying records %d-%d from changelog %d",
+            startRecordId,
+            startRecordId + recordsRead - 1,
+            changelog->GetId());
+
+        for (const auto& data : recordsData)  {
+            DecoratedAutomaton->ApplyMutationDuringRecovery(data);
+        }
     }
 }
 

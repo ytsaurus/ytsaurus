@@ -277,7 +277,7 @@ public:
     //! Should we build snapshots at followers?
     bool BuildSnapshotsAtFollowers;
 
-    //! Maximum number of bytes to read in a single RPC request.
+    //! Maximum number of bytes to read from a changelog at once.
     i64 MaxChangelogReadSize;
 
     NElection::TElectionManagerConfigPtr Elections;
