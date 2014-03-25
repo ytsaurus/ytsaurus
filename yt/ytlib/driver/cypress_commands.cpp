@@ -76,7 +76,7 @@ void TRemoveCommand::DoExecute()
 void TListCommand::DoExecute()
 {
     TListNodesOptions options;
-    options.MaxSize = *Request_->MaxSize;
+    options.MaxSize = Request_->MaxSize;
     options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Request_->Attributes);
     SetTransactionalOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
