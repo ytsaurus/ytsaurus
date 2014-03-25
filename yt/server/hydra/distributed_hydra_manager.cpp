@@ -278,6 +278,8 @@ public:
 
     virtual TYsonProducer GetMonitoringProducer() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto this_ = MakeStrong(this);
         return BIND([this, this_] (IYsonConsumer* consumer) {
             auto tracker = GetFollowerTrackerAsync();
