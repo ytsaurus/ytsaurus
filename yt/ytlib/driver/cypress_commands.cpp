@@ -23,7 +23,7 @@ using namespace NConcurrency;
 void TGetCommand::DoExecute()
 {
     TGetNodeOptions options;
-    options.MaxSize = *Request_->MaxSize;
+    options.MaxSize = Request_->MaxSize;
     auto requestOptions = IAttributeDictionary::FromMap(Request_->GetOptions());
     options.Options = requestOptions.get();
     options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Request_->Attributes);
