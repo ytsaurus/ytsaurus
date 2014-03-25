@@ -228,12 +228,12 @@ def get_node_config():
             };
             file = {
                 type = file;
-                file_name = "node-0.log";
+                file_name = "{path}/{name}.log";
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
                 type = raw;
-                file_name = "node-0.debug.log";
+                file_name = "{path}/{name}.debug.log";
             };
         }
     };
