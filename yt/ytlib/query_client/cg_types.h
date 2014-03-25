@@ -120,7 +120,7 @@ public:
     bool operator() (TRow lhs, TRow rhs) const
     {
         for (int i = 0; i < KeySize_; ++i) {
-            if (CompareRowValues(lhs[i], rhs[i])) {
+            if (CompareRowValues(lhs[i], rhs[i]) != 0) {
                 return false;
             }
         }
