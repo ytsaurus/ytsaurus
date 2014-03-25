@@ -420,14 +420,16 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkFinished(
 template <class TChunkWriter>
 TAsyncError TMultiChunkSequentialWriter<TChunkWriter>::AsyncClose()
 {
-    YCHECK(!State.HasRunningOperation());
+    if (State.IsActive()) {
+        YCHECK(!State.HasRunningOperation());
 
-    State.StartOperation();
-    FinishCurrentSession();
+        State.StartOperation();
+        FinishCurrentSession();
 
-    CloseChunksAwaiter->Complete(BIND(
-        &TMultiChunkSequentialWriter::AttachChunks,
-        MakeWeak(this)));
+        CloseChunksAwaiter->Complete(BIND(
+            &TMultiChunkSequentialWriter::AttachChunks,
+            MakeWeak(this)));
+    }
 
     return State.GetOperationError();
 }
