@@ -124,10 +124,11 @@ public:
         ISnapshotStorePtr snapshotStore,
         const TEpochId& epoch,
         TPeerId leaderId,
-        IInvokerPtr epochStateInvoker);
+        IInvokerPtr epochStateInvoker,
+        TVersion syncVersion);
 
     //! Performs follower recovery bringing the follower up-to-date and synchronized with the leader.
-    TAsyncError Run(TVersion syncVersion);
+    TAsyncError Run();
 
     //! Postpones an incoming request for changelog rotation.
     TError PostponeChangelogRotation(TVersion version);
@@ -171,7 +172,7 @@ private:
     TPostponedMutations PostponedMutations;
     TVersion PostponedVersion;
 
-    void DoRun(TVersion syncVersion);
+    void DoRun();
 
     virtual bool IsLeader() const;
 

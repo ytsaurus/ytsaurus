@@ -360,7 +360,8 @@ TFollowerRecovery::TFollowerRecovery(
     ISnapshotStorePtr snapshotStore,
     const TEpochId& epochId,
     TPeerId leaderId,
-    IInvokerPtr epochAutomatonInvoker)
+    IInvokerPtr epochAutomatonInvoker,
+    TVersion syncVersion)
     : TRecovery(
         config,
         cellManager,
@@ -370,28 +371,25 @@ TFollowerRecovery::TFollowerRecovery(
         epochId,
         leaderId,
         epochAutomatonInvoker)
-{ }
+{
+    SyncVersion = PostponedVersion = syncVersion;
+}
 
-TAsyncError TFollowerRecovery::Run(TVersion syncVersion)
+TAsyncError TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    SyncVersion = syncVersion;
-
-    PostponedVersion = syncVersion;
-    PostponedMutations.clear();
 
     return BIND(&TFollowerRecovery::DoRun, MakeStrong(this))
         .Guarded()
         .AsyncVia(EpochAutomatonInvoker)
-        .Run(syncVersion);
+        .Run();
 }
 
-void TFollowerRecovery::DoRun(TVersion syncVersion)
+void TFollowerRecovery::DoRun()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    RecoverToVersion(syncVersion);
+    RecoverToVersion(SyncVersion);
 
     LOG_INFO("Checkpoint reached");
 

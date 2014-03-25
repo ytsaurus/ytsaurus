@@ -552,10 +552,11 @@ public:
                         SnapshotStore_,
                         epochContext->EpochId,
                         epochContext->LeaderId,
-                        epochContext->EpochSystemAutomatonInvoker);
+                        epochContext->EpochSystemAutomatonInvoker,
+                        loggedVersion);
 
                     epochContext->EpochControlInvoker->Invoke(
-                        BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this), loggedVersion));
+                        BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
                 }
                 break;
 
@@ -1073,7 +1074,7 @@ public:
         StartFollowing_.Fire();
     }
 
-    void RecoverFollower(TVersion syncVersion)
+    void RecoverFollower()
     {
         try {
             VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1083,7 +1084,7 @@ public:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            auto asyncRecoveryResult = epochContext->FollowerRecovery->Run(syncVersion);
+            auto asyncRecoveryResult = epochContext->FollowerRecovery->Run();
             auto recoveryResult = WaitFor(asyncRecoveryResult);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             THROW_ERROR_EXCEPTION_IF_FAILED(recoveryResult);
