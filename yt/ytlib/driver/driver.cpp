@@ -104,7 +104,7 @@ public:
         REGISTER(TListCommand,              "list",              Null,       Structured, false, false);
         REGISTER(TLockCommand,              "lock",              Null,       Structured, true,  false);
         REGISTER(TCopyCommand,              "copy",              Null,       Structured, true,  false);
-        REGISTER(TMoveCommand,              "move",              Null,       Null,       true,  false);
+        REGISTER(TMoveCommand,              "move",              Null,       Structured, true,  false);
         REGISTER(TLinkCommand,              "link",              Null,       Structured, true,  false);
         REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
 
