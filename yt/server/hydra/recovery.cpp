@@ -186,13 +186,6 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog)
         changelogId);
 
     int remoteRecordCount = rsp->record_count();
-    if (changelogId == SyncVersion.SegmentId && remoteRecordCount > SyncVersion.RecordId) {
-        THROW_ERROR_EXCEPTION("Follower has more records in changelog %d than the leader: %d > %d",
-            changelogId,
-            remoteRecordCount,
-            SyncVersion.RecordId);
-    }
-
     int localRecordCount = changelog->GetRecordCount();
     // NB: Don't download records past the sync point since they are expected to be postponed.
     int syncRecordCount =
