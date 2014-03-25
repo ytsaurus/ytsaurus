@@ -36,6 +36,8 @@
 
 #include <server/election/election_manager.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NHydra {
 
@@ -264,14 +266,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return AtomicGet(ReadOnly_);
+        return ReadOnly_;
     }
 
     virtual void SetReadOnly(bool value) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        AtomicSet(ReadOnly_, value);
+        ReadOnly_ = value;
     }
 
     virtual TYsonProducer GetMonitoringProducer() override
@@ -321,7 +323,7 @@ public:
                 "Not a leader")));
         }
 
-        if (AtomicGet(ReadOnly_)) {
+        if (ReadOnly_) {
             return MakeFuture(TErrorOr<TMutationResponse>(TError(
                 NHydra::EErrorCode::ReadOnly,
                 "Read-only mode is active")));
@@ -378,7 +380,7 @@ public:
     IInvokerPtr AutomatonInvoker_;
     IChangelogStorePtr ChangelogStore_;
     ISnapshotStorePtr SnapshotStore_;
-    TAtomic ReadOnly_;
+    std::atomic<bool> ReadOnly_;
     EPeerState ControlState_;
 
     TElectionManagerPtr ElectionManager_;
