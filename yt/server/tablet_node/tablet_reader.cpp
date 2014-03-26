@@ -102,6 +102,12 @@ protected:
             return false;
         }
 
+        // Refill sessions with newly arrived rows requested in RefillSessions.
+        for (auto* session : RefillingSessions_) {
+            TryRefillSession(session);
+        }
+        RefillingSessions_.clear();
+
         while (ExhaustedSessions_.empty()) {
             const TUnversionedValue* currentKeyBegin = nullptr;
             const TUnversionedValue* currentKeyEnd = nullptr;
@@ -248,13 +254,6 @@ protected:
             Refilling_ = true;
             ReadyEvent_ = refillCollector->Complete()
                 .Apply(BIND([this, this_] (TError error) -> TError {
-                    if (error.IsOK()) {
-                        for (auto* session : RefillingSessions_) {
-                            TryRefillSession(session);
-                        }
-                    }
-
-                    RefillingSessions_.clear();
                     Refilling_ = false;
                     CheckFinished();
                     return error;
