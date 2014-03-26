@@ -364,6 +364,40 @@ TEST(TJsonParserTest, AttributesWithoutValue)
     );
 }
 
+TEST(TJsonParserTest, MemoryLimit1)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    auto config = New<TJsonFormatConfig>();
+    config->MemoryLimit = 10;
+
+    Stroka input = "{\"my_string\":\"with_long_long_value\"}";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock, config)
+    );
+}
+
+TEST(TJsonParserTest, MemoryLimit2)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("my_string"));
+        EXPECT_CALL(Mock, OnStringScalar("with_long_long_value"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "{\"my_string\":\"with_long_long_value\"}";
+
+    auto config = New<TJsonFormatConfig>();
+    config->MemoryLimit = 1000;
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
