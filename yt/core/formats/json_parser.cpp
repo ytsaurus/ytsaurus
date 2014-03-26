@@ -100,7 +100,11 @@ void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
 {
     FOREACH (const auto& pair, map) {
         if (IsAscii(pair.first)) {
-            Consumer->OnKeyedItem(pair.first);
+            if (IsSpecialJsonKey(pair.first)) {
+                Consumer->OnKeyedItem(pair.first.substr(1));
+            } else {
+                Consumer->OnKeyedItem(pair.first);
+            }
         } else {
             Consumer->OnKeyedItem(Utf8ToByteString(pair.first));
         }
@@ -134,6 +138,9 @@ void TJsonParser::VisitMap(const TJsonValue::TMap& map)
         }
         VisitAny(value->second);
     } else {
+        if (map.find("$attributes") != map.end()) {
+            THROW_ERROR_EXCEPTION("Found key `$attributes` without key `$value`");
+        }
         Consumer->OnBeginMap();
         VisitMapItems(map);
         Consumer->OnEndMap();

@@ -351,6 +351,24 @@ TEST(TJsonWriterTest, AlwaysAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, SpecialKeys)
+{
+    TStringStream outputStream;
+    auto writer = CreateJsonConsumer(&outputStream);
+
+    writer->OnBeginMap();
+        writer->OnKeyedItem("$value");
+        writer->OnStringScalar("foo");
+        writer->OnKeyedItem("$$attributes");
+        writer->OnStringScalar("bar");
+        writer->OnKeyedItem("$other");
+        writer->OnIntegerScalar(42);
+    writer->OnEndMap();
+
+    Stroka output = "{\"$$value\":\"foo\",\"$$$attributes\":\"bar\",\"$other\":42}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

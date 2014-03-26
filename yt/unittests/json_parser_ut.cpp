@@ -333,6 +333,37 @@ TEST(TJsonParserTest, ListFragment)
     ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
 }
 
+TEST(TJsonParserTest, SpecialKeys)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("$$value"));
+        EXPECT_CALL(Mock, OnStringScalar("10"));
+        EXPECT_CALL(Mock, OnKeyedItem("$attributes"));
+        EXPECT_CALL(Mock, OnStringScalar("20"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "{\"$$$value\":\"10\",\"$$attributes\":\"20\"}\n";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
+}
+
+TEST(TJsonParserTest, AttributesWithoutValue)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "{\"$attributes\":\"20\"}";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
