@@ -563,7 +563,7 @@ Examples:
     if args.aborttx is not None:
         yt.abort_transaction(args.aborttx)
     if args.renewtx is not None:
-        yt.renew_transaction(args.renewtx)
+        yt.ping_transaction(args.renewtx)
 
     if args.ytlock is not None:
         print yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor)
