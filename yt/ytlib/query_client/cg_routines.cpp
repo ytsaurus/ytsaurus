@@ -28,10 +28,11 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
 {
     auto batch = P->Batch;
     auto writer = P->Writer;
+    auto rowBuffer = P->RowBuffer;
 
     YASSERT(batch->size() < batch->capacity());
 
-    batch->push_back(row);
+    batch->push_back(rowBuffer->Capture(row));
 
     if (batch->size() == batch->capacity()) {
         if (!writer->Write(*batch)) {
@@ -39,6 +40,7 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
         batch->clear();
+        rowBuffer->Clear();
     }
 }
 
@@ -65,11 +67,11 @@ void ScanOpHelper(
         rows.reserve(MaxRowsPerRead);
 
         while (true) {
+            P->ScratchSpace->Clear();
+
             bool hasMoreData = reader->Read(&rows);
             bool shouldWait = rows.empty();
-
-            std::vector<TRow> ownedRows =  P->RowBuffer->Capture(rows);
-            consumeRows(consumeRowsClosure, ownedRows.data(), ownedRows.size());
+            consumeRows(consumeRowsClosure, rows.data(), rows.size());
             rows.clear();
 
             if (!hasMoreData) {
@@ -115,14 +117,14 @@ void AddRow(
     TRow* newRow,
     int rowSize)
 {
-    groupedRows->push_back(*newRow);
+    groupedRows->push_back(P->RowBuffer->Capture(*newRow));
     lookupRows->insert(groupedRows->back());
-    *newRow = TRow::Allocate(P->RowBuffer->GetAlignedPool(), rowSize);
+    *newRow = TRow::Allocate(P->ScratchSpace, rowSize);
 }
 
 void AllocateRow(TPassedFragmentParams* P, int rowSize, TRow* rowPtr)
 {
-    *rowPtr = TRow::Allocate(P->RowBuffer->GetAlignedPool(), rowSize);
+    *rowPtr = TRow::Allocate(P->ScratchSpace, rowSize);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)

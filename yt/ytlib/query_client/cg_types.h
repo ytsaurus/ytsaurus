@@ -40,6 +40,7 @@ struct TPassedFragmentParams
     TPlanContext* Context;
     std::vector<TDataSplits>* DataSplitsArray;
     TRowBuffer* RowBuffer;
+    TChunkedMemoryPool* ScratchSpace;
     ISchemafulWriter* Writer;
     std::vector<TRow>* Batch;
 };
@@ -75,9 +76,6 @@ typedef
 
 const int MaxRowsPerRead  = 512;
 const int MaxRowsPerWrite = 512;
-
-struct TGCString
-{ };
 
 namespace NDetail {
 
@@ -149,7 +147,6 @@ using NYT::NQueryClient::TValue;
 using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TPassedFragmentParams;
-using NYT::NQueryClient::TGCString;
 
 // Opaque types
 
@@ -199,11 +196,11 @@ public:
     {
         switch (dataFields) {
             case Fields::Integer:
-                return TypeBuilder<i64*, Cross>::get(context);
+                return TypeBuilder<i64, Cross>::get(context);
             case Fields::Double:
-                return TypeBuilder<double*, Cross>::get(context);
+                return TypeBuilder<double, Cross>::get(context);
             case Fields::String:
-                return TypeBuilder<const char**, Cross>::get(context);
+                return TypeBuilder<const char*, Cross>::get(context);
         }
         YUNREACHABLE();
     }
@@ -213,16 +210,6 @@ template <bool Cross>
 class TypeBuilder<TValue, Cross>
 {
 public:
-    static StructType* get(LLVMContext& context)
-    {
-        return StructType::get(
-            TypeBuilder<ui16, Cross>::get(context),
-            TypeBuilder<ui16, Cross>::get(context),
-            TypeBuilder<ui32, Cross>::get(context),
-            TypeBuilder<TValueData, Cross>::get(context),
-            nullptr);
-    }
-
     enum Fields
     {
         Id,
@@ -230,6 +217,26 @@ public:
         Length,
         Data
     };
+
+    static ::llvm::Type* getFor(Fields field, LLVMContext& context)
+    {
+        switch (field) {
+            case Id:     return TypeBuilder<ui16, Cross>::get(context);
+            case Type:   return TypeBuilder<ui16, Cross>::get(context);
+            case Length: return TypeBuilder<ui32, Cross>::get(context);
+            case Data:   return TypeBuilder<TValueData, Cross>::get(context);
+        }
+    }
+
+    static ::llvm::StructType* get(LLVMContext& context)
+    {
+        return StructType::get(
+            getFor(Id, context),
+            getFor(Type, context),
+            getFor(Length, context),
+            getFor(Data, context),
+            nullptr);
+    }
 };
 
 template <bool Cross>
@@ -265,25 +272,6 @@ public:
     enum Fields
     {
         Header
-    };
-};
-
-template <bool Cross>
-class TypeBuilder<TGCString, Cross>
-{
-public:
-    static StructType* get(LLVMContext& context)
-    {
-        return StructType::get(
-            TypeBuilder<ui32, Cross>::get(context),
-            TypeBuilder<const char*, Cross>::get(context),
-            nullptr);
-    }
-
-    enum Fields
-    {
-        Length,
-        Ptr
     };
 };
 

@@ -64,6 +64,22 @@ std::vector<TUnversionedRow> TRowBuffer::Capture(const std::vector<TUnversionedR
     return capturedRows;
 }
 
+i64 TRowBuffer::GetSize() const
+{
+    return AlignedPool_.GetSize() + UnalignedPool_.GetSize();
+}
+
+i64 TRowBuffer::GetCapacity() const
+{
+    return AlignedPool_.GetCapacity() + UnalignedPool_.GetCapacity();
+}
+
+void TRowBuffer::Clear()
+{
+    AlignedPool_.Clear();
+    UnalignedPool_.Clear();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

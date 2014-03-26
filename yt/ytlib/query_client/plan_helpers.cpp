@@ -356,8 +356,7 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
         case EExpressionKind::DoubleLiteral:
             return EValueType::Double;
         case EExpressionKind::Reference:
-            // For reference expression, always trust cached type.
-            return sourceSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetName()).Type;
+            return sourceSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetColumnName()).Type;
         case EExpressionKind::Function:
             YUNIMPLEMENTED();
         case EExpressionKind::BinaryOp: {

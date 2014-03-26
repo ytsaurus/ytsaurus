@@ -317,6 +317,7 @@ public:
                 ~ToString(fragment.Id()));
 
             TRowBuffer rowBuffer;
+            TChunkedMemoryPool scratchSpace;
             std::vector<TRow> batch;
             batch.reserve(MaxRowsPerWrite);
 
@@ -325,6 +326,7 @@ public:
             passedFragmentParams.Context = fragment.GetContext().Get();
             passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
             passedFragmentParams.RowBuffer = &rowBuffer;
+            passedFragmentParams.ScratchSpace = &scratchSpace;
             passedFragmentParams.Writer = writer.Get();
             passedFragmentParams.Batch = &batch;
 
@@ -347,8 +349,10 @@ public:
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            LOG_DEBUG("Finished evaluating plan fragment (FragmentId: %s)",
-                ~ToString(fragment.Id()));
+            LOG_DEBUG("Finished evaluating plan fragment (FragmentId: %s, RowBufferCapacity: %" PRISZT ", ScratchSpaceCapacity: %" PRISZT ")",
+                ~ToString(fragment.Id()),
+                rowBuffer.GetCapacity(),
+                scratchSpace.GetCapacity());
         } catch (const std::exception& ex) {
             auto error = TError("Failed to evaluate plan fragment") << ex;
             LOG_ERROR(error);

@@ -31,6 +31,11 @@ public:
     TUnversionedRow Capture(TUnversionedRow row);
     std::vector<TUnversionedRow> Capture(const std::vector<TUnversionedRow>& rows);
 
+    i64 GetSize() const;
+    i64 GetCapacity() const;
+
+    void Clear();
+
 private:
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;

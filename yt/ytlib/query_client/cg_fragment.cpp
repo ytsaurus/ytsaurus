@@ -38,6 +38,12 @@ static auto& Logger = QueryClientLogger;
 static TLazyIntrusivePtr<NConcurrency::TActionQueue> McjitThread(
     NConcurrency::TActionQueue::CreateFactory("Mcjit"));
 
+static bool DumpIR()
+{
+    static bool result = (getenv("DUMP_IR") != nullptr);
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCGMemoryManager
@@ -159,10 +165,16 @@ public:
 private:
     void* Compile(llvm::Function* body)
     {
+        if (DumpIR()) {
+            llvm::errs() << "\n******** Before Optimization ***********************************\n";
+            Module_->dump();
+            llvm::errs() << "\n****************************************************************\n";
+        }
+
         YCHECK(!llvm::verifyModule(*Module_, &llvm::errs()));
 
         llvm::PassManagerBuilder passManagerBuilder;
-        passManagerBuilder.OptLevel = 1;
+        passManagerBuilder.OptLevel = 2;
         passManagerBuilder.SizeLevel = 0;
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
@@ -187,7 +199,12 @@ private:
 
         modulePassManager_->run(*Module_);
 
-        //Module_->dump();
+        if (DumpIR()) {
+            llvm::errs() << "\n******** After Optimization ************************************\n";
+            Module_->dump();
+            llvm::errs() << "\n****************************************************************\n";
+        }
+
         Engine_->finalizeObject();
 
         return Engine_->getPointerToFunction(body);
