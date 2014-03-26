@@ -27,6 +27,7 @@
 //    * string expressions with references (just need to copy string data)
 //    It is possible to do better memory management here.
 //  - TBAA is a king
+//  - Capture pointers by value in ViaClosure
 
 namespace NYT {
 namespace NQueryClient {
@@ -94,25 +95,49 @@ public:
         , Data_(other.Data_)
         , Name_(std::move(other.Name_))
     {
-        Type_ = nullptr;
-        Length_ = nullptr;
-        Data_ = nullptr;
+        other.Reset();
     }
 
-    ~TCGValue()
-    { }
+    TCGValue& operator=(TCGValue&& other)
+    {
+        YCHECK(&Builder_ == &other.Builder_);
+
+        Type_ = other.Type_;
+        Length_ = other.Length_;
+        Data_ = other.Data_;
+
+        other.Reset();
+
+        return *this;
+    }
 
     TCGValue&& Steal()
     {
         return std::move(*this);
     }
 
-    static TCGValue CreateFromValue(TCGIRBuilder& builder, Value* type, Value* length, Value* data, Twine name = Twine())
+    void Reset()
+    {
+        Type_ = nullptr;
+        Length_ = nullptr;
+        Data_ = nullptr;
+    }
+
+    static TCGValue CreateFromValue(
+        TCGIRBuilder& builder,
+        Value* type,
+        Value* length,
+        Value* data,
+        Twine name = Twine())
     {
         return TCGValue(builder, type, length, data, name);
     }
 
-    static TCGValue CreateFromRow(TCGIRBuilder& builder, Value* row, int index, Twine name = Twine())
+    static TCGValue CreateFromRow(
+        TCGIRBuilder& builder,
+        Value* row,
+        int index,
+        Twine name = Twine())
     {
         auto valuePtr = builder.CreateConstInBoundsGEP1_32(
             CodegenValuesPtrFromRow(builder, row),
@@ -130,7 +155,9 @@ public:
         return TCGValue(builder, type, length, data, name);
     }
 
-    static TCGValue CreateNull(TCGIRBuilder& builder, Twine name = Twine())
+    static TCGValue CreateNull(
+        TCGIRBuilder& builder,
+        Twine name = Twine())
     {
         return TCGValue(
             builder,
@@ -177,7 +204,8 @@ public:
     Value* IsNull()
     {
         // A little bit of manual constant folding.
-        if (auto* constantType = llvm::dyn_cast<ConstantInt>(Type_)) {
+        if (Type_ && llvm::isa<ConstantInt>(Type_)) {
+            auto* constantType = llvm::cast<ConstantInt>(Type_);
             if (constantType->getZExtValue() == EValueType::Null) {
                 return Builder_.getFalse();
             }
@@ -439,6 +467,7 @@ void CodegenForEachRow(
     // index = 0
     Value* indexPtr = builder.CreateAlloca(builder.getInt32Ty(), nullptr, "indexPtr");
     builder.CreateStore(builder.getInt32(0), indexPtr);
+    builder.CreateLifetimeStart(indexPtr, builder.getInt64(4));
     builder.CreateBr(condBB);
 
     builder.SetInsertPoint(condBB);
@@ -457,6 +486,7 @@ void CodegenForEachRow(
     builder.CreateBr(condBB);
 
     builder.SetInsertPoint(endloopBB);
+    builder.CreateLifetimeEnd(indexPtr, builder.getInt64(4));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -754,6 +784,7 @@ void TCGContext::CodegenProjectOp(
     CodegenOp(builder, op->GetSource(),
         [&] (TCGIRBuilder& innerBuilder, Value* row) {
             Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+            innerBuilder.CreateLifetimeStart(newRowPtr, innerBuilder.getInt64(sizeof(TRow)));
 
             innerBuilder.CreateCall3(
                 Fragment_.GetRoutine("AllocateRow"),
@@ -762,6 +793,7 @@ void TCGContext::CodegenProjectOp(
                 newRowPtr);
 
             Value* newRow = innerBuilder.CreateLoad(newRowPtr);
+            innerBuilder.CreateLifetimeEnd(newRowPtr);
 
             for (int index = 0; index < projectionCount; ++index) {
                 const auto& expr = op->GetProjection(index).Expression;

@@ -74,7 +74,7 @@ typedef
     std::remove_pointer<TCodegenedFunction>::type
     TCodegenedFunctionSignature;
 
-const int MaxRowsPerRead  = 512;
+const int MaxRowsPerRead = 512;
 const int MaxRowsPerWrite = 512;
 
 namespace NDetail {
