@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <core/ytree/yson_serializable.h>
-#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -89,7 +88,6 @@ class TJsonFormatConfig
 public:
     EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
-    i64 MemoryLimit;
 
     TJsonFormatConfig()
     {
@@ -97,8 +95,6 @@ public:
             .Default(EJsonFormat::Text);
         RegisterParameter("attributes_mode", AttributesMode)
             .Default(EJsonAttributesMode::OnDemand);
-
-        MemoryLimit = NTableClient::MaxRowWeightLimit;
     }
 };
 

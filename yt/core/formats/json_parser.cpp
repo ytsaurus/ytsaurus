@@ -43,9 +43,7 @@ void TJsonParser::Finish()
 void TJsonParser::ParseNode(TInputStream* input)
 {
     TJsonValue jsonValue;
-    TJsonReaderConfig config;
-    config.MemoryLimit = Config->MemoryLimit;
-    ReadJsonTree(input, &config, &jsonValue);
+    ReadJsonTree(input, &jsonValue);
     VisitAny(jsonValue);
 }
 
