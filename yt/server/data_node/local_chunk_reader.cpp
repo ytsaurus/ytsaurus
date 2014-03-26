@@ -121,7 +121,8 @@ private:
             if (result.IsOK()) {
                 Blocks_[index] = result.Value()->GetData();
             } else {
-                Promise_.TrySet(TError("Error reading local chunk"));
+                Promise_.TrySet(TError("Error reading local chunk")
+                    << result);
             }
         }
 
