@@ -53,11 +53,16 @@ public:
             .Default(9000);
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
-        RegisterParameter("cluster_connection", ClusterConnection);
-        RegisterParameter("data_node", DataNode);
-        RegisterParameter("exec_agent", ExecAgent);
-        RegisterParameter("tablet_node", TabletNode);
-        RegisterParameter("query_agent", QueryAgent);
+        RegisterParameter("cluster_connection", ClusterConnection)
+            .DefaultNew();
+        RegisterParameter("data_node", DataNode)
+            .DefaultNew();
+        RegisterParameter("exec_agent", ExecAgent)
+            .DefaultNew();
+        RegisterParameter("tablet_node", TabletNode)
+            .DefaultNew();
+        RegisterParameter("query_agent", QueryAgent)
+            .DefaultNew();
         RegisterParameter("jobs_to_master_channel", JobsToMasterChannel)
             .DefaultNew();
 
