@@ -56,6 +56,7 @@ def export_table(object, args):
     user_slots_path = "//sys/pools/{}/@resource_limits/user_slots".format(params.yt_pool)
     if not yt.exists(user_slots_path):
         logger.error("Use pool with bounded number of user slots")
+        return -1
     else:
         limit = params.speed_limit / yt.get(user_slots_path)
 
