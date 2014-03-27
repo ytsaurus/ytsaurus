@@ -219,8 +219,17 @@ void TPrepareController::TypecheckExpressions()
             }
         }
         if (auto* projectOp = op->As<TProjectOperator>()) {
+            const auto& schema = projectOp->GetSource()->GetTableSchema();
             for (auto& projection : projectOp->Projections()) {
-                projection.Expression->GetType(projectOp->GetSource()->GetTableSchema()); // Force typechecking.
+                projection.Expression->GetType(schema); // Force typechecking.
+            }
+        }
+        if (auto* groupOp = op->As<TGroupOperator>()) {
+            for (auto& groupItem : groupOp->GroupItems()) {
+                groupItem.Expression->GetType(schema); // Force typechecking.
+            }
+            for (auto& aggregateItem : groupOp->AggregateItems()) {
+                aggregateItem.Expression->GetType(schema); // Force typechecking.
             }
         }
     });
