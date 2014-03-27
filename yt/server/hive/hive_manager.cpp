@@ -224,7 +224,7 @@ private:
             firstMessageId,
             firstMessageId + request->messages_size() - 1);
         
-        CreateReceiveMessagesMutation(context)
+        CreatePostMessagesMutation(context)
             ->OnSuccess(CreateRpcSuccessHandler(context))
             ->Commit();
     }
@@ -266,23 +266,17 @@ private:
 
     void HydraPostMessages(TCtxPostMessagesPtr context, const TReqPostMessages& request)
     {
-        try {
-            auto srcCellGuid = FromProto<TCellGuid>(request.src_cell_guid());
-            auto* mailbox = GetOrCreateMailbox(srcCellGuid);
+        auto srcCellGuid = FromProto<TCellGuid>(request.src_cell_guid());
+        auto* mailbox = GetOrCreateMailbox(srcCellGuid);
 
-            HandleIncomingMessages(mailbox, request);
+        HandleIncomingMessages(mailbox, request);
 
-            if (context) {
-                auto* response = &context->Response();
-                int lastIncomingMessageId = mailbox->GetLastIncomingMessageId();
-                response->set_last_incoming_message_id(lastIncomingMessageId);
-                context->SetResponseInfo("LastIncomingMessageId: %d",
-                    lastIncomingMessageId);
-            }
-        } catch (const std::exception& ex) {
-            if (context) {
-                context->Reply(ex);
-            }
+        if (context) {
+            auto* response = &context->Response();
+            int lastIncomingMessageId = mailbox->GetLastIncomingMessageId();
+            response->set_last_incoming_message_id(lastIncomingMessageId);
+            context->SetResponseInfo("LastIncomingMessageId: %d",
+                lastIncomingMessageId);
         }
     }
 
@@ -464,7 +458,7 @@ private:
             &TImpl::HydraAcknowledgeMessages);
     }
 
-    TMutationPtr CreateReceiveMessagesMutation(TCtxPostMessagesPtr context)
+    TMutationPtr CreatePostMessagesMutation(TCtxPostMessagesPtr context)
     {
         return CreateMutation(HydraManager)
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
