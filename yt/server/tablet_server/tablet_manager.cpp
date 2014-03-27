@@ -467,12 +467,14 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
-            if (tablet->GetState() == ETabletState::Mounting) {
-                THROW_ERROR_EXCEPTION("Tablet %s is in %s state",
-                    ~ToString(tablet->GetId()),
-                    ~FormatEnum(tablet->GetState()).Quote());
+        if (!force) {
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = table->Tablets()[index];
+                if (tablet->GetState() == ETabletState::Mounting) {
+                    THROW_ERROR_EXCEPTION("Tablet %s is in %s state",
+                        ~ToString(tablet->GetId()),
+                        ~FormatEnum(tablet->GetState()).Quote());
+                }
             }
         }
 
