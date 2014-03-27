@@ -8,12 +8,12 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchemedDsvTable
+struct TSchemafulDsvTable
 {
     TLookupTable Stops;
     TEscapeTable Escapes;
 
-    TSchemedDsvTable(const TSchemedDsvFormatConfigPtr& config)
+    TSchemafulDsvTable(const TSchemafulDsvFormatConfigPtr& config)
     {
         std::vector<char> stopSymbols;
         stopSymbols.push_back(config->RecordSeparator);

@@ -9,13 +9,13 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, Simple)
+TEST(TSchemafulDsvWriterTest, Simple)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
     config->Columns.push_back("b");
-    TSchemedDsvWriter writer(&outputStream, config);
+    TSchemafulDsvWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -50,13 +50,13 @@ TEST(TSchemedDsvWriterTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, TableIndex)
+TEST(TSchemafulDsvWriterTest, TableIndex)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
     config->EnableTableIndex = true;
-    TSchemedDsvWriter writer(&outputStream, config);
+    TSchemafulDsvWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -94,13 +94,13 @@ TEST(TSchemedDsvWriterTest, TableIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, FailMode)
+TEST(TSchemafulDsvWriterTest, FailMode)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
-    config->MissingValueMode = TSchemedDsvFormatConfig::EMissingValueMode::Fail;
-    TSchemedDsvWriter writer(&outputStream, config);
+    config->MissingValueMode = TSchemafulDsvFormatConfig::EMissingValueMode::Fail;
+    TSchemafulDsvWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -120,14 +120,14 @@ TEST(TSchemedDsvWriterTest, FailMode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, PrintSentinelMode)
+TEST(TSchemafulDsvWriterTest, PrintSentinelMode)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
-    config->MissingValueMode = TSchemedDsvFormatConfig::EMissingValueMode::PrintSentinel;
+    config->MissingValueMode = TSchemafulDsvFormatConfig::EMissingValueMode::PrintSentinel;
     config->MissingValueSentinel = "null";
-    TSchemedDsvWriter writer(&outputStream, config);
+    TSchemafulDsvWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();

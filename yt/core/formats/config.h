@@ -201,7 +201,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemedDsvFormatConfig
+class TSchemafulDsvFormatConfig
     : public TYsonSerializable
 {
 public:
@@ -225,7 +225,7 @@ public:
     Stroka MissingValueSentinel;
 
 
-    TSchemedDsvFormatConfig()
+    TSchemafulDsvFormatConfig()
     {
         RegisterParameter("record_separator", RecordSeparator)
             .Default('\n');

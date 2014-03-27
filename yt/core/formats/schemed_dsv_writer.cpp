@@ -13,9 +13,9 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemedDsvWriter::TSchemedDsvWriter(
+TSchemafulDsvWriter::TSchemafulDsvWriter(
         TOutputStream* stream,
-        TSchemedDsvFormatConfigPtr config)
+        TSchemafulDsvFormatConfigPtr config)
     : Stream_(stream)
     , Config_(config)
     , Table_(Config_)
@@ -30,27 +30,27 @@ TSchemedDsvWriter::TSchemedDsvWriter(
     }
 }
 
-void TSchemedDsvWriter::OnDoubleScalar(double value)
+void TSchemafulDsvWriter::OnDoubleScalar(double value)
 {
     THROW_ERROR_EXCEPTION("Double values are not supported by schemed DSV");
 }
 
-void TSchemedDsvWriter::OnBeginList()
+void TSchemafulDsvWriter::OnBeginList()
 {
     THROW_ERROR_EXCEPTION("Lists are not supported by schemed DSV");
 }
 
-void TSchemedDsvWriter::OnListItem()
+void TSchemafulDsvWriter::OnListItem()
 {
     YASSERT(State_ == EState::None);
 }
 
-void TSchemedDsvWriter::OnEndList()
+void TSchemafulDsvWriter::OnEndList()
 {
     YUNREACHABLE();
 }
 
-void TSchemedDsvWriter::OnBeginAttributes()
+void TSchemafulDsvWriter::OnBeginAttributes()
 {
     if (State_ == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Attributes are not supported by schemed DSV");
@@ -60,13 +60,13 @@ void TSchemedDsvWriter::OnBeginAttributes()
     State_ = EState::ExpectAttributeName;
 }
 
-void TSchemedDsvWriter::OnEndAttributes()
+void TSchemafulDsvWriter::OnEndAttributes()
 {
     YASSERT(State_ == EState::ExpectEndAttributes);
     State_ = EState::ExpectEntity;
 }
 
-void TSchemedDsvWriter::OnBeginMap()
+void TSchemafulDsvWriter::OnBeginMap()
 {
     if (State_ == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Embedded maps are not supported by schemed DSV");
@@ -74,7 +74,7 @@ void TSchemedDsvWriter::OnBeginMap()
     YASSERT(State_ == EState::None);
 }
 
-void TSchemedDsvWriter::OnEntity()
+void TSchemafulDsvWriter::OnEntity()
 {
     if (State_ == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Entities are not supported by schemed DSV");
@@ -84,7 +84,7 @@ void TSchemedDsvWriter::OnEntity()
     State_ = EState::None;
 }
 
-void TSchemedDsvWriter::OnIntegerScalar(i64 value)
+void TSchemafulDsvWriter::OnIntegerScalar(i64 value)
 {
     if (State_ == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Integer values are not supported by schemed DSV");
@@ -103,7 +103,7 @@ void TSchemedDsvWriter::OnIntegerScalar(i64 value)
     State_ = EState::ExpectEndAttributes;
 }
 
-void TSchemedDsvWriter::OnStringScalar(const TStringBuf& value)
+void TSchemafulDsvWriter::OnStringScalar(const TStringBuf& value)
 {
     if (State_ == EState::ExpectValue) {
         Values_[CurrentKey_] = value;
@@ -114,7 +114,7 @@ void TSchemedDsvWriter::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TSchemedDsvWriter::OnKeyedItem(const TStringBuf& key)
+void TSchemafulDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
     if (State_ ==  EState::ExpectAttributeName) {
         ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(key));
@@ -128,16 +128,16 @@ void TSchemedDsvWriter::OnKeyedItem(const TStringBuf& key)
     }
 }
 
-void TSchemedDsvWriter::OnEndMap()
+void TSchemafulDsvWriter::OnEndMap()
 {
     YASSERT(State_ == EState::None);
 
     WriteRow();
 }
 
-void TSchemedDsvWriter::WriteRow()
+void TSchemafulDsvWriter::WriteRow()
 {
-    typedef TSchemedDsvFormatConfig::EMissingValueMode EMissingValueMode;
+    typedef TSchemafulDsvFormatConfig::EMissingValueMode EMissingValueMode;
 
     if (ValueCount_ != Keys_.size() && Config_->MissingValueMode == EMissingValueMode::Fail) {
         THROW_ERROR_EXCEPTION("Some column is missing in row");
@@ -171,7 +171,7 @@ void TSchemedDsvWriter::WriteRow()
     }
 }
 
-void TSchemedDsvWriter::EscapeAndWrite(const TStringBuf& value) const
+void TSchemafulDsvWriter::EscapeAndWrite(const TStringBuf& value) const
 {
     if (Config_->EnableEscaping) {
         WriteEscaped(
@@ -185,7 +185,7 @@ void TSchemedDsvWriter::EscapeAndWrite(const TStringBuf& value) const
     }
 }
 
-TSchemedDsvWriter::~TSchemedDsvWriter()
+TSchemafulDsvWriter::~TSchemafulDsvWriter()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
