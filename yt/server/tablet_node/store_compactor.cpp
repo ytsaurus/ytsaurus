@@ -365,9 +365,9 @@ private:
                         if (!reader->Read(&readRows)) {
                             return TVersionedRow();
                         }
+                        readRowCount += readRows.size();
                         if (!readRows.empty())
                             break;
-                        readRowCount += readRows.size();
                         auto result = WaitFor(reader->GetReadyEvent());
                         THROW_ERROR_EXCEPTION_IF_FAILED(result);
                     }
