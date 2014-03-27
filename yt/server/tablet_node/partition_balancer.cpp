@@ -99,8 +99,13 @@ private:
 
         const auto& config = tablet->GetConfig();
 
-        if (dataSize >  config->MaxPartitionDataSize && partitionCount < config->MaxPartitionCount) {
-            RunSplit(partition);
+        if (dataSize >  config->MaxPartitionDataSize) {
+            int splitFactor = static_cast<int>(std::min(
+                dataSize / config->DesiredPartitionDataSize + 1,
+                static_cast<i64>(config->MaxPartitionCount - partitionCount)));
+            if (splitFactor > 1) {
+                RunSplit(partition, splitFactor);
+            }
         }
         
         if (dataSize + tablet->GetEden()->GetTotalDataSize() < config->MinPartitionDataSize && partitionCount > 1) {
@@ -117,7 +122,7 @@ private:
     }
 
 
-    void RunSplit(TPartition* partition)
+    void RunSplit(TPartition* partition, int splitFactor)
     {
         if (partition->GetState() != EPartitionState::None)
             return;
@@ -131,10 +136,10 @@ private:
 
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write))
-            .Run(partition);
+            .Run(partition, splitFactor);
     }
 
-    void DoRunSplit(TPartition* partition)
+    void DoRunSplit(TPartition* partition, int splitFactor)
     {
         auto Logger = BuildLogger(partition);
 
@@ -142,7 +147,8 @@ private:
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Partition is eligible for split");
+        LOG_INFO("Partition is eligible for split (SplitFactor : %d)",
+            splitFactor);
 
         try {
             auto nodeDirectory = New<TNodeDirectory>();
@@ -193,26 +199,42 @@ private:
             }
 
             auto samples = fetcher->GetSamples();
+            samples.erase(
+                std::remove_if(
+                    samples.begin(),
+                    samples.end(),
+                    [&] (const TOwningKey& key) {
+                        return key < partition->GetPivotKey() || key >= partition->GetNextPivotKey();
+                    }),
+                samples.end());
+
             int sampleCount = static_cast<int>(samples.size());
-            if (sampleCount < Config_->SamplesFetcher->MinSampleCount) {
+            int minSampleCount = std::max(Config_->SamplesFetcher->MinSampleCount, splitFactor);
+            if (sampleCount < minSampleCount) {
                 THROW_ERROR_EXCEPTION("Too few samples fetched: %d < %d",
                     sampleCount,
-                    Config_->SamplesFetcher->MinSampleCount);
+                    minSampleCount);
             }
 
             std::sort(samples.begin(), samples.end());
-
-            const auto& splitKey = samples[sampleCount / 2];
-            if (splitKey == partition->GetPivotKey() || splitKey == partition->GetNextPivotKey()) {
-                THROW_ERROR_EXCEPTION("No valid split key can be obtained from samples");
+            
+            std::vector<TOwningKey> pivotKeys;
+            pivotKeys.push_back(partition->GetPivotKey());
+            for (int i = 0; i < splitFactor; ++i) {
+                int j = static_cast<int>(i * sampleCount / splitFactor);
+                const auto& key = samples[j];
+                if (key > pivotKeys.back()) {
+                    pivotKeys.push_back(key);
+                }
             }
 
-            LOG_INFO("Split key is %s", ~ToString(splitKey));
+            if (pivotKeys.size() < 2) {
+                THROW_ERROR_EXCEPTION("No valid pivot keys can be obtained from samples");
+            }
 
             TReqSplitPartition request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
-            ToProto(request.add_pivot_keys(), partition->GetPivotKey());
-            ToProto(request.add_pivot_keys(), splitKey);
+            ToProto(request.mutable_pivot_keys(), pivotKeys);
             CreateMutation(hydraManager, request)
                 ->Commit();
         } catch (const std::exception& ex) {

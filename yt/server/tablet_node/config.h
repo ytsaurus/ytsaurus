@@ -27,6 +27,7 @@ public:
     i64 UnalignedPoolSizeFlushThreshold;
 
     i64 MaxPartitionDataSize;
+    i64 DesiredPartitionDataSize;
     i64 MinPartitionDataSize;
 
     int MaxPartitionCount;
@@ -52,6 +53,9 @@ public:
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
+        RegisterParameter("desired_partition_data_size", MaxPartitionDataSize)
+            .Default((i64) 192 * 1024 * 1024)
+            .GreaterThan(0);
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
             .Default((i64) 16 * 1024 * 1024)
             .GreaterThan(0);
@@ -68,8 +72,11 @@ public:
             .GreaterThan(0);
 
         RegisterValidator([&] () {
-            if (MinPartitionDataSize >= MaxPartitionDataSize) {
-                THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"max_partition_data_size\"");
+            if (MinPartitionDataSize >= DesiredPartitionDataSize) {
+                THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
+            }
+            if (DesiredPartitionDataSize >= MaxPartitionDataSize) {
+                THROW_ERROR_EXCEPTION("\"desired_partition_data_size\" must be less than \"max_partition_data_size\"");
             }
         });
     }
