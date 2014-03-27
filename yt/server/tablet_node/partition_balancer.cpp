@@ -147,7 +147,7 @@ private:
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Partition is eligible for split (SplitFactor : %d)",
+        LOG_INFO("Partition is eligible for split (SplitFactor: %d)",
             splitFactor);
 
         try {
