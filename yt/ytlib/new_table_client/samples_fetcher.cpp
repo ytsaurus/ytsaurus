@@ -131,7 +131,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
     for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
         const auto& sampleResponse = rsp->sample_responses(index);
         if (sampleResponse.has_error()) {
-            OnChunkFailed(requestedChunkIndexes[index], nodeId);
+            OnChunkFailed(nodeId, requestedChunkIndexes[index]);
             continue;
         }
 

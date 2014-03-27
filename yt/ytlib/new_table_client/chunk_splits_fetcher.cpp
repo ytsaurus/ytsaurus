@@ -109,36 +109,37 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
 
     auto rsp = WaitFor(req->Invoke());
 
-    if (rsp->IsOK()) {
-        for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
-            const auto& responseChunks = rsp->splitted_chunks(i);
-            if (responseChunks.has_error()) {
-                OnChunkFailed(requestedChunkIndexes[i], nodeId);
-                continue;
-            }
-
-            LOG_TRACE("Received %d chunk splits for chunk #%d",
-                responseChunks.chunk_specs_size(),
-                requestedChunkIndexes[i]);
-
-            auto origin = Chunks_[requestedChunkIndexes[i]];
-
-            for (auto& responseChunk : responseChunks.chunk_specs()) {
-                auto split = New<TRefCountedChunkSpec>(std::move(responseChunk));
-                // Adjust chunk id (makes sense for erasure chunks only).
-                auto chunkId = NYT::FromProto<TChunkId>(split->chunk_id());
-                auto chunkIdWithIndex = DecodeChunkId(chunkId);
-                ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
-                split->set_table_index(origin->table_index());
-                ChunkSplits_.push_back(split);
-            }
-        }
-    } else {
+    if (!rsp->IsOK()) {
         LOG_WARNING("Failed to get chunk splits from node (Address: %s, NodeId: %d)",
             ~NodeDirectory_->GetDescriptor(nodeId).Address,
             nodeId);
 
         OnNodeFailed(nodeId, requestedChunkIndexes);
+        return;
+    }
+
+    for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
+        const auto& responseChunks = rsp->splitted_chunks(i);
+        if (responseChunks.has_error()) {
+            OnChunkFailed(nodeId, requestedChunkIndexes[i]);
+            continue;
+        }
+
+        LOG_TRACE("Received %d chunk splits for chunk #%d",
+            responseChunks.chunk_specs_size(),
+            requestedChunkIndexes[i]);
+
+        auto origin = Chunks_[requestedChunkIndexes[i]];
+
+        for (auto& responseChunk : responseChunks.chunk_specs()) {
+            auto split = New<TRefCountedChunkSpec>(std::move(responseChunk));
+            // Adjust chunk id (makes sense for erasure chunks only).
+            auto chunkId = NYT::FromProto<TChunkId>(split->chunk_id());
+            auto chunkIdWithIndex = DecodeChunkId(chunkId);
+            ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
+            split->set_table_index(origin->table_index());
+            ChunkSplits_.push_back(split);
+        }
     }
 }
 
