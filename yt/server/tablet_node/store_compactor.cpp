@@ -268,6 +268,8 @@ private:
             TOwningKey nextPivotKey;
 
             int currentPartitionRowCount = 0;
+            int readRowCount = 0;
+            int writeRowCount = 0;
             TVersionedMultiChunkWriterPtr currentWriter;
 
             TReqCommitTabletStoresUpdate updateStoresRequest;
@@ -309,6 +311,7 @@ private:
                 if (writeRows.empty())
                     return;
 
+                writeRowCount += writeRows.size();
                 if (!currentWriter->Write(writeRows)) {
                     auto result = WaitFor(currentWriter->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -364,6 +367,7 @@ private:
                         }
                         if (!readRows.empty())
                             break;
+                        readRowCount += readRows.size();
                         auto result = WaitFor(reader->GetReadyEvent());
                         THROW_ERROR_EXCEPTION_IF_FAILED(result);
                     }
@@ -405,10 +409,12 @@ private:
             
             SwitchTo(automatonInvoker);
 
+            YCHECK(readRowCount == writeRowCount);
+            LOG_INFO("Eden partitioning completed (RowCount: %d)",
+                readRowCount);
+
             CreateMutation(slot->GetHydraManager(), updateStoresRequest)
                 ->Commit();
-
-            LOG_INFO("Eden partitioning completed");
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
