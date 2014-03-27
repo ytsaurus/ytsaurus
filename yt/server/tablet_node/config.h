@@ -216,7 +216,7 @@ public:
 
     TSamplesFetcherConfig()
     {
-        RegisterParameter("min_sample_count", MaxSampleCount)
+        RegisterParameter("min_sample_count", MinSampleCount)
             .Default(10)
             .GreaterThanOrEqual(3);
         RegisterParameter("max_sample_count", MaxSampleCount)
