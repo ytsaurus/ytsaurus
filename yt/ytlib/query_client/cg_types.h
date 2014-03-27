@@ -226,6 +226,7 @@ public:
             case Length: return TypeBuilder<ui32, Cross>::get(context);
             case Data:   return TypeBuilder<TValueData, Cross>::get(context);
         }
+        YUNREACHABLE();
     }
 
     static ::llvm::StructType* get(LLVMContext& context)
