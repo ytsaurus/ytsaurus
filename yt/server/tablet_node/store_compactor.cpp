@@ -520,13 +520,19 @@ private:
 
             std::vector<TVersionedRow> rows;
 
+            int readRowCount = 0;
+            int writeRowCount = 0;
+
             while (reader->Read(&rows)) {
+                readRowCount += rows.size();
+
                 if (rows.empty()) {
                     auto result = WaitFor(reader->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                     continue;
                 }
 
+                writeRowCount += rows.size();
                 if (!writer->Write(rows)) {
                     auto result = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -546,10 +552,12 @@ private:
 
             SwitchTo(automatonInvoker);
 
+            YCHECK(readRowCount == writeRowCount);
+            LOG_INFO("Partition compaction completed (RowCount: %d)",
+                readRowCount);
+
             CreateMutation(slot->GetHydraManager(), updateStoresRequest)
                 ->Commit();
-
-            LOG_INFO("Partition compaction completed");
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
