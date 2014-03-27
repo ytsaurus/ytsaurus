@@ -467,7 +467,7 @@ void CodegenForEachRow(
     // index = 0
     Value* indexPtr = builder.CreateAlloca(builder.getInt32Ty(), nullptr, "indexPtr");
     builder.CreateStore(builder.getInt32(0), indexPtr);
-    builder.CreateLifetimeStart(indexPtr, builder.getInt64(4));
+
     builder.CreateBr(condBB);
 
     builder.SetInsertPoint(condBB);
@@ -479,14 +479,15 @@ void CodegenForEachRow(
     builder.SetInsertPoint(loopBB);
 
     // row = rows[index]; consume(row);
+    Value* stackState = builder.CreateStackSave("stackState");
     Value* row = builder.CreateLoad(builder.CreateGEP(rows, index, "rowPtr"), "row");
     codegenConsumer(builder, row);
+    builder.CreateStackRestore(stackState);
     // index = index + 1
     builder.CreateStore(builder.CreateAdd(index, builder.getInt32(1)), indexPtr);
     builder.CreateBr(condBB);
 
     builder.SetInsertPoint(endloopBB);
-    builder.CreateLifetimeEnd(indexPtr, builder.getInt64(4));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -784,7 +785,6 @@ void TCGContext::CodegenProjectOp(
     CodegenOp(builder, op->GetSource(),
         [&] (TCGIRBuilder& innerBuilder, Value* row) {
             Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            innerBuilder.CreateLifetimeStart(newRowPtr, innerBuilder.getInt64(sizeof(TRow)));
 
             innerBuilder.CreateCall3(
                 Fragment_.GetRoutine("AllocateRow"),
@@ -793,7 +793,6 @@ void TCGContext::CodegenProjectOp(
                 newRowPtr);
 
             Value* newRow = innerBuilder.CreateLoad(newRowPtr);
-            innerBuilder.CreateLifetimeEnd(newRowPtr);
 
             for (int index = 0; index < projectionCount; ++index) {
                 const auto& expr = op->GetProjection(index).Expression;

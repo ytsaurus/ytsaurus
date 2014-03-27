@@ -1528,6 +1528,46 @@ TEST_F(TQueryEvaluateTest, Complex)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, ComplexBigResult)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, false));
+    }
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("x=2;t=22", simpleSplit, false));
+    result.push_back(BuildRow("x=3;t=33", simpleSplit, false));
+    result.push_back(BuildRow("x=4;t=44", simpleSplit, false));
+    result.push_back(BuildRow("x=5;t=55", simpleSplit, false));
+    result.push_back(BuildRow("x=6;t=66", simpleSplit, false));
+    result.push_back(BuildRow("x=7;t=77", simpleSplit, false));
+    result.push_back(BuildRow("x=8;t=88", simpleSplit, false));
+    result.push_back(BuildRow("x=9;t=99", simpleSplit, false));
+
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", source, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, ComplexWithNull)
 {
     std::vector<TColumnSchema> columns;

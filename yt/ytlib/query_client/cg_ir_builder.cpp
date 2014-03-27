@@ -2,6 +2,7 @@
 #include "cg_ir_builder.h"
 
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Intrinsics.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -10,6 +11,7 @@ using llvm::BasicBlock;
 using llvm::TypeBuilder;
 using llvm::Value;
 using llvm::Twine;
+using llvm::Module;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,6 +120,18 @@ Value* TCGIRBuilder::GetClosure() const
 BasicBlock* TCGIRBuilder::CreateBBHere(const Twine& name)
 {
     return BasicBlock::Create(getContext(), name, GetInsertBlock()->getParent());
+}
+
+Value* TCGIRBuilder::CreateStackSave(const Twine& name)
+{
+    Module* module = GetInsertBlock()->getParent()->getParent();
+    return CreateCall(llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::stacksave), name);
+}
+
+void TCGIRBuilder::CreateStackRestore(llvm::Value* ptr)
+{
+    Module* module = GetInsertBlock()->getParent()->getParent();
+    CreateCall(llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::stackrestore), ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

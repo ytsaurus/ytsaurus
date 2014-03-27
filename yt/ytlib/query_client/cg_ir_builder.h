@@ -70,6 +70,12 @@ public:
 
     //! Creates a new basic block within the current function.
     llvm::BasicBlock* CreateBBHere(const llvm::Twine& name);
+
+    //! Saves current stack state.
+    llvm::Value* CreateStackSave(const llvm::Twine& name);
+
+    //! Restores given stack state.
+    void CreateStackRestore(llvm::Value* ptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
