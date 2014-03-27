@@ -38,10 +38,6 @@ target_link_libraries ( ytcore
   protobuf
 )
 
-if (HAVE_LIBUNWIND)
-  target_link_libraries( ytcore unwind )
-endif()
-
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt
