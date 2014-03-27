@@ -35,7 +35,7 @@ public:
         Initialize(
             GetRefCountedTrackerCookie<TTag>(),
             chunkSize,
-            maxSmallBlockSizeRatio)
+            maxSmallBlockSizeRatio);
     }
 
     //! Allocates #sizes bytes without any alignment.
