@@ -21,9 +21,11 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTempLoadPoolTag { };
+
 TLoadContext::TLoadContext()
     : Slot_(nullptr)
-    , TempPool_(new TChunkedMemoryPool())
+    , TempPool_(new TChunkedMemoryPool(GetRefCountedTrackerCookie<TTempLoadPoolTag>()))
     , RowBuilder_(new TUnversionedRowBuilder())
 { }
 

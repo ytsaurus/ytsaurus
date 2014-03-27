@@ -35,6 +35,8 @@ static const auto PresetResult = MakeFuture(TError());
 
 // TODO(babenko): automaton invoker may expire
 
+struct TTabletReaderPoolTag { };
+
 class TTabletReaderBase
     : public virtual TRefCounted
 {
@@ -49,6 +51,7 @@ public:
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
         , AutomatonInvoker_(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
+        , Pool_(GetRefCountedTrackerCookie<TTabletReaderPoolTag>())
         , ReadyEvent_(PresetResult)
         , Opened_(false)
         , Refilling_(false)

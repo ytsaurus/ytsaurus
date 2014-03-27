@@ -45,7 +45,9 @@ static const int InitialEditListCapacity = 2;
 static const int EditListCapacityMultiplier = 2;
 static const int MaxEditListCapacity = 256;
 static const int TypicalEditListCount = 16;
-static const int ReaderPoolSize = 1024;
+static const int TabletReaderPoolSize = 1024;
+
+struct TTabletReaderPoolTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +155,7 @@ public:
         , ColumnFilter_(columnFilter)
         , KeyColumnCount_(Store_->Tablet_->GetKeyColumnCount())
         , SchemaColumnCount_(Store_->Tablet_->GetSchemaColumnCount())
-        , Pool_(ReaderPoolSize)
+        , Pool_(GetRefCountedTrackerCookie<TTabletReaderPoolTag>(), TabletReaderPoolSize)
         , Finished_(false)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);

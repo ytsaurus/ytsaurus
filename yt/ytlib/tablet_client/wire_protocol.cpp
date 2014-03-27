@@ -335,14 +335,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAlignedWireProtocolReaderPoolTag { };
+struct TUnalignedWireProtocolReaderPoolTag { };
+
 class TWireProtocolReader::TImpl
 {
 public:
     explicit TImpl(const Stroka& data)
         : Data_(data)
         , CodedStream_(reinterpret_cast<const ui8*>(data.data()), data.length())
-        , AlignedPool_(ReaderAlignedChunkSize)
-        , UnalignedPool_(ReaderUnalignedChunkSize)
+        , AlignedPool_(
+            GetRefCountedTrackerCookie<TAlignedWireProtocolReaderPoolTag>(),
+            ReaderAlignedChunkSize)
+        , UnalignedPool_(
+            GetRefCountedTrackerCookie<TUnalignedWireProtocolReaderPoolTag>(),
+            ReaderUnalignedChunkSize)
     {
         ProtocolVersion_ = ReadUInt32();
         if (ProtocolVersion_ != 1) {

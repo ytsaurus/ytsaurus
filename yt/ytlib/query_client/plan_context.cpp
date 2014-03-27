@@ -51,9 +51,12 @@ void TPlanContext::TTrackedObject::operator delete(void*) throw()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPlanContextPoolTag { };
+
 TPlanContext::TPlanContext(TTimestamp timestamp)
     : Timestamp_(timestamp)
     , NodeDirectory_(New<TNodeDirectory>())
+    , MemoryPool_(GetRefCountedTrackerCookie<TPlanContextPoolTag>())
 { }
 
 TPlanContext::~TPlanContext()

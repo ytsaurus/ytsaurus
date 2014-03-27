@@ -42,6 +42,8 @@ using NVersionedTableClient::TKey;
 static const size_t MaxRowsPerRead = 1024;
 static auto& Logger = TabletNodeLogger;
 
+struct TLookupPoolTag { };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreManager::TStoreManager(
@@ -50,6 +52,7 @@ TStoreManager::TStoreManager(
     : Config_(config)
     , Tablet_(Tablet_)
     , RotationScheduled_(false)
+    , LookupPool_(GetRefCountedTrackerCookie<TLookupPoolTag>())
 {
     YCHECK(Config_);
     YCHECK(Tablet_);

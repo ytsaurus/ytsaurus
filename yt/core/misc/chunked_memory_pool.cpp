@@ -5,16 +5,24 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkedMemoryPool::TChunkedMemoryPool(
+const size_t TChunkedMemoryPool::DefaultChunkSize = 4096;
+const double TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio = 0.25;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkedMemoryPool::Initialize(
     size_t chunkSize,
-    double maxSmallBlockSizeRatio)
-    : ChunkSize_((chunkSize + 7) & ~7) // must be aligned
-    , MaxSmallBlockSize_(static_cast<size_t>(ChunkSize_ * maxSmallBlockSizeRatio))
-    , CurrentChunkIndex_(0)
-    , CurrentOffset_(0)
-    , Size_(0)
-    , Capacity_(0)
-{ }
+    double maxSmallBlockSizeRatio,
+    void* tagCookie)
+{
+    ChunkSize_ = (chunkSize + 7) & ~7; // must be aligned
+    MaxSmallBlockSize_ = static_cast<size_t>(ChunkSize_ * maxSmallBlockSizeRatio);
+    TagCookie_ = tagCookie;
+    CurrentChunkIndex_ = 0;
+    CurrentOffset_ = 0;
+    Size_ = 0;
+    Capacity_ = 0;
+}
 
 char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
 {
@@ -76,8 +84,7 @@ void TChunkedMemoryPool::AllocateChunk()
 
 TSharedRef TChunkedMemoryPool::AllocateLargeBlock(size_t size)
 {
-    struct TChunkedMemoryPoolTag { };
-    auto block = TSharedRef::Allocate<TChunkedMemoryPoolTag>(size, false);
+    auto block = TSharedRef::Allocate(size, false, TagCookie_);
     YCHECK((reinterpret_cast<intptr_t>(block.Begin()) & 7) == 0);
     LargeBlocks_.push_back(block);
     Capacity_ += size;

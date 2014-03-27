@@ -21,7 +21,7 @@ public:
     TRefTracked()
     {
 #ifdef ENABLE_REF_COUNTED_TRACKING
-        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+        void* cookie = GetRefCountedTrackerCookie<T>();
         TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
 #endif
     }
@@ -29,7 +29,7 @@ public:
     ~TRefTracked()
     {
 #ifdef ENABLE_REF_COUNTED_TRACKING
-        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+        void* cookie = GetRefCountedTrackerCookie<T>();
         TRefCountedTracker::Get()->Free(cookie, sizeof(T));
 #endif
     }

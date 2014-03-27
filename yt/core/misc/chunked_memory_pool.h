@@ -7,22 +7,42 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDefaultChunkedMemoryPoolTag { };
+
 class TChunkedMemoryPool
+    : private TNonCopyable
 {
 public:
+    static const size_t DefaultChunkSize;
+    static const double DefaultMaxSmallBlockSizeRatio;
+
+    inline explicit TChunkedMemoryPool(
+        void* tagCookie = GetRefCountedTrackerCookie<TDefaultChunkedMemoryPoolTag>(),
+        size_t chunkSize = DefaultChunkSize,
+        double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
+    {
+        Initialize(
+            chunkSize,
+            maxSmallBlockSizeRatio,
+            tagCookie);
+    }
+
+    template <class TTag>
     explicit TChunkedMemoryPool(
-        size_t chunkSize = 4 * 1024, 
-        double maxSmallBlockSizeRatio = 0.25);
+        size_t chunkSize = DefaultChunkSize,
+        double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
+    {
+        Initialize(
+            GetRefCountedTrackerCookie<TTag>(),
+            chunkSize,
+            maxSmallBlockSizeRatio)
+    }
 
     //! Allocates #sizes bytes without any alignment.
     char* AllocateUnaligned(size_t size);
 
     //! Allocates #sizes bytes aligned with 8-byte granularity.
     char* Allocate(size_t size);
-
-    //! Allocates and default-constructs an instance of |T|.
-    template <class T>
-    T* Allocate();
 
     //! Marks all previously allocated small chunks as free for subsequent allocations but
     //! does not deallocate them.
@@ -36,8 +56,9 @@ public:
     i64 GetCapacity() const;
 
 private:
-    const size_t ChunkSize_;
-    const size_t MaxSmallBlockSize_;
+    size_t ChunkSize_;
+    size_t MaxSmallBlockSize_;
+    void* TagCookie_;
 
     int CurrentChunkIndex_;
     size_t CurrentOffset_;
@@ -48,21 +69,16 @@ private:
     std::vector<TSharedRef> Chunks_;
     std::vector<TSharedRef> LargeBlocks_;
 
+
+    void Initialize(
+        size_t chunkSize, 
+        double maxSmallBlockSizeRatio,
+        void* tagCookie);
+
     void AllocateChunk();
     TSharedRef AllocateLargeBlock(size_t size);
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): move to inl
-template <class T>
-T* TChunkedMemoryPool::Allocate()
-{
-    char* buffer = Allocate(sizeof (T));
-    new (buffer)T();
-    return reinterpret_cast<T*>(buffer);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

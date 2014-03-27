@@ -7,12 +7,21 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAlignedRowBufferPoolTag { };
+struct TUnalignedRowBufferPoolTag { };
+
 TRowBuffer::TRowBuffer(
     i64 alignedPoolChunkSize,
     i64 unalignedPoolChunkSize,
     double maxPoolSmallBlockRatio)
-    : AlignedPool_(alignedPoolChunkSize, maxPoolSmallBlockRatio)
-    , UnalignedPool_(unalignedPoolChunkSize, maxPoolSmallBlockRatio)
+    : AlignedPool_(
+        GetRefCountedTrackerCookie<TAlignedRowBufferPoolTag>(),
+        alignedPoolChunkSize,
+        maxPoolSmallBlockRatio)
+    , UnalignedPool_(
+        GetRefCountedTrackerCookie<TUnalignedRowBufferPoolTag>(),
+        unalignedPoolChunkSize,
+        maxPoolSmallBlockRatio)
 { }
 
 TChunkedMemoryPool* TRowBuffer::GetAlignedPool()

@@ -64,8 +64,6 @@ namespace NYT {
  * #TRefCountedBase.
  */
 
-namespace NDetail {
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void* GetRefCountedTrackerCookie(const void* key);
@@ -75,19 +73,17 @@ FORCED_INLINE void* GetRefCountedTrackerCookie()
 {
     static std::atomic<void*> cookie(nullptr);
     if (UNLIKELY(!cookie)) {
-        cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(T));
+        cookie = GetRefCountedTrackerCookie(&typeid(T));
     }
     return cookie;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
-    void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>()
+    void* cookie = ::NYT::GetRefCountedTrackerCookie<T>()
 
 #define REF_COUNTED_NEW_EPILOGUE() \
     InitializeTracking(result.Get(), cookie, sizeof (T))

@@ -136,18 +136,30 @@ public:
         , Ref_(ref)
     { }
 
+
     //! Allocates a new shared block of memory.
+    //! The memory is marked with a given tag.
     template <class TTag>
     static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        TBlob blob(size, initializeStorage);
-        return FromBlob<TTag>(std::move(blob));
+        return Allocate(size, initializeStorage, GetRefCountedTrackerCookie<TDefaultSharedBlobTag>());
     }
 
+    //! Allocates a new shared block of memory.
+    //! The memory is marked with TDefaultSharedBlobTag.
     static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
         return Allocate<TDefaultSharedBlobTag>(size, initializeStorage);
     }
+
+    //! Allocates a new shared block of memory.
+    //! The memory is marked with a given tag.
+    static TSharedRef Allocate(size_t size, bool initializeStorage, void* tagCookie)
+    {
+        TBlob blob(size, initializeStorage);
+        return FromBlob(std::move(blob), tagCookie);
+    }
+
 
     //! Creates a non-owning reference from TRef. Use it with caution!
     static TSharedRef FromRefNonOwning(const TRef& ref)
@@ -155,42 +167,65 @@ public:
         return TSharedRef(nullptr, ref);
     }
 
+
     //! Creates an owning reference from a string.
     //! Since strings are ref-counted, no data is copied.
+    //! The memory is marked with a given tag.
     template <class TTag>
     static TSharedRef FromString(const Stroka& str)
     {
-        auto holder = New<TStringHolder>(str);
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
-        holder->InitializeTracking(cookie);
-#endif
-        auto ref = TRef::FromString(holder->Data_);
-        return TSharedRef(std::move(holder), ref);
+        return FromString(str, GetRefCountedTrackerCookie<TTag>());
     }
 
+    //! Creates an owning reference from a string.
+    //! Since strings are ref-counted, no data is copied.
+    //! The memory is marked with TDefaultSharedBlobTag.
     static TSharedRef FromString(const Stroka& str)
     {
         return FromString<TDefaultSharedBlobTag>(str);
     }
 
+    //! Creates an owning reference from a string.
+    //! Since strings are ref-counted, no data is copied.
+    //! The memory is marked with a given tag.
+    static TSharedRef FromString(const Stroka& str, void* tagCookie)
+    {
+        auto holder = New<TStringHolder>(str);
+#ifdef ENABLE_REF_COUNTED_TRACKING
+        holder->InitializeTracking(tagCookie);
+#endif
+        auto ref = TRef::FromString(holder->Data_);
+        return TSharedRef(std::move(holder), ref);
+    }
+
+
     //! Creates a reference to the whole blob taking ownership of its content.
+    //! The memory is marked with a given tag.
     template <class TTag>
     static TSharedRef FromBlob(TBlob&& blob)
     {
+        return FromBlob(std::move(blob), GetRefCountedTrackerCookie<TTag>());
+    }
+
+    //! Creates a reference to the whole blob taking ownership of its content.
+    //! The memory is marked with TDefaultSharedBlobTag.
+    static TSharedRef FromBlob(TBlob&& blob)
+    {
+        return FromBlob<TDefaultSharedBlobTag>(std::move(blob));
+    }
+
+    //! Creates a reference to the whole blob taking ownership of its content.
+    //! The memory is marked with a given tag.
+    static TSharedRef FromBlob(TBlob&& blob, void* tagCookie)
+    {
         auto holder = New<TBlobHolder>(std::move(blob));
 #ifdef ENABLE_REF_COUNTED_TRACKING
-        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
-        holder->InitializeTracking(cookie);
+        holder->InitializeTracking(tagCookie);
 #endif
         auto ref = TRef::FromBlob(holder->Blob_);
         return TSharedRef(std::move(holder), ref);
     }
 
-    static TSharedRef FromBlob(TBlob&& blob)
-    {
-        return FromBlob<TDefaultSharedBlobTag>(std::move(blob));
-    }
 
     //! Creates a reference to a portion of currently held data.
     TSharedRef Slice(const TRef& sliceRef) const

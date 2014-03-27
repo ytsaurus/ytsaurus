@@ -32,6 +32,8 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TVersionedChunkReaderPoolTag { };
+
 template <class TBlockReader>
 class TVersionedChunkReader
     : public IVersionedReader
@@ -103,6 +105,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , Timestamp_(timestamp)
+    , MemoryPool_(GetRefCountedTrackerCookie<TVersionedChunkReaderPoolTag>())
     , CurrentBlockIndex_(0)
     , CurrentRowIndex_(0)
     , RowCount_(0)

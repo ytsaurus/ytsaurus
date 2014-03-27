@@ -66,7 +66,7 @@ void TObjectPool<T>::Reclaim(T* obj)
 template <class T>
 T* TObjectPool<T>::AllocateInstance()
 {
-    static auto* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+    static auto* cookie = GetRefCountedTrackerCookie<T>();
     TRefCountedTracker::Get()->Allocate(cookie, sizeof (T));
     char* buffer = new char[sizeof (THeader) + sizeof (T)];
     auto* header = reinterpret_cast<THeader*>(buffer);
@@ -82,7 +82,7 @@ T* TObjectPool<T>::AllocateInstance()
 template <class T>
 void TObjectPool<T>::FreeInstance(T* obj)
 {
-    static auto* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+    static auto* cookie = GetRefCountedTrackerCookie<T>();
     TRefCountedTracker::Get()->Free(cookie, sizeof (T));
     obj->~T();
     auto* buffer = reinterpret_cast<char*>(obj) - sizeof (THeader);
