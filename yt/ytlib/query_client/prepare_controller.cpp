@@ -225,6 +225,7 @@ void TPrepareController::TypecheckExpressions()
             }
         }
         if (auto* groupOp = op->As<TGroupOperator>()) {
+            const auto& schema = groupOp->GetSource()->GetTableSchema();
             for (auto& groupItem : groupOp->GroupItems()) {
                 groupItem.Expression->GetType(schema); // Force typechecking.
             }
