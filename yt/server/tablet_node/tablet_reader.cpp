@@ -55,7 +55,6 @@ public:
         , ReadyEvent_(PresetResult)
         , Opened_(false)
         , Refilling_(false)
-        , Finished_(false)
     { }
 
 protected:
@@ -89,28 +88,37 @@ protected:
 
     std::atomic<bool> Opened_;
     std::atomic<bool> Refilling_;
-    bool Finished_;
 
 
     template <class TRow, class TRowMerger>
     bool DoRead(std::vector<TRow>* rows, TRowMerger* rowMerger)
     {
-        YCHECK(!Refilling_);
         YCHECK(Opened_);
+        YCHECK(!Refilling_);
 
         rows->clear();
         Pool_.Clear();
 
-        if (Finished_) {
-            return false;
+        if (!ExhaustedSessions_.empty()) {
+            // Prevent proceeding to the merge phase in presence of exhausted sessions.
+            // Request refill and signal the user that he must wait.
+            RefillExhaustedSessions();
+            YCHECK(ExhaustedSessions_.empty()); // must be cleared in RefillSessions
+            return true;
         }
 
-        // Refill sessions with newly arrived rows requested in RefillSessions.
+        // Refill sessions with newly arrived rows requested in RefillExhausedSessions above.
         for (auto* session : RefillingSessions_) {
-            TryRefillSession(session);
+            RefillSession(session);
         }
         RefillingSessions_.clear();
 
+        // Check for the end-of-rowset.
+        if (SessionHeapBegin_ == SessionHeapEnd_) {
+            return false;
+        }
+
+        // Must stop once an exhausted session appears.
         while (ExhaustedSessions_.empty()) {
             const TUnversionedValue* currentKeyBegin = nullptr;
             const TUnversionedValue* currentKeyEnd = nullptr;
@@ -153,10 +161,6 @@ protected:
             }
         }
         
-        if (rows->empty()) {
-            RefillSessions();
-        }
-
         return true;
     }
 
@@ -198,15 +202,16 @@ protected:
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        // Construct session heap.
+        // Construct an empty heap.
         SessionHeap_.reserve(Sessions_.size());
         SessionHeapBegin_ = SessionHeapEnd_ = SessionHeap_.begin();
+
+        // Mark all sessions as exhausted.
         for (auto& session : Sessions_) {
-            TryRefillSession(&session);
+            ExhaustedSessions_.push_back(&session);
         }
 
         Opened_ = true;
-        CheckFinished();
     }
 
 
@@ -222,7 +227,7 @@ protected:
     }
 
 
-    bool TryRefillSession(TSession* session)
+    bool RefillSession(TSession* session)
     {
         bool hasMoreRows = session->Reader->Read(&session->Rows);
         if (session->Rows.empty()) {
@@ -234,14 +239,14 @@ protected:
         return true;
     }
 
-    void RefillSessions()
+    void RefillExhaustedSessions()
     {
         YCHECK(RefillingSessions_.empty());
         
         TIntrusivePtr<TParallelCollector<void>> refillCollector;
         for (auto* session : ExhaustedSessions_) {
             // Try to refill the session right away.
-            if (!TryRefillSession(session)) {
+            if (!RefillSession(session)) {
                 // No data at the moment, must wait.
                 if (!refillCollector) {
                     refillCollector = New<TParallelCollector<void>>();
@@ -252,24 +257,18 @@ protected:
         }
         ExhaustedSessions_.clear();
 
-        if (refillCollector) {
-            auto this_ = MakeStrong(this);
-            Refilling_ = true;
-            ReadyEvent_ = refillCollector->Complete()
-                .Apply(BIND([this, this_] (TError error) -> TError {
-                    Refilling_ = false;
-                    CheckFinished();
-                    return error;
-                }));
-        } else {
+        if (!refillCollector) {
             ReadyEvent_ = PresetResult;
-            CheckFinished();
+            return;
         }
-    }
 
-    void CheckFinished()
-    {
-        Finished_ = (SessionHeapBegin_ == SessionHeapEnd_);
+        auto this_ = MakeStrong(this);
+        Refilling_ = true;
+        ReadyEvent_ = refillCollector->Complete()
+            .Apply(BIND([this, this_] (TError error) -> TError {
+                Refilling_ = false;
+                return error;
+            }));
     }
 
 };
