@@ -137,6 +137,7 @@ private:
     NProfiling::TProfiler Profiler;
 
     volatile bool Running;
+    TPromise<void> Started;
     int FibersCreated;
     int FibersAlive;
 
