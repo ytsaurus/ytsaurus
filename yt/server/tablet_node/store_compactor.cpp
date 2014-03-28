@@ -211,15 +211,23 @@ private:
         const std::vector<TOwningKey>& pivotKeys,
         const std::vector<IStorePtr>& stores)
     {
+        // Capture everything needed below.
+        // NB: Avoid accessing tablet from pool invoker.
         auto* tablet = eden->GetTablet();
         auto* slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
+        const auto& tabletId = tablet->GetId();
+        auto writerOptions = tablet->GetWriterOptions();
+        auto tabletPivotKey = tablet->GetPivotKey();
+        auto nextTabletPivotKey = tablet->GetNextPivotKey();
+        auto keyColumns = tablet->KeyColumns();
+        auto schema = tablet->Schema();
 
-        YCHECK(tablet->GetPivotKey() == pivotKeys[0]);
+        YCHECK(tabletPivotKey == pivotKeys[0]);
 
         NLog::TTaggedLogger Logger(TabletNodeLogger);
         Logger.AddTag(Sprintf("TabletId: %s",
-            ~ToString(tablet->GetId())));
+            ~ToString(tabletId)));
 
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
@@ -238,9 +246,15 @@ private:
             auto reader = CreateVersionedTabletReader(
                 tablet,
                 stores,
-                tablet->GetPivotKey(),
-                tablet->GetNextPivotKey(),
+                tabletPivotKey,
+                nextTabletPivotKey,
                 AllCommittedTimestamp);
+
+            auto currentWriterProvider = New<TVersionedChunkWriterProvider>(
+                Config_->Writer,
+                writerOptions,
+                schema,
+                keyColumns);
 
             SwitchTo(poolInvoker);
 
@@ -251,7 +265,7 @@ private:
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Eden partitioning, tablet %s",
-                    ~ToString(tablet->GetId())));
+                    ~ToString(tabletId)));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -273,7 +287,7 @@ private:
             TVersionedMultiChunkWriterPtr currentWriter;
 
             TReqCommitTabletStoresUpdate updateStoresRequest;
-            ToProto(updateStoresRequest.mutable_tablet_id(), tablet->GetId());
+            ToProto(updateStoresRequest.mutable_tablet_id(), tabletId);
 
             for (auto store : stores) {
                 auto* descriptor = updateStoresRequest.add_stores_to_remove();
@@ -288,15 +302,9 @@ private:
                     ~ToString(currentPivotKey),
                     ~ToString(nextPivotKey));
 
-                auto currentWriterProvider = New<TVersionedChunkWriterProvider>(
-                    Config_->Writer,
-                    tablet->GetWriterOptions(),
-                    tablet->Schema(),
-                    tablet->KeyColumns());
-
                 currentWriter = New<TVersionedMultiChunkWriter>(
                     Config_->Writer,
-                    tablet->GetWriterOptions(),
+                    writerOptions,
                     currentWriterProvider,
                     Bootstrap_->GetMasterClient()->GetMasterChannel(),
                     transaction->GetId());
@@ -386,7 +394,7 @@ private:
 
             for (auto it = pivotKeys.begin(); it != pivotKeys.end(); ++it) {
                 currentPivotKey = *it;
-                nextPivotKey = it == pivotKeys.end() - 1 ? tablet->GetNextPivotKey() : *(it + 1);
+                nextPivotKey = it == pivotKeys.end() - 1 ? nextTabletPivotKey : *(it + 1);
 
                 startPartition();
                 
@@ -437,13 +445,21 @@ private:
         TPartition* partition,
         const std::vector<IStorePtr>& stores)
     {
+        // Capture everything needed below.
+        // NB: Avoid accessing tablet from pool invoker.
         auto* tablet = partition->GetTablet();
         auto* slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
+        const auto& tabletId = tablet->GetId();
+        auto writerOptions = tablet->GetWriterOptions();
+        auto tabletPivotKey = tablet->GetPivotKey();
+        auto nextTabletPivotKey = tablet->GetNextPivotKey();
+        auto keyColumns = tablet->KeyColumns();
+        auto schema = tablet->Schema();
 
         NLog::TTaggedLogger Logger(TabletNodeLogger);
         Logger.AddTag(Sprintf("TabletId: %s, PartitionRange: %s .. %s",
-            ~ToString(tablet->GetId()),
+            ~ToString(tabletId),
             ~ToString(partition->GetPivotKey()),
             ~ToString(partition->GetNextPivotKey())));
 
@@ -463,9 +479,15 @@ private:
             auto reader = CreateVersionedTabletReader(
                 tablet,
                 stores,
-                tablet->GetPivotKey(),
-                tablet->GetNextPivotKey(),
+                tabletPivotKey,
+                nextTabletPivotKey,
                 AllCommittedTimestamp);
+
+            auto writerProvider = New<TVersionedChunkWriterProvider>(
+                Config_->Writer,
+                writerOptions,
+                schema,
+                keyColumns);
 
             SwitchTo(poolInvoker);
 
@@ -478,7 +500,7 @@ private:
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Partition compaction, tablet %s",
-                    ~ToString(tablet->GetId())));
+                    ~ToString(tabletId)));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -488,22 +510,16 @@ private:
             }
 
             TReqCommitTabletStoresUpdate updateStoresRequest;
-            ToProto(updateStoresRequest.mutable_tablet_id(), tablet->GetId());
+            ToProto(updateStoresRequest.mutable_tablet_id(), tabletId);
 
             for (auto store : stores) {
                 auto* descriptor = updateStoresRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
             
-            auto writerProvider = New<TVersionedChunkWriterProvider>(
-                Config_->Writer,
-                tablet->GetWriterOptions(),
-                tablet->Schema(),
-                tablet->KeyColumns());
-
             auto writer = New<TVersionedMultiChunkWriter>(
                 Config_->Writer,
-                tablet->GetWriterOptions(),
+                writerOptions,
                 writerProvider,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 transaction->GetId());
