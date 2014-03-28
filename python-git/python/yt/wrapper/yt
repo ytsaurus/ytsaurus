@@ -418,13 +418,14 @@ def add_reduce_parser(add_parser):
     parser.set_defaults(func=reduce)
 
 def remote_copy(args):
-    yt.run_remote_copy(args.src, args.dst, args.cluster)
+    yt.run_remote_copy(args.src, args.dst, args.cluster, network_name=args.network)
 
 def add_remote_copy_parser(add_parser):
     parser = add_parser("remote-copy", help="run reduce operation")
     parser.add_argument("--src", action="append", required=True)
     parser.add_argument("--dst", required=True)
     parser.add_argument("--cluster", required=True)
+    parser.add_argument("--network")
     parser.set_defaults(func=remote_copy)
 
 def map_reduce(args):
