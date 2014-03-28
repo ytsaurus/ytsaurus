@@ -673,7 +673,9 @@ private:
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
                 YCHECK(store->GetState() == EStoreState::RemoveCommitting);
-                BackoffStore(store, EStoreState::RemoveFailed);
+                if (IsLeader()) {
+                    BackoffStore(store, EStoreState::RemoveFailed);
+                }
             }
         } else {
             std::vector<TStoreId> addedStoreIds;
