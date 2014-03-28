@@ -16,6 +16,7 @@
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/plan_visitor.h>
 #include <ytlib/query_client/helpers.h>
+#include <ytlib/query_client/cg_types.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -1311,7 +1312,7 @@ protected:
         const std::vector<TUnversionedOwningRow>& owningResult)
     {
         std::vector<TRow> source(owningSource.size());
-        std::vector<TRow> result(owningResult.size());
+        std::vector<std::vector<TRow>> results;
         typedef const TRow(TUnversionedOwningRow::*TGetFunction)() const;
 
         std::transform(
@@ -1320,12 +1321,21 @@ protected:
             source.begin(),
             std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
 
-        std::transform(
-            owningResult.begin(),
-            owningResult.end(),
-            result.begin(),
-            std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
+        for (auto iter = owningResult.begin(), end = owningResult.end(); iter != end;) {
+            size_t writeSize = (std::min)(static_cast<int>(end - iter), NQueryClient::MaxRowsPerWrite);
+            std::vector<TRow> result(writeSize);
 
+            std::transform(
+                iter,
+                iter + writeSize,
+                result.begin(),
+                std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
+
+            results.push_back(result);
+
+            iter += writeSize;
+        }
+        
         EXPECT_CALL(EvaluateMock_, GetReader(_, _))
             .WillOnce(Return(ReaderMock_));
 
@@ -1340,10 +1350,11 @@ protected:
 
             EXPECT_CALL(*WriterMock_, Open(_, _))
                 .WillOnce(Return(WrapVoidInFuture()));
-
-            EXPECT_CALL(*WriterMock_, Write(result))
-                .WillOnce(Return(true));
-
+            for (auto & result : results) {
+                EXPECT_CALL(*WriterMock_, Write(result))
+                    .WillOnce(Return(true));
+            }
+            
             EXPECT_CALL(*WriterMock_, Close())
                 .WillOnce(Return(WrapVoidInFuture()));
         }
@@ -1536,32 +1547,16 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     columns.emplace_back("c", EValueType::Integer);
     auto simpleSplit = MakeSplit(columns);
 
-    const char* sourceRowsData[] = {
-        "a=1;b=10",
-        "a=2;b=20",
-        "a=3;b=30",
-        "a=4;b=40",
-        "a=5;b=50",
-        "a=6;b=60",
-        "a=7;b=70",
-        "a=8;b=80",
-        "a=9;b=90"
-    };
-
     std::vector<TUnversionedOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
+    for (size_t i = 0; i < 100000; ++i) {
+        source.push_back(BuildRow(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10), simpleSplit, false));
     }
 
     std::vector<TUnversionedOwningRow> result;
-    result.push_back(BuildRow("x=2;t=22", simpleSplit, false));
-    result.push_back(BuildRow("x=3;t=33", simpleSplit, false));
-    result.push_back(BuildRow("x=4;t=44", simpleSplit, false));
-    result.push_back(BuildRow("x=5;t=55", simpleSplit, false));
-    result.push_back(BuildRow("x=6;t=66", simpleSplit, false));
-    result.push_back(BuildRow("x=7;t=77", simpleSplit, false));
-    result.push_back(BuildRow("x=8;t=88", simpleSplit, false));
-    result.push_back(BuildRow("x=9;t=99", simpleSplit, false));
+
+    for (size_t i = 2; i < 100000; ++i) {
+        result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), simpleSplit, false));
+    }
 
     Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", source, result);
 
