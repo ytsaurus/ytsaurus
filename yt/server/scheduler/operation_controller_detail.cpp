@@ -1538,6 +1538,10 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(job);
 
+    LogEventFluently(ELogEventType::JobStarted)
+        .Item(STRINGBUF("job_id")).Value(job->GetId())
+        .Item(STRINGBUF("limits")).Value(job->ResourceUsage());
+
     JobCounter.Start(1);
 }
 
@@ -1546,6 +1550,12 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& result = job->Result();
+
+    LogEventFluently(ELogEventType::JobCompleted)
+        .Item(STRINGBUF("job_id")).Value(job->GetId())
+        .Item(STRINGBUF("start_time")).Value(job->GetStartTime())
+        .Item(STRINGBUF("finish_time")).Value(job->GetFinishTime())
+        .Item(STRINGBUF("statistics")).Value(result.statistics());
 
     JobCounter.Completed(1);
     CompletedJobStatistics += result.statistics();
@@ -1573,6 +1583,15 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     const auto& result = job->Result();
 
+    auto error = FromProto(result.error());
+
+    LogEventFluently(ELogEventType::JobFailed)
+        .Item(STRINGBUF("job_id")).Value(job->GetId())
+        .Item(STRINGBUF("start_time")).Value(job->GetStartTime())
+        .Item(STRINGBUF("finish_time")).Value(job->GetFinishTime())
+        .Item(STRINGBUF("statistics")).Value(result.statistics())
+        .Item(STRINGBUF("error")).Value(error);
+
     JobCounter.Failed(1);
     FailedJobStatistics += result.statistics();
 
@@ -1581,7 +1600,6 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     RemoveJoblet(job);
 
-    auto error = FromProto(job->Result().error());
     if (error.Attributes().Get<bool>("fatal", false)) {
         OnOperationFailed(error);
         return;
@@ -1602,6 +1620,13 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     auto abortReason = GetAbortReason(job);
     const auto& result = job->Result();
+
+    LogEventFluently(ELogEventType::JobAborted)
+        .Item(STRINGBUF("job_id")).Value(job->GetId())
+        .Item(STRINGBUF("start_time")).Value(job->GetStartTime())
+        .Item(STRINGBUF("finish_time")).Value(job->GetFinishTime())
+        .Item(STRINGBUF("statistics")).Value(result.statistics())
+        .Item(STRINGBUF("reason")).Value(abortReason);
 
     JobCounter.Aborted(1, abortReason);
     AbortedJobStatistics += result.statistics();

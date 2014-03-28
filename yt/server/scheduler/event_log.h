@@ -15,6 +15,10 @@ DECLARE_ENUM(ELogEventType,
     (SchedulerStarted)
     (MasterConnected)
     (MasterDisconnected)
+    (JobStarted)
+    (JobCompleted)
+    (JobFailed)
+    (JobAborted)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
