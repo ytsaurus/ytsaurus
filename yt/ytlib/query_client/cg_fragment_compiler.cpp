@@ -973,7 +973,7 @@ Function* TCGContext::CodegenEvaluate(
         [&] (TCGIRBuilder& innerBuilder, Value* row) {
             Value* passedFragmentParamsPtrRef = innerBuilder.ViaClosure(passedFragmentParamsPtr);
             innerBuilder.CreateCall2(cgFragment.GetRoutine("WriteRow"), row, passedFragmentParamsPtrRef);
-    });
+        });
 
     builder.CreateRetVoid();
 
