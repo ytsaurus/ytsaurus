@@ -60,10 +60,6 @@ TMultiChunkSequentialWriter<TProvider>::TMultiChunkSequentialWriter(
 }
 
 template <class TProvider>
-TMultiChunkSequentialWriter<TProvider>::~TMultiChunkSequentialWriter()
-{ }
-
-template <class TProvider>
 TAsyncError TMultiChunkSequentialWriter<TProvider>::Open()
 {
     YCHECK(!State.HasRunningOperation());

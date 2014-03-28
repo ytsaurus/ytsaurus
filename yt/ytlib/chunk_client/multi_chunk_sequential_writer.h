@@ -40,8 +40,6 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId);
 
-    ~TMultiChunkSequentialWriter();
-
     virtual TAsyncError Open() override;
     virtual TAsyncError Close() override;
 
