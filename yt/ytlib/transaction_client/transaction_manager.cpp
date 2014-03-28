@@ -160,7 +160,7 @@ public:
             ~FormatBool(PingAncestors_));
 
         if (Ping_) {
-            SendPing();
+            RunPeriodicPings();
         }
     }
 
@@ -446,14 +446,6 @@ private:
     }
 
 
-    void SchedulePing()
-    {
-        TDelayedExecutor::Submit(
-            BIND(IgnoreResult(&TImpl::SendPing), MakeWeak(this)),
-            Owner_->Config_->PingPeriod);
-    }
-
-
     TAsyncError OnGotStartTimestamp(const TTransactionStartOptions& options, TErrorOr<TTimestamp> timestampOrError)
     {
         if (!timestampOrError.IsOK()) {
@@ -526,7 +518,7 @@ private:
             ~FormatBool(PingAncestors_));
 
         if (Ping_) {
-            SendPing();
+            RunPeriodicPings();
         }
 
         return TError();
@@ -687,18 +679,32 @@ private:
 
         void OnComplete()
         {
-            if (!Promise_.TrySet(TError()))
-                return;
-            
-            if (Transaction_->Ping_) {
-                Transaction_->SchedulePing();
-            }
+            Promise_.TrySet(TError());
         }
+        
     };
 
     TAsyncError SendPing()
     {
         return New<TPingSession>(this)->Run();
+    }
+
+    void RunPeriodicPings()
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (State_ != EState::Active)
+                return;           
+        }
+
+        auto this_ = MakeStrong(this);
+        SendPing().Subscribe(BIND([this, this_] (TError error) {
+            if (!error.IsOK())
+                return;
+            TDelayedExecutor::Submit(
+                BIND(IgnoreResult(&TImpl::RunPeriodicPings), this_),
+                Owner_->Config_->PingPeriod);
+        }));
     }
 
 
