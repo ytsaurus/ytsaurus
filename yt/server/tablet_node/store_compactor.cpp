@@ -250,12 +250,6 @@ private:
                 nextTabletPivotKey,
                 AllCommittedTimestamp);
 
-            auto currentWriterProvider = New<TVersionedChunkWriterProvider>(
-                Config_->Writer,
-                writerOptions,
-                schema,
-                keyColumns);
-
             SwitchTo(poolInvoker);
 
             ITransactionPtr transaction;
@@ -301,6 +295,12 @@ private:
                     currentPartitionIndex,
                     ~ToString(currentPivotKey),
                     ~ToString(nextPivotKey));
+
+                auto currentWriterProvider = New<TVersionedChunkWriterProvider>(
+                    Config_->Writer,
+                    writerOptions,
+                    schema,
+                    keyColumns);
 
                 currentWriter = New<TVersionedMultiChunkWriter>(
                     Config_->Writer,
@@ -483,12 +483,6 @@ private:
                 nextTabletPivotKey,
                 AllCommittedTimestamp);
 
-            auto writerProvider = New<TVersionedChunkWriterProvider>(
-                Config_->Writer,
-                writerOptions,
-                schema,
-                keyColumns);
-
             SwitchTo(poolInvoker);
 
             auto transactionManager = Bootstrap_->GetMasterClient()->GetTransactionManager();
@@ -517,6 +511,12 @@ private:
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
             
+            auto writerProvider = New<TVersionedChunkWriterProvider>(
+                Config_->Writer,
+                writerOptions,
+                schema,
+                keyColumns);
+
             auto writer = New<TVersionedMultiChunkWriter>(
                 Config_->Writer,
                 writerOptions,
