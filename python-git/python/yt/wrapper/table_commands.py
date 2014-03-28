@@ -764,15 +764,16 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "reduce"
     run_operation(binary, source_table, destination_table, **kwargs)
 
-def run_remote_copy(input_table, output_table, cluster_name, strategy=None):
+def run_remote_copy(source_table, destination_table, cluster_name, strategy=None):
     def get_input_name(table):
         return to_table(table).get_json()
 
+    destination_table = unlist(_prepare_destination_tables(destination_table, None, None))
     _make_operation_request(
         "remote_copy",
         {
-            "input_table_paths": map(get_input_name, input_table),
-            "output_table_path": to_table(output_table).get_json(),
+            "input_table_paths": map(get_input_name, source_table),
+            "output_table_path": destination_table.get_json(),
             "cluster_name": cluster_name
         },
         strategy)
