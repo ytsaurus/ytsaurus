@@ -735,6 +735,7 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
 
     if (!rsp->IsOK()) {
         OnNodeFailed(node, rsp->GetError());
+        return;
     }
 
     auto& chunkInfo = rsp->chunk_info();
