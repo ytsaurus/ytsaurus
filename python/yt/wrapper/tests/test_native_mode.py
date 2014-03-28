@@ -466,20 +466,20 @@ class TestNativeMode(YtTestBase, YTEnv):
         while yt.get("{}/@tablets/0/state".format(table)) != 'unmounted':
             time.sleep(0.1)
 
-    def test_select(self):
-        table = TEST_DIR + "/table"
+    # def test_select(self):
+    #     table = TEST_DIR + "/table"
 
-        yt.create_table(table)
-        yt.run_sort(table, sort_by=["x"])
+    #     yt.create_table(table)
+    #     yt.run_sort(table, sort_by=["x"])
 
-        yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
-        yt.set(table + "/@key_columns", ["x"])
+    #     yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
+    #     yt.set(table + "/@key_columns", ["x"])
 
-        self.check([], yt.select("x from [{}]".format(table)))
+    #     self.check([], yt.select("x from [{}]".format(table)))
 
-        yt.write_table(yt.TablePath(table, append=True, sorted_by=True), ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+    #     yt.write_table(yt.TablePath(table, append=True, sorted_by=True), ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
 
-        self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
+    #     self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
 
 
 # Map method for test operations with python entities
