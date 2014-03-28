@@ -883,8 +883,9 @@ void TCGContext::CodegenGroupOp(
                 .StoreToRow(newRowRef, keySize + index, id);
         }
 
-        Value* foundRowPtr = innerBuilder.CreateCall2(
+        Value* foundRowPtr = innerBuilder.CreateCall3(
             Fragment_.GetRoutine("FindRow"),
+            passedFragmentParamsPtrRef,
             rowsRef,
             newRowRef);
 

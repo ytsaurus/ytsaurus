@@ -281,6 +281,8 @@ public:
         RegisterCGRoutines();
 
         Compiler_ = CreateFragmentCompiler();
+
+        CallCodegenedFunctionPtr_ = &CallCodegenedFunction;
     }
 
     TError Run(
@@ -330,7 +332,7 @@ public:
             passedFragmentParams.Writer = writer.Get();
             passedFragmentParams.Batch = &batch;
 
-            codegenedFunction(constants, &passedFragmentParams);
+            CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
 
             LOG_DEBUG("Flushing writer (FragmentId: %s)",
                 ~ToString(fragment.Id()));
@@ -395,6 +397,17 @@ private:
 
         return std::make_pair(codegenedFunction, std::move(variables));
     }
+
+    static void CallCodegenedFunction(TCodegenedFunction codegenedFunction, TRow constants, TPassedFragmentParams* passedFragmentParams)
+    {
+#ifdef DEBUG
+        int dummy;
+        passedFragmentParams->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
+        codegenedFunction(constants, passedFragmentParams);
+    }
+
+    void(* volatile CallCodegenedFunctionPtr_)(TCodegenedFunction codegenedFunction, TRow constants, TPassedFragmentParams* passedFragmentParams);
 
 private:
     TCGFragmentCompiler Compiler_;

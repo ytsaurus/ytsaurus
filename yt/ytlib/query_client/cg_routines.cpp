@@ -26,6 +26,12 @@ using namespace NConcurrency;
 
 void WriteRow(TRow row, TPassedFragmentParams* P)
 {
+#ifdef DEBUG
+    int dummy;
+    size_t currentStackSize = P->StackSizeGuardHelper - reinterpret_cast<size_t>(&dummy);
+    YCHECK(currentStackSize < 10000);
+#endif
+    
     auto batch = P->Batch;
     auto writer = P->Writer;
     auto rowBuffer = P->RowBuffer;
@@ -104,8 +110,14 @@ void GroupOpHelper(
     consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
 }
 
-const TRow* FindRow(TLookupRows* rows, TRow row)
+const TRow* FindRow(TPassedFragmentParams* P, TLookupRows* rows, TRow row)
 {
+#ifdef DEBUG
+    int dummy;
+    size_t currentStackSize = P->StackSizeGuardHelper - reinterpret_cast<size_t>(&dummy);
+    YCHECK(currentStackSize < 10000);
+#endif
+
     auto it = rows->find(row);
     return it != rows->end()? &*it : nullptr;
 }
@@ -117,6 +129,12 @@ void AddRow(
     TRow* newRow,
     int rowSize)
 {
+#ifdef DEBUG
+    int dummy;
+    size_t currentStackSize = P->StackSizeGuardHelper - reinterpret_cast<size_t>(&dummy);
+    YCHECK(currentStackSize < 10000);
+#endif
+
     groupedRows->push_back(P->RowBuffer->Capture(*newRow));
     lookupRows->insert(groupedRows->back());
     *newRow = TRow::Allocate(P->ScratchSpace, rowSize);
@@ -124,6 +142,12 @@ void AddRow(
 
 void AllocateRow(TPassedFragmentParams* P, int rowSize, TRow* rowPtr)
 {
+#ifdef DEBUG
+    int dummy;
+    size_t currentStackSize = P->StackSizeGuardHelper - reinterpret_cast<size_t>(&dummy);
+    YCHECK(currentStackSize < 10000);
+#endif
+
     *rowPtr = TRow::Allocate(P->ScratchSpace, rowSize);
 }
 

@@ -36,6 +36,10 @@ class TCGFragment;
 
 struct TPassedFragmentParams
 {
+#ifdef DEBUG
+    size_t StackSizeGuardHelper;
+#endif
+
     IEvaluateCallbacks* Callbacks;
     TPlanContext* Context;
     std::vector<TDataSplits>* DataSplitsArray;
