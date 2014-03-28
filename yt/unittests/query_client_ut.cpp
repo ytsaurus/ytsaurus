@@ -1322,7 +1322,7 @@ protected:
             std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
 
         for (auto iter = owningResult.begin(), end = owningResult.end(); iter != end;) {
-            size_t writeSize = (std::min)(static_cast<int>(end - iter), NQueryClient::MaxRowsPerWrite);
+            size_t writeSize = std::min(static_cast<int>(end - iter), NQueryClient::MaxRowsPerWrite);
             std::vector<TRow> result(writeSize);
 
             std::transform(
@@ -1350,7 +1350,7 @@ protected:
 
             EXPECT_CALL(*WriterMock_, Open(_, _))
                 .WillOnce(Return(WrapVoidInFuture()));
-            for (auto & result : results) {
+            for (auto& result : results) {
                 EXPECT_CALL(*WriterMock_, Write(result))
                     .WillOnce(Return(true));
             }
@@ -1559,8 +1559,6 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     }
 
     Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", source, result);
-
-    SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, ComplexWithNull)
