@@ -702,7 +702,7 @@ private:
             if (!error.IsOK())
                 return;
             TDelayedExecutor::Submit(
-                BIND(IgnoreResult(&TImpl::RunPeriodicPings), this_),
+                BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
                 Owner_->Config_->PingPeriod);
         }));
     }
