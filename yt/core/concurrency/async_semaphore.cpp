@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "async_semaphore.h"
 
-#include <core/misc/nullable.h>
-
 namespace NYT {
 namespace NConcurrency {
 
