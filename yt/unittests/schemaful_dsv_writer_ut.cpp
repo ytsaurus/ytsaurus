@@ -61,7 +61,7 @@ TEST(TSchemafulDsvWriterTest, TableIndex)
     writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("a");
-        writer.OnStringScalar("1");
+        writer.OnIntegerScalar(1);
     writer.OnEndMap();
 
     writer.OnListItem();

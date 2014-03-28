@@ -49,6 +49,8 @@ private:
     std::set<TStringBuf> Keys_;
     std::map<TStringBuf, TStringBuf> Values_;
 
+    std::vector<Stroka> ValueHolder_;
+
     int ValueCount_;
     TStringBuf CurrentKey_;
 
