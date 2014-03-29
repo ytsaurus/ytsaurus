@@ -293,7 +293,7 @@ void TTableConsumer::OnEndAttributes()
 
 void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    YUNREACHABLE();
+    ValueWriter.OnRaw(yson, type);
 }
 
 void TTableConsumer::ThrowMapExpected() const
