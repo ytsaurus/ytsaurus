@@ -920,7 +920,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, State_);
+    Save(context, GetPersistentState());
 
     SmallVector<TValueList, TypicalEditListCount> valueLists;
     SmallVector<TTimestampList, TypicalEditListCount> timestampLists;

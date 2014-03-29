@@ -162,7 +162,7 @@ void TChunkStore::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, State_);
+    Save(context, GetPersistentState());
     Save(context, ChunkMeta_);
 }
 
