@@ -50,7 +50,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 
@@ -81,7 +81,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns an invoker that executes all queues actions in the
+//! Creates an invoker that executes all callbacks in the
 //! context of #underlyingInvoker (possibly in different threads)
 //! but in a serialized fashion (i.e. all queued actions are executed
 //! in the proper order and no two actions are executed in parallel).
@@ -97,6 +97,15 @@ IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker);
 //! does not perform any actual reordering. Priorities passed to #IPrioritizedInvoker::Invoke
 //! are ignored.
 IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates an invoker that executes all callbacks in the
+//! context of #underlyingInvoker allowing up to #maxConcurrentInvocations
+//! outstanding requests to the latter.
+IInvokerPtr CreateBoundedConcurrencyInvoker(
+    IInvokerPtr underlyingInvoker,
+    int maxConcurrentInvocations);
 
 ////////////////////////////////////////////////////////////////////////////////
 
