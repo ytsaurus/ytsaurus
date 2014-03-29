@@ -91,7 +91,6 @@ private:
 
     NBus::IBusServerPtr BusServer;
     NApi::IClientPtr MasterClient;
-    NRpc::IChannelPtr SchedulerChannel;
     NRpc::IServerPtr RpcServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
