@@ -169,6 +169,7 @@ TExecutorThread::TExecutorThread(
     , Profiler("/action_queue", tagIds)
     // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
     // , Running(false)
+    , Started(NewPromise())
     , FibersCreated(0)
     , FibersAlive(0)
     , ThreadId(InvalidThreadId)
@@ -180,15 +181,18 @@ TExecutorThread::TExecutorThread(
 
 void TExecutorThread::Start()
 {
-    Running = true;
+    Running = true;    
+    
     LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
         ~ThreadName);
+    
     Thread.Start();
+    Started.Get();
 }
 
 TExecutorThread::~TExecutorThread()
 {
-    Shutdown();
+    YCHECK(!Running);
 }
 
 void* TExecutorThread::ThreadMain(void* opaque)
@@ -199,19 +203,22 @@ void* TExecutorThread::ThreadMain(void* opaque)
 
 void TExecutorThread::ThreadMain()
 {
+    // NB: This way we also hold this strongly for the duration of this method.
+    auto fiberMainCallback = BIND(&TExecutorThread::FiberMain, MakeStrong(this));
+
     try {
-        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)",
-            ~ThreadName);
         OnThreadStart();
         CurrentExecutorThread = this;
-
         SetCurrentThreadName(~ThreadName);
         ThreadId = GetCurrentThreadId();
+        Started.Set();
+
+        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)",
+            ~ThreadName);
 
         while (Running) {
             // Spawn a new fiber to run the loop.
-            auto fiber = NYT::New<TFiber>(
-                BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
+            auto fiber = NYT::New<TFiber>(fiberMainCallback);
             auto state = fiber->Run();
 
             YCHECK(
@@ -233,6 +240,7 @@ void TExecutorThread::ThreadMain()
 
         CurrentExecutorThread = nullptr;
         OnThreadShutdown();
+        
         LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)",
             ~ThreadName);
     } catch (const std::exception& ex) {
