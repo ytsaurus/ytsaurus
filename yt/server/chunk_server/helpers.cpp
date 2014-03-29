@@ -69,24 +69,24 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
     }
 }
 
-void AddChildStatistics(
+void AccumulateChildStatistics(
     TChunkList* chunkList,
     TChunkTree* child,
-    TChunkTreeStatistics* delta)
+    TChunkTreeStatistics* statistics)
 {
     if (!chunkList->Children().empty()) {
         chunkList->RowCountSums().push_back(
             chunkList->Statistics().RowCount +
-            delta->RowCount);
+            statistics->RowCount);
         chunkList->ChunkCountSums().push_back(
             chunkList->Statistics().ChunkCount +
-            delta->ChunkCount);
+            statistics->ChunkCount);
         chunkList->DataSizeSums().push_back(
             chunkList->Statistics().UncompressedDataSize +
-            delta->UncompressedDataSize);
+            statistics->UncompressedDataSize);
 
     }
-    delta->Accumulate(GetChunkTreeStatistics(child));
+    statistics->Accumulate(GetChunkTreeStatistics(child));
 }
 
 void ResetChunkListStatistics(TChunkList* chunkList)
@@ -101,14 +101,17 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 {
     ResetChunkListStatistics(chunkList);
 
-    std::vector<TChunkTree*> existingChildren;
-    existingChildren.swap(chunkList->Children());
+    std::vector<TChunkTree*> children;
+    children.swap(chunkList->Children());
 
-    TChunkTreeStatistics delta;
-    for (auto* child : existingChildren) {
-        AddChildStatistics(chunkList, child, &delta);
+    TChunkTreeStatistics statistics;
+    for (auto* child : children) {
+        AccumulateChildStatistics(chunkList, child, &statistics);
         chunkList->Children().push_back(child);
     }
+
+    ++statistics.Rank;
+    chunkList->Statistics() = statistics;
 }
 
 void GetOwningNodes(

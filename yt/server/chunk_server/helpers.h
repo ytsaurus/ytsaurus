@@ -35,10 +35,10 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
-void AddChildStatistics(
+void AccumulateChildStatistics(
     TChunkList* chunkList,
     TChunkTree* child,
-    TChunkTreeStatistics* delta);
+    TChunkTreeStatistics* statistics);
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 

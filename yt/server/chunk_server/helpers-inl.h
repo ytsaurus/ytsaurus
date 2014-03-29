@@ -79,10 +79,10 @@ void AttachToChunkList(
 
     chunkList->IncrementVersion();
 
-    TChunkTreeStatistics delta;
+    TChunkTreeStatistics statisticsDelta;
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
         auto* child = *it;
-        AddChildStatistics(chunkList, child, &delta);
+        AccumulateChildStatistics(chunkList, child, &statisticsDelta);
         chunkList->Children().push_back(child);
         SetChunkTreeParent(chunkList, child);
         childAction(child);
@@ -92,8 +92,8 @@ void AttachToChunkList(
     VisitUniqueAncestors(
         chunkList,
         [&] (TChunkList* current) {
-            ++delta.Rank;
-            current->Statistics().Accumulate(delta);
+            ++statisticsDelta.Rank;
+            current->Statistics().Accumulate(statisticsDelta);
         });
 }
 
@@ -121,10 +121,10 @@ void DetachFromChunkList(
     std::vector<TChunkTree*> existingChildren;
     chunkList->Children().swap(existingChildren);
 
-    TChunkTreeStatistics delta;
+    TChunkTreeStatistics statisticsDelta;
     for (auto child : existingChildren) {
         if (detachSet.find(child) == detachSet.end()) {
-            AddChildStatistics(chunkList, child, &delta);
+            AccumulateChildStatistics(chunkList, child, &statisticsDelta);
             chunkList->Children().push_back(child);
         } else {
             ResetChunkTreeParent(chunkList, child);
