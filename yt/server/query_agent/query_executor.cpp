@@ -12,11 +12,14 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/table_client/chunk_meta_extensions.h>
+
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/pipe.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/callbacks.h>
@@ -49,8 +52,11 @@ using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NVersionedTableClient;
+using namespace NVersionedTableClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NDataNode;
 using namespace NCellNode;
 
@@ -137,16 +143,66 @@ public:
 
 
     // ICoordinateCallbacks implementation.
-    virtual bool CanSplit(const TDataSplit& /*split*/) override
+    virtual bool CanSplit(const TDataSplit& split) override
     {
-        return false;
+        auto objectId = GetObjectIdFromDataSplit(split);
+        auto type = TypeFromId(objectId);
+        return type == EObjectType::Tablet;
     }
 
     virtual TFuture<TErrorOr<TDataSplits>> SplitFurther(
-        const TDataSplit& /*split*/,
-        TPlanContextPtr /*context*/) override
+        const TDataSplit& split,
+        TPlanContextPtr context) override
     {
-        YUNREACHABLE();
+        try {
+            auto tabletId = GetObjectIdFromDataSplit(split);
+            YCHECK(TypeFromId(tabletId) == EObjectType::Tablet);
+
+            auto tabletCellController = Bootstrap_->GetTabletCellController();
+            auto tabletDescriptor = tabletCellController->FindTabletDescriptor(tabletId);
+            if (!tabletDescriptor) {
+                ThrowNoSuchTablet(tabletId);
+            }
+
+            auto lowerBound = GetLowerBoundFromDataSplit(split);
+            auto upperBound = GetUpperBoundFromDataSplit(split);
+            auto keyColumns = GetKeyColumnsFromDataSplit(split);
+            auto schema = GetTableSchemaFromDataSplit(split);
+
+            // Run binary search to find the relevant partitions.
+            auto startIt = std::upper_bound(
+                tabletDescriptor->PartitionKeys.begin(),
+                tabletDescriptor->PartitionKeys.end(),
+                lowerBound,
+                [] (const TOwningKey& lhs, const TOwningKey& rhs) {
+                    return lhs < rhs;
+                }) - 1;
+
+            std::vector<TDataSplit> subsplits;
+            for (auto it = startIt; it != tabletDescriptor->PartitionKeys.end(); ++it) {
+                const auto& partitionKey = *it;
+                auto nextPartitionKey = (it + 1 == tabletDescriptor->PartitionKeys.end()) ? MaxKey() : *(it + 1);
+                if (upperBound <= partitionKey)
+                    break;
+
+                TDataSplit subsplit;
+                SetObjectId(&subsplit, tabletId);
+                SetKeyColumns(&subsplit, keyColumns);
+                SetTableSchema(&subsplit, schema);
+                SetLowerBound(&subsplit, std::max(lowerBound, partitionKey));
+                SetUpperBound(&subsplit, std::min(upperBound, nextPartitionKey));
+                SetTimestamp(&subsplit, context->GetTimestamp());
+                subsplits.push_back(std::move(subsplit));
+            }
+
+            LOG_DEBUG("Subsplits built (TabletId: %s, SubsplitCount: %d)",
+                    ~ToString(tabletId),
+                    static_cast<int>(subsplits.size()));
+
+            return MakeFuture(TErrorOr<TDataSplits>(std::move(subsplits)));
+        } catch (const std::exception& ex) {
+            return MakeFuture(TErrorOr<TDataSplits>(ex));
+        }
     }
 
     virtual TGroupedDataSplits Regroup(
@@ -265,12 +321,14 @@ private:
     {
         try {
             auto tabletId = FromProto<TTabletId>(split.chunk_id());
+
             auto tabletCellController = Bootstrap_->GetTabletCellController();
-            auto slot = tabletCellController->FindSlotByTabletId(tabletId);
-            if (!slot) {
+            auto tabletDescriptor = tabletCellController->FindTabletDescriptor(tabletId);
+            if (!tabletDescriptor) {
                 ThrowNoSuchTablet(tabletId);
             }
 
+            const auto& slot = tabletDescriptor->Slot;
             auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
             if (!invoker) {
                 ThrowNoSuchTablet(tabletId);

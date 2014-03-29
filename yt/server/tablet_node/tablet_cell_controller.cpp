@@ -183,13 +183,13 @@ public:
     }
 
 
-    TTabletSlotPtr FindSlotByTabletId(const TTabletId& tabletId)
+    TTabletDescriptorPtr FindTabletDescriptor(const TTabletId& tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
-        auto it = TabletIdToSlot_.find(tabletId);
-        return it == TabletIdToSlot_.end() ? nullptr : it->second;
+        TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+        auto it = TabletIdToDescriptor_.find(tabletId);
+        return it == TabletIdToDescriptor_.end() ? nullptr : it->second;
     }
 
     void RegisterTablet(TTablet* tablet)
@@ -197,11 +197,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
-            YCHECK(TabletIdToSlot_.insert(std::make_pair(tablet->GetId(), tablet->GetSlot())).second);
+            TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+            auto descriptor = BuildTabletDescriptor(tablet);
+            YCHECK(TabletIdToDescriptor_.insert(std::make_pair(tablet->GetId(), descriptor)).second);
         }
 
-        LOG_INFO("Tablet-to-slot mapping added (TabletId: %s, CellGuid: %s)",
+        LOG_INFO("Tablet descriptor added (TabletId: %s, CellGuid: %s)",
             ~ToString(tablet->GetId()),
             ~ToString(tablet->GetSlot()->GetCellGuid()));
     }
@@ -211,29 +212,47 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
+            TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
             // NB: Don't check the result.
-            TabletIdToSlot_.erase(tablet->GetId());
+            TabletIdToDescriptor_.erase(tablet->GetId());
         }
 
-        LOG_INFO("Tablet-to-slot mapping removed (TabletId: %s, CellGuid: %s)",
+        LOG_INFO("Tablet descriptor removed (TabletId: %s, CellGuid: %s)",
             ~ToString(tablet->GetId()),
             ~ToString(tablet->GetSlot()->GetCellGuid()));
+    }
+
+    void UpdateTablet(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto descriptor = BuildTabletDescriptor(tablet);
+
+        {
+            TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+            auto it = TabletIdToDescriptor_.find(tablet->GetId());
+            YCHECK(it != TabletIdToDescriptor_.end());
+            it->second = descriptor;
+        }
+
+        LOG_INFO("Tablet descriptor updated (TabletId: %s, CellGuid: %s)",
+                ~ToString(tablet->GetId()),
+                ~ToString(tablet->GetSlot()->GetCellGuid()));
     }
 
     void UnregisterTablets(TTabletSlotPtr slot)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(TabletIdToSlotSpinLock_);
-        auto it = TabletIdToSlot_.begin();
-        while (it != TabletIdToSlot_.end()) {
+        TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+        auto it = TabletIdToDescriptor_.begin();
+        while (it != TabletIdToDescriptor_.end()) {
             auto jt = it++;
-            if (jt->second == slot) {
-                LOG_INFO("Tablet-to-slot mapping removed (TabletId: %s, CellGuid: %s)",
+            if (jt->second->Slot == slot) {
+                LOG_INFO("Tablet descriptor removed (TabletId: %s, CellGuid: %s)",
                     ~ToString(jt->first),
-                    ~ToString(jt->second->GetCellGuid()));
-                TabletIdToSlot_.erase(jt);
+                    ~ToString(slot->GetCellGuid()));
+                TabletIdToDescriptor_.erase(jt);
             }
         }
     }
@@ -276,8 +295,8 @@ private:
 
     TPeriodicExecutorPtr SlotScanExecutor_;
 
-    TSpinLock TabletIdToSlotSpinLock_;
-    yhash_map<TTabletId, TTabletSlotPtr> TabletIdToSlot_;
+    TSpinLock TabletDescriptorsSpinLock_;
+    yhash_map<TTabletId, TTabletDescriptorPtr> TabletIdToDescriptor_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -343,6 +362,19 @@ private:
         }));
     }
 
+
+    static TTabletDescriptorPtr BuildTabletDescriptor(TTablet* tablet)
+    {
+        auto descriptor = New<TTabletDescriptor>();
+        descriptor->Slot = tablet->GetSlot();
+        descriptor->PartitionKeys.reserve(tablet->Partitions().size());
+        for (const auto& partition : tablet->Partitions()) {
+            descriptor->PartitionKeys.push_back(partition->GetPivotKey());
+        }
+        return descriptor;
+    }
+
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,9 +430,9 @@ void TTabletCellController::RemoveSlot(TTabletSlotPtr slot)
     Impl_->RemoveSlot(slot);
 }
 
-TTabletSlotPtr TTabletCellController::FindSlotByTabletId(const TTabletId& tabletId)
+TTabletDescriptorPtr TTabletCellController::FindTabletDescriptor(const TTabletId& tabletId)
 {
-    return Impl_->FindSlotByTabletId(tabletId);
+    return Impl_->FindTabletDescriptor(tabletId);
 }
 
 void TTabletCellController::RegisterTablet(TTablet* tablet)
@@ -411,6 +443,11 @@ void TTabletCellController::RegisterTablet(TTablet* tablet)
 void TTabletCellController::UnregisterTablet(TTablet* tablet)
 {
     Impl_->UnregisterTablet(tablet);
+}
+
+void TTabletCellController::UpdateTablet(TTablet* tablet)
+{
+    Impl_->UpdateTablet(tablet);
 }
 
 void TTabletCellController::UnregisterTablets(TTabletSlotPtr slot)

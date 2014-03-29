@@ -720,6 +720,11 @@ private:
             ~JoinToString(pivotKeys, Stroka(" .. ")));
 
         tablet->SplitPartition(partitionIndex, pivotKeys);
+
+        if (!IsRecovery()) {
+            auto tabletCellController = Bootstrap_->GetTabletCellController();
+            tabletCellController->UpdateTablet(tablet);
+        }
     }
 
     void HydraMergePartitions(const TReqMergePartitions& request)
@@ -742,6 +747,11 @@ private:
             ~ToString(tablet->Partitions()[lastPartitionIndex]->GetNextPivotKey()));
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+
+        if (!IsRecovery()) {
+            auto tabletCellController = Bootstrap_->GetTabletCellController();
+            tabletCellController->UpdateTablet(tablet);
+        }
     }
 
 

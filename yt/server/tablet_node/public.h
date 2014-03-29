@@ -102,6 +102,8 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
 class TPartition;
 class TTablet;
+DECLARE_REFCOUNTED_STRUCT(TTabletDescriptor)
+        
 class TTransaction;
 
 DECLARE_REFCOUNTED_STRUCT(IStore)

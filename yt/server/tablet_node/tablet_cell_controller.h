@@ -8,12 +8,27 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <server/cell_node/public.h>
 
 #include <server/hydra/public.h>
 
 namespace NYT {
 namespace NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An immutable descriptor for a tablet, which helps to coorindate and
+//! run queries against it.
+struct TTabletDescriptor
+    : public TIntrinsicRefCounted
+{
+    TTabletSlotPtr Slot;
+    std::vector<NVersionedTableClient::TOwningKey> PartitionKeys;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,8 +62,8 @@ public:
     // The following section of methods is used to maintain tablet id to slot mapping.
     // It is safe to call them from any thread.
 
-    //! Returns a slot which is know to hold a given tablet or |nullptr| if none.
-    TTabletSlotPtr FindSlotByTabletId(const TTabletId& tabletId);
+    //! Returns the descriptor for a given tablet or |nullptr| if none.
+    TTabletDescriptorPtr FindTabletDescriptor(const TTabletId& tabletId);
 
     //! Informs the controller that some slot now serves #tablet.
     void RegisterTablet(TTablet* tablet);
@@ -58,6 +73,9 @@ public:
 
     //! Informs the controller that #slot no longer serves any tablet.
     void UnregisterTablets(TTabletSlotPtr slot);
+
+    //! Informs the controller that #tablet's descriptor must be updated.
+    void UpdateTablet(TTablet* tablet);
 
 
     NHydra::IChangelogCatalogPtr GetChangelogCatalog();
