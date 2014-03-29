@@ -30,7 +30,7 @@ private:
     class TImpl;
     typedef TIntrusivePtr<TImpl> TImplPtr;
     
-    class TData;
+    struct TData;
     typedef TIntrusivePtr<TData> TDataPtr;
 
     class TReader;
