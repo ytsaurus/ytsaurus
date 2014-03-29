@@ -180,15 +180,15 @@ TMultiCellBatchResponse::operator TError() const
 
 TMultiCellBatchRequest::TMultiCellBatchRequest(
     NCellDirectory::TCellDirectoryPtr cellDirectory,
-    bool throwIfCellIsAbsent)
+    bool throwIfCellIsMissing)
     : CellDirectory_(cellDirectory)
-    , ThrowIfCellIsAbsent_(throwIfCellIsAbsent)
+    , ThrowIfCellIsMissing_(throwIfCellIsMissing)
 { }
 
 bool TMultiCellBatchRequest::AddRequest(TYPathRequestPtr req, const Stroka& key, TCellId cellId)
 {
     if (!Init(cellId)) {
-        if (ThrowIfCellIsAbsent_) {
+        if (ThrowIfCellIsMissing_) {
             THROW_ERROR_EXCEPTION("Cannot find cluster with cell id %s", ~ToString(cellId));
         }
         return false;

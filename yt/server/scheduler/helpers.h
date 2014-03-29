@@ -69,7 +69,7 @@ private:
 class TMultiCellBatchRequest
 {
 public:
-    TMultiCellBatchRequest(NCellDirectory::TCellDirectoryPtr cellDirectory, bool throwIfCellIsAbsent);
+    TMultiCellBatchRequest(NCellDirectory::TCellDirectoryPtr cellDirectory, bool throwIfCellIsMissing);
 
     bool AddRequest(NYTree::TYPathRequestPtr req, const Stroka& key, NObjectClient::TCellId cellId);
     bool AddRequestForTransaction(NYTree::TYPathRequestPtr req, const Stroka& key, const NObjectClient::TTransactionId& id);
@@ -82,7 +82,7 @@ private:
     std::map<NObjectClient::TCellId, NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr> BatchRequests_;
     std::vector<std::pair<NObjectClient::TCellId, int>> RequestIndex_;
     NCellDirectory::TCellDirectoryPtr CellDirectory_;
-    bool ThrowIfCellIsAbsent_;
+    bool ThrowIfCellIsMissing_;
 };
 
 ////////////////////////////////////////////////////////////////////

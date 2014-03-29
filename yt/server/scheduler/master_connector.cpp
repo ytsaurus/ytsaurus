@@ -448,7 +448,7 @@ private:
                 StartLockTransaction();
                 TakeLock();
                 AssumeControl();
-                SyncUpdateCellDirectory();
+                UpdateCellDirectory();
                 ListOperations();
                 RequestOperationAttributes();
                 CheckOperationTransactions();
@@ -569,7 +569,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
         }
 
-        void SyncUpdateCellDirectory()
+        void UpdateCellDirectory()
         {
             Owner->Bootstrap->GetCellDirectory()->UpdateSelf();
             Owner->OnGotClusters(WaitFor(Owner->GetClusters()));
@@ -657,9 +657,6 @@ private:
         // - Try to ping the previous incarnations of scheduler transactions.
         void CheckOperationTransactions()
         {
-            // We need cluster configuration to ping transaction in proper cells.
-            Owner->OnGotClusters(WaitFor(Owner->GetClusters()));
-
             auto batchRequest = TMultiCellBatchRequest(Owner->CellDirectory, true);
 
             auto getRspName = [] (TOperationPtr operation) {

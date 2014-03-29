@@ -115,6 +115,7 @@ void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscov
         auto cluster = CreateCluster(clusterName, CreateMasterChannel(masterConfig), masterConfig);
 
         TGuard<TSpinLock> guard(Lock_);
+
         addNewCluster(cluster);
     } else if (it->second.MasterConfig != masterConfig) {
         auto cluster = CreateCluster(clusterName, CreateMasterChannel(masterConfig), masterConfig);

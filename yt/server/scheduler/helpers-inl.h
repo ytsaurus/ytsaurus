@@ -19,7 +19,7 @@ TIntrusivePtr<TTypedResponse> TMultiCellBatchResponse::GetResponse(int index) co
 template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TMultiCellBatchResponse::FindResponse(const Stroka& key) const
 {
-    for (auto batchRsp : BatchResponses_) {
+    for (const auto& batchRsp : BatchResponses_) {
         auto rsp = batchRsp->FindResponse<TTypedResponse>(key);
         if (rsp) {
             return rsp;
@@ -40,8 +40,8 @@ template <class TTypedResponse>
 std::vector< TIntrusivePtr<TTypedResponse> > TMultiCellBatchResponse::GetResponses(const Stroka& key) const
 {
     std::vector<TIntrusivePtr<TTypedResponse>> responses;
-    for (auto batchRsp : BatchResponses_) {
-        for (auto rsp : batchRsp->GetResponses<TTypedResponse>(key)) {
+    for (const auto& batchRsp : BatchResponses_) {
+        for (const auto& rsp : batchRsp->GetResponses<TTypedResponse>(key)) {
             responses.push_back(rsp);
         }
     }
