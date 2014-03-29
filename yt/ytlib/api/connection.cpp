@@ -403,8 +403,8 @@ private:
         context->GetNodeDirectory()->MergeFrom(rsp->node_directory());
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-        auto keyColumns = FromProto<TKeyColumns>(GetProtoExtension<TKeyColumnsExt>(split.chunk_meta().extensions()));
-        auto schema = FromProto<TTableSchema>(GetProtoExtension<TTableSchemaExt>(split.chunk_meta().extensions()));
+        auto keyColumns = GetKeyColumnsFromDataSplit(split);
+        auto schema = GetTableSchemaFromDataSplit(split);
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
@@ -448,9 +448,11 @@ private:
 
         auto lowerBound = GetLowerBoundFromDataSplit(split);
         auto upperBound = GetUpperBoundFromDataSplit(split);
+        auto keyColumns = GetKeyColumnsFromDataSplit(split);
+        auto schema = GetTableSchemaFromDataSplit(split);
 
         // Run binary search to find the relevant tablets.
-        auto tabletIt = std::upper_bound(
+        auto startIt = std::upper_bound(
             tableInfo->Tablets.begin(),
             tableInfo->Tablets.end(),
             lowerBound,
@@ -460,11 +462,8 @@ private:
 
         auto nodeDirectory = context->GetNodeDirectory();
 
-        auto keyColumns = FromProto<TKeyColumns>(GetProtoExtension<TKeyColumnsExt>(split.chunk_meta().extensions()));
-        auto schema = FromProto<TTableSchema>(GetProtoExtension<TTableSchemaExt>(split.chunk_meta().extensions()));
-
         std::vector<TDataSplit> subsplits;
-        for (auto it = tabletIt; it != tableInfo->Tablets.end(); ++it) {
+        for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
             const auto& tabletInfo = *it;
             if (upperBound <= tabletInfo->PivotKey)
                 break;
@@ -494,7 +493,7 @@ private:
                 subsplit.add_replicas(ToProto<ui32>(chunkReplica));
             }
 
-            subsplits.push_back(subsplit);
+            subsplits.push_back(std::move(subsplit));
         }
         return subsplits;
     }
