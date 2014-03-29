@@ -84,7 +84,11 @@ private:
     TCellNodeConfigPtr Config;
 
     NConcurrency::TActionQueuePtr ControlQueue;
+    IInvokerPtr ControlInvoker;
+
     NConcurrency::TThreadPoolPtr QueryWorkerPool;
+    IInvokerPtr QueryWorkerInvoker;
+
     NBus::IBusServerPtr BusServer;
     NApi::IClientPtr MasterClient;
     NRpc::IChannelPtr SchedulerChannel;

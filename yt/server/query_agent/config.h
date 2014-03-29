@@ -23,6 +23,8 @@ class TQueryAgentConfig
 {
 public:
     int ThreadPoolSize;
+    int MaxConcurrentRequests;
+
     TIntrusivePtr<TQueryChunkReaderConfig> ChunkReader;
 
     TQueryAgentConfig()
@@ -30,6 +32,10 @@ public:
         RegisterParameter("thread_pool_size", ThreadPoolSize)
             .GreaterThan(0)
             .Default(4);
+        RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
+            .GreaterThan(0)
+            .Default(4);
+
         RegisterParameter("chunk_reader", ChunkReader)
             .DefaultNew();
     }

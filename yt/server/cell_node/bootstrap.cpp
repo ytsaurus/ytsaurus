@@ -146,10 +146,14 @@ void TBootstrap::Run()
     MasterClient = CreateClient(connection);
 
     ControlQueue = New<TActionQueue>("Control");
+    ControlInvoker = ControlQueue->GetInvoker();
 
     QueryWorkerPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
+    QueryWorkerInvoker = CreateBoundedConcurrencyInvoker(
+        QueryWorkerPool->GetInvoker(),
+        Config->QueryAgent->MaxConcurrentRequests);
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
@@ -350,12 +354,12 @@ TCellNodeConfigPtr TBootstrap::GetConfig() const
 
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue->GetInvoker();
+    return ControlInvoker;
 }
 
 IInvokerPtr TBootstrap::GetQueryWorkerInvoker() const
 {
-    return QueryWorkerPool->GetInvoker();
+    return QueryWorkerInvoker;
 }
 
 IClientPtr TBootstrap::GetMasterClient() const
