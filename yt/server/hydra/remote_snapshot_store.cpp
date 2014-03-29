@@ -241,81 +241,99 @@ private:
 
     TSnapshotParams DoConfirmSnapshot(int snapshotId)
     {
-        LOG_DEBUG("Uploading snapshot %d to the remote store", snapshotId);
+        try {
+            LOG_DEBUG("Uploading snapshot %d to the remote store", snapshotId);
 
-        auto reader = CreateFileSnapshotReader(
-            GetLocalPath(snapshotId),
-            snapshotId,
-            false);
-        auto params = reader->GetParams();
+            auto localPath = GetLocalPath(snapshotId);
+            auto remotePath = GetRemotePath(snapshotId);
 
-        LOG_DEBUG("Starting transaction");
-        ITransactionPtr transaction;
-        {
-            TTransactionStartOptions options;
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Sprintf("Snapshot upload for cell %s, snapshot %d",
-                ~ToString(CellGuid_),
-                snapshotId));
-            options.Attributes = attributes.get();
-            auto transactionOrError = WaitFor(MasterClient_->StartTransaction(
-                NTransactionClient::ETransactionType::Master,
-                options));
-            transaction = transactionOrError.ValueOrThrow();
+            auto reader = CreateFileSnapshotReader(
+                localPath,
+                snapshotId,
+                false);
+            auto params = reader->GetParams();
+
+            LOG_DEBUG("Starting snapshot upload transaction");
+            ITransactionPtr transaction;
+            {
+                TTransactionStartOptions options;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("title", Sprintf("Snapshot upload for cell %s, snapshot %d",
+                    ~ToString(CellGuid_),
+                    snapshotId));
+                options.Attributes = attributes.get();
+                auto transactionOrError = WaitFor(MasterClient_->StartTransaction(
+                    NTransactionClient::ETransactionType::Master,
+                    options));
+                transaction = transactionOrError.ValueOrThrow();
+            }
+
+            LOG_DEBUG("Creating snapshot node");
+            {
+                TCreateNodeOptions options;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("prev_record_count", params.PrevRecordCount);
+                options.Attributes = attributes.get();
+                auto result = WaitFor(transaction->CreateNode(
+                    remotePath,
+                    EObjectType::File,
+                    options));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            LOG_DEBUG("Writing snapshot data");
+
+            auto writer = transaction->CreateFileWriter(
+                remotePath,
+                TFileWriterOptions(),
+                Config_->Writer);
+
+            {
+                auto result = WaitFor(writer->Open());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            struct TUploadBufferTag { };
+            auto buffer = TSharedRef::Allocate<TUploadBufferTag>(Config_->Writer->BlockSize);
+
+            while (true) {
+                size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), buffer.Size());
+                if (bytesRead == 0)
+                    break;
+                auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            {
+                auto result = WaitFor(writer->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            LOG_DEBUG("Committing snapshot upload transaction");
+            {
+                auto result = WaitFor(transaction->Commit());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            LOG_DEBUG("Snapshot uploaded successfully");
+    
+            DoCleanupSnapshot(snapshotId);
+
+            return params;
+        } catch (...) {
+            DoCleanupSnapshot(snapshotId);
+            throw;
         }
+    }
 
-        auto snapshotPath = GetRemotePath(snapshotId);
-
-        LOG_DEBUG("Creating snapshot node");
-        {
-            TCreateNodeOptions options;
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("prev_record_count", params.PrevRecordCount);
-            options.Attributes = attributes.get();
-            auto result = WaitFor(transaction->CreateNode(
-                snapshotPath,
-                EObjectType::File,
-                options));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    void DoCleanupSnapshot(int snapshotId)
+    {
+        try {
+            auto localPath = GetLocalPath(snapshotId);
+            NFS::Remove(localPath);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error removing temporary snapshot file");
         }
-
-        LOG_DEBUG("Writing snapshot data");
-
-        auto writer = transaction->CreateFileWriter(
-            snapshotPath,
-            TFileWriterOptions(),
-            Config_->Writer);
-
-        {
-            auto result = WaitFor(writer->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        struct TUploadBufferTag { };
-        auto buffer = TSharedRef::Allocate<TUploadBufferTag>(Config_->Writer->BlockSize);
-
-        while (true) {
-            size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), buffer.Size());
-            if (bytesRead == 0)
-                break;
-            auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        {
-            auto result = WaitFor(writer->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        LOG_DEBUG("Committing transaction");
-        {
-            auto result = WaitFor(transaction->Commit());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        LOG_DEBUG("Snapshot uploaded successfully");
-
-        return params;
     }
 
     TSnapshotParams DoGetSnapshotParams(int snapshotId)
@@ -323,12 +341,12 @@ private:
         LOG_DEBUG("Requesting parameters for snapshot %d from the remote store",
             snapshotId);
 
-        auto snapshotPath = GetRemotePath(snapshotId);
+        auto remotePath = GetRemotePath(snapshotId);
 
         TGetNodeOptions options;
         options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
         options.AttributeFilter.Keys.push_back("prev_record_count");
-        auto resultOrError = WaitFor(MasterClient_->GetNode(snapshotPath, options));
+        auto resultOrError = WaitFor(MasterClient_->GetNode(remotePath, options));
         THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
         LOG_DEBUG("Snapshot parameters received");
 
