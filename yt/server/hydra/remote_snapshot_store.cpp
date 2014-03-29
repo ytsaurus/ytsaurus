@@ -272,7 +272,7 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("prev_record_count", params.PrevRecordCount);
             options.Attributes = attributes.get();
-            auto result = WaitFor(MasterClient_->CreateNode(
+            auto result = WaitFor(transaction->CreateNode(
                 snapshotPath,
                 EObjectType::File,
                 options));
@@ -281,7 +281,7 @@ private:
 
         LOG_DEBUG("Writing snapshot data");
 
-        auto writer = MasterClient_->CreateFileWriter(
+        auto writer = transaction->CreateFileWriter(
             snapshotPath,
             TFileWriterOptions(),
             Config_->Writer);
