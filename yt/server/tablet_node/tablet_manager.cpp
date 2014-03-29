@@ -635,10 +635,7 @@ private:
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
             auto store = tablet->GetStore(storeId);
-            YCHECK(store->GetState() == EStoreState::PassiveDynamic ||
-                   store->GetState() == EStoreState::Persistent ||
-                   store->GetState() == EStoreState::Flushing ||
-                   store->GetState() == EStoreState::Compacting);
+            YCHECK(store->GetState() != EStoreState::ActiveDynamic);
             store->SetState(EStoreState::RemoveCommitting);
         }
 
