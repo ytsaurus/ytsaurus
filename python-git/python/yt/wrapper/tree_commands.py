@@ -204,7 +204,7 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
             yson_path.attributes = dict(filter(lambda item: item[0] in attributes, object.attributes.iteritems()))
             result.append(yson_path)
 
-        if object_type == "account_map":
+        if object_type in ["account_map", "tablet_cell"]:
             object = safe_get(path)
 
         if isinstance(object, dict):
