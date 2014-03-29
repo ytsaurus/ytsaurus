@@ -5,6 +5,7 @@
 
 #include <core/actions/invoker.h>
 #include <core/actions/callback.h>
+#include <core/actions/future.h>
 
 #include <core/profiling/profiler.h>
 
@@ -135,7 +136,7 @@ private:
     NProfiling::TProfiler Profiler;
 
     std::atomic_bool Running;
-    volatile bool Running;
+    TPromise<void> Started;
 
     int FibersCreated;
     int FibersAlive;
