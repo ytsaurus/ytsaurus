@@ -197,11 +197,7 @@ public:
 #endif
     { }
 
-#ifdef __clang__
-    void Reset(void* stack, size_t size, void __attribute__((__regparm__(1))) (*callee)(void *), void* opaque)
-#else
-    void Reset(void* stack, size_t size, void (*callee)(void *), void* opaque)
-#endif
+    void Reset(void* stack, size_t size, void (*callee)(void*), void* opaque)
     {
 #ifdef _win_
         if (Fiber_) {
@@ -704,10 +700,10 @@ private:
 #endif
     Trampoline(void* opaque)
     {
-        reinterpret_cast<TImpl*>(opaque)->Trampoline();
+        reinterpret_cast<TImpl*>(opaque)->TrampolineImpl();
     }
 
-    void Trampoline()
+    void TrampolineImpl()
     {
         YASSERT(Caller_);
         YASSERT(Callee_);
