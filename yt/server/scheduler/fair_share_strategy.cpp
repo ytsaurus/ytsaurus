@@ -109,6 +109,7 @@ struct ISchedulableElement
 
     virtual double GetUsageRatio() const = 0;
     virtual double GetDemandRatio() const = 0;
+    virtual double GetSatisfactionRatio() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -166,6 +167,13 @@ public:
         i64 dominantDemand = GetResource(demand, attributes.DominantResource);
         i64 dominantLimit = GetResource(limits, attributes.DominantResource);
         return dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
+    }
+
+    virtual double GetSatisfactionRatio() const override
+    {
+        double fairShareRatio = Attributes().FairShareRatio;
+        double usageRatio = GetUsageRatio();
+        return fairShareRatio < RatioComparisonPrecision ? 1.0 : usageRatio / fairShareRatio;
     }
 
 };
@@ -573,20 +581,13 @@ protected:
 
     void SortChildrenFairShare(std::vector<ISchedulableElementPtr>* sortedChildren)
     {
+        // Sort by satisfaction ratio (asc).
         std::sort(
             sortedChildren->begin(),
             sortedChildren->end(),
-            [&] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) -> bool {
-                return GetUsageToWeightRatio(lhs) < GetUsageToWeightRatio(rhs);
+            [] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) {
+                return lhs->GetSatisfactionRatio() < rhs->GetSatisfactionRatio();
             });
-    }
-
-    static double GetUsageToWeightRatio(ISchedulableElementPtr element)
-    {
-        double usageRatio = element->GetUsageRatio();
-        double weight = element->GetWeight();
-        // Avoid division by zero.
-        return usageRatio / std::max(weight, RatioComparisonPrecision);
     }
 
 
@@ -678,6 +679,15 @@ public:
         auto result = ZeroNodeResources();
         for (const auto& child : Children) {
             result += child->GetDemand();
+        }
+        return result;
+    }
+
+    virtual double GetSatisfactionRatio() const override
+    {
+        double result = TSchedulableElementBase::GetSatisfactionRatio();
+        for (const auto& child : Children) {
+            result = std::min(result, child->GetSatisfactionRatio());
         }
         return result;
     }
@@ -917,7 +927,8 @@ public:
         const auto& attributes = element->Attributes();
         return Sprintf(
             "Scheduling = {Status: %s, Rank: %d+%d, DominantResource: %s, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s, Weight: %lf, "
+            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
+            "Starving: %s, Weight: %lf, "
             "PreemptableRunningJobs: %" PRISZT "}",
             ~element->GetStatus().ToString(),
             element->GetPool()->Attributes().Rank,
@@ -926,6 +937,7 @@ public:
             attributes.DemandRatio,
             element->GetUsageRatio(),
             attributes.FairShareRatio,
+            element->GetSatisfactionRatio(),
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
             ~FormatBool(element->GetStarving()),
@@ -1485,7 +1497,8 @@ private:
             .Item("max_share_ratio").Value(attributes.MaxShareRatio)
             .Item("usage_ratio").Value(element->GetUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
-            .Item("fair_share_ratio").Value(attributes.FairShareRatio);
+            .Item("fair_share_ratio").Value(attributes.FairShareRatio)
+            .Item("satisfaction_ratio").Value(element->GetSatisfactionRatio());
     }
 
 };
