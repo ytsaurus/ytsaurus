@@ -46,7 +46,10 @@ private:
 
     NRpc::IChannelPtr MasterChannel_;
 
-    TCluster CreateCluster(Stroka name, NRpc::IChannelPtr channel, NMetaState::TMasterDiscoveryConfigPtr masterConfig) const;
+    TCluster CreateCluster(
+        const Stroka& name,
+        NRpc::IChannelPtr channel,
+        NMetaState::TMasterDiscoveryConfigPtr masterConfig) const;
 
     TSpinLock Lock_;
 };

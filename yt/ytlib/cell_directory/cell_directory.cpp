@@ -104,7 +104,7 @@ void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscov
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         if (CellIdMap_.find(cluster.CellId) != CellIdMap_.end()) {
-            THROW_ERROR_EXCEPTION("Duplicated cell id");
+            THROW_ERROR_EXCEPTION("Duplicated cell id %d", cluster.CellId);
         }
         CellIdMap_[cluster.CellId] = cluster;
         NameMap_[cluster.Name] = cluster;
@@ -130,7 +130,7 @@ void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscov
 
 void TCellDirectory::UpdateSelf()
 {
-    auto cluster = CreateCluster("self", MasterChannel_, nullptr);
+    auto cluster = CreateCluster("", MasterChannel_, nullptr);
     {
         TGuard<TSpinLock> guard(Lock_);
 
@@ -139,7 +139,7 @@ void TCellDirectory::UpdateSelf()
 }
 
 TCellDirectory::TCluster TCellDirectory::CreateCluster(
-    Stroka name,
+    const Stroka& name,
     NRpc::IChannelPtr channel,
     NMetaState::TMasterDiscoveryConfigPtr masterConfig) const
 {
