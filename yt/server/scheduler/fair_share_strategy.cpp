@@ -530,6 +530,7 @@ protected:
     const std::vector<ISchedulableElementPtr> GetSortedChildren()
     {
         std::vector<ISchedulableElementPtr> sortedChildren;
+        sortedChildren.reserve(Children.size());
         for (const auto& child : Children) {
             sortedChildren.push_back(child);
         }
