@@ -353,7 +353,7 @@ void TStoreManager::Rotate(bool createNew)
     activeStore->SetState(EStoreState::PassiveDynamic);
 
     if (activeStore->GetLockCount() > 0) {
-        LOG_INFO("Current store is locked and will be kept (TabletId: %s, StoreId: %s, LockCount: %d)",
+        LOG_INFO("Active store is locked and will be kept (TabletId: %s, StoreId: %s, LockCount: %d)",
             ~ToString(Tablet_->GetId()),
             ~ToString(activeStore->GetId()),
             activeStore->GetLockCount());

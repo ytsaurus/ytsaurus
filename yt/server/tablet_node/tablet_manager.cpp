@@ -282,6 +282,8 @@ private:
     std::vector<TDynamicRow> PooledRows_;
     TRingQueue<TDynamicRowRef> PrewrittenRows_;
 
+    yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -358,6 +360,7 @@ private:
 
         TabletMap_.Clear();
         UnmountingTablets_.clear();
+        OrphanedStores_.clear();
     }
 
 
@@ -378,13 +381,17 @@ private:
         while (!PrewrittenRows_.empty()) {
             auto rowRef = PrewrittenRows_.front();
             PrewrittenRows_.pop();
-            rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+            if (ValidateRowRef(rowRef)) {
+                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+            }
         }
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             StopTabletEpoch(tablet);
         }
+
+        OrphanedStores_.clear();
     }
 
 
@@ -406,6 +413,8 @@ private:
             auto* tablet = pair.second;
             StopTabletEpoch(tablet);
         }
+
+        OrphanedStores_.clear();
     }
 
 
@@ -474,6 +483,10 @@ private:
 
             if (!IsRecovery()) {
                 StopTabletEpoch(tablet);
+            }
+
+            for (const auto& pair : tablet->Stores()) {
+                SetStoreOrphaned(pair.second);
             }
 
             TabletMap_.Remove(tabletId);
@@ -569,7 +582,9 @@ private:
             YASSERT(!PrewrittenRows_.empty());
             auto rowRef = PrewrittenRows_.front();
             PrewrittenRows_.pop();
-            rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(rowRef);
+            if (ValidateRowRef(rowRef)) {
+                rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(rowRef);
+            }
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %d)",
@@ -759,7 +774,9 @@ private:
     {
         if (!transaction->LockedRows().empty()) {
             for (const auto& rowRef : transaction->LockedRows()) {
-                rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(rowRef);
+                if (ValidateRowRef(rowRef)) {
+                    rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(rowRef);
+                }
             }
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %s, RowCount: %" PRISZT ")",
@@ -774,7 +791,9 @@ private:
             return;
 
         for (const auto& rowRef : transaction->LockedRows()) {
-            rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
+            if (ValidateRowRef(rowRef)) {
+                rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
+            }
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
@@ -790,7 +809,9 @@ private:
             return;
 
         for (const auto& rowRef : transaction->LockedRows()) {
-            rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+            if (ValidateRowRef(rowRef)) {
+                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+            }
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",
@@ -807,6 +828,40 @@ private:
                 CheckIfFullyUnlocked(tablet);
             }
         }
+    }
+
+
+    void SetStoreOrphaned(IStorePtr store)
+    {
+        store->SetState(EStoreState::Orphaned);
+
+        if (store->IsDynamic()) {
+            auto dynamicStore = store->AsDynamic();
+            int lockCount = dynamicStore->GetLockCount();
+            if (lockCount > 0) {
+                YCHECK(OrphanedStores_.insert(dynamicStore).second);
+                LOG_DEBUG("Dynamic memory store is orphaned and will be kept (StoreId: %s, TabletId: %s, LockCount: %d)",
+                    ~ToString(store->GetId()),
+                    ~ToString(store->GetTablet()->GetId()),
+                    lockCount);
+            }
+        }
+    }
+
+    bool ValidateRowRef(const TDynamicRowRef& rowRef)
+    {
+        auto* store = rowRef.Store;
+        if (store->GetState() != EStoreState::Orphaned) {
+            return true;
+        }
+
+        int lockCount = store->Unlock();
+        if (lockCount == 0) {
+            LOG_INFO("Store unlocked and will be dropped (StoreId: %s)",
+                ~ToString(store->GetId()));
+            YCHECK(OrphanedStores_.erase(store) == 1);
+        }
+        return false;
     }
 
 

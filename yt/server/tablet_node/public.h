@@ -73,6 +73,8 @@ DECLARE_ENUM(EStoreState,
 
     (RemoveCommitting)      // UpdateTabletStores request sent
     (RemoveFailed)          // transient, waiting for back off to complete
+
+    (Orphaned)              // belongs to a forcefully removed tablet
 );
 
 DECLARE_ENUM(EAutomatonThreadQueue,

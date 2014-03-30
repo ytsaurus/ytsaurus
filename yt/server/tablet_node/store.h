@@ -26,6 +26,9 @@ struct IStore
     EStoreState GetPersistentState() const;
     virtual void SetState(EStoreState state) = 0;
 
+    bool IsDynamic() const;
+    TDynamicMemoryStorePtr AsDynamic();
+
     virtual TPartition* GetPartition() const = 0;
     virtual void SetPartition(TPartition* partition) = 0;
 
