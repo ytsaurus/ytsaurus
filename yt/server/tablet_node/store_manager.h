@@ -92,6 +92,8 @@ private:
 
     void CheckForUnlockedStore(const TDynamicMemoryStorePtr& store);
 
+    bool IsRecovery() const;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreManager)

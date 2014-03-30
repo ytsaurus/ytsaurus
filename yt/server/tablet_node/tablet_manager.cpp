@@ -680,7 +680,7 @@ private:
 
         if (response.has_error()) {
             auto error = FromProto(response.error());
-            LOG_WARNING(error, "Error updating tablet stores (TabletId: %s)",
+            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %s)",
                 ~ToString(tabletId));
 
             for (const auto& descriptor : response.stores_to_remove()) {
@@ -844,7 +844,7 @@ private:
             int lockCount = dynamicStore->GetLockCount();
             if (lockCount > 0) {
                 YCHECK(OrphanedStores_.insert(dynamicStore).second);
-                LOG_DEBUG("Dynamic memory store is orphaned and will be kept (StoreId: %s, TabletId: %s, LockCount: %d)",
+                LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %s, TabletId: %s, LockCount: %d)",
                     ~ToString(store->GetId()),
                     ~ToString(store->GetTablet()->GetId()),
                     lockCount);
@@ -861,7 +861,7 @@ private:
 
         int lockCount = store->Unlock();
         if (lockCount == 0) {
-            LOG_INFO("Store unlocked and will be dropped (StoreId: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %s)",
                 ~ToString(store->GetId()));
             YCHECK(OrphanedStores_.erase(store) == 1);
         }
@@ -963,7 +963,7 @@ private:
         if (tablet->GetStoreManager()->HasActiveLocks())
             return;
 
-        LOG_INFO("All tablet locks released (TabletId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %s)",
             ~ToString(tablet->GetId()));
 
         TReqSetTabletState request;
@@ -980,7 +980,7 @@ private:
         if (tablet->GetStoreManager()->HasUnflushedStores())
             return;
 
-        LOG_INFO("All tablet stores are flushed (TabletId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "All tablet stores are flushed (TabletId: %s)",
             ~ToString(tablet->GetId()));
 
         TReqSetTabletState request;

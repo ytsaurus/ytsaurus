@@ -25,6 +25,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
+#include <server/hydra/hydra_manager.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -326,7 +328,7 @@ void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
     if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;
 
-    LOG_INFO("Store unlocked and will be dropped (TabletId: %s, StoreId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (TabletId: %s, StoreId: %s)",
         ~ToString(Tablet_->GetId()),
         ~ToString(store->GetId()));
     YCHECK(LockedStores_.erase(store) == 1);
@@ -365,7 +367,7 @@ void TStoreManager::ResetRotationScheduled()
 
     RotationScheduled_ = false;
 
-    LOG_INFO("Tablet store rotation canceled (TabletId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Tablet store rotation canceled (TabletId: %s)",
         ~ToString(Tablet_->GetId()));
 }
 
@@ -378,7 +380,7 @@ void TStoreManager::RotateStores(bool createNew)
     activeStore->SetState(EStoreState::PassiveDynamic);
 
     if (activeStore->GetLockCount() > 0) {
-        LOG_INFO("Active store is locked and will be kept (TabletId: %s, StoreId: %s, LockCount: %d)",
+        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (TabletId: %s, StoreId: %s, LockCount: %d)",
             ~ToString(Tablet_->GetId()),
             ~ToString(activeStore->GetId()),
             activeStore->GetLockCount());
@@ -391,7 +393,7 @@ void TStoreManager::RotateStores(bool createNew)
         Tablet_->SetActiveStore(nullptr);
     }
 
-    LOG_INFO("Tablet stores rotated (TabletId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated (TabletId: %s)",
         ~ToString(Tablet_->GetId()));
 }
 
@@ -437,6 +439,11 @@ void TStoreManager::CreateActiveStore()
 
     Tablet_->AddStore(store);
     Tablet_->SetActiveStore(store);
+}
+
+bool TStoreManager::IsRecovery() const
+{
+    return Tablet_->GetSlot()->GetHydraManager()->IsRecovery();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
