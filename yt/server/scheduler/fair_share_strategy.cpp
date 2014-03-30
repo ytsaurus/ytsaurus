@@ -529,30 +529,28 @@ protected:
 
     const std::vector<ISchedulableElementPtr> GetSortedChildren()
     {
-        PROFILE_TIMING ("/fair_share_sort_time") {
-            std::vector<ISchedulableElementPtr> sortedChildren;
-            for (const auto& child : Children) {
-                sortedChildren.push_back(child);
-            }
-
-            switch (Mode) {
-                case ESchedulingMode::Fifo:
-                    SortChildrenFifo(&sortedChildren);
-                    break;
-                case ESchedulingMode::FairShare:
-                    SortChildrenFairShare(&sortedChildren);
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-
-            // Update ranks.
-            for (int rank = 0; rank < static_cast<int>(sortedChildren.size()); ++rank) {
-                sortedChildren[rank]->Attributes().Rank = rank;
-            }
-
-            return sortedChildren;
+        std::vector<ISchedulableElementPtr> sortedChildren;
+        for (const auto& child : Children) {
+            sortedChildren.push_back(child);
         }
+
+        switch (Mode) {
+            case ESchedulingMode::Fifo:
+                SortChildrenFifo(&sortedChildren);
+                break;
+            case ESchedulingMode::FairShare:
+                SortChildrenFairShare(&sortedChildren);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+
+        // Update ranks.
+        for (int rank = 0; rank < static_cast<int>(sortedChildren.size()); ++rank) {
+            sortedChildren[rank]->Attributes().Rank = rank;
+        }
+
+        return sortedChildren;
     }
 
     void SortChildrenFifo(std::vector<ISchedulableElementPtr>* sortedChildren)
