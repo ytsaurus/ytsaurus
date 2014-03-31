@@ -15,16 +15,16 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Note: #TSchemedDsvWriter supports only tabular data
-class TSchemedDsvWriter
+//! Note: #TSchemafulDsvWriter supports only tabular data
+class TSchemafulDsvWriter
     : public virtual TFormatsConsumerBase
 {
 public:
-    explicit TSchemedDsvWriter(
+    explicit TSchemafulDsvWriter(
         TOutputStream* stream,
-        TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
+        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
-    ~TSchemedDsvWriter();
+    ~TSchemafulDsvWriter();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -42,9 +42,9 @@ public:
 
 private:
     TOutputStream* Stream_;
-    TSchemedDsvFormatConfigPtr Config_;
+    TSchemafulDsvFormatConfigPtr Config_;
 
-    TSchemedDsvTable Table_;
+    TSchemafulDsvTable Table_;
 
     std::set<TStringBuf> Keys_;
     std::map<TStringBuf, TStringBuf> Values_;

@@ -255,6 +255,13 @@ std::vector <typename yhash_set<TKey>::const_iterator> GetSortedIterators(
 }
 
 template <class TKey, class TValue>
+std::vector <typename std::map<TKey, TValue>::const_iterator> GetSortedIterators(
+    const std::map<TKey, TValue>& map)
+{
+    return GetSortedMapIterators(map);
+}
+
+template <class TKey, class TValue>
 std::vector <typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
     const yhash_map<TKey, TValue>& map)
 {

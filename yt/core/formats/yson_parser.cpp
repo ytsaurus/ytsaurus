@@ -4,6 +4,8 @@
 
 #include <core/yson/parser.h>
 
+#include <ytlib/table_client/public.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -20,7 +22,7 @@ public:
         IYsonConsumer* consumer,
         EYsonType type,
         bool enableLinePositionInfo)
-        : Parser(consumer, type, enableLinePositionInfo)
+        : Parser(consumer, type, enableLinePositionInfo, NTableClient::MaxRowWeightLimit)
     { }
 
     virtual void Read(const TStringBuf& data) override

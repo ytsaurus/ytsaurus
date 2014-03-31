@@ -71,6 +71,16 @@ Stroka Utf8ToByteString(const TStringBuf& str)
     return output.Str();
 }
 
+bool IsSpecialJsonKey(const TStringBuf& key)
+{
+    int pos = 0;
+    while (pos < key.size() && key[pos] == '$') {
+        pos += 1;
+    }
+    return pos > 0 && (key.substr(pos) == "value" || key.substr(pos) == "attributes");
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

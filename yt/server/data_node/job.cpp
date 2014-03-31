@@ -456,6 +456,7 @@ private:
                 Bootstrap->GetLocalDescriptor(),
                 partId,
                 partReplicas,
+                DefaultNetworkName,
                 EReadSessionType::Repair,
                 Bootstrap->GetRepairInThrottler());
             readers.push_back(reader);

@@ -23,6 +23,7 @@ DECLARE_ENUM(EOperationType,
     (Sort)
     (Reduce)
     (MapReduce)
+    (RemoteCopy)
 );
 
 DECLARE_ENUM(EOperationState,
@@ -99,6 +100,9 @@ typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 
 class TMapReduceOperationSpec;
 typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
+
+class  TRemoteCopyOperationSpec;
+typedef TIntrusivePtr<TRemoteCopyOperationSpec> TRemoteCopyOperationSpecPtr;
 
 class TPoolResourceLimitsConfig;
 typedef TIntrusivePtr<TPoolResourceLimitsConfig> TPoolResourceLimitsConfigPtr;

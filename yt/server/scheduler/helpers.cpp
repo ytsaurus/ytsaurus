@@ -5,15 +5,23 @@
 #include "exec_node.h"
 #include "operation_controller.h"
 
-#include <core/ytree/fluent.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/node_tracker_client/helpers.h>
+
+#include <ytlib/cell_directory/cell_directory.h>
+
+#include <core/concurrency/fiber.h>
+
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -36,13 +44,13 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
     auto inputTransaction = operation->GetInputTransaction();
     auto outputTransaction = operation->GetOutputTransaction();
     BuildYsonMapFluently(consumer)
+        .Item("state").Value(operation->GetState())
+        .Item("suspended").Value(operation->GetSuspended())
         .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
         .Item("sync_scheduler_transaction_id").Value(syncTransaction ? syncTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(asyncTransaction ? asyncTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(inputTransaction ? inputTransaction->GetId() : NullTransactionId)
-        .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId)
-        .Item("state").Value(operation->GetState())
-        .Item("suspended").Value(operation->GetSuspended());
+        .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId);
 }
 
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
@@ -85,6 +93,151 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
         command.length() <= MaxBriefSpecCommandLength
         ? command
         : command.substr(0, MaxBriefSpecCommandLength) + "...";
+}
+
+////////////////////////////////////////////////////////////////////
+
+TMultiCellBatchResponse::TMultiCellBatchResponse(
+    const std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>& batchResponses,
+    const std::vector<std::pair<int, int>>& index)
+    : BatchResponses_(batchResponses)
+    , ResponseIndex_(index)
+{ }
+
+int TMultiCellBatchResponse::GetSize() const
+{
+    return ResponseIndex_.size();
+}
+
+TError TMultiCellBatchResponse::GetCumulativeError() const
+{
+    TError cumulativeError("Error communicating with master");
+    for (const auto& batchRsp : BatchResponses_) {
+        for (const auto& rsp : batchRsp->GetResponses()) {
+            auto error = rsp->GetError();
+            if (!error.IsOK()) {
+                cumulativeError.InnerErrors().push_back(error);
+            }
+        }
+    }
+    return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
+}
+
+TYPathResponsePtr TMultiCellBatchResponse::GetResponse(int index) const
+{
+    int batchNumber = ResponseIndex_[index].first;
+    int batchIndex = ResponseIndex_[index].second;
+    return BatchResponses_[batchNumber]->GetResponse(batchIndex);
+}
+
+TYPathResponsePtr TMultiCellBatchResponse::FindResponse(const Stroka& key) const
+{
+    for (const auto& batchRsp : BatchResponses_) {
+        auto rsp = batchRsp->FindResponse(key);
+        if (rsp) {
+            return rsp;
+        }
+    }
+    return nullptr;
+}
+
+TYPathResponsePtr TMultiCellBatchResponse::GetResponse(const Stroka& key) const
+{
+    auto rsp = FindResponse(key);
+    YCHECK(rsp->IsOK());
+    return rsp;
+}
+
+std::vector<TYPathResponsePtr> TMultiCellBatchResponse::GetResponses(const Stroka& key) const
+{
+    std::vector<NYTree::TYPathResponsePtr> responses;
+    for (auto batchRsp : BatchResponses_) {
+        for (auto rsp : batchRsp->GetResponses(key)) {
+            responses.push_back(rsp);
+        }
+    }
+    return responses;
+}
+
+bool TMultiCellBatchResponse::IsOK() const
+{
+    return this->operator TError().IsOK();
+}
+
+TMultiCellBatchResponse::operator TError() const
+{
+    TError resultError("Error communicating with master");
+    for (const auto& batchRsp : BatchResponses_) {
+        auto error = TError(*batchRsp);
+        if (!error.IsOK()) {
+            resultError.InnerErrors().push_back(error);
+        }
+    }
+    return resultError.InnerErrors().empty() ? TError() : resultError;
+}
+
+////////////////////////////////////////////////////////////////////
+
+TMultiCellBatchRequest::TMultiCellBatchRequest(
+    NCellDirectory::TCellDirectoryPtr cellDirectory,
+    bool throwIfCellIsMissing)
+    : CellDirectory_(cellDirectory)
+    , ThrowIfCellIsMissing_(throwIfCellIsMissing)
+{ }
+
+bool TMultiCellBatchRequest::AddRequest(TYPathRequestPtr req, const Stroka& key, TCellId cellId)
+{
+    if (!Init(cellId)) {
+        if (ThrowIfCellIsMissing_) {
+            THROW_ERROR_EXCEPTION("Cannot find cluster with cell id %s", ~ToString(cellId));
+        }
+        return false;
+    }
+    RequestIndex_.push_back(std::make_pair(cellId, BatchRequests_[cellId]->GetSize()));
+    BatchRequests_[cellId]->AddRequest(req, key);
+    return true;
+}
+
+bool TMultiCellBatchRequest::AddRequestForTransaction(TYPathRequestPtr req, const Stroka& key, const TTransactionId& id)
+{
+    return AddRequest(req, key, GetCellId(id, EObjectType::Transaction));
+}
+
+TMultiCellBatchResponse TMultiCellBatchRequest::Execute(IInvokerPtr invoker)
+{
+    std::map<TCellId, int> cellIdToResponseNumber;
+
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> futures;
+    int counter = 0;
+    for (auto& pair : BatchRequests_) {
+        futures.push_back(pair.second->Invoke());
+        cellIdToResponseNumber[pair.first] = counter++;
+    }
+
+    std::vector< std::pair<int, int> > responseIndex;
+    for (const auto& elem : RequestIndex_) {
+        responseIndex.push_back(std::make_pair(cellIdToResponseNumber[elem.first], elem.second));
+    }
+
+    std::vector<TObjectServiceProxy::TRspExecuteBatchPtr> responses;
+    for (const auto& future : futures) {
+        responses.push_back(WaitFor(future, invoker));
+    }
+
+    return TMultiCellBatchResponse(responses, responseIndex);
+}
+
+bool TMultiCellBatchRequest::Init(TCellId cellId)
+{
+    if (BatchRequests_.find(cellId) == BatchRequests_.end()) {
+        auto channel = CellDirectory_->GetChannel(cellId);
+        if (!channel) {
+            return false;
+        }
+        auto objectServiceProxy = TObjectServiceProxy(channel);
+        BatchRequests_[cellId] = objectServiceProxy.ExecuteBatch();
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////

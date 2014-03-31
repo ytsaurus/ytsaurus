@@ -232,14 +232,14 @@ bool IsTrivial(const TReadLimit& limit)
     return !IsNontrivial(limit);
 }
 
-bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId)
+bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId, bool checkParityParts)
 {
     if (codecId == NErasure::ECodec::None) {
         return replicas.empty();
     } else {
         auto* codec = NErasure::GetCodec(codecId);
-        int dataPartCount = codec->GetDataPartCount();
-        NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
+        int partCount = checkParityParts ? codec->GetTotalPartCount() : codec->GetDataPartCount();
+        NErasure::TPartIndexSet missingIndexSet((1 << partCount) - 1);
         FOREACH (auto replica, replicas) {
             missingIndexSet.reset(replica.GetIndex());
         }
@@ -247,11 +247,11 @@ bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId)
     }
 }
 
-bool IsUnavailable(const NProto::TChunkSpec& chunkSpec)
+bool IsUnavailable(const NProto::TChunkSpec& chunkSpec, bool isAllPartAvailabilityRequired)
 {
     auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
-    return IsUnavailable(replicas, codecId);
+    return IsUnavailable(replicas, codecId, isAllPartAvailabilityRequired);
 }
 
 void GetStatistics(

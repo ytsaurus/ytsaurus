@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/nullable.h>
+
 namespace NYT {
 namespace NYson {
 
@@ -13,7 +15,8 @@ public:
     TYsonParser(
         IYsonConsumer* consumer,
         EYsonType type = EYsonType::Node,
-        bool enableLinePositionInfo = false);
+        bool enableLinePositionInfo = false,
+        TNullable<i64> memoryLimit = Null);
 
     ~TYsonParser();
 

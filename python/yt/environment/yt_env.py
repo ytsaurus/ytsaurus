@@ -85,7 +85,7 @@ class YTEnv(object):
 
         self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, set_driver=True, ports=ports)
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, set_driver, identifier="", ports=None):
+    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, set_driver, identifier="", cell_id=0, ports=None):
         def list_ports(service_name, count):
             if ports is not None and service_name in ports:
                 self._ports[service_name] = range(ports[service_name], ports[service_name] + count)
@@ -113,7 +113,7 @@ class YTEnv(object):
 
         try:
             logging.info("Configuring...")
-            self._run_masters(masters_count, master_name)
+            self._run_masters(masters_count, master_name, cell_id)
             self._run_schedulers(schedulers_count, scheduler_name)
             self._run_nodes(nodes_count, node_name)
             self._prepare_driver(driver_name, set_driver)
@@ -209,7 +209,7 @@ class YTEnv(object):
             os.makedirs(dirname)
         self.pids_file = open(self._pids_filename, 'wt')
 
-    def _prepare_masters(self, masters_count, master_name):
+    def _prepare_masters(self, masters_count, master_name, cell_id):
         if masters_count == 0:
              return
 
@@ -227,6 +227,8 @@ class YTEnv(object):
 
             current = os.path.join(self.path_to_run, master_name, str(i))
             os.mkdir(current)
+
+            config["object_manager"]["cell_id"] = cell_id
 
             config['meta_state']['cell']['rpc_port'] = self._ports[master_name][2 * i]
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
@@ -272,8 +274,8 @@ class YTEnv(object):
         logging.info('(Leader is: %d)', self.leader_id)
 
 
-    def _run_masters(self, masters_count, master_name):
-        self._prepare_masters(masters_count, master_name)
+    def _run_masters(self, masters_count, master_name, cell_id):
+        self._prepare_masters(masters_count, master_name, cell_id)
         self.start_masters(master_name)
 
 
@@ -477,7 +479,6 @@ class YTEnv(object):
         self._prepare_proxy(has_proxy, proxy_name)
         if has_proxy:
             self.start_proxy(proxy_name)
-
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0

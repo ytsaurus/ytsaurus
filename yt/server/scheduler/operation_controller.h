@@ -22,6 +22,8 @@
 
 #include <ytlib/job_tracker_client/job.pb.h>
 
+#include <ytlib/cell_directory/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -46,7 +48,18 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
+    virtual NCellDirectory::TCellDirectoryPtr GetCellDirectory() = 0;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
+    
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
+        const NObjectClient::TTransactionId& transactionId) = 0;
 
     //! Returns the control invoker of the scheduler.
     /*!
@@ -69,10 +82,10 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual std::vector<TExecNodePtr> GetExecNodes() = 0;
+    virtual std::vector<TExecNodePtr> GetExecNodes() const = 0;
 
     //! Returns the number of currently active exec nodes.
-    virtual int GetExecNodeCount() = 0;
+    virtual int GetExecNodeCount() const = 0;
 
     //! Returns a consumer used for writing into the event log.
     virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
@@ -165,23 +178,23 @@ struct IOperationController
 
 
     //! Returns the context that gets invalidated by #Abort.
-    virtual TCancelableContextPtr GetCancelableContext() = 0;
+    virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
     //! Returns the control invoker wrapped by the context provided by #GetCancelableContext.
-    virtual IInvokerPtr GetCancelableControlInvoker() = 0;
+    virtual IInvokerPtr GetCancelableControlInvoker() const = 0;
 
     //! Returns the background invoker wrapped by the context provided by #GetCancelableContext.
-    virtual IInvokerPtr GetCancelableBackgroundInvoker() = 0;
+    virtual IInvokerPtr GetCancelableBackgroundInvoker() const = 0;
 
 
     //! Returns the number of jobs the controller still needs to start right away.
-    virtual int GetPendingJobCount() = 0;
+    virtual int GetPendingJobCount() const = 0;
 
     //! Returns the total number of jobs to be run during the operation.
-    virtual int GetTotalJobCount() = 0;
+    virtual int GetTotalJobCount() const = 0;
 
     //! Returns the total resources that are additionally needed.
-    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() = 0;
+    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const = 0;
 
 
     //! Called during heartbeat processing to notify the controller that a job is running.
@@ -202,21 +215,27 @@ struct IOperationController
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
 
     //! Called to construct a YSON representing the current progress.
-    virtual void BuildProgress(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
 
     //! Similar to #BuildProgress but constructs a reduced version to used by UI.
-    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const = 0;
 
     //! Provides a string describing operation status and statistics.
-    virtual Stroka GetLoggingProgress() = 0;
+    virtual Stroka GetLoggingProgress() const = 0;
 
     //! Called for finished operations to construct a YSON representing the result.
-    virtual void BuildResult(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildResult(NYson::IYsonConsumer* consumer) const = 0;
 
     //! Called for a just initialized operation to construct its brief spec
     //! to be used by UI.
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) = 0;
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const = 0;
 
+    //! Initializes operation transactions.
+    virtual void InitTransactions() = 0;
+
+    //! Checks if the operation requires all chunk parts to be available.
+    //! Used by remote copy operations which depend on all parts, including parity ones.
+    virtual bool NeedsAllChunkParts() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

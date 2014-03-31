@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/partition_sort_job.cpp
   ${BASE}/pipes.cpp
   ${BASE}/private.cpp
+  ${BASE}/remote_copy_job.cpp
   ${BASE}/simple_sort_job.cpp
   ${BASE}/small_key.cpp
   ${BASE}/sorted_merge_job.cpp
@@ -35,6 +36,7 @@ set( HDRS
   ${BASE}/pipes.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/remote_copy_job.h
   ${BASE}/simple_sort_job.h
   ${BASE}/small_key.h
   ${BASE}/sorted_merge_job.h

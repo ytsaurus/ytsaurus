@@ -21,14 +21,14 @@ TCauchyReedSolomon::TCauchyReedSolomon(int blockCount, int parityCount, int word
     , Schedule_(jerasure_smart_bitmatrix_to_schedule(blockCount, parityCount, wordSize, BitMatrix_.Get()))
 { }
 
-std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks)
+std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks) const
 {
     return ScheduleEncode(DataPartCount_, ParityPartCount_, WordSize_, Schedule_, blocks);
 }
 
 std::vector<TSharedRef> TCauchyReedSolomon::Decode(
     const std::vector<TSharedRef>& blocks,
-    const TPartIndexList& erasedIndices)
+    const TPartIndexList& erasedIndices) const
 {
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
@@ -37,7 +37,7 @@ std::vector<TSharedRef> TCauchyReedSolomon::Decode(
     return BitMatrixDecode(DataPartCount_, ParityPartCount_, WordSize_, BitMatrix_, blocks, erasedIndices);
 }
 
-TNullable<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexList& erasedIndices)
+TNullable<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexList& erasedIndices) const
 {
     if (erasedIndices.empty()) {
         return TPartIndexList();
@@ -54,27 +54,27 @@ TNullable<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexL
     return Difference(0, DataPartCount_ + ParityPartCount_, indices);
 }
 
-bool TCauchyReedSolomon::CanRepair(const TPartIndexList& erasedIndices)
+bool TCauchyReedSolomon::CanRepair(const TPartIndexList& erasedIndices) const
 {
     return erasedIndices.size() <= ParityPartCount_;
 }
 
-bool TCauchyReedSolomon::CanRepair(const TPartIndexSet& erasedIndices)
+bool TCauchyReedSolomon::CanRepair(const TPartIndexSet& erasedIndices) const
 {
     return erasedIndices.count() <= ParityPartCount_;
 }
 
-int TCauchyReedSolomon::GetDataPartCount()
+int TCauchyReedSolomon::GetDataPartCount() const
 {
     return DataPartCount_;
 }
 
-int TCauchyReedSolomon::GetParityPartCount()
+int TCauchyReedSolomon::GetParityPartCount() const
 {
     return ParityPartCount_;
 }
 
-int TCauchyReedSolomon::GetWordSize()
+int TCauchyReedSolomon::GetWordSize() const
 {
     return WordSize_ * 8;
 }

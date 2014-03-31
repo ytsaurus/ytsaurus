@@ -218,7 +218,11 @@ void TJsonWriterImpl::OnBeginMap()
 void TJsonWriterImpl::OnKeyedItem(const TStringBuf& name)
 {
     if (IsWriteAllowed()) {
-        WriteStringScalar(name);
+        if (IsSpecialJsonKey(name)) {
+            WriteStringScalar(Stroka("$") + name);
+        } else {
+            WriteStringScalar(name);
+        }
     }
 }
 

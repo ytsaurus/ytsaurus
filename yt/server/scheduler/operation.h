@@ -22,7 +22,7 @@ namespace NScheduler {
 class TOperation
     : public TRefCounted
 {
-    DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
+    DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
 
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
 

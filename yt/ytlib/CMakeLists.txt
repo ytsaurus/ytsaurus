@@ -1,5 +1,6 @@
 set( DIRS
   ypath
+  cell_directory
   election
   meta_state
   orchid

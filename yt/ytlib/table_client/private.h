@@ -10,8 +10,6 @@ namespace NTableClient {
 extern NLog::TLogger TableReaderLogger;
 extern NLog::TLogger TableWriterLogger;
 
-extern const int FormatVersion;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

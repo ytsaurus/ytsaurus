@@ -333,6 +333,71 @@ TEST(TJsonParserTest, ListFragment)
     ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
 }
 
+TEST(TJsonParserTest, SpecialKeys)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("$$value"));
+        EXPECT_CALL(Mock, OnStringScalar("10"));
+        EXPECT_CALL(Mock, OnKeyedItem("$attributes"));
+        EXPECT_CALL(Mock, OnStringScalar("20"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "{\"$$$value\":\"10\",\"$$attributes\":\"20\"}\n";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
+}
+
+TEST(TJsonParserTest, AttributesWithoutValue)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "{\"$attributes\":\"20\"}";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
+TEST(TJsonParserTest, MemoryLimit1)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    auto config = New<TJsonFormatConfig>();
+    config->MemoryLimit = 10;
+
+    Stroka input = "{\"my_string\":\"" + Stroka(100000, 'X') + "\"}";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock, config)
+    );
+}
+
+TEST(TJsonParserTest, MemoryLimit2)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("my_string"));
+        EXPECT_CALL(Mock, OnStringScalar(Stroka(100000, 'X')));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "{\"my_string\":\"" + Stroka(100000, 'X') + "\"}";
+
+    auto config = New<TJsonFormatConfig>();
+    config->MemoryLimit = 500000;
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace

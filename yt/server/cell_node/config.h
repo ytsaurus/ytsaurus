@@ -35,10 +35,14 @@ public:
     //! Throttling configuration for jobs-to-master communication.
     NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
 
+    yhash_map<Stroka, Stroka> Addresses;
+
     TCellNodeConfig()
     {
         RegisterParameter("rpc_port", RpcPort)
             .Default(9000);
+        RegisterParameter("addresses", Addresses)
+            .Default();
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
         RegisterParameter("masters", Masters)

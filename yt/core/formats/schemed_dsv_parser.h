@@ -10,21 +10,21 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IParser> CreateParserForSchemedDsv(
+std::unique_ptr<IParser> CreateParserForSchemafulDsv(
     NYson::IYsonConsumer* consumer,
-    TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
+    TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseSchemedDsv(
+void ParseSchemafulDsv(
     TInputStream* input,
     NYson::IYsonConsumer* consumer,
-    TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
+    TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
-void ParseSchemedDsv(
+void ParseSchemafulDsv(
     const TStringBuf& data,
     NYson::IYsonConsumer* consumer,
-    TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
+    TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
 

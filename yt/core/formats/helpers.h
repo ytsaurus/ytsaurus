@@ -44,6 +44,8 @@ Stroka Utf8ToByteString(const TStringBuf& str);
 
 Stroka ByteStringToUtf8(const TStringBuf& str);
 
+bool IsSpecialJsonKey(const TStringBuf& str);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

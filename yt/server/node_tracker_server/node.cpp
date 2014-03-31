@@ -55,7 +55,7 @@ const TNodeDescriptor& TNode::GetDescriptor() const
 
 const Stroka& TNode::GetAddress() const
 {
-    return Descriptor_.Address;
+    return Descriptor_.GetDefaultAddress();
 }
 
 const TNodeConfigPtr& TNode::GetConfig() const
@@ -66,7 +66,7 @@ const TNodeConfigPtr& TNode::GetConfig() const
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, Descriptor_.Address);
+    Save(context, Descriptor_.Addresses());
     Save(context, State_);
     Save(context, Statistics_);
     Save(context, Alerts_);
@@ -79,7 +79,12 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, Descriptor_.Address);
+    // COMPAT(ignat)
+    if (context.GetVersion() >= 41) {
+        Load(context, Descriptor_.Addresses());
+    } else {
+        Load(context, Descriptor_.Addresses()[NNodeTrackerClient::DefaultNetworkName]);
+    }
     Load(context, State_);
     Load(context, Statistics_);
     // COMPAT(babenko)

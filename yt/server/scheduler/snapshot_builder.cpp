@@ -82,12 +82,12 @@ TAsyncError TSnapshotBuilder::Run()
 
         TJob job;
         job.Operation = operation;
-        job.FileName = CombinePaths(Config->SnapshotTempPath, ToString(operation->GetOperationId()));
+        job.FileName = CombinePaths(Config->SnapshotTempPath, ToString(operation->GetId()));
         job.TempFileName = job.FileName + TempFileSuffix;
         Jobs.push_back(job);
 
         LOG_INFO("Snapshot job registered (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
     return TSnapshotBuilderBase::Run().Apply(
@@ -145,7 +145,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
     NLog::TTaggedLogger Logger(this->Logger);
     Logger.AddTag(Sprintf("OperationId: %s",
-        ~ToString(job.Operation->GetOperationId())));
+        ~ToString(job.Operation->GetId())));
 
     if (!isexist(~job.FileName)) {
         LOG_WARNING("Snapshot file is missing");
@@ -160,7 +160,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
     try {
         LOG_INFO("Started uploading snapshot");
 
-        auto snapshotPath = GetSnapshotPath(operation->GetOperationId());
+        auto snapshotPath = GetSnapshotPath(operation->GetId());
 
         auto masterChannel = Bootstrap->GetMasterChannel();
         auto transactionManager = Bootstrap->GetTransactionManager();
@@ -174,7 +174,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             TTransactionStartOptions options;
             options.Attributes->Set(
                 "title",
-                Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetOperationId())));
+                Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetId())));
             transaction = transactionManager->Start(options);
         }
 

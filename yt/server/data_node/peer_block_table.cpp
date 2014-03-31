@@ -34,7 +34,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
     LOG_DEBUG("Updating peer (BlockId: %s, Address: %s, ExpirationTime: %s)",
         ~ToString(blockId),
-        ~peer.Descriptor.Address,
+        ~peer.Descriptor.GetDefaultAddress(),
         ~ToString(peer.ExpirationTime));
 
     SweepAllExpiredPeers();
@@ -43,7 +43,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
     SweepExpiredPeers(peers); // In case when all expired peers were not swept
 
     for (auto it = peers.begin(); it != peers.end(); ++it) {
-        if (it->Descriptor.Address == peer.Descriptor.Address) {
+        if (it->Descriptor.GetDefaultAddress() == peer.Descriptor.GetDefaultAddress()) {
             peers.erase(it);
             break;
         }

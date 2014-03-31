@@ -1,0 +1,18 @@
+#pragma once
+
+#include <core/misc/intrusive_ptr.h>
+
+namespace NYT {
+namespace NCellDirectory {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellDirectory;
+typedef TIntrusivePtr<TCellDirectory> TCellDirectoryPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCellDirectory
+} // namespace NYT
+
+

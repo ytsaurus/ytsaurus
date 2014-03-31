@@ -16,12 +16,15 @@ struct TNodeDescriptor;
 class TNodeDirectory;
 typedef TIntrusivePtr<TNodeDirectory> TNodeDirectoryPtr;
 
+extern const Stroka DefaultNetworkName;
+
 class TNodeDirectoryBuilder;
 
 DECLARE_ENUM(EErrorCode,
-    ((NoSuchNode)   (300))
-    ((InvalidState) (301))
-    ((NotAuthorized)(302))
+    ((NoSuchNode)    (300))
+    ((InvalidState)  (301))
+    ((NotAuthorized) (302))
+    ((InvalidNetwork)(303))
 );
 
 ///////////////////////////////////////////////////////////////////////////////

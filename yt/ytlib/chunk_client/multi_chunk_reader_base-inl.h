@@ -152,44 +152,16 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 
     IAsyncReaderPtr asyncReader;
     if (IsErasureChunkId(chunkId)) {
-        std::sort(
-            replicas.begin(),
-            replicas.end(),
-            [] (TChunkReplica lhs, TChunkReplica rhs) {
-                return lhs.GetIndex() < rhs.GetIndex();
-            });
-
         auto erasureCodecId = NErasure::ECodec(chunkSpec.erasure_codec());
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
-        auto dataPartCount = erasureCodec->GetDataPartCount();
-
-        std::vector<IAsyncReaderPtr> readers;
-        readers.reserve(dataPartCount);
-
-        {
-            auto it = replicas.begin();
-            while (it != replicas.end() && it->GetIndex() < dataPartCount) {
-                auto jt = it;
-                while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
-                    ++jt;
-                }
-
-                TChunkReplicaList partReplicas(it, jt);
-                auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
-                auto reader = CreateReplicationReader(
-                    Config,
-                    BlockCache,
-                    MasterChannel,
-                    NodeDirectory,
-                    Null,
-                    partId,
-                    partReplicas);
-                readers.push_back(reader);
-
-                it = jt;
-            }
-        }
-        YCHECK(readers.size() == dataPartCount);
+        auto readers = CreateErasureDataPartsReaders(
+            Config,
+            BlockCache,
+            MasterChannel,
+            NodeDirectory,
+            chunkId,
+            replicas,
+            erasureCodec);
         asyncReader = CreateNonReparingErasureReader(readers);
     } else {
         asyncReader = CreateReplicationReader(

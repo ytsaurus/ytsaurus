@@ -12,6 +12,11 @@
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
 
+#include <ytlib/meta_state/public.h>
+#include <ytlib/meta_state/config.h>
+
+#include <ytlib/node_tracker_client/public.h>
+
 #include <core/formats/format.h>
 
 namespace NYT {
@@ -592,6 +597,47 @@ public:
         }
 
         OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteCopyOperationSpec
+    : public TOperationSpecBase
+{
+public:
+    Stroka ClusterName;
+    Stroka NetworkName;
+    std::vector<NYPath::TRichYPath> InputTablePaths;
+    NYPath::TRichYPath OutputTablePath;
+    TNullable<int> JobCount;
+    i64 DataSizePerJob;
+    TJobIOConfigPtr JobIO;
+
+    TRemoteCopyOperationSpec()
+    {
+        RegisterParameter("cluster_name", ClusterName);
+        RegisterParameter("input_table_paths", InputTablePaths)
+            .NonEmpty();
+        RegisterParameter("output_table_path", OutputTablePath);
+        RegisterParameter("job_count", JobCount)
+            .Default()
+            .GreaterThan(0);
+        RegisterParameter("data_size_per_job", DataSizePerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        RegisterParameter("job_io", JobIO)
+            .DefaultNew();
+        RegisterParameter("network_name", NetworkName)
+            .Default(NNodeTrackerClient::DefaultNetworkName);
+    }
+
+    virtual void OnLoaded() override
+    {
+        TOperationSpecBase::OnLoaded();
+
+        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
+        OutputTablePath.Simplify();
     }
 };
 

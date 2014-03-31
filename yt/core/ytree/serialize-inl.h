@@ -141,6 +141,19 @@ void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer
     consumer->OnEndMap();
 }
 
+// map
+template <class T>
+void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    auto sortedItems = GetSortedIterators(items);
+    FOREACH (const auto& pair, sortedItems) {
+        consumer->OnKeyedItem(pair->first);
+        Serialize(pair->second, consumer);
+    }
+    consumer->OnEndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

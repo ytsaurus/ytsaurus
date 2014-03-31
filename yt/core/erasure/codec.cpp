@@ -7,7 +7,7 @@ namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int ICodec::GetTotalPartCount()
+int ICodec::GetTotalPartCount() const
 {
     return GetDataPartCount() + GetParityPartCount();
 }

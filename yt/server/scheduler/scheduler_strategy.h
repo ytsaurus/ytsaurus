@@ -28,8 +28,8 @@ struct ISchedulerStrategyHost
     virtual TMasterConnector* GetMasterConnector() = 0;
 
     virtual NNodeTrackerClient::NProto::TNodeResources GetTotalResourceLimits() = 0;
-    virtual std::vector<TExecNodePtr> GetExecNodes() = 0;
-    virtual int GetExecNodeCount() = 0;
+    virtual std::vector<TExecNodePtr> GetExecNodes() const = 0;
+    virtual int GetExecNodeCount() const = 0;
 
 };
 
