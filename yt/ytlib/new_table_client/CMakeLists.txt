@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/name_table.cpp
   ${BASE}/pipe.cpp
   ${BASE}/private.cpp
+  ${BASE}/row_base.cpp
   ${BASE}/row_buffer.cpp
   ${BASE}/samples_fetcher.cpp
   ${BASE}/schema.cpp

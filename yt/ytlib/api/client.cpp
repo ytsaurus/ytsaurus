@@ -412,6 +412,10 @@ private:
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
+        for (auto key : keys) {
+            ValidateKey(key);
+        }
+        
         auto tableInfo = SyncGetTableInfo(path);
 
         TTableSchema resultSchema;
@@ -913,6 +917,9 @@ public:
         TNameTablePtr nameTable,
         std::vector<TUnversionedRow> rows) override
     {
+        for (auto row : rows) {
+            ValidateRow(row);
+        }
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
             this,
             path,
@@ -934,6 +941,9 @@ public:
         const TYPath& path,
         std::vector<NVersionedTableClient::TKey> keys) override
     {
+        for (auto key : keys) {
+            ValidateKey(key);
+        }
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
             this,
             path,

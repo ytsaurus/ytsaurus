@@ -25,6 +25,11 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int MaxRowValueCount = 1024;
+static const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1MB
+
+////////////////////////////////////////////////////////////////////////////////
+
 int GetByteSize(const TUnversionedValue& value)
 {
     int result = MaxVarUInt32Size * 2; // id and type
@@ -487,6 +492,58 @@ TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int v
     header->Count = valueCount;
     header->Padding = 0;
     return TUnversionedRow(header);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void ValidateValueLength(const TUnversionedValue& value)
+{
+    if (value.Type == EValueType::String ||
+        value.Type == EValueType::Any)
+    {
+        if (value.Length > MaxStringValueLength) {
+            THROW_ERROR_EXCEPTION("Value is too big: length %" PRId64 ", limit %" PRId64,
+                static_cast<i64>(value.Length),
+                MaxStringValueLength);
+        }
+    }   
+}
+
+void ValidateDataValue(const TUnversionedValue& value)
+{
+    ValidateDataValueType(EValueType(value.Type));
+    ValidateValueLength(value);
+}
+
+void ValidateKeyValue(const TUnversionedValue& value)
+{
+    ValidateKeyValueType(EValueType(value.Type));
+    ValidateValueLength(value);
+}
+
+static void ValidateRowValueCount(TUnversionedRow row)
+{
+    if (row.GetCount() > MaxRowValueCount) {
+        THROW_ERROR_EXCEPTION("Too many values: actual %d, limit %d",
+            static_cast<int>(row.GetCount()),
+            MaxRowValueCount);
+    }
+}
+
+void ValidateRow(TUnversionedRow row)
+{
+    ValidateRowValueCount(row);
+    for (const auto* value = row.Begin(); value != row.End(); ++value) {
+        ValidateDataValue(*value);
+    }
+}
+
+void ValidateKey(TKey key)
+{
+    ValidateRowValueCount(key);
+    for (const auto* value = key.Begin(); value != key.End(); ++value) {
+        ValidateKeyValue(*value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

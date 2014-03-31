@@ -1,7 +1,20 @@
 #pragma once
 
+#include "public.h"
+
 namespace NYT {
 namespace NVersionedTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Checks that #type is allowed to appear in data. Throws on failure.
+void ValidateDataValueType(EValueType type);
+
+//! Checks that #type is allowed to appear in keys. Throws on failure.
+void ValidateKeyValueType(EValueType type);
+
+//! Checks that #type is allowed to appear in schema. Throws on failure.
+void ValidateSchemaValueType(EValueType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

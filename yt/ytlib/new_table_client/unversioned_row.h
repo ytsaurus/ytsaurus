@@ -261,6 +261,18 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Checks that #value is allowed to appear in data. Throws on failure.
+void ValidateDataValue(const TUnversionedValue& value);
+
+//! Checks that #value is allowed to appear in keys. Throws on failure.
+void ValidateKeyValue(const TUnversionedValue& value);
+
+//! Checks that #row is a valid data row. Throws on failure.
+void ValidateRow(TUnversionedRow row);
+
+//! Checks that #key is a valid key. Throws on failure.
+void ValidateKey(TKey key);
+
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 // by appending a |EValueType::Min| sentinel.
 //
