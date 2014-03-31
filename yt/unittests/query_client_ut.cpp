@@ -16,7 +16,9 @@
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/plan_visitor.h>
 #include <ytlib/query_client/helpers.h>
+#ifdef YT_USE_LLVM
 #include <ytlib/query_client/cg_types.h>
+#endif
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
