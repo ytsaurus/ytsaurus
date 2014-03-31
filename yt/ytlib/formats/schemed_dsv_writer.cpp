@@ -32,6 +32,10 @@ TSchemedDsvWriter::TSchemedDsvWriter(
 
 void TSchemedDsvWriter::OnDoubleScalar(double value)
 {
+    if (State_ == EState::None) {
+        return;         
+    }
+
     if (State_ == EState::ExpectValue) {
         ValueHolder_.push_back(::ToString(value));
         Values_[CurrentKey_] = ValueHolder_.back();
@@ -93,6 +97,10 @@ void TSchemedDsvWriter::OnEntity()
 
 void TSchemedDsvWriter::OnIntegerScalar(i64 value)
 {
+    if (State_ == EState::None) {
+        return;         
+    }
+
     if (State_ == EState::ExpectValue) {
         ValueHolder_.push_back(::ToString(value));
         Values_[CurrentKey_] = ValueHolder_.back();
