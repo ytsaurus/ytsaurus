@@ -2,6 +2,7 @@
 #include "store_manager.h"
 #include "tablet.h"
 #include "dynamic_memory_store.h"
+#include "transaction.h"
 #include "config.h"
 #include "tablet_slot.h"
 #include "row_merger.h"
@@ -52,7 +53,7 @@ TStoreManager::TStoreManager(
     : Config_(config)
     , Tablet_(Tablet_)
     , RotationScheduled_(false)
-    , LookupPool_(GetRefCountedTrackerCookie<TLookupPoolTag>())
+    , LookupMemoryPool_(GetRefCountedTrackerCookie<TLookupPoolTag>())
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
@@ -122,7 +123,7 @@ void TStoreManager::LookupRows(
     reader->ReadUnversionedRowset(&PooledKeys_);
 
     TUnversionedRowMerger rowMerger(
-        &LookupPool_,
+        &LookupMemoryPool_,
         schemaColumnCount,
         keyColumnCount,
         columnFilter);
@@ -130,19 +131,19 @@ void TStoreManager::LookupRows(
     TKeyComparer keyComparer(keyColumnCount);
 
     UnversionedPooledRows_.clear();
-    LookupPool_.Clear();
+    LookupMemoryPool_.Clear();
 
     for (auto pooledKey : PooledKeys_) {
-        auto key = TOwningKey(pooledKey);
-        auto keySuccessor = GetKeySuccessor(key.Get());
+        auto lowerKey = TOwningKey(pooledKey);
+        auto upperKey = GetKeySuccessor(lowerKey.Get());
 
         // Construct readers.
         SmallVector<IVersionedReaderPtr, TypicalStoreCount> rowReaders;
         for (const auto& pair : Tablet_->Stores()) {
             const auto& store = pair.second;
             auto rowReader = store->CreateReader(
-                key,
-                keySuccessor,
+                lowerKey,
+                upperKey,
                 timestamp,
                 columnFilter);
             if (rowReader) {
@@ -169,7 +170,7 @@ void TStoreManager::LookupRows(
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        rowMerger.Start(key.Begin());
+        rowMerger.Start(lowerKey.Begin());
 
         // Merge values.
         for (const auto& reader : rowReaders) {
@@ -180,7 +181,7 @@ void TStoreManager::LookupRows(
                 continue;
 
             auto partialRow = VersionedPooledRows_[0];
-            if (keyComparer(key, partialRow.BeginKeys()) != 0)
+            if (keyComparer(lowerKey, partialRow.BeginKeys()) != 0)
                 continue;
 
             rowMerger.AddPartialRow(partialRow);
@@ -291,7 +292,25 @@ TDynamicRowRef TStoreManager::FindRowAndCheckLocks(
         }
     }
 
-    // TODO(babenko): check passive stores for write timestamps
+    bool logged = false;
+    auto startTimestamp = transaction->GetStartTimestamp();
+    for (auto it = LatestTimestampToStore_.rbegin();
+         it != LatestTimestampToStore_.rend() && it->first > startTimestamp;
+         ++it)
+    {
+        if (!logged) {
+            LOG_WARNING("Checking persistent stores for conflicting commits (TransactionId: %s, StartTimestamp: %" PRIu64 ")",
+                ~ToString(transaction->GetId()),
+                startTimestamp);
+            logged = true;
+        }
+        const auto& store = it->second;
+        auto latestTimestamp = store->GetLatestCommitTimestamp(key);
+        if (latestTimestamp > startTimestamp) {
+            THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
+                latestTimestamp);
+        }
+    }
 
     return TDynamicRowRef();
 }
@@ -368,6 +387,35 @@ void TStoreManager::Rotate(bool createNew)
 
     LOG_INFO("Tablet stores rotated (TabletId: %s)",
         ~ToString(Tablet_->GetId()));
+}
+
+void TStoreManager::AddStore(TTablet* tablet, IStorePtr store)
+{
+    tablet->AddStore(store);
+
+    auto latestTimestamp = store->GetMaxTimestamp();
+    // Dynamic store returns MaxTimestamp.
+    if (latestTimestamp != MaxTimestamp) {
+        LatestTimestampToStore_.insert(std::make_pair(latestTimestamp, store));
+    }
+}
+
+void TStoreManager::RemoveStore(TTablet* tablet, IStorePtr store)
+{
+    tablet->RemoveStore(store);
+
+    auto latestTimestamp = store->GetMaxTimestamp();
+    // Dynamic store returns MaxTimestamp.
+    if (latestTimestamp != MaxTimestamp) {
+        auto range = LatestTimestampToStore_.equal_range(latestTimestamp);
+        // The range is likely to have one element.
+        for (auto it = range.first; it != range.second; ++it) {
+            if (it->second == store) {
+                LatestTimestampToStore_.erase(it);
+                break;
+            }
+        }
+    }
 }
 
 void TStoreManager::CreateActiveStore()

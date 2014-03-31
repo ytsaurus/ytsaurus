@@ -892,14 +892,12 @@ TOwningKey TDynamicMemoryStore::GetMaxKey() const
 
 TTimestamp TDynamicMemoryStore::GetMinTimestamp() const
 {
-    // TODO(babenko)
-    return NullTimestamp;
+    return MinTimestamp;
 }
 
 TTimestamp TDynamicMemoryStore::GetMaxTimestamp() const
 {
-    // TODO(babenko)
-    return NullTimestamp;
+    return MaxTimestamp;
 }
 
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
@@ -914,6 +912,34 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         std::move(upperKey),
         timestamp,
         columnFilter);
+}
+
+TTimestamp TDynamicMemoryStore::GetLatestCommitTimestamp(TKey key)
+{
+    auto it = Rows_->FindEqualTo(key);
+    if (!it.IsValid()) {
+        return NullTimestamp;
+    }
+
+    auto row = it.GetCurrent();
+    auto timestampList = row.GetTimestampList(KeyColumnCount_);
+    if (!timestampList) {
+        return NullTimestamp;
+    }
+
+    auto latestTimestamp = timestampList.Back() & TimestampValueMask;
+    if (latestTimestamp != UncommittedTimestamp) {
+        return latestTimestamp;
+    }
+
+    timestampList = timestampList.GetNext();
+    if (!timestampList) {
+        return NullTimestamp;
+    }
+
+    latestTimestamp = timestampList.Back() & TimestampValueMask;
+    YASSERT(latestTimestamp != UncommittedTimestamp);
+    return latestTimestamp;
 }
 
 void TDynamicMemoryStore::Save(TSaveContext& context) const

@@ -39,14 +39,14 @@ public:
 
     TDynamicRow DeleteRow(
         TTransaction* transaction,
-        NVersionedTableClient::TKey key,
+        TKey key,
         bool prewrite);
 
     TDynamicRow MigrateRow(
         TDynamicRow row,
         const TDynamicMemoryStorePtr& migrateTo);
     TDynamicRow FindRowAndCheckLocks(
-        NVersionedTableClient::TKey key,
+        TKey key,
         TTransaction* transaction,
         ERowLockMode mode);
 
@@ -67,17 +67,19 @@ public:
     // IStore implementation.
     virtual i64 GetDataSize() const override;
 
-    virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
-    virtual NVersionedTableClient::TOwningKey GetMaxKey() const override;
+    virtual TOwningKey GetMinKey() const override;
+    virtual TOwningKey GetMaxKey() const override;
 
-    virtual NVersionedTableClient::TTimestamp GetMinTimestamp() const override;
-    virtual NVersionedTableClient::TTimestamp GetMaxTimestamp() const override;
+    virtual TTimestamp GetMinTimestamp() const override;
+    virtual TTimestamp GetMaxTimestamp() const override;
 
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        NVersionedTableClient::TOwningKey lowerKey,
-        NVersionedTableClient::TOwningKey upperKey,
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
         TTimestamp timestamp,
-        const NVersionedTableClient::TColumnFilter& columnFilter) override;
+        const TColumnFilter& columnFilter) override;
+
+    virtual TTimestamp GetLatestCommitTimestamp(TKey key) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
@@ -117,24 +119,18 @@ private:
     void AddFixedValue(
         TDynamicRow row,
         int listIndex,
-        const NVersionedTableClient::TVersionedValue& value);
+        const TVersionedValue& value);
     void AddUncommittedFixedValue(
         TDynamicRow row,
         int listIndex,
-        const NVersionedTableClient::TUnversionedValue& value);
+        const TUnversionedValue& value);
 
     void AddTimestamp(TDynamicRow row, TTimestamp timestamp);
     void AddUncommittedTimestamp(TDynamicRow row, TTimestamp timestamp);
 
-    void CaptureValue(
-        NVersionedTableClient::TUnversionedValue* dst,
-        const NVersionedTableClient::TUnversionedValue& src);
-    void CaptureValue(
-        NVersionedTableClient::TVersionedValue* dst,
-        const NVersionedTableClient::TVersionedValue& src);
-    void CaptureValueData(
-        NVersionedTableClient::TUnversionedValue* dst,
-        const NVersionedTableClient::TUnversionedValue& src);
+    void CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src);
+    void CaptureValue(TVersionedValue* dst, const TVersionedValue& src);
+    void CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src);
 
 };
 

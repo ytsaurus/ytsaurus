@@ -439,7 +439,9 @@ private:
             nextPivotKey);
         tablet->AddPartition(pivotKey);
         InitializeTablet(tablet);
-        tablet->GetStoreManager()->CreateActiveStore();
+
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->CreateActiveStore();
         tablet->SetState(ETabletState::Mounted);
         TabletMap_.Insert(tabletId, tablet);
 
@@ -447,7 +449,7 @@ private:
             YCHECK(descriptor.has_chunk_meta());
             auto chunkId = FromProto<TChunkId>(descriptor.store_id());
             auto store = CreateChunkStore(tablet, chunkId, &descriptor.chunk_meta());
-            tablet->AddStore(std::move(store));
+            storeManager->AddStore(tablet, store);
         }
 
         {
@@ -690,20 +692,22 @@ private:
                 }
             }
         } else {
+            auto storeManager = tablet->GetStoreManager();
             std::vector<TStoreId> addedStoreIds;
             for (const auto& descriptor : response.stores_to_add()) {
                 auto storeId = FromProto<TChunkId>(descriptor.store_id());
                 addedStoreIds.push_back(storeId);
                 YCHECK(descriptor.has_chunk_meta());
                 auto store = CreateChunkStore(tablet, storeId, &descriptor.chunk_meta());
-                tablet->AddStore(store);
+                storeManager->AddStore(tablet, store);
             }
 
             std::vector<TStoreId> removedStoreIds;
             for (const auto& descriptor : response.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 removedStoreIds.push_back(storeId);
-                tablet->RemoveStore(storeId);
+                auto store = tablet->GetStore(storeId);
+                storeManager->RemoveStore(tablet, store);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %s, AddedStoreIds: [%s], RemovedStoreIds: [%s])",

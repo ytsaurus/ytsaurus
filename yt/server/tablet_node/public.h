@@ -38,6 +38,14 @@ using NTransactionClient::NullTimestamp;
 using NTransactionClient::LastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
 
+using NVersionedTableClient::TKey;
+using NVersionedTableClient::TOwningKey;
+using NVersionedTableClient::TUnversionedValue;
+using NVersionedTableClient::TVersionedValue;
+using NVersionedTableClient::TUnversionedRow;
+using NVersionedTableClient::TVersionedRow;
+using NVersionedTableClient::TColumnFilter;
+
 ////////////////////////////////////////////////////////////////////////////////
     
 DECLARE_ENUM(EPartitionState,

@@ -28,7 +28,7 @@ class TTransaction
     : public TRefTracked<TTransaction>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
@@ -38,7 +38,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TDynamicRowRef>, LockedRows);
 
 public:
-    explicit TTransaction(const NTransactionClient::TTransactionId& id);
+    explicit TTransaction(const TTransactionId& id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

@@ -19,8 +19,8 @@ struct TDynamicRowHeader
     TTransaction* Transaction;
     i32 LockIndex;
     i32 LockMode;
-    NVersionedTableClient::TTimestamp PrepareTimestamp;
-    NVersionedTableClient::TTimestamp LastCommitTimestamp;
+    TTimestamp PrepareTimestamp;
+    TTimestamp LastCommitTimestamp;
     
     // Variable-size part:
     // * TUnversionedValue per each key column
@@ -228,14 +228,14 @@ public:
             keyCount + 1;
         auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->Allocate(
             sizeof (TDynamicRowHeader) +
-            keyCount * sizeof (NVersionedTableClient::TUnversionedValue) +
+            keyCount * sizeof (TUnversionedValue) +
             listCount * sizeof(TEditListHeader*)));
         header->Transaction = nullptr;
         header->LockIndex = InvalidLockIndex;
         header->LockMode = ERowLockMode::None;
         header->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
         header->LastCommitTimestamp = NVersionedTableClient::NullTimestamp;
-        auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(header + 1);
+        auto* keys = reinterpret_cast<TUnversionedValue*>(header + 1);
         auto** lists = reinterpret_cast<TEditListHeader**>(keys + keyCount);
         ::memset(lists, 0, sizeof (TEditListHeader*) * listCount);
         return TDynamicRow(header);
@@ -300,41 +300,41 @@ public:
 
 
 
-    NVersionedTableClient::TTimestamp GetPrepareTimestamp() const
+    TTimestamp GetPrepareTimestamp() const
     {
         return Header_->PrepareTimestamp;
     }
 
-    void SetPrepareTimestamp(NVersionedTableClient::TTimestamp timestamp) const
+    void SetPrepareTimestamp(TTimestamp timestamp) const
     {
         Header_->PrepareTimestamp = timestamp;
     }
 
 
-    NVersionedTableClient::TTimestamp GetLastCommitTimestamp() const
+    TTimestamp GetLastCommitTimestamp() const
     {
         return Header_->LastCommitTimestamp;
     }
 
-    void SetLastCommitTimestamp(NVersionedTableClient::TTimestamp timestamp) const
+    void SetLastCommitTimestamp(TTimestamp timestamp) const
     {
         Header_->LastCommitTimestamp = timestamp;
     }
 
 
-    const NVersionedTableClient::TUnversionedValue& operator [](int id) const
+    const TUnversionedValue& operator [](int id) const
     {
         return GetKeys()[id];
     }
 
-    const NVersionedTableClient::TUnversionedValue* GetKeys() const
+    const TUnversionedValue* GetKeys() const
     {
         return reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
     }
 
-    NVersionedTableClient::TUnversionedValue* GetKeys()
+    TUnversionedValue* GetKeys()
     {
-        return reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
+        return reinterpret_cast<TUnversionedValue*>(Header_ + 1);
     }
 
 
@@ -375,7 +375,7 @@ private:
 
     TEditListHeader** GetLists(int keyCount) const
     {
-        auto* keys = reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
+        auto* keys = reinterpret_cast<TUnversionedValue*>(Header_ + 1);
         return reinterpret_cast<TEditListHeader**>(keys + keyCount);
     }
 

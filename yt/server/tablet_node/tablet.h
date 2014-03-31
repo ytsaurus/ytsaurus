@@ -30,8 +30,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
     
-    DEFINE_BYVAL_RO_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
-    DEFINE_BYVAL_RO_PROPERTY(NVersionedTableClient::TOwningKey, NextPivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
     
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
 
@@ -46,8 +46,8 @@ public:
         TTabletSlot* slot,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
-        NVersionedTableClient::TOwningKey pivotKey,
-        NVersionedTableClient::TOwningKey nextPivotKey);
+        TOwningKey pivotKey,
+        TOwningKey nextPivotKey);
 
     ~TTablet();
 
@@ -62,26 +62,26 @@ public:
 
     const TPartitionList& Partitions() const;
     TPartition* GetEden() const;
-    TPartition* AddPartition(NVersionedTableClient::TOwningKey pivotKey);
-    TPartition* FindPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey);
-    TPartition* GetPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey);
+    TPartition* AddPartition(TOwningKey pivotKey);
+    TPartition* FindPartitionByPivotKey(const TOwningKey& pivotKey);
+    TPartition* GetPartitionByPivotKey(const TOwningKey& pivotKey);
     void MergePartitions(int firstIndex, int lastIndex);
-    void SplitPartition(int index, const std::vector<NVersionedTableClient::TOwningKey>& pivotKeys);
+    void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
 
     //! Finds a partition fully containing the range |[minKey, maxKey]|.
     //! Returns the Eden if no such partition exists.
     TPartition* GetContainingPartition(
-        const NVersionedTableClient::TOwningKey& minKey,
-        const NVersionedTableClient::TOwningKey& maxKey);
+        const TOwningKey& minKey,
+        const TOwningKey& maxKey);
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, uppwerBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
-        const NVersionedTableClient::TOwningKey& lowerBound,
-        const NVersionedTableClient::TOwningKey& upperBound);
+        const TOwningKey& lowerBound,
+        const TOwningKey& upperBound);
 
     const yhash_map<TStoreId, IStorePtr>& Stores() const;
     void AddStore(IStorePtr store);
-    void RemoveStore(const TStoreId& id);
+    void RemoveStore(IStorePtr store);
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
 

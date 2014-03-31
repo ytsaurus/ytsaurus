@@ -44,13 +44,13 @@ public:
 
     void WriteRow(
         TTransaction* transaction,
-        NVersionedTableClient::TUnversionedRow row,
+        TUnversionedRow row,
         bool prewrite,
         std::vector<TDynamicRow>* lockedRows);
 
     void DeleteRow(
         TTransaction* transaction,
-        NVersionedTableClient::TKey key,
+        TKey key,
         bool prewrite,
         std::vector<TDynamicRow>* lockedRows);
 
@@ -63,6 +63,9 @@ public:
     void SetRotationScheduled();
     void ResetRotationScheduled();
     void Rotate(bool createNew);
+
+    void AddStore(TTablet* tablet, IStorePtr store);
+    void RemoveStore(TTablet* tablet, IStorePtr store);
     void CreateActiveStore();
     
 private:
@@ -72,17 +75,19 @@ private:
     bool RotationScheduled_;
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
 
-    TChunkedMemoryPool LookupPool_;
-    std::vector<NVersionedTableClient::TUnversionedRow> PooledKeys_;
-    std::vector<NVersionedTableClient::TUnversionedRow> UnversionedPooledRows_;
-    std::vector<NVersionedTableClient::TVersionedRow> VersionedPooledRows_;
+    std::multimap<TTimestamp, IStorePtr> LatestTimestampToStore_;
+
+    TChunkedMemoryPool LookupMemoryPool_;
+    std::vector<TUnversionedRow> PooledKeys_;
+    std::vector<TUnversionedRow> UnversionedPooledRows_;
+    std::vector<TVersionedRow> VersionedPooledRows_;
 
 
     TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);
 
     TDynamicRowRef FindRowAndCheckLocks(
         TTransaction* transaction,
-        NVersionedTableClient::TUnversionedRow key,
+        TUnversionedRow key,
         ERowLockMode mode);
 
     void CheckForUnlockedStore(const TDynamicMemoryStorePtr& store);

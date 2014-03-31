@@ -33,16 +33,16 @@ struct IStore
     virtual void SetPartition(TPartition* partition) = 0;
 
     //! Returns the minimum key in the store, inclusive.
-    virtual NVersionedTableClient::TOwningKey GetMinKey() const = 0;
+    virtual TOwningKey GetMinKey() const = 0;
 
     //! Returns the maximum key in the chunk, inclusive.
-    virtual NVersionedTableClient::TOwningKey GetMaxKey() const = 0;
+    virtual TOwningKey GetMaxKey() const = 0;
 
     //! Returns the minimum timestamp of changes recorded in the store.
-    virtual NVersionedTableClient::TTimestamp GetMinTimestamp() const = 0;
+    virtual TTimestamp GetMinTimestamp() const = 0;
 
     //! Returns the maximum timestamp of changes recorded in the store.
-    virtual NVersionedTableClient::TTimestamp GetMaxTimestamp() const = 0;
+    virtual TTimestamp GetMaxTimestamp() const = 0;
 
     //! Returns a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!
@@ -52,10 +52,14 @@ struct IStore
     *  filtered by |columnFilter|.
     */
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        NVersionedTableClient::TOwningKey lowerKey,
-        NVersionedTableClient::TOwningKey upperKey,
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
         TTimestamp timestamp,
-        const NVersionedTableClient::TColumnFilter& columnFilter) = 0;
+        const TColumnFilter& columnFilter) = 0;
+
+    //! Returns the latest commit timestamp for a given #key.
+    virtual TTimestamp GetLatestCommitTimestamp(TKey key) = 0;
+
 
     virtual void Save(TSaveContext& context) const = 0;
     virtual void Load(TLoadContext& context) = 0;

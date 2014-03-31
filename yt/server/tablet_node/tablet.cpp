@@ -339,10 +339,9 @@ void TTablet::AddStore(IStorePtr store)
     YCHECK(partition->Stores().insert(store).second);
 }
 
-void TTablet::RemoveStore(const TStoreId& id)
+void TTablet::RemoveStore(IStorePtr store)
 {
-    auto store = GetStore(id);
-    YCHECK(Stores_.erase(id) == 1);
+    YCHECK(Stores_.erase(store->GetId()) == 1);
     YCHECK(store->GetPartition()->Stores().erase(store) == 1);
 }
 

@@ -158,6 +158,44 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         timestamp);
 }
 
+TTimestamp TChunkStore::GetLatestCommitTimestamp(TKey key)
+{
+    if (key < MinKey_.Get() || key > MaxKey_.Get()) {
+        return NullTimestamp;
+    }
+
+    auto lowerKey = TOwningKey(key);
+    auto upperKey = GetKeySuccessor(lowerKey.Get());
+
+    TColumnFilter columnFilter;
+    columnFilter.All = false; // need no columns
+
+    // TODO(babenko): limit the number of fetched versions to 1
+    auto reader = CreateReader(
+        lowerKey,
+        upperKey,
+        LastCommittedTimestamp,
+        columnFilter);
+    if (!reader) {
+        return NullTimestamp;
+    }
+
+    {
+        auto result = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    PooledRows_.reserve(1);
+    if (!reader->Read(&PooledRows_)) {
+        return false;
+    }
+
+    auto row = PooledRows_[0];
+    YASSERT(row.BeginTimestamps() != row.EndTimestamps());
+    auto latestTimestamp = *(row.EndTimestamps() - 1);
+    return latestTimestamp;
+}
+
 void TChunkStore::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -206,4 +244,7 @@ void TChunkStore::PrecacheProperties()
 
 } // namespace NTabletNode
 } // namespace NYT
+
+
+
 

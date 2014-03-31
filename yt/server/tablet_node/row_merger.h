@@ -22,13 +22,13 @@ public:
         TChunkedMemoryPool* pool,
         int schemaColumnCount,
         int keyColumnCount,
-        const NVersionedTableClient::TColumnFilter& columnFilter);
+        const TColumnFilter& columnFilter);
 
-    void Start(const NVersionedTableClient::TUnversionedValue* keyBegin);
+    void Start(const TUnversionedValue* keyBegin);
 
-    void AddPartialRow(NVersionedTableClient::TVersionedRow row);
+    void AddPartialRow(TVersionedRow row);
 
-    NVersionedTableClient::TUnversionedRow BuildMergedRow();
+    TUnversionedRow BuildMergedRow();
 
 private:
     TChunkedMemoryPool* Pool_;
@@ -36,7 +36,7 @@ private:
     int KeyColumnCount_;
 
     NVersionedTableClient::TKeyComparer KeyComparer_;
-    SmallVector<NVersionedTableClient::TVersionedValue, NVersionedTableClient::TypicalColumnCount> MergedValues_;
+    SmallVector<TVersionedValue, NVersionedTableClient::TypicalColumnCount> MergedValues_;
     SmallVector<bool, NVersionedTableClient::TypicalColumnCount> ColumnFlags_;
     SmallVector<int, NVersionedTableClient::TypicalColumnCount> ColumnIds_;
     
@@ -55,11 +55,11 @@ public:
         int schemaColumnCount,
         int keyColumnCount);
 
-    void Start(const NVersionedTableClient::TUnversionedValue* keyBegin);
+    void Start(const TUnversionedValue* keyBegin);
 
-    void AddPartialRow(NVersionedTableClient::TVersionedRow row);
+    void AddPartialRow(TVersionedRow row);
 
-    NVersionedTableClient::TVersionedRow BuildMergedRow();
+    TVersionedRow BuildMergedRow();
 
 private:
     TChunkedMemoryPool* Pool_;
@@ -68,13 +68,13 @@ private:
 
     NVersionedTableClient::TKeyComparer KeyComparer_;
 
-    SmallVector<NVersionedTableClient::TUnversionedValue, NVersionedTableClient::TypicalColumnCount> Keys_;
+    SmallVector<TUnversionedValue, NVersionedTableClient::TypicalColumnCount> Keys_;
     
-    std::vector<NVersionedTableClient::TVersionedValue> Values_;
-    std::vector<NVersionedTableClient::TVersionedValue> MergedValues_;
+    std::vector<TVersionedValue> Values_;
+    std::vector<TVersionedValue> MergedValues_;
 
-    std::vector<NVersionedTableClient::TTimestamp> Timestamps_;
-    std::vector<NVersionedTableClient::TTimestamp> MergedTimestamps_;
+    std::vector<TTimestamp> Timestamps_;
+    std::vector<TTimestamp> MergedTimestamps_;
 
 };
 

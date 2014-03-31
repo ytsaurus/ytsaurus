@@ -46,7 +46,7 @@ public:
 
     void Read(
         TTablet* tablet,
-        NTransactionClient::TTimestamp timestamp,
+        TTimestamp timestamp,
         const Stroka& encodedRequest,
         Stroka* encodedResponse);
 

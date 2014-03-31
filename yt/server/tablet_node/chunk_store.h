@@ -8,6 +8,7 @@
 #include <core/rpc/public.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/versioned_row.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk.pb.h>
@@ -38,17 +39,19 @@ public:
     // IStore implementation.
     virtual i64 GetDataSize() const override;
 
-    virtual NVersionedTableClient::TOwningKey GetMinKey() const override;
-    virtual NVersionedTableClient::TOwningKey GetMaxKey() const override;
+    virtual TOwningKey GetMinKey() const override;
+    virtual TOwningKey GetMaxKey() const override;
 
-    virtual NVersionedTableClient::TTimestamp GetMinTimestamp() const override;
-    virtual NVersionedTableClient::TTimestamp GetMaxTimestamp() const override;
+    virtual TTimestamp GetMinTimestamp() const override;
+    virtual TTimestamp GetMaxTimestamp() const override;
 
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        NVersionedTableClient::TOwningKey lowerKey,
-        NVersionedTableClient::TOwningKey upperKey,
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
         TTimestamp timestamp,
-        const NVersionedTableClient::TColumnFilter& columnFilter) override;
+        const TColumnFilter& columnFilter) override;
+
+    virtual TTimestamp GetLatestCommitTimestamp(TKey key) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
@@ -60,15 +63,17 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
-    NVersionedTableClient::TOwningKey MinKey_;
-    NVersionedTableClient::TOwningKey MaxKey_;
-    NVersionedTableClient::TTimestamp MinTimestamp_;
-    NVersionedTableClient::TTimestamp MaxTimestamp_;
+    TOwningKey MinKey_;
+    TOwningKey MaxKey_;
+    TTimestamp MinTimestamp_;
+    TTimestamp MaxTimestamp_;
     i64 DataSize_;
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
+
+    std::vector<TVersionedRow> PooledRows_;
 
 
     void PrecacheProperties();
