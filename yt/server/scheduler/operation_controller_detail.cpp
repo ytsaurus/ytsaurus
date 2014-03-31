@@ -1540,7 +1540,7 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item(STRINGBUF("job_id")).Value(job->GetId())
-        .Item(STRINGBUF("limits")).Value(job->ResourceUsage());
+        .Item(STRINGBUF("resource_limits")).Value(job->ResourceUsage());
 
     JobCounter.Start(1);
 }

@@ -293,6 +293,10 @@ void TTableConsumer::OnEndAttributes()
 
 void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {
+    YCHECK(ControlState == EControlState::None);
+    YCHECK(Depth > 0);
+    YCHECK(type == EYsonType::Node);
+
     ValueWriter.OnRaw(yson, type);
 }
 
