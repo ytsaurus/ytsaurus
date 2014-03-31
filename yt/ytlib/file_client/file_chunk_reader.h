@@ -97,7 +97,6 @@ private:
     NChunkClient::TSequentialReaderPtr SequentialReader;
 
     TFacade Facade;
-    volatile bool IsFinished;
 
     TAsyncStreamState State;
 
