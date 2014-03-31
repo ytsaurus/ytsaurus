@@ -412,10 +412,6 @@ private:
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
-        for (auto key : keys) {
-            ValidateKey(key);
-        }
-        
         auto tableInfo = SyncGetTableInfo(path);
 
         TTableSchema resultSchema;
@@ -445,6 +441,7 @@ private:
 
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
+            ValidateKey(key);
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = subrequests.find(tabletInfo);
             if (it == subrequests.end()) {
@@ -917,9 +914,6 @@ public:
         TNameTablePtr nameTable,
         std::vector<TUnversionedRow> rows) override
     {
-        for (auto row : rows) {
-            ValidateRow(row);
-        }
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
             this,
             path,
@@ -941,9 +935,6 @@ public:
         const TYPath& path,
         std::vector<NVersionedTableClient::TKey> keys) override
     {
-        for (auto key : keys) {
-            ValidateKey(key);
-        }
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
             this,
             path,
@@ -1109,6 +1100,7 @@ private:
 
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             for (auto row : Rows_) {
+                ValidateRow(row);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EWireProtocolCommand::WriteRow);
@@ -1139,6 +1131,7 @@ private:
             TRequestBase::Run();
 
             for (auto key : Keys_) {
+                ValidateKey(key);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EWireProtocolCommand::DeleteRow);
