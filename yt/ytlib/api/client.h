@@ -138,6 +138,10 @@ struct TLookupRowsOptions
 
 struct TSelectRowsOptions
 {
+    TSelectRowsOptions()
+        : Timestamp(NTransactionClient::LastCommittedTimestamp)
+    { }
+
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp;
 };
