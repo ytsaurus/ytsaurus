@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.tools.atomic import process_tasks_from_list
+from yt.tools.atomic import process_tasks_from_list, REPEAT, CANCEL
 from yt.tools.common import update_args
 from yt.tools.mr import Mr
 from yt.wrapper.common import die
@@ -42,21 +42,21 @@ def export_table(object, args):
 
     if not yt.exists(src):
         logger.warning("Export table '%s' is empty", src)
-        return None if args.skip_empty_tables else -1
+        return CANCEL
 
     if not mr.is_empty(dst):
         if params.force:
             mr.drop(dst)
         else:
             logger.error("Destination table '%s' is not empty" % dst)
-            return -1
+            return CANCEL
 
     record_count = yt.records_count(src)
 
     user_slots_path = "//sys/pools/{}/@resource_limits/user_slots".format(params.yt_pool)
     if not yt.exists(user_slots_path):
         logger.error("Use pool with bounded number of user slots")
-        return -1
+        return CANCEL
     else:
         limit = params.speed_limit / yt.get(user_slots_path)
 
@@ -82,7 +82,7 @@ def export_table(object, args):
     if record_count != result_record_count:
         logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, result_record_count)
         mr.drop(dst)
-        return -1
+        return REPEAT
 
 
 def main():

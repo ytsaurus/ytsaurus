@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.tools.atomic import process_tasks_from_list
+from yt.tools.atomic import process_tasks_from_list, CANCEL, REPEAT
 from yt.tools.common import update_args
 from yt.tools.mr import Mr
 from yt.wrapper.common import die
@@ -165,8 +165,8 @@ def import_table(object, args):
             mr_user=params.mr_user)
 
     if mr.is_empty(src):
-        logger.info("Source table '%s' is empty, import cancelled", src)
-        return None
+        logger.info("Source table '%s' is empty", src)
+        return CANCEL
 
     record_count = mr.records_count(src)
     sorted = mr.is_sorted(src)
@@ -178,8 +178,8 @@ def import_table(object, args):
     else:
         if yt.exists(dst):
             if not (yt.get_type(dst) == "table" and yt.is_empty(dst)):
-                logger.warning("Destination table '%s' is not empty, import cancelled", dst)
-                return
+                logger.warning("Destination table '%s' is not empty", dst)
+                return CANCEL
     yt.create_table(dst, recursive=True, ignore_existing=True)
 
     logger.info("Destination table '%s' created", dst)
@@ -208,7 +208,7 @@ def import_table(object, args):
         # TODO: add checksum checking
         if yt.records_count(dst) != record_count:
             logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, yt.records_count(dst))
-            return -1
+            return REPEAT
 
         if sorted:
             logger.info("Sorting '%s'", dst)
@@ -235,12 +235,12 @@ def import_table(object, args):
         # Additional final check 
         if yt.records_count(dst) != record_count:
             logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, yt.records_count(dst))
-            return -1
+            return REPEAT
 
     except yt.YtError:
         logger.exception("Error occured while import")
         yt.remove(dst, force=True)
-        return
+        return CANCEL
 
 def main():
     yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True

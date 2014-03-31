@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.tools.atomic import process_tasks_from_list
+from yt.tools.atomic import process_tasks_from_list, CANCEL, REPEAT
 from yt.tools.common import update_args
 from yt.wrapper.common import die
 
@@ -34,11 +34,15 @@ def export_table(object, args):
 
     if not yt.exists(src):
         logger.warning("Export table '%s' is empty", src)
-        return -1
+        return CANCEL
 
     if params.yt_proxy is None:
         logger.error("You should specify yt proxy")
-        return -1
+        return CANCEL
+
+    if params.yt_proxy == yt.config.http.PROXY:
+        logger.error("Source and destination proxies should be different")
+        return CANCEL
 
     old_proxy = yt.config.http.PROXY
     try:
@@ -48,7 +52,7 @@ def export_table(object, args):
                 yt.remove(dst)
             else:
                 logger.error("Destination table '%s' is not empty" % dst)
-                return -1
+                return CANCEL
         yt.create_table(dst, recursive=True, ignore_existing=True)
     finally:
         yt.config.set_proxy(old_proxy)
@@ -69,11 +73,19 @@ def export_table(object, args):
                 .format(params.yt_token, hosts, params.yt_proxy, dst)
 
         logger.info("Running map '%s'", command)
-        yt.run_map(command, src, yt.create_temp_table(),
-                   format=yt.YsonFormat(format="binary"),
-                   memory_limit=3500 * yt.config.MB,
-                   spec={"pool": params.yt_pool,
-                         "data_size_per_job": 2 * 1024 * yt.config.MB})
+        try:
+            yt.run_map(command, src, yt.create_temp_table(),
+                       format=yt.YsonFormat(format="binary"),
+                       memory_limit=3500 * yt.config.MB,
+                       spec={"pool": params.yt_pool,
+                             "data_size_per_job": 2 * 1024 * yt.config.MB})
+        except yt.YtOperationFailedError as error:
+            logger.exception("Export operation failed")
+            # "YtNetworkError" in error message usually means that some jobs failed
+            # to write data because of network problems.
+            if "YtNetworkError" in error.message:
+                return REPEAT
+            return CANCEL
 
     try:
         yt.config.set_proxy(params.yt_proxy)
@@ -81,7 +93,7 @@ def export_table(object, args):
         if record_count != result_record_count:
             logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, result_record_count)
             yt.remove(dst)
-            return -1
+            return REPEAT
 
         if is_sorted:
             logger.info("Running sort")
