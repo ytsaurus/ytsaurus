@@ -476,7 +476,7 @@ def move_table(source_table, destination_table, replace=True):
                 continue
             remove(table.name)
 
-def run_erase(table, strategy=None):
+def run_erase(table, spec=None, strategy=None):
     """
     Erase table. It differs from remove command.
     Erase only remove given content. You can erase range
@@ -485,7 +485,8 @@ def run_erase(table, strategy=None):
     table = to_table(table)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return
-    _make_operation_request("erase", {"table_path": table.get_json()}, strategy)
+    spec = update({"table_path": table.get_json()}, get_value(spec, {}))
+    _make_operation_request("erase", spec, strategy)
 
 def records_count(table):
     """Return number of records in the table"""
@@ -764,18 +765,22 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "reduce"
     run_operation(binary, source_table, destination_table, **kwargs)
 
-def run_remote_copy(source_table, destination_table, cluster_name, network_name=None, strategy=None):
+def run_remote_copy(source_table, destination_table, cluster_name,
+                    network_name=None, spec=None, strategy=None):
     def get_input_name(table):
         return to_table(table).get_json()
 
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None))
-    params = {"input_table_paths": map(get_input_name, source_table),
-              "output_table_path": destination_table.get_json(),
-              "cluster_name": cluster_name}
-    if network_name is not None:
-        params["network_name"] = network_name
+    spec = compose(
+        lambda _: update({"network_name": network_name}, _) if network_name is not None else _,
+        lambda _: update({"input_table_paths": map(get_input_name, source_table),
+                          "output_table_path": destination_table.get_json(),
+                          "cluster_name": cluster_name},
+                          _),
+        lambda _: get_value(spec, {})
+    )(spec)
 
-    _make_operation_request("remote_copy", params, strategy)
+    _make_operation_request("remote_copy", spec, strategy)
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None):
     params = {"path": path}
