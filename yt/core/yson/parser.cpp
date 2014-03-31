@@ -26,14 +26,16 @@ public:
     TImpl(
         IYsonConsumer* consumer, 
         EYsonType parsingMode = EYsonType::Node, 
-        bool enableLinePositionInfo = false) 
+        bool enableLinePositionInfo = false,
+        TNullable<i64> memoryLimit = Null) 
     {
         ParserCoroutine.Reset(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
             ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine> >(
                 TBlockReader<TParserCoroutine>(self, begin, end, finish),
                 consumer,
                 parsingMode,
-                enableLinePositionInfo);
+                enableLinePositionInfo,
+                memoryLimit);
         }));
     }
 
@@ -62,8 +64,9 @@ public:
 TYsonParser::TYsonParser(
     IYsonConsumer *consumer,
     EYsonType type,
-    bool enableLinePositionInfo)
-    : Impl(new TImpl(consumer, type, enableLinePositionInfo))
+    bool enableLinePositionInfo,
+    TNullable<i64> memoryLimit)
+    : Impl(new TImpl(consumer, type, enableLinePositionInfo, memoryLimit))
 { }
 
 TYsonParser::~TYsonParser()

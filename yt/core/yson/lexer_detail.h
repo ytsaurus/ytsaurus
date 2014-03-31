@@ -128,8 +128,8 @@ private:
     }
 
 public:
-    TLexer(const TBlockStream& blockStream) 
-        : TBase(blockStream)
+    TLexer(const TBlockStream& blockStream, TNullable<i64> memoryLimit) 
+        : TBase(blockStream, memoryLimit)
     { }
 
     void GetToken(TToken* token)
@@ -261,7 +261,7 @@ private:
 
 public:
     TStatelesYsonLexerImpl()
-        : Lexer(TStringReader())
+        : Lexer(TStringReader(), Null)
     { }
     
     size_t GetToken(const TStringBuf& data, TToken* token) override
