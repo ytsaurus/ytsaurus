@@ -4,8 +4,10 @@ import yt.wrapper as yt
 import __builtin__
 
 import random
-import sys
 from time import sleep
+
+REPEAT = -1
+CANCEL = -2
 
 def atomic_pop(list, retries_count=10, delay=5.0):
     with yt.Transaction():
@@ -67,8 +69,10 @@ def process_tasks_from_list(list, action, limit=10000):
 
             logger.info("Processing value %s", str(value))
             result = action(value)
-            if result == -1:
+            if result == REPEAT:
                 atomic_push(list, value)
+            if result == CANCEL:
+                logger.info("Processing of value %s failed, it cancelled", str(value))
 
         except (Exception, KeyboardInterrupt):
             logger.exception("Process interrupted or error occured, processing stopped")
