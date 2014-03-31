@@ -157,7 +157,7 @@ std::vector<TChunkId> TUserJobIO::GetFailedChunkIds() const
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
     for (const auto& output : Outputs) {
-        *result->add_output_boundary_keys() = output->GetProvider()->GeTOldBoundaryKeys();
+        *result->add_output_boundary_keys() = output->GetProvider()->GetOldBoundaryKeys();
     }
 }
 

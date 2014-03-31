@@ -509,7 +509,7 @@ i64 TTableChunkWriter::GetMetaSize() const
     return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
 }
 
-const NProto::TOldBoundaryKeysExt& TTableChunkWriter::GeTOldBoundaryKeys() const
+const NProto::TOldBoundaryKeysExt& TTableChunkWriter::GetOldBoundaryKeys() const
 {
     return BoundaryKeysExt;
 }
@@ -559,7 +559,7 @@ void TTableChunkWriterProvider::OnChunkFinished()
 
     if (Options->KeyColumns) {
         if (FinishedWriterCount == 1) {
-            const auto& boundaryKeys = CurrentWriter->GeTOldBoundaryKeys();
+            const auto& boundaryKeys = CurrentWriter->GetOldBoundaryKeys();
             *BoundaryKeysExt.mutable_start() = boundaryKeys.start();
         }
         ToProto(BoundaryKeysExt.mutable_end(), CurrentWriter->GetLastKey().Get());
@@ -574,7 +574,7 @@ void TTableChunkWriterProvider::OnChunkClosed(TTableChunkWriterPtr writer)
     YCHECK(ActiveWriters.erase(writer) == 1);
 }
 
-const NProto::TOldBoundaryKeysExt& TTableChunkWriterProvider::GeTOldBoundaryKeys() const
+const NProto::TOldBoundaryKeysExt& TTableChunkWriterProvider::GetOldBoundaryKeys() const
 {
     return BoundaryKeysExt;
 }
@@ -582,11 +582,6 @@ const NProto::TOldBoundaryKeysExt& TTableChunkWriterProvider::GeTOldBoundaryKeys
 i64 TTableChunkWriterProvider::GetRowCount() const
 {
     return GetDataStatistics().row_count();
-}
-
-const TNullable<TKeyColumns>& TTableChunkWriterProvider::GetKeyColumns() const
-{
-    return Options->KeyColumns;
 }
 
 NChunkClient::NProto::TDataStatistics TTableChunkWriterProvider::GetDataStatistics() const

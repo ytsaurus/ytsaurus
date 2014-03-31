@@ -71,7 +71,7 @@ public:
 
     // Used by provider.
     const NVersionedTableClient::TOwningKey& GetLastKey() const;
-    const NProto::TOldBoundaryKeysExt& GeTOldBoundaryKeys() const;
+    const NProto::TOldBoundaryKeysExt& GetOldBoundaryKeys() const;
 
     // Used by facade.
     void WriteRow(const TRow& row);
@@ -167,11 +167,9 @@ public:
     void OnChunkFinished();
     void OnChunkClosed(TTableChunkWriterPtr writer);
 
-    const NProto::TOldBoundaryKeysExt& GeTOldBoundaryKeys() const;
+    const NProto::TOldBoundaryKeysExt& GetOldBoundaryKeys() const;
     i64 GetRowCount() const;
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
-
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
 
 private:
     TChunkWriterConfigPtr Config;

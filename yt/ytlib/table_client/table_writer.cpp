@@ -59,8 +59,6 @@ public:
 
     virtual void Close() override;
 
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override;
-
     virtual i64 GetRowCount() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
@@ -362,11 +360,6 @@ void TAsyncTableWriter::Close()
         LOG_INFO("Upload transaction committed");
         LOG_INFO("Table writer closed");
     }
-}
-
-const TNullable<TKeyColumns>& TAsyncTableWriter::GetKeyColumns() const
-{
-    return Writer->GetProvider()->GetKeyColumns();
 }
 
 i64 TAsyncTableWriter::GetRowCount() const

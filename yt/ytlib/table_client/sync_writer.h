@@ -85,11 +85,6 @@ public:
         Sync(Writer.Get(), &TAsyncWriter::Close);
     }
 
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
-    {
-        return Writer->GetProvider()->GetKeyColumns();
-    }
-
     virtual i64 GetRowCount() const override
     {
         return Writer->GetProvider()->GetRowCount();
