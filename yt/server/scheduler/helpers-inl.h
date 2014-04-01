@@ -50,5 +50,19 @@ std::vector< TIntrusivePtr<TTypedResponse> > TMultiCellBatchResponse::GetRespons
 
 ////////////////////////////////////////////////////////////////////
 
+template <class TSpec>
+TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::IMapNodePtr specNode)
+{
+    auto spec = New<TSpec>();
+    try {
+        spec->Load(specNode);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
+    }
+    return spec;
+}
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

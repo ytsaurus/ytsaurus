@@ -301,6 +301,12 @@ public:
             ? nullptr
             : GetTransactionManager()->Attach(userAttachOptions);
 
+        // Merge operation spec with template
+        auto specTemplate = GetSpecTemplate(type, spec);
+        if (specTemplate) {
+            spec = NYTree::UpdateNode(specTemplate, spec)->AsMap();
+        }
+
         // Create operation object.
         auto operationId = TOperationId::Create();
         auto operation = New<TOperation>(
@@ -332,8 +338,7 @@ public:
             operation->SetController(controller);
             controller->Initialize();
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Operation has failed to initialize")
-                << ex;
+            auto wrappedError = TError("Operation has failed to initialize") << ex;
             LOG_ERROR(wrappedError);
             return MakeFuture(TStartResult(wrappedError));
         }
@@ -1408,6 +1413,42 @@ private:
                 return CreateMapReduceController(Config_, this, operation);
             case EOperationType::RemoteCopy:
                 return CreateRemoteCopyController(Config_, this, operation);
+            default:
+                YUNREACHABLE();
+        }
+    }
+    
+    INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)
+    {
+        switch (type) {
+            case EOperationType::Map:
+                return Config_->MapOperationSpec;
+            case EOperationType::Merge: {
+                auto mergeSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
+                switch (mergeSpec->Mode) {
+                    case EMergeMode::Unordered: {
+                        return Config_->UnorderedMergeOperationSpec;
+                    }
+                    case EMergeMode::Ordered: {
+                        return Config_->OrderedMergeOperationSpec;
+                    }
+                    case EMergeMode::Sorted: {
+                        return Config_->SortedMergeOperationSpec;
+                    }
+                    default:
+                        YUNREACHABLE();
+                }
+            }
+            case EOperationType::Erase:
+                return Config_->EraseOperationSpec;
+            case EOperationType::Sort:
+                return Config_->SortOperationSpec;
+            case EOperationType::Reduce:
+                return Config_->ReduceOperationSpec;
+            case EOperationType::MapReduce:
+                return Config_->MapReduceOperationSpec;
+            case EOperationType::RemoteCopy:
+                return Config_->RemoteCopyOperationSpec;
             default:
                 YUNREACHABLE();
         }

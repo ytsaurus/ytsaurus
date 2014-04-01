@@ -885,26 +885,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-template <class TSpec>
-TIntrusivePtr<TSpec> ParseOperationSpec(TOperation* operation, NYTree::INodePtr specTemplateNode)
-{
-    auto specNode = specTemplateNode
-        ? NYTree::UpdateNode(specTemplateNode, operation->GetSpec())
-        : operation->GetSpec();
-    auto spec = New<TSpec>();
-    try {
-        spec->Load(specNode);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
-    }
-    return spec;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NScheduler
 } // namespace NYT
