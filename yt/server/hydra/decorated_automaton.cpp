@@ -705,7 +705,7 @@ TNullable<TMutationResponse> TDecoratedAutomaton::FindKeptResponse(const TMutati
     return TMutationResponse(std::move(data), true);
 }
 
-IChangelogPtr TDecoratedAutomaton::GetCurrentChangelog()
+IChangelogPtr TDecoratedAutomaton::GetCurrentChangelog() const
 {
     if (!CurrentChangelog_) {
         CurrentChangelog_ = ChangelogStore_->OpenChangelogOrThrow(LoggedVersion_.SegmentId);
@@ -727,6 +727,14 @@ void TDecoratedAutomaton::SetLoggedVersion(TVersion version)
 
     TGuard<TSpinLock> guard(VersionSpinLock_);
     LoggedVersion_ = version;
+}
+
+i64 TDecoratedAutomaton::GetLoggedDataSize() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto changelog = GetCurrentChangelog();
+    return changelog->GetDataSize();
 }
 
 TVersion TDecoratedAutomaton::GetAutomatonVersion() const

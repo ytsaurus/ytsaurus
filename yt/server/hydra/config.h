@@ -235,17 +235,18 @@ public:
     TDuration MaxBatchDelay;
     int MaxBatchSize;
 
-    //! Rotation and snapshotting period (measured in number of mutations).
+    //! Changelog record count limit.
     /*!
-     *  This is also an upper limit for the number of records in a changelog.
-     *
-     *  The limit may be violated if the server is under heavy load and
-     *  a new snapshot generation request is issued when the previous one is still in progress.
-     *  This situation is considered abnormal and a warning is reported.
-     *
-     *  |Null| means that snapshot creation is switched off.
+     *  When this limit is reached, the current changelog is rotated and a snapshot
+     *  is built.
      */
-    TNullable<int> ChangelogRotationPeriod;
+    int MaxChangelogRecords;
+
+    //! Changelog data size limit, in bytes.
+    /*!
+     *  See #MaxChangelogRecords.
+     */
+    i64 MaxChangelogDataSize;
 
     TLeaderCommitterConfig()
     {
@@ -253,8 +254,11 @@ public:
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_batch_size", MaxBatchSize)
             .Default(10000);
-        RegisterParameter("changelog_rotation_period", ChangelogRotationPeriod)
-            .Default()
+        RegisterParameter("max_changelog_record_count", MaxChangelogRecords)
+            .Default(1000000)
+            .GreaterThan(0);
+        RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
+            .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
 };

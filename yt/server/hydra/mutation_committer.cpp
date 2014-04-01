@@ -313,8 +313,9 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
 
         AddToBatch(version, std::move(recordData), std::move(logResult));
 
-        auto period = Config_->LeaderCommitter->ChangelogRotationPeriod;
-        if (period && (version.RecordId + 1) % *period == 0) {
+        if (version.RecordId + 1 >= Config_->LeaderCommitter->MaxChangelogRecords ||
+            DecoratedAutomaton_->GetLoggedDataSize() > Config_->LeaderCommitter->MaxChangelogDataSize)
+        {
             ChangelogLimitReached_.Fire();
         }
 
