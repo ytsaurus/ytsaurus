@@ -8,6 +8,7 @@
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h> // TODO(babenko): remove after migration
+#include "row_base.h"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -171,6 +172,16 @@ void Deserialize(TTableSchema& schema, INodePtr node)
     // Check for duplicate names.
     yhash_set<Stroka> names;
     for (const auto& column : schema.Columns()) {
+        try {
+            if (column.Name.empty()) {
+                THROW_ERROR_EXCEPTION("Column name cannot be empty");
+            }
+            ValidateSchemaValueType(column.Type);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error validating column %s in table schema",
+                ~column.Name.Quote())
+                << ex;
+        }
         if (!names.insert(column.Name).second) {
             THROW_ERROR_EXCEPTION("Duplicate column %s in table schema",
                 ~column.Name.Quote());
