@@ -78,6 +78,8 @@ public:
         , SlotIndex_(slotIndex)
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , State_(EPeerState::None)
+        , PeerId_(InvalidPeerId)
         , AutomatonQueue_(New<TFairShareActionQueue>(
             Sprintf("TabletSlot:%d", SlotIndex_),
             EAutomatonThreadQueue::GetDomainNames()))
@@ -85,9 +87,14 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
 
-        Reset();
+        SetCellGuid(NullCellGuid);
     }
 
+
+    int GetIndex() const
+    {
+        return SlotIndex_;
+    }
 
     const TCellGuid& GetCellGuid() const
     {
@@ -381,10 +388,31 @@ public:
 
             tabletCellController->UnregisterTablets(owner);
 
-            SnapshotStore_.Reset();
-            ChangelogStore_.Reset();
-            
-            Reset();
+            State_ = EPeerState::None;
+
+            if (HydraManager_) {
+                HydraManager_->Stop();
+            }
+
+            if (HiveManager_) {
+                HiveManager_->Stop();
+            }
+
+            if (TransactionSupervisor_) {
+                TransactionSupervisor_->Stop();
+            }
+
+            auto rpcServer = Bootstrap_->GetRpcServer();
+
+            if (TabletService_) {
+                rpcServer->UnregisterService(TabletService_);
+            }
+
+            {
+                TGuard<TSpinLock> guard(InvokersSpinLock_);
+                EpochAutomatonInvokers_.clear();
+                GuardedAutomatonInvokers_.clear();
+            }
 
             LOG_INFO("Slot removed");
         })
@@ -436,53 +464,6 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-
-    void Reset()
-    {
-        SetCellGuid(NullCellGuid);
-
-        State_ = EPeerState::None;
-        
-        PeerId_ = InvalidPeerId;
-        
-        CellConfig_ = NHydra::NProto::TCellConfig();
-        
-        CellManager_.Reset();
-
-        if (HydraManager_) {
-            HydraManager_->Stop();
-            HydraManager_.Reset();
-        }
-
-        if (HiveManager_) {
-            HiveManager_->Stop();
-            HiveManager_.Reset();
-        }
-
-        TabletManager_.Reset();
-
-        TransactionManager_.Reset();
-
-        if (TransactionSupervisor_) {
-            TransactionSupervisor_->Stop();
-            TransactionSupervisor_.Reset();
-        }
-
-        auto rpcServer = Bootstrap_->GetRpcServer();
-
-        if (TabletService_) {
-            rpcServer->UnregisterService(TabletService_);
-            TabletService_.Reset();
-        }
-
-        Automaton_.Reset();
-
-        {
-            TGuard<TSpinLock> guard(InvokersSpinLock_);
-            EpochAutomatonInvokers_.clear();
-            GuardedAutomatonInvokers_.clear();
-        }
-    }
 
     void SetCellGuid(const TCellGuid& cellGuid)
     {
@@ -602,6 +583,11 @@ TTabletSlot::TTabletSlot(
 
 TTabletSlot::~TTabletSlot()
 { }
+
+int TTabletSlot::GetIndex() const
+{
+    return Impl_->GetIndex();
+}
 
 const TCellGuid& TTabletSlot::GetCellGuid() const
 {

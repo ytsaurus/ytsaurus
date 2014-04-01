@@ -88,11 +88,8 @@ public:
         }
 
         // Create slots.
-        for (int slotIndex = 0; slotIndex < Config_->TabletNode->Slots; ++slotIndex) {
-            auto slot = New<TTabletSlot>(
-                slotIndex,
-                Config_,
-                Bootstrap_);
+        for (int index = 0; index < Config_->TabletNode->Slots; ++index) {
+            auto slot = CreateSlot(index);
             Slots_.push_back(slot);
         }
 
@@ -178,7 +175,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // Notify the existing instance.
         slot->Remove();
+
+        // Recreate the slot.
+        int index = slot->GetIndex();
+        Slots_[index] = CreateSlot(index);
+
         --UsedSlotCount_;
     }
 
@@ -362,6 +365,14 @@ private:
         }));
     }
 
+
+    TTabletSlotPtr CreateSlot(int index)
+    {
+        return New<TTabletSlot>(
+            index,
+            Config_,
+            Bootstrap_);
+    }
 
     static TTabletDescriptorPtr BuildTabletDescriptor(TTablet* tablet)
     {

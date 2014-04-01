@@ -33,6 +33,7 @@ public:
     
     ~TTabletSlot();
 
+    int GetIndex() const;
     const NHydra::TCellGuid& GetCellGuid() const;
     NHydra::EPeerState GetControlState() const;
     NHydra::EPeerState GetAutomatonState() const;
