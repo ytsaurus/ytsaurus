@@ -25,7 +25,7 @@ struct TTempLoadPoolTag { };
 
 TLoadContext::TLoadContext()
     : Slot_(nullptr)
-    , TempPool_(new TChunkedMemoryPool(GetRefCountedTrackerCookie<TTempLoadPoolTag>()))
+    , TempPool_(std::make_unique<TChunkedMemoryPool>(TTempLoadPoolTag()))
     , RowBuilder_(new TUnversionedRowBuilder())
 { }
 

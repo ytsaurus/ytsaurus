@@ -56,7 +56,7 @@ struct TPlanContextPoolTag { };
 TPlanContext::TPlanContext(TTimestamp timestamp)
     : Timestamp_(timestamp)
     , NodeDirectory_(New<TNodeDirectory>())
-    , MemoryPool_(GetRefCountedTrackerCookie<TPlanContextPoolTag>())
+    , MemoryPool_(TPlanContextPoolTag())
 { }
 
 TPlanContext::~TPlanContext()

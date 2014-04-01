@@ -16,27 +16,22 @@ public:
     static const size_t DefaultChunkSize;
     static const double DefaultMaxSmallBlockSizeRatio;
 
-    inline explicit TChunkedMemoryPool(
-        void* tagCookie = GetRefCountedTrackerCookie<TDefaultChunkedMemoryPoolTag>(),
+    explicit TChunkedMemoryPool(
         size_t chunkSize = DefaultChunkSize,
-        double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
-    {
-        Initialize(
-            chunkSize,
-            maxSmallBlockSizeRatio,
-            tagCookie);
-    }
+        double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio,
+        void* tagCookie = GetRefCountedTrackerCookie<TDefaultChunkedMemoryPoolTag>());
 
     template <class TTag>
     explicit TChunkedMemoryPool(
+        TTag tag = TTag(),
         size_t chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
-    {
-        Initialize(
-            GetRefCountedTrackerCookie<TTag>(),
+        : TChunkedMemoryPool(
             chunkSize,
-            maxSmallBlockSizeRatio);
-    }
+            maxSmallBlockSizeRatio,
+            GetRefCountedTrackerCookie<TTag>())
+    { }
+
 
     //! Allocates #sizes bytes without any alignment.
     char* AllocateUnaligned(size_t size);
@@ -69,11 +64,6 @@ private:
     std::vector<TSharedRef> Chunks_;
     std::vector<TSharedRef> LargeBlocks_;
 
-
-    void Initialize(
-        size_t chunkSize, 
-        double maxSmallBlockSizeRatio,
-        void* tagCookie);
 
     void AllocateChunk();
     TSharedRef AllocateLargeBlock(size_t size);

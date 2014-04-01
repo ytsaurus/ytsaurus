@@ -53,7 +53,7 @@ TStoreManager::TStoreManager(
     : Config_(config)
     , Tablet_(Tablet_)
     , RotationScheduled_(false)
-    , LookupMemoryPool_(GetRefCountedTrackerCookie<TLookupPoolTag>())
+    , LookupMemoryPool_(TLookupPoolTag())
 {
     YCHECK(Config_);
     YCHECK(Tablet_);

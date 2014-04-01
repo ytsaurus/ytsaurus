@@ -155,7 +155,7 @@ public:
         , ColumnFilter_(columnFilter)
         , KeyColumnCount_(Store_->Tablet_->GetKeyColumnCount())
         , SchemaColumnCount_(Store_->Tablet_->GetSchemaColumnCount())
-        , Pool_(GetRefCountedTrackerCookie<TTabletReaderPoolTag>(), TabletReaderPoolSize)
+        , Pool_(TTabletReaderPoolTag(), TabletReaderPoolSize)
         , Finished_(false)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);

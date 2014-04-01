@@ -18,9 +18,9 @@ class TRowBuffer
 {
 public:
     explicit TRowBuffer(
-        i64 alignedPoolChunkSize = 4 * 1024,
-        i64 unalignedPoolChunkSize = 4 * 1024,
-        double maxPoolSmallBlockRatio = 0.25);
+        i64 alignedPoolChunkSize = TChunkedMemoryPool::DefaultChunkSize,
+        i64 unalignedPoolChunkSize = TChunkedMemoryPool::DefaultChunkSize,
+        double maxPoolSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio);
 
     TChunkedMemoryPool* GetAlignedPool();
     const TChunkedMemoryPool* GetAlignedPool() const;

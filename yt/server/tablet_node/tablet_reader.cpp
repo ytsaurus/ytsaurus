@@ -51,7 +51,7 @@ public:
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
         , AutomatonInvoker_(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
-        , Pool_(GetRefCountedTrackerCookie<TTabletReaderPoolTag>())
+        , Pool_(TTabletReaderPoolTag())
         , ReadyEvent_(PresetResult)
         , Opened_(false)
         , Refilling_(false)

@@ -345,10 +345,10 @@ public:
         : Data_(data)
         , CodedStream_(reinterpret_cast<const ui8*>(data.data()), data.length())
         , AlignedPool_(
-            GetRefCountedTrackerCookie<TAlignedWireProtocolReaderPoolTag>(),
-            ReaderAlignedChunkSize)
+        	TAlignedWireProtocolReaderPoolTag(),
+        	ReaderAlignedChunkSize)
         , UnalignedPool_(
-            GetRefCountedTrackerCookie<TUnalignedWireProtocolReaderPoolTag>(),
+        	TUnalignedWireProtocolReaderPoolTag(),
             ReaderUnalignedChunkSize)
     {
         ProtocolVersion_ = ReadUInt32();
