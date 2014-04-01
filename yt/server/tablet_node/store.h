@@ -35,7 +35,7 @@ struct IStore
     //! Returns the minimum key in the store, inclusive.
     virtual TOwningKey GetMinKey() const = 0;
 
-    //! Returns the maximum key in the chunk, inclusive.
+    //! Returns the maximum key in the store, inclusive.
     virtual TOwningKey GetMaxKey() const = 0;
 
     //! Returns the minimum timestamp of changes recorded in the store.
