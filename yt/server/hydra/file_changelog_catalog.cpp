@@ -216,22 +216,27 @@ private:
             return Store;
         }
 
-        virtual int GetId() override
+        virtual int GetId() const override
         {
             return SplitChangelog->GetId();
         }
 
-        virtual int GetRecordCount() override
+        virtual int GetRecordCount() const override
         {
             return SplitChangelog->GetRecordCount();
         }
 
-        virtual int GetPrevRecordCount() override
+        virtual i64 GetDataSize() const override
+        {
+            return SplitChangelog->GetDataSize();
+        }
+
+        virtual int GetPrevRecordCount() const override
         {
             return SplitChangelog->GetPrevRecordCount();
         }
 
-        virtual bool IsSealed() override
+        virtual bool IsSealed() const override
         {
             return SplitChangelog->IsSealed();
         }
@@ -265,7 +270,7 @@ private:
         virtual std::vector<TSharedRef> Read(
             int firstRecordId,
             int maxRecords,
-            i64 maxBytes) override
+            i64 maxBytes) const override
         {
             return SplitChangelog->Read(
                 firstRecordId,

@@ -18,6 +18,8 @@
 
 #include <util/generic/singleton.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NHydra {
 
@@ -560,58 +562,66 @@ public:
     TFileChangelog(
         TFileChangelogConfigPtr config,
         TSyncFileChangelogPtr changelog)
-        : Config(config)
-        , SyncChangelog(changelog)
-        , RecordCount(changelog->GetRecordCount())
+        : Config_(config)
+        , SyncChangelog_(changelog)
+        , RecordCount_(changelog->GetRecordCount())
+        , DataSize_(changelog->GetDataSize())
     { }
 
-    virtual int GetId() override
+    virtual int GetId() const override
     {
-        return SyncChangelog->GetId();
+        return SyncChangelog_->GetId();
     }
 
-    virtual int GetRecordCount() override
+    virtual int GetRecordCount() const override
     {
-        return static_cast<int>(RecordCount);
+        return RecordCount_;
     }
 
-    virtual int GetPrevRecordCount() override
+    virtual i64 GetDataSize() const override
     {
-        return SyncChangelog->GetPrevRecordCount();
+        return DataSize_;
     }
 
-    virtual bool IsSealed() override
+    virtual int GetPrevRecordCount() const override
     {
-        return SyncChangelog->IsSealed();
+        return SyncChangelog_->GetPrevRecordCount();
+    }
+
+    virtual bool IsSealed() const override
+    {
+        return SyncChangelog_->IsSealed();
     }
 
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
-        AtomicIncrement(RecordCount);
+        RecordCount_ += 1;
+        DataSize_ += data.Size();
+
         return TChangelogDispatcher::Get()->Append(
-            SyncChangelog,
+            SyncChangelog_,
             data);
     }
 
     virtual TFuture<void> Flush() override
     {
         return TChangelogDispatcher::Get()->Flush(
-            SyncChangelog);
+            SyncChangelog_);
     }
 
     virtual void Close() override
     {
         return TChangelogDispatcher::Get()->Close(
-            SyncChangelog);
+            SyncChangelog_);
     }
 
     virtual std::vector<TSharedRef> Read(
         int firstRecordId,
         int maxRecords,
-        i64 maxBytes) override
+        i64 maxBytes) const override
     {
         return TChangelogDispatcher::Get()->Read(
-            SyncChangelog,
+            SyncChangelog_,
             firstRecordId,
             maxRecords,
             maxBytes);
@@ -619,24 +629,25 @@ public:
 
     virtual TFuture<void> Seal(int recordCount) override
     {
-        YCHECK(recordCount <= RecordCount);
-        AtomicSet(RecordCount, recordCount);
+        YCHECK(recordCount <= RecordCount_);
+        RecordCount_.store(recordCount);
 
         return TChangelogDispatcher::Get()->Seal(
-            SyncChangelog,
+            SyncChangelog_,
             recordCount);
     }
 
     virtual void Unseal() override
     {
-        SyncChangelog->Unseal();
+        SyncChangelog_->Unseal();
     }
 
 private:
-    TFileChangelogConfigPtr Config;
-    TSyncFileChangelogPtr SyncChangelog;
+    TFileChangelogConfigPtr Config_;
+    TSyncFileChangelogPtr SyncChangelog_;
 
-    TAtomic RecordCount;
+    std::atomic<int> RecordCount_;
+    std::atomic<i64> DataSize_;
 
 };
 
@@ -696,24 +707,24 @@ public:
         const TCellGuid& cellGuid,
         TFileChangelogStoreConfigPtr config)
         : TSizeLimitedCache(config->MaxCachedChangelogs)
-        , CellGuid(cellGuid)
-        , Config(config)
+        , CellGuid_(cellGuid)
+        , Config_(config)
         , Logger(HydraLogger)
     {
-        Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
+        Logger.AddTag(Sprintf("Path: %s", ~Config_->Path));
     }
 
     void Start()
     {
         LOG_DEBUG("Preparing changelog store");
 
-        NFS::ForcePath(Config->Path);
-        NFS::CleanTempFiles(Config->Path);
+        NFS::ForcePath(Config_->Path);
+        NFS::CleanTempFiles(Config_->Path);
     }
 
     virtual const TCellGuid& GetCellGuid() const override
     {
-        return CellGuid;
+        return CellGuid_;
     }
 
     virtual IChangelogPtr CreateChangelog(
@@ -732,10 +743,10 @@ public:
             auto changelog = New<TSyncFileChangelog>(
                 path,
                 id,
-                Config);
+                Config_);
             changelog->Create(params);
             cookie.EndInsert(New<TCachedFileChangelog>(
-                Config,
+                Config_,
                 changelog));
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error creating changelog %d", id);
@@ -759,10 +770,10 @@ public:
                     auto changelog = New<TSyncFileChangelog>(
                         path,
                         id,
-                        Config);
+                        Config_);
                     changelog->Open();
                     cookie.EndInsert(New<TCachedFileChangelog>(
-                        Config,
+                        Config_,
                         changelog));
                 } catch (const std::exception& ex) {
                     LOG_FATAL(ex, "Error opening changelog %d", id);
@@ -785,14 +796,14 @@ public:
     }
 
 private:
-    TCellGuid CellGuid;
-    TFileChangelogStoreConfigPtr Config;
+    TCellGuid CellGuid_;
+    TFileChangelogStoreConfigPtr Config_;
 
     NLog::TTaggedLogger Logger;
 
     Stroka GetChangelogPath(int id)
     {
-        return NFS::CombinePaths(Config->Path, Sprintf("%09d", id) + LogSuffix);
+        return NFS::CombinePaths(Config_->Path, Sprintf("%09d", id) + LogSuffix);
     }
 
 };

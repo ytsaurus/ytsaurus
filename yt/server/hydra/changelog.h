@@ -16,18 +16,21 @@ struct IChangelog
     : public virtual TRefCounted
 {
     //! Returns the changelog id.
-    virtual int GetId() = 0;
+    virtual int GetId() const = 0;
 
     //! Returns the number of records in the changelog.
-    virtual int GetRecordCount() = 0;
+    virtual int GetRecordCount() const = 0;
+
+    //! Returns an approximate byte size in a changelog.
+    virtual i64 GetDataSize() const = 0;
 
     //! Returns the number of records in the previous changelog;
     //! mostly for validation purposes.
-    virtual int GetPrevRecordCount() = 0;  
+    virtual int GetPrevRecordCount() const = 0;
 
     //! Returns |true| if the changelog is sealed, i.e.
     //! no further appends are possible.
-    virtual bool IsSealed() = 0;
+    virtual bool IsSealed() const = 0;
 
     //! Asynchronously appends a record to the changelog.
     /*!
@@ -62,7 +65,7 @@ struct IChangelog
     virtual std::vector<TSharedRef> Read(
         int firstRecordId,
         int maxRecords,
-        i64 maxBytes) = 0;
+        i64 maxBytes) const = 0;
 
     //! Asynchronously seals the changelog flushing and truncating it if necessary.
     virtual TFuture<void> Seal(int recordCount) = 0;

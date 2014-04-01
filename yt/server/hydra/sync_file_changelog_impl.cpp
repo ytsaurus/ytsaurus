@@ -416,6 +416,11 @@ int TSyncFileChangelog::TImpl::GetRecordCount() const
     return RecordCount_;
 }
 
+i64 TSyncFileChangelog::TImpl::GetDataSize() const
+{
+    return CurrentFilePosition_;
+}
+
 bool TSyncFileChangelog::TImpl::IsSealed() const
 {
     return SealedRecordCount_ != TChangelogHeader::NotSealedRecordCount;

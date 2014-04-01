@@ -51,6 +51,11 @@ int TSyncFileChangelog::GetRecordCount() const
     return Impl->GetRecordCount();
 }
 
+i64 TSyncFileChangelog::GetDataSize() const
+{
+    return Impl->GetDataSize();
+}
+
 int TSyncFileChangelog::GetPrevRecordCount() const
 {
     return Impl->GetPrevRecordCount();

@@ -147,6 +147,7 @@ public:
 
     int GetId() const;
     int GetRecordCount() const;
+    i64 GetDataSize() const;
     int GetPrevRecordCount() const;
     bool IsSealed() const;
 

@@ -45,6 +45,9 @@ public:
     //! Returns the number of records in the changelog.
     int GetRecordCount() const;
 
+    //! Returns an approximate byte size of a changelog.
+    i64 GetDataSize() const;
+
     //! Returns the number of records in the previous changelog;
     //! mostly for validation purposes.
     int GetPrevRecordCount() const;
