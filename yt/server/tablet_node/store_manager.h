@@ -62,7 +62,7 @@ public:
     bool IsRotationNeeded() const;
     void SetRotationScheduled();
     void ResetRotationScheduled();
-    void Rotate(bool createNew);
+    void RotateStores(bool createNew);
 
     void AddStore(TTablet* tablet, IStorePtr store);
     void RemoveStore(TTablet* tablet, IStorePtr store);

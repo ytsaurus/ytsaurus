@@ -133,17 +133,19 @@ void TStoreManager::LookupRows(
     UnversionedPooledRows_.clear();
     LookupMemoryPool_.Clear();
 
-    for (auto pooledKey : PooledKeys_) {
-        auto lowerKey = TOwningKey(pooledKey);
-        auto upperKey = GetKeySuccessor(lowerKey.Get());
+    for (auto key : PooledKeys_) {
+        ValidateKey(key);
+
+        auto lowerBound = TOwningKey(key);
+        auto upperBound = GetKeySuccessor(key);
 
         // Construct readers.
         SmallVector<IVersionedReaderPtr, TypicalStoreCount> rowReaders;
         for (const auto& pair : Tablet_->Stores()) {
             const auto& store = pair.second;
             auto rowReader = store->CreateReader(
-                lowerKey,
-                upperKey,
+                lowerBound,
+                upperBound,
                 timestamp,
                 columnFilter);
             if (rowReader) {
@@ -170,7 +172,7 @@ void TStoreManager::LookupRows(
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        rowMerger.Start(lowerKey.Begin());
+        rowMerger.Start(lowerBound.Begin());
 
         // Merge values.
         for (const auto& reader : rowReaders) {
@@ -181,7 +183,7 @@ void TStoreManager::LookupRows(
                 continue;
 
             auto partialRow = VersionedPooledRows_[0];
-            if (keyComparer(lowerKey, partialRow.BeginKeys()) != 0)
+            if (keyComparer(lowerBound, partialRow.BeginKeys()) != 0)
                 continue;
 
             rowMerger.AddPartialRow(partialRow);
@@ -200,6 +202,8 @@ void TStoreManager::WriteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
+    ValidateRow(row);
+
     auto rowRef = FindRowAndCheckLocks(
         transaction,
         row,
@@ -223,6 +227,8 @@ void TStoreManager::DeleteRow(
     bool prewrite,
     std::vector<TDynamicRow>* lockedRows)
 {
+    ValidateRow(key);
+
     auto rowRef = FindRowAndCheckLocks(
         transaction,
         key,
@@ -363,7 +369,7 @@ void TStoreManager::ResetRotationScheduled()
         ~ToString(Tablet_->GetId()));
 }
 
-void TStoreManager::Rotate(bool createNew)
+void TStoreManager::RotateStores(bool createNew)
 {
     RotationScheduled_ = false;
 

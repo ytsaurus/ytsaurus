@@ -536,7 +536,7 @@ private:
                 YCHECK(tablet->GetState() == ETabletState::WaitingForLocks);
                 tablet->SetState(ETabletState::RotatingStore);
                 // NB: Flush requests for all other stores must already be on their way.
-                RotateStore(tablet, false);
+                RotateStores(tablet, false);
 
                 YCHECK(tablet->GetState() == ETabletState::RotatingStore);
                 tablet->SetState(ETabletState::FlushingStores);
@@ -632,7 +632,7 @@ private:
         if (!tablet)
             return;
 
-        RotateStore(tablet, true);
+        RotateStores(tablet, true);
     }
 
     void HydraCommitTabletStoresUpdate(const TReqCommitTabletStoresUpdate& commitRequest)
@@ -990,10 +990,10 @@ private:
     }
 
 
-    void RotateStore(TTablet* tablet, bool createNew)
+    void RotateStores(TTablet* tablet, bool createNew)
     {
         auto storeManager = tablet->GetStoreManager();
-        storeManager->Rotate(createNew);
+        storeManager->RotateStores(createNew);
     }
 
 
