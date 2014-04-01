@@ -489,6 +489,11 @@ private:
             case EValueType::String:
             case EValueType::Any:
                 value->Length = ReadUInt32();
+                if (value->Length > MaxStringValueLength) {
+                    THROW_ERROR_EXCEPTION("Value is too long: length %" PRId64 ", limit %" PRId64,
+                        static_cast<i64>(value->Length),
+                        MaxStringValueLength);
+                }
                 value->Data.String = UnalignedPool_.AllocateUnaligned(value->Length);
                 ReadRaw(const_cast<char*>(value->Data.String), value->Length);
                 break;

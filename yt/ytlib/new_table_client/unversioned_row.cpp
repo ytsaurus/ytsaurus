@@ -25,11 +25,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxRowValueCount = 1024;
-static const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1MB
-
-////////////////////////////////////////////////////////////////////////////////
-
 int GetByteSize(const TUnversionedValue& value)
 {
     int result = MaxVarUInt32Size * 2; // id and type
@@ -502,7 +497,7 @@ static void ValidateValueLength(const TUnversionedValue& value)
         value.Type == EValueType::Any)
     {
         if (value.Length > MaxStringValueLength) {
-            THROW_ERROR_EXCEPTION("Value is too big: length %" PRId64 ", limit %" PRId64,
+            THROW_ERROR_EXCEPTION("Value is too long: length %" PRId64 ", limit %" PRId64,
                 static_cast<i64>(value.Length),
                 MaxStringValueLength);
         }
