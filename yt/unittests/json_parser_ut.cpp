@@ -364,6 +364,20 @@ TEST(TJsonParserTest, AttributesWithoutValue)
     );
 }
 
+TEST(TJsonParserTest, ReservedKeyName)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    EXPECT_CALL(Mock, OnBeginMap());
+
+    Stroka input = "{\"$other\":\"20\"}";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
 TEST(TJsonParserTest, MemoryLimit1)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;

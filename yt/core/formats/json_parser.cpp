@@ -101,16 +101,23 @@ void TJsonParser::VisitAny(const TJsonValue& value)
 void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
 {
     FOREACH (const auto& pair, map) {
-        if (IsAscii(pair.first)) {
-            if (IsSpecialJsonKey(pair.first)) {
-                Consumer->OnKeyedItem(pair.first.substr(1));
-            } else {
-                Consumer->OnKeyedItem(pair.first);
+        TStringBuf key = pair.first;
+        const auto& value = pair.second;
+        if (IsSpecialJsonKey(key)) {
+            if (key.size() < 2 || key[1] != '$') {
+                THROW_ERROR_EXCEPTION(
+                    "Key '%s' starts with single '$'; use '$%s'"
+                    "to encode this key in JSON format", ~key, ~key);
             }
-        } else {
-            Consumer->OnKeyedItem(Utf8ToByteString(pair.first));
+            key = key.substr(1);
         }
-        VisitAny(pair.second);
+
+        if (IsAscii(key)) {
+            Consumer->OnKeyedItem(key);
+        } else {
+            Consumer->OnKeyedItem(Utf8ToByteString(key));
+        }
+        VisitAny(value);
     }
 }
 
