@@ -26,7 +26,6 @@
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_chunk_writer.h>
-#include <ytlib/new_table_client/versioned_multi_chunk_writer.h>
 
 #include <ytlib/chunk_client/config.h>
 
@@ -296,16 +295,11 @@ private:
                     ~ToString(currentPivotKey),
                     ~ToString(nextPivotKey));
 
-                auto currentWriterProvider = New<TVersionedChunkWriterProvider>(
-                    Config_->Writer,
-                    writerOptions,
-                    schema,
-                    keyColumns);
-
                 currentWriter = New<TVersionedMultiChunkWriter>(
                     Config_->Writer,
                     writerOptions,
-                    currentWriterProvider,
+                    schema,
+                    keyColumns,
                     Bootstrap_->GetMasterClient()->GetMasterChannel(),
                     transaction->GetId());
 
@@ -510,17 +504,12 @@ private:
                 auto* descriptor = updateStoresRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
-            
-            auto writerProvider = New<TVersionedChunkWriterProvider>(
-                Config_->Writer,
-                writerOptions,
-                schema,
-                keyColumns);
 
             auto writer = New<TVersionedMultiChunkWriter>(
                 Config_->Writer,
                 writerOptions,
-                writerProvider,
+                schema,
+                keyColumns,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 transaction->GetId());
 

@@ -36,6 +36,7 @@ using namespace NJobTrackerClient::NProto;
 
 using NVersionedTableClient::TKey;
 using NTableClient::TRow;
+using NTableClient::TTableWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +44,7 @@ static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
 typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
-typedef TMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
+typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

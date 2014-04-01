@@ -52,6 +52,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 
 using NVersionedTableClient::TOwningKey;
+using NTableClient::TTableWriterConfigPtr;
 
 ////////////////////////////////////////////////////////////////////
 

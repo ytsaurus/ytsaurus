@@ -43,7 +43,7 @@ static auto& Profiler = JobProxyProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
-typedef TMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
+typedef TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 class TPartitionJob
     : public TJob

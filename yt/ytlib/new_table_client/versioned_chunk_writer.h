@@ -6,8 +6,8 @@
 #include "versioned_writer.h"
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk.pb.h>
-#include <ytlib/chunk_client/data_statistics.h>
+#include <ytlib/chunk_client/chunk_writer_base.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -16,68 +16,10 @@ namespace NVersionedTableClient {
 
 struct IVersionedChunkWriter
     : public IVersionedWriter
-{
-    // Required by TMultiChunkSequenceWriter.
-    virtual IVersionedWriter* GetFacade() = 0;
-
-    virtual i64 GetMetaSize() const = 0;
-    virtual i64 GetDataSize() const = 0;
-
-    virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const = 0;
-    virtual NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const = 0;
-
-    // Required by provider.
-    virtual NProto::TBoundaryKeysExt GetBoundaryKeys() const = 0;
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const = 0;
-
-};
+    , public NChunkClient::IChunkWriterBase
+{ };
 
 DEFINE_REFCOUNTED_TYPE(IVersionedChunkWriter)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedChunkWriterProvider
-    : public virtual TRefCounted
-{
-    DEFINE_BYREF_RO_PROPERTY(NProto::TBoundaryKeysExt, BoundaryKeysExt);
-
-public:
-    typedef IVersionedChunkWriter TChunkWriter;
-    typedef IVersionedWriter TFacade;
-
-    TVersionedChunkWriterProvider(
-        TChunkWriterConfigPtr config,
-        TChunkWriterOptionsPtr options,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns);
-
-    IVersionedChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
-    void OnChunkFinished();
-    void OnChunkClosed(IVersionedChunkWriterPtr writer);
-
-    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
-
-private:
-    TChunkWriterConfigPtr Config_;
-    TChunkWriterOptionsPtr Options_;
-
-    const TTableSchema Schema_;
-    const TKeyColumns KeyColumns_;
-
-    IVersionedChunkWriterPtr CurrentWriter_;
-
-    int CreatedWriterCount_;
-    int FinishedWriterCount_;
-
-    NChunkClient::NProto::TDataStatistics DataStatistics_;
-
-    TSpinLock SpinLock_;
-
-    yhash_set<IVersionedChunkWriterPtr> ActiveWriters_;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TVersionedChunkWriterProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +29,39 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     NChunkClient::IAsyncWriterPtr asyncWriter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedMultiChunkWriter
+    : public NChunkClient::TMultiChunkSequentialWriterBase
+    , public IVersionedWriter
+{
+public:
+    TVersionedMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns,
+        NRpc::IChannelPtr masterChannel,
+        const NTransactionClient::TTransactionId& transactionId,
+        const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
+
+    virtual bool Write(const std::vector<TVersionedRow>& rows) override;
+
+private:
+    TTableWriterConfigPtr Config_;
+    TTableWriterOptionsPtr Options_;
+    TTableSchema Schema_;
+    TKeyColumns KeyColumns_;
+
+    IVersionedWriter* CurrentWriter_;
+
+
+    virtual NChunkClient::IChunkWriterBasePtr CreateFrontalWriter(NChunkClient::IAsyncWriterPtr underlyingWriter) override;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TVersionedMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

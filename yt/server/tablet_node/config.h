@@ -158,19 +158,14 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreWriterConfig
-    : public NVersionedTableClient::TChunkWriterConfig
-    , public NChunkClient::TMultiChunkWriterConfig
-{ };
-
 class TStoreFlusherConfig
     : public TYsonSerializable
 {
 public:
     int ThreadPoolSize;
     int MaxConcurrentFlushes;
-    
-    TIntrusivePtr<TStoreWriterConfig> Writer;
+
+    NVersionedTableClient::TTableWriterConfigPtr Writer;
 
     TStoreFlusherConfig()
     {
@@ -195,7 +190,7 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
 
-    TIntrusivePtr<TStoreWriterConfig> Writer;
+    NVersionedTableClient::TTableWriterConfigPtr Writer;
 
     TStoreCompactorConfig()
     {

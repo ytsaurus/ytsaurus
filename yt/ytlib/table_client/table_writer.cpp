@@ -32,7 +32,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 
-typedef TMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableMultiChunkWriter;
+typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableMultiChunkWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

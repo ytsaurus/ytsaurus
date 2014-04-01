@@ -103,7 +103,7 @@ private:
     TTransactionPtr Transaction_;
     TTransactionPtr UploadTransaction_;
 
-    typedef TMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
+    typedef TOldMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
     TIntrusivePtr<TWriter> Writer_;
     
     NLog::TTaggedLogger Logger;

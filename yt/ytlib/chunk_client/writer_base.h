@@ -10,7 +10,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! The purpose of this interface is to be a virtual base for template TMultiChunkSequentialWriter
+//! The purpose of this interface is to be a virtual base for template TOldMultiChunkSequentialWriter
 //! and some specific writers, e.g. IVersionedWriter, to mix them up.
 struct IWriterBase
     : public virtual TRefCounted

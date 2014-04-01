@@ -46,7 +46,7 @@ class TSyncWriterAdapter
     : public ISyncWriterUnsafe
 {
 public:
-    typedef NChunkClient::TMultiChunkSequentialWriter<TProvider> TAsyncWriter;
+    typedef NChunkClient::TOldMultiChunkSequentialWriter<TProvider> TAsyncWriter;
     typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
     TSyncWriterAdapter(TAsyncWriterPtr writer)

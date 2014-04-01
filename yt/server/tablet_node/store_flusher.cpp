@@ -35,7 +35,6 @@
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_writer.h>
 #include <ytlib/new_table_client/versioned_chunk_writer.h>
-#include <ytlib/new_table_client/versioned_multi_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -310,17 +309,12 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
                 transaction = transactionOrError.Value();
             }
-       
-            auto writerProvider = New<TVersionedChunkWriterProvider>(
-                Config_->Writer,
-                tablet->GetWriterOptions(),
-                tablet->Schema(),
-                tablet->KeyColumns());
 
             auto writer = New<TVersionedMultiChunkWriter>(
                 Config_->Writer,
                 tablet->GetWriterOptions(),
-                writerProvider,
+                tablet->Schema(),
+                tablet->KeyColumns(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 transaction->GetId());
 

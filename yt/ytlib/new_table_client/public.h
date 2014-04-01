@@ -124,17 +124,21 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedChunkWriter)
-DECLARE_REFCOUNTED_CLASS(TVersionedChunkWriterProvider)
 DECLARE_REFCOUNTED_CLASS(TVersionedMultiChunkWriter)
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 
-typedef NChunkClient::TEncodingWriterOptions    TChunkWriterOptions;
+typedef NChunkClient::TEncodingWriterOptions TChunkWriterOptions;
 typedef NChunkClient::TEncodingWriterOptionsPtr TChunkWriterOptionsPtr;
+
+typedef NChunkClient::TMultiChunkWriterOptions TTableWriterOptions;
+typedef NChunkClient::TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
+
+DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

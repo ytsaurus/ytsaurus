@@ -36,7 +36,7 @@ using namespace NJobTrackerClient::NProto;
 
 static auto& Logger = JobProxyLogger;
 
-typedef NChunkClient::TMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
+typedef NChunkClient::TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////
 

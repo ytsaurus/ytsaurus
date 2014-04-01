@@ -14,6 +14,8 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
 
+#include <core/concurrency/parallel_awaiter.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -45,15 +47,12 @@ public:
 
     virtual TAsyncError GetReadyEvent() override;
 
-    virtual IVersionedWriter* GetFacade() override;
-
     virtual i64 GetMetaSize() const override;
     virtual i64 GetDataSize() const override;
 
     virtual TChunkMeta GetMasterMeta() const override;
     virtual TChunkMeta GetSchedulerMeta() const override;
 
-    virtual NProto::TBoundaryKeysExt GetBoundaryKeys() const override;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
 private:
@@ -178,12 +177,6 @@ TAsyncError TVersionedChunkWriter<TBlockWriter>::GetReadyEvent()
 }
 
 template <class TBlockWriter>
-IVersionedWriter* TVersionedChunkWriter<TBlockWriter>::GetFacade()
-{
-    return this;
-}
-
-template <class TBlockWriter>
 i64 TVersionedChunkWriter<TBlockWriter>::GetMetaSize() const
 {
     // Other meta parts are negligible.
@@ -210,12 +203,6 @@ template <class TBlockWriter>
 TChunkMeta TVersionedChunkWriter<TBlockWriter>::GetSchedulerMeta() const
 {
     return GetMasterMeta();
-}
-
-template <class TBlockWriter>
-TBoundaryKeysExt TVersionedChunkWriter<TBlockWriter>::GetBoundaryKeys() const
-{
-    return BoundaryKeysExt_;
 }
 
 template <class TBlockWriter>
@@ -336,73 +323,6 @@ i64 TVersionedChunkWriter<TBlockWriter>::GetUncompressedSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedChunkWriterProvider::TVersionedChunkWriterProvider(
-    TChunkWriterConfigPtr config,
-    TChunkWriterOptionsPtr options,
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns)
-    : Config_(config)
-    , Options_(options)
-    , Schema_(schema)
-    , KeyColumns_(keyColumns)
-    , CreatedWriterCount_(0)
-    , FinishedWriterCount_(0)
-{
-    BoundaryKeysExt_.mutable_min();
-    BoundaryKeysExt_.mutable_max();
-}
-
-IVersionedChunkWriterPtr TVersionedChunkWriterProvider::CreateChunkWriter(IAsyncWriterPtr asyncWriter)
-{
-    YCHECK(FinishedWriterCount_ == CreatedWriterCount_);
-
-    CurrentWriter_ = CreateVersionedChunkWriter(
-        Config_,
-        Options_,
-        Schema_,
-        KeyColumns_,
-        asyncWriter);
-
-    ++CreatedWriterCount_;
-
-    TGuard<TSpinLock> guard(SpinLock_);
-    YCHECK(ActiveWriters_.insert(CurrentWriter_).second);
-
-    return CurrentWriter_;
-}
-
-void TVersionedChunkWriterProvider::OnChunkFinished()
-{
-    ++FinishedWriterCount_;
-    YCHECK(FinishedWriterCount_ == CreatedWriterCount_);
-
-    if (FinishedWriterCount_ == 1) {
-        BoundaryKeysExt_ = CurrentWriter_->GetBoundaryKeys();
-    } else {
-        auto boundaryKeys = CurrentWriter_->GetBoundaryKeys();
-        BoundaryKeysExt_.set_max(boundaryKeys.min());
-    }
-}
-
-void TVersionedChunkWriterProvider::OnChunkClosed(IVersionedChunkWriterPtr writer)
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-    DataStatistics_ += writer->GetDataStatistics();
-    YCHECK(ActiveWriters_.erase(writer) == 1);
-}
-
-TDataStatistics TVersionedChunkWriterProvider::GetDataStatistics() const
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-    auto result = DataStatistics_;
-    for (const auto& writer : ActiveWriters_) {
-        result += writer->GetDataStatistics();
-    }
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
@@ -416,6 +336,42 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
         schema, 
         keyColumns,
         asyncWriter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVersionedMultiChunkWriter::TVersionedMultiChunkWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    NRpc::IChannelPtr masterChannel,
+    const NTransactionClient::TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId)
+    : TMultiChunkSequentialWriterBase(config, options, masterChannel, transactionId, parentChunkListId)
+    , Config_(config)
+    , Options_(options)
+    , Schema_(schema)
+    , KeyColumns_(keyColumns)
+    , CurrentWriter_(nullptr)
+{ }
+
+bool TVersionedMultiChunkWriter::Write(const std::vector<TVersionedRow> &rows)
+{
+    if (!VerifyActive()) {
+        return false;
+    }
+
+    // Return true if current writer is ready for more data and
+    // we didn't switch to the next chunk.
+    return CurrentWriter_->Write(rows) && !TrySwitchSession();
+}
+
+IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IAsyncWriterPtr underlyingWriter)
+{
+    auto writer = CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
+    CurrentWriter_ = writer.Get();
+    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

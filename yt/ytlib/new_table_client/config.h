@@ -42,6 +42,15 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableWriterConfig
+    : public TChunkWriterConfig
+    , public NChunkClient::TMultiChunkWriterConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTableWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReaderConfig
     : public NChunkClient::TSequentialReaderConfig
 {

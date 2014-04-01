@@ -103,6 +103,8 @@ DECLARE_REFCOUNTED_CLASS(TSequentialReader)
 DECLARE_REFCOUNTED_STRUCT(IAsyncReader)
 DECLARE_REFCOUNTED_STRUCT(IAsyncWriter)
 
+DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
+
 DECLARE_REFCOUNTED_STRUCT(IBlockCache)
 
 DECLARE_REFCOUNTED_CLASS(TFileReader)
@@ -115,7 +117,7 @@ template <class TChunkReader>
 class TMultiChunkSequentialReader;
 
 template <class TChunkWriter>
-class TMultiChunkSequentialWriter;
+class TOldMultiChunkSequentialWriter;
 
 template <class TChunkReader>
 class TMultiChunkParallelReader;

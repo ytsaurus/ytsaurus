@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/file_writer.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
+  ${BASE}/multi_chunk_sequential_writer_base.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/read_limit.cpp
@@ -38,6 +39,7 @@ set( HDRS
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_slice.h
   ${BASE}/chunk_spec.h
+  ${BASE}/chunk_writer_base.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/client_block_cache.h
   ${BASE}/config.h
@@ -62,6 +64,7 @@ set( HDRS
   ${BASE}/multi_chunk_sequential_reader.h
   ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/multi_chunk_sequential_writer.h
+  ${BASE}/multi_chunk_sequential_writer_base.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/read_limit.h

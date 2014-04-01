@@ -24,7 +24,7 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TProvider>
-class TMultiChunkSequentialWriter
+class TOldMultiChunkSequentialWriter
     : public virtual IWriterBase
 {
 public:
@@ -32,7 +32,7 @@ public:
     typedef typename TProvider::TChunkWriter TChunkWriter;
     typedef typename TProvider::TFacade TFacade;
 
-    TMultiChunkSequentialWriter(
+    TOldMultiChunkSequentialWriter(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         TProviderPtr provider,
@@ -86,7 +86,7 @@ protected:
     };
 
     void CreateNextSession();
-    virtual void InitCurrentSession(TSession nextSession);
+    void InitCurrentSession(TSession nextSession);
 
     void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp);
 

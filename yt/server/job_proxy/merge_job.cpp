@@ -39,6 +39,7 @@ using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
 
 using NVersionedTableClient::TKey;
+using NTableClient::TTableWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +54,7 @@ class TMergeJob
 {
 public:
     typedef TMultiChunkReader<TTableChunkReader> TReader;
-    typedef TMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
+    typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
     explicit TMergeJob(IJobHost* host)
         : TJob(host)
