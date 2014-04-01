@@ -122,7 +122,6 @@ private:
     public:
         TReaderStream(TRemoteSnapshotStorePtr store, int snapshotId)
             : Store_(store)
-            , SnapshotId_(snapshotId)
             , Reader_(Store_->MasterClient_->CreateFileReader(
                 Store_->GetRemotePath(snapshotId),
                 TFileReaderOptions(),
@@ -163,7 +162,6 @@ private:
 
     private:
         TRemoteSnapshotStorePtr Store_;
-        int SnapshotId_;
 
         IFileReaderPtr Reader_;
 
@@ -370,7 +368,9 @@ private:
 
     TYPath GetRemotePath(int snapshotId)
     {
-        return RemotePath_ + "/" + ToYPathLiteral(snapshotId);
+        return Sprintf("%s/%09d",
+            ~RemotePath_,
+            snapshotId);
     }
 
 };
