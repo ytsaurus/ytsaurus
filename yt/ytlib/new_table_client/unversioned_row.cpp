@@ -252,7 +252,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         case EValueType::Any:
             return 0;
 
-        // NB: All singleton types are equal.
+        // NB: All sentinel types are equal.
         case EValueType::Null:
         case EValueType::Min:
         case EValueType::Max:
