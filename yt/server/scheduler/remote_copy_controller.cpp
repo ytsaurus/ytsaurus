@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "remote_copy_controller.h"
 #include "private.h"
+#include "helpers.h"
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "job_resources.h"
@@ -393,9 +394,7 @@ IOperationControllerPtr CreateRemoteCopyController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(
-        operation,
-        config->RemoteCopyOperationSpec);
+    auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
     return New<TRemoteCopyController>(config, spec, host, operation);
 }
 

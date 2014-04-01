@@ -362,7 +362,8 @@ private:
     void CheckMemoryLimit()
     {
         if (MemoryLimit_ && Buffer_.capacity() > *MemoryLimit_) {
-            THROW_ERROR_EXCEPTION("Memory limit exceeded (%" PRId64 " > %" PRId64 ")",
+            THROW_ERROR_EXCEPTION(
+                "Memory limit exceeded while parsing YSON stream: allocated %" PRId64 ", limit %" PRId64,
                 Buffer_.capacity(),
                 *MemoryLimit_);
         }

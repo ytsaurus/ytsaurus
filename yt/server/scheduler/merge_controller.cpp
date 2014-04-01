@@ -832,9 +832,7 @@ IOperationControllerPtr CreateEraseController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TEraseOperationSpec>(
-        operation,
-        config->EraseOperationSpec);
+    auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
     return New<TEraseController>(config, spec, host, operation);
 }
 
@@ -1363,28 +1361,29 @@ IOperationControllerPtr CreateMergeController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(
-        operation,
-        NYTree::GetEphemeralNodeFactory()->CreateMap());
-
+    auto spec = operation->GetSpec();
+    auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
     switch (baseSpec->Mode) {
         case EMergeMode::Unordered: {
-            auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(
-                operation,
-                config->UnorderedMergeOperationSpec);
-            return New<TUnorderedMergeController>(config, spec, host, operation);
+            return New<TUnorderedMergeController>(
+                config,
+                ParseOperationSpec<TUnorderedMergeOperationSpec>(spec),
+                host,
+                operation);
         }
         case EMergeMode::Ordered: {
-            auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(
-                operation,
-                config->OrderedMergeOperationSpec);
-            return New<TOrderedMergeController>(config, spec, host, operation);
+            return New<TOrderedMergeController>(
+                config,
+                ParseOperationSpec<TOrderedMergeOperationSpec>(spec),
+                host,
+                operation);
         }
         case EMergeMode::Sorted: {
-            auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(
-                operation,
-                config->SortedMergeOperationSpec);
-            return New<TSortedMergeController>(config, spec, host, operation);
+            return New<TSortedMergeController>(
+                config,
+                ParseOperationSpec<TSortedMergeOperationSpec>(spec),
+                host,
+                operation);
         }
         default:
             YUNREACHABLE();
@@ -1723,9 +1722,7 @@ IOperationControllerPtr CreateReduceController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TReduceOperationSpec>(
-        operation,
-        config->ReduceOperationSpec);
+    auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
     return New<TReduceController>(config, spec, host, operation);
 }
 

@@ -2151,9 +2151,7 @@ IOperationControllerPtr CreateSortController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TSortOperationSpec>(
-        operation,
-        config->SortOperationSpec);
+    auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
     return New<TSortController>(config, spec, host, operation);
 }
 
@@ -2693,9 +2691,7 @@ IOperationControllerPtr CreateMapReduceController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(
-        operation,
-        config->MapReduceOperationSpec);
+    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
     return New<TMapReduceController>(config, spec, host, operation);
 }
 

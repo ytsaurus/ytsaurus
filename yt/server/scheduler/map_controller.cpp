@@ -364,7 +364,7 @@ IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapOperationSpec>(operation, config->MapOperationSpec);
+    auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
     return New<TMapController>(config, spec, host, operation);
 }
 
