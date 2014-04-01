@@ -1131,7 +1131,7 @@ private:
             TRequestBase::Run();
 
             for (auto key : Keys_) {
-                ValidateKey(key);
+                ValidateRow(key);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EWireProtocolCommand::DeleteRow);
