@@ -27,7 +27,6 @@ using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TBlockWriter>
 class TVersionedChunkWriter
     : public IVersionedChunkWriter
 {
@@ -63,7 +62,7 @@ private:
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
     TOwningKey LastKey_;
-    std::unique_ptr<TBlockWriter> BlockWriter_;
+    std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
 
     TBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_;
@@ -103,8 +102,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TBlockWriter>
-TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
+TVersionedChunkWriter::TVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
@@ -115,7 +113,7 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
     , KeyColumns_(keyColumns)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
     , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
-    , BlockWriter_(new TBlockWriter(Schema_, KeyColumns_))
+    , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
     , BlockMetaExtSize_(0)
     , BlockIndexExtSize_(0)
     , SamplesExtSize_(0)
@@ -130,14 +128,12 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
     YCHECK(Schema_.CheckKeyColumns(KeyColumns_).IsOK());
 }
 
-template <class TBlockWriter>
-TAsyncError TVersionedChunkWriter<TBlockWriter>::Open()
+TAsyncError TVersionedChunkWriter::Open()
 {
     return MakeFuture(TError());
 }
 
-template <class TBlockWriter>
-bool TVersionedChunkWriter<TBlockWriter>::Write(const std::vector<TVersionedRow>& rows)
+bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
 {
     YCHECK(rows.size() > 0);
 
@@ -160,41 +156,36 @@ bool TVersionedChunkWriter<TBlockWriter>::Write(const std::vector<TVersionedRow>
     return EncodingChunkWriter_->IsReady();
 }
 
-template <class TBlockWriter>
-TAsyncError TVersionedChunkWriter<TBlockWriter>::Close()
+TAsyncError TVersionedChunkWriter::Close()
 {
     if (RowCount_ == 0) {
         // Empty chunk.
         return MakeFuture(TError());
     }
 
-    return BIND(&TVersionedChunkWriter<TBlockWriter>::DoClose, MakeStrong(this))
+    return BIND(&TVersionedChunkWriter::DoClose, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-template <class TBlockWriter>
-TAsyncError TVersionedChunkWriter<TBlockWriter>::GetReadyEvent()
+TAsyncError TVersionedChunkWriter::GetReadyEvent()
 {
     return EncodingChunkWriter_->GetReadyEvent();
 }
 
-template <class TBlockWriter>
-i64 TVersionedChunkWriter<TBlockWriter>::GetMetaSize() const
+i64 TVersionedChunkWriter::GetMetaSize() const
 {
     // Other meta parts are negligible.
     return BlockIndexExtSize_ + BlockMetaExtSize_ + SamplesExtSize_;
 }
 
-template <class TBlockWriter>
-i64 TVersionedChunkWriter<TBlockWriter>::GetDataSize() const
+i64 TVersionedChunkWriter::GetDataSize() const
 {
     return EncodingChunkWriter_->GetDataStatistics().compressed_data_size() +
         (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
 }
 
-template <class TBlockWriter>
-TChunkMeta TVersionedChunkWriter<TBlockWriter>::GetMasterMeta() const
+TChunkMeta TVersionedChunkWriter::GetMasterMeta() const
 {
     TChunkMeta meta;
     FillCommonMeta(&meta);
@@ -202,20 +193,17 @@ TChunkMeta TVersionedChunkWriter<TBlockWriter>::GetMasterMeta() const
     return meta;
 }
 
-template <class TBlockWriter>
-TChunkMeta TVersionedChunkWriter<TBlockWriter>::GetSchedulerMeta() const
+TChunkMeta TVersionedChunkWriter::GetSchedulerMeta() const
 {
     return GetMasterMeta();
 }
 
-template <class TBlockWriter>
-TDataStatistics TVersionedChunkWriter<TBlockWriter>::GetDataStatistics() const
+TDataStatistics TVersionedChunkWriter::GetDataStatistics() const
 {
     return EncodingChunkWriter_->GetDataStatistics();
 }
 
-template <class TBlockWriter>
-void TVersionedChunkWriter<TBlockWriter>::WriteRow(
+void TVersionedChunkWriter::WriteRow(
     TVersionedRow row,
     const TUnversionedValue* beginPreviousKey,
     const TUnversionedValue* endPreviousKey)
@@ -232,8 +220,7 @@ void TVersionedChunkWriter<TBlockWriter>::WriteRow(
     BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
 }
 
-template <class TBlockWriter>
-void TVersionedChunkWriter<TBlockWriter>::EmitSample(TVersionedRow row)
+void TVersionedChunkWriter::EmitSample(TVersionedRow row)
 {
     auto entry = SerializeToString(row.BeginKeys(), row.EndKeys());
     SamplesExt_.add_entries(entry);
@@ -241,8 +228,7 @@ void TVersionedChunkWriter<TBlockWriter>::EmitSample(TVersionedRow row)
     AverageSampleSize_ = static_cast<double>(SamplesExtSize_) / SamplesExt_.entries_size();
 }
 
-template <class TBlockWriter>
-void TVersionedChunkWriter<TBlockWriter>::FinishBlockIfLarge(TVersionedRow row)
+void TVersionedChunkWriter::FinishBlockIfLarge(TVersionedRow row)
 {
     if (BlockWriter_->GetBlockSize() < Config_->BlockSize) {
         return;
@@ -253,11 +239,10 @@ void TVersionedChunkWriter<TBlockWriter>::FinishBlockIfLarge(TVersionedRow row)
     BlockIndexExtSize_ = BlockIndexExt_.ByteSize();
 
     FinishBlock();
-    BlockWriter_.reset(new TBlockWriter(Schema_, KeyColumns_));
+    BlockWriter_.reset(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_));
 }
 
-template <class TBlockWriter>
-void TVersionedChunkWriter<TBlockWriter>::FinishBlock()
+void TVersionedChunkWriter::FinishBlock()
 {
     auto block = BlockWriter_->FlushBlock();
     block.Meta.set_chunk_row_count(RowCount_);
@@ -271,8 +256,7 @@ void TVersionedChunkWriter<TBlockWriter>::FinishBlock()
     MinTimestamp_ = std::min(MinTimestamp_, BlockWriter_->GetMinTimestamp());
 }
 
-template <class TBlockWriter>
-TError TVersionedChunkWriter<TBlockWriter>::DoClose()
+TError TVersionedChunkWriter::DoClose()
 {
     using NYT::ToProto;
 
@@ -307,17 +291,15 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
     return EncodingChunkWriter_->Close();
 }
 
-template <class TBlockWriter>
-void TVersionedChunkWriter<TBlockWriter>::FillCommonMeta(TChunkMeta* meta) const
+void TVersionedChunkWriter::FillCommonMeta(TChunkMeta* meta) const
 {
     meta->set_type(EChunkType::Table);
-    meta->set_version(TBlockWriter::FormatVersion);
+    meta->set_version(TSimpleVersionedBlockWriter::FormatVersion);
 
     SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
 }
 
-template <class TBlockWriter>
-i64 TVersionedChunkWriter<TBlockWriter>::GetUncompressedSize() const 
+i64 TVersionedChunkWriter::GetUncompressedSize() const 
 {
     i64 size = EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
     if (BlockWriter_) {
@@ -335,12 +317,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     const TKeyColumns& keyColumns,
     IAsyncWriterPtr asyncWriter)
 {
-    return New<TVersionedChunkWriter<TSimpleVersionedBlockWriter>>(
-        config,
-        options,
-        schema, 
-        keyColumns,
-        asyncWriter);
+    return New<TVersionedChunkWriter>(config, options, schema, keyColumns, asyncWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
