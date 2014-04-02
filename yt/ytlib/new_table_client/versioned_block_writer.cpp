@@ -16,7 +16,7 @@ using NTransactionClient::TimestampValueMask;
 
 static const i64 NullValue = 0;
 
-const int TSimpleVersionedBlockWriter::FormatVersion = ETableChunkFormat::SimpleVersioned;
+const int TSimpleVersionedBlockWriter::FormatVersion = ETableChunkFormat::VersionedSimple;
 
 // 8 bytes for value and 8 bytes for timestamp.
 const int TSimpleVersionedBlockWriter::ValueSize = 16;

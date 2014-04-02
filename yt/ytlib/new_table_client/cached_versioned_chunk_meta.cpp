@@ -75,10 +75,10 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
             ~FormatEnum(EChunkType(EChunkType::Table)).Quote());
     }
 
-    if (ChunkMeta_.version() != ETableChunkFormat::SimpleVersioned) {
+    if (ChunkMeta_.version() != ETableChunkFormat::VersionedSimple) {
         THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %s, expected: %s",
             ~FormatEnum(ETableChunkFormat(ChunkMeta_.version())).Quote(),
-            ~FormatEnum(ETableChunkFormat(ETableChunkFormat::SimpleVersioned)).Quote());
+            ~FormatEnum(ETableChunkFormat(ETableChunkFormat::VersionedSimple)).Quote());
     }
 }
 

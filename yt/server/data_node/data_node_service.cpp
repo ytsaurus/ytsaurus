@@ -631,7 +631,7 @@ void TDataNodeService::ProcessSample(
             ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
             break;
 
-        case ETableChunkFormat::SimpleVersioned:
+        case ETableChunkFormat::VersionedSimple:
             ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
             break;
 

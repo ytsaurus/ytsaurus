@@ -59,9 +59,10 @@ DECLARE_ENUM(EValueType,
 );
 
 DECLARE_ENUM(ETableChunkFormat,
-    ((Old)                (1))
-    ((SimpleVersioned)    (2))
-    ((Schemaful)          (3))
+    ((Old)                  (1))
+    ((VersionedSimple)      (2))
+    ((Schemaful)            (3))
+    ((SchemalessHorizontal) (4))
 );
 
 struct TColumnIdMapping

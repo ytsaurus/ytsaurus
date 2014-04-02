@@ -27,7 +27,7 @@ int LowerBound(int lowerIndex, int upperIndex, std::function<bool(int)> less)
     return lowerIndex;
 }
 
-int TSimpleVersionedBlockReader::FormatVersion = ETableChunkFormat::SimpleVersioned;
+int TSimpleVersionedBlockReader::FormatVersion = ETableChunkFormat::VersionedSimple;
 
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(const TSharedRef& data,
     const TBlockMeta& meta,

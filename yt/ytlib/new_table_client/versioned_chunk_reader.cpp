@@ -391,7 +391,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(TChunkReaderConfigPtr config,
     TTimestamp timestamp)
 {
     switch (chunkMeta->ChunkMeta().version()) {
-        case ETableChunkFormat::SimpleVersioned:
+        case ETableChunkFormat::VersionedSimple:
             return New<TVersionedChunkReader<TSimpleVersionedBlockReader>>(
                 config,
                 chunkMeta,
