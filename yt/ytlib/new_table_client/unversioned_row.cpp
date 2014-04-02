@@ -56,6 +56,30 @@ int GetByteSize(const TUnversionedValue& value)
     return result;
 }
 
+int GetDataWeigth(const TUnversionedValue &value)
+{
+    switch (value.Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            return 0;
+
+        case EValueType::Integer:
+            return sizeof(i64);
+
+        case EValueType::Double:
+            return sizeof(double);
+
+        case EValueType::String:
+        case EValueType::Any:
+            return value.Length;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 int WriteValue(char* output, const TUnversionedValue& value)
 {
     char* current = output;
@@ -477,6 +501,17 @@ size_t GetHash(TUnversionedRow row)
 size_t GetUnversionedRowDataSize(int valueCount)
 {
     return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
+}
+
+i64 GetDataWeigth(TUnversionedRow row)
+{
+    return std::accumulate(
+        row.Begin(),
+        row.End(),
+        0,
+        [] (i64 x, const TUnversionedValue& value) {
+            return GetDataWeigth(value) + x;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

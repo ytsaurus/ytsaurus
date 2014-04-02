@@ -82,6 +82,7 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetByteSize(const TVersionedValue& value);
+int GetDataWeigth(const TVersionedValue& value);
 int WriteValue(char* output, const TVersionedValue& value);
 int ReadValue(const char* input, TVersionedValue* value);
 
@@ -95,6 +96,8 @@ void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPoo
 Stroka ToString(const TVersionedValue& value);
 
 size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount = 1);
+
+i64 GetDataWeigth(TVersionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -75,6 +75,8 @@ private:
     i64 SamplesExtSize_;
     double AverageSampleSize_;
 
+    i64 DataWeight_;
+
     TBoundaryKeysExt BoundaryKeysExt_;
 
     i64 RowCount_;
@@ -118,6 +120,7 @@ TVersionedChunkWriter<TBlockWriter>::TVersionedChunkWriter(
     , BlockIndexExtSize_(0)
     , SamplesExtSize_(0)
     , AverageSampleSize_(0.0)
+    , DataWeight_(0)
     , RowCount_(0)
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
@@ -225,6 +228,7 @@ void TVersionedChunkWriter<TBlockWriter>::WriteRow(
     }
 
     ++RowCount_;
+    DataWeight_ += GetDataWeigth(row);
     BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
 }
 
@@ -296,6 +300,7 @@ TError TVersionedChunkWriter<TBlockWriter>::DoClose()
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);
     miscExt.set_row_count(RowCount_);
+    miscExt.set_data_weight(DataWeight_);
     miscExt.set_min_timestamp(MinTimestamp_);
     miscExt.set_max_timestamp(MaxTimestamp_);
 
