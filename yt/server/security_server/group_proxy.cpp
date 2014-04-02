@@ -27,6 +27,11 @@ public:
 private:
     typedef TSubjectProxy<TGroup> TBase;
 
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return SecurityServerLogger;
+    }
+
     virtual void ValidateRemoval() override
     {
         auto securityManager = Bootstrap->GetSecurityManager();

@@ -76,9 +76,7 @@ class TObjectManager::TRootService
 public:
     explicit TRootService(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
-    {
-        Logger = ObjectServerLogger;
-    }
+    { }
 
     virtual TResolveResult Resolve(
         const TYPath& path,
@@ -130,9 +128,9 @@ public:
             ->Commit();
     }
 
-    virtual Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return ObjectServerLogger.GetCategory();
+        return ObjectServerLogger;
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -267,6 +265,7 @@ public:
 
 private:
     TBootstrap* Bootstrap;
+
 
     static IObjectProxyPtr DoResolvePath(IObjectProxyPtr proxy, const TYPath& path)
     {
@@ -1012,7 +1011,7 @@ void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
 
     auto context = CreateYPathContext(
         std::move(requestMessage),
-        "", // disable logging
+        NLog::TLogger(), // disable logging
         TYPathResponseHandler());
 
     ExecuteMutatingRequest(

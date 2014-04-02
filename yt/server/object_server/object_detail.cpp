@@ -532,6 +532,7 @@ void TObjectProxyBase::SerializeAttributes(
 
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
+    // Cf. TYPathServiceBase::GuardedInvoke
     TError error;
     try {
         BeforeInvoke(context);
@@ -552,12 +553,6 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
         context->Reply(error);
     }
 }
-
-void TObjectProxyBase::BeforeInvoke(IServiceContextPtr /*context*/)
-{ }
-
-void TObjectProxyBase::AfterInvoke(IServiceContextPtr /*context*/)
-{ }
 
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {
@@ -847,6 +842,16 @@ void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, TObjectServi
     auto error = FromProto(responseHeader.error());
     LOG_DEBUG(error, "Received response for forwarded request");
     context->Reply(responseMessage);
+}
+
+bool TObjectProxyBase::IsLoggingEnabled() const
+{
+    return !IsRecovery();
+}
+
+NLog::TLogger TObjectProxyBase::CreateLogger() const
+{
+    return ObjectServerLogger;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

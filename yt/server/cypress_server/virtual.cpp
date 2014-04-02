@@ -60,9 +60,9 @@ public:
         Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
     }
 
-    virtual Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return "";
+        return NLog::TLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -106,9 +106,9 @@ public:
         UnderlyingService->Invoke(context);
     }
 
-    virtual Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return UnderlyingService->GetLoggingCategory();
+        return UnderlyingService->GetLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

@@ -130,9 +130,9 @@ public:
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return OrchidLogger.GetCategory();
+        return OrchidLogger;
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

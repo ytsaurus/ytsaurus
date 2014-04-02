@@ -24,6 +24,10 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPathServiceBase::TYPathServiceBase()
+    : LoggerCreated(false)
+{ }
+
 IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
@@ -68,20 +72,50 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
-void TYPathServiceBase::Invoke(IServiceContextPtr context)
+void TYPathServiceBase::EnsureLoggerCreated() const
 {
-    GuardedInvoke(context);
+    if (!LoggerCreated) {
+        if (IsLoggingEnabled()) {
+            Logger = CreateLogger();
+        }
+        LoggerCreated = true;
+    }
 }
 
-void TYPathServiceBase::GuardedInvoke(IServiceContextPtr context)
+bool TYPathServiceBase::IsLoggingEnabled() const
 {
+    // Logging is enabled by default...
+    return true;
+}
+
+NLog::TLogger TYPathServiceBase::CreateLogger() const
+{
+    // ... but a null logger is returned :)
+    return NLog::TLogger();
+}
+
+void TYPathServiceBase::Invoke(IServiceContextPtr context)
+{
+    TError error;
     try {
+        BeforeInvoke(context);
         if (!DoInvoke(context)) {
             ThrowVerbNotSuppored(context->GetVerb());
         }
     } catch (const std::exception& ex) {
-        context->Reply(ex);
+        error = ex;
     }
+
+    AfterInvoke(context);
+
+    if (!error.IsOK()) {
+        context->Reply(error);
+    }
+}
+
+void TYPathServiceBase::BeforeInvoke(IServiceContextPtr /*context*/)
+{
+    EnsureLoggerCreated();
 }
 
 bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
@@ -89,9 +123,13 @@ bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
     return false;
 }
 
-Stroka TYPathServiceBase::GetLoggingCategory() const
+void TYPathServiceBase::AfterInvoke(IServiceContextPtr /*context*/)
+{ }
+
+NLog::TLogger TYPathServiceBase::GetLogger() const
 {
-    return Logger.GetCategory();
+    EnsureLoggerCreated();
+    return Logger;
 }
 
 void TYPathServiceBase::SerializeAttributes(
@@ -920,22 +958,22 @@ public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
         TYPathResponseHandler responseHandler,
-        const Stroka& loggingCategory)
+        NLog::TLogger logger)
         : TServiceContextBase(std::move(requestMessage))
         , ResponseHandler(std::move(responseHandler))
-        , Logger(loggingCategory)
+        , Logger(std::move(logger))
     { }
 
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
         TYPathResponseHandler responseHandler,
-        const Stroka& loggingCategory)
+        NLog::TLogger logger)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage))
         , ResponseHandler(std::move(responseHandler))
-        , Logger(loggingCategory)
+        , Logger(std::move(logger))
     { }
 
 protected:
@@ -976,7 +1014,7 @@ protected:
 
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const Stroka& loggingCategory,
+    NLog::TLogger logger,
     TYPathResponseHandler responseHandler)
 {
     YASSERT(requestMessage);
@@ -984,13 +1022,13 @@ IServiceContextPtr CreateYPathContext(
     return New<TYPathServiceContext>(
         std::move(requestMessage),
         std::move(responseHandler),
-        loggingCategory);
+        std::move(logger));
 }
 
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    const Stroka& loggingCategory,
+    NLog::TLogger logger,
     TYPathResponseHandler responseHandler)
 {
     YASSERT(requestMessage);
@@ -999,7 +1037,7 @@ IServiceContextPtr CreateYPathContext(
         std::move(requestHeader),
         std::move(requestMessage),
         std::move(responseHandler),
-        loggingCategory);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1029,9 +1067,9 @@ public:
         return TResolveResult::There(UnderlyingService, tokenizer.GetSuffix());
     }
 
-    virtual Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return UnderlyingService->GetLoggingCategory();
+        return UnderlyingService->GetLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

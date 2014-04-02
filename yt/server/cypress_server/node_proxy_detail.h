@@ -65,7 +65,8 @@ protected:
     mutable NYTree::INodeResolverPtr CachedResolver;
 
     bool AccessTrackingSuppressed;
-    
+
+    virtual NLog::TLogger CreateLogger() const override;
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;

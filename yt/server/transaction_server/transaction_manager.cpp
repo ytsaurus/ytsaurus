@@ -53,17 +53,20 @@ static auto& Logger = TransactionServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TTransactionProxy
-    : public NObjectServer::TNonversionedObjectProxyBase<TTransaction>
+    : public TNonversionedObjectProxyBase<TTransaction>
 {
 public:
     TTransactionProxy(NCellMaster::TBootstrap* bootstrap, TTransaction* transaction)
         : TBase(bootstrap, transaction)
-    {
-        Logger = TransactionServerLogger;
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TTransaction> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return TransactionServerLogger;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {

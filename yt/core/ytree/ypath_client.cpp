@@ -249,7 +249,7 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
     try {
         auto resolveContext = CreateYPathContext(
             requestMessage,
-            "",
+            NLog::TLogger(),
             TYPathResponseHandler());
         ResolveYPath(
             service,
@@ -270,7 +270,7 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 
     auto invokeContext = CreateYPathContext(
         updatedRequestMessage,
-        suffixService->GetLoggingCategory(),
+        suffixService->GetLogger(),
         BIND(&OnYPathResponse, asyncResponseMessage));
 
     // This should never throw.

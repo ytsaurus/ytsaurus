@@ -156,11 +156,6 @@ private:
         typedef TSamples::iterator TSamplesIterator;
         typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
-        TBucket()
-        {
-            Logger = NProfiling::Logger;
-        }
-
         //! Adds a new sample to the bucket inserting in at an appropriate position.
         void AddSample(const TStoredSample& sample)
         {
@@ -208,6 +203,11 @@ private:
 
     private:
         std::deque<TStoredSample> Samples;
+
+        virtual NLog::TLogger CreateLogger() const override
+        {
+            return NProfiling::Logger;
+        }
 
         virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
         {

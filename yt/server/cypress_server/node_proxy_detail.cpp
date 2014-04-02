@@ -220,8 +220,6 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     YASSERT(bootstrap);
     YASSERT(trunkNode);
     YASSERT(trunkNode->IsTrunk());
-
-    Logger = CypressServerLogger;
 }
 
 INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
@@ -674,6 +672,11 @@ void TNontemplateCypressNodeProxyBase::SetChild(
 TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
 {
     return TClusterResources(0, 1);
+}
+
+NLog::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const
+{
+    return CypressServerLogger;
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)

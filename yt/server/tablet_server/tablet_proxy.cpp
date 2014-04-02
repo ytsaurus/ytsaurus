@@ -2,6 +2,7 @@
 #include "tablet_proxy.h"
 #include "tablet.h"
 #include "tablet_cell.h"
+#include "private.h"
 
 #include <core/yson/consumer.h>
 
@@ -32,6 +33,11 @@ public:
 
 private:
     typedef TNonversionedObjectProxyBase<TTablet> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return TabletServerLogger;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
 #include "file_node.h"
+#include "private.h"
 
 #include <core/misc/string.h>
 
@@ -47,6 +48,11 @@ public:
 
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return FileServerLogger;
+    }
 
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,

@@ -88,8 +88,6 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
-    virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
-    virtual void AfterInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     // NYTree::TSupportsAttributes members
@@ -128,6 +126,9 @@ protected:
     void ValidateActiveLeader() const;
     void ForwardToLeader(NRpc::IServiceContextPtr context);
     void OnLeaderResponse(NRpc::IServiceContextPtr context, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
+    virtual bool IsLoggingEnabled() const override;
+    virtual NLog::TLogger CreateLogger() const override;
 
 };
 

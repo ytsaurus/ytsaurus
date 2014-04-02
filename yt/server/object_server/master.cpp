@@ -37,12 +37,15 @@ class TMasterProxy
 public:
     explicit TMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
         : TBase(bootstrap, object)
-    {
-        Logger = ObjectServerLogger;
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TMasterObject> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return ObjectServerLogger;
+    }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {

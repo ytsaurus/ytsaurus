@@ -55,12 +55,15 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TSchemaObject* object)
         : TBase(bootstrap, object)
-    {
-        Logger = ObjectServerLogger;
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return ObjectServerLogger;
+    }
 
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {

@@ -12,6 +12,8 @@
 
 #include <core/actions/invoker.h>
 
+#include <core/logging/common.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -70,10 +72,9 @@ struct IYPathService
     //! Executes a given request.
     virtual void Invoke(NRpc::IServiceContextPtr context) = 0;
 
-    //! Called for the target service and
-    //! returns the logging category that will be used by RPC infrastructure
+    //! Called for the target service and returns the logger that will be used by RPC infrastructure
     //! to log various details about verb invocation (e.g. request and response infos).
-    virtual Stroka GetLoggingCategory() const = 0;
+    virtual NLog::TLogger GetLogger() const = 0;
 
 
     // Extension methods

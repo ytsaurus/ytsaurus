@@ -21,7 +21,7 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccountProxy
-    : public NObjectServer::TNonversionedObjectProxyBase<TAccount>
+    : public TNonversionedObjectProxyBase<TAccount>
 {
 public:
     TAccountProxy(NCellMaster::TBootstrap* bootstrap, TAccount* account)
@@ -29,7 +29,12 @@ public:
     { }
 
 private:
-    typedef NObjectServer::TNonversionedObjectProxyBase<TAccount> TBase;
+    typedef TNonversionedObjectProxyBase<TAccount> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return SecurityServerLogger;
+    }
 
     virtual void ValidateRemoval() override
     {

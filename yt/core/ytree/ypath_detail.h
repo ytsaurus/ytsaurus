@@ -78,19 +78,27 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
+    TYPathServiceBase();
+
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
-    virtual Stroka GetLoggingCategory() const override;
+    virtual NLog::TLogger GetLogger() const override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override;
 
 protected:
-    NLog::TLogger Logger;
+    mutable NLog::TLogger Logger;
+    mutable bool LoggerCreated;
 
-    void GuardedInvoke(NRpc::IServiceContextPtr context);
+    virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context);
+    virtual void AfterInvoke(NRpc::IServiceContextPtr context);
+
+    void EnsureLoggerCreated() const;
+    virtual bool IsLoggingEnabled() const;
+    virtual NLog::TLogger CreateLogger() const;
 
     virtual TResolveResult ResolveSelf(const TYPath& path, NRpc::IServiceContextPtr context);
     virtual TResolveResult ResolveAttributes(const TYPath& path, NRpc::IServiceContextPtr context);
@@ -441,13 +449,13 @@ typedef TCallback<void(TSharedRefArray)> TYPathResponseHandler;
 
 NRpc::IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const Stroka& loggingCategory,
+    NLog::TLogger logger,
     TYPathResponseHandler responseHandler);
 
 NRpc::IServiceContextPtr CreateYPathContext(
     std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    const Stroka& loggingCategory,
+    NLog::TLogger logger,
     TYPathResponseHandler responseHandler);
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);

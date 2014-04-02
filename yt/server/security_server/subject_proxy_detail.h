@@ -35,6 +35,11 @@ private:
     typedef NObjectServer::TNonversionedObjectProxyBase<TImpl> TBase;
 
 protected:
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return SecurityServerLogger;
+    }
+
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override
     {
         attributes->push_back("name");

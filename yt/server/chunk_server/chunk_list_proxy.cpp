@@ -29,12 +29,15 @@ class TChunkListProxy
 public:
     TChunkListProxy(NCellMaster::TBootstrap* bootstrap, TChunkList* chunkList)
         : TBase(bootstrap, chunkList)
-    {
-        Logger = ChunkServerLogger;
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TChunkList> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return ChunkServerLogger;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {

@@ -3,6 +3,7 @@
 #include "tablet_cell.h"
 #include "tablet.h"
 #include "tablet_manager.h"
+#include "private.h"
 
 #include <core/ytree/fluent.h>
 
@@ -32,6 +33,11 @@ public:
 
 private:
     typedef TNonversionedObjectProxyBase<TTabletCell> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return TabletServerLogger;
+    }
 
     virtual void ValidateRemoval() override
     {
