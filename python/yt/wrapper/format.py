@@ -120,10 +120,19 @@ class YamredDsvFormat(Format):
                 "lenval": lenval
             })
 
+# Deprecated
 class SchemedDsvFormat(Format):
     def __init__(self, columns):
         super(SchemedDsvFormat, self).__init__(
             "schemed_dsv",
+            attributes={
+                "columns": columns
+            })
+
+class SchemafulDsvFormat(Format):
+    def __init__(self, columns):
+        super(SchemafulDsvFormat, self).__init__(
+            "schemaful_dsv",
             attributes={
                 "columns": columns
             })
