@@ -79,7 +79,7 @@ def record_to_line(rec, format=None, eoln=True):
         body = "\t".join("%s=%s" % (escape_key(str(item[0])), escape_value(str(item[1]))) for item in rec.iteritems())
     elif format.name() == "yson":
         body = yson.dumps(rec, yson_format="text") + ";"
-    elif format.name() == "schemed_dsv":
+    elif format.name() == "schemed_dsv" or format.name() == "schemaful_dsv":
         body = "\t".join(map(escape_value, (rec[key] for key in format.attributes()["columns"])))
     else:
         raise YtError("Unrecognized format " + repr(format))
@@ -133,7 +133,7 @@ def line_to_record(line, format=None):
         return dict(map(unescape_dsv_field, filter(None, line.strip("\n").split("\t"))))
     elif format.name() == "yson":
         return yson.loads(line.rstrip(";\n"))
-    elif format.name() == "schemed_dsv":
+    elif format.name() == "schemed_dsv" or format.name() == "schemaful_dsv":
         return dict(zip(format.attributes()["columns"], map(unescape_field, line.rstrip("\n").split("\t"))))
     else:
         raise YtError("Unrecognized format " + repr(format))
