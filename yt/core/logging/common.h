@@ -56,6 +56,9 @@ struct TLogEvent
 struct ILogWriter;
 typedef TIntrusivePtr<ILogWriter> ILogWriterPtr;
 
+class TLogger;
+class TLogManager;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NLog
