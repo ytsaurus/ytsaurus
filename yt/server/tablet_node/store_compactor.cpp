@@ -167,6 +167,13 @@ private:
             allStores.push_back(std::move(store));
         }
 
+        // Don't compact partitons whose data size exceeds the limit.
+        // Let Partition Balancer do its job.
+        auto* tablet = partition->GetTablet();
+        const auto& config = tablet->GetConfig();
+        if (partition->GetTotalDataSize() > config->MaxPartitionDataSize)
+            return;
+
         auto compactionStores = PickStoresForCompaction(allStores);
         if (compactionStores.empty())
             return;
@@ -181,7 +188,6 @@ private:
 
         partition->SetState(EPartitionState::Compacting);
 
-        auto* tablet = partition->GetTablet();
         tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
             &TStoreCompactor::CompactPartition,
             MakeStrong(this),
