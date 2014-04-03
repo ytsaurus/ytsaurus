@@ -113,7 +113,7 @@ public:
                     Config->Multiplexed);
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(ex, "Error starting changelog catalog");
+            THROW_ERROR_EXCEPTION("Error starting changelog catalog") << ex;
         }
 
         LOG_INFO("Changelog catalog started");
