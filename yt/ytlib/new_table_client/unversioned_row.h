@@ -22,7 +22,8 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int MaxRowValueCount = 1024;
+const int MaxValuesPerRow = 1024;
+const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,6 +272,12 @@ void ValidateDataValue(const TUnversionedValue& value);
 
 //! Checks that #value is allowed to appear in keys. Throws on failure.
 void ValidateKeyValue(const TUnversionedValue& value);
+
+//! Checks that #count represents an allowed number of values in a row. Throws on failure.
+void ValidateRowValueCount(int count);
+
+//! Checks that #count represents an allowed number of rows in a rowset. Throws on failure.
+void ValidateRowCount(int count);
 
 //! Checks that #row is a valid data row. Throws on failure.
 void ValidateRow(TUnversionedRow row);

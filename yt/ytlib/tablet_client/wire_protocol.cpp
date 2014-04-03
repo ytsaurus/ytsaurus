@@ -137,7 +137,9 @@ public:
         const std::vector<TUnversionedRow>& rowset,
         const TColumnIdMapping* idMapping)
     {
-        WriteUInt32(rowset.size());
+        int count = static_cast<int>(rowset.size());
+        ValidateRowCount(count);
+        WriteUInt32(static_cast<ui32>(count));
         for (auto row : rowset) {
             WriteUnversionedRow(row, idMapping);
         }
@@ -408,9 +410,10 @@ public:
 
     void ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
     {
-        ui32 count = ReadUInt32();
-        rowset->reserve(rowset->size() + count);
-        for (int index = 0; index != count; ++index) {
+        int rowCount = static_cast<int>(ReadUInt32());
+        ValidateRowCount(rowCount);
+        rowset->reserve(rowset->size() + rowCount);
+        for (int index = 0; index != rowCount; ++index) {
             rowset->push_back(ReadRow());
         }
     }
@@ -505,14 +508,16 @@ private:
 
     TUnversionedRow ReadRow()
     {
-        ui32 valueCount = ReadUInt32();
+        int valueCount = static_cast<int>(ReadUInt32());
         if (valueCount == 0) {
             return TUnversionedRow();
         }
+
         --valueCount;
+        ValidateRowValueCount(valueCount);
 
         auto row = TUnversionedRow::Allocate(&AlignedPool_, valueCount);
-        for (int index = 0; index != valueCount; ++index) {
+        for (int index = 0; index < valueCount; ++index) {
             ReadRowValue(&row[index]);
         }
         return row;

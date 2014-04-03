@@ -516,18 +516,33 @@ void ValidateKeyValue(const TUnversionedValue& value)
     ValidateValueLength(value);
 }
 
-static void ValidateRowValueCount(TUnversionedRow row)
+void ValidateRowValueCount(int count)
 {
-    if (row.GetCount() > MaxRowValueCount) {
-        THROW_ERROR_EXCEPTION("Too many values: actual %d, limit %d",
-            static_cast<int>(row.GetCount()),
-            MaxRowValueCount);
+    if (count < 0) {
+        THROW_ERROR_EXCEPTION("Negative number of values in row");
+    }
+    if (count > MaxValuesPerRow) {
+        THROW_ERROR_EXCEPTION("Too many values in row: actual %d, limit %d",
+            count,
+            MaxValuesPerRow);
+    }
+}
+
+void ValidateRowCount(int count)
+{
+    if (count < 0) {
+        THROW_ERROR_EXCEPTION("Negative number of rows in rowset");
+    }
+    if (count > MaxRowsPerRowset) {
+        THROW_ERROR_EXCEPTION("Too many rows in rowset: actual %d, limit %d",
+            count,
+            MaxRowsPerRowset);
     }
 }
 
 void ValidateRow(TUnversionedRow row)
 {
-    ValidateRowValueCount(row);
+    ValidateRowValueCount(row.GetCount());
     for (const auto* value = row.Begin(); value != row.End(); ++value) {
         ValidateDataValue(*value);
     }
@@ -535,7 +550,7 @@ void ValidateRow(TUnversionedRow row)
 
 void ValidateKey(TKey key)
 {
-    ValidateRowValueCount(key);
+    ValidateRowValueCount(key.GetCount());
     for (const auto* value = key.Begin(); value != key.End(); ++value) {
         ValidateKeyValue(*value);
     }
