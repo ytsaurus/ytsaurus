@@ -397,6 +397,9 @@ TDynamicMemoryStore::~TDynamicMemoryStore()
 {
     LOG_DEBUG("Dynamic memory store destroyed (StoreId: %s)",
         ~ToString(Id_));
+
+    MemoryUsageUpdated_.Fire(-LastReportedMemoryUsage_);
+    LastReportedMemoryUsage_ = 0;
 }
 
 int TDynamicMemoryStore::GetLockCount() const
@@ -1079,8 +1082,8 @@ void TDynamicMemoryStore::OnMemoryUsageUpdated()
     i64 memoryUsage = GetMemoryUsage();
     YASSERT(memoryUsage >= LastReportedMemoryUsage_);
     if (memoryUsage > LastReportedMemoryUsage_ + MemoryUsageGranularity) {
+        MemoryUsageUpdated_.Fire(memoryUsage - LastReportedMemoryUsage_);
         LastReportedMemoryUsage_ = memoryUsage;
-        MemoryUsageUpdated_.Fire();
     }
 }
 

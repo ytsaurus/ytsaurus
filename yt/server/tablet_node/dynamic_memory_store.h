@@ -90,7 +90,7 @@ public:
     // Memory usage tracking.
     i64 GetMemoryUsage() const;
 
-    DEFINE_SIGNAL(void(), MemoryUsageUpdated)
+    DEFINE_SIGNAL(void(i64 delta), MemoryUsageUpdated)
 
 private:
     class TReader;
