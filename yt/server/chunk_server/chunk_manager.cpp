@@ -95,8 +95,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Required,
-            true);
+            EObjectAccountMode::Required);
     }
 
     virtual TObjectBase* Create(
@@ -113,7 +112,12 @@ protected:
 
     virtual void DoDestroy(TChunk* chunk) override;
 
-    virtual void DoUnstage(TChunk* chunk, TTransaction* transaction, bool recursive) override;
+    virtual TTransaction* DoGetStagingTransaction(TChunk* chunk)
+    {
+        return chunk->GetStagingTransaction();
+    }
+
+    virtual void DoUnstage(TChunk* chunk, bool recursive) override;
 
 };
 
@@ -180,8 +184,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Forbidden,
-            true);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* Create(
@@ -203,7 +206,12 @@ private:
 
     virtual void DoDestroy(TChunkList* chunkList) override;
 
-    virtual void DoUnstage(TChunkList* chunkList, TTransaction* transaction, bool recursive) override;
+    virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList)
+    {
+        return chunkList->GetStagingTransaction();
+    }
+
+    virtual void DoUnstage(TChunkList* chunkList, bool recursive) override;
 
 };
 
@@ -474,17 +482,14 @@ public:
         chunk->SetStagingAccount(nullptr);
     }
 
-    void UnstageChunkList(
-        TChunkList* chunkList,
-        TTransaction* transaction,
-        bool recursive)
+    void UnstageChunkList(TChunkList* chunkList, bool recursive)
     {
         if (!recursive)
             return;
 
         auto transactionManager = Bootstrap->GetTransactionManager();
         for (auto* child : chunkList->Children()) {
-            transactionManager->UnstageObject(transaction, child, true);
+            transactionManager->UnstageObject(child, true);
         }
     }
 
@@ -1346,12 +1351,8 @@ void TChunkManager::TChunkTypeHandlerBase::DoDestroy(TChunk* chunk)
 
 void TChunkManager::TChunkTypeHandlerBase::DoUnstage(
     TChunk* chunk,
-    TTransaction* transaction,
-    bool recursive)
+    bool /*recursive*/)
 {
-    UNUSED(transaction);
-    UNUSED(recursive);
-
     Owner->UnstageChunk(chunk);
 }
 
@@ -1378,13 +1379,14 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
     TReqCreateObjects* request,
     TRspCreateObjects* response)
 {
-    UNUSED(transaction);
-    UNUSED(account);
     UNUSED(attributes);
     UNUSED(request);
     UNUSED(response);
 
-    return Owner->CreateChunkList();
+    auto* chunkList = Owner->CreateChunkList();
+    chunkList->SetStagingTransaction(transaction);
+    chunkList->SetStagingAccount(account);
+    return chunkList;
 }
 
 void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)
@@ -1393,11 +1395,10 @@ void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)
 }
 
 void TChunkManager::TChunkListTypeHandler::DoUnstage(
-    TChunkList* obj,
-    TTransaction* transaction,
+    TChunkList* chunkList,
     bool recursive)
 {
-    Owner->UnstageChunkList(obj, transaction, recursive);
+    Owner->UnstageChunkList(chunkList, recursive);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1475,6 +1476,11 @@ void TChunkManager::ConfirmChunk(
 void TChunkManager::UnstageChunk(TChunk* chunk)
 {
     Impl->UnstageChunk(chunk);
+}
+
+void TChunkManager::UnstageChunkList(TChunkList* chunkList, bool recursive)
+{
+    Impl->UnstageChunkList(chunkList, recursive);
 }
 
 TNodePtrWithIndexList TChunkManager::LocateChunk(TChunkPtrWithIndex chunkWithIndex)

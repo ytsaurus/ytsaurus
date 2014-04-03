@@ -21,7 +21,6 @@ struct TTransactionYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, Ping);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Commit);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Abort);
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, UnstageObject);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

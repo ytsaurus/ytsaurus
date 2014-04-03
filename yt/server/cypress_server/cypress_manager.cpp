@@ -267,8 +267,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden,
-            false);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual EPermissionSet GetSupportedPermissions() const override

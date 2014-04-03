@@ -185,7 +185,6 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(Commit);
         DISPATCH_YPATH_SERVICE_METHOD(Abort);
         DISPATCH_YPATH_SERVICE_METHOD(Ping);
-        DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
         return TBase::DoInvoke(context);
     }
 
@@ -247,29 +246,6 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTransactionClient::NProto, UnstageObject)
-    {
-        UNUSED(response);
-
-        auto objectId = FromProto<TObjectId>(request->object_id());
-        bool recursive = request->recursive();
-        context->SetRequestInfo("ObjectId: %s, Recursive: %s",
-            ~ToString(objectId),
-            ~FormatBool(recursive));
-
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-        auto* transaction = GetThisTypedImpl();
-
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto* object = objectManager->GetObjectOrThrow(objectId);
-
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        transactionManager->UnstageObject(transaction, object, recursive);
-
-        context->Reply();
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,8 +267,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden,
-            false);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TNonversionedObjectBase* Create(
@@ -483,7 +458,7 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
 
     for (auto* object : transaction->StagedObjects()) {
         auto handler = objectManager->GetHandler(object);
-        handler->Unstage(object, transaction, false);
+        handler->Unstage(object, false);
         objectManager->UnrefObject(object);
     }
     transaction->StagedObjects().clear();
@@ -716,34 +691,28 @@ void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* ob
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    transaction->ValidateActive();
-
     auto objectManager = Bootstrap->GetObjectManager();
     YCHECK(transaction->StagedObjects().insert(object).second);
     objectManager->RefObject(object);
 }
 
-void TTransactionManager::UnstageObject(
-    TTransaction* transaction,
-    TObjectBase* object,
-    bool recursive)
+void TTransactionManager::UnstageObject(TObjectBase* object, bool recursive)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    transaction->ValidateActive();
-
-    if (transaction->StagedObjects().erase(object) == 0) {
-        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-            ~ToString(object->GetId()),
-            ~ToString(transaction->GetId()));
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto handler = objectManager->GetHandler(object);
+    auto* transaction = handler->GetStagingTransaction(object);
+    if (transaction) {
+        transaction->ValidateActive();
     }
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    handler->Unstage(object, recursive);
 
-    auto handler = objectManager->GetHandler(object);
-    handler->Unstage(object, transaction, recursive);
-
-    objectManager->UnrefObject(object);
+    if (transaction) {
+        YCHECK(transaction->StagedObjects().erase(object) == 1);
+        objectManager->UnrefObject(object);
+    }
 }
 
 void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase* node)

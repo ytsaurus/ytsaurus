@@ -86,6 +86,7 @@ public:
         NChunkClient::NProto::TChunkMeta* chunkMeta);
     
     void UnstageChunk(TChunk* chunk);
+    void UnstageChunkList(TChunkList* chunkList, bool recursive);
 
     TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex);
 

@@ -50,6 +50,7 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObjects);
+        DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
         return TObjectProxyBase::DoInvoke(context);
     }
 
@@ -124,6 +125,27 @@ private:
             }
         }
         
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, UnstageObject)
+    {
+        UNUSED(response);
+
+        DeclareMutating();
+
+        auto objectId = FromProto<TObjectId>(request->object_id());
+        bool recursive = request->recursive();
+        context->SetRequestInfo("ObjectId: %s, Recursive: %s",
+            ~ToString(objectId),
+            ~FormatBool(recursive));
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* object = objectManager->GetObjectOrThrow(objectId);
+
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->UnstageObject(object, recursive);
+
         context->Reply();
     }
 

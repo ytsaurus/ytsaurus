@@ -33,17 +33,6 @@ message TRspPing
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqUnstageObject
-{
-    required NYT.NProto.TGuid object_id = 1;
-    required bool recursive = 2;
-}
-
-message TRspUnstageObject
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqStartTransactionExt
 {
     extend NYT.NObjectClient.NProto.TReqCreateObjects

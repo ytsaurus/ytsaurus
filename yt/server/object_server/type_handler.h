@@ -38,12 +38,10 @@ struct TTypeCreationOptions
 
     TTypeCreationOptions(
         EObjectTransactionMode transactionMode,
-        EObjectAccountMode accountMode,
-        bool supportsStaging);
+        EObjectAccountMode accountMode);
 
     EObjectTransactionMode TransactionMode;
     EObjectAccountMode AccountMode;
-    bool StagingSupported;
 
 };
 
@@ -100,14 +98,16 @@ struct IObjectTypeHandler
     //! Performs the necessary cleanup.
     virtual void Destroy(TObjectBase* object) = 0;
 
-    //! Clears staging information of a given object.
+    //! Given #object, returns its staging transaction or |nullptr| is #object
+    //! is not staged.
+    virtual NTransactionServer::TTransaction* GetStagingTransaction(
+        TObjectBase* object) = 0;
+
+    //! Resets staging information for #object.
     /*!
      *  If #recursive is |true| then all child objects are also released.
      */
-    virtual void Unstage(
-        TObjectBase* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive) = 0;
+    virtual void Unstage(TObjectBase* object, bool recursive) = 0;
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) = 0;

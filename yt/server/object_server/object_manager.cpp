@@ -925,9 +925,13 @@ TObjectBase* TObjectManager::CreateObject(
         }
     }
 
-    if (transaction && options->StagingSupported) {
+    auto* stagingTransaction = handler->GetStagingTransaction(object);
+    if (stagingTransaction) {
+        YCHECK(transaction == stagingTransaction);
         auto transactionManager = Bootstrap->GetTransactionManager();
         transactionManager->StageObject(transaction, object);
+    } else {
+        YCHECK(object->GetObjectRefCounter() > 0);
     }
 
     auto* acd = securityManager->FindAcd(object);

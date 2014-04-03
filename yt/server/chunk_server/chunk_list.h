@@ -18,6 +18,7 @@ namespace NChunkServer {
 
 class TChunkList
     : public TChunkTree
+    , public NObjectServer::TStagedObject
     , public TRefTracked<TChunkList>
 {
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);

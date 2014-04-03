@@ -1504,7 +1504,7 @@ private:
         if (!transaction)
             return;
 
-        auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(transaction->GetId()));
+        auto req = TMasterYPathProxy::UnstageObject();
         ToProto(req->mutable_object_id(), chunkId);
         req->set_recursive(false);
 
@@ -1514,7 +1514,7 @@ private:
             BIND(&TImpl::OnStderrChunkReleased, MakeStrong(this)));
     }
 
-    void OnStderrChunkReleased(TTransactionYPathProxy::TRspUnstageObjectPtr rsp)
+    void OnStderrChunkReleased(TMasterYPathProxy::TRspUnstageObjectPtr rsp)
     {
         if (!rsp->IsOK()) {
             LOG_WARNING(*rsp, "Error releasing stderr chunk");

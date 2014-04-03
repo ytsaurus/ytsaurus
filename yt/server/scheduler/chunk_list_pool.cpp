@@ -76,7 +76,7 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
     TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
     for (const auto& id : ids) {
-        auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(TransactionId));
+        auto req = TMasterYPathProxy::UnstageObject();
         ToProto(req->mutable_object_id(), id);
         req->set_recursive(true);
         batchReq->AddRequest(req);

@@ -53,12 +53,15 @@ public:
         YUNREACHABLE();
     }
 
-    virtual void Unstage(
-        TObjectBase* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive) override
+    virtual NTransactionServer::TTransaction* GetStagingTransaction(
+        TObjectBase* object) override
     {
-        DoUnstage(static_cast<TObject*>(object), transaction, recursive);
+        return DoGetStagingTransaction(static_cast<TObject*>(object));
+    }
+
+    virtual void Unstage(TObjectBase* object, bool recursive) override
+    {
+        DoUnstage(static_cast<TObject*>(object), recursive);
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
@@ -91,10 +94,13 @@ protected:
         return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object);
     }
 
-    virtual void DoUnstage(
-        TObject* /*object*/,
-        NTransactionServer::TTransaction* /*transaction*/,
-        bool /*recursive*/)
+    virtual NTransactionServer::TTransaction* DoGetStagingTransaction(
+        TObject* /*object*/)
+    {
+        return nullptr;
+    }
+
+    virtual void DoUnstage(TObject* /*object*/, bool /*recursive*/)
     {
         YUNREACHABLE();
     }

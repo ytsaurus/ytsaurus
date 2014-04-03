@@ -66,15 +66,13 @@ public:
     //! Registers and references the object with the transaction.
     void StageObject(TTransaction* transaction, NObjectServer::TObjectBase* object);
 
-    //! Unregisters the object from the transaction, calls IObjectTypeHandler::Unstage and
+    //! Unregisters the object from its staging transaction,
+    //! calls IObjectTypeHandler::Unstage and
     //! unreferences the object. Throws on failure.
     /*!
      *  If #recursive is |true| then all child objects are also released.
      */
-    void UnstageObject(
-        TTransaction* transaction,
-        NObjectServer::TObjectBase* object,
-        bool recursive);
+    void UnstageObject(NObjectServer::TObjectBase* object, bool recursive);
 
     //! Registers (and references) the node with the transaction.
     void StageNode(TTransaction* transaction, NCypressServer::TCypressNodeBase* node);
