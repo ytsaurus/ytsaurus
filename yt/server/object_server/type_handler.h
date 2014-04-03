@@ -43,7 +43,7 @@ struct TTypeCreationOptions
 
     EObjectTransactionMode TransactionMode;
     EObjectAccountMode AccountMode;
-    bool SupportsStaging;
+    bool StagingSupported;
 
 };
 

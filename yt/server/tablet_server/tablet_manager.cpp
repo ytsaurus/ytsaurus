@@ -1144,6 +1144,10 @@ private:
             chunkManager->AttachToChunkList(chunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
 
+            // Update resource usage.
+            auto securityManager = Bootstrap->
+            securityManager->UpdateAccountNodeUsage(originatingNode);
+
             LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s])",
                 ~ToString(tabletId),
                 ~JoinToString(ToObjectIds(chunksToAttach)),

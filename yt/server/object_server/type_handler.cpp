@@ -7,7 +7,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTypeCreationOptions::TTypeCreationOptions()
-    : SupportsStaging(false)
+    : StagingSupported(false)
 { }
 
 TTypeCreationOptions::TTypeCreationOptions(
@@ -16,7 +16,7 @@ TTypeCreationOptions::TTypeCreationOptions(
     bool supportsStaging)
     : TransactionMode(transactionMode)
     , AccountMode(accountMode)
-    , SupportsStaging(supportsStaging)
+    , StagingSupported(supportsStaging)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
