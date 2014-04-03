@@ -155,17 +155,6 @@ private:
         return objectManager->GetSchemaProxy(Type);
     }
 
-    virtual void DoUnstage(
-        TSchemaObject* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive) override
-    {
-        UNUSED(object);
-        UNUSED(transaction);
-        UNUSED(recursive);
-        YUNREACHABLE();
-    }
-
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TSchemaObject* object) override
     {
         return &object->Acd();
