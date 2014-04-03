@@ -90,7 +90,7 @@ private:
         TUnversionedRow key,
         ERowLockMode mode);
 
-    void CheckForUnlockedStore(const TDynamicMemoryStorePtr& store);
+    void CheckForUnlockedStore(TDynamicMemoryStore * store);
 
     bool IsRecovery() const;
 

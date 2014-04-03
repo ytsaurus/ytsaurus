@@ -46,6 +46,7 @@ static const int EditListCapacityMultiplier = 2;
 static const int MaxEditListCapacity = 256;
 static const int TypicalEditListCount = 16;
 static const int TabletReaderPoolSize = 1024;
+static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
 
 struct TTabletReaderPoolTag { };
 
@@ -383,6 +384,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(
         RowBuffer_.GetAlignedPool(),
         TKeyComparer(KeyColumnCount_)))
+    , LastReportedMemoryUsage_(0)
 {
     State_ = EStoreState::ActiveDynamic;
 
@@ -466,6 +468,8 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         newKeyProvider,
         existingKeyConsumer);
 
+    OnMemoryUsageUpdated();
+
     return result;
 }
 
@@ -512,35 +516,35 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
         newKeyProvider,
         existingKeyConsumer);
 
+    OnMemoryUsageUpdated();
+
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::MigrateRow(
-    TDynamicRow row,
-    const TDynamicMemoryStorePtr& migrateTo)
+TDynamicRow TDynamicMemoryStore::MigrateRow(const TDynamicRowRef& rowRef)
 {
+    auto row = rowRef.Row;
+
     TDynamicRow migratedRow;
     auto newKeyProvider = [&] () -> TDynamicRow {
-        auto* migrationTargetPool = migrateTo->RowBuffer_.GetAlignedPool();
-
         // Create migrated row.
-        migratedRow = migrateTo->AllocateRow();
+        migratedRow = AllocateRow();
 
         // Migrate lock.
-        migrateTo->Lock();
+        Lock();
         auto* transaction = row.GetTransaction();
         int lockIndex = row.GetLockIndex();
         migratedRow.Lock(transaction, lockIndex, row.GetLockMode());
         migratedRow.SetPrepareTimestamp(row.GetPrepareTimestamp());
         if (lockIndex != TDynamicRow::InvalidLockIndex) {
-            transaction->LockedRows()[lockIndex] = TDynamicRowRef(migrateTo.Get(), migratedRow);
+            transaction->LockedRows()[lockIndex] = TDynamicRowRef(this, migratedRow);
         }
 
         // Migrate keys.
         const auto* srcKeys = row.GetKeys();
         auto* dstKeys = migratedRow.GetKeys();
         for (int index = 0; index < KeyColumnCount_; ++index) {
-            migrateTo->CaptureValue(&dstKeys[index], srcKeys[index]);
+            CaptureValue(&dstKeys[index], srcKeys[index]);
         }
 
         // Migrate fixed values.
@@ -549,10 +553,10 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
             if (list) {
                 const auto& srcValue = list.Back();
                 if ((srcValue.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                    auto migratedList = TValueList::Allocate(migrationTargetPool, InitialEditListCapacity);
+                    auto migratedList = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
                     migratedRow.SetFixedValueList(index, migratedList, KeyColumnCount_);
                     migratedList.Push([&] (TVersionedValue* dstValue) {
-                        migrateTo->CaptureValue(dstValue, srcValue);
+                        CaptureValue(dstValue, srcValue);
                     });
                     ++ValueCount_;
                 }
@@ -564,13 +568,13 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         if (timestampList) {
             auto timestamp = timestampList.Back();
             if ((timestamp & TimestampValueMask) == UncommittedTimestamp) {
-                auto migratedTimestampList = TTimestampList::Allocate(migrationTargetPool, InitialEditListCapacity);
+                auto migratedTimestampList = TTimestampList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
                 migratedRow.SetTimestampList(migratedTimestampList, KeyColumnCount_);
                 migratedTimestampList.Push(timestamp);
             }
         }
 
-        Unlock();
+        rowRef.Store->Unlock();
         row.Unlock();
 
         return migratedRow;
@@ -580,10 +584,12 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         YUNREACHABLE();
     };
 
-    migrateTo->Rows_->Insert(
+    Rows_->Insert(
         row,
         newKeyProvider,
         existingKeyConsumer);
+
+    OnMemoryUsageUpdated();
 
     return migratedRow;
 }
@@ -1061,6 +1067,21 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("aligned_pool_capacity").Value(GetAlignedPoolCapacity())
         .Item("unaligned_pool_size").Value(GetUnalignedPoolSize())
         .Item("unaligned_pool_capacity").Value(GetUnalignedPoolCapacity());
+}
+
+i64 TDynamicMemoryStore::GetMemoryUsage() const
+{
+    return GetAlignedPoolCapacity() + GetUnalignedPoolCapacity();
+}
+
+void TDynamicMemoryStore::OnMemoryUsageUpdated()
+{
+    i64 memoryUsage = GetMemoryUsage();
+    YASSERT(memoryUsage >= LastReportedMemoryUsage_);
+    if (memoryUsage > LastReportedMemoryUsage_ + MemoryUsageGranularity) {
+        LastReportedMemoryUsage_ = memoryUsage;
+        MemoryUsageUpdated_.Fire();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

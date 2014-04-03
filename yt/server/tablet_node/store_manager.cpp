@@ -276,12 +276,8 @@ TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
         return rowRef.Row;
     }
 
-    auto* migrateFrom = rowRef.Store;
-    const auto& migrateTo = Tablet_->GetActiveStore();
-    auto migratedRow = migrateFrom->MigrateRow(rowRef.Row, migrateTo);
-
-    CheckForUnlockedStore(migrateFrom);
-
+    auto migratedRow = Tablet_->GetActiveStore()->MigrateRow(rowRef);
+    CheckForUnlockedStore(rowRef.Store);
     return migratedRow;
 }
 
@@ -323,7 +319,7 @@ TDynamicRowRef TStoreManager::FindRowAndCheckLocks(
     return TDynamicRowRef();
 }
 
-void TStoreManager::CheckForUnlockedStore(const TDynamicMemoryStorePtr& store)
+void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
 {
     if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;

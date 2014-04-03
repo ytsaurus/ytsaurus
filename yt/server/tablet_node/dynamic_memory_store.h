@@ -6,6 +6,8 @@
 
 #include <core/misc/public.h>
 
+#include <core/actions/signal.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/new_table_client/row_buffer.h>
@@ -42,9 +44,8 @@ public:
         TKey key,
         bool prewrite);
 
-    TDynamicRow MigrateRow(
-        TDynamicRow row,
-        const TDynamicMemoryStorePtr& migrateTo);
+    TDynamicRow MigrateRow(const TDynamicRowRef& rowRef);
+
     TDynamicRow FindRowAndCheckLocks(
         TKey key,
         TTransaction* transaction,
@@ -86,6 +87,11 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
+    // Memory usage tracking.
+    i64 GetMemoryUsage() const;
+
+    DEFINE_SIGNAL(void(), MemoryUsageUpdated)
+
 private:
     class TReader;
 
@@ -100,6 +106,8 @@ private:
 
     NVersionedTableClient::TRowBuffer RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, NVersionedTableClient::TKeyComparer>> Rows_;
+
+    i64 LastReportedMemoryUsage_;
 
 
     TDynamicRow AllocateRow();
@@ -131,6 +139,8 @@ private:
     void CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src);
     void CaptureValue(TVersionedValue* dst, const TVersionedValue& src);
     void CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src);
+
+    void OnMemoryUsageUpdated();
 
 };
 
