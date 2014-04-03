@@ -443,7 +443,9 @@ void TStoreManager::CreateActiveStore()
 
 bool TStoreManager::IsRecovery() const
 {
-    return Tablet_->GetSlot()->GetHydraManager()->IsRecovery();
+    auto slot = Tablet_->GetSlot();
+    // NB: Slot can be null in tests.
+    return slot ? slot->GetHydraManager()->IsRecovery() : false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
