@@ -112,22 +112,26 @@ class TEnumBase
             return PP_COUNT(seq); \
         } \
         \
-        static std::vector<EDomain> GetDomainValues() \
+        static const std::vector<name>& GetDomainValues() \
         { \
-            static const EDomain bits[] = { \
+            static auto build = [] () -> std::vector<name> { \
+                std::vector<name> result; \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
-                static_cast<EDomain>(-1) \
+                return result; \
             }; \
-            return std::vector<EDomain>(bits, bits + sizeof(bits) / sizeof(bits[0]) - 1); \
+            static auto result = build(); \
+            return result; \
         } \
         \
-        static std::vector<Stroka> GetDomainNames() \
+        static const std::vector<Stroka>& GetDomainNames() \
         { \
-            static const char* names[] = { \
+            static auto build = [] () -> std::vector<Stroka> { \
+                std::vector<Stroka> result; \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
-                nullptr \
+                return result; \
             }; \
-            return std::vector<Stroka>(names, names + sizeof(names) / sizeof(names[0]) - 1); \
+            static auto result = build(); \
+            return result; \
         } \
         \
         static name FromString(const TStringBuf& str) \
@@ -220,7 +224,7 @@ class TEnumBase
     ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(item) \
-    (item),
+    result.push_back(item);
 //! \}
 
 //! #GetDomainNames() helper.
@@ -236,7 +240,7 @@ class TEnumBase
     ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(item) \
-    PP_STRINGIZE(item), \
+    result.push_back(PP_STRINGIZE(item));
 //! \}
 
 //! Declaration of relational operators; all at once.

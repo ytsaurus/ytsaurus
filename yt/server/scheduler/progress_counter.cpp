@@ -207,8 +207,7 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
             .Item("failed").Value(counter.GetFailed())
             .Item("aborted").BeginMap()
                 .Item("total").Value(counter.GetAborted())
-                .DoFor(EAbortReason::GetDomainValues(), [&] (TFluentMap fluent, int value) {
-                    auto abortReason = EAbortReason(value);
+                .DoFor(EAbortReason::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason abortReason) {
                     fluent
                         .Item(FormatEnum(abortReason))
                         .Value(counter.GetAborted(abortReason));

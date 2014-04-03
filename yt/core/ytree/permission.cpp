@@ -38,11 +38,10 @@ EPermissionSet ParsePermissions(
 std::vector<Stroka> FormatPermissions(
     EPermissionSet permissions)
 {
-    auto values = EPermission::GetDomainValues();
     std::vector<Stroka> result;
-    for (auto value : values) {
+    for (auto value : EPermission::GetDomainValues()) {
         if (permissions & value) {
-            result.push_back(FormatEnum(EPermission(value)));
+            result.push_back(FormatEnum(value));
         }
     }
     return result;

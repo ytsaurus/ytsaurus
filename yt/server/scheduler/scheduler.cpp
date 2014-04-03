@@ -654,8 +654,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (auto jobTypeValue : EJobType::GetDomainValues()) {
-            auto jobType = EJobType(jobTypeValue);
+        for (auto jobType : EJobType::GetDomainValues()) {
             if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
                 Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
             }

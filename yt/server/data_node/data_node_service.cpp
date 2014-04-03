@@ -214,8 +214,7 @@ void TDataNodeService::OnProfiling()
     Profiler.Enqueue("/pending_in_size", GetPendingInSize());
 
     auto sessionManager = Bootstrap->GetSessionManager();
-    for (auto typeValue : EWriteSessionType::GetDomainValues()) {
-        auto type = EWriteSessionType(typeValue);
+    for (auto type : EWriteSessionType::GetDomainValues()) {
         Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
     }
 }
