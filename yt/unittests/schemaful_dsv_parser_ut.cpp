@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/schemed_dsv_parser.h>
+#include <core/formats/schemaful_dsv_parser.h>
 
 #include <core/ytree/yson_consumer-mock.h>
 

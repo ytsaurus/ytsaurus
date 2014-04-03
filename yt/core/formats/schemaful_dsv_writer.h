@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
-#include "schemed_dsv_table.h"
+#include "schemaful_dsv_table.h"
 
 #include <core/misc/blob_output.h>
 #include <core/misc/nullable.h>

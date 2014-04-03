@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/schemed_dsv_writer.h>
+#include <core/formats/schemaful_dsv_writer.h>
 
 namespace NYT {
 namespace NFormats {
