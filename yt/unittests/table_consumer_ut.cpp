@@ -59,11 +59,6 @@ public:
         return Rows_.size();
     }
 
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
-    {
-        YUNREACHABLE();
-    }
-
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         YUNREACHABLE();
