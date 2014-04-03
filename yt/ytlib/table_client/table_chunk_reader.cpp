@@ -814,6 +814,7 @@ bool TTableChunkReader::DoFetchNextRow()
     }
 
     ++CurrentRowIndex;
+    ++Provider->RowIndex_;
 
     CurrentRow.clear();
     CurrentKey.Clear();
@@ -858,9 +859,8 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
 
     MakeCurrentRow();
 
-    if (ValidateRow()) {
-        ++Provider->RowIndex_;
-    } else {
+    if (!ValidateRow()) {
+        --Provider->RowIndex_;
         --CurrentRowIndex;
     }
 
@@ -999,7 +999,7 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
     const NChunkClient::TSequentialReaderConfigPtr& config,
     const TChunkReaderOptionsPtr& options,
     TNullable<i64> startTableRowIndex)
-    : RowIndex_(-1)
+    : RowIndex_(0)
     , RowCount_(0)
     , Config(config)
     , Options(options)

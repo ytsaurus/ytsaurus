@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "schemed_dsv_writer.h"
+#include "schemaful_dsv_writer.h"
 
 #include <core/misc/error.h>
 
@@ -32,7 +32,18 @@ TSchemafulDsvWriter::TSchemafulDsvWriter(
 
 void TSchemafulDsvWriter::OnDoubleScalar(double value)
 {
-    THROW_ERROR_EXCEPTION("Double values are not supported by schemed DSV");
+    if (State_ == EState::None) {
+        return;         
+    }
+
+    if (State_ == EState::ExpectValue) {
+        ValueHolder_.push_back(::ToString(value));
+        Values_[CurrentKey_] = ValueHolder_.back();
+        State_ = EState::None;
+        ValueCount_ += 1;
+    } else {
+        YCHECK(State_ == EState::None);
+    }
 }
 
 void TSchemafulDsvWriter::OnBeginList()
@@ -86,9 +97,18 @@ void TSchemafulDsvWriter::OnEntity()
 
 void TSchemafulDsvWriter::OnIntegerScalar(i64 value)
 {
-    if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Integer values are not supported by schemed DSV");
+    if (State_ == EState::None) {
+        return;         
     }
+
+    if (State_ == EState::ExpectValue) {
+        ValueHolder_.push_back(::ToString(value));
+        Values_[CurrentKey_] = ValueHolder_.back();
+        State_ = EState::None;
+        ValueCount_ += 1;
+        return;
+    }
+
     YASSERT(State_ == EState::ExpectAttributeValue);
 
     switch (ControlAttribute_) {
@@ -162,8 +182,9 @@ void TSchemafulDsvWriter::WriteRow()
         }
     }
 
-	// Clear row
+    // Clear row
     ValueCount_ = 0;
+    ValueHolder_.clear();
     if (Config_->MissingValueMode == EMissingValueMode::PrintSentinel) {
         for (const auto& key: Keys_) {
             Values_[key] = TStringBuf();

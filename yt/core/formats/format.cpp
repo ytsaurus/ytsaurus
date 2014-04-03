@@ -13,8 +13,8 @@
 #include "yamred_dsv_parser.h"
 #include "yamred_dsv_writer.h"
 
-#include "schemed_dsv_parser.h"
-#include "schemed_dsv_writer.h"
+#include "schemaful_dsv_parser.h"
+#include "schemaful_dsv_writer.h"
 
 #include "yson_parser.h"
 
@@ -72,7 +72,7 @@ void Serialize(const TFormat& value, IYsonConsumer* consumer)
 void Deserialize(TFormat& value, INodePtr node)
 {
     if (node->GetType() != ENodeType::String) {
-        THROW_ERROR_EXCEPTION("Format can only be parsed from String");
+        THROW_ERROR_EXCEPTION("Format can only be parsed from string");
     }
 
     auto typeStr = node->GetValue<Stroka>();
@@ -80,8 +80,8 @@ void Deserialize(TFormat& value, INodePtr node)
     try {
         type = ParseEnum<EFormatType>(typeStr);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Invalid format type: %s",
-            ~typeStr);
+        THROW_ERROR_EXCEPTION("Invalid format type %s",
+            ~typeStr.Quote());
     }
 
     value = TFormat(type, &node->Attributes());
@@ -97,8 +97,8 @@ EYsonType DataTypeToYsonType(EDataType dataType)
         case EDataType::Tabular:
             return EYsonType::ListFragment;
         default:
-            THROW_ERROR_EXCEPTION("Data type is not supported by YSON: %s",
-                ~FormatEnum(dataType));
+            THROW_ERROR_EXCEPTION("Data type %s is not supported by YSON",
+                ~FormatEnum(dataType).Quote());
     }
 }
 
@@ -142,7 +142,8 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
 
         case EDataType::Binary:
         case EDataType::Null:
-            THROW_ERROR_EXCEPTION("DSV is not supported only for data type %s", ~FormatEnum(dataType).Quote());
+            THROW_ERROR_EXCEPTION("DSV is not supported only for data type %s",
+                ~FormatEnum(dataType).Quote());
 
         default:
             YUNREACHABLE();
@@ -182,7 +183,7 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForSchemafulDsv(
     TOutputStream* output)
 {
     if (dataType != EDataType::Tabular) {
-        THROW_ERROR_EXCEPTION("Schemed DSV is supported only for tabular data");
+        THROW_ERROR_EXCEPTION("Schemaful DSV only is only supported for tabular data");
     }
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
@@ -205,11 +206,13 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
             return CreateConsumerForYamr(dataType, format.Attributes(), output);
         case EFormatType::YamredDsv:
             return CreateConsumerForYamredDsv(dataType, format.Attributes(), output);
+        // COMPAT(babenko): schemed -> schemaful
+        case EFormatType::SchemedDsv:
         case EFormatType::SchemafulDsv:
             return CreateConsumerForSchemafulDsv(dataType, format.Attributes(), output);
         default:
-            THROW_ERROR_EXCEPTION("Unsupported output format: %s",
-                ~FormatEnum(format.GetType()));
+            THROW_ERROR_EXCEPTION("Unsupported output format %s",
+                ~FormatEnum(format.GetType()).Quote());
     }
 }
 
@@ -310,8 +313,8 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
         case EFormatType::SchemafulDsv:
             return CreateProducerForSchemafulDsv(dataType, format.Attributes(), input);
         default:
-            THROW_ERROR_EXCEPTION("Unsupported input format: %s",
-                ~FormatEnum(format.GetType()));
+            THROW_ERROR_EXCEPTION("Unsupported input format %s",
+                ~FormatEnum(format.GetType()).Quote());
     }
 }
 
@@ -343,6 +346,7 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             config->Load(ConvertToNode(&format.Attributes())->AsMap());
             return CreateParserForYamredDsv(consumer, config);
         }
+        // COMPAT(babenko): schemed -> schemaful
         case EFormatType::SchemedDsv:
         case EFormatType::SchemafulDsv: {
             auto config = New<TSchemafulDsvFormatConfig>();
@@ -350,8 +354,8 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             return CreateParserForSchemafulDsv(consumer, config);
         }
         default:
-            THROW_ERROR_EXCEPTION("Unsupported input format: %s",
-                ~FormatEnum(format.GetType()));
+            THROW_ERROR_EXCEPTION("Unsupported input format %s",
+                ~FormatEnum(format.GetType()).Quote());
     }
 }
 

@@ -365,7 +365,7 @@ TEST(TJsonWriterTest, SpecialKeys)
         writer->OnIntegerScalar(42);
     writer->OnEndMap();
 
-    Stroka output = "{\"$$value\":\"foo\",\"$$$attributes\":\"bar\",\"$other\":42}";
+    Stroka output = "{\"$$value\":\"foo\",\"$$$attributes\":\"bar\",\"$$other\":42}";
     EXPECT_EQ(output, outputStream.Str());
 }
 

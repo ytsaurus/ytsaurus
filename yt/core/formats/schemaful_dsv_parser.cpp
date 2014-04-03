@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "schemed_dsv_parser.h"
-#include "schemed_dsv_table.h"
+#include "schemaful_dsv_parser.h"
+#include "schemaful_dsv_table.h"
 #include "parser.h"
 
 #include <ytlib/table_client/public.h>

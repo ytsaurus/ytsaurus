@@ -73,11 +73,7 @@ Stroka Utf8ToByteString(const TStringBuf& str)
 
 bool IsSpecialJsonKey(const TStringBuf& key)
 {
-    int pos = 0;
-    while (pos < key.size() && key[pos] == '$') {
-        pos += 1;
-    }
-    return pos > 0 && (key.substr(pos) == "value" || key.substr(pos) == "attributes");
+    return key.size() > 0 && key[0] == '$';
 }
 
 

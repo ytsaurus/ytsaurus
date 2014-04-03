@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/schemed_dsv_writer.h>
+#include <core/formats/schemaful_dsv_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -61,7 +61,7 @@ TEST(TSchemafulDsvWriterTest, TableIndex)
     writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("a");
-        writer.OnStringScalar("1");
+        writer.OnIntegerScalar(1);
     writer.OnEndMap();
 
     writer.OnListItem();
