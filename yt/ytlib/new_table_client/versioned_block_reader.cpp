@@ -1,4 +1,5 @@
 #include "stdafx.h"
+
 #include "versioned_block_reader.h"
 #include "versioned_block_writer.h"
 

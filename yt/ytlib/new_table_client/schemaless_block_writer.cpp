@@ -60,9 +60,14 @@ TBlock THorizontalSchemalessBlockWriter::FlushBlock()
     return block;
 }
 
-int THorizontalSchemalessBlockWriter::GetBlockSize() const
+i64 THorizontalSchemalessBlockWriter::GetBlockSize() const
 {
     return Offsets_.GetSize() + Data_.GetSize();
+}
+
+i64 THorizontalSchemalessBlockWriter::GetRowCount() const
+{
+    return RowCount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

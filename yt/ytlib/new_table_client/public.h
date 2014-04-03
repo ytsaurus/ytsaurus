@@ -109,13 +109,12 @@ DECLARE_REFCOUNTED_CLASS(TNameTable)
 
 class TRowBuffer;
 
+struct  IBlockWriter;
+
 class TBlockWriter;
 
-class TSamplesFetcher;
-typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
-
-class TChunkSplitsFetcher;
-typedef TIntrusivePtr<TChunkSplitsFetcher> TChunkSplitsFetcherPtr;
+DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
+DECLARE_REFCOUNTED_CLASS(TChunkSplitsFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemafulWriter)

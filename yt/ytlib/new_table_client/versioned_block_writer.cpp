@@ -28,13 +28,13 @@ const int TSimpleVersionedBlockWriter::TimestampSize = 8;
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
-    : RowCount_(0)
-    , MinTimestamp_(MaxTimestamp)
+    : MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
     , SchemaColumnCount_(schema.Columns().size())
     , KeyColumnCount_(keyColumns.size())
     , TimestampCount_(0)
     , ValueCount_(0)
+    , RowCount_(0)
 { }
 
 void TSimpleVersionedBlockWriter::WriteRow(
@@ -161,7 +161,7 @@ void TSimpleVersionedBlockWriter::WriteValue(
     }
 }
 
-int TSimpleVersionedBlockWriter::GetBlockSize() const
+i64 TSimpleVersionedBlockWriter::GetBlockSize() const
 {
     return
         KeyStream_.GetSize() +
@@ -169,6 +169,11 @@ int TSimpleVersionedBlockWriter::GetBlockSize() const
         TimestampsStream_.GetSize() +
         KeyNullFlags_.Size() +
         ValueNullFlags_.Size();
+}
+
+i64 TSimpleVersionedBlockWriter::GetRowCount() const
+{
+    return RowCount_;
 }
 
 int TSimpleVersionedBlockWriter::GetKeySize(int keyColumnCount, int schemaColumnCount)

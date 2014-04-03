@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client )
 set( SRCS
   ${BASE}/cached_versioned_chunk_meta.cpp
   ${BASE}/chunk_splits_fetcher.cpp
+  ${BASE}/chunk_writer_base_detail.cpp
   ${BASE}/name_table.cpp
   ${BASE}/pipe.cpp
   ${BASE}/private.cpp
@@ -24,9 +25,12 @@ set( SRCS
 )
 
 set( HDRS
+  ${BASE}/block_writer.h
   ${BASE}/cached_versioned_chunk_meta.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_splits_fetcher.h
+  ${BASE}/chunk_writer_base.h
+  ${BASE}/chunk_writer_base_detail.h
   ${BASE}/config.h
   ${BASE}/name_table.h
   ${BASE}/pipe.h

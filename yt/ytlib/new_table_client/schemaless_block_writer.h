@@ -2,11 +2,11 @@
 
 #include "public.h"
 
+#include "block_writer.h"
 #include "private.h"
 #include "unversioned_row.h"
 
 #include <core/misc/chunked_output_stream.h>
-#include <core/misc/property.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -14,22 +14,24 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THorizontalSchemalessBlockWriter
+    : public IBlockWriter
 {
-    DEFINE_BYVAL_RO_PROPERTY(int, RowCount);
-
 public:
     THorizontalSchemalessBlockWriter();
     THorizontalSchemalessBlockWriter(int keyColumnCount);
 
     void WriteRow(TUnversionedRow row);
 
-    TBlock FlushBlock();
+    virtual TBlock FlushBlock() override;
 
-    int GetBlockSize() const;
+    virtual i64 GetBlockSize() const override;
+    virtual i64 GetRowCount() const override;
 
     static int FormatVersion;
 
 private:
+    i64 RowCount_;
+
     TChunkedOutputStream Offsets_;
     TChunkedOutputStream Data_;
 

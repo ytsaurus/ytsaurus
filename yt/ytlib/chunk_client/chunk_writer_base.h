@@ -4,6 +4,7 @@
 
 #include "chunk_meta_extensions.h"
 #include "data_statistics.h"
+#include "writer_base.h"
 
 namespace NYT {
 namespace NChunkClient {

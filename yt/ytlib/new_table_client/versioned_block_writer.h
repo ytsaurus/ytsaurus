@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "block_writer.h"
 #include "chunk_meta_extensions.h"
 #include "private.h"
 #include "schema.h"
@@ -16,9 +17,8 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleVersionedBlockWriter
+    : public IBlockWriter
 {
-    DEFINE_BYVAL_RO_PROPERTY(int, RowCount);
-
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MinTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp);
 
@@ -30,9 +30,10 @@ public:
         const TUnversionedValue* beginPrevKey,
         const TUnversionedValue* endPrevKey);
 
-    TBlock FlushBlock();
+    virtual TBlock FlushBlock() override;
 
-    int GetBlockSize() const;
+    virtual i64 GetBlockSize() const override;
+    virtual i64 GetRowCount() const override;
 
     static int GetKeySize(int keyColumnCount, int schemaColumnCount);
     static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);
@@ -59,6 +60,7 @@ private:
 
     i64 TimestampCount_;
     i64 ValueCount_;
+    i64 RowCount_;
 
     void WriteValue(
         TChunkedOutputStream& stream,
