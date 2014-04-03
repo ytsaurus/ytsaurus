@@ -70,7 +70,7 @@
 #include <server/exec_agent/scheduler_connector.h>
 #include <server/exec_agent/job.h>
 
-#include <server/tablet_node/tablet_cell_controller.h>
+#include <server/tablet_node/tablet_slot_manager.h>
 #include <server/tablet_node/store_flusher.h>
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
@@ -277,7 +277,7 @@ void TBootstrap::Run()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
-    TabletCellController = New<TTabletCellController>(Config, this);
+    TabletSlotManager = New<TTabletSlotManager>(Config, this);
 
     auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
 
@@ -309,7 +309,8 @@ void TBootstrap::Run()
     SetNodeByYPath(
         OrchidRoot,
         "/tablet_slots",
-        CreateVirtualNode(TabletCellController->GetOrchidService()
+        CreateVirtualNode(
+            TabletSlotManager->GetOrchidService()
             ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
@@ -328,7 +329,7 @@ void TBootstrap::Run()
     RpcServer->Configure(Config->RpcServer);
 
     // Do not start subsystems until everything is initialized.
-    TabletCellController->Initialize();
+    TabletSlotManager->Initialize();
     BlockStore->Initialize();
     ChunkStore->Initialize();
     ChunkCache->Initialize();
@@ -387,9 +388,9 @@ TJobTrackerPtr TBootstrap::GetJobController() const
     return JobController;
 }
 
-TTabletCellControllerPtr TBootstrap::GetTabletCellController() const
+TTabletSlotManagerPtr TBootstrap::GetTabletSlotManager() const
 {
-    return TabletCellController;
+    return TabletSlotManager;
 }
 
 TSlotManagerPtr TBootstrap::GetSlotManager() const

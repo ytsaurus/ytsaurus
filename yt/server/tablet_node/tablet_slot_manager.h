@@ -33,14 +33,14 @@ DEFINE_REFCOUNTED_TYPE(TTabletDescriptor)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Controls all tablet slots running at this node.
-class TTabletCellController
+class TTabletSlotManager
     : public TRefCounted
 {
 public:
-    TTabletCellController(
+    TTabletSlotManager(
         NCellNode::TCellNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
-    ~TTabletCellController();
+    ~TTabletSlotManager();
 
     void Initialize();
 
@@ -91,7 +91,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletCellController)
+DEFINE_REFCOUNTED_TYPE(TTabletSlotManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

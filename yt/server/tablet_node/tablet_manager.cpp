@@ -8,7 +8,7 @@
 #include "transaction_manager.h"
 #include "config.h"
 #include "store_manager.h"
-#include "tablet_cell_controller.h"
+#include "tablet_slot_manager.h"
 #include "dynamic_memory_store.h"
 #include "chunk_store.h"
 #include "store_flusher.h"
@@ -741,8 +741,8 @@ private:
         tablet->SplitPartition(partitionIndex, pivotKeys);
 
         if (!IsRecovery()) {
-            auto tabletCellController = Bootstrap_->GetTabletCellController();
-            tabletCellController->UpdateTablet(tablet);
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            tabletSlotManager->UpdateTablet(tablet);
         }
     }
 
@@ -768,8 +768,8 @@ private:
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
 
         if (!IsRecovery()) {
-            auto tabletCellController = Bootstrap_->GetTabletCellController();
-            tabletCellController->UpdateTablet(tablet);
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            tabletSlotManager->UpdateTablet(tablet);
         }
     }
 
@@ -1023,8 +1023,8 @@ private:
     {
         tablet->StartEpoch(Slot_);
 
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        tabletCellController->RegisterTablet(tablet);
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        tabletSlotManager->RegisterTablet(tablet);
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -1042,8 +1042,8 @@ private:
         
         tablet->GetStoreManager()->ResetRotationScheduled();
 
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        tabletCellController->UnregisterTablet(tablet);
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        tabletSlotManager->UnregisterTablet(tablet);
     }
 
 

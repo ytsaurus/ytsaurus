@@ -7,7 +7,7 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
-#include "tablet_cell_controller.h"
+#include "tablet_slot_manager.h"
 
 #include <core/misc/address.h>
 
@@ -92,8 +92,8 @@ public:
 
     void Start()
     {
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        tabletCellController->SubscribeSlotScan(BIND(&TStoreFlusher::ScanSlot, MakeStrong(this)));
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        tabletSlotManager->SubscribeSlotScan(BIND(&TStoreFlusher::ScanSlot, MakeStrong(this)));
     }
 
 private:

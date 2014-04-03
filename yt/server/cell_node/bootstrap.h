@@ -50,7 +50,7 @@ public:
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
-    NTabletNode::TTabletCellControllerPtr GetTabletCellController() const;
+    NTabletNode::TTabletSlotManagerPtr GetTabletSlotManager() const;
     NExecAgent::TSlotManagerPtr GetSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
@@ -114,7 +114,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
-    NTabletNode::TTabletCellControllerPtr TabletCellController;
+    NTabletNode::TTabletSlotManagerPtr TabletSlotManager;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
     TGuid CellGuid;

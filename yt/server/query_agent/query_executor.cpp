@@ -32,7 +32,7 @@
 
 #include <server/data_node/block_store.h>
 
-#include <server/tablet_node/tablet_cell_controller.h>
+#include <server/tablet_node/tablet_slot_manager.h>
 #include <server/tablet_node/tablet_manager.h>
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
@@ -158,8 +158,8 @@ public:
             auto tabletId = GetObjectIdFromDataSplit(split);
             YCHECK(TypeFromId(tabletId) == EObjectType::Tablet);
 
-            auto tabletCellController = Bootstrap_->GetTabletCellController();
-            auto tabletDescriptor = tabletCellController->FindTabletDescriptor(tabletId);
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletDescriptor = tabletSlotManager->FindTabletDescriptor(tabletId);
             if (!tabletDescriptor) {
                 ThrowNoSuchTablet(tabletId);
             }
@@ -322,8 +322,8 @@ private:
         try {
             auto tabletId = FromProto<TTabletId>(split.chunk_id());
 
-            auto tabletCellController = Bootstrap_->GetTabletCellController();
-            auto tabletDescriptor = tabletCellController->FindTabletDescriptor(tabletId);
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletDescriptor = tabletSlotManager->FindTabletDescriptor(tabletId);
             if (!tabletDescriptor) {
                 ThrowNoSuchTablet(tabletId);
             }

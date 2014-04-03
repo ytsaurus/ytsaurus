@@ -1,4 +1,4 @@
-#include "tablet_cell_controller.h"
+#include "tablet_slot_manager.h"
 #include "config.h"
 #include "tablet.h"
 #include "tablet_slot.h"
@@ -45,7 +45,7 @@ static auto SlotScanPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellController::TImpl
+class TTabletSlotManager::TImpl
     : public TRefCounted
 {
 public:
@@ -390,7 +390,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellController::TTabletCellController(
+TTabletSlotManager::TTabletSlotManager(
     NCellNode::TCellNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
@@ -398,90 +398,90 @@ TTabletCellController::TTabletCellController(
         bootstrap))
 { }
 
-TTabletCellController::~TTabletCellController()
+TTabletSlotManager::~TTabletSlotManager()
 { }
 
-void TTabletCellController::Initialize()
+void TTabletSlotManager::Initialize()
 {
     Impl_->Initialize();
 }
 
-int TTabletCellController::GetAvailableTabletSlotCount() const
+int TTabletSlotManager::GetAvailableTabletSlotCount() const
 {
     return Impl_->GetAvailableTabletSlotCount();
 }
 
-int TTabletCellController::GetUsedTableSlotCount() const
+int TTabletSlotManager::GetUsedTableSlotCount() const
 {
     return Impl_->GetUsedTabletSlotCount();
 }
 
-const std::vector<TTabletSlotPtr>& TTabletCellController::Slots() const
+const std::vector<TTabletSlotPtr>& TTabletSlotManager::Slots() const
 {
     return Impl_->Slots();
 }
 
-TTabletSlotPtr TTabletCellController::FindSlot(const TCellGuid& id)
+TTabletSlotPtr TTabletSlotManager::FindSlot(const TCellGuid& id)
 {
     return Impl_->FindSlot(id);
 }
 
-void TTabletCellController::CreateSlot(const TCreateTabletSlotInfo& createInfo)
+void TTabletSlotManager::CreateSlot(const TCreateTabletSlotInfo& createInfo)
 {
     Impl_->CreateSlot(createInfo);
 }
 
-void TTabletCellController::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
+void TTabletSlotManager::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
 {
     Impl_->ConfigureSlot(slot, configureInfo);
 }
 
-void TTabletCellController::RemoveSlot(TTabletSlotPtr slot)
+void TTabletSlotManager::RemoveSlot(TTabletSlotPtr slot)
 {
     Impl_->RemoveSlot(slot);
 }
 
-TTabletDescriptorPtr TTabletCellController::FindTabletDescriptor(const TTabletId& tabletId)
+TTabletDescriptorPtr TTabletSlotManager::FindTabletDescriptor(const TTabletId& tabletId)
 {
     return Impl_->FindTabletDescriptor(tabletId);
 }
 
-void TTabletCellController::RegisterTablet(TTablet* tablet)
+void TTabletSlotManager::RegisterTablet(TTablet* tablet)
 {
     Impl_->RegisterTablet(tablet);
 }
 
-void TTabletCellController::UnregisterTablet(TTablet* tablet)
+void TTabletSlotManager::UnregisterTablet(TTablet* tablet)
 {
     Impl_->UnregisterTablet(tablet);
 }
 
-void TTabletCellController::UpdateTablet(TTablet* tablet)
+void TTabletSlotManager::UpdateTablet(TTablet* tablet)
 {
     Impl_->UpdateTablet(tablet);
 }
 
-void TTabletCellController::UnregisterTablets(TTabletSlotPtr slot)
+void TTabletSlotManager::UnregisterTablets(TTabletSlotPtr slot)
 {
     Impl_->UnregisterTablets(std::move(slot));
 }
 
-IChangelogCatalogPtr TTabletCellController::GetChangelogCatalog()
+IChangelogCatalogPtr TTabletSlotManager::GetChangelogCatalog()
 {
     return Impl_->GetChangelogCatalog();
 }
 
-ISnapshotStorePtr TTabletCellController::GetSnapshotStore(const TCellGuid& cellGuid)
+ISnapshotStorePtr TTabletSlotManager::GetSnapshotStore(const TCellGuid& cellGuid)
 {
     return Impl_->GetSnapshotStore(cellGuid);
 }
 
-IYPathServicePtr TTabletCellController::GetOrchidService()
+IYPathServicePtr TTabletSlotManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
 }
 
-DELEGATE_SIGNAL(TTabletCellController, void(TTabletSlotPtr), SlotScan, *Impl_);
+DELEGATE_SIGNAL(TTabletSlotManager, void(TTabletSlotPtr), SlotScan, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

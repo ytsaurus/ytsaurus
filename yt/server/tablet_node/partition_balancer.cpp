@@ -2,7 +2,7 @@
 #include "partition_balancer.h"
 #include "config.h"
 #include "tablet_slot.h"
-#include "tablet_cell_controller.h"
+#include "tablet_slot_manager.h"
 #include "tablet_manager.h"
 #include "tablet.h"
 #include "partition.h"
@@ -62,8 +62,8 @@ public:
 
     void Start()
     {
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        tabletCellController->SubscribeSlotScan(BIND(&TPartitionBalancer::ScanSlot, MakeStrong(this)));
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        tabletSlotManager->SubscribeSlotScan(BIND(&TPartitionBalancer::ScanSlot, MakeStrong(this)));
     }
 
 private:

@@ -30,7 +30,7 @@
 
 #include <server/job_agent/job_controller.h>
 
-#include <server/tablet_node/tablet_cell_controller.h>
+#include <server/tablet_node/tablet_slot_manager.h>
 #include <server/tablet_node/tablet_slot.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -241,9 +241,9 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_max_replication_session_count(Config->MaxReplicationSessions);
     result.set_max_repair_session_count(Config->MaxRepairSessions);
 
-    auto tabletCellController = Bootstrap->GetTabletCellController();
-    result.set_available_tablet_slots(tabletCellController->GetAvailableTabletSlotCount());
-    result.set_used_tablet_slots(tabletCellController->GetUsedTableSlotCount());
+    auto tabletSlotManager = Bootstrap->GetTabletSlotManager();
+    result.set_available_tablet_slots(tabletSlotManager->GetAvailableTabletSlotCount());
+    result.set_used_tablet_slots(tabletSlotManager->GetUsedTableSlotCount());
 
     return result;
 }
@@ -328,8 +328,8 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
-    auto tabletCellController = Bootstrap->GetTabletCellController();
-    for (auto slot : tabletCellController->Slots()) {
+    auto tabletSlotManager = Bootstrap->GetTabletSlotManager();
+    for (auto slot : tabletSlotManager->Slots()) {
         auto* info = request->add_tablet_slots();
         ToProto(info->mutable_cell_guid(), slot->GetCellGuid());
         info->set_peer_state(slot->GetControlState());
@@ -436,40 +436,40 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
     }
     RemovedSinceLastSuccess.swap(newRemovedSinceLastSuccess);
 
-    auto tabletCellController = Bootstrap->GetTabletCellController();
+    auto tabletSlotManager = Bootstrap->GetTabletSlotManager();
     
     for (const auto& info : rsp->tablet_slots_to_remove()) {
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
         YCHECK(cellGuid != NullCellGuid);
-        auto slot = tabletCellController->FindSlot(cellGuid);
+        auto slot = tabletSlotManager->FindSlot(cellGuid);
         if (!slot) {
             LOG_WARNING("Requested to remove a non-existing slot %s, ignored",
                 ~ToString(cellGuid));
             continue;
         }
-        tabletCellController->RemoveSlot(slot);
+        tabletSlotManager->RemoveSlot(slot);
     }
 
     for (const auto& info : rsp->tablet_slots_to_create()) {
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
         YCHECK(cellGuid != NullCellGuid);
-        if (tabletCellController->GetAvailableTabletSlotCount() == 0) {
+        if (tabletSlotManager->GetAvailableTabletSlotCount() == 0) {
             LOG_WARNING("Requested to start cell %s when all slots are used, ignored",
                 ~ToString(cellGuid));
             continue;
         }
-        if (tabletCellController->FindSlot(cellGuid)) {
+        if (tabletSlotManager->FindSlot(cellGuid)) {
             LOG_WARNING("Requested to start cell %s when this cell is already being served by the node, ignored",
                 ~ToString(cellGuid));
             continue;
         }
-        tabletCellController->CreateSlot(info);
+        tabletSlotManager->CreateSlot(info);
     }
 
     for (const auto& info : rsp->tablet_slots_configure()) {
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
         YCHECK(cellGuid != NullCellGuid);
-        auto slot = tabletCellController->FindSlot(cellGuid);
+        auto slot = tabletSlotManager->FindSlot(cellGuid);
         if (!slot) {
             LOG_WARNING("Requested to configure a non-existing slot %s, ignored",
                 ~ToString(cellGuid));
@@ -481,7 +481,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
                 ~FormatEnum(slot->GetControlState()));
             continue;
         }
-        tabletCellController->ConfigureSlot(slot, info);
+        tabletSlotManager->ConfigureSlot(slot, info);
     }
 
     auto cellDirectory = Bootstrap->GetMasterClient()->GetConnection()->GetCellDirectory();

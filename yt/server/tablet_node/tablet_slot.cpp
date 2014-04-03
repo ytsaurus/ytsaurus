@@ -1,6 +1,6 @@
 #include "tablet_slot.h"
 #include "config.h"
-#include "tablet_cell_controller.h"
+#include "tablet_slot_manager.h"
 #include "serialize.h"
 #include "automaton.h"
 #include "tablet_manager.h"
@@ -225,9 +225,9 @@ public:
 
         State_ = EPeerState::Initializing;
 
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        ChangelogStore_ = tabletCellController->GetChangelogCatalog()->GetStore(CellGuid_);
-        SnapshotStore_ = tabletCellController->GetSnapshotStore(CellGuid_);
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        ChangelogStore_ = tabletSlotManager->GetChangelogCatalog()->GetStore(CellGuid_);
+        SnapshotStore_ = tabletSlotManager->GetSnapshotStore(CellGuid_);
 
         State_ = EPeerState::Stopped;
 
@@ -246,15 +246,15 @@ public:
 
         State_ = EPeerState::Initializing;
 
-        auto tabletCellController = Bootstrap_->GetTabletCellController();
-        SnapshotStore_ = tabletCellController->GetSnapshotStore(CellGuid_);
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        SnapshotStore_ = tabletSlotManager->GetSnapshotStore(CellGuid_);
 
         auto this_ = MakeStrong(this);
         BIND([this, this_] () {
             SwitchToIOThread();
 
-            auto tabletCellController = Bootstrap_->GetTabletCellController();
-            ChangelogStore_ = tabletCellController->GetChangelogCatalog()->CreateStore(CellGuid_);
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            ChangelogStore_ = tabletSlotManager->GetChangelogCatalog()->CreateStore(CellGuid_);
 
             SwitchToControlThread();
 
@@ -381,12 +381,12 @@ public:
         BIND([this, this_, owner] () {
             SwitchToIOThread();
 
-            auto tabletCellController = Bootstrap_->GetTabletCellController();
-            tabletCellController->GetChangelogCatalog()->RemoveStore(CellGuid_);
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            tabletSlotManager->GetChangelogCatalog()->RemoveStore(CellGuid_);
 
             SwitchToControlThread();
 
-            tabletCellController->UnregisterTablets(owner);
+            tabletSlotManager->UnregisterTablets(owner);
 
             State_ = EPeerState::None;
 

@@ -3,7 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/tablet_node )
 set( SRCS
   ${BASE}/private.cpp
   ${BASE}/tablet_slot.cpp
-  ${BASE}/tablet_cell_controller.cpp
+  ${BASE}/tablet_slot_manager.cpp
   ${BASE}/automaton.cpp
   ${BASE}/tablet_manager.cpp
   ${BASE}/tablet.cpp
@@ -29,7 +29,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/config.h
   ${BASE}/tablet_slot.h
-  ${BASE}/tablet_cell_controller.h
+  ${BASE}/tablet_slot_manager.h
   ${BASE}/automaton.h
   ${BASE}/tablet_manager.h
   ${BASE}/tablet.h
