@@ -84,7 +84,7 @@ public:
                     TCellGuid cellGuid;
                     auto cellGuidStr = GetFileNameWithoutExtension(entry);
                     if (!TCellGuid::FromString(cellGuidStr, &cellGuid)) {
-                        LOG_FATAL("Error parsing cell GUID %s", ~cellGuidStr.Quote());
+                        THROW_ERROR_EXCEPTION("Error parsing cell GUID %s", ~cellGuidStr.Quote());
                     }
 
                     LOG_INFO("Found changelog store %s", ~ToString(cellGuid));
@@ -113,7 +113,7 @@ public:
                     Config->Multiplexed);
             }
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error starting changelog catalog");
+            THROW_ERROR_EXCEPTION(ex, "Error starting changelog catalog");
         }
 
         LOG_INFO("Changelog catalog started");
@@ -468,7 +468,7 @@ private:
                 try {
                     id = FromString<int>(GetFileNameWithoutExtension(entry));
                 } catch (const std::exception) {
-                    LOG_FATAL("Error parsing multiplexed changelog id %s", ~entry.Quote());
+                    THROW_ERROR_EXCEPTION("Error parsing multiplexed changelog id %s", ~entry.Quote());
                 }
 
                 LOG_INFO("Found dirty multiplexed changelog %d", id);
@@ -521,7 +521,9 @@ private:
                 multiplexedChangelogPath,
                 changelogId,
                 Catalog->Config->Multiplexed);
-            LOG_FATAL_IF(!multiplexedChangelog, "Missing multiplexed changelog %d", changelogId);
+            if (!multiplexedChangelog) {
+                THROW_ERROR_EXCEPTION("Missing multiplexed changelog %d", changelogId);
+            }
 
             int startRecordId = 0;
             int recordCount = multiplexedChangelog->GetRecordCount();
@@ -761,7 +763,7 @@ private:
         if (!Rename(path, path + CleanSuffix) ||
             !Rename(path + IndexSuffix, path + IndexSuffix + CleanSuffix))
         {
-            LOG_FATAL("Error marking multiplexed changelog %s as clean",
+            THROW_ERROR_EXCEPTION("Error marking multiplexed changelog %s as clean",
                 ~path.Quote());
         }
 
