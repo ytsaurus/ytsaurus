@@ -459,6 +459,36 @@ public:
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~ToString(id));
     }
 
+
+    void UnstageChunk(TChunk* chunk)
+    {
+        if (chunk->IsStaged() && chunk->IsConfirmed()) {
+            auto* stagingTransaction = chunk->GetStagingTransaction();
+            auto* stagingAccount = chunk->GetStagingAccount();
+            auto securityManager = Bootstrap->GetSecurityManager();
+            auto delta = -chunk->GetResourceUsage();
+            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
+        }
+
+        chunk->SetStagingTransaction(nullptr);
+        chunk->SetStagingAccount(nullptr);
+    }
+
+    void UnstageChunkList(
+        TChunkList* chunkList,
+        TTransaction* transaction,
+        bool recursive)
+    {
+        if (!recursive)
+            return;
+
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        for (auto* child : chunkList->Children()) {
+            transactionManager->UnstageObject(transaction, child, true);
+        }
+    }
+
+
     TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex)
     {
         auto* chunk = chunkWithIndex.GetPtr();
@@ -672,35 +702,6 @@ private:
         for (auto* child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
             objectManager->UnrefObject(child);
-        }
-    }
-
-
-    void UnstageChunk(TChunk* chunk)
-    {
-        if (chunk->IsStaged() && chunk->IsConfirmed()) {
-            auto* stagingTransaction = chunk->GetStagingTransaction();
-            auto* stagingAccount = chunk->GetStagingAccount();
-            auto securityManager = Bootstrap->GetSecurityManager();
-            auto delta = -chunk->GetResourceUsage();
-            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
-        }
-
-        chunk->SetStagingTransaction(nullptr);
-        chunk->SetStagingAccount(nullptr);
-    }
-
-    void UnstageChunkList(
-        TChunkList* chunkList,
-        TTransaction* transaction,
-        bool recursive)
-    {
-        if (!recursive)
-            return;
-
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        for (auto* child : chunkList->Children()) {
-            transactionManager->UnstageObject(transaction, child, true);
         }
     }
 
@@ -1469,6 +1470,11 @@ void TChunkManager::ConfirmChunk(
         replicas,
         chunkInfo,
         chunkMeta);
+}
+
+void TChunkManager::UnstageChunk(TChunk* chunk)
+{
+    Impl->UnstageChunk(chunk);
 }
 
 TNodePtrWithIndexList TChunkManager::LocateChunk(TChunkPtrWithIndex chunkWithIndex)

@@ -84,6 +84,8 @@ public:
         const std::vector<NChunkClient::TChunkReplica>& replicas,
         NChunkClient::NProto::TChunkInfo* chunkInfo,
         NChunkClient::NProto::TChunkMeta* chunkMeta);
+    
+    void UnstageChunk(TChunk* chunk);
 
     TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex);
 

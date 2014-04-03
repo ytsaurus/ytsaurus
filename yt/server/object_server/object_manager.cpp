@@ -925,7 +925,7 @@ TObjectBase* TObjectManager::CreateObject(
         }
     }
 
-    if (transaction && options->SupportsStaging) {
+    if (transaction && options->StagingSupported) {
         auto transactionManager = Bootstrap->GetTransactionManager();
         transactionManager->StageObject(transaction, object);
     }

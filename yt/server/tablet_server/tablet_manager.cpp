@@ -1108,6 +1108,7 @@ private:
         }
 
         auto* cell = tablet->GetCell();
+        auto* table = tablet->GetTable();
 
         TRspUpdateTabletStores response;
         response.mutable_tablet_id()->MergeFrom(request.tablet_id());
@@ -1116,6 +1117,7 @@ private:
 
         try {
             auto chunkManager = Bootstrap->GetChunkManager();
+            auto securityManager = Bootstrap->GetSecurityManager();
 
             // Collect all changes first.
             std::vector<TChunkTree*> chunksToAttach;
@@ -1144,9 +1146,12 @@ private:
             chunkManager->AttachToChunkList(chunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
 
-            // Update resource usage.
-            auto securityManager = Bootstrap->
-            securityManager->UpdateAccountNodeUsage(originatingNode);
+            // Unstage just attached chunks.
+            // Update table resource usage.
+            for (auto* chunk : chunksToAttach) {
+                chunkManager->UnstageChunk(chunk->AsChunk());
+            }
+            securityManager->UpdateAccountNodeUsage(table);
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s])",
                 ~ToString(tabletId),
