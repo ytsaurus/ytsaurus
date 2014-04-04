@@ -938,7 +938,7 @@ TOperationControllerBase::TOperationControllerBase(
 void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    
+
     LOG_INFO("Initializing operation (Title: %s)",
         Spec->Title ? ~(*Spec->Title) : "<Null>");
 
@@ -986,18 +986,18 @@ void TOperationControllerBase::Initialize()
             OutputTables.size());
     }
 
-    Essentiate();
+    DoEssentiate();
 
     DoInitialize();
-    
-    InputChunkScratcher = New<TInputChunkScratcher>(this, AuthenticatedInputMasterChannel);
 
     LOG_INFO("Operation initialized");
 }
 
-void TOperationControllerBase::Essentiate()
+void TOperationControllerBase::DoEssentiate()
 {
     Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+
+    InputChunkScratcher = New<TInputChunkScratcher>(this, AuthenticatedInputMasterChannel);
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1087,7 +1087,7 @@ TFuture<TError> TOperationControllerBase::Revive()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (Operation->Snapshot()) {
-        Essentiate();
+        DoEssentiate();
 
         auto this_ = MakeStrong(this);
         return
