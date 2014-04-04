@@ -414,6 +414,7 @@ int TDynamicMemoryStore::Lock()
 
 int TDynamicMemoryStore::Unlock()
 {
+    YASSERT(LockCount_ > 0);
     return --LockCount_;
 }
 
