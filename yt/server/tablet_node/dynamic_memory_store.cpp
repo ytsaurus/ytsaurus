@@ -384,7 +384,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(
         RowBuffer_.GetAlignedPool(),
         TKeyComparer(KeyColumnCount_)))
-    , LastReportedMemoryUsage_(0)
+    , MemoryUsage_(0)
 {
     State_ = EStoreState::ActiveDynamic;
 
@@ -398,8 +398,8 @@ TDynamicMemoryStore::~TDynamicMemoryStore()
     LOG_DEBUG("Dynamic memory store destroyed (StoreId: %s)",
         ~ToString(Id_));
 
-    MemoryUsageUpdated_.Fire(-LastReportedMemoryUsage_);
-    LastReportedMemoryUsage_ = 0;
+    MemoryUsageUpdated_.Fire(-MemoryUsage_);
+    MemoryUsage_ = 0;
 }
 
 int TDynamicMemoryStore::GetLockCount() const
@@ -1076,16 +1076,17 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 
 i64 TDynamicMemoryStore::GetMemoryUsage() const
 {
-    return GetAlignedPoolCapacity() + GetUnalignedPoolCapacity();
+    return MemoryUsage_;
 }
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
 {
-    i64 memoryUsage = GetMemoryUsage();
-    YASSERT(memoryUsage >= LastReportedMemoryUsage_);
-    if (memoryUsage > LastReportedMemoryUsage_ + MemoryUsageGranularity) {
-        MemoryUsageUpdated_.Fire(memoryUsage - LastReportedMemoryUsage_);
-        LastReportedMemoryUsage_ = memoryUsage;
+    i64 memoryUsage = GetAlignedPoolCapacity() + GetUnalignedPoolCapacity();
+    YASSERT(memoryUsage >= MemoryUsage_);
+    if (memoryUsage > MemoryUsage_ + MemoryUsageGranularity) {
+        i64 delta = memoryUsage - MemoryUsage_;
+        MemoryUsage_ = memoryUsage;
+        MemoryUsageUpdated_.Fire(delta);
     }
 }
 

@@ -77,6 +77,7 @@ public:
             slot,
             bootstrap)
         , Config_(config)
+        , OnStoreMemoryUsageUpdated_(BIND(&TImpl::OnStoreMemoryUsageUpdated, MakeWeak(this)))
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
 
@@ -284,6 +285,7 @@ private:
 
     yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
 
+    TCallback<void(i64)> OnStoreMemoryUsageUpdated_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -633,7 +635,12 @@ private:
             return;
 
         RotateStores(tablet, true);
+
+        auto store = tablet->GetActiveStore();
+        store->SubscribeMemoryUsageUpdated(OnStoreMemoryUsageUpdated_);
+        OnStoreMemoryUsageUpdated(store->GetMemoryUsage());
     }
+
 
     void HydraCommitTabletStoresUpdate(const TReqCommitTabletStoresUpdate& commitRequest)
     {
@@ -1107,6 +1114,17 @@ private:
                 .Item("state").Value(store->GetState())
                 .Do(BIND(&IStore::BuildOrchidYson, store))
             .EndMap();
+    }
+
+
+    void OnStoreMemoryUsageUpdated(i64 delta)
+    {
+        auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        if (delta >= 0) {
+            tracker.Acquire(EMemoryConsumer::Tablet, delta);
+        } else {
+            tracker.Release(EMemoryConsumer::Tablet, -delta);
+        }
     }
 
 };

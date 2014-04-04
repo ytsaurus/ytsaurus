@@ -107,7 +107,7 @@ private:
     NVersionedTableClient::TRowBuffer RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, NVersionedTableClient::TKeyComparer>> Rows_;
 
-    i64 LastReportedMemoryUsage_;
+    i64 MemoryUsage_;
 
 
     TDynamicRow AllocateRow();
