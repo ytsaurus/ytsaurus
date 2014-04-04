@@ -528,6 +528,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 TDynamicRow TDynamicMemoryStore::MigrateRow(const TDynamicRowRef& rowRef)
 {
     auto row = rowRef.Row;
+    auto* store = rowRef.Store;
 
     TDynamicRow migratedRow;
     auto newKeyProvider = [&] () -> TDynamicRow {
@@ -578,7 +579,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(const TDynamicRowRef& rowRef)
             }
         }
 
-        rowRef.Store->Unlock();
+        store->Unlock();
         row.Unlock();
 
         return migratedRow;
