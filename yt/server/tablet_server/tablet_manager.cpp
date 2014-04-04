@@ -1140,7 +1140,6 @@ private:
             }
 
             // Apply all requested changes.
-            auto* table = tablet->GetTable();
             auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
             chunkManager->AttachToChunkList(chunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
