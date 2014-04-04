@@ -581,20 +581,13 @@ protected:
 
     void SortChildrenFairShare(std::vector<ISchedulableElementPtr>* sortedChildren)
     {
+        // Sort by satisfaction ratio (asc).
         std::sort(
             sortedChildren->begin(),
             sortedChildren->end(),
-            [&] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) -> bool {
-                return GetUsageToWeightRatio(lhs) < GetUsageToWeightRatio(rhs);
+            [] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) {
+                return lhs->GetSatisfactionRatio() < rhs->GetSatisfactionRatio();
             });
-    }
-
-    static double GetUsageToWeightRatio(ISchedulableElementPtr element)
-    {
-        double usageRatio = element->GetUsageRatio();
-        double weight = element->GetWeight();
-        // Avoid division by zero.
-        return usageRatio / std::max(weight, RatioComparisonPrecision);
     }
 
 
