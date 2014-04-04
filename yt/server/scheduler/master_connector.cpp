@@ -1066,9 +1066,10 @@ private:
         std::vector<TTransactionId> transactionIds;
         FOREACH (const auto& id, watchSet) {
             auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
-            transactionIds.push_back(id);
             if (!batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
                 deadTransactionIds.insert(id);
+            } else {
+                transactionIds.push_back(id);
             }
         }
 
@@ -1077,9 +1078,8 @@ private:
         TransactionRefreshExecutor->ScheduleNext();
 
         auto batchResponse = batchRequest.Execute(CancelableControlInvoker);
-        auto error = batchResponse.GetCumulativeError();
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Error refreshing transactions");
+        if (!batchResponse.IsOK()) {
+            LOG_ERROR(batchResponse, "Error refreshing transactions");
             return;
         }
 
