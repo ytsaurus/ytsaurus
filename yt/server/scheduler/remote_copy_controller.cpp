@@ -254,14 +254,19 @@ private:
 
     virtual void DoInitialize() override
     {
-        AuthenticatedInputMasterChannel = CreateAuthenticatedChannel(
-            Host->GetCellDirectory()->GetChannelOrThrow(Spec_->ClusterName),
-            Operation->GetAuthenticatedUser());
-
         TOperationControllerBase::DoInitialize();
 
         RemoteCopyTaskGroup_ = New<TTaskGroup>();
         RegisterTaskGroup(RemoteCopyTaskGroup_);
+    }
+
+    virtual void DoEssentiate() override
+    {
+        AuthenticatedInputMasterChannel = CreateAuthenticatedChannel(
+            Host->GetCellDirectory()->GetChannelOrThrow(Spec_->ClusterName),
+            Operation->GetAuthenticatedUser());
+
+        TOperationControllerBase::DoEssentiate();
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override

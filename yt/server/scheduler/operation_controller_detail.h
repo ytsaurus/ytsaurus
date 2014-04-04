@@ -591,7 +591,7 @@ protected:
 
 
     // Initialization.
-    void Essentiate();
+    virtual void DoEssentiate();
     virtual void DoInitialize();
 
 
