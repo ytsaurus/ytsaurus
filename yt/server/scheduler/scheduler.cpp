@@ -64,7 +64,6 @@
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
 
-
 namespace NYT {
 namespace NScheduler {
 
@@ -957,9 +956,9 @@ private:
         auto controller = operation->GetController();
 
         try {
-            controller->InitTransactions();
             {
-                auto asyncResult = MasterConnector_->ResetRevivingOperationNode(operation);
+                auto controller = operation->GetController();
+                auto asyncResult = controller->Revive();
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 if (operation->GetState() != EOperationState::Reviving)
@@ -967,8 +966,7 @@ private:
             }
 
             {
-                auto controller = operation->GetController();
-                auto asyncResult = controller->Revive();
+                auto asyncResult = MasterConnector_->ResetRevivingOperationNode(operation);
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 if (operation->GetState() != EOperationState::Reviving)

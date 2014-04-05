@@ -1088,6 +1088,7 @@ TFuture<TError> TOperationControllerBase::Revive()
 
     if (Operation->Snapshot()) {
         DoEssentiate();
+        InitTransactions();
 
         auto this_ = MakeStrong(this);
         return
@@ -1103,6 +1104,7 @@ TFuture<TError> TOperationControllerBase::Revive()
     } else {
         try {
             Initialize();
+            InitTransactions();
         } catch (const std::exception& ex) {
             return MakeFuture(TError(ex));
         }
