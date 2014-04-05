@@ -1,8 +1,5 @@
-#include "buffered_stream.h"
-
 #include "common.h"
-
-#include <core/actions/future.h>
+#include "buffered_stream.h"
 
 namespace NYT {
 namespace NPython {

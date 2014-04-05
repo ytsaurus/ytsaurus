@@ -4,6 +4,8 @@
 
 #include <ytlib/driver/driver.h>
 
+#include <util/system/mutex.h>
+
 #include <contrib/libs/pycxx/Extensions.hxx>
 
 namespace NYT {
