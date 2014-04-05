@@ -19,7 +19,7 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable descriptor for a tablet, which helps to coorindate and
+//! An immutable descriptor for a tablet, which helps to coordindate and
 //! run queries against it.
 struct TTabletDescriptor
     : public TIntrinsicRefCounted
