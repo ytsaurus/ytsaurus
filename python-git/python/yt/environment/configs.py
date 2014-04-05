@@ -114,6 +114,9 @@ def get_scheduler_config():
         environment = {
              PYTHONUSERBASE = "/tmp"
         };
+
+        enable_snapshot_loading = true;
+        snapshot_timeout = 1000;
     };
 
     transaction_manager = {
