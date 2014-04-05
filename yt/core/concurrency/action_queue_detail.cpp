@@ -182,7 +182,8 @@ void TExecutorThread::Start()
 
 TExecutorThread::~TExecutorThread()
 {
-    YCHECK(!Running);    
+    YCHECK(!Running);
+    Thread.Detach();
 }
 
 void* TExecutorThread::ThreadMain(void* opaque)
