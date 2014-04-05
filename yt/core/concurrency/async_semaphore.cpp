@@ -76,6 +76,21 @@ bool TAsyncSemaphore::IsFree() const
     return FreeSlots_ == TotalSlots_;
 }
 
+i64 TAsyncSemaphore::GetTotal() const
+{
+    return TotalSlots_;
+}
+
+i64 TAsyncSemaphore::GetUsed() const
+{
+    return TotalSlots_ - FreeSlots_;
+}
+
+i64 TAsyncSemaphore::GetFree() const
+{
+    return FreeSlots_;
+}
+
 TFuture<void> TAsyncSemaphore::GetReadyEvent()
 {
     TGuard<TSpinLock> guard(SpinLock_);

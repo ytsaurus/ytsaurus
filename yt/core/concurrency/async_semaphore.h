@@ -33,6 +33,15 @@ public:
     //! Returns |true| iff all slots are free.
     bool IsFree() const;
 
+    //! Returns the total number of slots.
+    i64 GetTotal() const;
+
+    //! Returns the number of used slots.
+    i64 GetUsed() const;
+
+    //! Returns the number of free slots.
+    i64 GetFree() const;
+
     TFuture<void> GetReadyEvent();
     TFuture<void> GetFreeEvent();
 
