@@ -4,6 +4,9 @@
 
 #include <deque>
 
+#include <util/system/mutex.h>
+#include <util/system/condvar.h>
+
 namespace NYT {
 namespace NNodeJS {
 
