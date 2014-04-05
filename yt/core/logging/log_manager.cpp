@@ -544,11 +544,11 @@ private:
     yhash_map<Stroka, ILogWriter::TConfigPtr> WriterConfigs;
 
     yhash_map<Stroka, ILogWriterPtr> Writers;
-    ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
+    yhash_map<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
-    std::map<int, TNotificationWatch*> NotificationWatchesIndex;
+    yhash_map<int, TNotificationWatch*> NotificationWatchesIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

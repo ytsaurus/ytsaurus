@@ -7,6 +7,8 @@
 
 #include "preprocessor.h"
 
+#include <util/stream/output.h>
+
 #include <stdexcept>
 
 namespace NYT {

@@ -11,6 +11,8 @@
 
 #include <server/cell_master/public.h>
 
+#include <util/generic/map.h>
+
 namespace NYT {
 namespace NChunkServer {
 

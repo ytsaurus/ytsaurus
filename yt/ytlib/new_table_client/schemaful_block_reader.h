@@ -6,6 +6,8 @@
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
+#include <util/generic/bitmap.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 

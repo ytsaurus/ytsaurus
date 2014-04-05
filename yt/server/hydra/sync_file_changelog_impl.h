@@ -9,6 +9,8 @@
 
 #include <core/logging/tagged_logger.h>
 
+#include <util/system/mutex.h>
+
 namespace NYT {
 namespace NHydra {
 

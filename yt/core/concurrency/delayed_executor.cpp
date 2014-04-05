@@ -6,6 +6,8 @@
 
 #include <util/datetime/base.h>
 
+#include <util/system/thread.h>
+
 #include <atomic>
 
 namespace NYT {

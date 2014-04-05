@@ -1,40 +1,23 @@
 #pragma once
 
-#include <algorithm>
-#include <string>
 #include <map>
 #include <set>
 #include <vector>
 #include <list>
-#include <utility>
-#include <tuple>
 
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>
 #include <util/system/spinlock.h>
-#include <util/system/mutex.h>
-#include <util/system/condvar.h>
-#include <util/system/event.h>
-#include <util/system/thread.h>
 
-#include <util/generic/list.h>
-#include <util/generic/deque.h>
-#include <util/generic/utility.h>
 #include <util/generic/stroka.h>
-#include <util/generic/ptr.h>
-#include <util/generic/vector.h>
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
-#include <util/generic/map.h>
-#include <util/generic/set.h>
 #include <util/generic/singleton.h>
-#include <util/generic/pair.h>
 
 #include <util/datetime/base.h>
 
 #include <util/string/printf.h>
 #include <util/string/cast.h>
-#include <util/string/split.h>
 
 // Check platform bitness.
 #if !defined(__x86_64__) && !defined(_M_X64)

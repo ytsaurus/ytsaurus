@@ -5,6 +5,7 @@
 #include <core/misc/weak_ptr.h>
 
 #include <util/system/thread.h>
+#include <util/system/event.h>
 
 namespace NYT {
 namespace {
