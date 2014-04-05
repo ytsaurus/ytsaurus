@@ -52,6 +52,8 @@ class TEnumBase
         : public ::NYT::TEnumBase<name> \
     { \
     public: \
+        typedef name TThis; \
+        \
         enum EDomain \
         { \
             PP_FOR_EACH(ENUM__DOMAIN_ITEM, seq) \
@@ -114,23 +116,19 @@ class TEnumBase
         \
         static const std::vector<name>& GetDomainValues() \
         { \
-            static auto build = [] () -> std::vector<name> { \
-                std::vector<name> result; \
+            static name values[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
-                return result; \
             }; \
-            static auto result = build(); \
+            static std::vector<name> result(values, values + GetDomainSize()); \
             return result; \
         } \
         \
         static const std::vector<Stroka>& GetDomainNames() \
         { \
-            static auto build = [] () -> std::vector<Stroka> { \
-                std::vector<Stroka> result; \
+            static Stroka values[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
-                return result; \
             }; \
-            static auto result = build(); \
+            static std::vector<Stroka> result(values, values + GetDomainSize()); \
             return result; \
         } \
         \
@@ -224,7 +222,7 @@ class TEnumBase
     ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(item) \
-    result.push_back(item);
+    TThis(item),
 //! \}
 
 //! #GetDomainNames() helper.
@@ -240,7 +238,7 @@ class TEnumBase
     ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(item) \
-    result.push_back(PP_STRINGIZE(item));
+    Stroka(PP_STRINGIZE(item)),
 //! \}
 
 //! Declaration of relational operators; all at once.
