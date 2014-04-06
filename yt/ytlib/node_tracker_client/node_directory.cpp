@@ -14,6 +14,7 @@ using namespace NChunkClient;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 TNodeDescriptor::TNodeDescriptor()
 { }
 
