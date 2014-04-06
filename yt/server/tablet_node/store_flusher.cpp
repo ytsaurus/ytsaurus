@@ -193,14 +193,16 @@ private:
             TGuard<TSpinLock> guard(SpinLock_);
             auto storeManager = tablet->GetStoreManager();
             const auto& store = tablet->GetActiveStore();
-            i64 memoryUsage = store->GetMemoryUsage();
-            if (storeManager->IsRotationScheduled()) {
-                PassiveMemoryUsage_ += memoryUsage;
-            } else {
-                TForcedRotationCandidate candidate;
-                candidate.TabletId = tablet->GetId();
-                candidate.MemoryUsage = memoryUsage;
-                ForcedRotationCandidates_.push_back(candidate);
+            if (store) {
+                i64 memoryUsage = store->GetMemoryUsage();
+                if (storeManager->IsRotationScheduled()) {
+                    PassiveMemoryUsage_ += memoryUsage;
+                } else {
+                    TForcedRotationCandidate candidate;
+                    candidate.TabletId = tablet->GetId();
+                    candidate.MemoryUsage = memoryUsage;
+                    ForcedRotationCandidates_.push_back(candidate);
+                }
             }
         }
     }
