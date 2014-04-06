@@ -21,10 +21,10 @@ class TTableMountConfig
     : public TYsonSerializable
 {
 public:
-    int KeyCountFlushThreshold;
-    int ValueCountFlushThreshold;
-    i64 AlignedPoolSizeFlushThreshold;
-    i64 UnalignedPoolSizeFlushThreshold;
+    int MaxMemoryStoreKeyCount;
+    int MaxMemoryStoreValueCount;
+    i64 MaxMemoryStoreAlignedPoolSize;
+    i64 MaxMemoryStoreUnalignedPoolSize;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -37,16 +37,16 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("key_count_flush_threshold", KeyCountFlushThreshold)
+        RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
             .GreaterThan(0)
             .Default(1000000);
-        RegisterParameter("value_count_flush_threshold", ValueCountFlushThreshold)
+        RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
             .GreaterThan(0)
             .Default(10000000);
-        RegisterParameter("aligned_pool_size_flush_threshold", AlignedPoolSizeFlushThreshold)
+        RegisterParameter("max_memory_store_aligned_pool_size", MaxMemoryStoreAlignedPoolSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
-        RegisterParameter("unaligned_pool_size_flush_threshold", UnalignedPoolSizeFlushThreshold)
+        RegisterParameter("max_memory_store_unaligned_pool_size", MaxMemoryStoreUnalignedPoolSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
 
@@ -123,7 +123,7 @@ public:
 
     TDuration ErrorBackoffTime;
 
-    TIntrusivePtr<TTabletChunkReaderConfig> ChunkReader;
+    TIntrusivePtr<TTabletChunkReaderConfig> Reader;
 
     TTabletManagerConfig()
     {
@@ -140,7 +140,7 @@ public:
         RegisterParameter("error_backoff_time", ErrorBackoffTime)
             .Default(TDuration::Minutes(1));
 
-        RegisterParameter("chunk_reader", ChunkReader)
+        RegisterParameter("reader", Reader)
             .DefaultNew();
     }
 };
@@ -160,12 +160,12 @@ class TStoreFlusherConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentFlushes;
-
+    
     TIntrusivePtr<TStoreWriterConfig> Writer;
 
     TStoreFlusherConfig()
     {
-        RegisterParameter("thread_pool_size", ThreadPoolSize)
+        RegisterParameter("flush_thread_pool_size", ThreadPoolSize)
             .GreaterThan(0)
             .Default(1);
         RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
@@ -249,6 +249,12 @@ public:
     //! Maximum number of tablet managers to run.
     int Slots;
 
+    //! Maximum amount of memory tablets are allowed to occupy.
+    i64 MemoryLimit;
+
+    //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
+    double ForcedRotationsMemoryRatio;
+
     //! Changelog catalog.
     NHydra::TFileChangelogCatalogConfigPtr Changelogs;
 
@@ -274,8 +280,17 @@ public:
         RegisterParameter("slots", Slots)
             .GreaterThanOrEqual(0)
             .Default(4);
+
+        RegisterParameter("memory_limit", MemoryLimit)
+            .GreaterThanOrEqual(0)
+            .Default((i64) 1024 * 1024 * 1024);
+        RegisterParameter("forced_rotations_memory_ratio", ForcedRotationsMemoryRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.8);
+
         RegisterParameter("changelogs", Changelogs);
         RegisterParameter("snapshots", Snapshots);
+
         RegisterParameter("hydra_manager", HydraManager)
             .DefaultNew();
         RegisterParameter("hive_manager", HiveManager)

@@ -131,7 +131,7 @@ void TTablet::Load(TLoadContext& context)
 
     auto activeStoreId = Load<TStoreId>(context);
     if (activeStoreId != NullStoreId) {
-        ActiveStore_ = GetStore(activeStoreId)->AsDynamic();
+        ActiveStore_ = GetStore(activeStoreId)->AsDynamicMemory();
     }
 
     auto loadPartition = [&] (int index) -> std::unique_ptr<TPartition> {

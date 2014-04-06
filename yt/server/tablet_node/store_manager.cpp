@@ -202,7 +202,7 @@ void TStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
     bool prewrite,
-    std::vector<TDynamicRow>* lockedRows)
+    std::vector<TDynamicRowRef>* lockedRowRefs)
 {
     ValidateRow(row);
 
@@ -211,15 +211,15 @@ void TStoreManager::WriteRow(
         row,
         ERowLockMode::Write);
 
-    auto* store = rowRef.Store ? rowRef.Store : Tablet_->GetActiveStore().Get();
+    auto* store = rowRef ? rowRef.Store : Tablet_->GetActiveStore().Get();
 
     auto updatedRow = store->WriteRow(
         transaction,
         row,
         prewrite);
 
-    if (lockedRows && updatedRow) {
-        lockedRows->push_back(updatedRow);
+    if (lockedRowRefs && updatedRow) {
+        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
     }
 }
 
@@ -227,7 +227,7 @@ void TStoreManager::DeleteRow(
     TTransaction* transaction,
     NVersionedTableClient::TKey key,
     bool prewrite,
-    std::vector<TDynamicRow>* lockedRows)
+    std::vector<TDynamicRowRef>* lockedRowRefs)
 {
     ValidateRow(key);
 
@@ -236,15 +236,15 @@ void TStoreManager::DeleteRow(
         key,
         ERowLockMode::Delete);
 
-    auto* store = rowRef.Store ? rowRef.Store : Tablet_->GetActiveStore().Get();
+    auto* store = rowRef ? rowRef.Store : Tablet_->GetActiveStore().Get();
 
     auto updatedRow = store->DeleteRow(
         transaction,
         key,
         prewrite);
 
-    if (lockedRows && updatedRow) {
-        lockedRows->push_back(updatedRow);
+    if (lockedRowRefs && updatedRow) {
+        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
     }
 }
 
@@ -286,7 +286,7 @@ TDynamicRowRef TStoreManager::FindRowAndCheckLocks(
     TUnversionedRow key,
     ERowLockMode mode)
 {
-    for (const auto& store : LockedStores_) {
+    for (const auto& store : PassiveStores_) {
         auto row  = store->FindRowAndCheckLocks(
             key,
             transaction,
@@ -302,13 +302,15 @@ TDynamicRowRef TStoreManager::FindRowAndCheckLocks(
          it != LatestTimestampToStore_.rend() && it->first > startTimestamp;
          ++it)
     {
-        if (!logged) {
-            LOG_WARNING("Checking persistent stores for conflicting commits (TransactionId: %s, StartTimestamp: %" PRIu64 ")",
+        const auto& store = it->second;
+
+        if (!logged && store->GetType() == EStoreType::Chunk) {
+            LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %s, StartTimestamp: %" PRIu64 ")",
                 ~ToString(transaction->GetId()),
                 startTimestamp);
             logged = true;
         }
-        const auto& store = it->second;
+
         auto latestTimestamp = store->GetLatestCommitTimestamp(key);
         if (latestTimestamp > startTimestamp) {
             THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
@@ -332,17 +334,35 @@ void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
 
 bool TStoreManager::IsRotationNeeded() const
 {
-    if (RotationScheduled_) {
+    if (!IsRotationPossible()) {
         return false;
     }
 
     const auto& store = Tablet_->GetActiveStore();
     const auto& config = Tablet_->GetConfig();
     return
-        store->GetKeyCount() >= config->KeyCountFlushThreshold ||
-        store->GetValueCount() >= config->ValueCountFlushThreshold ||
-        store->GetAlignedPoolSize() >= config->AlignedPoolSizeFlushThreshold ||
-        store->GetUnalignedPoolSize() >= config->UnalignedPoolSizeFlushThreshold;
+        store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
+        store->GetValueCount() >= config->MaxMemoryStoreValueCount||
+        store->GetAlignedPoolSize() >= config->MaxMemoryStoreAlignedPoolSize ||
+        store->GetUnalignedPoolSize() >= config->MaxMemoryStoreUnalignedPoolSize;
+}
+
+bool TStoreManager::IsRotationPossible() const
+{
+    if (IsRotationScheduled()) {
+        return false;
+    }
+
+    if (!Tablet_->GetActiveStore()) {
+        return false;
+    }
+
+    return true;
+}
+
+bool TStoreManager::IsRotationScheduled() const
+{
+    return RotationScheduled_;
 }
 
 void TStoreManager::SetRotationScheduled()
@@ -383,6 +403,11 @@ void TStoreManager::RotateStores(bool createNew)
         YCHECK(LockedStores_.insert(activeStore).second);
     }
 
+    YCHECK(PassiveStores_.insert(activeStore).second);
+    LOG_INFO("Passive store registered (TabletId: %s, StoreId: %s)",
+        ~ToString(Tablet_->GetId()),
+        ~ToString(activeStore->GetId()));
+
     if (createNew) {
         CreateActiveStore();
     } else {
@@ -393,9 +418,11 @@ void TStoreManager::RotateStores(bool createNew)
         ~ToString(Tablet_->GetId()));
 }
 
-void TStoreManager::AddStore(TTablet* tablet, IStorePtr store)
+void TStoreManager::AddStore(IStorePtr store)
 {
-    tablet->AddStore(store);
+    YCHECK(store->GetType() == EStoreType::Chunk);
+
+    Tablet_->AddStore(store);
 
     auto latestTimestamp = store->GetMaxTimestamp();
     // Dynamic store returns MaxTimestamp.
@@ -404,9 +431,17 @@ void TStoreManager::AddStore(TTablet* tablet, IStorePtr store)
     }
 }
 
-void TStoreManager::RemoveStore(TTablet* tablet, IStorePtr store)
+void TStoreManager::RemoveStore(IStorePtr store)
 {
-    tablet->RemoveStore(store);
+    Tablet_->RemoveStore(store);
+
+    if (store->GetType() == EStoreType::DynamicMemory) {
+        if (PassiveStores_.erase(store->AsDynamicMemory()) == 1) {
+            LOG_INFO("Passive store unregistered (TabletId: %s, StoreId: %s)",
+                ~ToString(Tablet_->GetId()),
+                ~ToString(store->GetId()));
+        }
+    }
 
     auto latestTimestamp = store->GetMaxTimestamp();
     // Dynamic store returns MaxTimestamp.

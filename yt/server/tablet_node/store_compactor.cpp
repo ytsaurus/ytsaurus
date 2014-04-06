@@ -73,7 +73,7 @@ public:
     void Start()
     {
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeSlotScan(BIND(&TStoreCompactor::ScanSlot, MakeStrong(this)));
+        tabletSlotManager->SubscribeScanSlot(BIND(&TStoreCompactor::ScanSlot, MakeStrong(this)));
     }
 
 private:
@@ -81,7 +81,6 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
-
     TAsyncSemaphore Semaphore_;
 
 
@@ -113,14 +112,9 @@ private:
 
         std::vector<IStorePtr> stores;
         for (auto store : eden->Stores()) {
-            if (store->GetState() == EStoreState::ActiveDynamic ||
-                store->GetState() == EStoreState::PassiveDynamic)
-                continue;
-
-            if (store->GetState() != EStoreState::Persistent)
-                return;
-
-            stores.push_back(std::move(store));
+            if (store->GetState() == EStoreState::Persistent) {
+                stores.push_back(std::move(store));
+            }
         }
 
         i64 dataSize = eden->GetTotalDataSize();
@@ -162,12 +156,12 @@ private:
 
         std::vector<IStorePtr> allStores;
         for (auto store : partition->Stores()) {
-            if (store->GetState() != EStoreState::Persistent)
-                return;
-            allStores.push_back(std::move(store));
+            if (store->GetState() == EStoreState::Persistent) {
+                allStores.push_back(std::move(store));
+            }
         }
 
-        // Don't compact partitons whose data size exceeds the limit.
+        // Don't compact partitions whose data size exceeds the limit.
         // Let Partition Balancer do its job.
         auto* tablet = partition->GetTablet();
         const auto& config = tablet->GetConfig();

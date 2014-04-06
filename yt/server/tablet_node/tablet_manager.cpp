@@ -190,14 +190,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        ValidateMemoryLimit();
         ValidateTabletMounted(tablet);
         transaction->ValidateActive();
 
-        const auto& store = tablet->GetActiveStore();
-
         TWireProtocolReader reader(encodedRequest);
 
-        PooledRows_.clear();
+        PooledRowRefs_.clear();
         int commandsSucceded = 0;
         try {
             while (ExecuteSingleWrite(
@@ -205,7 +204,7 @@ public:
                 transaction,
                 &reader,
                 true,
-                &PooledRows_))
+                &PooledRowRefs_))
             {
                 ++commandsSucceded;
             }
@@ -213,7 +212,7 @@ public:
             // Just break.
         }
 
-        int rowCount = static_cast<int>(PooledRows_.size());
+        int rowCount = static_cast<int>(PooledRowRefs_.size());
 
         LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d, CommandsSucceded: %d)",
             ~ToString(transaction->GetId()),
@@ -221,8 +220,8 @@ public:
             rowCount,
             commandsSucceded);
 
-        for (auto row : PooledRows_) {
-            PrewrittenRows_.push(TDynamicRowRef(store.Get(), row));
+        for (const auto& rowRef : PooledRowRefs_) {
+            PrewrittenRows_.push(rowRef);
         }
 
         TReqExecuteWrite hydraRequest;
@@ -257,6 +256,24 @@ public:
         }
     }
 
+    void ScheduleStoreRotation(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& storeManager = tablet->GetStoreManager();
+        if (!storeManager->IsRotationPossible())
+            return;
+
+        storeManager->SetRotationScheduled();
+
+        TReqRotateStore request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        PostTabletMutation(request);
+
+        LOG_DEBUG("Store rotation scheduled (TabletId: %s)",
+            ~ToString(tablet->GetId()));
+    }
+
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
@@ -280,7 +297,7 @@ private:
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
-    std::vector<TDynamicRow> PooledRows_;
+    std::vector<TDynamicRowRef> PooledRowRefs_;
     TRingQueue<TDynamicRowRef> PrewrittenRows_;
 
     yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
@@ -444,6 +461,7 @@ private:
 
         auto storeManager = tablet->GetStoreManager();
         storeManager->CreateActiveStore();
+        StartMemoryUsageTracking(tablet);
         tablet->SetState(ETabletState::Mounted);
         TabletMap_.Insert(tabletId, tablet);
 
@@ -451,7 +469,7 @@ private:
             YCHECK(descriptor.has_chunk_meta());
             auto chunkId = FromProto<TChunkId>(descriptor.store_id());
             auto store = CreateChunkStore(tablet, chunkId, &descriptor.chunk_meta());
-            storeManager->AddStore(tablet, store);
+            storeManager->AddStore(store);
         }
 
         {
@@ -635,10 +653,7 @@ private:
             return;
 
         RotateStores(tablet, true);
-
-        auto store = tablet->GetActiveStore();
-        store->SubscribeMemoryUsageUpdated(OnStoreMemoryUsageUpdated_);
-        OnStoreMemoryUsageUpdated(store->GetMemoryUsage());
+        StartMemoryUsageTracking(tablet);
     }
 
 
@@ -706,7 +721,7 @@ private:
                 addedStoreIds.push_back(storeId);
                 YCHECK(descriptor.has_chunk_meta());
                 auto store = CreateChunkStore(tablet, storeId, &descriptor.chunk_meta());
-                storeManager->AddStore(tablet, store);
+                storeManager->AddStore(store);
             }
 
             std::vector<TStoreId> removedStoreIds;
@@ -714,7 +729,7 @@ private:
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 removedStoreIds.push_back(storeId);
                 auto store = tablet->GetStore(storeId);
-                storeManager->RemoveStore(tablet, store);
+                storeManager->RemoveStore(store);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %s, AddedStoreIds: [%s], RemovedStoreIds: [%s])",
@@ -846,8 +861,8 @@ private:
     {
         store->SetState(EStoreState::Orphaned);
 
-        if (store->IsDynamic()) {
-            auto dynamicStore = store->AsDynamic();
+        if (store->GetType() == EStoreType::DynamicMemory) {
+            auto dynamicStore = store->AsDynamicMemory();
             int lockCount = dynamicStore->GetLockCount();
             if (lockCount > 0) {
                 YCHECK(OrphanedStores_.insert(dynamicStore).second);
@@ -910,7 +925,7 @@ private:
         TTransaction* transaction,
         TWireProtocolReader* reader,
         bool prewrite,
-        std::vector<TDynamicRow>* lockedRows)
+        std::vector<TDynamicRowRef>* lockedRowRefs)
     {
         auto command = reader->ReadCommand();
         if (command == EWireProtocolCommand::End) {
@@ -926,7 +941,7 @@ private:
                     transaction,
                     row,
                     prewrite,
-                    lockedRows);
+                    lockedRowRefs);
                 break;
             }
 
@@ -936,7 +951,7 @@ private:
                     transaction,
                     key,
                     prewrite,
-                    lockedRows);
+                    lockedRowRefs);
                 break;
             }
 
@@ -955,16 +970,13 @@ private:
         if (!storeManager->IsRotationNeeded())
             return;
 
-        storeManager->SetRotationScheduled();
-
-        TReqRotateStore request;
-        ToProto(request.mutable_tablet_id(), storeManager->GetTablet()->GetId());
-        PostTabletMutation(request);
+        ScheduleStoreRotation(tablet);
     }
 
     void CheckIfFullyUnlocked(TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::WaitingForLocks)
+
             return;
 
         if (tablet->GetStoreManager()->HasActiveLocks())
@@ -1127,6 +1139,20 @@ private:
         }
     }
 
+    void StartMemoryUsageTracking(TTablet* tablet)
+    {
+        auto store = tablet->GetActiveStore();
+        store->SubscribeMemoryUsageUpdated(OnStoreMemoryUsageUpdated_);
+        OnStoreMemoryUsageUpdated(store->GetMemoryUsage());
+    }
+
+    void ValidateMemoryLimit()
+    {
+        if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
+            THROW_ERROR_EXCEPTION("Out of tablet memory, all writes disabled");
+        }
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
@@ -1193,6 +1219,11 @@ void TTabletManager::Write(
 IStorePtr TTabletManager::CreateStore(TTablet* tablet, const TStoreId& storeId)
 {
     return Impl_->CreateStore(tablet, storeId);
+}
+
+void TTabletManager::ScheduleStoreRotation(TTablet* tablet)
+{
+    Impl_->ScheduleStoreRotation(tablet);
 }
 
 void TTabletManager::BuildOrchidYson(IYsonConsumer* consumer)

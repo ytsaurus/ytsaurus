@@ -83,6 +83,11 @@ const TChunkMeta& TChunkStore::GetChunkMeta() const
     return ChunkMeta_;
 }
 
+EStoreType TChunkStore::GetType() const
+{
+    return EStoreType::Chunk;
+}
+
 i64 TChunkStore::GetDataSize() const
 {
     return DataSize_;
@@ -125,7 +130,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     if (!chunkReader) {
         // TODO(babenko): provide seed replicas
         chunkReader = CreateReplicationReader(
-            Config_->ChunkReader,
+            Config_->Reader,
             Bootstrap_->GetBlockStore()->GetBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(),
             New<TNodeDirectory>(),
@@ -149,7 +154,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     upperLimit.SetKey(std::move(upperKey));
 
     return CreateVersionedChunkReader(
-        Config_->ChunkReader,
+        Config_->Reader,
         chunkReader,
         CachedMeta_,
         lowerLimit,

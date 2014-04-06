@@ -66,6 +66,8 @@ public:
     i64 GetUnalignedPoolCapacity() const;
 
     // IStore implementation.
+    virtual EStoreType GetType() const override;
+
     virtual i64 GetDataSize() const override;
 
     virtual TOwningKey GetMinKey() const override;

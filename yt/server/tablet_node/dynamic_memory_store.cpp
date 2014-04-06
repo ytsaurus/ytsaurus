@@ -409,13 +409,21 @@ int TDynamicMemoryStore::GetLockCount() const
 
 int TDynamicMemoryStore::Lock()
 {
-    return ++LockCount_;
+    int result = ++LockCount_;
+    LOG_TRACE("Store locked (StoreId: %s, Count: %d)",
+        ~ToString(Id_),
+        result);
+    return result;
 }
 
 int TDynamicMemoryStore::Unlock()
 {
     YASSERT(LockCount_ > 0);
-    return --LockCount_;
+    int result = --LockCount_;
+    LOG_TRACE("Store unlocked (StoreId: %s, Count: %d)",
+        ~ToString(Id_),
+        result);
+    return result;
 }
 
 TDynamicRow TDynamicMemoryStore::WriteRow(
@@ -611,6 +619,11 @@ TDynamicRow TDynamicMemoryStore::FindRowAndCheckLocks(
 
     auto row = it.GetCurrent();
     CheckRowLock(row, transaction, mode);
+
+    if (row.GetLockMode() == ERowLockMode::None) {
+        return TDynamicRow();
+    }
+
     return row;
 }
 
@@ -627,7 +640,11 @@ void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
 {
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
-    row.SetPrepareTimestamp(transaction->GetPrepareTimestamp());
+
+    auto prepareTimestamp = transaction->GetPrepareTimestamp();
+    YASSERT(prepareTimestamp != NullTimestamp);
+
+    row.SetPrepareTimestamp(prepareTimestamp);
 }
 
 void TDynamicMemoryStore::CommitRow(TDynamicRow row)
@@ -636,7 +653,9 @@ void TDynamicMemoryStore::CommitRow(TDynamicRow row)
 
     auto* transaction = row.GetTransaction();
     YASSERT(transaction);
+
     auto commitTimestamp = transaction->GetCommitTimestamp();
+    YASSERT(commitTimestamp != NullTimestamp);
 
     // Edit timestamps.
     auto timestampList = row.GetTimestampList(KeyColumnCount_);
@@ -883,6 +902,11 @@ i64 TDynamicMemoryStore::GetUnalignedPoolSize() const
 i64 TDynamicMemoryStore::GetUnalignedPoolCapacity() const
 {
     return RowBuffer_.GetUnalignedPool()->GetCapacity();
+}
+
+EStoreType TDynamicMemoryStore::GetType() const
+{
+    return EStoreType::DynamicMemory;
 }
 
 i64 TDynamicMemoryStore::GetDataSize() const

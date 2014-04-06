@@ -28,7 +28,7 @@ class TTabletSlot
 public:
     TTabletSlot(
         int slotIndex,
-        NCellNode::TCellNodeConfigPtr config,
+        TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
     
     ~TTabletSlot();

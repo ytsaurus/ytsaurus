@@ -67,6 +67,11 @@ DECLARE_ENUM(ETabletState,
     (Unmounted)
 );
 
+DECLARE_ENUM(EStoreType,
+    (DynamicMemory)
+    (Chunk)
+);
+
 DECLARE_ENUM(EStoreState,
     (ActiveDynamic)         // dynamic, can receive updates
     (PassiveDynamic)        // dynamic, rotated and cannot receive more updates

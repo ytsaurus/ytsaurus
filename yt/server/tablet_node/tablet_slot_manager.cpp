@@ -50,7 +50,7 @@ class TTabletSlotManager::TImpl
 {
 public:
     TImpl(
-        NCellNode::TCellNodeConfigPtr config,
+        TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
@@ -66,11 +66,11 @@ public:
     {
         LOG_INFO("Initializing tablet node");
 
-        ChangelogCatalog_ = CreateFileChangelogCatalog(Config_->TabletNode->Changelogs);
+        ChangelogCatalog_ = CreateFileChangelogCatalog(Config_->Changelogs);
 
         // Clean snapshot temporary directory.
-        ForcePath(Config_->TabletNode->Snapshots->TempPath);
-        CleanTempFiles(Config_->TabletNode->Snapshots->TempPath);
+        ForcePath(Config_->Snapshots->TempPath);
+        CleanTempFiles(Config_->Snapshots->TempPath);
 
         // Look for existing changelog stores; readjust config.
         yhash_set<TCellGuid> cellGuids;
@@ -80,15 +80,15 @@ public:
             LOG_INFO("Found slot %s", ~ToString(cellGuid));
         }
 
-        if (Config_->TabletNode->Slots < cellGuids.size()) {
+        if (Config_->Slots < cellGuids.size()) {
             LOG_WARNING("Found %d active slots while at most %d is suggested by configuration; allowing more slots",
                 static_cast<int>(cellGuids.size()),
-                Config_->TabletNode->Slots);
-            Config_->TabletNode->Slots = static_cast<int>(cellGuids.size());
+                Config_->Slots);
+            Config_->Slots = static_cast<int>(cellGuids.size());
         }
 
         // Create slots.
-        for (int index = 0; index < Config_->TabletNode->Slots; ++index) {
+        for (int index = 0; index < Config_->Slots; ++index) {
             auto slot = CreateSlot(index);
             Slots_.push_back(slot);
         }
@@ -105,11 +105,28 @@ public:
     }
 
 
+    bool IsOutOfMemory() const
+    {
+        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        return
+            tracker.GetUsed(NCellNode::EMemoryConsumer::Tablet) >
+            Config_->MemoryLimit;
+    }
+
+    bool IsRotationForced(i64 passiveUsage) const
+    {
+        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        return
+            tracker.GetUsed(NCellNode::EMemoryConsumer::Tablet) - passiveUsage >
+            Config_->MemoryLimit * Config_->ForcedRotationsMemoryRatio;
+    }
+
+    
     int GetAvailableTabletSlotCount() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return Config_->TabletNode->Slots - UsedSlotCount_;
+        return Config_->Slots - UsedSlotCount_;
     }
 
     int GetUsedTabletSlotCount() const
@@ -269,7 +286,7 @@ public:
     ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid)
     {
         return CreateRemoteSnapshotStore(
-            Config_->TabletNode->Snapshots,
+            Config_->Snapshots,
             cellGuid,
             Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellGuid)),
             Bootstrap_->GetMasterClient());
@@ -285,10 +302,12 @@ public:
     }
 
     
-    DEFINE_SIGNAL(void(TTabletSlotPtr), SlotScan);
+    DEFINE_SIGNAL(void(), BeginSlotScan);
+    DEFINE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
+    DEFINE_SIGNAL(void(), EndSlotScan);
 
 private:
-    NCellNode::TCellNodeConfigPtr Config_;
+    TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
     IChangelogCatalogPtr ChangelogCatalog_;
@@ -316,11 +335,11 @@ private:
     }
 
 
-    class TTabletScanner
+    class TSlotScanner
         : public TRefCounted
     {
     public:
-        explicit TTabletScanner(TIntrusivePtr<TImpl> owner)
+        explicit TSlotScanner(TIntrusivePtr<TImpl> owner)
             : Owner_(owner)
         { }
 
@@ -329,23 +348,33 @@ private:
             auto awaiter = New<TParallelAwaiter>(Owner_->Bootstrap_->GetControlInvoker());
             auto this_ = MakeStrong(this);
 
+            Owner_->BeginSlotScan_.Fire();
+
             for (auto slot : Owner_->Slots_) {
                 auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
                 if (!invoker)
                     continue;
 
                 awaiter->Await(BIND([this, this_, slot] () {
-                        Owner_->SlotScan_.Fire(slot);
+                        Owner_->ScanSlot_.Fire(slot);
                     })
                     .AsyncVia(invoker)
                     .Run());
             }
 
-            return awaiter->Complete();
+            return awaiter
+                ->Complete()
+                .Apply(BIND(&TSlotScanner::OnComplete, this_));
         }
 
     private:
         TIntrusivePtr<TImpl> Owner_;
+
+
+        void OnComplete()
+        {
+            Owner_->EndSlotScan_.Fire();
+        }
 
     };
 
@@ -355,7 +384,7 @@ private:
 
         LOG_DEBUG("Slot scan started");
 
-        auto scanner = New<TTabletScanner>(this);
+        auto scanner = New<TSlotScanner>(this);
 
         auto this_ = MakeStrong(this);
         scanner->Run().Subscribe(BIND([this, this_] () {
@@ -391,7 +420,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletSlotManager::TTabletSlotManager(
-    NCellNode::TCellNodeConfigPtr config,
+    TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,
@@ -404,6 +433,16 @@ TTabletSlotManager::~TTabletSlotManager()
 void TTabletSlotManager::Initialize()
 {
     Impl_->Initialize();
+}
+
+bool TTabletSlotManager::IsOutOfMemory() const
+{
+    return Impl_->IsOutOfMemory();
+}
+
+bool TTabletSlotManager::IsRotationForced(i64 passiveUsage) const
+{
+    return Impl_->IsRotationForced(passiveUsage);
 }
 
 int TTabletSlotManager::GetAvailableTabletSlotCount() const
@@ -481,7 +520,9 @@ IYPathServicePtr TTabletSlotManager::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-DELEGATE_SIGNAL(TTabletSlotManager, void(TTabletSlotPtr), SlotScan, *Impl_);
+DELEGATE_SIGNAL(TTabletSlotManager, void(), BeginSlotScan, *Impl_);
+DELEGATE_SIGNAL(TTabletSlotManager, void(TTabletSlotPtr), ScanSlot, *Impl_);
+DELEGATE_SIGNAL(TTabletSlotManager, void(), EndSlotScan, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

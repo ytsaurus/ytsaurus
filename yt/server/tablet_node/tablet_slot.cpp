@@ -72,7 +72,7 @@ public:
     TImpl(
         TTabletSlot* owner,
         int slotIndex,
-        NCellNode::TCellNodeConfigPtr config,
+        TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Owner_(owner)
         , SlotIndex_(slotIndex)
@@ -295,7 +295,7 @@ public:
             auto rpcServer = Bootstrap_->GetRpcServer();
 
             HydraManager_ = CreateDistributedHydraManager(
-                Config_->TabletNode->HydraManager,
+                Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Write),
                 Automaton_,
@@ -321,7 +321,7 @@ public:
 
             HiveManager_ = New<THiveManager>(
                 CellGuid_,
-                Config_->TabletNode->HiveManager,
+                Config_->HiveManager,
                 Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Write),
                 rpcServer,
@@ -331,17 +331,17 @@ public:
             // NB: Tablet Manager must register before Transaction Manager since the latter
             // will be writing and deleting rows during snapshot loading.
             TabletManager_ = New<TTabletManager>(
-                Config_->TabletNode->TabletManager,
+                Config_->TabletManager,
                 Owner_,
                 Bootstrap_);
 
             TransactionManager_ = New<TTransactionManager>(
-                Config_->TabletNode->TransactionManager,
+                Config_->TransactionManager,
                 Owner_,
                 Bootstrap_);
 
             TransactionSupervisor_ = New<TTransactionSupervisor>(
-                Config_->TabletNode->TransactionSupervisor,
+                Config_->TransactionSupervisor,
                 GetAutomatonInvoker(EAutomatonThreadQueue::Write),
                 rpcServer,
                 HydraManager_,
@@ -433,7 +433,7 @@ public:
 private:
     TTabletSlot* Owner_;
     int SlotIndex_;
-    NCellNode::TCellNodeConfigPtr Config_;
+    TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
     TCellGuid CellGuid_;
@@ -572,7 +572,7 @@ private:
 
 TTabletSlot::TTabletSlot(
     int slotIndex,
-    NCellNode::TCellNodeConfigPtr config,
+    TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         this,

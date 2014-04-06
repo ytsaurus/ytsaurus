@@ -46,13 +46,13 @@ public:
         TTransaction* transaction,
         TUnversionedRow row,
         bool prewrite,
-        std::vector<TDynamicRow>* lockedRows);
+        std::vector<TDynamicRowRef>* lockedRowRefs);
 
     void DeleteRow(
         TTransaction* transaction,
         TKey key,
         bool prewrite,
-        std::vector<TDynamicRow>* lockedRows);
+        std::vector<TDynamicRowRef>* lockedRowRefs);
 
     void ConfirmRow(const TDynamicRowRef& rowRef);
     void PrepareRow(const TDynamicRowRef& rowRef);
@@ -60,12 +60,14 @@ public:
     void AbortRow(const TDynamicRowRef& rowRef);
 
     bool IsRotationNeeded() const;
+    bool IsRotationPossible() const;
+    bool IsRotationScheduled() const;
     void SetRotationScheduled();
     void ResetRotationScheduled();
     void RotateStores(bool createNew);
 
-    void AddStore(TTablet* tablet, IStorePtr store);
-    void RemoveStore(TTablet* tablet, IStorePtr store);
+    void AddStore(IStorePtr store);
+    void RemoveStore(IStorePtr store);
     void CreateActiveStore();
     
 private:
@@ -74,6 +76,7 @@ private:
 
     bool RotationScheduled_;
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
+    yhash_set<TDynamicMemoryStorePtr> PassiveStores_;
 
     std::multimap<TTimestamp, IStorePtr> LatestTimestampToStore_;
 

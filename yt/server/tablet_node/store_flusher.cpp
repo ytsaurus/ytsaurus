@@ -8,6 +8,7 @@
 #include "tablet_slot.h"
 #include "tablet_manager.h"
 #include "tablet_slot_manager.h"
+#include "store_manager.h"
 
 #include <core/misc/address.h>
 
@@ -93,7 +94,9 @@ public:
     void Start()
     {
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeSlotScan(BIND(&TStoreFlusher::ScanSlot, MakeStrong(this)));
+        tabletSlotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::BeginSlotScan, MakeStrong(this)));
+        tabletSlotManager->SubscribeScanSlot(BIND(&TStoreFlusher::ScanSlot, MakeStrong(this)));
+        tabletSlotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::EndSlotScan, MakeStrong(this)));
     }
 
 private:
@@ -101,9 +104,25 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
-
     TAsyncSemaphore Semaphore_;
 
+    struct TForcedRotationCandidate
+    {
+        i64 MemoryUsage;
+        TTabletId TabletId;
+    };
+
+    TSpinLock SpinLock_;
+    i64 PassiveMemoryUsage_;
+    std::vector<TForcedRotationCandidate> ForcedRotationCandidates_;
+
+
+    void BeginSlotScan()
+    {
+        // NB: No locking is needed.
+        PassiveMemoryUsage_ = 0;
+        ForcedRotationCandidates_.clear();
+    }
 
     void ScanSlot(TTabletSlotPtr slot)
     {
@@ -117,10 +136,72 @@ private:
         }
     }
 
+    void EndSlotScan()
+    {
+        // NB: No locking is needed.
+        // Order candidates by increasing memory usage.
+        std::sort(
+            ForcedRotationCandidates_. begin(),
+            ForcedRotationCandidates_.end(),
+            [] (const TForcedRotationCandidate& lhs, const TForcedRotationCandidate& rhs) {
+                return lhs.MemoryUsage < rhs.MemoryUsage;
+            });
+        
+        // Pick the heaviest candidates until no more rotations are needed.
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        while (tabletSlotManager->IsRotationForced(PassiveMemoryUsage_) &&
+               !ForcedRotationCandidates_.empty())
+        {
+            auto candidate = ForcedRotationCandidates_.back();
+            ForcedRotationCandidates_.pop_back();
+
+            auto tabletId = candidate.TabletId;
+            auto tabletDesriptor = tabletSlotManager->FindTabletDescriptor(tabletId);
+            if (!tabletDesriptor)
+                continue;
+
+            auto slot = tabletDesriptor->Slot;
+            auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
+            if (!invoker)
+                continue;
+
+            invoker->Invoke(BIND([slot, tabletId] () {
+                auto tabletManager = slot->GetTabletManager();
+                auto* tablet = tabletManager->FindTablet(tabletId);
+                if (!tablet)
+                    return;
+                tabletManager->ScheduleStoreRotation(tablet);
+            }));
+
+            PassiveMemoryUsage_ += candidate.MemoryUsage;
+        }
+    }
+
     void ScanTablet(TTablet* tablet)
     {
         for (const auto& pair : tablet->Stores()) {
-            ScanStore(tablet, pair.second);
+            const auto& store = pair.second;
+            ScanStore(tablet, store);
+            if (store->GetState() == EStoreState::PassiveDynamic) {
+                TGuard<TSpinLock> guard(SpinLock_);
+                auto dynamicStore = store->AsDynamicMemory();
+                PassiveMemoryUsage_ += dynamicStore->GetMemoryUsage();
+            }
+        }
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            auto storeManager = tablet->GetStoreManager();
+            const auto& store = tablet->GetActiveStore();
+            i64 memoryUsage = store->GetMemoryUsage();
+            if (storeManager->IsRotationScheduled()) {
+                PassiveMemoryUsage_ += memoryUsage;
+            } else {
+                TForcedRotationCandidate candidate;
+                candidate.TabletId = tablet->GetId();
+                candidate.MemoryUsage = memoryUsage;
+                ForcedRotationCandidates_.push_back(candidate);
+            }
         }
     }
 

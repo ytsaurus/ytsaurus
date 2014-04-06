@@ -277,7 +277,7 @@ void TBootstrap::Run()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
-    TabletSlotManager = New<TTabletSlotManager>(Config, this);
+    TabletSlotManager = New<TTabletSlotManager>(Config->TabletNode, this);
 
     auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
 

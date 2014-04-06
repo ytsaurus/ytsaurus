@@ -38,19 +38,20 @@ class TTabletSlotManager
 {
 public:
     TTabletSlotManager(
-        NCellNode::TCellNodeConfigPtr config,
+        TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
     ~TTabletSlotManager();
 
     void Initialize();
 
+    bool IsOutOfMemory() const;
+    bool IsRotationForced(i64 passiveUsage) const;
 
     //! Returns the number of available (not used) slots.
     int GetAvailableTabletSlotCount() const;
 
     //! Returns the number of currently used slots.
     int GetUsedTableSlotCount() const;
-
 
     const std::vector<TTabletSlotPtr>& Slots() const;
     TTabletSlotPtr FindSlot(const NHydra::TCellGuid& id);
@@ -83,7 +84,9 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    DECLARE_SIGNAL(void(TTabletSlotPtr), SlotScan);
+    DECLARE_SIGNAL(void(), BeginSlotScan);
+    DECLARE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
+    DECLARE_SIGNAL(void(), EndSlotScan);
 
 private:
     class TImpl;

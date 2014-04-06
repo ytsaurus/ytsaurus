@@ -22,12 +22,13 @@ struct IStore
 
     virtual i64 GetDataSize() const = 0;
 
+    virtual EStoreType GetType() const = 0;
+
     virtual EStoreState GetState() const = 0;
     EStoreState GetPersistentState() const;
     virtual void SetState(EStoreState state) = 0;
 
-    bool IsDynamic() const;
-    TDynamicMemoryStorePtr AsDynamic();
+    TDynamicMemoryStorePtr AsDynamicMemory();
 
     virtual TPartition* GetPartition() const = 0;
     virtual void SetPartition(TPartition* partition) = 0;

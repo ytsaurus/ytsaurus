@@ -63,7 +63,7 @@ public:
     void Start()
     {
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeSlotScan(BIND(&TPartitionBalancer::ScanSlot, MakeStrong(this)));
+        tabletSlotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
     }
 
 private:
@@ -71,7 +71,7 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
 
-    void ScanSlot(TTabletSlotPtr slot)
+    void OnScanSlot(TTabletSlotPtr slot)
     {
         if (slot->GetAutomatonState() != EPeerState::Leading)
             return;

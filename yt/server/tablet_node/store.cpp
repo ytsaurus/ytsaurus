@@ -23,12 +23,7 @@ EStoreState IStore::GetPersistentState() const
     }
 }
 
-bool IStore::IsDynamic() const
-{
-    return dynamic_cast<const TDynamicMemoryStore*>(this) != nullptr;
-}
-
-TDynamicMemoryStorePtr IStore::AsDynamic()
+TDynamicMemoryStorePtr IStore::AsDynamicMemory()
 {
     auto* result = dynamic_cast<TDynamicMemoryStore*>(this);
     YCHECK(result);

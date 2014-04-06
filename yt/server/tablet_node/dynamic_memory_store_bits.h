@@ -400,6 +400,12 @@ struct TDynamicRowRef
     { }
 
 
+    explicit operator bool() const
+    {
+        return Store != nullptr;
+    }
+
+
     bool operator == (const TDynamicRowRef& other) const
     {
         return Store == other.Store && Row == other.Row;
