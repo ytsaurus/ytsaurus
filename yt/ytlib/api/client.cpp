@@ -441,7 +441,7 @@ private:
 
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
-            ValidateKey(key);
+            ValidateKey(key, tableInfo->KeyColumns.size());
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = subrequests.find(tabletInfo);
             if (it == subrequests.end()) {
@@ -1131,7 +1131,7 @@ private:
             TRequestBase::Run();
 
             for (auto key : Keys_) {
-                ValidateRow(key);
+                ValidateKey(key, TableInfo_->KeyColumns.size());
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EWireProtocolCommand::DeleteRow);

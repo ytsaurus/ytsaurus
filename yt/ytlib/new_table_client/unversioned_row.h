@@ -282,8 +282,9 @@ void ValidateRowCount(int count);
 //! Checks that #row is a valid data row. Throws on failure.
 void ValidateRow(TUnversionedRow row);
 
-//! Checks that #key is a valid key. Throws on failure.
-void ValidateKey(TKey key);
+//! Checks that #key is a valid key, in particular, it contains exactly #keyColumnCount
+//! components. Throws on failure.
+void ValidateKey(TKey key, int keyColumnCount);
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 // by appending a |EValueType::Min| sentinel.

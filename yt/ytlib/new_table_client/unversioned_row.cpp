@@ -548,9 +548,16 @@ void ValidateRow(TUnversionedRow row)
     }
 }
 
-void ValidateKey(TKey key)
+void ValidateKey(TKey key, int keyColumnCount)
 {
-    ValidateRowValueCount(key.GetCount());
+    if (!key) {
+        THROW_ERROR_EXCEPTION("Key cannot be null");
+    }
+    if (key.GetCount() != keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %d, actual %d",
+            keyColumnCount,
+            key.GetCount());
+    }
     for (const auto* value = key.Begin(); value != key.End(); ++value) {
         ValidateKeyValue(*value);
     }
