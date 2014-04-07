@@ -260,6 +260,10 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
         return;
     }
 
+    // Reserve next sequential slot in WrittenChunks_.
+    WrittenChunks_.push_back();
+    auto& chunkSpec = WrittenChunks_.back();
+
     LOG_DEBUG("Finishing chunk (ChunkId: %s)", ~ToString(session.ChunkId));
 
     auto error = WaitFor(session.FrontalWriter->Close());
@@ -276,12 +280,9 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
         replicas.push_back(session.Replicas[index]);
     }
 
-    TChunkSpec chunkSpec;
     *chunkSpec.mutable_chunk_meta() = session.FrontalWriter->GetSchedulerMeta();
     ToProto(chunkSpec.mutable_chunk_id(), session.ChunkId);
     NYT::ToProto(chunkSpec.mutable_replicas(), replicas);
-
-    WrittenChunks_.push_back(chunkSpec);
 
     DataStatistics_ += session.FrontalWriter->GetDataStatistics();
 
