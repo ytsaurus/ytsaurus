@@ -270,7 +270,7 @@ TJsonWriterImpl::TJsonWriterImpl(NJson::TJsonWriter* jsonWriter, TJsonFormatConf
 
 void TJsonWriterImpl::WriteStringScalar(const TStringBuf &value)
 {
-    if (IsAscii(value)) {
+    if (IsAscii(value) || !Config->EnableEscaping) {
         JsonWriter->Write(value);
     } else {
         JsonWriter->Write(ByteStringToUtf8(value));

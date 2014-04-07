@@ -82,7 +82,7 @@ void TJsonParser::VisitAny(const TJsonValue& value)
             Consumer->OnEntity();
             break;
         case JSON_STRING:
-            if (IsAscii(value.GetString())) {
+            if (IsAscii(value.GetString()) || !Config->EnableEscaping) {
                 Consumer->OnStringScalar(value.GetString());
             } else {
                 Consumer->OnStringScalar(Utf8ToByteString(value.GetString()));
@@ -112,7 +112,7 @@ void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
             key = key.substr(1);
         }
 
-        if (IsAscii(key)) {
+        if (IsAscii(key) || !Config->EnableEscaping) {
             Consumer->OnKeyedItem(key);
         } else {
             Consumer->OnKeyedItem(Utf8ToByteString(key));

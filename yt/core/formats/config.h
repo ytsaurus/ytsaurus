@@ -89,6 +89,7 @@ class TJsonFormatConfig
 public:
     EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
+    bool EnableEscaping;
     i64 MemoryLimit;
 
     TJsonFormatConfig()
@@ -97,6 +98,8 @@ public:
             .Default(EJsonFormat::Text);
         RegisterParameter("attributes_mode", AttributesMode)
             .Default(EJsonAttributesMode::OnDemand);
+        RegisterParameter("enable_escaping", EnableEscaping)
+            .Default(true);
 
         MemoryLimit = NTableClient::MaxRowWeightLimit;
     }
