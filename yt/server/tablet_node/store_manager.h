@@ -88,7 +88,7 @@ private:
 
     TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);
 
-    TDynamicRowRef FindRowAndCheckLocks(
+    TDynamicMemoryStorePtr FindRelevantStoreAndCheckLocks(
         TTransaction* transaction,
         TUnversionedRow key,
         ERowLockMode mode);

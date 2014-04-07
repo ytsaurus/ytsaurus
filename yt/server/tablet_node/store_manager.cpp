@@ -206,12 +206,10 @@ void TStoreManager::WriteRow(
 {
     ValidateRow(row);
 
-    auto rowRef = FindRowAndCheckLocks(
+    auto store = FindRelevantStoreAndCheckLocks(
         transaction,
         row,
         ERowLockMode::Write);
-
-    auto* store = rowRef ? rowRef.Store : Tablet_->GetActiveStore().Get();
 
     auto updatedRow = store->WriteRow(
         transaction,
@@ -219,7 +217,7 @@ void TStoreManager::WriteRow(
         prewrite);
 
     if (lockedRowRefs && updatedRow) {
-        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
+        lockedRowRefs->push_back(TDynamicRowRef(store.Get(), updatedRow));
     }
 }
 
@@ -231,12 +229,10 @@ void TStoreManager::DeleteRow(
 {
     ValidateKey(key, Tablet_->GetKeyColumnCount());
 
-    auto rowRef = FindRowAndCheckLocks(
+    auto store = FindRelevantStoreAndCheckLocks(
         transaction,
         key,
         ERowLockMode::Delete);
-
-    auto* store = rowRef ? rowRef.Store : Tablet_->GetActiveStore().Get();
 
     auto updatedRow = store->DeleteRow(
         transaction,
@@ -244,7 +240,7 @@ void TStoreManager::DeleteRow(
         prewrite);
 
     if (lockedRowRefs && updatedRow) {
-        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
+        lockedRowRefs->push_back(TDynamicRowRef(store.Get(), updatedRow));
     }
 }
 
@@ -281,7 +277,7 @@ TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
     return migratedRow;
 }
 
-TDynamicRowRef TStoreManager::FindRowAndCheckLocks(
+TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
     TTransaction* transaction,
     TUnversionedRow key,
     ERowLockMode mode)
@@ -292,7 +288,7 @@ TDynamicRowRef TStoreManager::FindRowAndCheckLocks(
             transaction,
             ERowLockMode::Write);
         if (row) {
-            return TDynamicRowRef(store.Get(), row);
+            return store;
         }
     }
 
@@ -318,7 +314,7 @@ TDynamicRowRef TStoreManager::FindRowAndCheckLocks(
         }
     }
 
-    return TDynamicRowRef();
+    return Tablet_->GetActiveStore();
 }
 
 void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
