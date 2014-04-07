@@ -33,14 +33,27 @@ class TMasterDiscovery::TQuorumRequester
     : public TRefCounted
 {
 public:
+    struct TQuorumResponse {
+        TQuorumResponse()
+        { }
+
+        TQuorumResponse(const Stroka& address, const TMasterDiscovery::TProxy::TRspGetQuorumPtr& quorum):
+            Address(address),
+            Quorum(quorum)
+        { }
+
+        Stroka Address;
+        TMasterDiscovery::TProxy::TRspGetQuorumPtr Quorum;
+    };
+
     explicit TQuorumRequester(TMasterDiscoveryConfigPtr config)
         : Config(config)
         , PromiseLatch(0)
-        , Promise(NewPromise<TProxy::TRspGetQuorumPtr>())
+        , Promise(NewPromise<TQuorumResponse>())
         , Awaiter(New<TParallelAwaiter>(GetSyncInvoker()))
     { }
 
-    TFuture<TMasterDiscovery::TProxy::TRspGetQuorumPtr> Run()
+    TFuture<TQuorumResponse> Run()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -69,7 +82,7 @@ private:
     TMasterDiscoveryConfigPtr Config;
 
     TAtomic PromiseLatch;
-    TPromise<TMasterDiscovery::TProxy::TRspGetQuorumPtr> Promise;
+    TPromise<TQuorumResponse> Promise;
     TParallelAwaiterPtr Awaiter;
 
     bool AcquireLatch()
@@ -96,7 +109,7 @@ private:
         if (!AcquireLatch())
             return;
 
-        Promise.Set(std::move(response));
+        Promise.Set(TQuorumResponse(address, response));
         Awaiter->Cancel();
         Cleanup();
     }
@@ -110,7 +123,7 @@ private:
 
         LOG_INFO("No quorum information received");
 
-        Promise.Set(NULL);
+        Promise.Set(TQuorumResponse());
         Cleanup();
     }
 
@@ -125,57 +138,18 @@ TMasterDiscovery::TMasterDiscovery(TMasterDiscoveryConfigPtr config)
     : Config(config)
 { }
 
-TMasterDiscovery::TAsyncResult TMasterDiscovery::GetMaster()
-{
-    return GetQuorum().Apply(
-        BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
-            TResult result;
-            if (quorum) {
-                int id = RandomNumber<unsigned int>(1 + quorum->follower_addresses_size());
-                if (id == quorum->follower_addresses().size()) {
-                    result.Address = quorum->leader_address();
-                } else {
-                    result.Address = quorum->follower_addresses().Get(id);
-                }
-                result.EpochId = FromProto<TEpochId>(quorum->epoch_id());
-            }
-            return MakeFuture(std::move(result));
-        })
-    );
-}
-
 TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
 {
-    return GetQuorum().Apply(
-        BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
+    return New<TQuorumRequester>(Config)->Run().Apply(
+        BIND([] (TQuorumRequester::TQuorumResponse rsp) -> TAsyncResult {
             TResult result;
-            if (quorum) {
-                result.Address = quorum->leader_address();
-                result.EpochId = FromProto<TEpochId>(quorum->epoch_id());
+            if (rsp.Quorum) {
+                result.Address = rsp.Address;
+                result.EpochId = FromProto<TEpochId>(rsp.Quorum->epoch_id());
             }
             return MakeFuture(std::move(result));
         })
     );
-}
-
-TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
-{
-    return GetQuorum().Apply(
-        BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
-            TResult result;
-            if (quorum && quorum->follower_addresses_size() > 0) {
-                int id = RandomNumber<unsigned int>(quorum->follower_addresses_size());
-                result.Address = quorum->follower_addresses().Get(id);
-                result.EpochId = FromProto<TEpochId>(quorum->epoch_id());
-            }
-            return MakeFuture(std::move(result));
-        })
-    );
-}
-
-TFuture<TMasterDiscovery::TProxy::TRspGetQuorumPtr> TMasterDiscovery::GetQuorum()
-{
-    return New<TQuorumRequester>(Config)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

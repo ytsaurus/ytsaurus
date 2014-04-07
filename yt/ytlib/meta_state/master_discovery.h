@@ -37,28 +37,14 @@ public:
     //! Initializes a new instance.
     explicit TMasterDiscovery(TMasterDiscoveryConfigPtr config);
 
-    //! Performs an asynchronous lookup of a master.
-    /*!
-     * The returned master is uniformly chosen among alive quorum participants.
-     */
-    TAsyncResult GetMaster();
-
     //! Performs an asynchronous lookup of a leader.
     TAsyncResult GetLeader();
-
-    //! Performs an asynchronous lookup of a follower.
-    /*!
-     * The returned follower is uniformly chosen among alive followers.
-     */
-    TAsyncResult GetFollower();
 
 private:
     typedef TMetaStateManagerProxy TProxy;
     class TQuorumRequester;
 
     TMasterDiscoveryConfigPtr Config;
-
-    TFuture<TProxy::TRspGetQuorumPtr> GetQuorum();
 
 };
 

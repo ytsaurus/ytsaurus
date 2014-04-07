@@ -62,20 +62,6 @@ IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
     return CreateRetryingChannel(config, roamingChannel);
 }
 
-IChannelPtr CreateMasterChannel(TMasterDiscoveryConfigPtr config)
-{
-    auto masterDiscovery = New<TMasterDiscovery>(config);
-    auto roamingChannel = CreateRoamingChannel(
-        config->RpcTimeout,
-        BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
-            return masterDiscovery->GetMaster().Apply(BIND(
-                &OnPeerFound,
-                "master",
-                config));
-        }));
-    return CreateRetryingChannel(config, roamingChannel);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NMetaState
