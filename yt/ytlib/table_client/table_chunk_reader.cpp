@@ -1058,9 +1058,8 @@ bool TTableChunkReaderProvider::KeepInMemory() const
 
 NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatistics() const
 {
-    auto dataStatistics = DataStatistics;
-
     TGuard<TSpinLock> guard(SpinLock);
+    auto dataStatistics = DataStatistics;
     FOREACH(const auto& reader, ActiveReaders) {
         dataStatistics += reader->GetDataStatistics();
     }
