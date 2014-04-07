@@ -147,6 +147,9 @@ struct IOperationController
      *  The diagnostics is returned to the client, no Cypress node is created.
      */
     virtual void Initialize() = 0;
+    
+    //! TODO(ignat): make reasonable comment
+    virtual void Essentiate() = 0;
 
     //! Performs a possibly lengthy initial preparation.
     virtual TFuture<TError> Prepare() = 0;
@@ -229,9 +232,6 @@ struct IOperationController
     //! Called for a just initialized operation to construct its brief spec
     //! to be used by UI.
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const = 0;
-
-    //! Initializes operation transactions.
-    virtual void InitTransactions() = 0;
 
     //! Checks if the operation requires all chunk parts to be available.
     //! Used by remote copy operations which depend on all parts, including parity ones.

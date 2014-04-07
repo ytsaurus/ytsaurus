@@ -1066,10 +1066,10 @@ private:
         std::vector<TTransactionId> transactionIds;
         FOREACH (const auto& id, watchSet) {
             auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
-            if (!batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
-                deadTransactionIds.insert(id);
-            } else {
+            if (batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
                 transactionIds.push_back(id);
+            } else {
+                deadTransactionIds.insert(id);
             }
         }
 

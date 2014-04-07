@@ -331,19 +331,6 @@ public:
             ~ToString(operationId),
             ~FormatResources(GetTotalResourceLimits()));
 
-        IOperationControllerPtr controller;
-        try {
-            controller = CreateController(~operation);
-            operation->SetController(controller);
-            controller->Initialize();
-        } catch (const std::exception& ex) {
-            auto wrappedError = TError("Operation has failed to initialize") << ex;
-            LOG_ERROR(wrappedError);
-            return MakeFuture(TStartResult(wrappedError));
-        }
-
-        RegisterOperation(operation);
-
         // Spawn a new fiber where all startup logic will work asynchronously.
         return
             BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
@@ -831,14 +818,18 @@ private:
         if (operation->GetState() != EOperationState::Initializing)
             throw TFiberTerminatedException();
 
-        auto controller = operation->GetController();
-
         try {
-            controller->InitTransactions();
+            auto controller = CreateController(~operation);
+            operation->SetController(controller);
 
-            auto asyncResult = MasterConnector_->CreateOperationNode(operation);
-            auto result = WaitFor(asyncResult);
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            RegisterOperation(operation);
+
+            controller->Initialize();
+            controller->Essentiate();
+
+            auto error = WaitFor(MasterConnector_->CreateOperationNode(operation));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
             if (operation->GetState() != EOperationState::Initializing)
                 throw TFiberTerminatedException();
         } catch (const std::exception& ex) {
@@ -851,7 +842,7 @@ private:
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
-        controller->GetCancelableControlInvoker()->Invoke(BIND(
+        operation->GetController()->GetCancelableControlInvoker()->Invoke(BIND(
             &TImpl::DoPrepareOperation,
             MakeStrong(this),
             operation));
@@ -923,24 +914,22 @@ private:
         // If the revival fails, we still need to update the node
         // and unregister the operation from Master Connector.
 
-        IOperationControllerPtr controller;
         try {
-            controller = CreateController(~operation);
+            auto controller = CreateController(~operation);
+            operation->SetController(controller);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %s)",
                 ~ToString(operationId));
-            auto wrappedError = TError("Operation has failed to revive")
-                << ex;
+            auto wrappedError = TError("Operation has failed to revive") << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
             MasterConnector_->FlushOperationNode(operation);
             return;
         }
 
-        operation->SetController(controller);
         RegisterOperation(operation);
 
         BIND(&TThis::DoReviveOperation, MakeStrong(this), operation)
-            .AsyncVia(controller->GetCancelableControlInvoker())
+            .AsyncVia(operation->GetController()->GetCancelableControlInvoker())
             .Run();
     }
 
@@ -948,48 +937,49 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Question(ignat): Who catch this exception?
         if (operation->GetState() != EOperationState::Reviving)
             throw TFiberTerminatedException();
 
-        auto operationId = operation->GetId();
-        auto controller = operation->GetController();
-
         try {
+            auto controller = operation->GetController();
+
+            if (!operation->Snapshot()) {
+                operation->SetCleanStart(true);
+                controller->Initialize();
+            }
+
+            controller->Essentiate();
+
             {
-                auto controller = operation->GetController();
-                auto asyncResult = controller->Revive();
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Reviving)
-                    throw TFiberTerminatedException();
+                auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
             {
-                auto asyncResult = MasterConnector_->ResetRevivingOperationNode(operation);
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Reviving)
-                    throw TFiberTerminatedException();
+                auto error = WaitFor(
+                    operation->Snapshot() ? controller->Revive() : controller->Prepare());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            operation->SetState(EOperationState::Running);
+            if (operation->GetState() != EOperationState::Reviving)
+                throw TFiberTerminatedException();
 
-            // Discard the snapshot, if any.
-            operation->Snapshot() = Null;
-
-            LOG_INFO("Operation has been revived and is now running (OperationId: %s)",
-                ~ToString(operationId));
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %s)",
-                ~ToString(operationId));
-            auto wrappedError = TError("Operation has failed to revive")
-                << ex;
+                ~ToString(operation->GetId()));
+            auto wrappedError = TError("Operation has failed to revive") << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
             MasterConnector_->FlushOperationNode(operation);
-            AbortSchedulerTransactions(operation);
-            FinishOperation(operation);
+            return;
         }
+
+        // Discard the snapshot, if any.
+        operation->Snapshot() = Null;
+
+        operation->SetState(EOperationState::Running);
+
+        LOG_INFO("Operation has been revived and is now running (OperationId: %s)",
+            ~ToString(operation->GetId()));
     }
 
 

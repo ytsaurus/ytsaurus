@@ -58,6 +58,7 @@ public:
         TOperation* operation);
 
     virtual void Initialize() override;
+    virtual void Essentiate() override;
     virtual TFuture<TError> Prepare() override;
     virtual void SaveSnapshot(TOutputStream* output) override;
     virtual TFuture<TError> Revive() override;
@@ -86,8 +87,6 @@ public:
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildResult(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
-
-    virtual void InitTransactions() override;
 
     virtual bool NeedsAllChunkParts() const override;
 
@@ -591,8 +590,8 @@ protected:
 
 
     // Initialization.
-    virtual void DoEssentiate();
     virtual void DoInitialize();
+    virtual void InitializeTransactions();
 
 
     // Preparation.
@@ -627,7 +626,7 @@ protected:
 
 
     // Revival.
-    void DoReviveFromSnapshot();
+    void DoRevive();
     void ReinstallLivePreview();
     void AbortAllJoblets();
 

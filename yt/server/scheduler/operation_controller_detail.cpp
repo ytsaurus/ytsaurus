@@ -986,16 +986,16 @@ void TOperationControllerBase::Initialize()
             OutputTables.size());
     }
 
-    DoEssentiate();
-
     DoInitialize();
 
     LOG_INFO("Operation initialized");
 }
 
-void TOperationControllerBase::DoEssentiate()
+void TOperationControllerBase::Essentiate()
 {
     Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+
+    InitializeTransactions();
 
     InputChunkScratcher = New<TInputChunkScratcher>(this, AuthenticatedInputMasterChannel);
 }
@@ -1084,36 +1084,19 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
 
 TFuture<TError> TOperationControllerBase::Revive()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    if (Operation->Snapshot()) {
-        DoEssentiate();
-        InitTransactions();
-
-        auto this_ = MakeStrong(this);
-        return
-            BIND(&TOperationControllerBase::DoReviveFromSnapshot, this_)
-                .AsyncVia(CancelableBackgroundInvoker)
-                .Run()
-                .Apply(BIND([this, this_] () -> TError {
-                    ReinstallLivePreview();
-                    Prepared = true;
-                    Running = true;
-                    return TError();
-                }).AsyncVia(CancelableControlInvoker));
-    } else {
-        try {
-            Initialize();
-            InitTransactions();
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
-        }
-
-        return Prepare();
-    }
+    auto this_ = MakeStrong(this);
+    return BIND(&TOperationControllerBase::DoRevive, this_)
+        .AsyncVia(CancelableBackgroundInvoker)
+        .Run()
+        .Apply(BIND([this, this_] () -> TError {
+            ReinstallLivePreview();
+            Prepared = true;
+            Running = true;
+            return TError();
+        }).AsyncVia(CancelableControlInvoker));
 }
 
-void TOperationControllerBase::DoReviveFromSnapshot()
+void TOperationControllerBase::DoRevive()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -1130,7 +1113,7 @@ void TOperationControllerBase::DoReviveFromSnapshot()
     AddAllTaskPendingHints();
 }
 
-void TOperationControllerBase::InitTransactions()
+void TOperationControllerBase::InitializeTransactions()
 {
     StartAsyncSchedulerTransaction();
     if (Operation->GetCleanStart()) {
