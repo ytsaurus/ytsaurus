@@ -277,7 +277,7 @@ private:
             int currentPartitionRowCount = 0;
             int readRowCount = 0;
             int writeRowCount = 0;
-            TVersionedMultiChunkWriterPtr currentWriter;
+            IVersionedMultiChunkWriterPtr currentWriter;
 
             TReqCommitTabletStoresUpdate updateStoresRequest;
             ToProto(updateStoresRequest.mutable_tablet_id(), tabletId);
@@ -295,7 +295,7 @@ private:
                     ~ToString(currentPivotKey),
                     ~ToString(nextPivotKey));
 
-                currentWriter = New<TVersionedMultiChunkWriter>(
+                currentWriter = CreateVersionedMultiChunkWriter(
                     Config_->Writer,
                     writerOptions,
                     schema,
@@ -505,7 +505,7 @@ private:
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
-            auto writer = New<TVersionedMultiChunkWriter>(
+            auto writer = CreateVersionedMultiChunkWriter(
                 Config_->Writer,
                 writerOptions,
                 schema,

@@ -11,6 +11,7 @@
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
 
@@ -22,7 +23,9 @@ namespace NVersionedTableClient {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
+using namespace NRpc;
 using namespace NTableClient::NProto;
+using namespace NTransactionClient;
 using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,13 +325,44 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVersionedMultiChunkWriter
+    : public TMultiChunkSequentialWriterBase
+    , public IVersionedMultiChunkWriter
+{
+public:
+    TVersionedMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns,
+        IChannelPtr masterChannel,
+        const TTransactionId& transactionId,
+        const TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
+
+    virtual bool Write(const std::vector<TVersionedRow>& rows) override;
+
+private:
+    TTableWriterConfigPtr Config_;
+    TTableWriterOptionsPtr Options_;
+    TTableSchema Schema_;
+    TKeyColumns KeyColumns_;
+
+    IVersionedWriter* CurrentWriter_;
+
+
+    virtual IChunkWriterBasePtr CreateFrontalWriter(IAsyncWriterPtr underlyingWriter) override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TVersionedMultiChunkWriter::TVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    NRpc::IChannelPtr masterChannel,
-    const NTransactionClient::TTransactionId& transactionId,
+    IChannelPtr masterChannel,
+    const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
     : TMultiChunkSequentialWriterBase(config, options, masterChannel, transactionId, parentChunkListId)
     , Config_(config)
@@ -354,6 +388,20 @@ IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IAsyncWriter
     auto writer = CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
     CurrentWriter_ = writer.Get();
     return writer;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    NRpc::IChannelPtr masterChannel,
+    const NTransactionClient::TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId)
+{
+    return New<TVersionedMultiChunkWriter>(config, options, schema, keyColumns, masterChannel, transactionId, parentChunkListId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

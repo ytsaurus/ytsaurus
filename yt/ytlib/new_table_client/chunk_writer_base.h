@@ -5,6 +5,8 @@
 #include "chunk_meta_extensions.h"
 #include "unversioned_row.h"
 
+#include <ytlib/chunk_client/chunk_writer_base.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 

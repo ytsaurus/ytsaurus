@@ -65,6 +65,7 @@ set( HDRS
   ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/multi_chunk_sequential_writer_base.h
+  ${BASE}/multi_chunk_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/read_limit.h

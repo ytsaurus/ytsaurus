@@ -261,7 +261,7 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
     }
 
     // Reserve next sequential slot in WrittenChunks_.
-    WrittenChunks_.push_back();
+    WrittenChunks_.push_back(TChunkSpec());
     auto& chunkSpec = WrittenChunks_.back();
 
     LOG_DEBUG("Finishing chunk (ChunkId: %s)", ~ToString(session.ChunkId));

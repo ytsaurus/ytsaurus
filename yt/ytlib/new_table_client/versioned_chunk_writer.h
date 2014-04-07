@@ -7,7 +7,9 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_writer_base.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
+#include <ytlib/chunk_client/multi_chunk_writer.h>
+
+#include <core/rpc/public.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -16,7 +18,7 @@ namespace NVersionedTableClient {
 
 struct IVersionedChunkWriter
     : public IVersionedWriter
-    , public NChunkClient::IChunkWriterBase
+    , public virtual NChunkClient::IChunkWriterBase
 { };
 
 DEFINE_REFCOUNTED_TYPE(IVersionedChunkWriter)
@@ -32,36 +34,23 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedMultiChunkWriter
-    : public NChunkClient::TMultiChunkSequentialWriterBase
-    , public IVersionedWriter
-{
-public:
-    TVersionedMultiChunkWriter(
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns,
-        NRpc::IChannelPtr masterChannel,
-        const NTransactionClient::TTransactionId& transactionId,
-        const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
+struct IVersionedMultiChunkWriter
+    : public IVersionedWriter
+    , public virtual NChunkClient::IMultiChunkWriter
+{ };
 
-    virtual bool Write(const std::vector<TVersionedRow>& rows) override;
+DEFINE_REFCOUNTED_TYPE(IVersionedMultiChunkWriter);
 
-private:
-    TTableWriterConfigPtr Config_;
-    TTableWriterOptionsPtr Options_;
-    TTableSchema Schema_;
-    TKeyColumns KeyColumns_;
+////////////////////////////////////////////////////////////////////////////////
 
-    IVersionedWriter* CurrentWriter_;
-
-
-    virtual NChunkClient::IChunkWriterBasePtr CreateFrontalWriter(NChunkClient::IAsyncWriterPtr underlyingWriter) override;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TVersionedMultiChunkWriter)
+IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    NRpc::IChannelPtr masterChannel,
+    const NTransactionClient::TTransactionId& transactionId,
+    const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

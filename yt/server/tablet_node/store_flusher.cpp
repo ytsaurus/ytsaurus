@@ -310,7 +310,7 @@ private:
                 transaction = transactionOrError.Value();
             }
 
-            auto writer = New<TVersionedMultiChunkWriter>(
+            auto writer = CreateVersionedMultiChunkWriter(
                 Config_->Writer,
                 tablet->GetWriterOptions(),
                 tablet->Schema(),

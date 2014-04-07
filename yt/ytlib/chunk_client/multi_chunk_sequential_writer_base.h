@@ -4,7 +4,7 @@
 
 #include "chunk_replica.h"
 #include "data_statistics.h"
-#include "writer_base.h"
+#include "multi_chunk_writer.h"
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -20,7 +20,7 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMultiChunkSequentialWriterBase
-    : public virtual IWriterBase
+    : public virtual IMultiChunkWriter
 {
 public:
     TMultiChunkSequentialWriterBase(
