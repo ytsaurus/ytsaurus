@@ -88,10 +88,22 @@ void ToProto(NProto::TNodeDescriptor* protoDescriptor, const TNodeDescriptor& de
 
 void FromProto(TNodeDescriptor* descriptor, const NProto::TNodeDescriptor& protoDescriptor)
 {
+    TNodeDescriptor::TAddressMap addresses;
     for (const auto& addressDescriptor : protoDescriptor.addresses()) {
-        descriptor->Addresses()[addressDescriptor.network()] = addressDescriptor.address();
+        addresses[addressDescriptor.network()] = addressDescriptor.address();
     }
-    descriptor->Addresses()[DefaultNetworkName] = protoDescriptor.address();
+    addresses[DefaultNetworkName] = protoDescriptor.address();
+    *descriptor = TNodeDescriptor(addresses);
+}
+
+bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
+{
+    return lhs.Addresses() == rhs.Addresses();
+}
+
+bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
+{
+    return !(lhs == rhs);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -122,6 +134,8 @@ void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor
 
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
+    auto it = IdToDescriptor.find(id);
+    YCHECK(it == IdToDescriptor.end() || it->second != descriptor);
     IdToDescriptor[id] = descriptor;
     AddressToDescriptor[descriptor.GetDefaultAddress()] = descriptor;
 }

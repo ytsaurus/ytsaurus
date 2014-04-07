@@ -119,7 +119,7 @@ void TBootstrap::Run()
         for (auto& pair : addresses) {
             pair.second = BuildServiceAddress(pair.second, Config->RpcPort);
         }
-        LocalDescriptor.Addresses() = addresses;
+        LocalDescriptor = NNodeTrackerClient::TNodeDescriptor(addresses);
     }
 
     LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",

@@ -13,6 +13,7 @@ namespace NNodeTrackerServer {
 
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,12 +80,15 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
+    TNodeDescriptor::TAddressMap addresses;
     // COMPAT(ignat)
     if (context.GetVersion() >= 41) {
-        Load(context, Descriptor_.Addresses());
+        Load(context, addresses);
     } else {
-        Load(context, Descriptor_.Addresses()[NNodeTrackerClient::DefaultNetworkName]);
+        Load(context, addresses[DefaultNetworkName]);
     }
+    Descriptor_ = TNodeDescriptor(addresses);
+
     Load(context, State_);
     Load(context, Statistics_);
     // COMPAT(babenko)
