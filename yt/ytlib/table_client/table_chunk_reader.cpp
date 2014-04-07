@@ -955,7 +955,6 @@ i64 TTableChunkReader::GetSessionRowCount() const
 
 NChunkClient::NProto::TDataStatistics TTableChunkReader::GetDataStatistics() const
 {
-
     NChunkClient::NProto::TDataStatistics result;
     result.set_chunk_count(1);
 
