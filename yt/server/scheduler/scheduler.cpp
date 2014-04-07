@@ -1417,7 +1417,7 @@ private:
                 YUNREACHABLE();
         }
     }
-    
+
     INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)
     {
         switch (type) {
@@ -1572,8 +1572,18 @@ private:
                 .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
+                .Item("clusters").DoMapFor(GetCellDirectory()->GetClusterNames(), [=] (TFluentMap fluent, Stroka clusterName) {
+                    BuildClusterYson(clusterName, fluent);
+                })
                 .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, ~Strategy_))
             .EndMap();
+    }
+
+    void BuildClusterYson(const Stroka& clusterName, IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item(clusterName);
+        GetCellDirectory()->GetMasterConfig(clusterName)->Save(consumer);
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)

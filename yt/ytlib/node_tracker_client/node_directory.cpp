@@ -135,7 +135,7 @@ void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
     auto it = IdToDescriptor.find(id);
-    YCHECK(it == IdToDescriptor.end() || it->second != descriptor);
+    YCHECK(it == IdToDescriptor.end() || it->second == descriptor);
     IdToDescriptor[id] = descriptor;
     AddressToDescriptor[descriptor.GetDefaultAddress()] = descriptor;
 }
