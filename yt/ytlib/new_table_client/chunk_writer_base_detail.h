@@ -4,6 +4,7 @@
 
 #include "chunk_meta_extensions.h"
 #include "chunk_writer_base.h"
+#include "unversioned_row.h"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -38,6 +39,8 @@ protected:
     TChunkWriterConfigPtr Config_;
     i64 RowCount_;
 
+    NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
+
 
     void OnRow(TUnversionedRow row);
     void OnRow(TVersionedRow row);
@@ -51,8 +54,6 @@ protected:
     virtual IBlockWriter* CreateBlockWriter() = 0;
 
 private:
-    NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
-
     std::unique_ptr<IBlockWriter> BlockWriter_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
@@ -74,6 +75,38 @@ private:
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
 
     i64 GetUncompressedSize() const;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSortedChunkWriterBase
+    : public TChunkWriterBase
+{
+public:
+    TSortedChunkWriterBase(
+        TChunkWriterConfigPtr config,
+        TChunkWriterOptionsPtr options,
+        NChunkClient::IAsyncWriterPtr asyncWriter,
+        TKeyColumns keyColumns);
+
+    virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override;
+
+    virtual i64 GetMetaSize() const override;
+
+protected:
+    TKeyColumns KeyColumns_;
+    TOwningKey LastKey_;
+
+    NProto::TBlockIndexExt BlockIndexExt_;
+    i64 BlockIndexExtSize_;
+
+    NProto::TBoundaryKeysExt BoundaryKeysExt_;
+
+
+    virtual void OnRow(const TUnversionedValue* begin, const TUnversionedValue* end) override;
+    virtual void OnBlockFinish() override;
+    virtual void OnClose() override;
 
 };
 

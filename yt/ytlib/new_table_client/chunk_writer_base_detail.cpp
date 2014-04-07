@@ -10,6 +10,8 @@
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
+#include <ytlib/table_client/chunk_meta_extensions.h>
+
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -25,8 +27,8 @@ TChunkWriterBase::TChunkWriterBase(
     TChunkWriterOptionsPtr options,
     IAsyncWriterPtr asyncWriter)
     : Config_(config)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
     , RowCount_(0)
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
     , BlockMetaExtSize_(0)
     , SamplesExtSize_(0)
     , AverageSampleSize_(0.0)
@@ -84,6 +86,14 @@ TChunkMeta TChunkWriterBase::GetSchedulerMeta() const
 TDataStatistics TChunkWriterBase::GetDataStatistics() const
 {
     return EncodingChunkWriter_->GetDataStatistics();
+}
+
+TBoundaryKeysExt TChunkWriterBase::GetBoundaryKeys() const
+{
+    TBoundaryKeysExt boundaryKeys;
+    boundaryKeys.mutable_max();
+    boundaryKeys.mutable_min();
+    return boundaryKeys;
 }
 
 void TChunkWriterBase::OnRow(TVersionedRow row)
@@ -177,6 +187,64 @@ i64 TChunkWriterBase::GetUncompressedSize() const
         size += BlockWriter_->GetBlockSize();
     }
     return size;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSortedChunkWriterBase::TSortedChunkWriterBase(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    NChunkClient::IAsyncWriterPtr asyncWriter,
+    TKeyColumns keyColumns)
+    : TChunkWriterBase(config, options, asyncWriter)
+    , KeyColumns_(keyColumns)
+{ }
+
+NChunkClient::NProto::TChunkMeta TSortedChunkWriterBase::GetMasterMeta() const
+{
+    auto meta = TChunkWriterBase::GetMasterMeta();
+    SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
+    return meta;
+}
+
+i64 TSortedChunkWriterBase::GetMetaSize() const
+{
+    return TChunkWriterBase::GetMetaSize() + BlockIndexExtSize_;
+}
+
+void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
+{
+    YCHECK(std::distance(begin, end) >= KeyColumns_.size());
+    LastKey_ = TOwningKey(begin, begin + KeyColumns_.size());
+    if (RowCount_ == 0) {
+        ToProto(BoundaryKeysExt_.mutable_min(), LastKey_);
+    }
+
+    TChunkWriterBase::OnRow(begin, end);
+}
+
+void TSortedChunkWriterBase::OnBlockFinish()
+{
+    ToProto(BlockIndexExt_.add_entries(), LastKey_);
+    BlockIndexExtSize_ = BlockIndexExt_.ByteSize();
+
+    TChunkWriterBase::OnBlockFinish();
+}
+
+void TSortedChunkWriterBase::OnClose()
+{
+    ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
+
+    auto& meta = EncodingChunkWriter_->Meta();
+    SetProtoExtension(meta.mutable_extensions(), BlockIndexExt_);
+
+    TKeyColumnsExt keyColumnsExt;
+    NYT::ToProto(keyColumnsExt.mutable_names(), KeyColumns_);
+    SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
+
+    SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
+
+    TChunkWriterBase::OnClose();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
