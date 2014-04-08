@@ -1,4 +1,4 @@
-// A Bison parser, made by GNU Bison 3.0.2.
+// A Bison parser, made by GNU Bison 3.0.
 
 // Skeleton implementation for Bison LALR(1) parsers in C++
 
@@ -36,11 +36,11 @@
 // First part of user declarations.
 
 
-# ifndef YY_NULLPTR
+# ifndef YY_NULL
 #  if defined __cplusplus && 201103L <= __cplusplus
-#   define YY_NULLPTR nullptr
+#   define YY_NULL nullptr
 #  else
-#   define YY_NULLPTR 0
+#   define YY_NULL 0
 #  endif
 # endif
 
@@ -715,174 +715,203 @@ namespace NYT { namespace NQueryClient {
   TParser::make_End (const location_type& l)
   {
     return symbol_type (token::End, l);
+
   }
 
   TParser::symbol_type
   TParser::make_Failure (const location_type& l)
   {
     return symbol_type (token::Failure, l);
+
   }
 
   TParser::symbol_type
   TParser::make_StrayWillParseQuery (const location_type& l)
   {
     return symbol_type (token::StrayWillParseQuery, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwFrom (const location_type& l)
   {
     return symbol_type (token::KwFrom, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwWhere (const location_type& l)
   {
     return symbol_type (token::KwWhere, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwGroupBy (const location_type& l)
   {
     return symbol_type (token::KwGroupBy, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwAs (const location_type& l)
   {
     return symbol_type (token::KwAs, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwAnd (const location_type& l)
   {
     return symbol_type (token::KwAnd, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwOr (const location_type& l)
   {
     return symbol_type (token::KwOr, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwBetween (const location_type& l)
   {
     return symbol_type (token::KwBetween, l);
+
   }
 
   TParser::symbol_type
   TParser::make_KwIn (const location_type& l)
   {
     return symbol_type (token::KwIn, l);
+
   }
 
   TParser::symbol_type
   TParser::make_Identifier (const TStringBuf& v, const location_type& l)
   {
     return symbol_type (token::Identifier, v, l);
+
   }
 
   TParser::symbol_type
   TParser::make_IntegerLiteral (const i64& v, const location_type& l)
   {
     return symbol_type (token::IntegerLiteral, v, l);
+
   }
 
   TParser::symbol_type
   TParser::make_DoubleLiteral (const double& v, const location_type& l)
   {
     return symbol_type (token::DoubleLiteral, v, l);
+
   }
 
   TParser::symbol_type
   TParser::make_YPathLiteral (const TStringBuf& v, const location_type& l)
   {
     return symbol_type (token::YPathLiteral, v, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpModulo (const location_type& l)
   {
     return symbol_type (token::OpModulo, l);
+
   }
 
   TParser::symbol_type
   TParser::make_LeftParenthesis (const location_type& l)
   {
     return symbol_type (token::LeftParenthesis, l);
+
   }
 
   TParser::symbol_type
   TParser::make_RightParenthesis (const location_type& l)
   {
     return symbol_type (token::RightParenthesis, l);
+
   }
 
   TParser::symbol_type
   TParser::make_Asterisk (const location_type& l)
   {
     return symbol_type (token::Asterisk, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpPlus (const location_type& l)
   {
     return symbol_type (token::OpPlus, l);
+
   }
 
   TParser::symbol_type
   TParser::make_Comma (const location_type& l)
   {
     return symbol_type (token::Comma, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpMinus (const location_type& l)
   {
     return symbol_type (token::OpMinus, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpDivide (const location_type& l)
   {
     return symbol_type (token::OpDivide, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpLess (const location_type& l)
   {
     return symbol_type (token::OpLess, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpLessOrEqual (const location_type& l)
   {
     return symbol_type (token::OpLessOrEqual, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpEqual (const location_type& l)
   {
     return symbol_type (token::OpEqual, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpNotEqual (const location_type& l)
   {
     return symbol_type (token::OpNotEqual, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpGreater (const location_type& l)
   {
     return symbol_type (token::OpGreater, l);
+
   }
 
   TParser::symbol_type
   TParser::make_OpGreaterOrEqual (const location_type& l)
   {
     return symbol_type (token::OpGreaterOrEqual, l);
+
   }
 
 
@@ -1169,13 +1198,13 @@ namespace NYT { namespace NQueryClient {
 #endif // YT_QL_YYDEBUG
 
   inline TParser::state_type
-  TParser::yy_lr_goto_state_ (state_type yystate, int yysym)
+  TParser::yy_lr_goto_state_ (state_type yystate, int yylhs)
   {
-    int yyr = yypgoto_[yysym - yyntokens_] + yystate;
+    int yyr = yypgoto_[yylhs - yyntokens_] + yystate;
     if (0 <= yyr && yyr <= yylast_ && yycheck_[yyr] == yystate)
       return yytable_[yyr];
     else
-      return yydefgoto_[yysym - yyntokens_];
+      return yydefgoto_[yylhs - yyntokens_];
   }
 
   inline bool
@@ -1198,7 +1227,6 @@ namespace NYT { namespace NQueryClient {
 
     // State.
     int yyn;
-    /// Length of the RHS of the rule being reduced.
     int yylen = 0;
 
     // Error handling.
@@ -1210,6 +1238,9 @@ namespace NYT { namespace NQueryClient {
 
     /// The locations where the error started and ended.
     stack_symbol_type yyerror_range[3];
+
+    /// $$ and @$.
+    stack_symbol_type yylhs;
 
     /// The return value of parse ().
     int yyresult;
@@ -1226,7 +1257,7 @@ namespace NYT { namespace NQueryClient {
        location values to have been already stored, initialize these
        stacks with a primary value.  */
     yystack_.clear ();
-    yypush_ (YY_NULLPTR, 0, yyla);
+    yypush_ (YY_NULL, 0, yyla);
 
     // A new symbol was pushed on the stack.
   yynewstate:
@@ -1304,13 +1335,11 @@ namespace NYT { namespace NQueryClient {
   `-----------------------------*/
   yyreduce:
     yylen = yyr2_[yyn];
-    {
-      stack_symbol_type yylhs;
-      yylhs.state = yy_lr_goto_state_(yystack_[yylen].state, yyr1_[yyn]);
-      /* Variants are always initialized to an empty instance of the
-         correct type. The default '$$ = $1' action is NOT applied
-         when using variants.  */
-        switch (yyr1_[yyn])
+    yylhs.state = yy_lr_goto_state_(yystack_[yylen].state, yyr1_[yyn]);
+    /* Variants are always initialized to an empty instance of the
+       correct type. The default $$=$1 action is NOT applied when using
+       variants.  */
+      switch (yyr1_[yyn])
     {
       case 44: // relational-op
       case 46: // additive-op
@@ -1386,18 +1415,18 @@ namespace NYT { namespace NQueryClient {
     }
 
 
-      // Compute the default @$.
-      {
-        slice<stack_symbol_type, stack_type> slice (yystack_, yylen);
-        YYLLOC_DEFAULT (yylhs.location, slice, yylen);
-      }
+    // Compute the default @$.
+    {
+      slice<stack_symbol_type, stack_type> slice (yystack_, yylen);
+      YYLLOC_DEFAULT (yylhs.location, slice, yylen);
+    }
 
-      // Perform the reduction.
-      YY_REDUCE_PRINT (yyn);
-      try
-        {
-          switch (yyn)
-            {
+    // Perform the reduction.
+    YY_REDUCE_PRINT (yyn);
+    try
+      {
+        switch (yyn)
+          {
   case 2:
     {
             *head = yystack_[0].value.as< TOperator* > ();
@@ -1523,8 +1552,8 @@ namespace NYT { namespace NQueryClient {
   case 21:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, 
-                context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::Greater, yystack_[4].value.as< TExpression* > (), yystack_[2].value.as< TExpression* > ()), 
-                context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::Less, yystack_[4].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ()));
+                context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::GreaterOrEqual, yystack_[4].value.as< TExpression* > (), yystack_[2].value.as< TExpression* > ()), 
+                context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::LessOrEqual, yystack_[4].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ()));
         }
     break;
 
@@ -1663,23 +1692,22 @@ namespace NYT { namespace NQueryClient {
     break;
 
 
-            default:
-              break;
-            }
-        }
-      catch (const syntax_error& yyexc)
-        {
-          error (yyexc);
-          YYERROR;
-        }
-      YY_SYMBOL_PRINT ("-> $$ =", yylhs);
-      yypop_ (yylen);
-      yylen = 0;
-      YY_STACK_PRINT ();
+          default:
+            break;
+          }
+      }
+    catch (const syntax_error& yyexc)
+      {
+        error (yyexc);
+        YYERROR;
+      }
+    YY_SYMBOL_PRINT ("-> $$ =", yylhs);
+    yypop_ (yylen);
+    yylen = 0;
+    YY_STACK_PRINT ();
 
-      // Shift the result of the reduction.
-      yypush_ (YY_NULLPTR, yylhs);
-    }
+    // Shift the result of the reduction.
+    yypush_ (YY_NULL, yylhs);
     goto yynewstate;
 
   /*--------------------------------------.
@@ -1726,6 +1754,9 @@ namespace NYT { namespace NQueryClient {
     if (false)
       goto yyerrorlab;
     yyerror_range[1].location = yystack_[yylen - 1].location;
+    /* $$ was initialized before running the user action.  */
+    YY_SYMBOL_PRINT ("Error: discarding", yylhs);
+    yylhs.~stack_symbol_type();
     /* Do not reclaim the symbols of the rule whose action triggered
        this YYERROR.  */
     yypop_ (yylen);
@@ -1804,11 +1835,11 @@ namespace NYT { namespace NQueryClient {
         // Do not try to display the values of the reclaimed symbols,
         // as their printer might throw an exception.
         if (!yyempty)
-          yy_destroy_ (YY_NULLPTR, yyla);
+          yy_destroy_ (YY_NULL, yyla);
 
         while (1 < yystack_.size ())
           {
-            yy_destroy_ (YY_NULLPTR, yystack_[0]);
+            yy_destroy_ (YY_NULL, yystack_[0]);
             yypop_ ();
           }
         throw;
@@ -1887,7 +1918,7 @@ namespace NYT { namespace NQueryClient {
           }
       }
 
-    char const* yyformat = YY_NULLPTR;
+    char const* yyformat = YY_NULL;
     switch (yycount)
       {
 #define YYCASE_(N, S)                         \
@@ -2040,7 +2071,7 @@ namespace NYT { namespace NQueryClient {
   "expression", "or-op-expr", "and-op-expr", "relational-op-expr",
   "relational-op", "additive-op-expr", "additive-op",
   "multiplicative-op-expr", "multiplicative-op", "atomic-expr",
-  "reference-expr", "function-expr", "function-expr-args", YY_NULLPTR
+  "reference-expr", "function-expr", "function-expr-args", YY_NULL
   };
 
 #if YT_QL_YYDEBUG

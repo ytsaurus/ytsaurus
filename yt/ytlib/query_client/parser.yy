@@ -239,8 +239,8 @@ relational-op-expr
     | atomic-expr[expr] KwBetween atomic-expr[lbexpr] KwAnd atomic-expr[rbexpr]
         {
             $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::And, 
-                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Greater, $expr, $lbexpr), 
-                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Less, $expr, $rbexpr));
+                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr), 
+                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
         }
     | atomic-expr[expr] KwIn LeftParenthesis function-expr-args[args] RightParenthesis
         {

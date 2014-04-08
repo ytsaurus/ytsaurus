@@ -1,4 +1,4 @@
-// A Bison parser, made by GNU Bison 3.0.2.
+// A Bison parser, made by GNU Bison 3.0.
 
 // Stack handling for Bison parsers in C++
 
@@ -31,12 +31,12 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/sandello/yt/source/yt/ytlib/query_client/stack.hh
+ ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/stack.hh
  ** Define the NYT::NQueryClient::stack class.
  */
 
-#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
-# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
 
 # include <vector>
 
@@ -151,4 +151,4 @@ namespace NYT { namespace NQueryClient {
 
 } } // NYT::NQueryClient
 
-#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
