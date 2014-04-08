@@ -49,7 +49,7 @@ TUnversionedValue TRowBuffer::Capture(const TUnversionedValue& value)
     auto capturedValue = value;
     if (value.Type == EValueType::String || value.Type == EValueType::Any) {
         capturedValue.Data.String = UnalignedPool_.AllocateUnaligned(value.Length);
-        memcpy(const_cast<char*>(value.Data.String), value.Data.String, value.Length);
+        memcpy(const_cast<char*>(capturedValue.Data.String), value.Data.String, value.Length);
     }
     return capturedValue;
 }
