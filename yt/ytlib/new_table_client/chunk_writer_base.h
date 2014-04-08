@@ -13,13 +13,14 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkWriterBase
-    : public NChunkClient::IChunkWriterBase
+    : public virtual NChunkClient::IChunkWriterBase
 {
 public:
     TChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr asyncWriter);
+        NChunkClient::IAsyncWriterPtr asyncWriter,
+        const TKeyColumns& keyColumns = TKeyColumns());
 
     virtual TAsyncError Open() override;
 
@@ -37,6 +38,7 @@ public:
 
 protected:
     TChunkWriterConfigPtr Config_;
+    TKeyColumns KeyColumns_;
     i64 RowCount_;
 
     NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
@@ -83,6 +85,7 @@ private:
 class TSortedChunkWriterBase
     : public TChunkWriterBase
 {
+
 public:
     TSortedChunkWriterBase(
         TChunkWriterConfigPtr config,
@@ -96,7 +99,6 @@ public:
     virtual i64 GetMetaSize() const override;
 
 protected:
-    TKeyColumns KeyColumns_;
     TOwningKey LastKey_;
 
     NProto::TBlockIndexExt BlockIndexExt_;
@@ -108,6 +110,8 @@ protected:
     virtual void OnRow(const TUnversionedValue* begin, const TUnversionedValue* end) override;
     virtual void OnBlockFinish() override;
     virtual void OnClose() override;
+
+    using TChunkWriterBase::OnRow;
 
 };
 

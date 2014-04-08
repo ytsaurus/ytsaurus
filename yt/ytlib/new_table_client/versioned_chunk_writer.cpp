@@ -15,8 +15,6 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
 
-#include <core/concurrency/parallel_awaiter.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 

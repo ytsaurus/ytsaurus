@@ -1100,7 +1100,7 @@ private:
         if (tablet->GetState() != ETabletState::Mounted &&
             tablet->GetState() != ETabletState::Unmounting)
         {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stores for a tablet in %s state, ignored (TabletId: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stoares for a tablet in %s state, ignored (TabletId: %s)",
                 ~FormatEnum(tablet->GetState()).Quote(),
                 ~ToString(tabletId));
             return;

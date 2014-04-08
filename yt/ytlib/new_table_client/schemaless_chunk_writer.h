@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "schema.h"
-#include "versioned_writer.h"
+#include "schemaless_writer.h"
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_writer_base.h>
@@ -15,37 +14,37 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVersionedChunkWriter
-    : public IVersionedWriter
+struct ISchemalessChunkWriter
+    : public ISchemalessWriter
     , public virtual NChunkClient::IChunkWriterBase
 { };
 
-DEFINE_REFCOUNTED_TYPE(IVersionedChunkWriter)
+DEFINE_REFCOUNTED_TYPE(ISchemalessChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedChunkWriterPtr CreateVersionedChunkWriter(
+ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     NChunkClient::IAsyncWriterPtr asyncWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVersionedMultiChunkWriter
-    : public IVersionedWriter
+struct ISchemalessMultiChunkWriter
+    : public ISchemalessWriter
     , public virtual NChunkClient::IMultiChunkWriter
 { };
 
-DEFINE_REFCOUNTED_TYPE(IVersionedMultiChunkWriter);
+DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
+ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,

@@ -12,7 +12,10 @@
 
 #include <core/logging/tagged_logger.h>
 
+#include <core/concurrency/parallel_awaiter.h>
+
 #include <core/rpc/public.h>
+
 
 namespace NYT {
 namespace NChunkClient {
