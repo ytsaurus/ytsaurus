@@ -27,7 +27,7 @@ public:
         , Channel_(CreatePeerChannel(config, channelFactory, EPeerRole::Leader))
         , Proxy(Channel_)
         , RequestInProgress_(false)
-        , LatestTimestamp_(NullTimestamp)
+        , LatestTimestamp_(MinTimestamp)
     { }
 
     virtual TFuture<TErrorOr<TTimestamp>> GenerateTimestamps(int count) override
