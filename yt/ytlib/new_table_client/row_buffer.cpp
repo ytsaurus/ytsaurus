@@ -44,6 +44,16 @@ const TChunkedMemoryPool* TRowBuffer::GetUnalignedPool() const
     return &UnalignedPool_;
 }
 
+TUnversionedValue TRowBuffer::Capture(const TUnversionedValue& value)
+{
+    auto capturedValue = value;
+    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+        capturedValue.Data.String = UnalignedPool_.AllocateUnaligned(value.Length);
+        memcpy(const_cast<char*>(value.Data.String), value.Data.String, value.Length);
+    }
+    return capturedValue;
+}
+
 TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
 {
     if (!row) {
@@ -52,13 +62,7 @@ TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
 
     auto capturedRow = TUnversionedRow::Allocate(&AlignedPool_, row.GetCount());
     for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-        const auto& srcValue = row[index];
-        auto& dstValue = capturedRow[index];
-        dstValue = srcValue;
-        if (dstValue.Type == EValueType::String || dstValue.Type == EValueType::Any) {
-            dstValue.Data.String = UnalignedPool_.AllocateUnaligned(srcValue.Length);
-            memcpy(const_cast<char*>(dstValue.Data.String), srcValue.Data.String, srcValue.Length);
-        }
+        capturedRow[index] = Capture(row[index]);
     }
 
     return capturedRow;

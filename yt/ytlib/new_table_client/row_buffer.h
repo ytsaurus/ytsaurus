@@ -28,6 +28,7 @@ public:
     TChunkedMemoryPool* GetUnalignedPool();
     const TChunkedMemoryPool* GetUnalignedPool() const;
 
+    TUnversionedValue Capture(const TUnversionedValue& value);
     TUnversionedRow Capture(TUnversionedRow row);
     std::vector<TUnversionedRow> Capture(const std::vector<TUnversionedRow>& rows);
 
