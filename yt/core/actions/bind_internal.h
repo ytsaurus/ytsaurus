@@ -26,8 +26,8 @@ namespace NDetail {
 // A typeclass that has a single Run() method and a Signature
 // typedef that corresponds to the type of Run(). A Runnable can declare that
 // it should treated like a method call by including a typedef named IsMethod.
-// The value of this typedef is not inspected, only the existence (see "
-// bind_mpl.h").
+// The value of this typedef is not inspected, only the existence (see
+// "bind_mpl.h").
 // When a Runnable declares itself a method, #Bind() will enforce special
 // weak reference handling semantics for the first argument which is expected
 // to be an object (an invocation target).
@@ -43,11 +43,9 @@ namespace NDetail {
 //
 // === (Bound)Args ===
 // A function type that is being (ab)used to store the types of set of
-// arguments.
-// The "return" type is always void here. We use this hack so that we do not
-// need
-// a new type name for each arity of type. (eg., BindState1, BindState2, ...).
-// This makes forward declarations and friending much much easier.
+// arguments. The "return" type is always void here. We use this hack so 
+// that we do not need a new type name for each arity of type. (eg., BindState1, 
+// BindState2, ...). This makes forward declarations and friending much much easier.
 //
 //
 // TYPES

@@ -328,10 +328,10 @@ struct TTypesPack
     const static size_t Size = sizeof...(TTypes);
 };
 
-template<unsigned N, class THead, class TTail>
+template <unsigned N, class THead, class TTail>
 struct TSplitVariadicHelper;
 
-template<unsigned N, class THead, class TTail>
+template <unsigned N, class THead, class TTail>
 struct TSplitVariadic : TSplitVariadicHelper<N, THead, TTail>
 { };
 
@@ -342,7 +342,7 @@ struct TSplitVariadic<0, THeadParam, TTailParam>
     typedef TTailParam TTail;
 };
 
-template<unsigned N, class... THead, class TPivot, class... TTail>
+template <unsigned N, class... THead, class TPivot, class... TTail>
 struct TSplitVariadicHelper<N, TTypesPack<THead...>, TTypesPack<TPivot, TTail...> >
     : TSplitVariadic<N - 1, TTypesPack<THead..., TPivot>, TTypesPack<TTail...> >
 { };

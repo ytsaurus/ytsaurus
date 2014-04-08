@@ -50,7 +50,7 @@ Bind(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location,
 #endif
-    Functor functor, TParams && ... params) {
+    Functor functor, TParams&&... params) {
 
     // Typedefs for how to store and run the functor.
     typedef NYT::NDetail::TFunctorTraits<Functor> TFunctorTraits;
