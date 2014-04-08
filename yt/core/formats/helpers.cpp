@@ -3,15 +3,15 @@
 #include <core/misc/error.h>
 
 #include <core/yson/format.h>
-#include <core/ytree/yson_string.h>
 #include <core/yson/token.h>
 
+#include <core/ytree/yson_string.h>
+
 namespace NYT {
+namespace NFormats {
 
 using namespace NYTree;
 using namespace NYson;
-
-namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
