@@ -232,10 +232,6 @@ public:
         CreateMutation(Slot_->GetHydraManager(), hydraRequest)
             ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
             ->Commit();
-
-        if (IsLeader()) {
-            CheckIfRotationNeeded(tablet);
-        }
     }
 
 
@@ -963,15 +959,6 @@ private:
         return true;
     }
 
-
-    void CheckIfRotationNeeded(TTablet* tablet)
-    {
-        const auto& storeManager = tablet->GetStoreManager();
-        if (!storeManager->IsRotationNeeded())
-            return;
-
-        ScheduleStoreRotation(tablet);
-    }
 
     void CheckIfFullyUnlocked(TTablet* tablet)
     {

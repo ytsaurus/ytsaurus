@@ -59,7 +59,8 @@ public:
     void CommitRow(const TDynamicRowRef& rowRef);
     void AbortRow(const TDynamicRowRef& rowRef);
 
-    bool IsRotationNeeded() const;
+    bool IsOverflowRotationNeeded() const;
+    bool IsPeriodicRotationNeeded() const;
     bool IsRotationPossible() const;
     bool IsRotationScheduled() const;
     void SetRotationScheduled();
@@ -75,6 +76,8 @@ private:
     TTablet* Tablet_;
 
     bool RotationScheduled_;
+    TInstant LastRotated_;
+
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
     yhash_set<TDynamicMemoryStorePtr> PassiveStores_;
 

@@ -12,6 +12,10 @@
 
 #include <server/hive/config.h>
 
+#include <server/data_node/config.h>
+
+#include <server/tablet_node/config.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -123,6 +127,8 @@ public:
 
     TDuration ErrorBackoffTime;
 
+    TDuration AutoFlushPeriod;
+
     TIntrusivePtr<TTabletChunkReaderConfig> Reader;
 
     TTabletManagerConfig()
@@ -139,6 +145,9 @@ public:
 
         RegisterParameter("error_backoff_time", ErrorBackoffTime)
             .Default(TDuration::Minutes(1));
+
+        RegisterParameter("auto_flush_period", AutoFlushPeriod)
+            .Default(TDuration::Minutes(5));
 
         RegisterParameter("reader", Reader)
             .DefaultNew();

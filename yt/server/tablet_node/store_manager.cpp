@@ -55,6 +55,7 @@ TStoreManager::TStoreManager(
     : Config_(config)
     , Tablet_(Tablet_)
     , RotationScheduled_(false)
+    , LastRotated_(TInstant::Now())
     , LookupMemoryPool_(TLookupPoolTag())
 {
     YCHECK(Config_);
@@ -328,7 +329,7 @@ void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
     YCHECK(LockedStores_.erase(store) == 1);
 }
 
-bool TStoreManager::IsRotationNeeded() const
+bool TStoreManager::IsOverflowRotationNeeded() const
 {
     if (!IsRotationPossible()) {
         return false;
@@ -341,6 +342,18 @@ bool TStoreManager::IsRotationNeeded() const
         store->GetValueCount() >= config->MaxMemoryStoreValueCount||
         store->GetAlignedPoolSize() >= config->MaxMemoryStoreAlignedPoolSize ||
         store->GetUnalignedPoolSize() >= config->MaxMemoryStoreUnalignedPoolSize;
+}
+
+bool TStoreManager::IsPeriodicRotationNeeded() const
+{
+    if (!IsRotationPossible()) {
+        return false;
+    }
+
+    const auto& store = Tablet_->GetActiveStore();
+    return
+        TInstant::Now() > LastRotated_ + Config_->AutoFlushPeriod &&
+        store->GetKeyCount() > 0;
 }
 
 bool TStoreManager::IsRotationPossible() const
@@ -386,6 +399,7 @@ void TStoreManager::ResetRotationScheduled()
 void TStoreManager::RotateStores(bool createNew)
 {
     RotationScheduled_ = false;
+    LastRotated_ = TInstant::Now();
 
     auto activeStore = Tablet_->GetActiveStore();
     YCHECK(activeStore);

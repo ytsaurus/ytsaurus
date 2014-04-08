@@ -51,6 +51,7 @@
 #include <server/hive/hive_manager.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -165,6 +166,14 @@ private:
             if (!invoker)
                 continue;
 
+            LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %s, "
+                "TotalMemoryUsage: %" PRId64 ", TabletMemoryUsage: %" PRId64 ", "
+                "MemoryLimit: %" PRId64 ")",
+                ~ToString(candidate.TabletId),
+                Bootstrap_->GetMemoryUsageTracker().GetUsed(NCellNode::EMemoryConsumer::Tablet),
+                candidate.MemoryUsage,
+                Bootstrap_->GetConfig()->TabletNode->MemoryLimit);
+
             invoker->Invoke(BIND([slot, tabletId] () {
                 auto tabletManager = slot->GetTabletManager();
                 auto* tablet = tabletManager->FindTablet(tabletId);
@@ -179,6 +188,22 @@ private:
 
     void ScanTablet(TTablet* tablet)
     {
+        auto slot = tablet->GetSlot();
+        auto tabletManager = slot->GetTabletManager();
+        auto storeManager = tablet->GetStoreManager();
+
+        if (storeManager->IsPeriodicRotationNeeded()) {
+            LOG_INFO("Scheduling periodic store rotation (TabletId: %s)",
+                ~ToString(tablet->GetId()));
+            tabletManager->ScheduleStoreRotation(tablet);
+        }
+
+        if (storeManager->IsOverflowRotationNeeded()) {
+            LOG_INFO("Scheduling store rotation due to overflow (TabletId: %s)",
+                ~ToString(tablet->GetId()));
+            tabletManager->ScheduleStoreRotation(tablet);
+        }
+
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
             ScanStore(tablet, store);
