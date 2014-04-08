@@ -243,7 +243,6 @@ private:
     TDriverConfigPtr Config;
 
     IChannelPtr LeaderChannel;
-    IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
 

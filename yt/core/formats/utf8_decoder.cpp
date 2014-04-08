@@ -2,8 +2,6 @@
 
 #include <core/misc/error.h>
 
-#include <iostream>
-    
 namespace NYT {
 namespace NFormats {
 
@@ -13,7 +11,7 @@ TUtf8Decoder::TUtf8Decoder(bool enableEscaping)
     : EnableEscaping_(enableEscaping)
 { }
     
-TStringBuf TUtf8Decoder::Encode(TStringBuf str)
+TStringBuf TUtf8Decoder::Encode(const TStringBuf& str)
 {
     if (!EnableEscaping_) {
         return str;
@@ -45,7 +43,7 @@ TStringBuf TUtf8Decoder::Encode(TStringBuf str)
     }
 }
 
-TStringBuf TUtf8Decoder::Decode(TStringBuf str)
+TStringBuf TUtf8Decoder::Decode(const TStringBuf& str)
 {
     if (!EnableEscaping_) {
         return str;

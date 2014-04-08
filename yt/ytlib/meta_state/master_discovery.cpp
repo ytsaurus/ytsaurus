@@ -33,27 +33,14 @@ class TMasterDiscovery::TQuorumRequester
     : public TRefCounted
 {
 public:
-    struct TQuorumResponse {
-        TQuorumResponse()
-        { }
-
-        TQuorumResponse(const Stroka& address, const TMasterDiscovery::TProxy::TRspGetQuorumPtr& quorum):
-            Address(address),
-            Quorum(quorum)
-        { }
-
-        Stroka Address;
-        TMasterDiscovery::TProxy::TRspGetQuorumPtr Quorum;
-    };
-
     explicit TQuorumRequester(TMasterDiscoveryConfigPtr config)
         : Config(config)
         , PromiseLatch(0)
-        , Promise(NewPromise<TQuorumResponse>())
+        , Promise(NewPromise<TResult>())
         , Awaiter(New<TParallelAwaiter>(GetSyncInvoker()))
     { }
 
-    TFuture<TQuorumResponse> Run()
+    TFuture<TResult> Run()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -82,7 +69,7 @@ private:
     TMasterDiscoveryConfigPtr Config;
 
     TAtomic PromiseLatch;
-    TPromise<TQuorumResponse> Promise;
+    TPromise<TResult> Promise;
     TParallelAwaiterPtr Awaiter;
 
     bool AcquireLatch()
@@ -109,7 +96,11 @@ private:
         if (!AcquireLatch())
             return;
 
-        Promise.Set(TQuorumResponse(address, response));
+        TResult result;
+        result.Address = address;
+        result.EpochId = FromProto<TEpochId>(response->epoch_id());
+
+        Promise.Set(result);
         Awaiter->Cancel();
         Cleanup();
     }
@@ -123,7 +114,7 @@ private:
 
         LOG_INFO("No quorum information received");
 
-        Promise.Set(TQuorumResponse());
+        Promise.Set(TResult());
         Cleanup();
     }
 
@@ -140,16 +131,7 @@ TMasterDiscovery::TMasterDiscovery(TMasterDiscoveryConfigPtr config)
 
 TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
 {
-    return New<TQuorumRequester>(Config)->Run().Apply(
-        BIND([] (TQuorumRequester::TQuorumResponse rsp) -> TAsyncResult {
-            TResult result;
-            if (rsp.Quorum) {
-                result.Address = rsp.Address;
-                result.EpochId = FromProto<TEpochId>(rsp.Quorum->epoch_id());
-            }
-            return MakeFuture(std::move(result));
-        })
-    );
+    return New<TQuorumRequester>(Config)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

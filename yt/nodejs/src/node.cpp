@@ -108,7 +108,7 @@ void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
         TStringBuf string(*utf8Value, utf8Value.length());
 
         TUtf8Decoder utf8Decoder;
-        builder->OnStringScalar(utf8Decoder.Encode(string));
+        builder->OnStringScalar(utf8Decoder.Decode(string));
     } else if (value->IsNumber()) {
         if (value->IsInt32() || value->IsUint32()) {
             builder->OnIntegerScalar(value->IntegerValue());

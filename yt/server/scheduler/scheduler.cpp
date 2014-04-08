@@ -1566,13 +1566,13 @@ private:
                     .Item("resource_limits").Value(TotalResourceLimits_)
                     .Item("resource_usage").Value(TotalResourceUsage_)
                 .EndMap()
-                .Item("operations").DoMapFor(IdToOperation_, [=] (TFluentMap fluent, TOperationIdMap::value_type pair) {
+                .Item("operations").DoMapFor(IdToOperation_, [=] (TFluentMap fluent, const TOperationIdMap::value_type& pair) {
                     BuildOperationYson(pair.second, fluent);
                 })
-                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, const TExecNodeMap::value_type& pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
-                .Item("clusters").DoMapFor(GetCellDirectory()->GetClusterNames(), [=] (TFluentMap fluent, Stroka clusterName) {
+                .Item("clusters").DoMapFor(GetCellDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
                 .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, ~Strategy_))
@@ -1582,8 +1582,8 @@ private:
     void BuildClusterYson(const Stroka& clusterName, IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item(clusterName);
-        GetCellDirectory()->GetMasterConfig(clusterName)->Save(consumer);
+            .Item(clusterName)
+            .Value(GetCellDirectory()->GetMasterConfig(clusterName));
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
