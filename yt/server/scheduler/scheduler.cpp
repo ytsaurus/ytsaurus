@@ -831,7 +831,9 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
-            OnOperationFailed(operation, wrappedError);
+            if (operation->GetController()) {
+                OnOperationFailed(operation, wrappedError);
+            }
             operation->SetStarted(wrappedError);
             return wrappedError;
         }
