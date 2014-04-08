@@ -10,7 +10,7 @@
 
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
+#include <ytlib/chunk_client/multi_chunk_writer_base.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -124,7 +124,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessMultiChunkWriter
-    : public TMultiChunkSequentialWriterBase
+    : public TMultiChunkWriterBase<ISchemalessChunkWriter>
     , public ISchemalessMultiChunkWriter
 {
 public:
@@ -148,7 +148,7 @@ private:
     ISchemalessWriter* CurrentWriter_;
 
 
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IChunkWriterPtr underlyingWriter) override;
+    virtual IChunkWriterBasePtr CreateChunkWriter(IChunkWriterPtr underlyingWriter) override;
 
 };
 
@@ -162,7 +162,12 @@ TSchemalessMultiChunkWriter::TSchemalessMultiChunkWriter(
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
-    : TMultiChunkSequentialWriterBase(config, options, masterChannel, transactionId, parentChunkListId)
+    : TMultiChunkWriterBase<ISchemalessChunkWriter>(
+          config,
+          options,
+          masterChannel,
+          transactionId,
+          parentChunkListId)
     , Config_(config)
     , Options_(options)
     , NameTable_(nameTable)
@@ -181,11 +186,9 @@ bool TSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow> &rows
     return CurrentWriter_->Write(rows) && !TrySwitchSession();
 }
 
-IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateFrontalWriter(IChunkWriterPtr underlyingWriter)
+IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateChunkWriter(IWriterPtr underlyingWriter)
 {
-    auto writer = CreateSchemalessChunkWriter(Config_, Options_, NameTable_, KeyColumns_, underlyingWriter);
-    CurrentWriter_ = writer.Get();
-    return writer;
+    return CreateSchemalessChunkWriter(Config_, Options_, NameTable_, KeyColumns_, underlyingWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

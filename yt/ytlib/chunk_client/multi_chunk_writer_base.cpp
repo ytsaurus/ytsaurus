@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "multi_chunk_sequential_writer_base.h"
+#include "multi_chunk_writer_base.h"
 
 #include "chunk_writer.h"
 #include "chunk_list_ypath_proxy.h"
@@ -44,7 +44,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiChunkSequentialWriterBase::TMultiChunkSequentialWriterBase(
+TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     IChannelPtr masterChannel,
@@ -70,16 +70,16 @@ TMultiChunkSequentialWriterBase::TMultiChunkSequentialWriterBase(
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
-TFuture<void> TMultiChunkSequentialWriterBase::Open()
+TFuture<void> TNontemplateMultiChunkWriterBase::Open()
 {
-    ReadyEvent_= BIND(&TMultiChunkSequentialWriterBase::DoOpen, MakeStrong(this))
+    ReadyEvent_= BIND(&TNontemplateMultiChunkWriterBase::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 
     return ReadyEvent_;
 }
 
-TFuture<void> TMultiChunkSequentialWriterBase::Close()
+TFuture<void> TNontemplateMultiChunkWriterBase::Close()
 {
     YCHECK(!Closing_);
     Closing_ = true;
@@ -91,7 +91,7 @@ TFuture<void> TMultiChunkSequentialWriterBase::Close()
     FinishSession(CurrentSession_);
     CurrentSession_.Reset();
 
-    BIND(&TMultiChunkSequentialWriterBase::DoClose, MakeWeak(this))
+    BIND(&TNontemplateMultiChunkWriterBase::DoClose, MakeWeak(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 
@@ -99,33 +99,33 @@ TFuture<void> TMultiChunkSequentialWriterBase::Close()
     return ReadyEvent_;
 }
 
-TFuture<void> TMultiChunkSequentialWriterBase::GetReadyEvent()
+TFuture<void> TNontemplateMultiChunkWriterBase::GetReadyEvent()
 {
     if (CurrentSession_.IsActive()) {
-        return CurrentSession_.FrontalWriter->GetReadyEvent();
+        return CurrentSession_.TemplateWriter->GetReadyEvent();
     } else {
         return ReadyEvent_;
     }
 }
 
-void TMultiChunkSequentialWriterBase::SetProgress(double progress)
+void TNontemplateMultiChunkWriterBase::SetProgress(double progress)
 {
     Progress_ = progress;
 }
 
-const std::vector<TChunkSpec>& TMultiChunkSequentialWriterBase::GetWrittenChunks() const
+const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunks() const
 {
     return WrittenChunks_;
 }
 
-TNodeDirectoryPtr TMultiChunkSequentialWriterBase::GetNodeDirectory() const
+TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
 {
     return NodeDirectory_;
 }
 
-TDataStatistics TMultiChunkSequentialWriterBase::GetDataStatistics() const
+TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
 {
-    auto writer = CurrentSession_.FrontalWriter;
+    auto writer = CurrentSession_.TemplateWriter;
     if (writer) {
         return DataStatistics_ + writer->GetDataStatistics();
     } else {
@@ -133,14 +133,14 @@ TDataStatistics TMultiChunkSequentialWriterBase::GetDataStatistics() const
     }
 }
 
-void TMultiChunkSequentialWriterBase::DoOpen()
+void TNontemplateMultiChunkWriterBase::DoOpen()
 {
     CreateNextSession();
     NextSessionReady_ = VoidFuture;
-    return InitCurrentSession();
+    InitCurrentSession();
 }
 
-void TMultiChunkSequentialWriterBase::CreateNextSession()
+void TNontemplateMultiChunkWriterBase::CreateNextSession()
 {
     LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
         Options_->ReplicationFactor,
@@ -213,20 +213,19 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
     }
 }
 
-void TMultiChunkSequentialWriterBase::SwitchSession()
+void TNontemplateMultiChunkWriterBase::SwitchSession()
 {
-    ReadyEvent_ =
-        BIND(
-            &TMultiChunkSequentialWriterBase::DoSwitchSession,
-            MakeStrong(this),
-            CurrentSession_)
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-        .Run();
+    ReadyEvent_ = BIND(
+        &TNontemplateMultiChunkWriterBase::DoSwitchSession,
+        MakeStrong(this),
+        CurrentSession_)
+    .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+    .Run();
 
     CurrentSession_.Reset();
 }
 
-void TMultiChunkSequentialWriterBase::DoSwitchSession(const TSession& session)
+void TNontemplateMultiChunkWriterBase::DoSwitchSession(const TSession& session)
 {
     if (Config_->SyncChunkSwitch) {
         // Wait until session is finished.
@@ -240,10 +239,10 @@ void TMultiChunkSequentialWriterBase::DoSwitchSession(const TSession& session)
     InitCurrentSession();
 }
 
-TFuture<void> TMultiChunkSequentialWriterBase::FinishSession(const TSession& session)
+TFuture<void> TNontemplateMultiChunkWriterBase::FinishSession(const TSession& session)
 {
     auto sessionFinishedEvent = BIND(
-        &TMultiChunkSequentialWriterBase::DoFinishSession,
+        &TNontemplateMultiChunkWriterBase::DoFinishSession,
         MakeWeak(this), 
         session)
     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -254,9 +253,9 @@ TFuture<void> TMultiChunkSequentialWriterBase::FinishSession(const TSession& ses
     return sessionFinishedEvent;
 }
 
-void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
+void TNontemplateMultiChunkWriterBase::DoFinishSession(const TSession& session)
 {
-    if (session.FrontalWriter->GetDataSize() == 0) {
+    if (session.TemplateWriter->GetDataSize() == 0) {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %v)", session.ChunkId);
         return;
     }
@@ -267,7 +266,7 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
 
     LOG_DEBUG("Finishing chunk (ChunkId: %v)", session.ChunkId);
 
-    auto error = WaitFor(session.FrontalWriter->Close());
+    auto error = WaitFor(session.TemplateWriter->Close());
 
     if (!error.IsOK()) {
         CompletionError_.TrySet(TError(
@@ -281,16 +280,16 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
 
     auto replicas = session.UnderlyingWriter->GetWrittenChunkReplicas();
 
-    *chunkSpec.mutable_chunk_meta() = session.FrontalWriter->GetSchedulerMeta();
+    *chunkSpec.mutable_chunk_meta() = session.TemplateWriter->GetSchedulerMeta();
     ToProto(chunkSpec.mutable_chunk_id(), session.ChunkId);
     NYT::ToProto(chunkSpec.mutable_replicas(), replicas);
 
-    DataStatistics_ += session.FrontalWriter->GetDataStatistics();
+    DataStatistics_ += session.TemplateWriter->GetDataStatistics();
 
     auto req = TChunkYPathProxy::Confirm(FromObjectId(session.ChunkId));
     GenerateMutationId(req);
     *req->mutable_chunk_info() = session.UnderlyingWriter->GetChunkInfo();
-    *req->mutable_chunk_meta() = session.FrontalWriter->GetMasterMeta();
+    *req->mutable_chunk_meta() = session.TemplateWriter->GetMasterMeta();
     NYT::ToProto(req->mutable_replicas(), replicas);
 
     TObjectServiceProxy objectProxy(MasterChannel_);
@@ -307,7 +306,7 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
     LOG_DEBUG("Chunk confirmed (ChunkId: %v)", session.ChunkId);
 }
 
-void TMultiChunkSequentialWriterBase::InitCurrentSession()
+void TNontemplateMultiChunkWriterBase::InitCurrentSession()
 {
     WaitFor(NextSessionReady_)
         .ThrowOnError();
@@ -320,14 +319,14 @@ void TMultiChunkSequentialWriterBase::InitCurrentSession()
     CurrentSession_ = NextSession_;
     NextSession_.Reset();
 
-    CurrentSession_.FrontalWriter = CreateFrontalWriter(CurrentSession_.UnderlyingWriter);
+    CurrentSession_.TemplateWriter = CreateTemplateWriter(CurrentSession_.UnderlyingWriter);
 
-    NextSessionReady_ = BIND(&TMultiChunkSequentialWriterBase::CreateNextSession, MakeWeak(this))
+    NextSessionReady_ = BIND(&TNontemplateMultiChunkWriterBase::CreateNextSession, MakeWeak(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-bool TMultiChunkSequentialWriterBase::VerifyActive()
+bool TNontemplateMultiChunkWriterBase::VerifyActive()
 {
     YCHECK(!Closing_);
     YCHECK(CurrentSession_.IsActive());
@@ -340,25 +339,25 @@ bool TMultiChunkSequentialWriterBase::VerifyActive()
     return true;
 }
 
-bool TMultiChunkSequentialWriterBase::TrySwitchSession()
+bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 {
-    if (CurrentSession_.FrontalWriter->GetMetaSize() > Config_->MaxMetaSize) {
+    if (CurrentSession_.TemplateWriter->GetMetaSize() > Config_->MaxMetaSize) {
         LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
-            CurrentSession_.FrontalWriter->GetMetaSize());
+            CurrentSession_.TemplateWriter->GetMetaSize());
 
         SwitchSession();
         return true;
     } 
 
-    if (CurrentSession_.FrontalWriter->GetDataSize() > Config_->DesiredChunkSize) {
-        i64 currentDataSize = DataStatistics_.compressed_data_size() + CurrentSession_.FrontalWriter->GetDataSize();
+    if (CurrentSession_.TemplateWriter->GetDataSize() > Config_->DesiredChunkSize) {
+        i64 currentDataSize = DataStatistics_.compressed_data_size() + CurrentSession_.TemplateWriter->GetDataSize();
         i64 expectedInputSize = static_cast<i64>(currentDataSize * std::max(0.0, 1.0 - Progress_));
 
         if (expectedInputSize > Config_->DesiredChunkSize ||
-            CurrentSession_.FrontalWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
+            CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
-                CurrentSession_.FrontalWriter->GetDataSize(),
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
+                CurrentSession_.TemplateWriter->GetDataSize(),
                 expectedInputSize,
                 Config_->DesiredChunkSize);
 
@@ -370,7 +369,7 @@ bool TMultiChunkSequentialWriterBase::TrySwitchSession()
     return false;
 }
 
-void TMultiChunkSequentialWriterBase::DoClose()
+void TNontemplateMultiChunkWriterBase::DoClose()
 {
     WaitFor(CloseChunksAwaiter_->Complete())
         .ThrowOnError();

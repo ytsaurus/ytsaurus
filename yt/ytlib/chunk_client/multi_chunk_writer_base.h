@@ -14,18 +14,17 @@
 
 #include <core/rpc/public.h>
 
-#include <core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiChunkSequentialWriterBase
+class TNontemplateMultiChunkWriterBase
     : public virtual IMultiChunkWriter
 {
 public:
-    TMultiChunkSequentialWriterBase(
+    TNontemplateMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
@@ -50,26 +49,34 @@ public:
     NProto::TDataStatistics GetDataStatistics() const;
 
 protected:
+    NLog::TTaggedLogger Logger;
+
+    bool VerifyActive();
+    bool TrySwitchSession();
+
+    virtual IChunkWriterBasePtr CreateTemplateWriter(IAsyncWriterPtr underlyingWriter) = 0;
+
+private:
     struct TSession
     {
-        IChunkWriterBasePtr FrontalWriter;
-        IChunkWriterPtr UnderlyingWriter;
+        IChunkWriterBasePtr TemplateWriter;
+        IWriterPtr UnderlyingWriter;
         std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 
         TSession()
-            : FrontalWriter(nullptr)
+            : TemplateWriter(nullptr)
             , UnderlyingWriter(nullptr)
         { }
 
         bool IsActive() const
         {
-            return bool(FrontalWriter);
+            return bool(TemplateWriter);
         }
 
         void Reset()
         {
-            FrontalWriter = nullptr;
+            TemplateWriter = nullptr;
             UnderlyingWriter = nullptr;
             ChunkId = TChunkId();
             Replicas.clear();
@@ -103,8 +110,6 @@ protected:
     NProto::TDataStatistics DataStatistics_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
 
-    NLog::TLogger Logger;
-
 
     void DoOpen();
     void DoClose();
@@ -112,16 +117,13 @@ protected:
     void CreateNextSession();
     void InitCurrentSession();
 
-    bool VerifyActive();
-
-    bool TrySwitchSession();
     void SwitchSession();
     void DoSwitchSession(const TSession& session);
 
     TFuture<void> FinishSession(const TSession& session);
     void DoFinishSession(const TSession& session);
 
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IChunkWriterPtr underlyingWriter) = 0;
+    virtual IChunkWriterBasePtr CreateFrontalWriter(IWriterPtr underlyingWriter) = 0;
 
 };
 

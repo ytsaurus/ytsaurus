@@ -11,7 +11,7 @@
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
+#include <ytlib/chunk_client/multi_chunk_writer_base.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
 
@@ -319,7 +319,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedMultiChunkWriter
-    : public TMultiChunkSequentialWriterBase
+    : public TMultiChunkWriterBase<IVersionedChunkWriter>
     , public IVersionedMultiChunkWriter
 {
 public:
@@ -343,7 +343,7 @@ private:
     IVersionedWriter* CurrentWriter_;
 
 
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IChunkWriterPtr underlyingWriter) override;
+    virtual IChunkWriterBasePtr CreateChunkWriter(IChunkWriterPtr underlyingWriter) override;
 
 };
 
@@ -357,12 +357,16 @@ TVersionedMultiChunkWriter::TVersionedMultiChunkWriter(
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
-    : TMultiChunkSequentialWriterBase(config, options, masterChannel, transactionId, parentChunkListId)
+    : TMultiChunkWriterBase<IVersionedChunkWriter>(
+          config,
+          options,
+          masterChannel,
+          transactionId,
+          parentChunkListId)
     , Config_(config)
     , Options_(options)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
-    , CurrentWriter_(nullptr)
 { }
 
 bool TVersionedMultiChunkWriter::Write(const std::vector<TVersionedRow> &rows)
@@ -376,11 +380,9 @@ bool TVersionedMultiChunkWriter::Write(const std::vector<TVersionedRow> &rows)
     return CurrentWriter_->Write(rows) && !TrySwitchSession();
 }
 
-IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IChunkWriterPtr underlyingWriter)
+IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IWriterPtr underlyingWriter)
 {
-    auto writer = CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
-    CurrentWriter_ = writer.Get();
-    return writer;
+    return CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
