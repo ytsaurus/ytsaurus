@@ -13,6 +13,8 @@ namespace NChunkClient {
 struct IMultiChunkReader
     : public virtual IReaderBase
 {
+    virtual bool IsFetchingComplete() const = 0;
+
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const = 0;

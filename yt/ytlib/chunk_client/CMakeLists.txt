@@ -20,7 +20,7 @@ set( SRCS
   ${BASE}/file_writer.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
-  ${BASE}/multi_chunk_sequential_writer_base.cpp
+  ${BASE}/multi_chunk_writer_base.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/read_limit.cpp
@@ -68,7 +68,7 @@ set( HDRS
   ${BASE}/old_multi_chunk_sequential_reader.h
   ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/multi_chunk_sequential_writer.h
-  ${BASE}/multi_chunk_sequential_writer_base.h
+  ${BASE}/multi_chunk_writer_base.h
   ${BASE}/multi_chunk_reader.h
   ${BASE}/multi_chunk_writer.h
   ${BASE}/private.h
