@@ -73,6 +73,7 @@ set( HDRS
   ${BASE}/multi_chunk_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/reader_base.h
   ${BASE}/read_limit.h
   ${BASE}/replication_reader.h
   ${BASE}/replication_writer.h
