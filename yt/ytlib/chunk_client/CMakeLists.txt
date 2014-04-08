@@ -37,6 +37,7 @@ set( HDRS
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_owner_ypath_proxy.h
+  ${BASE}/chunk_reader_base.h
   ${BASE}/chunk_replica.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_slice.h
@@ -58,15 +59,16 @@ set( HDRS
   ${BASE}/format.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
-  ${BASE}/multi_chunk_parallel_reader-inl.h
-  ${BASE}/multi_chunk_parallel_reader.h
-  ${BASE}/multi_chunk_reader_base-inl.h
-  ${BASE}/multi_chunk_reader_base.h
-  ${BASE}/multi_chunk_sequential_reader-inl.h
-  ${BASE}/multi_chunk_sequential_reader.h
+  ${BASE}/old_multi_chunk_parallel_reader-inl.h
+  ${BASE}/old_multi_chunk_parallel_reader.h
+  ${BASE}/old_multi_chunk_reader_base-inl.h
+  ${BASE}/old_multi_chunk_reader_base.h
+  ${BASE}/old_multi_chunk_sequential_reader-inl.h
+  ${BASE}/old_multi_chunk_sequential_reader.h
   ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/multi_chunk_sequential_writer_base.h
+  ${BASE}/multi_chunk_reader.h
   ${BASE}/multi_chunk_writer.h
   ${BASE}/private.h
   ${BASE}/public.h

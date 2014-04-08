@@ -12,8 +12,8 @@
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/private.h>
 
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
@@ -206,12 +206,12 @@ private:
 
 TJobPtr CreateOrderedMergeJob(IJobHost* host)
 {
-    return New< TMergeJob<TMultiChunkSequentialReader> >(host);
+    return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
 }
 
 TJobPtr CreateUnorderedMergeJob(IJobHost* host)
 {
-    return New< TMergeJob<TMultiChunkParallelReader> >(host);
+    return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

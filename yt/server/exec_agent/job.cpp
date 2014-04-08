@@ -28,7 +28,7 @@
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -636,7 +636,7 @@ private:
 
         auto provider = New<TFileChunkReaderProvider>(config);
 
-        typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
+        typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
 
         auto reader = New<TReader>(
             config,

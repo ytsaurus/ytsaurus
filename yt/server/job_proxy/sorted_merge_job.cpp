@@ -8,12 +8,12 @@
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/merging_reader.h>
 
 #include <core/ytree/yson_string.h>

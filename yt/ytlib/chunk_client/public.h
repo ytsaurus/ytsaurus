@@ -116,13 +116,13 @@ DECLARE_REFCOUNTED_CLASS(TMemoryReader)
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
 template <class TChunkReader>
-class TMultiChunkSequentialReader;
+class TOldMultiChunkSequentialReader;
 
 template <class TChunkWriter>
 class TOldMultiChunkSequentialWriter;
 
 template <class TChunkReader>
-class TMultiChunkParallelReader;
+class TOldMultiChunkSequentialReader;
 
 DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)

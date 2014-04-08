@@ -125,7 +125,7 @@ typedef std::vector<Stroka> TKeyColumns;
 
 struct IPartitioner;
 
-typedef NChunkClient::TMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
+typedef NChunkClient::TOldMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
 typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
 
 typedef NChunkClient::TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableChunkSequenceWriter;

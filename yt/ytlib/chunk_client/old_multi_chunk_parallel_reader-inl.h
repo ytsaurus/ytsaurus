@@ -1,5 +1,5 @@
 ﻿#ifndef MULTI_CHUNK_PARALLEL_READER_INL_H_
-#error "Direct inclusion of this file is not allowed, include multi_chunk_parallel_reader.h"
+#error "Direct inclusion of this file is not allowed, include old_multi_chunk_parallel_reader.h"
 #endif
 #undef MULTI_CHUNK_PARALLEL_READER_INL_H_
 
@@ -9,14 +9,14 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
-TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
+TOldMultiChunkParallelReader<TChunkReader>::TOldMultiChunkParallelReader(
     TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
     typename TBase::TProviderPtr readerProvider)
-    : TMultiChunkReaderBase<TChunkReader>(
+    : TOldMultiChunkReaderBase<TChunkReader>(
         config,
         masterChannel,
         blockCache,
@@ -38,7 +38,7 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
 }
 
 template <class TChunkReader>
-TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
+TAsyncError TOldMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
@@ -55,7 +55,7 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 }
 
 template <class TChunkReader>
-void TMultiChunkParallelReader<TChunkReader>::OnReaderOpened(
+void TOldMultiChunkParallelReader<TChunkReader>::OnReaderOpened(
     const typename TBase::TSession& session,
     TError error)
 {
@@ -71,7 +71,7 @@ void TMultiChunkParallelReader<TChunkReader>::OnReaderOpened(
 }
 
 template <class TChunkReader>
-void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
+void TOldMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
     typename TBase::TSession session)
 {
     if (!session.Reader->GetFacade()) {
@@ -106,7 +106,7 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
 }
 
 template <class TChunkReader>
-void TMultiChunkParallelReader<TChunkReader>::FinishReader(
+void TOldMultiChunkParallelReader<TChunkReader>::FinishReader(
     const typename TBase::TSession& session)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
@@ -120,7 +120,7 @@ void TMultiChunkParallelReader<TChunkReader>::FinishReader(
 }
 
 template <class TChunkReader>
-void TMultiChunkParallelReader<TChunkReader>::OnReaderReady(
+void TOldMultiChunkParallelReader<TChunkReader>::OnReaderReady(
     const typename TBase::TSession& session,
     TError error)
 {
@@ -135,7 +135,7 @@ void TMultiChunkParallelReader<TChunkReader>::OnReaderReady(
 }
 
 template <class TChunkReader>
-bool TMultiChunkParallelReader<TChunkReader>::FetchNext()
+bool TOldMultiChunkParallelReader<TChunkReader>::FetchNext()
 {
     YASSERT(!State.HasRunningOperation());
 
@@ -147,13 +147,13 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNext()
 
         isReaderComplete = true;
         NChunkClient::TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
-            &TMultiChunkParallelReader<TChunkReader>::FinishReader,
+            &TOldMultiChunkParallelReader<TChunkReader>::FinishReader,
             MakeWeak(this),
             CurrentSession));
         TBase::PrepareNextChunk();
     } else {
         CurrentSession.Reader->GetReadyEvent().Subscribe(
-            BIND(&TMultiChunkParallelReader<TChunkReader>::OnReaderReady,
+            BIND(&TOldMultiChunkParallelReader<TChunkReader>::OnReaderReady,
                 MakeWeak(this),
                 CurrentSession)
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));

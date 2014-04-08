@@ -15,7 +15,7 @@
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
@@ -44,7 +44,7 @@ using NTableClient::TTableWriterOptionsPtr;
 static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
-typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
+typedef TOldMultiChunkParallelReader<TPartitionChunkReader> TReader;
 typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////

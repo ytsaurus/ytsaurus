@@ -19,7 +19,7 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
-class TMultiChunkReaderBase
+class TOldMultiChunkReaderBase
     : public virtual TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(volatile bool, IsFetchingComplete);
@@ -32,7 +32,7 @@ public:
     // (e.g compare facades for TableChunkReader and PartitionChunkReader).
     typedef typename TChunkReader::TFacade TFacade;
 
-    TMultiChunkReaderBase(
+    TOldMultiChunkReaderBase(
         TMultiChunkReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
@@ -114,5 +114,5 @@ protected:
 } // namespace NYT
 
 #define MULTI_CHUNK_READER_BASE_INL_H_
-#include "multi_chunk_reader_base-inl.h"
+#include "old_multi_chunk_reader_base-inl.h"
 #undef MULTI_CHUNK_READER_BASE_INL_H_

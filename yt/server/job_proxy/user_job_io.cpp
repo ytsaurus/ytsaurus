@@ -8,9 +8,8 @@
 #include <core/ytree/convert.h>
 
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -50,7 +49,7 @@ int TUserJobIO::GetInputCount() const
 
 std::unique_ptr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer)
 {
-    return DoCreateTableInput<TMultiChunkParallelReader>(index, consumer);
+    return DoCreateTableInput<TOldMultiChunkParallelReader>(index, consumer);
 }
 
 int TUserJobIO::GetOutputCount() const
