@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/enum.h>
+#include <core/misc/error.h>
 
 #include <ytlib/scheduler/public.h>
 
@@ -29,6 +30,7 @@ class TSchedulerServiceProxy;
 
 class TOperation;
 typedef TIntrusivePtr<TOperation> TOperationPtr;
+typedef TErrorOr<TOperationPtr> TOperationStartResult;
 
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;

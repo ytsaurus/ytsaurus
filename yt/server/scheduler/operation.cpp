@@ -35,8 +35,23 @@ TOperation::TOperation(
     , StdErrCount_(0)
     , MaxStdErrCount_(0)
     , CleanStart_(false)
+    , StartedPromise(NewPromise<TOperationStartResult>())
     , FinishedPromise(NewPromise())
 { }
+
+TFuture<TOperationStartResult> TOperation::GetStarted()
+{
+    return StartedPromise;
+}
+
+void TOperation::SetStarted(const TError& error)
+{
+    if (error.IsOK()) {
+        StartedPromise.Set(MakeStrong(this));
+    } else {
+        StartedPromise.Set(error);
+    }
+}
 
 TFuture<void> TOperation::GetFinished()
 {

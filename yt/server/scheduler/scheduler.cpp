@@ -268,7 +268,7 @@ public:
     }
 
 
-    TFuture<TStartResult> StartOperation(
+    TFuture<TOperationStartResult> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
@@ -281,7 +281,7 @@ public:
         if (mutationId != NullMutationId) {
             auto existingOperation = FindOperationByMutationId(mutationId);
             if (existingOperation) {
-                return MakeFuture(TStartResult(existingOperation));
+                return existingOperation->GetStarted();
             }
         }
 
@@ -332,15 +332,11 @@ public:
             ~FormatResources(GetTotalResourceLimits()));
 
         // Spawn a new fiber where all startup logic will work asynchronously.
-        return
-            BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
-                .AsyncVia(Bootstrap_->GetControlInvoker())
-                .Run()
-                .Apply(BIND([=] (TError error) {
-                    return error.IsOK()
-                        ? TScheduler::TStartResult(operation)
-                        : TScheduler::TStartResult(error);
-                }));
+        BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run();
+
+        return operation->GetStarted();
     }
 
     TFuture<void> AbortOperation(TOperationPtr operation, const TError& error)
@@ -836,6 +832,7 @@ private:
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
             OnOperationFailed(operation, wrappedError);
+            operation->SetStarted(wrappedError);
             return wrappedError;
         }
 
@@ -847,6 +844,7 @@ private:
             MakeStrong(this),
             operation));
 
+        operation->SetStarted(TError());
         return TError();
     }
 
@@ -1941,7 +1939,7 @@ TExecNodePtr TScheduler::GetOrRegisterNode(const TNodeDescriptor& descriptor)
     return Impl->GetOrRegisterNode(descriptor);
 }
 
-TFuture<TScheduler::TStartResult> TScheduler::StartOperation(
+TFuture<TOperationStartResult> TScheduler::StartOperation(
     EOperationType type,
     const TTransactionId& transactionId,
     const TMutationId& mutationId,
