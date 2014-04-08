@@ -1,7 +1,8 @@
 #include "stdafx.h"
-#include "json_writer.h"
 #include "config.h"
 #include "helpers.h"
+#include "json_writer.h"
+#include "utf8_decoder.h"
 
 #include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/null_yson_consumer.h>
@@ -63,6 +64,8 @@ private:
     int InAttributesBalance;
     bool HasAttributes;
     int Depth;
+
+    TUtf8Decoder Utf8Decoder_;
 };
 
 class TJsonWriter
@@ -94,6 +97,7 @@ TJsonWriterImpl::TJsonWriterImpl(TOutputStream* output,
     , Config(config)
     , Type(type)
     , Depth(0)
+    , Utf8Decoder_(Config->EscapeUtf8)
 {
     if (Type == EYsonType::MapFragment) {
         THROW_ERROR_EXCEPTION("Map fragments are not supported by Json");
@@ -266,15 +270,12 @@ void TJsonWriterImpl::OnEndAttributes()
 TJsonWriterImpl::TJsonWriterImpl(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config)
     : JsonWriter(jsonWriter)
     , Config(config)
+    , Utf8Decoder_(Config->EscapeUtf8)
 { }
 
 void TJsonWriterImpl::WriteStringScalar(const TStringBuf &value)
 {
-    if (IsAscii(value) || !Config->EnableEscaping) {
-        JsonWriter->Write(value);
-    } else {
-        JsonWriter->Write(ByteStringToUtf8(value));
-    }
+    JsonWriter->Write(Utf8Decoder_.Encode(value));
 }
 
 void TJsonWriterImpl::Flush()
