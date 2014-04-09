@@ -62,6 +62,7 @@ public:
     bool IsOverflowRotationNeeded() const;
     bool IsPeriodicRotationNeeded() const;
     bool IsRotationPossible() const;
+    bool IsForcedRotationPossible() const;
     bool IsRotationScheduled() const;
     void SetRotationScheduled();
     void ResetRotationScheduled();

@@ -369,6 +369,21 @@ bool TStoreManager::IsRotationPossible() const
     return true;
 }
 
+bool TStoreManager::IsForcedRotationPossible() const
+{
+    if (!IsRotationPossible()) {
+        return false;
+    }
+
+    if (store->GetAlignedPoolSize() == Config_->AlignedPoolChunkSize &&
+        store->GetUnalignedPoolSize() == Config_->UnalignedPoolChunkSize)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 bool TStoreManager::IsRotationScheduled() const
 {
     return RotationScheduled_;
