@@ -3254,14 +3254,8 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
         auto chunkSpec = slice->GetChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
-        if (!visitedChunks.insert(chunkId).second) {
-            // We have already seen this chunk in this stripe.
-            continue;
-        }
-
         auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
         auto& chunkDescriptor = pair.first->second;
-        chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
         if (InputChunkSpecs.insert(chunkSpec).second) {
             chunkDescriptor.ChunkSpecs.push_back(chunkSpec);
@@ -3269,6 +3263,10 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 
         if (IsUnavailable(*chunkSpec, NeedsAllChunkParts())) {
             chunkDescriptor.State = EInputChunkState::Waiting;
+        }
+
+        if (visitedChunks.insert(chunkId).second) {
+            chunkDescriptor.InputStripes.push_back(stripeDescriptor);
         }
     }
 }
