@@ -247,11 +247,11 @@ bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId, 
     }
 }
 
-bool IsUnavailable(const NProto::TChunkSpec& chunkSpec, bool isAllPartAvailabilityRequired)
+bool IsUnavailable(const NProto::TChunkSpec& chunkSpec, bool checkParityParts)
 {
     auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
-    return IsUnavailable(replicas, codecId, isAllPartAvailabilityRequired);
+    return IsUnavailable(replicas, codecId, checkParityParts);
 }
 
 void GetStatistics(
