@@ -375,6 +375,7 @@ bool TStoreManager::IsForcedRotationPossible() const
         return false;
     }
 
+    const auto& store = Tablet_->GetActiveStore();
     if (store->GetAlignedPoolSize() == Config_->AlignedPoolChunkSize &&
         store->GetUnalignedPoolSize() == Config_->UnalignedPoolChunkSize)
     {
