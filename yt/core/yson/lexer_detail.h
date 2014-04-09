@@ -183,7 +183,7 @@ public:
                     *token = TToken(value);
                 } else { // None
                     YASSERT(state == EReadStartCase::None);
-                    THROW_ERROR_EXCEPTION("Unexpected character %s",
+                    THROW_ERROR_EXCEPTION("Unexpected %s",
                         ~Stroka(ch).Quote());
                 }
             } else { // BinaryIntegerOrBinaryDouble = x01b
@@ -224,17 +224,19 @@ public:
             try {
                 *token = TToken(FromString<double>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to parse Double literal %s (%s)",
-                    ~Stroka(valueBuffer).Quote(),
-                    ~TBase::GetPositionInfo());
+                THROW_ERROR_EXCEPTION("Error parsing double literal %s",
+                    ~Stroka(valueBuffer).Quote())
+                    << *this
+                    << ex;
             }
         } else {
             try {
                 *token = TToken(FromString<i64>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to parse Integer literal %s (%s)",
-                    ~Stroka(valueBuffer).Quote(),
-                    ~TBase::GetPositionInfo());
+                THROW_ERROR_EXCEPTION("Error parsing integer literal %s",
+                    ~Stroka(valueBuffer).Quote())
+                    << *this
+                    << ex;
             }
         }
     } 

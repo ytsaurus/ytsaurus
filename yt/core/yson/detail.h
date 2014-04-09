@@ -84,14 +84,13 @@ public:
         }
     }
 
-    Stroka GetPositionInfo() const
+    friend TError operator << (TError error, const TPositionInfo<true>& info)
     {
-        TStringStream stream;
-        stream << "Offset: " << Offset;
-        stream << ", Line: " << Line;
-        stream << ", Column: " << Column;
-        return stream.Str();
-    } 
+        return error
+            << TErrorAttribute("offset", info.Offset)
+            << TErrorAttribute("line", info.Line)
+            << TErrorAttribute("column", info.Column);
+    }
 };
 
 template <>
@@ -110,12 +109,11 @@ public:
         Offset += end - begin;
     }
 
-    Stroka GetPositionInfo() const
+    friend TError operator << (TError error, const TPositionInfo<false>& info)
     {
-        TStringStream stream;
-        stream << "Offset: " << Offset;
-        return stream.Str();
-    } 
+        return error
+            << TErrorAttribute("offset", info.Offset);
+    }
 };
 
 template <class TBlockStream, class TPositionBase>
@@ -124,7 +122,7 @@ class TCharStream
     , public TPositionBase
 {
 public:
-    TCharStream(const TBlockStream& blockStream) 
+    TCharStream(const TBlockStream& blockStream)
         : TBlockStream(blockStream)
     { }
 
@@ -140,8 +138,8 @@ public:
             TBlockStream::RefreshBlock();
         }
         if (IsEmpty() && TBlockStream::IsFinished() && !AllowFinish) {
-            THROW_ERROR_EXCEPTION("Premature end of stream (%s)",
-                ~TPositionBase::GetPositionInfo());
+            THROW_ERROR_EXCEPTION("Premature end of stream")
+                << *this;
         }
     }
 
@@ -201,7 +199,7 @@ private:
         ui32 b;
         ui32 result;
 
-        b = *(ptr++); result  = (b & 0x7F)      ;if (!(b & 0x80)) goto done;
+        b = *(ptr++); result  = (b & 0x7F)      ; if (!(b & 0x80)) goto done;
         b = *(ptr++); result |= (b & 0x7F) <<  7; if (!(b & 0x80)) goto done;
         b = *(ptr++); result |= (b & 0x7F) << 14; if (!(b & 0x80)) goto done;
         b = *(ptr++); result |= (b & 0x7F) << 21; if (!(b & 0x80)) goto done;
@@ -359,7 +357,7 @@ private:
     std::vector<char> Buffer;
 
 public:
-    TLexerBase(const TBlockStream& blockStream) 
+    TLexerBase(const TBlockStream& blockStream)
         : TBaseStream(blockStream)
     { }
     
@@ -380,9 +378,9 @@ protected:
                 Buffer.push_back(ch);
                 isDouble = true;
             } else if (isalpha(ch)) {
-                THROW_ERROR_EXCEPTION("Unexpected character in numeric (Char: %s) (%s)",
-                    ~Stroka(ch).Quote(),
-                    ~TBaseStream::GetPositionInfo());
+                THROW_ERROR_EXCEPTION("Unexpected %s in numeric literal",
+                    ~Stroka(ch).Quote())
+                    << *this;
             } else {
                 break;
             }
@@ -452,62 +450,64 @@ protected:
     void ReadBinaryString(TStringBuf* value)
     {
         ui32 ulength = 0;
-        if (TBaseStream::ReadVarint32(&ulength)) { 
-            i32 length = ZigZagDecode32(ulength);
-            if (length < 0) {
-                THROW_ERROR_EXCEPTION("Error reading binary string: String cannot have negative length (Length: %" PRId64 ") (%s)",
-                        length,
-                        ~TBaseStream::GetPositionInfo());
-            }
+        if (!TBaseStream::ReadVarint32(&ulength)) {
+            THROW_ERROR_EXCEPTION("Error parsing varint value")
+                << *this;
+        }
 
-            if (TBaseStream::Begin() + length <= TBaseStream::End()) { 
-                *value = TStringBuf(TBaseStream::Begin(), length);
-                TBaseStream::Advance(length);
-            } else { // reading in Buffer
-                size_t needToRead = length;
-                Buffer.clear();
-                while (needToRead) {
-                    if (TBaseStream::IsEmpty()) {
-                        TBaseStream::Refresh();
-                        continue;
-                    }
-                    size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min               
-                    Buffer.insert(Buffer.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
-                    needToRead -= readingBytes;
-                    TBaseStream::Advance(readingBytes);
+        i32 length = ZigZagDecode32(ulength);
+        if (length < 0) {
+            THROW_ERROR_EXCEPTION("Negative binary string literal length %" PRId64,
+                length)
+                << *this;
+        }
+
+        if (TBaseStream::Begin() + length <= TBaseStream::End()) {
+            *value = TStringBuf(TBaseStream::Begin(), length);
+            TBaseStream::Advance(length);
+        } else { // reading in Buffer
+            size_t needToRead = length;
+            Buffer.clear();
+            while (needToRead) {
+                if (TBaseStream::IsEmpty()) {
+                    TBaseStream::Refresh();
+                    continue;
                 }
-                *value = TStringBuf(Buffer.data(), Buffer.size());
+                size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
+                Buffer.insert(Buffer.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
+                needToRead -= readingBytes;
+                TBaseStream::Advance(readingBytes);
             }
-        } else {
-            THROW_ERROR_EXCEPTION("Error while parsing varint (%s)", 
-                ~TBaseStream::GetPositionInfo());
+            *value = TStringBuf(Buffer.data(), Buffer.size());
         }
     }
     
     void ReadBinaryInteger(i64* result)
     {
-        ui64 value;
-        if (TBaseStream::ReadVarint64(&value)) { 
-            *result = ZigZagDecode64(value);
-        } else {
-            THROW_ERROR_EXCEPTION("Error while parsing varint (%s)", 
-                ~TBaseStream::GetPositionInfo());
+        ui64 uvalue;
+        if (!TBaseStream::ReadVarint64(&uvalue)) {
+            THROW_ERROR_EXCEPTION("Error parsing varint value")
+                << *this;
         }
+        *result = ZigZagDecode64(uvalue);
     }
     
     void ReadBinaryDouble(double* value)
     {
         size_t needToRead = sizeof(double);
 
-        while (needToRead) {
-            size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
-            if (!readingBytes) {
-                THROW_ERROR_EXCEPTION("Error while parsing binary double (%s)", 
-                    ~TBaseStream::GetPositionInfo());
+        while (needToRead != 0) {
+            size_t chunkSize = std::min(needToRead, TBaseStream::Length());
+            if (chunkSize == 0) {
+                THROW_ERROR_EXCEPTION("Error parsing binary double literal")
+                    << *this;
             }
-            std::copy(TBaseStream::Begin(), TBaseStream::Begin() + readingBytes, reinterpret_cast<char*>(value) + (sizeof(double) - needToRead));
-            needToRead -= readingBytes;
-            TBaseStream::Advance(readingBytes);
+            std::copy(
+                TBaseStream::Begin(),
+                TBaseStream::Begin() + chunkSize,
+                reinterpret_cast<char*>(value) + (sizeof(double) - needToRead));
+            needToRead -= chunkSize;
+            TBaseStream::Advance(chunkSize);
         }
     }
     
@@ -516,10 +516,10 @@ protected:
     {
         char ch = SkipSpaceAndGetChar();
         if (ch != symbol) {
-            THROW_ERROR_EXCEPTION("Expected %s but character %s found (%s)",
+            THROW_ERROR_EXCEPTION("Expected %s but found %s",
                 ~Stroka(symbol).Quote(),
-                ~Stroka(ch).Quote(),
-                ~TBaseStream::GetPositionInfo());
+                ~Stroka(ch).Quote())
+                << *this;
         }
         
         TBaseStream::Advance(1);
