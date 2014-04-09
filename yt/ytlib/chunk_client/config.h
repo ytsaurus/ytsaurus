@@ -360,6 +360,24 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TMultiChunkReaderOptions
+    : public virtual TYsonSerializable
+{
+public:
+    bool KeepInMemory;
+
+    TMultiChunkReaderOptions()
+    {
+        RegisterParameter("keep_in_memory", KeepInMemory)
+            .Default(false);
+    }
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TFetcherConfig
     : public virtual NYTree::TYsonSerializable
 {

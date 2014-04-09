@@ -50,7 +50,8 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
-    : Config_(config)
+    : Logger(ChunkClientLogger)
+    , Config_(config)
     , Options_(options)
     , MasterChannel_(masterChannel)
     , TransactionId_(transactionId)
@@ -62,7 +63,6 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , ReadyEvent_(VoidFuture)
     , CompletionError_(NewPromise<void>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
-    , Logger(ChunkClientLogger)
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);
