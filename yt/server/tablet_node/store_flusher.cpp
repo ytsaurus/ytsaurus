@@ -217,8 +217,8 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             auto storeManager = tablet->GetStoreManager();
-            const auto& store = tablet->GetActiveStore();
-            if (store && store->IsForcedRotationPossible()) {
+            if (storeManager->IsForcedRotationPossible()) {
+                const auto& store = tablet->GetActiveStore();
                 i64 memoryUsage = store->GetMemoryUsage();
                 if (storeManager->IsRotationScheduled()) {
                     PassiveMemoryUsage_ += memoryUsage;
