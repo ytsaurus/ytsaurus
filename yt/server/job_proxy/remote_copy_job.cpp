@@ -223,7 +223,8 @@ private:
                 RemoteNodeDirectory_,
                 inputChunkId,
                 inputReplicas,
-                erasureCodec);
+                erasureCodec,
+                NetworkName_);
 
             chunkMeta = GetChunkMeta(readers.front());
 
