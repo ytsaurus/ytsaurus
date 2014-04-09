@@ -219,7 +219,7 @@ IJobPtr CreateOrderedMergeJob(IJobHost* host)
 
 IJobPtr CreateUnorderedMergeJob(IJobHost* host)
 {
-    return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
+    return New< TMergeJob<TOldMultiChunkParallelReader> >(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
