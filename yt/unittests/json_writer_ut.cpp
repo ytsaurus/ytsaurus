@@ -125,7 +125,7 @@ TEST(TJsonWriterTest, NonAsciiStringWithoutEscaping)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
-    config->EscapeUtf8 = false;
+    config->EncodeUtf8 = false;
     auto writer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
 
     Stroka s = Stroka("\xC3\xBF", 2);
@@ -139,7 +139,7 @@ TEST(TJsonWriterTest, IncorrectUtfWithoutEscaping)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
-    config->EscapeUtf8 = false;
+    config->EncodeUtf8 = false;
     auto writer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
 
     Stroka s = Stroka("\xFF", 1);

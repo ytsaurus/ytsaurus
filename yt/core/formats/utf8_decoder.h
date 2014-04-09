@@ -7,15 +7,15 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUtf8Decoder
+class TUtf8Transcoder
 {
 public:
-    explicit TUtf8Decoder(bool enableEscaping = true);
+    explicit TUtf8Transcoder(bool enableEncoding = true);
 
     TStringBuf Encode(const TStringBuf& str);
     TStringBuf Decode(const TStringBuf& str);
 private:
-    bool EnableEscaping_;
+    bool EnableEncoding_;
     std::vector<char> Buffer_;
 };
 

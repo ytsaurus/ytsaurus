@@ -35,7 +35,7 @@ private:
     NYson::IYsonConsumer* Consumer;
     TJsonFormatConfigPtr Config;
     NYson::EYsonType Type;
-    TUtf8Decoder Utf8Decoder_;
+    TUtf8Transcoder Utf8Transcoder_;
 
     TStringStream Stream;
 

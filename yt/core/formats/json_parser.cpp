@@ -29,7 +29,7 @@ TJsonParser::TJsonParser(
     if (Config->Format == EJsonFormat::Pretty && Type == NYson::EYsonType::ListFragment) {
         THROW_ERROR_EXCEPTION("Pretty json format isn't supported for list fragments");
     }
-    Utf8Decoder_ = TUtf8Decoder(Config->EscapeUtf8);
+    Utf8Transcoder_ = TUtf8Transcoder(Config->EncodeUtf8);
 }
 
 void TJsonParser::Read(const TStringBuf& data)
@@ -84,7 +84,7 @@ void TJsonParser::VisitAny(const TJsonValue& value)
             Consumer->OnEntity();
             break;
         case JSON_STRING:
-            Consumer->OnStringScalar(Utf8Decoder_.Decode(value.GetString()));
+            Consumer->OnStringScalar(Utf8Transcoder_.Decode(value.GetString()));
             break;
         case JSON_BOOLEAN:
             THROW_ERROR_EXCEPTION("Boolean values in JSON are not supported");
@@ -110,7 +110,7 @@ void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
             key = key.substr(1);
         }
 
-        Consumer->OnKeyedItem(Utf8Decoder_.Decode(key));
+        Consumer->OnKeyedItem(Utf8Transcoder_.Decode(key));
         VisitAny(value);
     }
 }

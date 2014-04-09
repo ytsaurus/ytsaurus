@@ -7,13 +7,13 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUtf8Decoder::TUtf8Decoder(bool enableEscaping)
-    : EnableEscaping_(enableEscaping)
+TUtf8Transcoder::TUtf8Transcoder(bool enableEscaping)
+    : EnableEncoding_(enableEscaping)
 { }
     
-TStringBuf TUtf8Decoder::Encode(const TStringBuf& str)
+TStringBuf TUtf8Transcoder::Encode(const TStringBuf& str)
 {
-    if (!EnableEscaping_) {
+    if (!EnableEncoding_) {
         return str;
     }
 
@@ -43,9 +43,9 @@ TStringBuf TUtf8Decoder::Encode(const TStringBuf& str)
     }
 }
 
-TStringBuf TUtf8Decoder::Decode(const TStringBuf& str)
+TStringBuf TUtf8Transcoder::Decode(const TStringBuf& str)
 {
-    if (!EnableEscaping_) {
+    if (!EnableEncoding_) {
         return str;
     }
 

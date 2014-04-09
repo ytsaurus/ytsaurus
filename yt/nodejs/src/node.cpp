@@ -107,7 +107,7 @@ void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
         String::Utf8Value utf8Value(value->ToString());
         TStringBuf string(*utf8Value, utf8Value.length());
 
-        TUtf8Decoder utf8Decoder;
+        TUtf8Transcoder utf8Decoder;
         builder->OnStringScalar(utf8Decoder.Decode(string));
     } else if (value->IsNumber()) {
         if (value->IsInt32() || value->IsUint32()) {

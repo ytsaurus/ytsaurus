@@ -65,7 +65,7 @@ private:
     bool HasAttributes;
     int Depth;
 
-    TUtf8Decoder Utf8Decoder_;
+    TUtf8Transcoder Utf8Transcoder_;
 };
 
 class TJsonWriter
@@ -97,7 +97,7 @@ TJsonWriterImpl::TJsonWriterImpl(TOutputStream* output,
     , Config(config)
     , Type(type)
     , Depth(0)
-    , Utf8Decoder_(Config->EscapeUtf8)
+    , Utf8Transcoder_(Config->EncodeUtf8)
 {
     if (Type == EYsonType::MapFragment) {
         THROW_ERROR_EXCEPTION("Map fragments are not supported by Json");
@@ -270,12 +270,12 @@ void TJsonWriterImpl::OnEndAttributes()
 TJsonWriterImpl::TJsonWriterImpl(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config)
     : JsonWriter(jsonWriter)
     , Config(config)
-    , Utf8Decoder_(Config->EscapeUtf8)
+    , Utf8Transcoder_(Config->EncodeUtf8)
 { }
 
 void TJsonWriterImpl::WriteStringScalar(const TStringBuf &value)
 {
-    JsonWriter->Write(Utf8Decoder_.Encode(value));
+    JsonWriter->Write(Utf8Transcoder_.Encode(value));
 }
 
 void TJsonWriterImpl::Flush()

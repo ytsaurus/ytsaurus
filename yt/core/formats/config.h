@@ -89,7 +89,7 @@ class TJsonFormatConfig
 public:
     EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
-    bool EscapeUtf8;
+    bool EncodeUtf8;
     i64 MemoryLimit;
 
     TJsonFormatConfig()
@@ -98,7 +98,7 @@ public:
             .Default(EJsonFormat::Text);
         RegisterParameter("attributes_mode", AttributesMode)
             .Default(EJsonAttributesMode::OnDemand);
-        RegisterParameter("escape_utf8", EscapeUtf8)
+        RegisterParameter("encode_utf8", EncodeUtf8)
             .Default(true);
 
         MemoryLimit = NTableClient::MaxRowWeightLimit;
