@@ -328,7 +328,7 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return false;
     }
 
     virtual bool IsParityReplicasFetchEnabled() const override
