@@ -21,7 +21,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         cls.Env._run_all(masters_count=1, nodes_count=9, schedulers_count=0, has_proxy=False, set_driver=False, identifier="-remote", cell_id=10)
 
     def setup(self):
-        set("//sys/clusters/remote", self.Env.configs["master-remote"][0]["meta_state"]["cell"])
+        set("//sys/clusters/remote", {"masters": self.Env.configs["master-remote"][0]["meta_state"]["cell"], "cell_id": 10})
         self.remote_driver = Driver(config=self.Env.configs["driver-remote"])
         time.sleep(3.0)
 

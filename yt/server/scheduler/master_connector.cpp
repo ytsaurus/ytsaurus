@@ -663,6 +663,14 @@ private:
                 return "ping_op_tx:" + ToString(operation->GetId());
             };
 
+            auto setCleanStart = [] (TOperationPtr operation) {
+                if (!operation->GetCleanStart()) {
+                    operation->SetCleanStart(true);
+                }
+                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s)",
+                    ~ToString(operation->GetId()));
+            };
+
             for (auto operation : Result.Operations) {
                 auto schedulePing = [&] (ITransactionPtr transaction) {
                     if (transaction) {
@@ -681,14 +689,16 @@ private:
             }
 
             auto batchResponse = batchRequest.Execute();
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchResponse);
-
             for (const auto& operation : Result.Operations) {
+                auto responses = batchResponse.FindResponses(getRspName(operation));
+                if (!responses) {
+                    setCleanStart(operation);
+                    continue;
+                }
                 for (const auto& rsp : batchResponse.GetResponses(getRspName(operation))) {
                     if (rsp && !rsp->IsOK() && !operation->GetCleanStart()) {
-                        operation->SetCleanStart(true);
-                        LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s)",
-                            ~ToString(operation->GetId()));
+                        setCleanStart(operation);
+                        break;
                     }
                 }
             }
@@ -1057,7 +1067,7 @@ private:
             watchTransaction(operation->GetInputTransaction());
             watchTransaction(operation->GetOutputTransaction());
         }
-        
+
         yhash_set<TTransactionId> deadTransactionIds;
 
         // Invoke GetId verbs for these transactions to see if they are alive.
@@ -1675,10 +1685,14 @@ private:
 
                 for (const auto& pair : clustersNode->GetChildren()) {
                     const auto& clusterName = pair.first;
-                    const auto& clusterNode = pair.second;
-                    auto masterConfig = New<TMasterDiscoveryConfig>();
-                    masterConfig->Load(clusterNode);
-                    CellDirectory->Update(clusterName, masterConfig);
+                    auto clusterNode = pair.second->AsMap();
+
+                    auto cellId = ConvertTo<TCellId>(clusterNode->GetChild("cell_id"));
+
+                    auto masterConfig = New<TMasterDiscoveryConfig>(); 
+                    masterConfig->Load(clusterNode->GetChild("masters"));
+
+                    CellDirectory->Update(clusterName, masterConfig, cellId);
                 }
                 LOG_DEBUG("Cell directory updated successfully");
             } catch (const std::exception& ex) {

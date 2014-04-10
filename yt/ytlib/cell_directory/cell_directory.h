@@ -28,7 +28,10 @@ public:
 
     void Remove(const Stroka& clusterName);
 
-    void Update(const Stroka& clusterName, NMetaState::TMasterDiscoveryConfigPtr masterConfig);
+    void Update(
+        const Stroka& clusterName,
+        NMetaState::TMasterDiscoveryConfigPtr masterConfig,
+        NObjectClient::TCellId cellId);
 
     void UpdateSelf();
 
@@ -49,7 +52,8 @@ private:
     TCluster CreateCluster(
         const Stroka& name,
         NRpc::IChannelPtr channel,
-        NMetaState::TMasterDiscoveryConfigPtr masterConfig) const;
+        NMetaState::TMasterDiscoveryConfigPtr masterConfig,
+        TNullable<NObjectClient::TCellId> cellId) const;
 
     TSpinLock Lock_;
 };

@@ -99,9 +99,11 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
 
 TMultiCellBatchResponse::TMultiCellBatchResponse(
     const std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>& batchResponses,
-    const std::vector<std::pair<int, int>>& index)
+    const std::vector<std::pair<int, int>>& index,
+    const std::multimap<Stroka, int>& keyToIndexes)
     : BatchResponses_(batchResponses)
     , ResponseIndex_(index)
+    , KeyToIndexes_(keyToIndexes)
 { }
 
 int TMultiCellBatchResponse::GetSize() const
@@ -125,38 +127,27 @@ TError TMultiCellBatchResponse::GetCumulativeError() const
 
 TYPathResponsePtr TMultiCellBatchResponse::GetResponse(int index) const
 {
-    int batchNumber = ResponseIndex_[index].first;
-    int batchIndex = ResponseIndex_[index].second;
-    return BatchResponses_[batchNumber]->GetResponse(batchIndex);
+    return GetResponse<TYPathResponse>(index);
 }
 
 TYPathResponsePtr TMultiCellBatchResponse::FindResponse(const Stroka& key) const
 {
-    for (const auto& batchRsp : BatchResponses_) {
-        auto rsp = batchRsp->FindResponse(key);
-        if (rsp) {
-            return rsp;
-        }
-    }
-    return nullptr;
+    return FindResponse<TYPathResponse>(key);
 }
 
 TYPathResponsePtr TMultiCellBatchResponse::GetResponse(const Stroka& key) const
 {
-    auto rsp = FindResponse(key);
-    YCHECK(rsp->IsOK());
-    return rsp;
+    return GetResponse<TYPathResponse>(key);
 }
 
 std::vector<TYPathResponsePtr> TMultiCellBatchResponse::GetResponses(const Stroka& key) const
 {
-    std::vector<NYTree::TYPathResponsePtr> responses;
-    for (auto batchRsp : BatchResponses_) {
-        for (auto rsp : batchRsp->GetResponses(key)) {
-            responses.push_back(rsp);
-        }
-    }
-    return responses;
+    return GetResponses<TYPathResponse>(key);
+}
+
+TNullable<std::vector<TYPathResponsePtr>> TMultiCellBatchResponse::FindResponses(const Stroka& key) const
+{
+    return FindResponses<TYPathResponse>(key);
 }
 
 bool TMultiCellBatchResponse::IsOK() const
@@ -193,7 +184,9 @@ bool TMultiCellBatchRequest::AddRequest(TYPathRequestPtr req, const Stroka& key,
         }
         return false;
     }
+    int index = BatchRequests_[cellId]->GetSize();
     RequestIndex_.push_back(std::make_pair(cellId, BatchRequests_[cellId]->GetSize()));
+    KeyToIndexes_.insert(std::make_pair(key, index));
     BatchRequests_[cellId]->AddRequest(req, key);
     return true;
 }
@@ -224,7 +217,7 @@ TMultiCellBatchResponse TMultiCellBatchRequest::Execute(IInvokerPtr invoker)
         responses.push_back(WaitFor(future, invoker));
     }
 
-    return TMultiCellBatchResponse(responses, responseIndex);
+    return TMultiCellBatchResponse(responses, responseIndex, KeyToIndexes_);
 }
 
 bool TMultiCellBatchRequest::Init(TCellId cellId)

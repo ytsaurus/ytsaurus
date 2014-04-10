@@ -19,7 +19,8 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class T>
-std::vector<typename T::key_type> Keys(const T& obj) {
+std::vector<typename T::key_type> Keys(const T& obj)
+{
     std::vector<typename T::key_type> result;
     for (const auto& it : obj) {
         result.push_back(it.first);
@@ -100,7 +101,7 @@ void TCellDirectory::Remove(const Stroka& clusterName)
     CellIdMap_.erase(cellId);
 }
 
-void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscoveryConfigPtr masterConfig)
+void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscoveryConfigPtr masterConfig, TCellId cellId)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         if (CellIdMap_.find(cluster.CellId) != CellIdMap_.end()) {
@@ -112,7 +113,7 @@ void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscov
 
     auto it = NameMap_.find(clusterName);
     if (it == NameMap_.end()) {
-        auto cluster = CreateCluster(clusterName, CreateLeaderChannel(masterConfig), masterConfig);
+        auto cluster = CreateCluster(clusterName, CreateLeaderChannel(masterConfig), masterConfig, cellId);
 
         TGuard<TSpinLock> guard(Lock_);
 
@@ -121,7 +122,7 @@ void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscov
             ConvertToNode(*(it->second.MasterConfig)),
             ConvertToNode(*masterConfig)))
     {
-        auto cluster = CreateCluster(clusterName, CreateLeaderChannel(masterConfig), masterConfig);
+        auto cluster = CreateCluster(clusterName, CreateLeaderChannel(masterConfig), masterConfig, cellId);
 
         TGuard<TSpinLock> guard(Lock_);
 
@@ -133,7 +134,7 @@ void TCellDirectory::Update(const Stroka& clusterName, NMetaState::TMasterDiscov
 
 void TCellDirectory::UpdateSelf()
 {
-    auto cluster = CreateCluster("", MasterChannel_, nullptr);
+    auto cluster = CreateCluster("", MasterChannel_, nullptr, Null);
     {
         TGuard<TSpinLock> guard(Lock_);
 
@@ -144,21 +145,22 @@ void TCellDirectory::UpdateSelf()
 TCellDirectory::TCluster TCellDirectory::CreateCluster(
     const Stroka& name,
     NRpc::IChannelPtr channel,
-    NMetaState::TMasterDiscoveryConfigPtr masterConfig) const
+    NMetaState::TMasterDiscoveryConfigPtr masterConfig,
+    TNullable<TCellId> cellId) const
 {
     TCluster cluster;
     cluster.Name = name;
     cluster.Channel = channel;
     cluster.MasterConfig = masterConfig;
 
-    // Get Cell Id
-    auto batchReq = TObjectServiceProxy(cluster.Channel).ExecuteBatch();
-    batchReq->AddRequest(TYPathProxy::Get("//sys/@cell_id"), "get_cell_id");
-    auto batchRsp = WaitFor(batchReq->Invoke());
-    if (batchRsp->IsOK()) {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_cell_id");
-        cluster.CellId = ConvertTo<TCellId>(TYsonString(rsp->value()));
+    if (!cellId) {
+        auto req = TYPathProxy::Get("//sys/@cell_id");
+        auto rsp = WaitFor(TObjectServiceProxy(channel).Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Cannot get cell id");
+        cellId = ConvertTo<TCellId>(TYsonString(rsp->value()));
     }
+
+    cluster.CellId = *cellId;
 
     return cluster;
 }
