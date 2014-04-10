@@ -12,6 +12,7 @@ import os
 import copy
 import sys
 import traceback
+import subprocess
 
 from argparse import ArgumentParser
 
@@ -38,51 +39,59 @@ def export_table(object, args):
             cache=False,
             mr_user=params.mr_user)
 
-    logger.info("Exporting '%s' to '%s'", src, dst)
+    try:
+        logger.info("Exporting '%s' to '%s'", src, dst)
 
-    if not yt.exists(src):
-        logger.warning("Export table '%s' is empty", src)
-        return CANCEL
-
-    if not mr.is_empty(dst):
-        if params.force:
-            mr.drop(dst)
-        else:
-            logger.error("Destination table '%s' is not empty" % dst)
+        if not yt.exists(src):
+            logger.warning("Export table '%s' is empty", src)
             return CANCEL
 
-    record_count = yt.records_count(src)
+        if not mr.is_empty(dst):
+            if params.force:
+                mr.drop(dst)
+            else:
+                logger.error("Destination table '%s' is not empty" % dst)
+                return CANCEL
 
-    user_slots_path = "//sys/pools/{}/@resource_limits/user_slots".format(params.yt_pool)
-    if not yt.exists(user_slots_path):
-        logger.error("Use pool with bounded number of user slots")
+        record_count = yt.records_count(src)
+
+        user_slots_path = "//sys/pools/{}/@resource_limits/user_slots".format(params.yt_pool)
+        if not yt.exists(user_slots_path):
+            logger.error("Pool must have user slots limit")
+            return CANCEL
+        else:
+            limit = params.speed_limit / yt.get(user_slots_path)
+
+        use_fastbone = "-opt net_table=fastbone" if args.fastbone else ""
+
+        command = "pv -q -L {} | "\
+            "{} USER=tmp MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
+                .format(limit,
+                        args.opts,
+                        params.mr_user,
+                        mr.server,
+                        use_fastbone,
+                        dst)
+        logger.info("Running map '%s'", command)
+        yt.run_map(command, src, yt.create_temp_table(),
+                   files=mr.binary,
+                   format=yt.YamrFormat(has_subkey=True, lenval=True),
+                   memory_limit=2500 * yt.config.MB,
+                   spec={"pool": params.yt_pool,
+                         "data_size_per_job": 2 * 1024 * yt.config.MB})
+
+        result_record_count = mr.records_count(dst)
+        if record_count != result_record_count:
+            logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, result_record_count)
+            mr.drop(dst)
+            return REPEAT
+    
+    except subprocess.CalledProcessError:
+        logger.exception("Mapreduce binary failed")
         return CANCEL
-    else:
-        limit = params.speed_limit / yt.get(user_slots_path)
-
-    use_fastbone = "-opt net_table=fastbone" if args.fastbone else ""
-
-    command = "pv -q -L {} | "\
-        "{} USER=tmp MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
-            .format(limit,
-                    args.opts,
-                    params.mr_user,
-                    mr.server,
-                    use_fastbone,
-                    dst)
-    logger.info("Running map '%s'", command)
-    yt.run_map(command, src, yt.create_temp_table(),
-               files=mr.binary,
-               format=yt.YamrFormat(has_subkey=True, lenval=True),
-               memory_limit=2500 * yt.config.MB,
-               spec={"pool": params.yt_pool,
-                     "data_size_per_job": 2 * 1024 * yt.config.MB})
-
-    result_record_count = mr.records_count(dst)
-    if record_count != result_record_count:
-        logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, result_record_count)
-        mr.drop(dst)
-        return REPEAT
+    except yt.YtOperationFailedError:
+        logger.exception("Operation failed")
+        return CANCEL
 
 
 def main():
