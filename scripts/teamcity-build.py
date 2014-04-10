@@ -394,8 +394,11 @@ def cwd(*args):
         os.chdir(new_path)
         yield
     finally:
-        teamcity_message("Changing current directory to {0}".format(old_path))
-        os.chdir(old_path)
+        if os.path.exists(old_path):
+            teamcity_message("Changing current directory to {0}".format(old_path))
+            os.chdir(old_path)
+        else:
+            teamcity_message("Previous directory {0} has vanished!".format(old_path), status="WARNING")
 
 
 def ls(path, reverse=True, select=None, start=0, stop=None):
