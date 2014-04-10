@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <numeric>
 #include "versioned_row.h"
 
 namespace NYT {
