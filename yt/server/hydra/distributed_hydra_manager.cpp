@@ -185,7 +185,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshotLocal));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuorum));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshotDistributed)
             .SetInvoker(DecoratedAutomaton_->CreateGuardedUserInvoker(AutomatonInvoker_)));
 
@@ -675,31 +674,6 @@ public:
             default:
                 YUNREACHABLE();
         }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetQuorum)
-    {
-        UNUSED(request);
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        context->SetRequestInfo("");
-
-        if (GetControlState() != EPeerState::Leading) {
-            THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
-                "Cannot answer quorum queries while not leading");
-        }
-
-        response->set_leader_address(CellManager_->GetSelfAddress());
-        for (auto id = 0; id < CellManager_->GetPeerCount(); ++id) {
-            if (EpochContext_->FollowerTracker->IsFollowerActive(id)) {
-                response->add_follower_addresses(CellManager_->GetPeerAddress(id));
-            }
-        }
-
-        ToProto(response->mutable_epoch_id(), EpochContext_->EpochId);
-
-        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshotDistributed)

@@ -83,18 +83,6 @@ message TRspRotateChangelog
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetQuorum
-{ }
-
-message TRspGetQuorum
-{
-    required NYT.NProto.TGuid epoch_id = 1;
-    required bytes leader_address = 2;
-    repeated bytes follower_addresses = 3;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqBuildSnapshotDistributed
 {
     optional bool set_read_only = 1 [default = false];

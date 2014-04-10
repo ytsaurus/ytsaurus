@@ -30,7 +30,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshotLocal);
     DEFINE_RPC_PROXY_METHOD(NProto, RotateChangelog);
     DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetQuorum);
     DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshotDistributed);
 
 };
