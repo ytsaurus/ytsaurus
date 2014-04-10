@@ -32,10 +32,10 @@ class TMyProxy
     : public TProxyBase
 {
 public:
-    static const Stroka ServiceName;
+    static const Stroka ServiceName_;
 
     explicit TMyProxy(IChannelPtr channel)
-        : TProxyBase(channel, ServiceName)
+        : TProxyBase(channel, ServiceName_)
     { }
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
@@ -52,7 +52,7 @@ public:
 
 };
 
-const Stroka TMyProxy::ServiceName = "MyService";
+const Stroka TMyProxy::ServiceName_ = "MyService";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +93,7 @@ class TMyService
 {
 public:
     TMyService(IInvokerPtr invoker, Event* event)
-        : TServiceBase(invoker, TMyProxy::ServiceName, "Main")
+        : TServiceBase(invoker, TMyProxy::ServiceName_, "Main")
         , Event_(event)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
@@ -317,7 +317,7 @@ TEST_F(TRpcTest, NoMethod)
     auto request = proxy.NotRegistered();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetError().GetCode());
+    EXPECT_EQ(EErrorCode::NoSuchMethod, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, Timeout)
@@ -422,7 +422,7 @@ TEST_F(TRpcTest, OneWayNoMethod)
     auto request = proxy.NotRegistredOneWay();
     auto response = request->Invoke().Get();
 
-    // In this case we receive OK instead of NoSuchVerb
+    // In this case we receive OK instead of NoSuchMethod
     EXPECT_TRUE(response->IsOK());
 }
 

@@ -205,9 +205,9 @@ const Stroka& TServiceContextBase::GetService() const
     return RequestHeader_->service();
 }
 
-const Stroka& TServiceContextBase::GetVerb() const
+const Stroka& TServiceContextBase::GetMethod() const
 {
-    return RequestHeader_->verb();
+    return RequestHeader_->method();
 }
 
 const TRealmId& TServiceContextBase::GetRealmId() const
@@ -295,9 +295,9 @@ const Stroka& TServiceContextWrapper::GetService() const
     return UnderlyingContext->GetService();
 }
 
-const Stroka& TServiceContextWrapper::GetVerb() const
+const Stroka& TServiceContextWrapper::GetMethod() const
 {
-    return UnderlyingContext->GetVerb();
+    return UnderlyingContext->GetMethod();
 }
 
 const TRealmId& TServiceContextWrapper::GetRealmId() const 

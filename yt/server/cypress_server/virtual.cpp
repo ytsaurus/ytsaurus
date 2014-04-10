@@ -157,9 +157,9 @@ private:
 
     virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
     {
-        const auto& verb = context->GetVerb();
+        const auto& method = context->GetMethod();
         if (Options & EVirtualNodeOptions::RedirectSelf &&
-            verb != "Remove")
+            method != "Remove")
         {
             return TResolveResult::There(Service, path);
         } else {

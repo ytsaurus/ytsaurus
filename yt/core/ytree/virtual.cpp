@@ -44,7 +44,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     auto key = tokenizer.GetLiteralValue();
     auto service = FindItemService(key);
     if (!service) {
-        if (context->GetVerb() == "Exists") {
+        if (context->GetMethod() == "Exists") {
             return TResolveResult::Here(path);
         }
         // TODO(babenko): improve diagnostics

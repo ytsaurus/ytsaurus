@@ -26,6 +26,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TServiceConfig
     : public TYsonSerializable
 {
@@ -40,6 +42,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMethodConfig
     : public TYsonSerializable
@@ -65,8 +69,10 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMethodConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TRetryingChannelConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
 public:
     //! Time to wait between consequent attempts.
@@ -94,6 +100,43 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TBalancingChannelConfig
+    : public virtual TYsonSerializable
+{
+public:
+    //! List of seed addresses.
+    std::vector<Stroka> Addresses;
+
+    //! Timeout for Discovery requests.
+    TDuration DiscoverTimout;
+
+    //! Time between consequent attempts to reconnect to a peer, which
+    //! returns a hard failure (i.e. non-OK response) to Discover request.
+    TDuration HardBackoffTime;
+
+    //! Time between consequent attempts to reconnect to a peer, which
+    //! returns a soft failure (i.e. "down" response) to Discover request.
+    TDuration SoftBackoffTime;
+
+    TBalancingChannelConfig()
+    {
+        RegisterParameter("addresses", Addresses)
+            .NonEmpty();
+        RegisterParameter("discover_timeout", DiscoverTimout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("hard_backoff_time", HardBackoffTime)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("soft_backoff_time", SoftBackoffTime)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBalancingChannelConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TThrottlingChannelConfig
     : public TYsonSerializable
 {
@@ -110,6 +153,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TResponseKeeperConfig
     : public TYsonSerializable

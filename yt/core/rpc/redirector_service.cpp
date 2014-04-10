@@ -64,9 +64,9 @@ public:
         return Header_->service();
     }
 
-    virtual const Stroka& GetVerb() const override
+    virtual const Stroka& GetMethod() const override
     {
-        return Header_->verb();
+        return Header_->method();
     }
 
     virtual TInstant GetStartTime() const override
@@ -161,10 +161,10 @@ public:
             std::move(header),
             std::move(message));
 
-        LOG_DEBUG("Redirecting request (RequestId: %s, Service: %s, Verb: %s)",
+        LOG_DEBUG("Redirecting request (RequestId: %s, Service: %s, Method: %s)",
             ~ToString(request->GetRequestId()),
             ~request->GetService(),
-            ~request->GetVerb());
+            ~request->GetMethod());
 
         auto responseHandler = New<TRedirectedResponseHandler>(request, replyBus);
         SinkChannel->Send(

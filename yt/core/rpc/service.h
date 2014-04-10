@@ -38,13 +38,13 @@ struct IServiceContext
     //! Returns request priority for reordering purposes.
     virtual i64 GetPriority() const = 0;
 
-    //! Returns the requested service.
+    //! Returns request service name.
     virtual const Stroka& GetService() const = 0;
 
-    //! Returns the requested verb.
-    virtual const Stroka& GetVerb() const = 0;
+    //! Returns request method name.
+    virtual const Stroka& GetMethod() const = 0;
 
-    //! Returns the requested realm id.
+    //! Returns request realm id.
     virtual const TRealmId& GetRealmId() const = 0;
 
     //! Returns |true| if the request if one-way, i.e. replying to it is not possible.

@@ -49,6 +49,11 @@ void THydraServiceBase::ValidateActiveLeader()
     }
 }
 
+bool THydraServiceBase::IsUp() const
+{
+    return ServiceHydraManager_->IsActiveLeader();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra

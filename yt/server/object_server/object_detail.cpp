@@ -537,7 +537,7 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
     try {
         BeforeInvoke(context);
         if (!DoInvoke(context)) {
-            ThrowVerbNotSuppored(context->GetVerb());
+            ThrowMethodNotSupported(context->GetMethod());
         }
     } catch (const TNotALeaderException&) {
         // TODO(babenko): currently broken

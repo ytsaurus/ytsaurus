@@ -71,8 +71,8 @@ public:
         auto configNode = ConvertToNode(configDict);
         try {
             config->Load(configNode);
-        } catch(const TErrorException& error) {
-            throw Py::RuntimeError("Fail while loading config: " + error.Error().GetMessage());
+        } catch(const std::exception& ex) {
+            throw Py::RuntimeError(Stroka("Error loading driver configuration\n") + ex.what());
         }
         DriverInstance_ = CreateDriver(config);
     }

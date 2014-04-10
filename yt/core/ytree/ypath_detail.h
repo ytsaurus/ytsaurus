@@ -57,14 +57,14 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DISPATCH_YPATH_SERVICE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
+    if (context->GetMethod() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
         method##Thunk(context, options); \
         return true; \
     }
 
 #define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
+    if (context->GetMethod() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
         options.HeavyResponse = true; \
         options.ResponseCodec = NCompression::ECodec::Lz4; \
@@ -108,15 +108,15 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_SUPPORTS_VERB(verb, base) \
-    class TSupports##verb \
+#define DECLARE_SUPPORTS_METHOD(method, base) \
+    class TSupports##method \
         : public base \
     { \
     protected: \
-        DECLARE_YPATH_SERVICE_METHOD(NProto, verb); \
-        virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
-        virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
-        virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
+        DECLARE_YPATH_SERVICE_METHOD(NProto, method); \
+        virtual void method##Self(TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
+        virtual void method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
+        virtual void method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
     }
 
 class TSupportsExistsBase
@@ -130,12 +130,12 @@ protected:
 
 };
 
-DECLARE_SUPPORTS_VERB(GetKey, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Get, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Set, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(List, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Remove, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Exists, TSupportsExistsBase);
+DECLARE_SUPPORTS_METHOD(GetKey, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Get, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Set, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(List, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Remove, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Exists, TSupportsExistsBase);
 
 #undef DECLARE_SUPPORTS_VERB
 

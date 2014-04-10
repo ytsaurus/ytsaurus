@@ -965,7 +965,7 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %s:%s %s (ObjectId: %s, Mutating: %s, User: %s)",
         ~context->GetService(),
-        ~context->GetVerb(),
+        ~context->GetMethod(),
         ~GetRequestYPath(context),
         ~ToString(objectId),
         ~FormatBool(headerExt.mutating()),
@@ -973,7 +973,7 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
 
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(GetTypeTagId(TypeFromId(objectId.ObjectId)));
-    tagIds.push_back(GetVerbTagId(context->GetVerb()));
+    tagIds.push_back(GetMethodTagId(context->GetMethod()));
 
     PROFILE_TIMING ("/request_time", tagIds) {
         proxy->GuardedInvoke(std::move(context));
@@ -1052,14 +1052,14 @@ NProfiling::TTagId TObjectManager::GetTypeTagId(EObjectType type)
     return TypeToEntry[type].TagId;
 }
 
-NProfiling::TTagId TObjectManager::GetVerbTagId(const Stroka& verb)
+NProfiling::TTagId TObjectManager::GetMethodTagId(const Stroka& method)
 {
-    auto it = VerbToTag.find(verb);
-    if (it != VerbToTag.end()) {
+    auto it = MethodToTag.find(method);
+    if (it != MethodToTag.end()) {
         return it->second;
     }
-    auto tag = NProfiling::TProfilingManager::Get()->RegisterTag("verb", verb);
-    YCHECK(VerbToTag.insert(std::make_pair(verb, tag)).second);
+    auto tag = NProfiling::TProfilingManager::Get()->RegisterTag("method", method);
+    YCHECK(MethodToTag.insert(std::make_pair(method, tag)).second);
     return tag;
 }
 

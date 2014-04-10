@@ -9,6 +9,8 @@
 
 #include <core/misc/string.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <core/bus/bus.h>
 
 #include <core/profiling/timing.h>
@@ -32,15 +34,16 @@ static auto& Profiler = RpcServerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
-    const Stroka& verb,
+    const Stroka& method,
     TLiteHandler liteHandler,
     THeavyHandler heavyHandler)
-    : Verb(verb)
+    : Method(method)
     , LiteHandler(std::move(liteHandler))
     , HeavyHandler(std::move(heavyHandler))
     , OneWay(false)
     , MaxQueueSize(100000)
     , EnableReorder(false)
+    , System(false)
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
@@ -139,7 +142,7 @@ private:
         AppendInfo(str, RequestInfo_);
 
         LOG_DEBUG("%s <- %s",
-            ~GetVerb(),
+            ~GetMethod(),
             ~str);
     }
 
@@ -160,7 +163,7 @@ private:
         AppendInfo(str, ResponseInfo_);
 
         LOG_DEBUG("%s -> %s",
-            ~GetVerb(),
+            ~GetMethod(),
             ~str);
     }
 
@@ -208,6 +211,10 @@ void TServiceBase::Init(
         tagIds.push_back(ServiceTagId_);
         RequestCounter_ = TRateCounter("/request_rate", tagIds);
     }
+
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
+        .SetInvoker(TDispatcher::Get()->GetPoolInvoker())
+        .SetSystem(true));
 }
 
 TServiceId TServiceBase::GetServiceId() const
@@ -222,17 +229,17 @@ void TServiceBase::OnRequest(
 {
     Profiler.Increment(RequestCounter_);
 
-    const auto& verb = header->verb();
+    const auto& method = header->method();
     bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
 
-    auto runtimeInfo = FindMethodInfo(verb);
+    auto runtimeInfo = FindMethodInfo(method);
     if (!runtimeInfo) {
         auto error = TError(
-            EErrorCode::NoSuchVerb,
-            "Unknown verb %s:%s",
+            EErrorCode::NoSuchMethod,
+            "Unknown method %s:%s",
             ~ServiceId_.ServiceName,
-            ~verb)
+            ~method)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!oneWay) {
@@ -245,9 +252,9 @@ void TServiceBase::OnRequest(
     if (runtimeInfo->Descriptor.OneWay != oneWay) {
         auto error = TError(
             EErrorCode::ProtocolError,
-            "One-way flag mismatch for verb %s:%s: expected %s, actual %s",
+            "One-way flag mismatch for method %s:%s: expected %s, actual %s",
             ~ServiceId_.ServiceName,
-            ~verb,
+            ~method,
             ~FormatBool(runtimeInfo->Descriptor.OneWay),
             ~FormatBool(oneWay))
             << TErrorAttribute("request_id", requestId);
@@ -346,7 +353,9 @@ void TServiceBase::OnInvocationPrepared(
         }
 
         try {
-            BeforeInvoke();
+            if (!runtimeInfo->Descriptor.System) {
+                BeforeInvoke();
+            }
             handler.Run(context, runtimeInfo->Descriptor.Options);
         } catch (const std::exception& ex) {
             context->Reply(ex);
@@ -426,12 +435,12 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 {
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(0);
-    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", descriptor.Verb));
+    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("method", descriptor.Method));
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
 
     TWriterGuard guard(MethodMapLock_);
-    // Failure here means that such verb is already registered.
-    YCHECK(MethodMap_.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
+    // Failure here means that such method is already registered.
+    YCHECK(MethodMap_.insert(std::make_pair(descriptor.Method, runtimeInfo)).second);
 
     return runtimeInfo;
 }
@@ -445,9 +454,9 @@ void TServiceBase::Configure(INodePtr configNode)
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method %s in service %s to configure",
-                    ~methodName.Quote(),
-                    ~ServiceId_.ServiceName.Quote());
+                THROW_ERROR_EXCEPTION("Cannot find RPC method %s:%s to configure",
+                    ~ServiceId_.ServiceName,
+                    ~methodName);
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
@@ -466,7 +475,7 @@ void TServiceBase::Configure(INodePtr configNode)
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %s",
-            ~ServiceId_.ServiceName.Quote())
+            ~ServiceId_.ServiceName)
             << ex;
     }
 }
@@ -493,6 +502,34 @@ IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 
 void TServiceBase::BeforeInvoke()
 { }
+
+bool TServiceBase::IsUp() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return true;
+}
+
+std::vector<Stroka> TServiceBase::SuggestAddresses() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return std::vector<Stroka>();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
+{
+    context->SetRequestInfo("");
+
+    response->set_up(IsUp());
+    ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
+
+    context->SetResponseInfo("Up: %s, SuggestedAddresses: [%s]",
+        ~FormatBool(response->up()),
+        ~JoinToString(response->suggested_addresses()));
+
+    context->Reply();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

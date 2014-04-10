@@ -49,18 +49,18 @@ class TAuthenticatedChannel
 {
 public:
     TAuthenticatedChannel(IChannelPtr underlyingChannel, const Stroka& user)
-        : UnderlyingChannel(underlyingChannel)
-        , User(user)
+        : UnderlyingChannel_(underlyingChannel)
+        , User_(user)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
-        return UnderlyingChannel->GetDefaultTimeout();
+        return UnderlyingChannel_->GetDefaultTimeout();
     }
 
     virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
     {
-        UnderlyingChannel->SetDefaultTimeout(timeout);
+        UnderlyingChannel_->SetDefaultTimeout(timeout);
     }
 
     virtual void Send(
@@ -69,8 +69,8 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        SetAuthenticatedUser(request, User);
-        UnderlyingChannel->Send(
+        SetAuthenticatedUser(request, User_);
+        UnderlyingChannel_->Send(
             request,
             responseHandler,
             timeout,
@@ -79,12 +79,12 @@ public:
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
-        return UnderlyingChannel->Terminate(error);
+        return UnderlyingChannel_->Terminate(error);
     }
 
 private:
-    IChannelPtr UnderlyingChannel;
-    Stroka User;
+    IChannelPtr UnderlyingChannel_;
+    Stroka User_;
 
 };
 
@@ -102,18 +102,18 @@ class TRealmChannel
 {
 public:
     TRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
-        : UnderlyingChannel(underlyingChannel)
-        , RealmId(realmId)
+        : UnderlyingChannel_(underlyingChannel)
+        , RealmId_(realmId)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
-        return UnderlyingChannel->GetDefaultTimeout();
+        return UnderlyingChannel_->GetDefaultTimeout();
     }
 
     virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
     {
-        UnderlyingChannel->SetDefaultTimeout(timeout);
+        UnderlyingChannel_->SetDefaultTimeout(timeout);
     }
 
     virtual void Send(
@@ -122,8 +122,8 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        ToProto(request->Header().mutable_realm_id(), RealmId);
-        UnderlyingChannel->Send(
+        ToProto(request->Header().mutable_realm_id(), RealmId_);
+        UnderlyingChannel_->Send(
             request,
             responseHandler,
             timeout,
@@ -132,12 +132,12 @@ public:
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
-        return UnderlyingChannel->Terminate(error);
+        return UnderlyingChannel_->Terminate(error);
     }
 
 private:
-    IChannelPtr UnderlyingChannel;
-    TRealmId RealmId;
+    IChannelPtr UnderlyingChannel_;
+    TRealmId RealmId_;
 
 };
 
@@ -146,6 +146,40 @@ IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, const TRealmId& re
     YCHECK(underlyingChannel);
 
     return New<TRealmChannel>(underlyingChannel, realmId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRealmChannelFactory
+    : public IChannelFactory
+{
+public:
+    TRealmChannelFactory(
+        IChannelFactoryPtr underlyingFactory,
+        const TRealmId& realmId)
+        : UnderlyingFactory_(underlyingFactory)
+        , RealmId_(realmId)
+    { }
+
+    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
+        return CreateRealmChannel(underlyingChannel, RealmId_);
+    }
+
+private:
+    IChannelFactoryPtr UnderlyingFactory_;
+    TRealmId RealmId_;
+
+};
+
+IChannelFactoryPtr CreateRealmChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    const TRealmId& realmId)
+{
+    YCHECK(underlyingFactory);
+
+    return New<TRealmChannelFactory>(underlyingFactory, realmId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

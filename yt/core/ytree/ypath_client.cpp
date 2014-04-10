@@ -36,12 +36,12 @@ TYPathRequest::TYPathRequest(const TRequestHeader& header)
 
 TYPathRequest::TYPathRequest(
     const Stroka& service,
-    const Stroka& verb,
+    const Stroka& method,
     const TYPath& path,
     bool mutating)
 {
     Header_.set_service(service);
-    Header_.set_verb(verb);
+    Header_.set_method(method);
 
     auto* headerExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
     headerExt->set_mutating(mutating);
@@ -68,9 +68,9 @@ TRequestId TYPathRequest::GetRequestId() const
     return NullRequestId;
 }
 
-const Stroka& TYPathRequest::GetVerb() const
+const Stroka& TYPathRequest::GetMethod() const
 {
-    return Header_.verb();
+    return Header_.method();
 }
 
 const Stroka& TYPathRequest::GetService() const
@@ -207,7 +207,7 @@ void ResolveYPath(
                 NYTree::EErrorCode::ResolveError,
                 "Error resolving path %s",
                 ~path)
-                << TErrorAttribute("verb", context->GetVerb())
+                << TErrorAttribute("method", context->GetMethod())
                 << TErrorAttribute("resolved_path", ComputeResolvedYPath(path, currentPath))
                 << ex;
         }

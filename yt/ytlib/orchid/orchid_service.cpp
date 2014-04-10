@@ -47,12 +47,12 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         THROW_ERROR_EXCEPTION("Error parsing request header");
     }
 
-    const auto& path = requestHeader.service();
-    const auto& verb = requestHeader.verb();
+    auto path = GetRequestYPath(context);
+    const auto& method = requestHeader.method();
 
-    context->SetRequestInfo("Path: %s, Verb: %s",
+    context->SetRequestInfo("Path: %s, Method: %s",
         ~path,
-        ~verb);
+        ~method);
 
     ExecuteVerb(RootService, requestMessage)
         .Subscribe(BIND([=] (TSharedRefArray responseMessage) {

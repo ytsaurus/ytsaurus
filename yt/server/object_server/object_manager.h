@@ -201,7 +201,7 @@ private:
     std::vector<EObjectType> RegisteredTypes;
     TTypeEntry TypeToEntry[NObjectClient::MaxObjectType];
 
-    yhash_map<Stroka, NProfiling::TTagId> VerbToTag;
+    yhash_map<Stroka, NProfiling::TTagId> MethodToTag;
 
     TRootServicePtr RootService;
 
@@ -254,7 +254,7 @@ private:
     void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
 
     NProfiling::TTagId GetTypeTagId(EObjectType type);
-    NProfiling::TTagId GetVerbTagId(const Stroka& verb);
+    NProfiling::TTagId GetMethodTagId(const Stroka& method);
 
     void OnProfiling();
 

@@ -13,13 +13,11 @@ namespace NHydra {
 
 class TPeerDiscoveryConfig
     : public NRpc::TRetryingChannelConfig
+    , public NRpc::TBalancingChannelConfig
 {
 public:
     //! Id of the cell.
     TCellGuid CellGuid;
-
-    //! List of peer addresses.
-    std::vector<Stroka> Addresses;
 
     //! Timeout for RPC requests to peers.
     TDuration RpcTimeout;
@@ -28,8 +26,6 @@ public:
     {
         RegisterParameter("cell_guid", CellGuid)
             .Default();
-        RegisterParameter("addresses", Addresses)
-            .NonEmpty();
         RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(15));
     }

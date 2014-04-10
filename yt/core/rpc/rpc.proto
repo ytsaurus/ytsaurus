@@ -9,7 +9,7 @@ message TRequestHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
     required string service = 2;
-    required string verb = 3;
+    required string method = 3;
     optional NYT.NProto.TGuid realm_id = 8;
 
     optional bool one_way = 4;
@@ -37,3 +37,15 @@ message TResponseHeader
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqDiscover
+{ }
+
+message TRspDiscover
+{
+    required bool up = 1;
+    repeated string suggested_addresses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

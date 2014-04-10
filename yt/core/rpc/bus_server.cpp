@@ -69,13 +69,13 @@ private:
 
         auto requestId = FromProto<TRequestId>(header->request_id());
         const auto& serviceName = header->service();
-        const auto& verb = header->verb();
+        const auto& method = header->method();
         auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
         bool oneWay = header->has_one_way() ? header->one_way() : false;
 
-        LOG_DEBUG("Request received (Service: %s, Verb: %s, RealmId: %s, RequestId: %s, OneWay: %s, RequestStartTime: %s, RetryStartTime: %s)",
+        LOG_DEBUG("Request received (Service: %s, Method: %s, RealmId: %s, RequestId: %s, OneWay: %s, RequestStartTime: %s, RetryStartTime: %s)",
             ~serviceName,
-            ~verb,
+            ~method,
             ~ToString(realmId),
             ~ToString(requestId),
             ~ToString(oneWay),

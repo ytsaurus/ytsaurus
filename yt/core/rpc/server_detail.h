@@ -26,7 +26,7 @@ public:
     virtual i64 GetPriority() const override;
     
     virtual const Stroka& GetService() const override;
-    virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
 
     virtual bool IsReplied() const override;
@@ -116,7 +116,7 @@ public:
     virtual i64 GetPriority() const override;
 
     virtual const Stroka& GetService() const override;
-    virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
 
     virtual bool IsOneWay() const;

@@ -215,7 +215,7 @@ private:
 
             auto requestId = request->GetRequestId();
 
-            const auto& descriptor = GetMethodDescriptor(request->GetService(), request->GetVerb());
+            const auto& descriptor = GetMethodDescriptor(request->GetService(), request->GetMethod());
 
             TActiveRequest activeRequest;
             activeRequest.ClientRequest = request;
@@ -233,10 +233,10 @@ private:
                     auto error = TerminationError;
                     guard.Release();
 
-                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Path: %s, Verb: %s)",
+                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Service: %s, Method: %s)",
                         ~ToString(requestId),
                         ~request->GetService(),
-                        ~request->GetVerb());
+                        ~request->GetMethod());
 
                     responseHandler->OnError(error);
                     return;
@@ -360,10 +360,10 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %s, Service: %s, Verb: %s, Timeout: %s)",
+            LOG_DEBUG("Request sent (RequestId: %s, Service: %s, Method: %s, Timeout: %s)",
                 ~ToString(requestId),
                 ~request->GetService(),
-                ~request->GetVerb(),
+                ~request->GetMethod(),
                 ~ToString(timeout));
         }
 

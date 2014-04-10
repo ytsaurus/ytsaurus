@@ -104,7 +104,10 @@ class YTEnv(object):
         self.config_paths = defaultdict(lambda: [])
         self.log_paths = defaultdict(lambda: [])
 
+        short_hostname = socket.gethostname()
+        self._hostname = socket.gethostbyname_ex(short_hostname)[0]
         self._master_addresses = defaultdict(lambda: [])
+        self._node_addresses = defaultdict(lambda: [])
         self._process_to_kill = defaultdict(lambda: [])
         self._ports = defaultdict(lambda: [])
         self._pids_filename = pids_filename
@@ -112,7 +115,7 @@ class YTEnv(object):
 
         self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, ports=ports)
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, identifier="", ports=None):
+    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, instance_id="", ports=None):
         get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
@@ -121,12 +124,12 @@ class YTEnv(object):
             else:
                 self._ports[service_name] = [get_open_port() for i in xrange(count)]
 
-        master_name = "master" + identifier
-        scheduler_name = "scheduler" + identifier
-        node_name = "node" + identifier
-        driver_name = "driver" + identifier
-        console_driver_name = "console_driver" + identifier
-        proxy_name = "proxy" + identifier
+        master_name = "master" + instance_id
+        scheduler_name = "scheduler" + instance_id
+        node_name = "node" + instance_id
+        driver_name = "driver" + instance_id
+        console_driver_name = "console_driver" + instance_id
+        proxy_name = "proxy" + instance_id
 
         list_ports(master_name, 2 * masters_count)
         list_ports(scheduler_name, 2 * schedulers_count)
@@ -253,11 +256,8 @@ class YTEnv(object):
         if masters_count == 0:
              return
 
-        short_hostname = socket.gethostname()
-        hostname = socket.gethostbyname_ex(short_hostname)[0]
-
         self._master_addresses[master_name] = \
-                ["%s:%s" % (hostname, self._ports[master_name][2 * i])
+                ["%s:%s" % (self._hostname, self._ports[master_name][2 * i])
                  for i in xrange(masters_count)]
 
         os.mkdir(os.path.join(self.path_to_run, master_name))
@@ -272,11 +272,9 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
             config['masters']['addresses'] = self._master_addresses[master_name]
-            config['timestamp_provider']['addresses'] = config['masters']['addresses']
-            config['changelogs']['path'] = \
-                os.path.join(current, 'changelogs')
-            config['snapshots']['path'] = \
-                    os.path.join(current, 'snapshots')
+            config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
+            config['changelogs']['path'] = os.path.join(current, 'changelogs')
+            config['snapshots']['path'] = os.path.join(current, 'snapshots')
             config['logging'] = init_logging(config['logging'], current, 'master-' + str(i))
 
             self.modify_master_config(config)
@@ -322,6 +320,10 @@ class YTEnv(object):
         if nodes_count == 0:
             return
 
+        self._node_addresses[node_name] = \
+                ["%s:%s" % (self._hostname, self._ports[node_name][2 * i])
+                 for i in xrange(nodes_count)]
+
         os.mkdir(os.path.join(self.path_to_run, node_name))
 
         current_user = 10000;
@@ -335,7 +337,7 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
             config['cluster_connection']['masters']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config['cluster_connection']['timestamp_provider']['addresses'] = config['cluster_connection']['masters']['addresses']
+            config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
 
             config['data_node']['cache_location']['path'] = \
                 os.path.join(current, 'chunk_cache')
@@ -412,6 +414,12 @@ class YTEnv(object):
         self._prepare_nodes(nodes_count, node_name)
         self.start_nodes(node_name)
 
+    def _get_balanced_timestamp_provider_addresses(self, instance_id):
+        if len(self._node_addresses["node" + instance_id]) > 0:
+            return self._node_addresses["node" + instance_id]
+        else:
+            return self._master_addresses["master" + instance_id]     
+
     def _prepare_schedulers(self, schedulers_count, scheduler_name):
         if schedulers_count == 0:
             return
@@ -424,7 +432,7 @@ class YTEnv(object):
 
             config = configs.get_scheduler_config()
             config['cluster_connection']['masters']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
-            config['cluster_connection']['timestamp_provider']['addresses'] = config['cluster_connection']['masters']['addresses']
+            config['cluster_connection']['timestamp_provider']['addresses'] = self._get_balanced_timestamp_provider_addresses(scheduler_name.replace("scheduler", "", 1))
 
             config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
 
@@ -468,8 +476,8 @@ class YTEnv(object):
 
     def _prepare_driver(self, driver_name):
         config = configs.get_driver_config()
-        config['timestamp_provider']['addresses'] = config['masters']['addresses'] = \
-            self._master_addresses[driver_name.replace("driver", "master", 1)]
+        config['masters']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
+        config['timestamp_provider']['addresses'] = self._get_balanced_timestamp_provider_addresses(driver_name.replace("driver", "", 1))
 
         self.configs[driver_name] = config
         self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
@@ -496,7 +504,7 @@ class YTEnv(object):
 
         driver_config = configs.get_driver_config()
         driver_config['masters']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        driver_config['timestamp_provider']['addresses'] = driver_config['masters']['addresses']
+        driver_config['timestamp_provider']['addresses'] = self._get_balanced_timestamp_provider_addresses(proxy_name.replace("proxy", "", 1))
 
         proxy_config = configs.get_proxy_config()
         proxy_config['proxy']['logging'] = init_logging(proxy_config['proxy']['logging'], current, "http_proxy")

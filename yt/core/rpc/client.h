@@ -22,28 +22,6 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyBase
-{
-protected:
-    //! Service error type.
-    /*!
-     * Defines a basic type of error code for all proxies.
-     * A derived proxy type may hide this definition by introducing
-     * an appropriate descendant of NRpc::EErrorCode.
-     */
-
-    TProxyBase(IChannelPtr channel, const Stroka& serviceName);
-
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
-
-    Stroka ServiceName;
-    IChannelPtr Channel;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IClientRequest
     : public virtual TRefCounted
 {
@@ -59,7 +37,7 @@ struct IClientRequest
     virtual TRequestId GetRequestId() const = 0;
 
     virtual const Stroka& GetService() const = 0;
-    virtual const Stroka& GetVerb() const = 0;
+    virtual const Stroka& GetMethod() const = 0;
 
     virtual TInstant GetStartTime() const = 0;
     virtual void SetStartTime(TInstant value) = 0;
@@ -87,7 +65,7 @@ public:
     virtual TRequestId GetRequestId() const override;
 
     virtual const Stroka& GetService() const override;
-    virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetMethod() const override;
 
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
@@ -98,7 +76,7 @@ protected:
     TClientRequest(
         IChannelPtr channel,
         const Stroka& service,
-        const Stroka& verb,
+        const Stroka& method,
         bool oneWay);
 
     virtual bool IsRequestHeavy() const;
@@ -122,9 +100,9 @@ public:
     TTypedClientRequest(
         IChannelPtr channel,
         const Stroka& path,
-        const Stroka& verb,
+        const Stroka& method,
         bool oneWay)
-        : TClientRequest(channel, path, verb, oneWay)
+        : TClientRequest(channel, path, method, oneWay)
         , Codec(NCompression::ECodec::None)
     { }
 
@@ -340,7 +318,7 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     \
     TReq##method##Ptr method() \
     { \
-        return ::NYT::New<TReq##method>(Channel, ServiceName, #method, false) \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, false) \
             ->SetTimeout(DefaultTimeout_) \
             ->SetRequestAck(DefaultRequestAck_); \
     }
@@ -358,11 +336,44 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     \
     TReq##method##Ptr method() \
     { \
-        return ::NYT::New<TReq##method>(Channel, ServiceName, #method, true) \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, true) \
             ->SetTimeout(DefaultTimeout_) \
             ->SetRequestAck(DefaultRequestAck_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TProxyBase
+{
+public:
+    DEFINE_RPC_PROXY_METHOD(NProto, Discover);
+
+protected:
+    TProxyBase(
+        IChannelPtr channel,
+        const Stroka& serviceName);
+
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
+
+    Stroka ServiceName_;
+    IChannelPtr Channel_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGenericProxy
+    : public TProxyBase
+{
+public:
+    TGenericProxy(
+        IChannelPtr channel,
+        const Stroka& serviceName);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT

@@ -29,7 +29,7 @@ IChannelPtr CreateSchedulerChannel(
     IChannelPtr masterChannel)
 {
     auto roamingChannel = CreateRoamingChannel(
-        BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
+        BIND([=] (IClientRequestPtr /*request*/) -> TFuture<TErrorOr<IChannelPtr>> {
             TObjectServiceProxy proxy(masterChannel);
             auto req = TYPathProxy::Get("//sys/scheduler/@address");
             return proxy

@@ -87,7 +87,7 @@ public:
         TReqExecuteBatch(
             NRpc::IChannelPtr channel,
             const Stroka& path,
-            const Stroka& verb);
+            const Stroka& method);
 
         //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();

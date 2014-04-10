@@ -16,18 +16,18 @@ class TRoamingChannel
 {
 public:
     explicit TRoamingChannel(TChannelProducer producer)
-        : Producer(std::move(producer))
-        , Terminated(false)
+        : Producer_(std::move(producer))
+        , Terminated_(false)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
-        return DefaultTimeout;
+        return DefaultTimeout_;
     }
 
     void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
     {
-        DefaultTimeout = timeout;
+        DefaultTimeout_ = timeout;
     }
 
     virtual void Send(
@@ -43,7 +43,7 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
 
-            if (Terminated) {
+            if (Terminated_) {
                 guard.Release();
                 responseHandler->OnError(TError(EErrorCode::TransportError, "Channel terminated"));
                 return;
@@ -54,7 +54,7 @@ public:
                 channelPromise = ChannelPromise = NewPromise< TErrorOr<IChannelPtr> >();
                 guard.Release();
 
-                Producer.Run().Subscribe(BIND(
+                Producer_.Run(request).Subscribe(BIND(
                     &TRoamingChannel::OnEndpointDiscovered,
                     MakeStrong(this),
                     channelPromise));
@@ -78,14 +78,14 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
 
-            if (Terminated) {
+            if (Terminated_) {
                 return MakeFuture();
             }
 
             channel = ChannelPromise ? ChannelPromise.TryGet() : Null;
             ChannelPromise.Reset();
             TerminationError = error;
-            Terminated = true;
+            Terminated_ = true;
         }
 
         if (channel && channel->IsOK()) {
@@ -137,7 +137,7 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (Terminated) {
+        if (Terminated_) {
             guard.Release();
             if (result.IsOK()) {
 	            auto channel = result.Value();
@@ -189,11 +189,11 @@ private:
     }
 
 
-    TNullable<TDuration> DefaultTimeout;
-    TChannelProducer Producer;
+    TNullable<TDuration> DefaultTimeout_;
+    TChannelProducer Producer_;
 
     TSpinLock SpinLock;
-    volatile bool Terminated;
+    volatile bool Terminated_;
     TError TerminationError;
     TPromise< TErrorOr<IChannelPtr> > ChannelPromise;
 

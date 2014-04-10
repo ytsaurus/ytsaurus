@@ -4,7 +4,7 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <ytlib/hydra/config.h>
+#include <core/rpc/config.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -30,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteTimestampProviderConfig
-    : public NHydra::TPeerDiscoveryConfig
+    : public NRpc::TBalancingChannelConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)

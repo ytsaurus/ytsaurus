@@ -45,8 +45,8 @@ public:
 
     virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
     {
-        const auto& verb = context->GetVerb();
-        if (verb == "Remove") {
+        const auto& method = context->GetMethod();
+        if (method == "Remove") {
             return TResolveResult::There(GetTargetProxy(), path);
         } else {
             return TMapNodeProxy::ResolveSelf(path, context);

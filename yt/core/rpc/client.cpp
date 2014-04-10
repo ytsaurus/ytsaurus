@@ -18,21 +18,10 @@ static auto& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyBase::TProxyBase(IChannelPtr channel, const Stroka& serviceName)
-    : DefaultTimeout_(channel->GetDefaultTimeout())
-    , DefaultRequestAck_(true)
-    , ServiceName(serviceName)
-    , Channel(channel)
-{
-    YASSERT(channel);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TClientRequest::TClientRequest(
     IChannelPtr channel,
     const Stroka& service,
-    const Stroka& verb,
+    const Stroka& method,
     bool oneWay)
     : RequestAck_(true)
     , RequestHeavy_(false)
@@ -42,7 +31,7 @@ TClientRequest::TClientRequest(
     YCHECK(channel);
 
     Header_.set_service(service);
-    Header_.set_verb(verb);
+    Header_.set_method(method);
     Header_.set_one_way(oneWay);
     Header_.set_request_start_time(TInstant::Now().MicroSeconds());
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
@@ -75,9 +64,9 @@ const Stroka& TClientRequest::GetService() const
     return Header_.service();
 }
 
-const Stroka& TClientRequest::GetVerb() const
+const Stroka& TClientRequest::GetMethod() const
 {
-    return Header_.verb();
+    return Header_.method();
 }
 
 bool TClientRequest::IsOneWay() const
@@ -230,6 +219,27 @@ void TOneWayClientResponse::FireCompleted()
     Promise.Set(this);
     Promise.Reset();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TProxyBase::TProxyBase(
+    IChannelPtr channel,
+    const Stroka& serviceName)
+    : DefaultTimeout_(channel->GetDefaultTimeout())
+    , DefaultRequestAck_(true)
+    , ServiceName_(serviceName)
+    , Channel_(channel)
+{
+    YASSERT(Channel_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGenericProxy::TGenericProxy(
+    IChannelPtr channel,
+    const Stroka& serviceName)
+    : TProxyBase(channel, serviceName)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

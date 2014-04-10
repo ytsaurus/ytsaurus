@@ -6,13 +6,12 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/hydra/peer_channel.h>
+#include <core/rpc/balancing_channel.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 using namespace NRpc;
-using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,8 +23,8 @@ public:
         TRemoteTimestampProviderConfigPtr config,
         IChannelFactoryPtr channelFactory)
         : Config_(config)
-        , Channel_(CreatePeerChannel(config, channelFactory, EPeerRole::Leader))
-        , Proxy(Channel_)
+        , Channel_(CreateBalancingChannel(config, channelFactory))
+        , Proxy_(Channel_)
         , RequestInProgress_(false)
         , LatestTimestamp_(MinTimestamp)
     { }
@@ -63,7 +62,7 @@ private:
     TRemoteTimestampProviderConfigPtr Config_;
 
     IChannelPtr Channel_;
-    TTimestampServiceProxy Proxy;
+    TTimestampServiceProxy Proxy_;
 
     struct TRequest
     {
@@ -90,7 +89,7 @@ private:
             count += request.Count;
         }
 
-        auto req = Proxy.GenerateTimestamps();
+        auto req = Proxy_.GenerateTimestamps();
         req->set_count(count);
 
         RequestInProgress_ = true;

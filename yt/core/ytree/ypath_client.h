@@ -23,14 +23,14 @@ public:
 
     TYPathRequest(
         const Stroka& service,
-        const Stroka& verb,
+        const Stroka& method,
         const NYPath::TYPath& path,
         bool mutating);
 
     virtual bool IsOneWay() const override;
     virtual NRpc::TRequestId GetRequestId() const override;
 
-    virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetMethod() const override;
     virtual const Stroka& GetService() const override;
     const Stroka& GetPath() const;
 
@@ -69,12 +69,12 @@ public:
 
     TTypedYPathRequest(
         const Stroka& service,
-        const Stroka& verb,
+        const Stroka& method,
         const NYPath::TYPath& path,
         bool mutating)
         : TYPathRequest(
             service,
-            verb,
+            method,
             path,
             mutating)
     { }

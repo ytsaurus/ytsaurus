@@ -78,6 +78,8 @@
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
 
+#include <server/transaction_server/timestamp_proxy_service.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -100,6 +102,7 @@ using namespace NDataNode;
 using namespace NTabletNode;
 using namespace NQueryAgent;
 using namespace NApi;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,8 +145,8 @@ void TBootstrap::Run()
         }
     }
 
-    auto connection = CreateConnection(Config->ClusterConnection);
-    MasterClient = CreateClient(connection);
+    auto clusterConnection = CreateConnection(Config->ClusterConnection);
+    MasterClient = CreateClient(clusterConnection);
 
     ControlQueue = New<TActionQueue>("Control");
     ControlInvoker = ControlQueue->GetInvoker();
@@ -284,6 +287,9 @@ void TBootstrap::Run()
     RpcServer->RegisterService(CreateQueryService(
         GetControlInvoker(),
         queryExecutor));
+
+    RpcServer->RegisterService(CreateTimestampProxyService(
+        clusterConnection->GetTimestampProvider()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(

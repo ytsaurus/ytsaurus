@@ -130,7 +130,7 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     const NYPath::TYPath& path,
     IServiceContextPtr context)
 {
-    if (context->GetVerb() == "Exists") {
+    if (context->GetMethod() == "Exists") {
         return TResolveResult::Here(path);
     }
 
@@ -196,15 +196,15 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    const auto& verb = context->GetVerb();
+    const auto& method = context->GetMethod();
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
 
     if (tokenizer.GetToken() == WildcardToken) {
-        if (verb != "Remove") {
-            THROW_ERROR_EXCEPTION("\"%s\" is only allowed for Remove verb",
+        if (method != "Remove") {
+            THROW_ERROR_EXCEPTION("\"%s\" is only allowed for Remove method",
                 WildcardToken);
         }
 
@@ -220,8 +220,8 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
         auto child = FindChild(key);
         if (!child) {
-            if (verb == "Exists" || verb == "Create" || verb == "Remove" ||
-                ((verb == "Set" || verb == "Copy") &&
+            if (method == "Exists" || method == "Create" || method == "Remove" ||
+                ((method == "Set" || method == "Copy") &&
                  tokenizer.Advance() == NYPath::ETokenType::EndOfStream))
             {
                 return IYPathService::TResolveResult::Here("/" + path);
@@ -350,8 +350,8 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
         int index = ParseListIndex(token);
         int adjustedIndex = AdjustChildIndex(index);
         auto child = FindChild(adjustedIndex);
-        const auto& verb = context->GetVerb();
-        if (!child && verb == "Exists") {
+        const auto& method = context->GetMethod();
+        if (!child && method == "Exists") {
             return IYPathService::TResolveResult::Here("/" + path);
         }
         return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());

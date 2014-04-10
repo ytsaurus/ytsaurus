@@ -167,7 +167,7 @@ private:
                 LOG_DEBUG("Execute[%d] <- %s:%s %s (RequestId: %s, Mutating: %s, MutationId: %s)",
                     CurrentRequestIndex,
                     ~requestHeader.service(),
-                    ~requestHeader.verb(),
+                    ~requestHeader.method(),
                     ~path,
                     ~ToString(Context->GetRequestId()),
                     ~FormatBool(mutating),

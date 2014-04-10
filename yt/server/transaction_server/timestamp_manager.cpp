@@ -112,7 +112,7 @@ private:
     // Timestamp thread affinity:
     
     //! Can we generate timestamps?
-    bool Active_;
+    volatile bool Active_;
 
     //! First unused timestamp.
     TTimestamp CurrentTimestamp_;
@@ -318,6 +318,15 @@ private:
 
         PersistentTimestamp_ = request.timestamp();
     }
+
+
+    virtual bool IsUp() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Active_;
+    }
+
 
 };
 

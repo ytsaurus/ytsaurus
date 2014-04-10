@@ -10,6 +10,7 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel that takes care of choosing a peer with the requested role.
+// TODO(babenko): currently always discovers the leader
 NRpc::IChannelPtr CreatePeerChannel(
     TPeerDiscoveryConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory,

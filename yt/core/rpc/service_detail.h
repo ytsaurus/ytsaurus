@@ -14,6 +14,8 @@
 
 #include <core/compression/codec.h>
 
+#include <core/rpc/rpc.pb.h>
+
 #include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
@@ -249,6 +251,110 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
+    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef TCtx##method::TTypedRequest  TReq##method; \
+    typedef TCtx##method::TTypedResponse TRsp##method; \
+    \
+    void method##LiteThunk( \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
+        if (!typedContext->DeserializeRequest()) \
+            return; \
+        auto* request = &typedContext->Request(); \
+        auto* response = &typedContext->Response(); \
+        this->method(request, response, typedContext); \
+    } \
+    \
+    ::NYT::NRpc::TServiceBase::TLiteHandler method##HeavyThunk( \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
+        if (!typedContext->DeserializeRequest()) { \
+            return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
+        } \
+        return \
+            BIND([=] ( \
+                const ::NYT::NRpc::IServiceContextPtr&, \
+                const ::NYT::NRpc::THandlerInvocationOptions&) \
+            { \
+                auto* request = &typedContext->Request(); \
+                auto* response = &typedContext->Response(); \
+                this->method(request, response, typedContext); \
+            }); \
+    }
+
+#define DECLARE_RPC_SERVICE_METHOD(ns, method) \
+    DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
+    \
+    void method( \
+        TReq##method* request, \
+        TRsp##method* response, \
+        const TCtx##method##Ptr& context)
+
+#define DEFINE_RPC_SERVICE_METHOD(type, method) \
+    void type::method( \
+        TReq##method* request, \
+        TRsp##method* response, \
+        const TCtx##method##Ptr& context)
+
+#define RPC_SERVICE_METHOD_DESC(method) \
+    ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
+        #method, \
+        BIND(&std::remove_reference<decltype(*this)>::type::method##LiteThunk, ::NYT::Unretained(this)), \
+        BIND(&std::remove_reference<decltype(*this)>::type::method##HeavyThunk, ::NYT::Unretained(this)))
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DECLARE_ONE_WAY_RPC_SERVICE_METHOD(ns, method) \
+    typedef ::NYT::NRpc::TOneWayTypedServiceContext<ns::TReq##method> TCtx##method; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef TCtx##method::TTypedRequest TReq##method; \
+    \
+    void method##LiteThunk( \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        if (!typedContext->DeserializeRequest()) \
+            return; \
+        auto* request = &typedContext->Request(); \
+        this->method(request, typedContext); \
+    } \
+    \
+    ::NYT::NRpc::TServiceBase::TLiteHandler method##HeavyThunk( \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        if (!typedContext->DeserializeRequest()) { \
+            return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
+        } \
+        return \
+            BIND([=] ( \
+                const ::NYT::NRpc::IServiceContextPtr&, \
+                const ::NYT::NRpc::THandlerInvocationOptions&) \
+            { \
+                auto* request = &typedContext->Request(); \
+                this->method(request, typedContext); \
+            }); \
+    } \
+    \
+    void method( \
+        TReq##method* request, \
+        const TCtx##method##Ptr& context)
+
+#define DEFINE_ONE_WAY_RPC_SERVICE_METHOD(type, method) \
+    void type::method( \
+        TReq##method* request, \
+        const TCtx##method##Ptr& context)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a base for implementing IService.
 class TServiceBase
     : public IService
@@ -261,7 +367,7 @@ protected:
     struct TMethodDescriptor
     {
         TMethodDescriptor(
-            const Stroka& verb,
+            const Stroka& method,
             TLiteHandler liteHandler,
             THeavyHandler heavyHandler);
 
@@ -270,7 +376,7 @@ protected:
         IPrioritizedInvokerPtr Invoker;
 
         //! Service method name.
-        Stroka Verb;
+        Stroka Method;
 
         //! A handler that will serve lite requests.
         TLiteHandler LiteHandler;
@@ -289,6 +395,11 @@ protected:
 
         //! Should requests be reordered based on start time?
         bool EnableReorder;
+
+        //! System requests are completely transparent to derived classes;
+        //! in particular, |BeforeInvoke| is not called.
+        bool System;
+
 
         TMethodDescriptor& SetInvoker(IPrioritizedInvokerPtr value)
         {
@@ -335,6 +446,12 @@ protected:
         TMethodDescriptor& SetEnableReorder(bool value)
         {
             EnableReorder = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetSystem(bool value)
+        {
+            System = value;
             return *this;
         }
     };
@@ -457,6 +574,22 @@ protected:
     //! Called right before each method handler invocation.
     virtual void BeforeInvoke();
 
+    //! Used by peer discovery.
+    //! Returns |true| is this service instance is up, i.e. can handle requests.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */ 
+    virtual bool IsUp() const;
+
+    //! Used by peer discovery.
+    //! Returns addresses of neighboring peers to be suggested to the client.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */ 
+    virtual std::vector<Stroka> SuggestAddresses() const;
+
 private:
     class TServiceContext;
 
@@ -490,113 +623,11 @@ private:
 
     void OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message);
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
-    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
-    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
-    typedef TCtx##method::TTypedRequest  TReq##method; \
-    typedef TCtx##method::TTypedResponse TRsp##method; \
-    \
-    void method##LiteThunk( \
-        const ::NYT::NRpc::IServiceContextPtr& context, \
-        const ::NYT::NRpc::THandlerInvocationOptions& options) \
-    { \
-        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
-        if (!typedContext->DeserializeRequest()) \
-            return; \
-        auto* request = &typedContext->Request(); \
-        auto* response = &typedContext->Response(); \
-        this->method(request, response, typedContext); \
-    } \
-    \
-    ::NYT::NRpc::TServiceBase::TLiteHandler method##HeavyThunk( \
-        const ::NYT::NRpc::IServiceContextPtr& context, \
-        const ::NYT::NRpc::THandlerInvocationOptions& options) \
-    { \
-        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
-        if (!typedContext->DeserializeRequest()) { \
-            return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
-        } \
-        return \
-            BIND([=] ( \
-                const ::NYT::NRpc::IServiceContextPtr&, \
-                const ::NYT::NRpc::THandlerInvocationOptions&) \
-            { \
-                auto* request = &typedContext->Request(); \
-                auto* response = &typedContext->Response(); \
-                this->method(request, response, typedContext); \
-            }); \
-    }
-
-#define DECLARE_RPC_SERVICE_METHOD(ns, method) \
-    DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
-    \
-    void method( \
-        TReq##method* request, \
-        TRsp##method* response, \
-        const TCtx##method##Ptr& context)
-
-#define DEFINE_RPC_SERVICE_METHOD(type, method) \
-    void type::method( \
-        TReq##method* request, \
-        TRsp##method* response, \
-        const TCtx##method##Ptr& context)
-
-#define RPC_SERVICE_METHOD_DESC(method) \
-    ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
-        #method, \
-        BIND(&std::remove_reference<decltype(*this)>::type::method##LiteThunk, ::NYT::Unretained(this)), \
-        BIND(&std::remove_reference<decltype(*this)>::type::method##HeavyThunk, ::NYT::Unretained(this)))
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define DECLARE_ONE_WAY_RPC_SERVICE_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TOneWayTypedServiceContext<ns::TReq##method> TCtx##method; \
-    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
-    typedef TCtx##method::TTypedRequest TReq##method; \
-    \
-    void method##LiteThunk( \
-        const ::NYT::NRpc::IServiceContextPtr& context, \
-        const ::NYT::NRpc::THandlerInvocationOptions& options) \
-    { \
-        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
-        if (!typedContext->DeserializeRequest()) \
-            return; \
-        auto* request = &typedContext->Request(); \
-        this->method(request, typedContext); \
-    } \
-    \
-    ::NYT::NRpc::TServiceBase::TLiteHandler method##HeavyThunk( \
-        const ::NYT::NRpc::IServiceContextPtr& context, \
-        const ::NYT::NRpc::THandlerInvocationOptions& options) \
-    { \
-        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
-        if (!typedContext->DeserializeRequest()) { \
-            return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
-        } \
-        return \
-            BIND([=] ( \
-                const ::NYT::NRpc::IServiceContextPtr&, \
-                const ::NYT::NRpc::THandlerInvocationOptions&) \
-            { \
-                auto* request = &typedContext->Request(); \
-                this->method(request, typedContext); \
-            }); \
-    } \
-    \
-    void method( \
-        TReq##method* request, \
-        const TCtx##method##Ptr& context)
-
-#define DEFINE_ONE_WAY_RPC_SERVICE_METHOD(type, method) \
-    void type::method( \
-        TReq##method* request, \
-        const TCtx##method##Ptr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 

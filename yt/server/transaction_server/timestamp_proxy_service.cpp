@@ -4,6 +4,7 @@
 
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
+#include <core/rpc/dispatcher.h>
 
 #include <ytlib/transaction_client/timestamp_service_proxy.h>
 #include <ytlib/transaction_client/timestamp_provider.h>
@@ -24,16 +25,16 @@ class TTimestampProxyService
     : public TServiceBase
 {
 public:
-    TTimestampProxyService(
-        IInvokerPtr invoker,
-        ITimestampProviderPtr provider)
+    explicit TTimestampProxyService(ITimestampProviderPtr provider)
         : TServiceBase(
-            invoker,
+            NRpc::TDispatcher::Get()->GetPoolInvoker(),
             TTimestampServiceProxy::GetServiceName(),
             TransactionServerLogger.GetCategory())
         , Provider_(provider)
     {
         YCHECK(Provider_);
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
     }
 
 private:
@@ -64,13 +65,9 @@ private:
 
 };
 
-IServicePtr CreateTimestampProxyService(
-    IInvokerPtr invoker,
-    ITimestampProviderPtr provider)
+IServicePtr CreateTimestampProxyService(ITimestampProviderPtr provider)
 {
-    return New<TTimestampProxyService>(
-        invoker,
-        provider);
+    return New<TTimestampProxyService>(provider);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

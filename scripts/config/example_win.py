@@ -43,6 +43,8 @@ Logging = {
 
 MasterAddresses = opts.limit_iter('--masters',
         ['%s:%d' % (socket.getfqdn(), port) for port in xrange(8001, 8004)])
+NodeAddresses = opts.limit_iter('--nodes',
+        ['%s:%d' % (socket.getfqdn(), p) for p in range(9000, 9100)])
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')
@@ -96,8 +98,7 @@ class Master(WinNode, Server):
 
 
 class Holder(WinNode, Server):
-        address = Subclass(opts.limit_iter('--holders',
-            ['%s:%d' % (socket.getfqdn(), p) for p in range(9000, 9100)]))
+        address = Subclass(NodeAddresses)
 
         params = Template('--node --config %(config_path)s')
 

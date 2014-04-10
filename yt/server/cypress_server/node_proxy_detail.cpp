@@ -1387,10 +1387,10 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    const auto& verb = context->GetVerb();
+    const auto& method = context->GetMethod();
 
     auto propagate = [&] () -> TResolveResult {
-        if (verb == "Exists") {
+        if (method == "Exists") {
             auto proxy = FindTargetProxy();
             static IYPathServicePtr doesNotExistService = New<TDoesNotExistService>();
             return
@@ -1409,9 +1409,9 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
 
         case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle Remove and Create locally.
-            if (verb == "Remove" || verb == "Create") {
+            if (method == "Remove" || method == "Create") {
                 return TResolveResult::Here(path);
-            } else if (verb == "Exists") {
+            } else if (method == "Exists") {
                 return propagate();
             } else {
                 return TResolveResult::There(GetTargetProxy(), path);

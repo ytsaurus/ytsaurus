@@ -29,9 +29,9 @@ public:
         const TYPath& path,
         IServiceContextPtr context) override
     {
-        const auto& verb = context->GetVerb();
-        if (verb != "Get" && verb != "List") {
-            ThrowVerbNotSuppored(verb);
+        const auto& method = context->GetMethod();
+        if (method != "Get" && method != "List") {
+            ThrowMethodNotSupported(method);
         }
 
         auto root = LoadFile();

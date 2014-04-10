@@ -15,8 +15,8 @@ using namespace NBus;
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     IChannelPtr channel,
     const Stroka& path,
-    const Stroka& verb)
-    : TClientRequest(channel, path, verb, false)
+    const Stroka& method)
+    : TClientRequest(channel, path, method, false)
 { }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
@@ -204,7 +204,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {
     // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
     return
-        New<TReqExecuteBatch>(Channel, ServiceName, "Execute")
+        New<TReqExecuteBatch>(Channel_, ServiceName_, "Execute")
         ->SetTimeout(DefaultTimeout_);
 }
 

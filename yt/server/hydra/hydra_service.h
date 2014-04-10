@@ -31,6 +31,8 @@ private:
     void OnLeaderActive();
     void OnStopLeading();
 
+    virtual bool IsUp() const override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

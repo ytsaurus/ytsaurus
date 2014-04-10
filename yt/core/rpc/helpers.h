@@ -37,6 +37,11 @@ IChannelPtr CreateRealmChannel(
     IChannelPtr underlyingChannel,
     const TRealmId& realmId);
 
+//! Returns a wrapper that sets realm id in every request for every created channel.
+IChannelFactoryPtr CreateRealmChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    const TRealmId& realmId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

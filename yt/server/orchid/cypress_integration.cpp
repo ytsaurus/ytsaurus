@@ -97,7 +97,7 @@ public:
         proxy.SetDefaultTimeout(manifest->Timeout);
 
         auto path = GetRedirectPath(manifest, GetRequestYPath(context));
-        auto verb = context->GetVerb();
+        const auto& method = context->GetMethod();
 
         auto requestMessage = context->GetRequestMessage();
         NRpc::NProto::TRequestHeader requestHeader;
@@ -113,10 +113,10 @@ public:
         auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
+        LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Method: %s, RequestId: %s)",
             ~manifest->RemoteAddress,
             ~path,
-            ~verb,
+            ~method,
             ~ToString(outerRequest->GetRequestId()));
 
         outerRequest->Invoke().Subscribe(
@@ -126,7 +126,7 @@ public:
                 context,
                 manifest,
                 path,
-                verb)
+                method)
             .Via(OrchidQueue->GetInvoker()));
     }
 
@@ -168,7 +168,7 @@ private:
         IServiceContextPtr context,
         TOrchidManifestPtr manifest,
         const TYPath& path,
-        const Stroka& verb,
+        const Stroka& method,
         TOrchidServiceProxy::TRspExecutePtr response)
     {
         if (response->IsOK()) {
@@ -179,9 +179,9 @@ private:
         } else {
             LOG_DEBUG(*response, "Orchid request failed (RequestId: %s)",
                 ~ToString(context->GetRequestId()));
-            context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)",
+            context->Reply(TError("Error executing an Orchid operation (Path: %s, Method: %s, RemoteAddress: %s, RemoteRoot: %s)",
                 ~path,
-                ~verb,
+                ~method,
                 ~manifest->RemoteAddress,
                 ~manifest->RemoteRoot)
                 << response->GetError());

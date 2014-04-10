@@ -11,9 +11,7 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateTimestampProxyService(
-    IInvokerPtr invoker,
-    NTransactionClient::ITimestampProviderPtr provider);
+NRpc::IServicePtr CreateTimestampProxyService(NTransactionClient::ITimestampProviderPtr provider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

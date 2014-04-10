@@ -79,12 +79,12 @@ void ThrowNoSuchSystemAttribute(const Stroka& key)
         ~ToYPathLiteral(key).Quote());
 }
 
-void ThrowVerbNotSuppored(const Stroka& verb, const TNullable<Stroka>& resolveType)
+void ThrowMethodNotSupported(const Stroka& method, const TNullable<Stroka>& resolveType)
 {
     auto error = TError(
-        NRpc::EErrorCode::NoSuchVerb,
-        "Verb %s is not supported",
-        ~verb.Quote());
+        NRpc::EErrorCode::NoSuchMethod,
+        "Method %s is not supported",
+        ~method);
     if (resolveType) {
         error.Attributes().Set("resolve_type", *resolveType);
     }

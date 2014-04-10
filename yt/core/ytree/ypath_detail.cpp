@@ -100,7 +100,7 @@ void TYPathServiceBase::Invoke(IServiceContextPtr context)
     try {
         BeforeInvoke(context);
         if (!DoInvoke(context)) {
-            ThrowVerbNotSuppored(context->GetVerb());
+            ThrowMethodNotSupported(context->GetMethod());
         }
     } catch (const std::exception& ex) {
         error = ex;
@@ -140,20 +140,20 @@ void TYPathServiceBase::SerializeAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define IMPLEMENT_SUPPORTS_VERB_RESOLVE(verb, onPathError) \
-    DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
+#define IMPLEMENT_SUPPORTS_VERB_RESOLVE(method, onPathError) \
+    DEFINE_RPC_SERVICE_METHOD(TSupports##method, method) \
     { \
         NYPath::TTokenizer tokenizer(GetRequestYPath(context)); \
         switch (tokenizer.Advance()) { \
             case NYPath::ETokenType::EndOfStream: \
-                verb##Self(request, response, context); \
+                method##Self(request, response, context); \
                 break; \
             \
             case NYPath::ETokenType::Slash: \
                 if (tokenizer.Advance() == NYPath::ETokenType::At) { \
-                    verb##Attribute(tokenizer.GetSuffix(), request, response, context); \
+                    method##Attribute(tokenizer.GetSuffix(), request, response, context); \
                 } else { \
-                    verb##Recursive(tokenizer.GetInput(), request, response, context); \
+                    method##Recursive(tokenizer.GetInput(), request, response, context); \
                 } \
                 break; \
             \
@@ -162,36 +162,36 @@ void TYPathServiceBase::SerializeAttributes(
         } \
     }
 
-#define IMPLEMENT_SUPPORTS_VERB(verb) \
+#define IMPLEMENT_SUPPORTS_VERB(method) \
     IMPLEMENT_SUPPORTS_VERB_RESOLVE( \
-        verb, \
+        method, \
         { \
             tokenizer.ThrowUnexpected(); \
             YUNREACHABLE(); \
         } \
     ) \
     \
-    void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
+    void TSupports##method::method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        ThrowVerbNotSuppored(context->GetVerb(), Stroka("attribute")); \
+        ThrowMethodNotSupported(context->GetMethod(), Stroka("attribute")); \
     } \
     \
-    void TSupports##verb::verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
+    void TSupports##method::method##Self(TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
         UNUSED(request); \
         UNUSED(response); \
-        ThrowVerbNotSuppored(context->GetVerb(), Stroka("self")); \
+        ThrowMethodNotSupported(context->GetMethod(), Stroka("self")); \
     } \
     \
-    void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
+    void TSupports##method::method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        ThrowVerbNotSuppored(context->GetVerb(), Stroka("recursive")); \
+        ThrowMethodNotSupported(context->GetMethod(), Stroka("recursive")); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(GetKey)
@@ -267,14 +267,14 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    const auto& verb = context->GetVerb();
-    if (verb != "Get" &&
-        verb != "Set" &&
-        verb != "List" &&
-        verb != "Remove" &&
-        verb != "Exists")
+    const auto& method = context->GetMethod();
+    if (method != "Get" &&
+        method != "Set" &&
+        method != "List" &&
+        method != "Remove" &&
+        method != "Exists")
     {
-        ThrowVerbNotSuppored(verb);
+        ThrowMethodNotSupported(method);
     }
 
     return TResolveResult::Here("/@" + path);
@@ -993,7 +993,7 @@ protected:
         AppendInfo(str, RequestInfo_);
         LOG_DEBUG("%s:%s %s <- %s",
             ~GetService(),
-            ~GetVerb(),
+            ~GetMethod(),
             ~GetRequestYPath(this),
             ~str);
     }
@@ -1005,7 +1005,7 @@ protected:
         AppendInfo(str, ResponseInfo_);
         LOG_DEBUG("%s:%s %s -> %s",
             ~GetService(),
-            ~GetVerb(),
+            ~GetMethod(),
             ~GetRequestYPath(this),
             ~str);
     }
