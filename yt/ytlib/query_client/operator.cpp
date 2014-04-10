@@ -43,63 +43,56 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
     return result;
 }
 
-const TTableSchema& TScanOperator::GetTableSchema() const
+const TTableSchema& TScanOperator::GetTableSchema(bool ignoreCache) const
 {
-    return TableSchema_;
-}
-
-void TScanOperator::SetTableSchema(const TTableSchema& tableSchema)
-{
-    TableSchema_ = tableSchema;
-}
-
-const TKeyColumns& TScanOperator::GetKeyColumns() const
-{
-    return KeyColumns_;
-}
-
-void TScanOperator::SetKeyColumns(const TKeyColumns& keyColumns)
-{
-    KeyColumns_ = keyColumns;
-}
-
-const TTableSchema& TFilterOperator::GetTableSchema() const
-{
-    return GetSource()->GetTableSchema();
-}
-
-const TTableSchema& TGroupOperator::GetTableSchema() const
-{
-    TableSchema_ = TTableSchema();
-
-    auto sourceSchema = GetSource()->GetTableSchema();
-    for (const auto& groupItem : GroupItems()) {
-        TableSchema_.Columns().emplace_back(
-            groupItem.Name,
-            InferType(groupItem.Expression, sourceSchema));
+    if (!TableSchema_ || ignoreCache) {
+        TableSchema_ = std::make_unique<TTableSchema>(GetTableSchemaFromDataSplit(DataSplits()[0]));
+        // TODO(lukyan): check that other splits have the same table scheme
     }
-
-    for (const auto& aggregateItem : AggregateItems()) {
-        TableSchema_.Columns().emplace_back(
-            aggregateItem.Name,
-            InferType(aggregateItem.Expression, sourceSchema));
-    }
-
-    return TableSchema_;
+    return *TableSchema_;
 }
 
-const TTableSchema& TProjectOperator::GetTableSchema() const
+const TTableSchema& TFilterOperator::GetTableSchema(bool ignoreCache) const
 {
-    TableSchema_ = TTableSchema();
+    return GetSource()->GetTableSchema(ignoreCache);
+}
 
-    auto sourceSchema = GetSource()->GetTableSchema();
-    for (const auto& projection : Projections()) {
-        TableSchema_.Columns().emplace_back(
-            projection.Name,
-            InferType(projection.Expression, sourceSchema));
+const TTableSchema& TGroupOperator::GetTableSchema(bool ignoreCache) const
+{
+    if (!TableSchema_ || ignoreCache) {
+        TableSchema_ = std::make_unique<TTableSchema>();
+        TTableSchema& result = *TableSchema_;
+
+        auto sourceSchema = GetSource()->GetTableSchema();
+        for (const auto& groupItem : GroupItems()) {
+            result.Columns().emplace_back(
+                groupItem.Name,
+                InferType(groupItem.Expression, sourceSchema));
+        }
+
+        for (const auto& aggregateItem : AggregateItems()) {
+            result.Columns().emplace_back(
+                aggregateItem.Name,
+                InferType(aggregateItem.Expression, sourceSchema));
+        }
     }
+    return *TableSchema_;
+}
 
-    return TableSchema_;
+const TTableSchema& TProjectOperator::GetTableSchema(bool ignoreCache) const
+{
+    if (!TableSchema_ || ignoreCache) {
+        TableSchema_ = std::make_unique<TTableSchema>();
+        TTableSchema& result = *TableSchema_;
+
+        auto sourceSchema = GetSource()->GetTableSchema();
+        for (const auto& projection : Projections()) {
+            result.Columns().emplace_back(
+                projection.Name,
+                InferType(projection.Expression, sourceSchema));
+        }
+    }
+    return *TableSchema_;
 }
 
 TKeyColumns TOperator::GetKeyColumns() const

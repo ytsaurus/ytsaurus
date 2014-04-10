@@ -22,7 +22,9 @@ TKeyColumns InferKeyColumns(const TOperator* op)
 {
     switch (op->GetKind()) {
         case EOperatorKind::Scan: {
-            return op->As<TScanOperator>()->GetKeyColumns();
+            return GetKeyColumnsFromDataSplit(
+                op->As<TScanOperator>()->DataSplits()[0]);
+            // TODO(lukyan): assert that other splits hava the same key columns
         }
         case EOperatorKind::Filter: {
             return InferKeyColumns(op->As<TFilterOperator>()->GetSource());

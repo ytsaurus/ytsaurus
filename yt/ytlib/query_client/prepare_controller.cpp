@@ -151,11 +151,7 @@ void TPrepareController::GetInitialSplits()
 
                 auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
                 clonedScanOp->DataSplits().clear();
-
-                auto tableSchema = dataSplitOrError.Value();
-                clonedScanOp->DataSplits().push_back(tableSchema);
-                clonedScanOp->SetTableSchema(GetTableSchemaFromDataSplit(tableSchema));
-                clonedScanOp->SetKeyColumns(GetKeyColumnsFromDataSplit(tableSchema));
+                clonedScanOp->DataSplits().push_back(dataSplitOrError.Value());
                 return clonedScanOp;
             }
             return op;
@@ -176,7 +172,7 @@ void TPrepareController::CheckAndPruneReferences()
             if (auto* scanOp = op->As<TScanOperator>()) {
                 YCHECK(scanOp->DataSplits().size() == 1);
 
-                auto schema = scanOp->GetTableSchema();
+                auto schema = GetTableSchemaFromDataSplit(scanOp->DataSplits()[0]);
                 auto& columns = schema.Columns();
 
                 columns.erase(
@@ -199,7 +195,9 @@ void TPrepareController::CheckAndPruneReferences()
                     columns.end());
 
                 auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-                clonedScanOp->SetTableSchema(schema);
+                SetTableSchema(&clonedScanOp->DataSplits()[0], schema);
+                clonedScanOp->GetTableSchema(true);
+
                 return clonedScanOp;
             }
             return op;
