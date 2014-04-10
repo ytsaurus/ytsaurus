@@ -11,7 +11,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPeerDiscoveryConfig
+class TPeerConnectionConfig
     : public NRpc::TRetryingChannelConfig
     , public NRpc::TBalancingChannelConfig
 {
@@ -19,19 +19,14 @@ public:
     //! Id of the cell.
     TCellGuid CellGuid;
 
-    //! Timeout for RPC requests to peers.
-    TDuration RpcTimeout;
-
-    TPeerDiscoveryConfig()
+    TPeerConnectionConfig()
     {
         RegisterParameter("cell_guid", CellGuid)
             .Default();
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(15));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TPeerDiscoveryConfig)
+DEFINE_REFCOUNTED_TYPE(TPeerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

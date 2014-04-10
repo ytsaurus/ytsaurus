@@ -13,12 +13,13 @@ class TCellDirectoryConfig
     : public TYsonSerializable
 {
 public:
+    //! Timeout for RPC requests to cells.
     TDuration RpcTimeout;
 
     TCellDirectoryConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(3));
+            .Default(TDuration::Seconds(15));
     }
 };
 

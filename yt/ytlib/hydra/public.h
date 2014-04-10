@@ -11,7 +11,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TPeerDiscoveryConfig)
+DECLARE_REFCOUNTED_CLASS(TPeerConnectionConfig)
 
 DECLARE_ENUM(EPeerState,
     ((None)                       (0))
@@ -36,12 +36,6 @@ DECLARE_ENUM(EErrorCode,
     ((NoLeader)                   (607))
     ((ReadOnly)                   (608))
     ((OutOfOrderMutations)        (609))
-);
-
-DECLARE_ENUM(EPeerRole,
-    (Any)
-    (Leader)
-    (Follower)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

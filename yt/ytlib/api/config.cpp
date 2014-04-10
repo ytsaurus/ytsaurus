@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "config.h"
 
-#include <ytlib/hydra/config.h>
-
 #include <ytlib/transaction_client/config.h>
 
 #include <ytlib/scheduler/config.h>
@@ -15,6 +13,14 @@
 
 namespace NYT {
 namespace NApi {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMasterConnectionConfig::TMasterConnectionConfig()
+{
+    RegisterParameter("rpc_timeout", RpcTimeout)
+        .Default(TDuration::Seconds(15));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

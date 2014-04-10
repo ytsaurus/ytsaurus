@@ -56,7 +56,7 @@ public:
     bool RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config);
 
     //! Similar to the above but accepts discovery configuration.
-    bool RegisterCell(NHydra::TPeerDiscoveryConfigPtr config);
+    bool RegisterCell(NHydra::TPeerConnectionConfigPtr config);
 
     //! Similar to the above but accepts cell configuration.
     bool RegisterCell(NElection::TCellConfigPtr config);

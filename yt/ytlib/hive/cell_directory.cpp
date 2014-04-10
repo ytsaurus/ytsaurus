@@ -95,7 +95,7 @@ public:
         return result;
     }
 
-    bool RegisterCell(TPeerDiscoveryConfigPtr config)
+    bool RegisterCell(TPeerConnectionConfigPtr config)
     {
         return RegisterCell(config->CellGuid, BuildProtoConfig(config->Addresses));
     }
@@ -139,15 +139,18 @@ private:
 
     void InitChannel(const TCellGuid& cellGuid, TEntry* entry)
     {
-        if (entry->Config.version() > 0) {
-            auto config = New<TPeerDiscoveryConfig>();
-            config->RpcTimeout = Config->RpcTimeout;
-            config->CellGuid = cellGuid;
-            for (const auto& peer : entry->Config.peers()) {
-                config->Addresses.push_back(peer.address());
-            }
-            entry->Channel = CreatePeerChannel(config, ChannelFactory, EPeerRole::Leader);
+        if (entry->Config.version() == 0)
+            return;
+
+        auto config = New<TPeerConnectionConfig>();
+        config->CellGuid = cellGuid;
+        for (const auto& peer : entry->Config.peers()) {
+            config->Addresses.push_back(peer.address());
         }
+
+        auto leaderChannel = CreateLeaderChannel(config, ChannelFactory);
+        leaderChannel->SetDefaultTimeout(Config->RpcTimeout);
+        entry->Channel = leaderChannel;
     }
     
     NHydra::NProto::TCellConfig BuildProtoConfig(const std::vector<Stroka>& addresses)
@@ -208,7 +211,7 @@ bool TCellDirectory::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& 
     return Impl_->RegisterCell(cellGuid, config);
 }
 
-bool TCellDirectory::RegisterCell(TPeerDiscoveryConfigPtr config)
+bool TCellDirectory::RegisterCell(TPeerConnectionConfigPtr config)
 {
     return Impl_->RegisterCell(config);
 }

@@ -4,7 +4,7 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <ytlib/hydra/public.h>
+#include <ytlib/hydra/config.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -27,11 +27,25 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterConnectionConfig
+    : public NHydra::TPeerConnectionConfig
+{
+public:
+    //! Timeout for RPC requests to masters.
+    TDuration RpcTimeout;
+
+    TMasterConnectionConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConnectionConfig
     : public virtual TYsonSerializable
 {
 public:
-    NHydra::TPeerDiscoveryConfigPtr Masters;
+    TMasterConnectionConfigPtr Masters;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;

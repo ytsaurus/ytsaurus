@@ -6,9 +6,11 @@
 #include <core/concurrency/scheduler.h>
 
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/retrying_channel.h>
 #include <core/rpc/caching_channel_factory.h>
 
 #include <ytlib/hydra/peer_channel.h>
+#include <ytlib/hydra/config.h>
 
 #include <ytlib/scheduler/scheduler_channel.h>
 
@@ -138,10 +140,13 @@ public:
     {
         auto channelFactory = GetBusChannelFactory();
 
-        MasterChannel_ = CreatePeerChannel(
+        auto leaderChannel = CreateLeaderChannel(
             Config_->Masters,
-            channelFactory,
-            EPeerRole::Leader);
+            channelFactory);
+        MasterChannel_ = CreateRetryingChannel(
+            Config_->Masters,
+            leaderChannel);
+        MasterChannel_->SetDefaultTimeout(Config_->Masters->RpcTimeout);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
