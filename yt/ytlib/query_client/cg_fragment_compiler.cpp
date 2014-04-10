@@ -715,7 +715,7 @@ void TCGContext::CodegenScanOp(
     YCHECK(++args == function->arg_end());
 
     TCGIRBuilder innerBuilder(
-        BasicBlock::Create(builder.getContext(), "entry", function),
+        function,
         &builder,
         closure);
 
@@ -830,7 +830,7 @@ void TCGContext::CodegenGroupOp(
     YCHECK(++args == function->arg_end());
 
     TCGIRBuilder innerBuilder(
-        BasicBlock::Create(builder.getContext(), "entry", function),
+        function,
         &builder,
         closure);
 

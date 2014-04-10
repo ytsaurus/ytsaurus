@@ -44,19 +44,17 @@ private:
     //! Note that this value belongs to the current context.
     llvm::Value* ClosurePtr_;
 
-    //! Closure itself.
-    //! Note that this value belongs to the parent context.
-    llvm::Value* Closure_;
-
     //! Translates captured values in the parent context into their indexes in the closure.
-    std::unordered_map<llvm::Value*, int> Mapping_;
+    std::unordered_map<llvm::Value*, std::pair<llvm::Value*, int>> Mapping_;
+
+    llvm::BasicBlock* EntryBlock_;
 
 public:
     TCGIRBuilder(
         llvm::BasicBlock* basicBlock);
 
     TCGIRBuilder(
-        llvm::BasicBlock* basicBlock,
+        llvm::Function* function,
         TCGIRBuilder* parent,
         llvm::Value* closurePtr);
 
@@ -66,7 +64,7 @@ public:
     llvm::Value* ViaClosure(llvm::Value* value, llvm::Twine name = llvm::Twine());
 
     //! Returns the closure in the parent context.
-    llvm::Value* GetClosure() const;
+    llvm::Value* GetClosure();
 
     //! Creates a new basic block within the current function.
     llvm::BasicBlock* CreateBBHere(const llvm::Twine& name);

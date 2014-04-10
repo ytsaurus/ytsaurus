@@ -7,6 +7,7 @@
 namespace NYT {
 namespace NQueryClient {
 
+using llvm::Function;
 using llvm::BasicBlock;
 using llvm::TypeBuilder;
 using llvm::Value;
@@ -15,27 +16,23 @@ using llvm::Module;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const unsigned int MaxClosureSize = 64;
+static const unsigned int MaxClosureSize = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGIRBuilder::TCGIRBuilder(
-    BasicBlock* basicBlock,
+    Function* function,
     TCGIRBuilder* parent,
     Value* closurePtr)
-    : TBase(basicBlock)
+    : TBase(BasicBlock::Create(parent->getContext(), "entry", function))
     , Parent_(parent)
     , ClosurePtr_(closurePtr)
 {
-    auto* function = basicBlock->getParent();
     for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
         ValuesInContext_.insert(it);
     }
 
-    Closure_ = Parent_->CreateAlloca(
-        TypeBuilder<void*, false>::get(basicBlock->getContext()),
-        getInt32(MaxClosureSize),
-        "closure");
+    EntryBlock_ = GetInsertBlock();
 }
 
 TCGIRBuilder::~TCGIRBuilder()
@@ -45,7 +42,6 @@ TCGIRBuilder::TCGIRBuilder(BasicBlock* basicBlock)
     : TBase(basicBlock)
     , Parent_(nullptr)
     , ClosurePtr_(nullptr)
-    , Closure_(nullptr)
 {
     auto* function = basicBlock->getParent();
     for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
@@ -71,15 +67,50 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
     Value* valueInParent = Parent_->ViaClosure(value, name);
 
     // Check if we have already captured this value.
-    auto insertResult = Mapping_.insert(std::make_pair(
-        valueInParent,
-        static_cast<int>(Mapping_.size())));
-    auto indexInClosure = insertResult.first->second;
-    YCHECK(indexInClosure < MaxClosureSize);
+    auto it = Mapping_.find(valueInParent);
 
-    if (insertResult.second) {
-        // If it is a fresh value we have to save it
-        // into the closure in the parent context.
+    if (it != Mapping_.end()) {
+        return it->second.first;
+    } else {
+        int indexInClosure = Mapping_.size();
+        CHECK(indexInClosure < MaxClosureSize);
+
+        InsertPoint currentIP = saveIP();
+        SetInsertPoint(EntryBlock_, EntryBlock_->begin());
+
+        // Load the value to the current context through the closure.
+        Value* result = CreateLoad(
+            CreateLoad(
+                CreatePointerCast(
+                    CreateConstGEP1_32(ClosurePtr_, indexInClosure),
+                    value->getType()->getPointerTo()->getPointerTo(),
+                    name + ".closureSlotPtr"
+                ),
+                name + ".inParentPtr"
+            ),
+            name);
+
+        restoreIP(currentIP);
+
+        Mapping_[valueInParent] = std::make_pair(result, indexInClosure);
+        return result;
+    }
+}
+
+Value* TCGIRBuilder::GetClosure()
+{
+    // Save all values into the closure in the parent context.
+
+    Value* closure = Parent_->CreateAlloca(
+        TypeBuilder<void*, false>::get(getContext()),
+        getInt32(Mapping_.size()),
+        "closure");
+
+    for (auto & value : Mapping_) {
+        Value* valueInParent = value.first;
+        int indexInClosure = value.second.second;
+        auto name = value.second.first->getName();
+
         Value* valueInParentPtr = Parent_->CreateAlloca(
             valueInParent->getType(),
             nullptr,
@@ -91,30 +122,14 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
         Parent_->CreateStore(
             valueInParentPtr,
             Parent_->CreatePointerCast(
-                Parent_->CreateConstGEP1_32(Closure_, indexInClosure),
+                Parent_->CreateConstGEP1_32(closure, indexInClosure),
                 valueInParentPtr->getType()->getPointerTo(),
                 name + ".closureSlotPtr"
             )
         );
     }
 
-    // Load the value to the current context through the closure.
-    return
-        CreateLoad(
-            CreateLoad(
-                CreatePointerCast(
-                    CreateConstGEP1_32(ClosurePtr_, indexInClosure),
-                    value->getType()->getPointerTo()->getPointerTo(),
-                    name + ".closureSlotPtr"
-                ),
-                name + ".inParentPtr"
-            ),
-            name);
-}
-
-Value* TCGIRBuilder::GetClosure() const
-{
-    return Closure_;
+    return closure;
 }
 
 BasicBlock* TCGIRBuilder::CreateBBHere(const Twine& name)
