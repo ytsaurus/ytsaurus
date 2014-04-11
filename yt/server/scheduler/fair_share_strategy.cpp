@@ -605,14 +605,14 @@ protected:
     }
 
 
-    static bool IsNeedy(ISchedulableElementPtr element) const
+    static bool IsNeedy(ISchedulableElementPtr element)
     {
         double usageRatio = element->GetUsageRatio();
         double minShareRatio = element->Attributes().AdjustedMinShareRatio;
         return minShareRatio > RatioComparisonPrecision && usageRatio < minShareRatio;
     }
 
-    static double GetUsageToMinShareRatio(ISchedulableElementPtr element) const
+    static double GetUsageToMinShareRatio(ISchedulableElementPtr element)
     {
         double usageRatio = element->GetUsageRatio();
         double minShareRatio = element->Attributes().AdjustedMinShareRatio;
@@ -620,6 +620,14 @@ protected:
         return usageRatio / std::max(minShareRatio, RatioComparisonPrecision);
     }
 
+    static double GetUsageToWeightRatio(ISchedulableElementPtr element)
+    {
+        double usageRatio = element->GetUsageRatio();
+        double weight = element->GetWeight();
+        // Avoid division by zero.
+        return usageRatio / std::max(weight, RatioComparisonPrecision);
+    }
+    
 
     void SetMode(ESchedulingMode mode)
     {
