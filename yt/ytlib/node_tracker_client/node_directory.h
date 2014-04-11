@@ -35,8 +35,11 @@ public:
     void Persist(TStreamPersistenceContext& context);
 
     typedef yhash_map<Stroka, Stroka> TAddressMap;
-    DEFINE_BYREF_RW_PROPERTY(TAddressMap, Addresses);
+    DEFINE_BYREF_RO_PROPERTY(TAddressMap, Addresses);
 };
+
+bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
+bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
 
 Stroka ToString(const TNodeDescriptor& descriptor);
 

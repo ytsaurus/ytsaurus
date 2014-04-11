@@ -239,7 +239,7 @@ private:
     TJobSpec JobSpecTemplate_;
 
     // Custom bits of preparation pipeline.
-    void InitTransactions() override
+    void InitializeTransactions() override
     {
         StartAsyncSchedulerTransaction();
         if (Operation->GetCleanStart()) {
@@ -260,13 +260,13 @@ private:
         RegisterTaskGroup(RemoteCopyTaskGroup_);
     }
 
-    virtual void DoEssentiate() override
+    virtual void Essentiate() override
     {
         AuthenticatedInputMasterChannel = CreateAuthenticatedChannel(
             Host->GetCellDirectory()->GetChannelOrThrow(Spec_->ClusterName),
             Operation->GetAuthenticatedUser());
 
-        TOperationControllerBase::DoEssentiate();
+        TOperationControllerBase::Essentiate();
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -328,7 +328,7 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return false;
     }
 
     virtual bool IsParityReplicasFetchEnabled() const override

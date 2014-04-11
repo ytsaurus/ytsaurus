@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "config.h"
+#include "utf8_decoder.h"
 
 #include <core/formats/parser.h>
 #include <core/yson/consumer.h>
@@ -34,6 +35,7 @@ private:
     NYson::IYsonConsumer* Consumer;
     TJsonFormatConfigPtr Config;
     NYson::EYsonType Type;
+    TUtf8Transcoder Utf8Transcoder_;
 
     TStringStream Stream;
 

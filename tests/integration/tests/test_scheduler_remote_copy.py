@@ -21,7 +21,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         cls.Env._run_all(masters_count=1, nodes_count=9, schedulers_count=0, has_proxy=False, set_driver=False, identifier="-remote", cell_id=10)
 
     def setup(self):
-        set("//sys/clusters/remote", self.Env.configs["master-remote"][0]["meta_state"]["cell"])
+        set("//sys/clusters/remote", {"masters": self.Env.configs["master-remote"][0]["meta_state"]["cell"], "cell_id": 10})
         self.remote_driver = Driver(config=self.Env.configs["driver-remote"])
         time.sleep(3.0)
 
@@ -71,7 +71,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert sorted(read("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
-    def test_heterogenius_chunk_in_one_block(self):
+    def test_heterogenius_chunk_in_one_job(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
@@ -140,6 +140,23 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         track_op(op_id)
 
         assert read("//tmp/t2") == [{"a": "b"}]
+
+    def test_revive(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        op_id = remote_copy(dont_track=True, in_='//tmp/t1', out='//tmp/t2',
+                            spec={"cluster_name": "remote"})
+
+        self.Env._kill_service("scheduler")
+        time.sleep(2)
+        self.Env.start_schedulers("scheduler")
+
+        track_op(op_id)
+
+        assert read('//tmp/t2') == [{"a" : "b"}]
 
     def test_failed_cases(self):
         create("table", "//tmp/t1", driver=self.remote_driver)

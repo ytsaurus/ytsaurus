@@ -86,7 +86,7 @@ public:
         : TJob(host)
         , JobIO(std::move(userJobIO))
         , UserJobSpec(userJobSpec)
-        , IsInitCompleted(false)
+        , InitCompleted(false)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
@@ -105,6 +105,8 @@ public:
         LOG_DEBUG("Starting job process");
 
         InitPipes();
+
+        InitCompleted = true;
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -148,7 +150,7 @@ public:
 
     virtual double GetProgress() const override
     {
-        return IsInitCompleted ? JobIO->GetProgress() : 0;
+        return InitCompleted ? JobIO->GetProgress() : 0;
     }
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
@@ -609,7 +611,7 @@ private:
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;
 
-    volatile bool IsInitCompleted;
+    volatile bool InitCompleted;
 
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;

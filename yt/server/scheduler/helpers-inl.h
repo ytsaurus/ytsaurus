@@ -20,6 +20,9 @@ template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TMultiCellBatchResponse::FindResponse(const Stroka& key) const
 {
     for (const auto& batchRsp : BatchResponses_) {
+        if (!batchRsp) {
+            continue;
+        }
         auto rsp = batchRsp->FindResponse<TTypedResponse>(key);
         if (rsp) {
             return rsp;
@@ -32,7 +35,7 @@ template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TMultiCellBatchResponse::GetResponse(const Stroka& key) const
 {
     auto rsp = FindResponse<TTypedResponse>(key);
-    YCHECK(rsp.IsOK());
+    YCHECK(rsp->IsOK());
     return rsp;
 }
 
@@ -42,6 +45,32 @@ std::vector< TIntrusivePtr<TTypedResponse> > TMultiCellBatchResponse::GetRespons
     std::vector<TIntrusivePtr<TTypedResponse>> responses;
     for (const auto& batchRsp : BatchResponses_) {
         for (const auto& rsp : batchRsp->GetResponses<TTypedResponse>(key)) {
+            responses.push_back(rsp);
+        }
+    }
+    return responses;
+}
+
+template <class TTypedResponse>
+TNullable<std::vector<TIntrusivePtr<TTypedResponse>>> TMultiCellBatchResponse::FindResponses(const Stroka& key) const
+{
+    std::vector<TIntrusivePtr<TTypedResponse>> responses;
+    if (key.empty()) {
+        responses.reserve(GetSize());
+        for (int index = 0; index < GetSize(); ++index) {
+            auto rsp = GetResponse<TTypedResponse>(index);
+            if (!rsp) {
+                return Null;
+            }
+            responses.push_back(rsp);
+        }
+    } else {
+        auto range = KeyToIndexes_.equal_range(key);
+        for (auto it = range.first; it != range.second; ++it) {
+            auto rsp = GetResponse<TTypedResponse>(it->second);
+            if (!rsp) {
+                return Null;
+            }
             responses.push_back(rsp);
         }
     }

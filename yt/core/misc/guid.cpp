@@ -235,8 +235,8 @@ TGuid TGuid::Create()
     const int N_ADD_BYTES = 12;
     char info[sizeof(GuidSeed) + N_ADD_BYTES];
     memcpy(info + N_ADD_BYTES, &GuidSeed, sizeof(GuidSeed));
-    *((ui64*)info) = fin;
-    *((ui32*)(info + 8)) = counter;
+    memcpy(info, &fin, 8);
+    memcpy(info + 8, &counter, 4);
 
     TJenkinsHashFunc2 hf;
     hf.SetSeed(0x853122ef, 0x1c39dbb5);

@@ -33,7 +33,8 @@ class TMultiCellBatchResponse
 public:
     TMultiCellBatchResponse(
         const std::vector<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr>& batchResponses,
-        const std::vector<std::pair<int, int>>& index);
+        const std::vector<std::pair<int, int>>& index,
+        const std::multimap<Stroka, int>& keyToIndexes);
 
     int GetSize() const;
 
@@ -45,14 +46,18 @@ public:
 
     template <class TTypedResponse>
     TIntrusivePtr<TTypedResponse> FindResponse(const Stroka& key) const;
+    NYTree::TYPathResponsePtr FindResponse(const Stroka& key) const;
+
     template <class TTypedResponse>
     TIntrusivePtr<TTypedResponse> GetResponse(const Stroka& key) const;
-    NYTree::TYPathResponsePtr FindResponse(const Stroka& key) const;
     NYTree::TYPathResponsePtr GetResponse(const Stroka& key) const;
 
     template <class TTypedResponse>
     std::vector< TIntrusivePtr<TTypedResponse> > GetResponses(const Stroka& key = "") const;
+    template <class TTypedResponse>
+    TNullable<std::vector<TIntrusivePtr<TTypedResponse>>> FindResponses(const Stroka& key = "") const;
     std::vector<NYTree::TYPathResponsePtr> GetResponses(const Stroka& key = "") const;
+    TNullable<std::vector<NYTree::TYPathResponsePtr>> FindResponses(const Stroka& key = "") const;
 
     bool IsOK() const;
     operator TError() const;
@@ -62,6 +67,8 @@ private:
 
     // Index of batch + number of request inside batch.
     std::vector<std::pair<int, int>> ResponseIndex_;
+
+    std::multimap<Stroka, int> KeyToIndexes_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -83,6 +90,8 @@ private:
     std::vector<std::pair<NObjectClient::TCellId, int>> RequestIndex_;
     NCellDirectory::TCellDirectoryPtr CellDirectory_;
     bool ThrowIfCellIsMissing_;
+
+    std::multimap<Stroka, int> KeyToIndexes_;
 };
 
 ////////////////////////////////////////////////////////////////////

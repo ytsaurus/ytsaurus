@@ -955,7 +955,6 @@ i64 TTableChunkReader::GetSessionRowCount() const
 
 NChunkClient::NProto::TDataStatistics TTableChunkReader::GetDataStatistics() const
 {
-
     NChunkClient::NProto::TDataStatistics result;
     result.set_chunk_count(1);
 
@@ -1059,9 +1058,8 @@ bool TTableChunkReaderProvider::KeepInMemory() const
 
 NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatistics() const
 {
-    auto dataStatistics = DataStatistics;
-
     TGuard<TSpinLock> guard(SpinLock);
+    auto dataStatistics = DataStatistics;
     FOREACH(const auto& reader, ActiveReaders) {
         dataStatistics += reader->GetDataStatistics();
     }

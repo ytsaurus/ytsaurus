@@ -89,7 +89,7 @@ public:
             auto remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
             auto remoteMasterConfig = ConvertTo<NMetaState::TMasterDiscoveryConfigPtr>(TYsonString(remoteCopySpec.master_discovery_config()));
             NetworkName_ = Stroka(remoteCopySpec.network_name());
-            RemoteMasterChannel_ = CreateMasterChannel(remoteMasterConfig);
+            RemoteMasterChannel_ = CreateLeaderChannel(remoteMasterConfig);
             RemoteNodeDirectory_->MergeFrom(remoteCopySpec.remote_node_directory());
         }
     }
@@ -223,7 +223,8 @@ private:
                 RemoteNodeDirectory_,
                 inputChunkId,
                 inputReplicas,
-                erasureCodec);
+                erasureCodec,
+                NetworkName_);
 
             chunkMeta = GetChunkMeta(readers.front());
 

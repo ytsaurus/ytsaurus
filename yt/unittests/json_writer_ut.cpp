@@ -121,6 +121,33 @@ TEST(TJsonWriterTest, NonAsciiString)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, NonAsciiStringWithoutEscaping)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->EncodeUtf8 = false;
+    auto writer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    Stroka s = Stroka("\xC3\xBF", 2);
+    writer->OnStringScalar(s);
+
+    Stroka output = SurroundWithQuotes(Stroka("\xC3\xBF", 2));
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, IncorrectUtfWithoutEscaping)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->EncodeUtf8 = false;
+    auto writer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    Stroka s = Stroka("\xFF", 1);
+    EXPECT_ANY_THROW(
+        writer->OnStringScalar(s);
+    );
+}
+
 TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
 {
     TStringStream outputStream;

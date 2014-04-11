@@ -64,7 +64,6 @@
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
 
-
 namespace NYT {
 namespace NScheduler {
 
@@ -269,7 +268,7 @@ public:
     }
 
 
-    TFuture<TStartResult> StartOperation(
+    TFuture<TOperationStartResult> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
@@ -282,7 +281,7 @@ public:
         if (mutationId != NullMutationId) {
             auto existingOperation = FindOperationByMutationId(mutationId);
             if (existingOperation) {
-                return MakeFuture(TStartResult(existingOperation));
+                return existingOperation->GetStarted();
             }
         }
 
@@ -332,29 +331,12 @@ public:
             ~ToString(operationId),
             ~FormatResources(GetTotalResourceLimits()));
 
-        IOperationControllerPtr controller;
-        try {
-            controller = CreateController(~operation);
-            operation->SetController(controller);
-            controller->Initialize();
-        } catch (const std::exception& ex) {
-            auto wrappedError = TError("Operation has failed to initialize") << ex;
-            LOG_ERROR(wrappedError);
-            return MakeFuture(TStartResult(wrappedError));
-        }
-
-        RegisterOperation(operation);
-
         // Spawn a new fiber where all startup logic will work asynchronously.
-        return
-            BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
-                .AsyncVia(Bootstrap_->GetControlInvoker())
-                .Run()
-                .Apply(BIND([=] (TError error) {
-                    return error.IsOK()
-                        ? TScheduler::TStartResult(operation)
-                        : TScheduler::TStartResult(error);
-                }));
+        BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run();
+
+        return operation->GetStarted();
     }
 
     TFuture<void> AbortOperation(TOperationPtr operation, const TError& error)
@@ -832,31 +814,39 @@ private:
         if (operation->GetState() != EOperationState::Initializing)
             throw TFiberTerminatedException();
 
-        auto controller = operation->GetController();
-
         try {
-            controller->InitTransactions();
+            auto controller = CreateController(~operation);
+            operation->SetController(controller);
 
-            auto asyncResult = MasterConnector_->CreateOperationNode(operation);
-            auto result = WaitFor(asyncResult);
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            RegisterOperation(operation);
+
+            controller->Initialize();
+            controller->Essentiate();
+
+            auto error = WaitFor(MasterConnector_->CreateOperationNode(operation));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
             if (operation->GetState() != EOperationState::Initializing)
                 throw TFiberTerminatedException();
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
-            OnOperationFailed(operation, wrappedError);
+            if (operation->GetController()) {
+                OnOperationFailed(operation, wrappedError);
+            }
+            operation->SetStarted(wrappedError);
             return wrappedError;
         }
 
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
-        controller->GetCancelableControlInvoker()->Invoke(BIND(
+        operation->GetController()->GetCancelableControlInvoker()->Invoke(BIND(
             &TImpl::DoPrepareOperation,
             MakeStrong(this),
             operation));
 
+        operation->SetStarted(TError());
         return TError();
     }
 
@@ -924,24 +914,22 @@ private:
         // If the revival fails, we still need to update the node
         // and unregister the operation from Master Connector.
 
-        IOperationControllerPtr controller;
         try {
-            controller = CreateController(~operation);
+            auto controller = CreateController(~operation);
+            operation->SetController(controller);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %s)",
                 ~ToString(operationId));
-            auto wrappedError = TError("Operation has failed to revive")
-                << ex;
+            auto wrappedError = TError("Operation has failed to revive") << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
             MasterConnector_->FlushOperationNode(operation);
             return;
         }
 
-        operation->SetController(controller);
         RegisterOperation(operation);
 
         BIND(&TThis::DoReviveOperation, MakeStrong(this), operation)
-            .AsyncVia(controller->GetCancelableControlInvoker())
+            .AsyncVia(operation->GetController()->GetCancelableControlInvoker())
             .Run();
     }
 
@@ -949,49 +937,49 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Question(ignat): Who catch this exception?
         if (operation->GetState() != EOperationState::Reviving)
             throw TFiberTerminatedException();
 
-        auto operationId = operation->GetId();
-        auto controller = operation->GetController();
-
         try {
-            controller->InitTransactions();
+            auto controller = operation->GetController();
+
+            if (!operation->Snapshot()) {
+                operation->SetCleanStart(true);
+                controller->Initialize();
+            }
+
+            controller->Essentiate();
+
             {
-                auto asyncResult = MasterConnector_->ResetRevivingOperationNode(operation);
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Reviving)
-                    throw TFiberTerminatedException();
+                auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
             {
-                auto controller = operation->GetController();
-                auto asyncResult = controller->Revive();
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Reviving)
-                    throw TFiberTerminatedException();
+                auto error = WaitFor(
+                    operation->Snapshot() ? controller->Revive() : controller->Prepare());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            operation->SetState(EOperationState::Running);
+            if (operation->GetState() != EOperationState::Reviving)
+                throw TFiberTerminatedException();
 
-            // Discard the snapshot, if any.
-            operation->Snapshot() = Null;
-
-            LOG_INFO("Operation has been revived and is now running (OperationId: %s)",
-                ~ToString(operationId));
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %s)",
-                ~ToString(operationId));
-            auto wrappedError = TError("Operation has failed to revive")
-                << ex;
+                ~ToString(operation->GetId()));
+            auto wrappedError = TError("Operation has failed to revive") << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
             MasterConnector_->FlushOperationNode(operation);
-            AbortSchedulerTransactions(operation);
-            FinishOperation(operation);
+            return;
         }
+
+        // Discard the snapshot, if any.
+        operation->Snapshot() = Null;
+
+        operation->SetState(EOperationState::Running);
+
+        LOG_INFO("Operation has been revived and is now running (OperationId: %s)",
+            ~ToString(operation->GetId()));
     }
 
 
@@ -1417,7 +1405,7 @@ private:
                 YUNREACHABLE();
         }
     }
-    
+
     INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)
     {
         switch (type) {
@@ -1566,14 +1554,24 @@ private:
                     .Item("resource_limits").Value(TotalResourceLimits_)
                     .Item("resource_usage").Value(TotalResourceUsage_)
                 .EndMap()
-                .Item("operations").DoMapFor(IdToOperation_, [=] (TFluentMap fluent, TOperationIdMap::value_type pair) {
+                .Item("operations").DoMapFor(IdToOperation_, [=] (TFluentMap fluent, const TOperationIdMap::value_type& pair) {
                     BuildOperationYson(pair.second, fluent);
                 })
-                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, const TExecNodeMap::value_type& pair) {
                     BuildNodeYson(pair.second, fluent);
+                })
+                .Item("clusters").DoMapFor(GetCellDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
+                    BuildClusterYson(clusterName, fluent);
                 })
                 .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, ~Strategy_))
             .EndMap();
+    }
+
+    void BuildClusterYson(const Stroka& clusterName, IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item(clusterName)
+            .Value(GetCellDirectory()->GetMasterConfig(clusterName));
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
@@ -1943,7 +1941,7 @@ TExecNodePtr TScheduler::GetOrRegisterNode(const TNodeDescriptor& descriptor)
     return Impl->GetOrRegisterNode(descriptor);
 }
 
-TFuture<TScheduler::TStartResult> TScheduler::StartOperation(
+TFuture<TOperationStartResult> TScheduler::StartOperation(
     EOperationType type,
     const TTransactionId& transactionId,
     const TMutationId& mutationId,

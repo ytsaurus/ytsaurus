@@ -13,7 +13,7 @@
 #include <core/yson/writer.h>
 
 #include <core/formats/format.h>
-#include <core/formats/helpers.h>
+#include <core/formats/utf8_decoder.h>
 
 #include <util/stream/zlib.h>
 #include <util/stream/lz.h>
@@ -107,11 +107,8 @@ void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
         String::Utf8Value utf8Value(value->ToString());
         TStringBuf string(*utf8Value, utf8Value.length());
 
-        if (IsAscii(string)) {
-            builder->OnStringScalar(string);
-        } else {
-            builder->OnStringScalar(Utf8ToByteString(string));
-        }
+        TUtf8Transcoder utf8Decoder;
+        builder->OnStringScalar(utf8Decoder.Decode(string));
     } else if (value->IsNumber()) {
         if (value->IsInt32() || value->IsUint32()) {
             builder->OnIntegerScalar(value->IntegerValue());

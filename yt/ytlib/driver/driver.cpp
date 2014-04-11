@@ -81,7 +81,6 @@ public:
         YCHECK(config);
 
         LeaderChannel = CreateLeaderChannel(Config->Masters);
-        MasterChannel = CreateMasterChannel(Config->Masters);
 
         SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, LeaderChannel);
 
@@ -244,7 +243,6 @@ private:
     TDriverConfigPtr Config;
 
     IChannelPtr LeaderChannel;
-    IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
 
