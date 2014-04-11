@@ -83,14 +83,6 @@ const int MaxRowsPerWrite = 512;
 
 namespace NDetail {
 
-template <class T>
-size_t THashCombine(size_t seed, const T& value)
-{
-    ::hash<T> hasher;
-    return seed ^ (hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2));
-    // TODO(lukyan): Fix this function
-}
-
 class TGroupHasher
 {
 public:
@@ -102,7 +94,7 @@ public:
     {
         size_t result = 0;
         for (int i = 0; i < KeySize_; ++i) {
-            result = THashCombine(result, GetHash(key[i]));
+            result = HashCombine(result, key[i]);
         }
         return result;
     }

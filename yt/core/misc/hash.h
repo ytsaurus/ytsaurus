@@ -16,6 +16,20 @@ struct hash<NYT::TIntrusivePtr<T>>
     }
 };
 
+//! Combines a pair of hash values.
+//! Cf. |boost::hash_combine|.
+inline size_t HashCombineImpl(size_t first, size_t second)
+{
+    return first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
+}
+
+//! Combines a hash seed with the hash of another value.
+template <class T>
+inline size_t HashCombine(size_t seed, const T& value)
+{
+    return HashCombineImpl(seed, THash<T>()(value));
+}
+
 //! A hasher for std::pair.
 template <class T1, class T2>
 struct hash<std::pair<T1, T2>>
