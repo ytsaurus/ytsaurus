@@ -91,3 +91,4 @@ configure_arcadia_mirror library-messagebus
 
 configure_github_mirror lloyd-yajl
 configure_github_mirror joyent-libuv
+configure_github_mirror twitter-zipkin
