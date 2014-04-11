@@ -55,6 +55,8 @@ protected:
 TFls<TMyValue<int>> IntValue;
 TFls<TMyValue<Stroka>> StringValue;
 
+#if 0
+
 TEST_F(TFlsTest, OneFiber)
 {
     auto fiber = New<TFiber>(BIND([] () {
@@ -121,6 +123,8 @@ TEST_F(TFlsTest, TwoFibers)
     EXPECT_EQ(2, TMyValue<Stroka>::CtorCalls);
     EXPECT_EQ(2, TMyValue<Stroka>::DtorCalls);
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

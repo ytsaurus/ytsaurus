@@ -78,6 +78,7 @@ set( SRCS
   ${BASE}/memory_store_pt.cpp
   ${BASE}/fls_ut.cpp
   ${BASE}/election_ut.cpp
+  ${BASE}/scheduler_ut.cpp
   ${BASE}/framework.h
   ${BASE}/framework.cpp
 )

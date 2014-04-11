@@ -19,13 +19,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Implemented in fibers/fiber.cpp
+// Implemented in concurrency/ library.
 namespace NConcurrency {
+
 namespace NDetail {
-
 TClosure GetCurrentFiberCanceler();
-
 } // namespace NDetail
+
 } // namespace NConcurrency
 
 namespace NDetail {
@@ -541,14 +541,14 @@ inline void TPromiseState<void>::Subscribe(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void RegisterFiberCancelation(TPromise<T> promise)
+void RegisterFiberCancelation(TPromise<T>& promise)
 {
-    auto canceler = NConcurrency::NDetail::GetCurrentFiberCanceler();
     auto invoker = GetCurrentInvoker();
+    auto canceler = NConcurrency::NDetail::GetCurrentFiberCanceler();
     promise.OnCanceled(BIND(
         IgnoreResult(&IInvoker::Invoke),
-        invoker,
-        canceler));
+        std::move(invoker),
+        std::move(canceler)));
 }
 
 template <bool WrappedInFuture, class TSignature>
@@ -641,7 +641,8 @@ struct TAsyncViaHelper<true, U(TArgs...)>
 
         auto inner = BIND([=] (PR promise, TArgs... args) {
             RegisterFiberCancelation(promise);
-            this_.Run(std::forward<TArgs>(args)...)
+            this_
+                .Run(std::forward<TArgs>(args)...)
                 .Subscribe(BIND(&TPromiseSetter<R>::Do, promise));
         });
 

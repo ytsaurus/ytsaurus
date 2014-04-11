@@ -10,7 +10,8 @@
 #include <util/generic/stroka.h>
 #include <util/generic/strbuf.h>
 
-#include <yt/core/misc/preprocessor.h>
+#include <core/misc/preprocessor.h>
+#include <core/misc/enum.h>
 
 namespace NYT {
 
@@ -206,4 +207,3 @@ public:
 void PrintTo(const Stroka& string, ::std::ostream* os);
 void PrintTo(const TStringBuf& string, ::std::ostream* os);
 
-////////////////////////////////////////////////////////////////////////////////

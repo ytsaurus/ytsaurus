@@ -14,9 +14,6 @@
     .align 4, 0x90 /* 0x90 = nop */ ; \
 CONCAT(_, name):
 #   define END(name)
-#   define CFI_STARTPROC
-#   define CFI_ENDPROC
-#   define CFI_UNDEFINED_RIP
 #else
 .section .note.GNU-stack, "", %progbits
 #   define BEGIN(name) \
@@ -28,15 +25,9 @@ CONCAT(_, name):
 name:
 #   define END(name) \
     .size name, .-name
-#   define CFI_STARTPROC .cfi_startproc
-#   define CFI_ENDPROC .cfi_endproc
-#   define CFI_UNDEFINED_RIP .cfi_undefined rip
 #endif
 
-/* void TFiberContext::Trampoline(); */
-#define FIBER_CONTEXT_TRAMPOLINE _ZN3NYT12NConcurrency13TFiberContext10TrampolineEv
-/* void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next); */
-#define FIBER_CONTEXT_TRANSFER_TO _ZN3NYT12NConcurrency13TFiberContext10TransferToEPS1_S2_
+#define SWITCH_EXECUTION_CONTEXT_IMPL SwitchExecutionContextImpl
 
 /**
  * x86_64 Calling Convention:
@@ -54,16 +45,7 @@ name:
  *   - %xmm8, %xmm9, ..., %xmm15 - Scratch Registers
  */
 
-BEGIN(FIBER_CONTEXT_TRAMPOLINE)
-    CFI_STARTPROC
-    CFI_UNDEFINED_RIP
-    movq %r12, %rdi
-    CFI_ENDPROC
-    jmpq *%rbx
-END(FIBER_CONTEXT_TRAMPOLINE)
-
-BEGIN(FIBER_CONTEXT_TRANSFER_TO)
-    CFI_STARTPROC
+BEGIN(SWITCH_EXECUTION_CONTEXT_IMPL)
     pushq %rbp
     pushq %rbx
     pushq %r12
@@ -78,8 +60,9 @@ BEGIN(FIBER_CONTEXT_TRANSFER_TO)
     popq %r12
     popq %rbx
     popq %rbp
-    popq %rcx
-    CFI_ENDPROC
+    popq %rcx /* Extract return address. */
+    mov %rdx, %rax /* Use third argument as a return value. */
+    mov %rdx, %rdi /* Use third argument as a first argument. */
     jmpq *%rcx
-END(FIBER_CONTEXT_TRANSFER_TO)
+END(SWITCH_EXECUTION_CONTEXT_IMPL)
 

@@ -23,13 +23,13 @@ void Coroutine0(TCoroutine<int()>& self)
 TEST(TCoroutineTest, Nullary)
 {
     TCoroutine<int()> coro(BIND(&Coroutine0));
-    EXPECT_EQ(EFiberState::Initialized, coro.GetState());
+    EXPECT_FALSE(coro.IsCompleted());
 
     int i;
     TNullable<int> actual;
     for (i = 1; /**/; ++i) {
         actual = coro.Run();
-        if (coro.GetState() == EFiberState::Terminated) {
+        if (coro.IsCompleted()) {
             break;
         }
         EXPECT_TRUE(actual.HasValue());
@@ -39,7 +39,7 @@ TEST(TCoroutineTest, Nullary)
     EXPECT_FALSE(actual.HasValue());
     EXPECT_EQ(6, i);
 
-    EXPECT_EQ(EFiberState::Terminated, coro.GetState());
+    EXPECT_TRUE(coro.IsCompleted());
 }
 
 void Coroutine1(TCoroutine<int(int)>& self, int arg)
@@ -60,7 +60,7 @@ void Coroutine1(TCoroutine<int(int)>& self, int arg)
 TEST(TCoroutineTest, Unary)
 {
     TCoroutine<int(int)> coro(BIND(&Coroutine1));
-    EXPECT_EQ(EFiberState::Initialized, coro.GetState());
+    EXPECT_FALSE(coro.IsCompleted());
 
     // Alternative syntax.
     int i = 0, j = 0;
@@ -75,6 +75,8 @@ TEST(TCoroutineTest, Unary)
     EXPECT_FALSE(actual.HasValue());
     EXPECT_EQ(5, i);
     EXPECT_EQ(10, j);
+
+    EXPECT_TRUE(coro.IsCompleted());
 }
 
 // In this case I've got lazy and set up these test cases.
@@ -99,7 +101,7 @@ void Coroutine2(TCoroutine<int(int, int)>& self, int lhs, int rhs)
 TEST(TCoroutineTest, Binary)
 {
     TCoroutine<int(int, int)> coro(BIND(&Coroutine2));
-    EXPECT_EQ(EFiberState::Initialized, coro.GetState());
+    EXPECT_FALSE(coro.IsCompleted());
 
     int i = 0;
     TNullable<int> actual;
@@ -115,6 +117,8 @@ TEST(TCoroutineTest, Binary)
 
     EXPECT_FALSE(actual.HasValue());
     EXPECT_EQ(i, ARRAY_SIZE(Coroutine2TestCases));
+
+    EXPECT_TRUE(coro.IsCompleted());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

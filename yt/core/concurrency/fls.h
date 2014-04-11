@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "fiber.h"
+#include "scheduler.h"
 
 namespace NYT {
 namespace NConcurrency {
@@ -14,16 +15,17 @@ class TFls
 public:
     TFls();
 
-    const T& operator *() const;
+    const T& operator*() const;
     T& operator*();
 
     const T* operator->() const;
     T* operator->();
 
-private:
-    int Index_;
-
     T* Get() const;
+    T* GetFor(TFiber* fiber) const;
+
+private:
+    const int Index_;
 
     static TFiber::TFlsSlotValue ValueCtor();
     static void ValueDtor(TFiber::TFlsSlotValue value);

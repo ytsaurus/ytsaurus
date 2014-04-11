@@ -74,7 +74,7 @@ struct TPooledObjectTraits
 //! Basic version of traits. Others may consider inheriting from it.
 struct TPooledObjectTraitsBase
 {
-	template <class T>
+    template <class T>
     static void Clean(T*)
     { }
 
@@ -90,7 +90,7 @@ struct TPooledObjectTraitsBase
 
     static TDuration GetMaxLifetimeSplay()
     {
-    	return TDuration::Seconds(60);
+        return TDuration::Seconds(60);
     }
 };
 
