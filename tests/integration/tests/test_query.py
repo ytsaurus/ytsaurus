@@ -7,11 +7,11 @@ import sys
 
 ##################################################################
 
-@pytest.mark.skipif("True")
+#@pytest.mark.skipif("True")
 class TestQuery(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
-    NUM_SCHEDULERS = 0
+    NUM_SCHEDULERS = 1 
 
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
         create("table", path)
@@ -21,7 +21,8 @@ class TestQuery(YTEnvSetup):
                 {"a": (i * stripe + j), "b": (i * stripe + j) * 10}
                 for j in xrange(1, 1 + stripe)]
             write("<append=true>" + path, data)
-
+        
+        sort(in_=path, out=path, sort_by=['a', 'b'])
         set(path + "/@schema", [
             {"name": "a", "type": "integer"},
             {"name": "b", "type": "integer"}
@@ -29,6 +30,7 @@ class TestQuery(YTEnvSetup):
 
     # TODO(sandello): TableMountCache is not invalidated at the moment,
     # so table names must be unique.
+
     def test_simple(self):
         for i in xrange(0, 50, 10):
             path = "//tmp/t{0}".format(i)
