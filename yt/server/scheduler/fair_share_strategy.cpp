@@ -585,16 +585,39 @@ protected:
             sortedChildren->begin(),
             sortedChildren->end(),
             [&] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) -> bool {
+                bool lhsNeedy = IsNeedy(lhs);
+                bool rhsNeedy = IsNeedy(rhs);
+
+                if (lhsNeedy && !rhsNeedy) {
+                    return true;
+                }
+
+                if (!lhsNeedy && rhsNeedy) {
+                    return false;
+                }
+
+                if (lhsNeedy && rhsNeedy) {
+                    return GetUsageToMinShareRatio(lhs) < GetUsageToMinShareRatio(rhs);
+                }
+
                 return GetUsageToWeightRatio(lhs) < GetUsageToWeightRatio(rhs);
             });
     }
 
-    static double GetUsageToWeightRatio(ISchedulableElementPtr element)
+
+    static bool IsNeedy(ISchedulableElementPtr element) const
     {
         double usageRatio = element->GetUsageRatio();
-        double weight = element->GetWeight();
+        double minShareRatio = element->Attributes().AdjustedMinShareRatio;
+        return minShareRatio > RatioComparisonPrecision && usageRatio < minShareRatio;
+    }
+
+    static double GetUsageToMinShareRatio(ISchedulableElementPtr element) const
+    {
+        double usageRatio = element->GetUsageRatio();
+        double minShareRatio = element->Attributes().AdjustedMinShareRatio;
         // Avoid division by zero.
-        return usageRatio / std::max(weight, RatioComparisonPrecision);
+        return usageRatio / std::max(minShareRatio, RatioComparisonPrecision);
     }
 
 
