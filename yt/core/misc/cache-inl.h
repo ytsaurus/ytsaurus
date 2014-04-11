@@ -10,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-TKey TCacheValueBase<TKey, TValue, THash>::GetKey() const
+const TKey& TCacheValueBase<TKey, TValue, THash>::GetKey() const
 {
     return Key;
 }

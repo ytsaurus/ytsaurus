@@ -19,7 +19,7 @@ class TCacheValueBase
 public:
     virtual ~TCacheValueBase();
 
-    TKey GetKey() const;
+    const TKey& GetKey() const;
 
 protected:
     explicit TCacheValueBase(const TKey& key);
@@ -137,7 +137,7 @@ class TSizeLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
 protected:
-    TSizeLimitedCache(int maxSize);
+    explicit TSizeLimitedCache(int maxSize);
 
     virtual bool IsTrimNeeded() const;
 
@@ -153,7 +153,7 @@ class TWeightLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
 protected:
-    TWeightLimitedCache(i64 maxWeight);
+    explicit TWeightLimitedCache(i64 maxWeight);
 
     virtual i64 GetWeight(TValue* value) const = 0;
 
