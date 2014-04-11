@@ -8,6 +8,7 @@
 #include "plan_fragment.h"
 #include "plan_node.h"
 
+#include "helpers.h"
 #include "private.h"
 
 #include <ytlib/new_table_client/schemaful_writer.h>
@@ -101,10 +102,17 @@ void TFoldingProfiler::Profile(const TOperator* op)
             const auto* scanOp = op->As<TScanOperator>();
             Id_.AddInteger(EFoldingObjectType::ScanOp);
 
-            Profile(scanOp->GetTableSchema());
+            auto tableSchema = scanOp->GetTableSchema();
+            
+            Profile(tableSchema);
+            
+            auto dataSplits = scanOp->DataSplits();
+            for (auto & dataSplit : dataSplits) {
+                SetTableSchema(&dataSplit, tableSchema);
+            }
 
             int index = Variables_.DataSplitsArray.size();
-            Variables_.DataSplitsArray.push_back(scanOp->DataSplits());
+            Variables_.DataSplitsArray.push_back(dataSplits);
             Binding_.ScanOpToDataSplits[scanOp] = index;
 
             break;
