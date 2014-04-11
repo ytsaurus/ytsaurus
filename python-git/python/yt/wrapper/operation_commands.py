@@ -192,44 +192,13 @@ def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda
 
     return execute_handling_sigint(wait, abort)
 
-def get_jobs_errors(operation, limit=None):
+def get_stderrs(operation, only_failed_jobs, limit=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
-    jobs_with_errors = filter(lambda obj: "error" in obj.attributes, search(jobs_path, "map_node", attributes=["error"]))
-
-    output = StringIO()
-    for path in jobs_with_errors[:get_value(limit, config.ERRORS_TO_PRINT_LIMIT)]:
-        output.write("Host: ")
-        output.write(get_attribute(path, "address"))
-        output.write("\n")
-
-        output.write("Error:\n")
-        output.write(format_error(path.attributes["error"]))
-        output.write("\n")
-
-        try:
-            stderr_path = os.path.join(path, "stderr")
-            if exists(stderr_path):
-                output.write("Stderr:\n")
-                for line in download_file(stderr_path):
-                    output.write(line)
-                output.write("\n")
-            output.write("\n")
-        except YtResponseError:
-            if config.IGNORE_STDERR_IF_DOWNLOAD_FAILED:
-                break
-            else:
-                raise
-
-
-    return output.getvalue()
-
-def get_stderrs(operation, limit=None):
-    jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
-    if not exists(jobs_path):
-        return ""
-    jobs_with_stderr = search(jobs_path, "map_node", object_filter=lambda obj: "stderr" in obj)
+    jobs_with_stderr = search(jobs_path, "map_node", object_filter=lambda obj: "stderr" in obj, attributes=["error"])
+    if only_failed_jobs:
+        jobs_with_stderr = filter(lambda obj: "error" in obj.attributes, jobs_with_stderr)
 
     output = StringIO()
     for path in prefix(jobs_with_stderr, get_value(limit, config.ERRORS_TO_PRINT_LIMIT)):
@@ -237,11 +206,23 @@ def get_stderrs(operation, limit=None):
         output.write(get_attribute(path, "address"))
         output.write("\n")
 
-        stderr_path = os.path.join(path, "stderr")
-        if exists(stderr_path):
-            for line in download_file(stderr_path):
-                output.write(line)
-        output.write("\n\n")
+        if only_failed_jobs:
+            output.write("Error:\n")
+            output.write(format_error(path.attributes["error"]))
+            output.write("\n")
+
+        try:
+            stderr_path = os.path.join(path, "stderr")
+            if exists(stderr_path):
+                for line in download_file(stderr_path):
+                    output.write(line)
+            output.write("\n\n")
+        except YtResponseError:
+            if config.IGNORE_STDERR_IF_DOWNLOAD_FAILED:
+                break
+            else:
+                raise
+
     return output.getvalue()
 
 def get_operation_result(operation):
@@ -266,18 +247,18 @@ class WaitStrategy(object):
         state = wait_operation(operation, print_progress=self.print_progress, finalize=finalization)
         if self.check_result and state.is_failed():
             operation_result = get_operation_result(operation)
-            jobs_errors = get_jobs_errors(operation)
+            stderrs = get_stderrs(operation, only_failed_jobs=True)
             message = "Operation {0} {1}.\n"\
                       "Operation result: {2}\n\n"\
                 .format(operation, str(state),
                         operation_result)
-            if jobs_errors:
-                message += "Failed jobs:\n{0}\n\n".format(jobs_errors)
+            if stderrs:
+                message += "Failed jobs:\n{0}\n\n".format(stderrs)
             raise YtOperationFailedError(message)
 
         stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
         if logger.LOGGER.isEnabledFor(stderr_level):
-            stderrs = get_stderrs(operation)
+            stderrs = get_stderrs(operation, only_failed_jobs=False)
             if stderrs:
                 logger.log(stderr_level, "\n" + stderrs)
 
