@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--import-queue', required=True)
     parser.add_argument('--remove-queue', required=True)
     parser.add_argument('--link-queue', required=True)
+    parser.add_argument('--user-sessions-period', type=int, default=50)
     args = parser.parse_args()
 
     tables_to_import = yt.get(args.import_queue)
@@ -66,11 +67,11 @@ def main():
     def process(source, destination, days, link):
         process_logs(tables_to_import, tables_to_remove, link_queue, args.path, source, destination, days, link)
 
-    process("user_sessions/{}",        None,                      50,   True)
-    process("user_sessions/{}/frauds", "user_sessions_frauds/{}", 50,   True)
-    process("user_intents/{}",         None,                      None, False)
-    process("reqregscdata/{}/www",     None,                      None, False)
-    process("reqregscdata/{}/xml",     None,                      None, False)
+    process("user_sessions/{}",        None,                      args.user_sessions_period, True)
+    process("user_sessions/{}/frauds", "user_sessions_frauds/{}", args.user_sessions_period, True)
+    process("user_intents/{}",         None,                      None,                      False)
+    process("reqregscdata/{}/www",     None,                      None,                      False)
+    process("reqregscdata/{}/xml",     None,                      None,                      False)
 
     yt.set(args.import_queue, list(tables_to_import))
     yt.set(args.remove_queue, list(tables_to_remove))
