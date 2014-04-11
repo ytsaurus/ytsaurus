@@ -20,6 +20,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NQueryClient {
+    void ShutdownLlvm();
+}
+
 void Shutdown()
 {
     NPipes::TIODispatcher::Get()->Shutdown();
@@ -30,6 +34,7 @@ void Shutdown()
     NConcurrency::TDelayedExecutor::Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
+    NQueryClient::ShutdownLlvm();
     NLog::TLogManager::Get()->Shutdown();
 }
 

@@ -38,6 +38,11 @@ static auto& Logger = QueryClientLogger;
 static TLazyIntrusivePtr<NConcurrency::TActionQueue> McjitThread(
     NConcurrency::TActionQueue::CreateFactory("Mcjit"));
 
+void ShutdownLlvm()
+{
+    McjitThread->Shutdown();
+}
+
 static bool DumpIR()
 {
     static bool result = (getenv("DUMP_IR") != nullptr);
