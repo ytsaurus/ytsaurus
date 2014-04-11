@@ -14,6 +14,8 @@ struct IChunkReaderBase
     : public virtual IReaderBase
 {
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
+
+    virtual TFuture<void> GetFetchingCompletedEvent() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkReaderBase)
