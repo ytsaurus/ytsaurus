@@ -106,11 +106,12 @@ std::vector<TPlanFragment> TCoordinator::GetPeerFragments() const
     return result;
 }
 
-
-std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
+std::pair<std::vector<const TOperator*>, TSchema> TCoordinator::Scatter(const TOperator* op)
 {
     auto* context = Fragment_.GetContext().Get();
     std::vector<const TOperator*> resultOps;
+
+    TSchema schema = std::make_pair(op->GetTableSchema(), op->GetKeyColumns());
 
     switch (op->GetKind()) {
 
@@ -130,7 +131,7 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
         case EOperatorKind::Filter: {
             auto* filterOp = op->As<TFilterOperator>();
 
-            resultOps = Scatter(filterOp->GetSource());
+            resultOps = Scatter(filterOp->GetSource()).first;
             for (auto& resultOp : resultOps) {
                 auto* newFilterOp = filterOp->Clone(context)->As<TFilterOperator>();
                 newFilterOp->SetSource(resultOp);
@@ -143,7 +144,7 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
         case EOperatorKind::Group: {
             auto* groupOp = op->As<TGroupOperator>();
 
-            resultOps = Scatter(groupOp->GetSource());
+            resultOps = Scatter(groupOp->GetSource()).first;
             for (auto& resultOp : resultOps) {
                 auto* newGroupOp = groupOp->Clone(context)->As<TGroupOperator>();
                 newGroupOp->SetSource(resultOp);
@@ -154,7 +155,7 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
                 break;
             }
 
-            auto* finalGroupOp = context->TrackedNew<TGroupOperator>(Gather(resultOps));
+            auto* finalGroupOp = context->TrackedNew<TGroupOperator>(Gather(std::make_pair(resultOps, schema)));
 
             auto& finalGroupItems = finalGroupOp->GroupItems();
             for (const auto& groupItem : groupOp->GroupItems()) {
@@ -186,7 +187,7 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
         case EOperatorKind::Project: {
             auto* projectOp = op->As<TProjectOperator>();
 
-            resultOps = Scatter(projectOp->GetSource());
+            resultOps = Scatter(projectOp->GetSource()).first;
 
             for (auto& resultOp : resultOps) {
                 auto* newProjectOp = projectOp->Clone(context)->As<TProjectOperator>();
@@ -199,16 +200,11 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
 
     }
 
-    return resultOps;
+    return std::make_pair(resultOps, schema);
 }
 
-const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
+const TOperator* TCoordinator::Gather(const std::pair<std::vector<const TOperator*>, TSchema>& ops)
 {
-    auto* context = Fragment_.GetContext().Get();
-
-    auto* resultOp = context->TrackedNew<TScanOperator>();
-    auto& resultSplits = resultOp->DataSplits();
-
     std::function<const TDataSplit&(const TOperator*)> determineCollocatedSplit =
         [&determineCollocatedSplit] (const TOperator* op) -> const TDataSplit& {
             switch (op->GetKind()) {
@@ -224,7 +220,15 @@ const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
             YUNREACHABLE();
         };
 
-    for (const auto& op : ops) {
+    auto* context = Fragment_.GetContext().Get();
+
+    auto* resultOp = context->TrackedNew<TScanOperator>();
+    auto& resultSplits = resultOp->DataSplits();
+
+    resultOp->SetTableSchema(ops.second.first);
+    resultOp->SetKeyColumns(ops.second.second);
+
+    for (const auto& op : ops.first) {
         auto fragment = TPlanFragment(context, op);
         LOG_DEBUG("Created subfragment (SubFragmentId: %s)",
             ~ToString(fragment.Id()));

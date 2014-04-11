@@ -43,56 +43,63 @@ TOperator* TOperator::CloneImpl(TPlanContext* context) const
     return result;
 }
 
-const TTableSchema& TScanOperator::GetTableSchema(bool ignoreCache) const
+TTableSchema TScanOperator::GetTableSchema() const
 {
-    if (!TableSchema_ || ignoreCache) {
-        TableSchema_ = std::make_unique<TTableSchema>(GetTableSchemaFromDataSplit(DataSplits()[0]));
-        // TODO(lukyan): check that other splits have the same table scheme
-    }
-    return *TableSchema_;
+    return TableSchema_;
 }
 
-const TTableSchema& TFilterOperator::GetTableSchema(bool ignoreCache) const
+void TScanOperator::SetTableSchema(const TTableSchema& tableSchema)
 {
-    return GetSource()->GetTableSchema(ignoreCache);
+    TableSchema_ = tableSchema;
 }
 
-const TTableSchema& TGroupOperator::GetTableSchema(bool ignoreCache) const
+const TKeyColumns& TScanOperator::GetKeyColumns() const
 {
-    if (!TableSchema_ || ignoreCache) {
-        TableSchema_ = std::make_unique<TTableSchema>();
-        TTableSchema& result = *TableSchema_;
-
-        auto sourceSchema = GetSource()->GetTableSchema();
-        for (const auto& groupItem : GroupItems()) {
-            result.Columns().emplace_back(
-                groupItem.Name,
-                InferType(groupItem.Expression, sourceSchema));
-        }
-
-        for (const auto& aggregateItem : AggregateItems()) {
-            result.Columns().emplace_back(
-                aggregateItem.Name,
-                InferType(aggregateItem.Expression, sourceSchema));
-        }
-    }
-    return *TableSchema_;
+    return KeyColumns_;
 }
 
-const TTableSchema& TProjectOperator::GetTableSchema(bool ignoreCache) const
+void TScanOperator::SetKeyColumns(const TKeyColumns& keyColumns)
 {
-    if (!TableSchema_ || ignoreCache) {
-        TableSchema_ = std::make_unique<TTableSchema>();
-        TTableSchema& result = *TableSchema_;
+    KeyColumns_ = keyColumns;
+}
 
-        auto sourceSchema = GetSource()->GetTableSchema();
-        for (const auto& projection : Projections()) {
-            result.Columns().emplace_back(
-                projection.Name,
-                InferType(projection.Expression, sourceSchema));
-        }
+TTableSchema TFilterOperator::GetTableSchema() const
+{
+    return GetSource()->GetTableSchema();
+}
+
+TTableSchema TGroupOperator::GetTableSchema() const
+{
+    TTableSchema result;
+
+    auto sourceSchema = GetSource()->GetTableSchema();
+    for (const auto& groupItem : GroupItems()) {
+        result.Columns().emplace_back(
+            groupItem.Name,
+            InferType(groupItem.Expression, sourceSchema));
     }
-    return *TableSchema_;
+
+    for (const auto& aggregateItem : AggregateItems()) {
+        result.Columns().emplace_back(
+            aggregateItem.Name,
+            InferType(aggregateItem.Expression, sourceSchema));
+    }
+
+    return result;
+}
+
+TTableSchema TProjectOperator::GetTableSchema() const
+{
+    TTableSchema result;
+
+    auto sourceSchema = GetSource()->GetTableSchema();
+    for (const auto& projection : Projections()) {
+        result.Columns().emplace_back(
+            projection.Name,
+            InferType(projection.Expression, sourceSchema));
+    }
+
+    return result;
 }
 
 TKeyColumns TOperator::GetKeyColumns() const
@@ -135,6 +142,9 @@ void ToProto(NProto::TOperator* serialized, const TOperator* original)
             auto* op = original->As<TScanOperator>();
             auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
             ToProto(proto->mutable_data_split(), op->DataSplits());
+            ToProto(proto->mutable_table_schema(), op->GetTableSchema());
+            ToProto(proto->mutable_key_columns(), op->GetKeyColumns());
+
             break;
         }
 
@@ -197,6 +207,15 @@ const TOperator* FromProto(const NProto::TOperator& serialized, TPlanContext* co
                 FromProto(&dataSplit, data.data_split(i));
                 typedResult->DataSplits().push_back(dataSplit);
             }
+
+            TTableSchema tableSchema;
+            FromProto(&tableSchema, data.table_schema());
+            typedResult->SetTableSchema(tableSchema);
+
+            TKeyColumns keyColumns;
+            FromProto(&keyColumns, data.key_columns());
+            typedResult->SetKeyColumns(keyColumns);
+
             YASSERT(!result);
             result = typedResult;
             break;

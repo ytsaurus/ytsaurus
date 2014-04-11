@@ -11,6 +11,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::pair<TTableSchema, TKeyColumns> TSchema;
+
 class TCoordinator
     : public IEvaluateCallbacks
 {
@@ -38,8 +40,8 @@ public:
     std::vector<TPlanFragment> GetPeerFragments() const;
 
 private:
-    std::vector<const TOperator*> Scatter(const TOperator* op);
-    const TOperator* Gather(const std::vector<const TOperator*>& ops);
+    std::pair<std::vector<const TOperator*>, TSchema> Scatter(const TOperator* op);
+    const TOperator* Gather(const std::pair<std::vector<const TOperator*>, TSchema>& ops);
 
     const TOperator* Simplify(const TOperator*);
 
