@@ -253,6 +253,17 @@ int TSharedRefArray::Size() const
     return Impl_ ? Impl_->Size() : 0;
 }
 
+i64 TSharedRefArray::ByteSize() const
+{
+    i64 result = 0;
+    if (*this) {
+        for (const auto& part : *this) {
+            result += part.Size();
+        }
+    }
+    return result;
+}
+
 bool TSharedRefArray::Empty() const
 {
     return Impl_ ? Impl_->Empty() : true;

@@ -387,6 +387,7 @@ public:
     explicit operator bool() const;
 
     int Size() const;
+    i64 ByteSize() const;
     bool Empty() const;
     const TSharedRef& operator [] (int index) const;
 
