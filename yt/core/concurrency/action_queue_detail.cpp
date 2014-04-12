@@ -228,7 +228,7 @@ void TExecutorThread::ThreadMainLoop()
             IdleFiber = New<TFiber>(BIND(
                 &TExecutorThread::FiberMain,
                 MakeStrong(this),
-                (Epoch.load(std::memory_order_relaxed) & ~0x1)));
+                Epoch.load(std::memory_order_relaxed)));
 
             RunQueue.push_back(IdleFiber);
         }
