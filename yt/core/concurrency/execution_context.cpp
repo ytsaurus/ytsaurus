@@ -26,7 +26,7 @@ extern "C" void* __attribute__((__regparm__(3))) SwitchExecutionContextImpl(
 TExecutionContext::TExecutionContext()
     : SP(nullptr)
 {
-    memset(&other.EH, 0, sizeof(other.EH));
+    memset(&EH, 0, sizeof(EH));
 }
 
 TExecutionContext::TExecutionContext(TExecutionContext&& other)
