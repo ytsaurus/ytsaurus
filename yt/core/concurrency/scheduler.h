@@ -49,7 +49,7 @@ struct IScheduler
 IScheduler* GetCurrentScheduler();
 
 //! Returns the current scheduler or |nullptr| if there's none.
-IScheduler* GetCurrentSchedulerUnsafe();
+IScheduler* TryGetCurrentScheduler();
 
 class TCurrentSchedulerGuard
 {
