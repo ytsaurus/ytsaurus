@@ -35,6 +35,7 @@ set( HDRS
   ${BASE}/rw_spinlock.h
   ${BASE}/coroutine.h
   ${BASE}/thread.h
+  ${BASE}/scheduler.h
   ${BASE}/fiber.h
   ${BASE}/fls.h
   ${BASE}/fls-inl.h
