@@ -21,7 +21,7 @@ IScheduler* GetCurrentScheduler()
     return CurrentScheduler;
 }
 
-IScheduler* GetCurrentSchedulerUnsafe()
+IScheduler* TryGetCurrentScheduler()
 {
     return CurrentScheduler;
 }

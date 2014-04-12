@@ -45,10 +45,10 @@ struct IScheduler
 // Provides a way to work with the current scheduler.
 // Scheduler is thread-scoped so this is an access to TLS.
 
-// YCHECK()s on nullptr.
+//! Returns the current scheduler. Fails if there's none.
 IScheduler* GetCurrentScheduler();
 
-// May return nullptr.
+//! Returns the current scheduler or |nullptr| if there's none.
 IScheduler* GetCurrentSchedulerUnsafe();
 
 class TCurrentSchedulerGuard

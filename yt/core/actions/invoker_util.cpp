@@ -90,7 +90,7 @@ TLS_STATIC IInvoker* CurrentInvokerInThread = nullptr;
 
 IInvokerPtr GetCurrentInvoker()
 {
-    auto scheduler = GetCurrentSchedulerUnsafe();
+    auto scheduler = TryGetCurrentScheduler();
     if (scheduler) {
         return *CurrentInvokerInFiber.GetFor(scheduler->GetCurrentFiber());
     } else {
@@ -125,7 +125,7 @@ TCurrentInvokerGuard::~TCurrentInvokerGuard()
 
 void TCurrentInvokerGuard::Swap()
 {
-    auto scheduler = GetCurrentSchedulerUnsafe();
+    auto scheduler = TryGetCurrentScheduler();
     if (scheduler) {
         CurrentInvokerInFiber->Swap(SavedInvoker_);
     } else {
