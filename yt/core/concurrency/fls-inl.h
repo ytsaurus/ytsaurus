@@ -40,7 +40,13 @@ const T& TFls<T>::operator*() const
 template <class T>
 T* TFls<T>::Get() const
 {
-    return reinterpret_cast<T*>(TFiber::GetCurrent()->FlsGet(Index_));
+    return GetFor(GetCurrentScheduler()->GetCurrentFiber());
+}
+
+template <class T>
+T* TFls<T>::GetFor(TFiber* fiber) const
+{
+    return reinterpret_cast<T*>(fiber->FlsGet(Index_));
 }
 
 template <class T>

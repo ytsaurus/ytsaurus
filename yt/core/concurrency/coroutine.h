@@ -3,6 +3,9 @@
 #include "public.h"
 #include "fiber.h"
 
+#include "execution_context.h"
+#include "execution_stack.h"
+
 #include <core/misc/nullable.h>
 
 namespace NYT {
@@ -15,23 +18,31 @@ class TCoroutineBase
 {
 protected:
     TCoroutineBase();
-    // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
-    TCoroutineBase(TCoroutineBase&& other);
-
     TCoroutineBase(const TCoroutineBase&) = delete;
+    TCoroutineBase(TCoroutineBase&& other);
 
     virtual ~TCoroutineBase();
 
-    virtual void Trampoline() = 0;
+    virtual void Invoke() = 0;
 
-    TFiberPtr Fiber_;
+    static void Trampoline(void*);
+
+    void JumpToCaller();
+    void JumpToCoroutine();
+
+    bool IsCompleted_;
+
+    TExecutionContext CallerContext_;
+
+    std::shared_ptr<TExecutionStack> CoroutineStack_;
+    TExecutionContext CoroutineContext_;
+    std::exception_ptr CoroutineException_;
 
 public:
-    EFiberState GetState() const
+    bool IsCompleted()
     {
-        return Fiber_->GetState();
+        return IsCompleted_;
     }
-
 };
 
 template <unsigned...>
@@ -73,9 +84,9 @@ public:
     typedef std::tuple<TArgs...> TArguments;
 
     TCoroutine() = default;
-    // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
     TCoroutine(TCoroutine&& other)
-        : Callee_(std::move(other.Callee_))
+        : NDetail::TCoroutineBase(std::move(other))
+        , Callee_(std::move(other.Callee_))
         , Arguments_(std::move(other.Arguments_))
         , Result_(std::move(other.Result_))
     { }
@@ -85,19 +96,13 @@ public:
         , Callee_(std::move(callee))
     { }
 
-    void Reset(TCallee callee)
-    {
-        Fiber_->Reset();
-        Callee_ = std::move(callee);
-    }
-
     template <class... TParams>
     const TNullable<R>& Run(TParams&&... params)
     {
         static_assert(sizeof...(TParams) == sizeof...(TArgs),
             "TParams<> and TArgs<> have different length");
         Arguments_ = std::make_tuple(std::forward<TParams>(params)...);
-        Fiber_->Run();
+        JumpToCoroutine();
         return Result_;
     }
 
@@ -105,12 +110,12 @@ public:
     TArguments&& Yield(Q&& result)
     {
         Result_ = std::forward<Q>(result);
-        Fiber_->Yield();
+        JumpToCaller();
         return std::move(Arguments_);
     }
 
 private:
-    virtual void Trampoline() override
+    virtual void Invoke() override
     {
         try {
             NDetail::Invoke(
@@ -144,9 +149,9 @@ public:
     typedef std::tuple<TArgs...> TArguments;
 
     TCoroutine() = default;
-    // TODO(babenko): cannot mark move ctor as default due to VS2013 bug
     TCoroutine(TCoroutine&& other)
-        : Callee_(std::move(other.Callee_))
+        : NDetail::TCoroutineBase(std::move(other))
+        , Callee_(std::move(other.Callee_))
         , Arguments_(std::move(other.Arguments_))
         , Result_(other.Result_)
     { }
@@ -156,31 +161,25 @@ public:
         , Callee_(std::move(callee))
     { }
 
-    void Reset(TCallee callee)
-    {
-        Fiber_->Reset();
-        Callee_ = std::move(callee);
-    }
-
     template <class... TParams>
     bool Run(TParams&&... params)
     {
         static_assert(sizeof...(TParams) == sizeof...(TArgs),
             "TParams<> and TArgs<> have different length");
         Arguments_ = std::make_tuple(std::forward<TParams>(params)...);
-        Fiber_->Run();
+        JumpToCoroutine();
         return Result_;
     }
 
     TArguments&& Yield()
     {
         Result_ = true;
-        Fiber_->Yield();
+        JumpToCaller();
         return std::move(Arguments_);
     }
 
 private:
-    virtual void Trampoline() override
+    virtual void Invoke() override
     {
         try {
             NDetail::Invoke(

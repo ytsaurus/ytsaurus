@@ -412,6 +412,7 @@ TEST_F(TDynamicMemoryStoreTest, WriteWriteConflict2)
     });
 }
 
+#if 0
 TEST_F(TDynamicMemoryStoreTest, ReadNotPostponed)
 {
     auto key = BuildKey("1");
@@ -484,6 +485,7 @@ TEST_F(TDynamicMemoryStoreTest, ReadPostponedCommit)
     fiber->Run();
     ASSERT_EQ(fiber->GetState(), EFiberState::Terminated);
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -5,7 +5,7 @@
 
 #include <core/misc/singleton.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/fls.h>
 
 namespace NYT {
 
@@ -32,17 +32,6 @@ IInvokerPtr GetSyncInvoker()
 {
     return RefCountedSingleton<TSyncInvoker>();
 }
-
-IInvokerPtr GetCurrentInvoker()
-{
-    return TFiber::GetCurrent()->GetCurrentInvoker();
-}
-
-void SetCurrentInvoker(IInvokerPtr invoker)
-{
-    TFiber::GetCurrent()->SetCurrentInvoker(std::move(invoker));
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,22 +78,66 @@ void GuardedInvoke(
     };
 
     invoker->Invoke(BIND(
-        doInvoke,
+        std::move(doInvoke),
         Passed(std::move(onSuccess)),
         Passed(TGuard(std::move(onCancel)))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr newInvoker)
+TFls<IInvokerPtr> CurrentInvokerInFiber;
+TLS_STATIC IInvoker* CurrentInvokerInThread = nullptr;
+
+IInvokerPtr GetCurrentInvoker()
 {
-    OldInvoker = GetCurrentInvoker();
-    SetCurrentInvoker(std::move(newInvoker));
+    auto scheduler = GetCurrentSchedulerUnsafe();
+    if (scheduler) {
+        return *CurrentInvokerInFiber.GetFor(scheduler->GetCurrentFiber());
+    } else {
+        if (!CurrentInvokerInThread) {
+            CurrentInvokerInThread = GetSyncInvoker().Get();
+            CurrentInvokerInThread->Ref();
+        }
+        return CurrentInvokerInThread;
+    }
+}
+
+void SetCurrentInvoker(IInvokerPtr invoker)
+{
+    *CurrentInvokerInFiber = std::move(invoker);
+}
+
+void SetCurrentInvoker(IInvokerPtr invoker, TFiber* fiber)
+{
+    *CurrentInvokerInFiber.GetFor(fiber) = std::move(invoker);
+}
+
+TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
+    : SavedInvoker_(std::move(invoker))
+{
+    Swap();
 }
 
 TCurrentInvokerGuard::~TCurrentInvokerGuard()
 {
-    SetCurrentInvoker(std::move(OldInvoker));
+    Swap();
+}
+
+void TCurrentInvokerGuard::Swap()
+{
+    auto scheduler = GetCurrentSchedulerUnsafe();
+    if (scheduler) {
+        CurrentInvokerInFiber->Swap(SavedInvoker_);
+    } else {
+        auto saved = CurrentInvokerInThread;
+        if (!saved) {
+            saved = GetSyncInvoker().Get();
+            saved->Ref();
+        }
+        CurrentInvokerInThread = SavedInvoker_.Get();
+        CurrentInvokerInThread->Ref();
+        SavedInvoker_ = IInvokerPtr(saved, false);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

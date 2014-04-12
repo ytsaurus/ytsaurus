@@ -2,6 +2,9 @@
 
 #include "public.h"
 #include "event_count.h"
+#include "scheduler.h"
+#include "execution_context.h"
+#include "thread_affinity.h"
 
 #include <core/actions/invoker.h>
 #include <core/actions/callback.h>
@@ -43,7 +46,7 @@ struct TEnqueuedAction
     TEnqueuedAction()
         : Finished(true)
     { }
-    
+
     bool Finished;
     NProfiling::TCpuInstant EnqueuedAt;
     NProfiling::TCpuInstant StartedAt;
@@ -98,6 +101,7 @@ private:
 
 class TExecutorThread
     : public TRefCounted
+    , public IScheduler
 {
 public:
     virtual ~TExecutorThread();
@@ -107,6 +111,13 @@ public:
 
     TThreadId GetId() const;
     bool IsRunning() const;
+
+    virtual TFiber* GetCurrentFiber() override;
+    virtual void Return() override;
+    virtual void Yield() override;
+    virtual void YieldTo(TFiberPtr&& other) override;
+    virtual void SwitchTo(IInvokerPtr invoker) override;
+    virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
 protected:
     TExecutorThread(
@@ -125,9 +136,13 @@ protected:
 private:
     static void* ThreadMain(void* opaque);
     void ThreadMain();
-    void FiberMain();
+    void ThreadMainLoop();
+    void FiberMain(unsigned int epoch);
 
-    EBeginExecuteResult Execute();
+    EBeginExecuteResult Execute(unsigned int spawnedEpoch);
+
+    void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
+    void Crash(std::exception_ptr exception);
 
     TEventCount* EventCount;
     Stroka ThreadName;
@@ -135,15 +150,28 @@ private:
 
     NProfiling::TProfiler Profiler;
 
-    std::atomic_bool Running;
-    TPromise<void> Started;
+    // If (Epoch & 0x1) == 0x1 then the thread is running.
+    std::atomic_uint Epoch;
 
-    int FibersCreated;
-    int FibersAlive;
+    TPromise<void> Started;
 
     TThreadId ThreadId;
     TThread Thread;
 
+    TExecutionContext SchedulerContext;
+
+    std::list<TFiberPtr> RunQueue;
+    int FibersCreated;
+    int FibersAlive;
+
+    TFiberPtr IdleFiber;
+    TFiberPtr CurrentFiber;
+
+    bool ShouldEndExecute;
+    TFuture<void> WaitForFuture;
+    IInvokerPtr SwitchToInvoker;
+
+    DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

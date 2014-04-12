@@ -16,9 +16,12 @@
 
 namespace NYT {
 namespace NConcurrency {
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#if 0
 
 class TFiberTest
     : public ::testing::Test
@@ -1614,6 +1617,7 @@ TEST_F(TFiberTest, NestedWaitForOnManyLevels)
     EXPECT_STREQ((Stroka("ABCDE ") * 10).c_str(), flow.c_str());
 }
 
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

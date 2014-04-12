@@ -12,6 +12,9 @@ set( SRCS
   ${BASE}/coroutine.cpp
   ${BASE}/thread.cpp
   ${BASE}/fiber.cpp
+  ${BASE}/scheduler.cpp
+  ${BASE}/execution_stack.cpp
+  ${BASE}/execution_context.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -33,7 +36,6 @@ set( HDRS
   ${BASE}/coroutine.h
   ${BASE}/thread.h
   ${BASE}/fiber.h
-  ${BASE}/fiber-inl.h
   ${BASE}/fls.h
   ${BASE}/fls-inl.h
   ${BASE}/public.h
@@ -46,11 +48,11 @@ list(APPEND YT_SOURCE_FILES
 
 if (NOT WIN32)
   list(APPEND YT_SOURCE_FILES
-    ${BASE}/fiber-supp.S
+    ${BASE}/execution_context-supp.S
   )
-  
+
   set_source_files_properties(
-    ${BASE}/fiber-supp.S
+    ${BASE}/execution_context-supp.S
     PROPERTIES LANGUAGE C
   )
 endif()

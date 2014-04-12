@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "action_queue_detail.h"
+#include "fiber.h"
+#include "scheduler.h"
 
 #include <core/actions/invoker_util.h>
-
-#include <core/concurrency/fiber.h>
 
 #include <core/ypath/token.h>
 
@@ -44,7 +44,7 @@ TInvokerQueue::TInvokerQueue(
     , ExecTimeCounter("/time/exec", tagIds)
     , TotalTimeCounter("/time/total", tagIds)
 {
-    Running = true;
+    Running.store(true, std::memory_order_relaxed);
     Profiler.SetEnabled(enableProfiling);
 }
 
@@ -55,7 +55,7 @@ void TInvokerQueue::SetThreadId(TThreadId threadId)
 
 void TInvokerQueue::Invoke(const TClosure& callback)
 {
-    if (!Running) {
+    if (!Running.load(std::memory_order_relaxed)) {
         LOG_TRACE_IF(
             EnableLogging,
             "Queue had been shut down, incoming action ignored: %p",
@@ -85,7 +85,7 @@ TThreadId TInvokerQueue::GetThreadId() const
 
 void TInvokerQueue::Shutdown()
 {
-    Running = false;
+    Running.store(false, std::memory_order_relaxed);
 }
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
@@ -105,11 +105,11 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
-    TCurrentInvokerGuard guard(this);
-
     // Move callback to the stack frame to ensure that we hold it as hold as it runs.
     auto callback = std::move(action->Callback);
+
     try {
+        TCurrentInvokerGuard guard(this);
         callback.Run();
     } catch (const TFiberCanceledException&) {
         // Still consider this a success.
@@ -152,7 +152,7 @@ bool TInvokerQueue::IsEmpty() const
 
 //! Pointer to the action queue being run by the current thread.
 /*!
- *  Examining |CurrentActionQueue| could be useful for debugging purposes so we don't
+ *  Examining |CurrentExecutorThread| could be useful for debugging purposes so we don't
  *  put it into an anonymous namespace to avoid name mangling.
  */
 TLS_STATIC TExecutorThread* CurrentExecutorThread = nullptr;
@@ -170,29 +170,18 @@ TExecutorThread::TExecutorThread(
     // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
     // , Running(false)
     , Started(NewPromise())
-    , FibersCreated(0)
-    , FibersAlive(0)
     , ThreadId(InvalidThreadId)
     , Thread(ThreadMain, (void*) this)
+    , FibersCreated(0)
+    , FibersAlive(0)
 {
-    Running = false;
+    Epoch.store(0, std::memory_order_relaxed);
     Profiler.SetEnabled(enableProfiling);
-}
-
-void TExecutorThread::Start()
-{
-    Running = true;    
-    
-    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
-        ~ThreadName);
-    
-    Thread.Start();
-    Started.Get();
 }
 
 TExecutorThread::~TExecutorThread()
 {
-    YCHECK(!Running);
+    YCHECK(!IsRunning());
 }
 
 void* TExecutorThread::ThreadMain(void* opaque)
@@ -203,44 +192,21 @@ void* TExecutorThread::ThreadMain(void* opaque)
 
 void TExecutorThread::ThreadMain()
 {
-    // NB: This way we also hold this strongly for the duration of this method.
-    auto fiberMainCallback = BIND(&TExecutorThread::FiberMain, MakeStrong(this));
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    ThreadId = GetCurrentThreadId();
 
     try {
         OnThreadStart();
         CurrentExecutorThread = this;
-        SetCurrentThreadName(~ThreadName);
-        ThreadId = GetCurrentThreadId();
+
         Started.Set();
 
-        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)",
-            ~ThreadName);
-
-        while (Running) {
-            // Spawn a new fiber to run the loop.
-            auto fiber = NYT::New<TFiber>(fiberMainCallback);
-            auto state = fiber->Run();
-
-            YCHECK(
-                state == EFiberState::Terminated ||
-                state == EFiberState::Suspended);
-
-            // Check for fiber termination.
-            if (state == EFiberState::Terminated) {
-                break;
-            }
-
-            // The callback has taken the ownership of the current fiber.
-            // Finish sync part of the execution and respawn the fiber.
-            // The current fiber will be owned by the callback.
-            if (state == EFiberState::Suspended) {
-                EndExecute();
-            }
-        }
+        ThreadMainLoop();
 
         CurrentExecutorThread = nullptr;
         OnThreadShutdown();
-        
+
         LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)",
             ~ThreadName);
     } catch (const std::exception& ex) {
@@ -249,7 +215,92 @@ void TExecutorThread::ThreadMain()
     }
 }
 
-void TExecutorThread::FiberMain()
+void TExecutorThread::ThreadMainLoop()
+{
+    TCurrentSchedulerGuard guard(this);
+
+    while (IsRunning()) {
+        YASSERT(!CurrentFiber);
+
+        if (RunQueue.empty()) {
+            // Spawn a new idle fiber to run the loop.
+            YASSERT(!IdleFiber);
+            IdleFiber= New<TFiber>(BIND(
+                &TExecutorThread::FiberMain,
+                MakeStrong(this),
+                (Epoch.load(std::memory_order_relaxed) & ~0x1)));
+
+            RunQueue.push_back(IdleFiber);
+        }
+
+        YASSERT(!RunQueue.empty());
+
+        CurrentFiber = std::move(RunQueue.front());
+        RunQueue.pop_front();
+
+        YCHECK(CurrentFiber->GetState() == EFiberState::Suspended);
+
+        CurrentFiber->SetState(EFiberState::Running);
+        SwitchExecutionContext(
+            &SchedulerContext,
+            &CurrentFiber->GetContext(),
+            /* as per FiberTrampoline */ CurrentFiber.Get());
+
+        switch (CurrentFiber->GetState()) {
+            case EFiberState::Sleeping:
+                // Advance epoch as this (idle) fiber might be rescheduled elsewhere.
+                if (CurrentFiber == IdleFiber) {
+                    Epoch.fetch_add(0x2, std::memory_order_relaxed);
+                    IdleFiber.Reset();
+                }
+                // Reschedule this fiber.
+                Reschedule(
+                    std::move(CurrentFiber),
+                    std::move(WaitForFuture),
+                    std::move(SwitchToInvoker));
+                break;
+
+            case EFiberState::Suspended:
+                // Reschedule this fiber to be executed later.
+                RunQueue.emplace_back(std::move(CurrentFiber));
+                break;
+
+            case EFiberState::Running:
+                // We cannot reach here.
+                YUNREACHABLE();
+                break;
+
+            case EFiberState::Terminated:
+            case EFiberState::Canceled:
+                // Advance epoch as this (idle) fiber just died.
+                if (CurrentFiber == IdleFiber) {
+                    Epoch.fetch_add(0x2, std::memory_order_relaxed);
+                    IdleFiber.Reset();
+                }
+                // We do not own this fiber any more, so forget about it.
+                CurrentFiber.Reset();
+                break;
+
+            case EFiberState::Crashed:
+                // Notify about an unhandled exception.
+                Crash(CurrentFiber->GetException());
+                break;
+        }
+
+        // Finish sync part of the execution.
+        if (ShouldEndExecute) {
+            EndExecute();
+            ShouldEndExecute = false;
+        }
+
+        // Check for a clear scheduling state.
+        YASSERT(!CurrentFiber);
+        YASSERT(!WaitForFuture);
+        YASSERT(!SwitchToInvoker);
+    }
+}
+
+void TExecutorThread::FiberMain(unsigned int epoch)
 {
     ++FibersCreated;
     Profiler.Enqueue("/fibers_created", FibersCreated);
@@ -265,7 +316,7 @@ void TExecutorThread::FiberMain()
     bool running = true;
     while (running) {
         auto cookie = EventCount->PrepareWait();
-        auto result = Execute();
+        auto result = Execute(epoch);
         switch (result) {
             case EBeginExecuteResult::Success:
                 // EventCount->CancelWait was called inside Execute.
@@ -294,23 +345,27 @@ void TExecutorThread::FiberMain()
         FibersAlive);
 }
 
-EBeginExecuteResult TExecutorThread::Execute()
+EBeginExecuteResult TExecutorThread::Execute(unsigned int spawnedEpoch)
 {
-    if (!Running) {
+    if (!IsRunning()) {
         EventCount->CancelWait();
         return EBeginExecuteResult::Terminated;
     }
 
     // EventCount->CancelWait must be called within BeginExecute.
+    ShouldEndExecute = true;
     auto result = BeginExecute();
 
-    auto* fiber = TFiber::GetCurrent();
+    auto currentEpoch = Epoch.load(std::memory_order_relaxed);
 
-    if (!fiber->HasForked()) {
+    if (spawnedEpoch == currentEpoch) {
         // Make the matching call to EndExecute unless it is already done in ThreadMain.
         // NB: It is safe to call EndExecute even if no actual action was dequeued and
         // invoked in BeginExecute.
-        EndExecute();
+        if (ShouldEndExecute) {
+            EndExecute();
+            ShouldEndExecute = false;
+        }
     }
 
     if (
@@ -319,7 +374,7 @@ EBeginExecuteResult TExecutorThread::Execute()
         return result;
     }
 
-    if (fiber->HasForked()) {
+    if (spawnedEpoch != currentEpoch) {
         // If the current fiber has seen WaitFor/SwitchTo calls then
         // its ownership has been transfered to the callback. In the latter case
         // we must abandon the current fiber immediately since the queue's thread
@@ -328,25 +383,79 @@ EBeginExecuteResult TExecutorThread::Execute()
         return EBeginExecuteResult::Terminated;
     }
 
+    // TODO(sandello): Does this check makes sense in the new setting?
+    /*
     if (fiber->IsCanceled()) {
         // All TFiberCanceledException-s are being caught in BeginExecute.
         // A fiber that is currently being terminated cannot be reused and must be abandoned.
         return EBeginExecuteResult::Terminated;
     }
+    */
 
     return EBeginExecuteResult::Success;
 }
 
+void TExecutorThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)
+{
+    SetCurrentInvoker(invoker, fiber.Get());
+
+    auto precontinuation = BIND([] (TFiberPtr fiber, bool cancel) {
+        if (cancel) {
+            fiber->Cancel();
+        }
+
+        YCHECK(fiber->GetState() == EFiberState::Sleeping);
+        fiber->SetState(EFiberState::Suspended);
+
+        GetCurrentScheduler()->YieldTo(std::move(fiber));
+    }, Passed(std::move(fiber)));
+
+    auto continuation = BIND(&GuardedInvoke,
+        Passed(std::move(invoker)),
+        Passed(BIND(precontinuation, false)),
+        Passed(BIND(precontinuation, true)));
+
+    if (future) {
+        future.Subscribe(std::move(continuation));
+    } else {
+        RunQueue.emplace_front(New<TFiber>(std::move(continuation)));
+    }
+}
+
+void TExecutorThread::Crash(std::exception_ptr exception)
+{
+    try {
+        std::rethrow_exception(std::move(exception));
+    } catch (const std::exception& ex) {
+        LOG_FATAL(ex, "Fiber has crashed in executor thread (Name: %s)",
+            ~ThreadName);
+    } catch (...) {
+        YCHECK(false);
+    }
+}
+
+void TExecutorThread::Start()
+{
+    Epoch.fetch_or(0x1, std::memory_order_relaxed);
+
+    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
+        ~ThreadName);
+
+    Thread.Start();
+    Started.Get();
+}
+
 void TExecutorThread::Shutdown()
 {
-    if (!Running) {
+    if (!IsRunning()) {
         return;
     }
 
     LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)",
         ~ThreadName);
 
-    Running = false;
+    Epoch.fetch_and(~((unsigned int)0x1), std::memory_order_relaxed);
+
     EventCount->NotifyAll();
 
     // Prevent deadlock.
@@ -362,7 +471,144 @@ TThreadId TExecutorThread::GetId() const
 
 bool TExecutorThread::IsRunning() const
 {
-    return Running;
+    return (Epoch.load(std::memory_order_relaxed) & 0x1) == 0x1;
+}
+
+TFiber* TExecutorThread::GetCurrentFiber()
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    return CurrentFiber.Get();
+}
+
+void TExecutorThread::Return()
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    YASSERT(CurrentFiber);
+    YASSERT(CurrentFiber->CanReturn());
+
+    SwitchExecutionContext(
+        &CurrentFiber->GetContext(),
+        &SchedulerContext,
+        nullptr);
+
+    YUNREACHABLE();
+}
+
+void TExecutorThread::Yield()
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    YASSERT(CurrentFiber);
+    auto fiber = CurrentFiber.Get();
+
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+
+    fiber->SetState(EFiberState::Suspended);
+    SwitchExecutionContext(
+        &fiber->GetContext(),
+        &SchedulerContext,
+        nullptr);
+
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+}
+
+void TExecutorThread::YieldTo(TFiberPtr&& other)
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    YASSERT(CurrentFiber);
+
+    if (CurrentFiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+
+    // Memoize raw pointers.
+    auto caller = CurrentFiber.Get();
+    auto target = other.Get();
+
+    RunQueue.emplace_front(std::move(CurrentFiber));
+    CurrentFiber = std::move(other);
+
+    caller->SetState(EFiberState::Suspended);
+    target->SetState(EFiberState::Running);
+
+    SwitchExecutionContext(
+        &caller->GetContext(),
+        &target->GetContext(),
+        /* as per FiberTrampoline */ target);
+
+    // Cannot access |this| from this point as the fiber might be resumed
+    // in other scheduler.
+
+    if (caller->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+}
+
+void TExecutorThread::SwitchTo(IInvokerPtr invoker)
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    YASSERT(CurrentFiber);
+    auto fiber = CurrentFiber.Get();
+
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+
+    // Update scheduling state.
+    YASSERT(!SwitchToInvoker);
+    SwitchToInvoker = std::move(invoker);
+
+    fiber->SetState(EFiberState::Sleeping);
+    SwitchExecutionContext(
+        &fiber->GetContext(),
+        &SchedulerContext,
+        nullptr);
+
+    // Cannot access |this| from this point as the fiber might be resumed
+    // in other scheduler.
+
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+}
+
+void TExecutorThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    YASSERT(CurrentFiber);
+    auto fiber = CurrentFiber.Get();
+
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+
+    // Update scheduling state.
+    YASSERT(!WaitForFuture);
+    WaitForFuture = std::move(future);
+    YASSERT(!SwitchToInvoker);
+    SwitchToInvoker = std::move(invoker);
+
+    fiber->SetState(EFiberState::Sleeping);
+    SwitchExecutionContext(
+        &fiber->GetContext(),
+        &SchedulerContext,
+        nullptr);
+
+    // Cannot access |this| from this point as the fiber might be resumed
+    // in other scheduler.
+
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
 }
 
 void TExecutorThread::OnThreadStart()
@@ -373,13 +619,10 @@ void TExecutorThread::OnThreadStart()
     SigEmptySet(&sigset);
     SigProcMask(SIG_SETMASK, &sigset, nullptr);
 #endif
-    TFiber::InitTls();
 }
 
 void TExecutorThread::OnThreadShutdown()
-{
-    TFiber::FiniTls();
-}
+{ }
 
 ///////////////////////////////////////////////////////////////////////////////
 
