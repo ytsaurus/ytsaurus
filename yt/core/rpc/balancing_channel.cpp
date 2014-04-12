@@ -101,7 +101,8 @@ private:
             if (!maybeAddress) {
                 Promise_.Set(TError(
                     NRpc::EErrorCode::Unavailable,
-                    "No active peers left"));
+                    "No active peers left")
+                    << TErrorAttribute("addresses", Owner_->GetAllAddresses()));
                 return;
             }
             CurrentAddress_ = *maybeAddress;
@@ -158,6 +159,15 @@ private:
         }
         std::vector<Stroka> addresses(ActiveAddresses_.begin(), ActiveAddresses_.end());
         return addresses[RandomNumber(addresses.size())];
+    }
+
+    std::vector<Stroka> GetAllAddresses()
+    {
+        std::vector<Stroka> result;
+        TGuard<TSpinLock> guard(SpinLock_);
+        result.insert(result.end(), ActiveAddresses_.begin(), ActiveAddresses_.end());
+        result.insert(result.end(), BannedAddresses_.begin(), BannedAddresses_.end());
+        return result;
     }
 
     void AddPeers(const std::vector<Stroka>& addresses)
