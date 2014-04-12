@@ -145,6 +145,10 @@ EBeginExecuteResult TTcpDispatcherThread::BeginExecute()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
+    if (Stopped) {
+        return EBeginExecuteResult::Terminated;
+    }
+
     EventLoop.run(0);
 
     if (Stopped) {
