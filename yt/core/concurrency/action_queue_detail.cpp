@@ -243,7 +243,7 @@ void TExecutorThread::ThreadMainLoop()
         CurrentFiber->SetState(EFiberState::Running);
         SwitchExecutionContext(
             &SchedulerContext,
-            &CurrentFiber->GetContext(),
+            CurrentFiber->GetContext(),
             /* as per FiberTrampoline */ CurrentFiber.Get());
 
         switch (CurrentFiber->GetState()) {
@@ -489,7 +489,7 @@ void TExecutorThread::Return()
     YASSERT(CurrentFiber->CanReturn());
 
     SwitchExecutionContext(
-        &CurrentFiber->GetContext(),
+        CurrentFiber->GetContext(),
         &SchedulerContext,
         nullptr);
 
@@ -509,7 +509,7 @@ void TExecutorThread::Yield()
 
     fiber->SetState(EFiberState::Suspended);
     SwitchExecutionContext(
-        &fiber->GetContext(),
+        fiber->GetContext(),
         &SchedulerContext,
         nullptr);
 
@@ -539,8 +539,8 @@ void TExecutorThread::YieldTo(TFiberPtr&& other)
     target->SetState(EFiberState::Running);
 
     SwitchExecutionContext(
-        &caller->GetContext(),
-        &target->GetContext(),
+        caller->GetContext(),
+        target->GetContext(),
         /* as per FiberTrampoline */ target);
 
     // Cannot access |this| from this point as the fiber might be resumed
@@ -568,7 +568,7 @@ void TExecutorThread::SwitchTo(IInvokerPtr invoker)
 
     fiber->SetState(EFiberState::Sleeping);
     SwitchExecutionContext(
-        &fiber->GetContext(),
+        fiber->GetContext(),
         &SchedulerContext,
         nullptr);
 
@@ -599,7 +599,7 @@ void TExecutorThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 
     fiber->SetState(EFiberState::Sleeping);
     SwitchExecutionContext(
-        &fiber->GetContext(),
+        fiber->GetContext(),
         &SchedulerContext,
         nullptr);
 

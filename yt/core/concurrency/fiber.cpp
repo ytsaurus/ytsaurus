@@ -32,11 +32,13 @@ static TFlsSlot FlsSlots[FlsMaxSize] = {};
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
     : State_(EFiberState::Suspended)
     , Stack_(CreateExecutionStack(stack))
-    , Context_(CreateExecutionContext(*Stack_, &TFiber::Trampoline))
+    , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
     , Exception_(nullptr)
-    , Canceled_(false)
     , Callee_(std::move(callee))
-{ }
+{
+    // XXX(babenko): VS2013 compat
+    Canceled_ = false;
+}
 
 TFiber::~TFiber()
 {
@@ -53,9 +55,9 @@ void TFiber::SetState(EFiberState state)
     State_ = state;
 }
 
-TExecutionContext& TFiber::GetContext()
+TExecutionContext* TFiber::GetContext()
 {
-    return Context_;
+    return &Context_;
 }
 
 std::exception_ptr TFiber::GetException()

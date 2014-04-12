@@ -8,23 +8,18 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCoroutineBase::TCoroutineBase()
-    : IsCompleted_(false)
+    : Completed_(false)
     , CoroutineStack_(CreateExecutionStack(EExecutionStack::Small))
-    , CoroutineContext_(CreateExecutionContext(*CoroutineStack_, &TCoroutineBase::Trampoline))
+    , CoroutineContext_(CreateExecutionContext(CoroutineStack_.get(), &TCoroutineBase::Trampoline))
 { }
 
 TCoroutineBase::TCoroutineBase(TCoroutineBase&& other)
-    : IsCompleted_(other.IsCompleted_)
+    : Completed_(other.Completed_)
     , CallerContext_(std::move(other.CallerContext_))
     , CoroutineStack_(std::move(other.CoroutineStack_))
     , CoroutineContext_(std::move(other.CoroutineContext_))
 {
-    other.IsCompleted_ = true;
-
-    memset(&other.CallerContext_, 0, sizeof(other.CallerContext_));
-    memset(&other.CoroutineContext_, 0, sizeof(other.CoroutineContext_));
-
-    other.CoroutineStack_.reset();
+    other.Completed_ = true;
 }
 
 TCoroutineBase::~TCoroutineBase()
@@ -41,7 +36,7 @@ void TCoroutineBase::Trampoline(void* opaque)
         coroutine->CoroutineException_ = std::current_exception();
     }
 
-    coroutine->IsCompleted_ = true;
+    coroutine->Completed_ = true;
     coroutine->JumpToCaller();
 
     YUNREACHABLE();
@@ -61,6 +56,11 @@ void TCoroutineBase::JumpToCoroutine()
         std::swap(exception, CoroutineException_);
         std::rethrow_exception(std::move(exception));
     }
+}
+
+bool TCoroutineBase::IsCompleted() const
+{
+    return Completed_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

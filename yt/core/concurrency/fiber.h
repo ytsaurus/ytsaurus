@@ -47,7 +47,7 @@ public:
     EFiberState GetState() const;
     void SetState(EFiberState state);
 
-    TExecutionContext& GetContext();
+    TExecutionContext* GetContext();
     std::exception_ptr GetException();
 
     void Cancel();

@@ -2,6 +2,11 @@
 
 #include <util/system/defaults.h>
 
+namespace NYT {
+namespace NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
 // MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
 // For CXXABIv1-compliant systems we can hijack __cxa_eh_globals.
 // See http://mentorembedded.github.io/cxx-abi/abi-eh.html
@@ -22,41 +27,53 @@ namespace __cxxabiv1 {
 } // namespace __cxxabiv1
 #endif
 
-namespace NYT {
-namespace NConcurrency {
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecutionStack;
+typedef void (*TTrampoline)(void*);
 
 #if defined(_unix_)
-typedef void (*TTrampoline)(void*);
-struct TExecutionContext
-{
-    void* SP;
-#   ifdef CXXABIv1
-    __cxxabiv1::__cxa_eh_globals EH;
-#   endif
-};
-#elif defined(_win_)
-#define YT_TRAMPOLINE void
-typedef void (*TTrampoline)(void*);
-struct TExecutionContext
-{
-    TExecutionContext(const TExecutionContext&) = delete;
-    TExecutionContext(TExecutionContext&&);
-    ~TExecutionContext();
 
-    void* Handle_;
-    void* Opaque_;
-    void (*Callee_)(void*);
+struct TExecutionContext
+{
+    TExecutionContext();
+    TExecutionContext(TExecutionContext&& other);
+    TExecutionContext(const TExecutionContext&) = delete;
+
+    void* SP;
+#ifdef CXXABIv1
+    __cxxabiv1::__cxa_eh_globals EH;
+#endif
 };
+
+#elif defined(_win_)
+
+struct TExecutionContextImpl
+{
+    TExecutionContextImpl();
+    TExecutionContextImpl(TExecutionContextImpl&& other);
+    TExecutionContextImpl(const TExecutionContextImpl&) = delete;
+    ~TExecutionContextImpl();
+
+    void* Handle;
+    bool Owning;
+    void* Opaque;
+    void (*Callee)(void*);
+};
+
+struct TExecutionContext
+{
+    TExecutionContext();
+
+    std::unique_ptr<TExecutionContextImpl> Impl;
+};
+
 #else
 #   error Unsupported platform
 #endif
 
 TExecutionContext CreateExecutionContext(
-    TExecutionStack& stack,
+    TExecutionStack* stack,
     TTrampoline trampoline);
 
 void* SwitchExecutionContext(

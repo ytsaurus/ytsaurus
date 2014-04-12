@@ -22,40 +22,38 @@ namespace NConcurrency {
 const size_t SmallExecutionStackSize = 1 << 18; // 256 Kb
 const size_t LargeExecutionStackSize = 1 << 23; //   8 Mb
 
-// Heap-backed stack.
+////////////////////////////////////////////////////////////////////////////////
+
+TExecutionStack::TExecutionStack(size_t size)
+    : Stack_(nullptr)
+    , Size_(size)
+{ }
+
+TExecutionStack::~TExecutionStack()
+{ }
+
+void* TExecutionStack::GetStack() const
+{
+    return Stack_;
+}
+
+size_t TExecutionStack::GetSize() const
+{
+    return Size_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if defined(_unix_)
+
+//! Mapped memory with a few extra guard pages.
 template <size_t Size>
-class THeapExecutionStack
+class TExecutionStackImpl
     : public TExecutionStack
 {
-private:
-    char* Base_;
-
 public:
-    THeapExecutionStack()
-        : TExecutionStack(nullptr, RoundUpToPage(Size))
-    {
-        Base_ = new char[Size_ + 15];
-        Stack_ = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(Base_ + 15) & ~static_cast<uintptr_t>(15));
-    }
-
-    ~THeapExecutionStack()
-    {
-        delete[] Base_;
-    }
-};
-
-#ifdef _unix_
-// Mapped memory with a few extra guard pages.
-template <size_t Size, int GuardPages = 4>
-class TProtectedExecutionStack
-    : public TExecutionStack
-{
-private:
-    char* Base_;
-
-public:
-    TProtectedExecutionStack()
-        : TExecutionStack(nullptr, RoundUpToPage(Size))
+    TExecutionStackImpl()
+        : TExecutionStack(RoundUpToPage(Size))
     {
         const size_t guardSize = GuardPages * GetPageSize();
 
@@ -77,57 +75,48 @@ public:
         ::mprotect(Base_, guardSize, PROT_NONE);
 
         Stack_ = Base_ + guardSize;
-
         YCHECK((reinterpret_cast<uintptr_t>(Stack_) & 15) == 0);
     }
 
-    ~TProtectedExecutionStack()
+    ~TExecutionStackImpl()
     {
         const size_t guardSize = GuardPages * GetPageSize();
-
         ::munmap(Base_, guardSize + Size_);
     }
+
+private:
+    char* Base_;
+
+    static const int GuardPages = 4;
+
 };
+
+#elif defined(_win_)
+
+template <size_t Size>
+class TExecutionStackImpl
+    : public TExecutionStack
+{
+public:
+    TExecutionStackImpl()
+        : TExecutionStack(RoundUpToPage(Size))
+    { }
+};
+
+#else
+#   error Unsupported platform
 #endif
-
-////////////////////////////////////////////////////////////////////////////////
-
-TExecutionStack::TExecutionStack(void* stack, size_t size)
-    : Stack_(stack)
-    , Size_(size)
-{ }
-
-TExecutionStack::~TExecutionStack()
-{ }
-
-void* TExecutionStack::GetStack()
-{
-    return Stack_;
-}
-
-const size_t TExecutionStack::GetSize()
-{
-    return Size_;
-}
 
 std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStack stack)
 {
-#ifdef _unix_
     switch (stack) {
         case EExecutionStack::Small:
-            return ObjectPool<TProtectedExecutionStack<SmallExecutionStackSize>>().Allocate();
+            return ObjectPool<TExecutionStackImpl<SmallExecutionStackSize>>().Allocate();
         case EExecutionStack::Large:
-            return ObjectPool<TProtectedExecutionStack<LargeExecutionStackSize>>().Allocate();
+            return ObjectPool<TExecutionStackImpl<LargeExecutionStackSize>>().Allocate();
+        default:
+            YUNREACHABLE();
     }
-#else
-    switch (stack) {
-        case EExecutionStack::Small:
-            return ObjectPool<THeapExecutionStack<SmallExecutionStackSize>>().Allocate();
-        case EExecutionStack::Large:
-            return ObjectPool<THeapExecutionStack<LargeExecutionStackSize>>().Allocate();
-    }
-#endif
-    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,20 +124,23 @@ std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStack stack)
 } // namespace NConcurrency
 } // namespace NYT
 
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Size, int GuardPages>
-struct TPooledObjectTraits<NConcurrency::TProtectedExecutionStack<Size, GuardPages>, void>
+template <size_t Size>
+struct TPooledObjectTraits<NConcurrency::TExecutionStackImpl<Size>, void>
     : public TPooledObjectTraitsBase
 {
-    typedef NConcurrency::TProtectedExecutionStack<Size, GuardPages> TStack;
+    typedef NConcurrency::TExecutionStackImpl<Size> TStack;
 
     static void Clean(TStack* stack)
     {
 #ifndef NDEBUG
-        memset(stack->GetStack(), 0, stack->GetSize());
+        if (stack->GetStack()) {
+            memset(stack->GetStack(), 0, stack->GetSize());
+        }
 #endif
     }
 

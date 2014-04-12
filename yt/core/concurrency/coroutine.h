@@ -30,7 +30,7 @@ protected:
     void JumpToCaller();
     void JumpToCoroutine();
 
-    bool IsCompleted_;
+    bool Completed_;
 
     TExecutionContext CallerContext_;
 
@@ -39,10 +39,8 @@ protected:
     std::exception_ptr CoroutineException_;
 
 public:
-    bool IsCompleted()
-    {
-        return IsCompleted_;
-    }
+    bool IsCompleted() const;
+
 };
 
 template <unsigned...>

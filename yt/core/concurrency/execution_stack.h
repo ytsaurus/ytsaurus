@@ -15,16 +15,17 @@ DECLARE_ENUM(EExecutionStack,
 class TExecutionStack
 {
 public:
-    TExecutionStack(void* stack, size_t size);
-
     virtual ~TExecutionStack();
 
-    void* GetStack();
-    const size_t GetSize();
+    void* GetStack() const;
+    size_t GetSize() const;
 
 protected:
     void* Stack_;
-    const size_t Size_;
+    size_t Size_;
+
+    explicit TExecutionStack(size_t size);
+
 };
 
 std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStack stack);
