@@ -13,7 +13,7 @@ using namespace NRpc::NProto;
 
 void SetAuthenticatedUser(TRequestHeader* header, const Stroka& user)
 {
-    header->SetExtension(TAuthenticatedExt::authenticated_user, user);
+    header->SetExtension(TAuthenticatedExt::authenticated_ext, user);
 }
 
 void SetAuthenticatedUser(IClientRequestPtr request, const Stroka& user)
@@ -23,8 +23,8 @@ void SetAuthenticatedUser(IClientRequestPtr request, const Stroka& user)
 
 TNullable<Stroka> FindAuthenticatedUser(const TRequestHeader& header)
 {
-    return header.HasExtension(TAuthenticatedExt::authenticated_user)
-           ? TNullable<Stroka>(header.GetExtension(TAuthenticatedExt::authenticated_user))
+    return header.HasExtension(TAuthenticatedExt::authenticated_ext)
+           ? TNullable<Stroka>(header.GetExtension(TAuthenticatedExt::authenticated_ext))
            : Null;
 }
 

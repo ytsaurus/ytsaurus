@@ -26,7 +26,7 @@ message TAuthenticatedExt
 {
     extend NRpc.NProto.TRequestHeader
     {
-        optional string authenticated_user = 102;
+        optional string authenticated_ext = 102;
     }
 }
 
