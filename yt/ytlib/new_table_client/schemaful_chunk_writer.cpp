@@ -18,7 +18,7 @@
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/misc/error.h>
 

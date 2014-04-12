@@ -5,7 +5,7 @@
 #include "async_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/parallel_collector.h>
 

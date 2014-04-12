@@ -6,7 +6,7 @@
 
 #include <yt/core/misc/nullable.h>
 
-#include <yt/core/concurrency/fiber.h>
+#include <yt/core/concurrency/scheduler.h>
 
 #include <yt/ytlib/new_table_client/public.h>
 #include <yt/ytlib/new_table_client/schema.h>

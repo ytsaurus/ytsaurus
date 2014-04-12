@@ -13,7 +13,7 @@
 #include <core/misc/address.h>
 
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/async_semaphore.h>
 
 #include <core/ytree/attribute_helpers.h>

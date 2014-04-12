@@ -6,7 +6,7 @@
 #include "config.h"
 #include "encoding_writer.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -7,7 +7,7 @@
 #include "rowset.h"
 #include "config.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_collector.h>
 #include <core/concurrency/parallel_awaiter.h>
 

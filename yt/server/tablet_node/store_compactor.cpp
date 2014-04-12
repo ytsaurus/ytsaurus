@@ -12,7 +12,7 @@
 #include "private.h"
 
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/async_semaphore.h>
 
 #include <core/logging/tagged_logger.h>

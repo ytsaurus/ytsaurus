@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_commands.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/object_client/helpers.h>
 

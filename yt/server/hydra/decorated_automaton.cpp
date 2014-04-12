@@ -8,7 +8,7 @@
 #include "mutation_context.h"
 #include "snapshot_discovery.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/response_keeper.h>
 

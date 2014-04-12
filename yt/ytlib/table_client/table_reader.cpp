@@ -6,7 +6,7 @@
 
 #include <core/misc/sync.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/ypath_proxy.h>
 

@@ -16,7 +16,7 @@
 #include "snapshot_discovery.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>

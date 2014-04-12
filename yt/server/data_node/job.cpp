@@ -12,7 +12,7 @@
 
 #include <core/erasure/codec.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/actions/cancelable_context.h>
 

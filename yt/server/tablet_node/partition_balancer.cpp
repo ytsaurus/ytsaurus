@@ -10,7 +10,7 @@
 #include "chunk_store.h"
 #include "private.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/logging/tagged_logger.h>
 

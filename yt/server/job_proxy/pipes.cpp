@@ -8,7 +8,7 @@
 #include <ytlib/table_client/sync_reader.h>
 
 #include <core/misc/proc.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <util/system/file.h>
 

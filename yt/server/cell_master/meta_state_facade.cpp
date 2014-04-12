@@ -11,7 +11,7 @@
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/server.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/logging/log.h>
 

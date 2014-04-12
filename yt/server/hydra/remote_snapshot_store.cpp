@@ -7,7 +7,7 @@
 
 #include <core/misc/fs.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/convert.h>

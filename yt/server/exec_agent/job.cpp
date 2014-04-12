@@ -11,7 +11,7 @@
 #include <core/misc/proc.h>
 #include <core/misc/assert.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/serialize.h>
 

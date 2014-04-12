@@ -21,7 +21,7 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 
 #include <core/erasure/codec.h>

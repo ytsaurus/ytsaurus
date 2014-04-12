@@ -16,7 +16,7 @@
 #include <core/misc/address.h>
 
 #include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/serialized_channel.h>
 

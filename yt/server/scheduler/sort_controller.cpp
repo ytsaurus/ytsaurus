@@ -9,7 +9,7 @@
 
 #include <core/misc/string.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/fluent.h>
 

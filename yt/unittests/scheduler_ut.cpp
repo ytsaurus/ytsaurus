@@ -5,8 +5,8 @@
 #include <core/misc/common.h>
 #include <core/misc/lazy_ptr.h>
 
-#include <core/concurrency/fiber.h>
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/fiber.h>
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/parallel_awaiter.h>
 

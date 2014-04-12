@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "transaction_commands.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/attribute_helpers.h>

@@ -12,7 +12,7 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/concurrency/async_semaphore.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>

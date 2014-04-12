@@ -3,7 +3,7 @@
 #include "config.h"
 #include "driver.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/helpers.h>
 

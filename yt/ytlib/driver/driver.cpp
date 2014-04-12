@@ -13,7 +13,7 @@
 #include <core/actions/invoker_util.h>
 
 #include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/ephemeral_node_factory.h>

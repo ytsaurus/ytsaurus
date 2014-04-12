@@ -3,7 +3,7 @@
 #include "scheduler.h"
 #include "config.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/scheduler/helpers.h>
 

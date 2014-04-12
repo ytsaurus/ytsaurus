@@ -10,7 +10,7 @@
 #include <core/misc/small_vector.h>
 #include <core/misc/heap.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_collector.h>
 
 #include <ytlib/new_table_client/versioned_row.h>

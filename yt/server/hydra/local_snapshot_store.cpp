@@ -7,7 +7,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/election/cell_manager.h>
 

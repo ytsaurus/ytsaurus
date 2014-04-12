@@ -22,7 +22,7 @@
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/chunked_memory_pool.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 // TableChunkReaderAdapter stuff
 #include <ytlib/table_client/public.h>

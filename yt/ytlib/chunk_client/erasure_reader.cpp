@@ -6,7 +6,7 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/parallel_collector.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/erasure/codec.h>
 #include <core/erasure/helpers.h>

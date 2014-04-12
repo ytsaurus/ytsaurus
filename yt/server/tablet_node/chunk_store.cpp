@@ -4,7 +4,7 @@
 #include "config.h"
 #include "automaton.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/fluent.h>
 

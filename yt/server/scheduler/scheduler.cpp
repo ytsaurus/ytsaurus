@@ -22,7 +22,7 @@
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/dispatcher.h>
 

@@ -5,7 +5,7 @@
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/misc/string.h>
 

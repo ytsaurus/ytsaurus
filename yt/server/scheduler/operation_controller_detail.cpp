@@ -6,7 +6,7 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/helpers.h>
 

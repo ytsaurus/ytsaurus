@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "fiber.h"
+#include "scheduler.h"
 
 #include "execution_context.h"
 #include "execution_stack.h"

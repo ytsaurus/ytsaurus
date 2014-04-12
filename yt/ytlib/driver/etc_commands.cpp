@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "etc_commands.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/ypath/rich.h>
 

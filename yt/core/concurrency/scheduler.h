@@ -37,7 +37,7 @@ struct IScheduler
     virtual void SwitchTo(IInvokerPtr invoker) = 0;
 
     //! Transfers control back to the scheduler and puts currently executing fiber
-    //! into sleep until occurence of an external event.
+    //! into sleep until occurrence of an external event.
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
 };
 
@@ -79,6 +79,12 @@ T WaitFor(
     YCHECK(future.IsSet());
     return future.Get();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Thrown when a fiber is being terminated by an external event.
+class TFiberCanceledException
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

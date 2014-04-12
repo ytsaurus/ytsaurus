@@ -10,7 +10,7 @@
 
 #include "graphviz.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/misc/protobuf_helpers.h>
 

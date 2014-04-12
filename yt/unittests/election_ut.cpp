@@ -8,7 +8,8 @@
 #include <core/rpc/channel.h>
 #include <core/rpc/local_channel.h>
 #include <core/rpc/static_channel_factory.h>
-#include <core/concurrency/fiber.h>
+
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/config.h>

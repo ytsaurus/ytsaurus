@@ -8,7 +8,7 @@
 #include "job_resources.h"
 #include "helpers.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/fluent.h>
 

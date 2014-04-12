@@ -14,7 +14,7 @@
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/misc/cache.h>
 

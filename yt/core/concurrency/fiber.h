@@ -1,10 +1,6 @@
 #pragma once
 
 #include "public.h"
-
-// XXX(sandello): For legacy code to see WaitFor/SwitchTo decls.
-#include "scheduler.h"
-
 #include "execution_stack.h"
 #include "execution_context.h"
 
@@ -15,12 +11,6 @@
 
 namespace NYT {
 namespace NConcurrency {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Thrown when a fiber is being terminated by an external event.
-class TFiberCanceledException
-{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

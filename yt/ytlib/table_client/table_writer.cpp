@@ -8,7 +8,7 @@
 #include <core/misc/sync.h>
 #include <core/misc/nullable.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/attribute_helpers.h>
 

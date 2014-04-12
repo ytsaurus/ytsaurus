@@ -3,7 +3,7 @@
 #include "config.h"
 
 #include <core/concurrency/async_stream.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/yson/parser.h>
 #include <core/yson/consumer.h>

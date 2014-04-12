@@ -225,7 +225,7 @@ void TExecutorThread::ThreadMainLoop()
         if (RunQueue.empty()) {
             // Spawn a new idle fiber to run the loop.
             YASSERT(!IdleFiber);
-            IdleFiber= New<TFiber>(BIND(
+            IdleFiber = New<TFiber>(BIND(
                 &TExecutorThread::FiberMain,
                 MakeStrong(this),
                 (Epoch.load(std::memory_order_relaxed) & ~0x1)));

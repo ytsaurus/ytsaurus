@@ -12,7 +12,7 @@
 
 #include <core/ytree/attribute_helpers.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 

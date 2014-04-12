@@ -6,7 +6,7 @@
 #include "snapshot_discovery.h"
 #include "file_snapshot_store.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/logging/tagged_logger.h>
 

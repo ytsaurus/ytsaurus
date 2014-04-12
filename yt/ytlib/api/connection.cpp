@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/caching_channel_factory.h>

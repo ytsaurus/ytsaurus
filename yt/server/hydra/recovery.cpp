@@ -6,7 +6,7 @@
 #include "snapshot.h"
 #include "changelog_download.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/election/cell_manager.h>
 

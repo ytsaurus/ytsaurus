@@ -2,7 +2,7 @@
 #include "framework.h"
 
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/pipes/io_dispatcher.h>
 #include <ytlib/pipes/non_block_reader.h>
