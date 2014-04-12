@@ -8,10 +8,14 @@
 #include <core/misc/random.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/event_count.h>
 
 #include <util/thread/lfqueue.h>
 
 #include <contrib/libev/ev++.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NBus {
@@ -31,18 +35,39 @@ struct IEventLoopObject
     virtual Stroka GetLoggingId() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IEventLoopObject)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTcpDispatcherInvokerQueue
+    : public NConcurrency::TInvokerQueue
+{
+public:
+    explicit TTcpDispatcherInvokerQueue(TTcpDispatcherThread* owner);
+
+    virtual void Invoke(const TClosure& callback) override;
+
+private:
+    TTcpDispatcherThread* Owner;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TTcpDispatcherInvokerQueue)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcherThread
-    : public TRefCounted
+    : public NConcurrency::TExecutorThread
 {
 public:
     explicit TTcpDispatcherThread(const Stroka& threadName);
-    ~TTcpDispatcherThread();
 
+    void Start();
     void Shutdown();
 
     const ev::loop_ref& GetEventLoop() const;
+
+    IInvokerPtr GetInvoker();
 
     TAsyncError AsyncRegister(IEventLoopObjectPtr object);
     TAsyncError AsyncUnregister(IEventLoopObjectPtr object);
@@ -52,35 +77,18 @@ public:
     TTcpDispatcherStatistics& Statistics(ETcpInterfaceType interfaceType);
 
 private:
+    friend class TTcpDispatcherInvokerQueue;
+
     std::vector<TTcpDispatcherStatistics> Statistics_;
-    Stroka ThreadName;
-    TThread Thread;
+
     ev::dynamic_loop EventLoop;
+    NConcurrency::TEventCount EventCount;
 
-    bool Stopped;
-    ev::async StopWatcher;
+    TTcpDispatcherInvokerQueuePtr CallbackQueue;
+    NConcurrency::TEnqueuedAction CurrentAction;
 
-    struct TRegisterEntry
-    {
-        TRegisterEntry()
-        { }
-
-        explicit TRegisterEntry(IEventLoopObjectPtr object)
-            : Object(std::move(object))
-            , Promise(NewPromise<TError>())
-        { }
-
-        IEventLoopObjectPtr Object;
-        TPromise<TError> Promise;
-    };
-
-    typedef TRegisterEntry TUnregisterEntry;
-
-    TLockFreeQueue<TRegisterEntry> RegisterQueue;
-    ev::async RegisterWatcher;
-
-    TLockFreeQueue<TUnregisterEntry> UnregisterQueue;
-    ev::async UnregisterWatcher;
+    std::atomic_bool Stopped;
+    ev::async CallbackWatcher;
 
     struct TEventEntry
     {
@@ -101,17 +109,21 @@ private:
 
     yhash_set<IEventLoopObjectPtr> Objects;
 
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
 
-    void OnStop(ev::async&, int);
-    void OnRegister(ev::async&, int);
-    void OnUnregister(ev::async&, int);
+    virtual NConcurrency::EBeginExecuteResult BeginExecute() override;
+    virtual void EndExecute() override;
+
+    void OnCallback(ev::async&, int);
     void OnEvent(ev::async&, int);
+
+    void DoRegister(IEventLoopObjectPtr object);
+    void DoUnregister(IEventLoopObjectPtr object);
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TTcpDispatcherThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +145,7 @@ private:
 
     std::vector<TTcpDispatcherThreadPtr> Threads;
 
-    TRandomGenerator Generator;
+    TRandomGenerator ThreadIdGenerator;
     TSpinLock SpinLock;
 
 };

@@ -13,6 +13,8 @@
 namespace NYT {
 namespace NBus {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = BusLogger;
@@ -60,92 +62,109 @@ bool IsLocalServiceAddress(const Stroka& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
-    : Statistics_(ETcpInterfaceType::GetDomainSize())
-    , ThreadName(threadName)
-    , Thread(ThreadFunc, (void*) this)
-    , Stopped(false)
-    , StopWatcher(EventLoop)
-    , RegisterWatcher(EventLoop)
-    , UnregisterWatcher(EventLoop)
-    , EventWatcher(EventLoop)
+TTcpDispatcherInvokerQueue::TTcpDispatcherInvokerQueue(TTcpDispatcherThread* owner)
+    : TInvokerQueue(
+        &owner->EventCount,
+        NProfiling::EmptyTagIds,
+        false,
+        false)
+    , Owner(owner)
+{ }
+
+void TTcpDispatcherInvokerQueue::Invoke(const TClosure& callback)
 {
-    StopWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnStop>(this);
-    RegisterWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnRegister>(this);
-    UnregisterWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnUnregister>(this);
-    EventWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnEvent>(this);
-
-    StopWatcher.start();
-    RegisterWatcher.start();
-    UnregisterWatcher.start();
-    EventWatcher.start();
-
-    Thread.Start();
+    TInvokerQueue::Invoke(callback);
+    Owner->CallbackWatcher.send();
 }
 
-TTcpDispatcherThread::~TTcpDispatcherThread()
+////////////////////////////////////////////////////////////////////////////////
+
+TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
+    : TExecutorThread(
+        &EventCount,
+        threadName,
+        NProfiling::EmptyTagIds,
+        false,
+        false)
+    , Statistics_(ETcpInterfaceType::GetDomainSize())
+    , CallbackQueue(New<TTcpDispatcherInvokerQueue>(this))
+    , CallbackWatcher(EventLoop)
+    , EventWatcher(EventLoop)
 {
-    Shutdown();
+    // XXX(babenko): VS2013 compat
+    Stopped = false;
+
+    CallbackWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnCallback>(this);
+    EventWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnEvent>(this);
+
+    CallbackWatcher.start();
+    EventWatcher.start();
+}
+
+void TTcpDispatcherThread::Start()
+{
+    YCHECK(!Stopped);
+
+    TExecutorThread::Start();
+    CallbackQueue->SetThreadId(GetId());
 }
 
 void TTcpDispatcherThread::Shutdown()
 {
-    if (Stopped) {
+    if (Stopped)
         return;
-    }
-
-    StopWatcher.send();
-    Thread.Join();
-
-    {
-        TUnregisterEntry entry;
-        while (UnregisterQueue.Dequeue(&entry))
-        { }
-    }
-
-    {
-        TRegisterEntry entry;
-        while (RegisterQueue.Dequeue(&entry))
-        { }
-    }
-
-    {
-        TEventEntry entry;
-        while (EventQueue.Dequeue(&entry))
-        { }
-    }
 
     Stopped = true;
+    
+    CallbackWatcher.send();
+    
+    CallbackQueue->Shutdown();
+
+    TEventEntry entry;
+    while (EventQueue.Dequeue(&entry)) { }
+
+    TExecutorThread::Shutdown();
 }
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return EventLoop;
 }
 
-void* TTcpDispatcherThread::ThreadFunc(void* param)
+
+IInvokerPtr TTcpDispatcherThread::GetInvoker()
 {
-    auto* self = reinterpret_cast<TTcpDispatcherThread*>(param);
-    self->ThreadMain();
-    return nullptr;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return CallbackQueue;
 }
 
-void TTcpDispatcherThread::ThreadMain()
+EBeginExecuteResult TTcpDispatcherThread::BeginExecute()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    // NB: never ever use logging or any other YT subsystems here.
-    // Bus is always started first to get advantange of the root privileges.
-
-    NConcurrency::SetCurrentThreadName(~ThreadName);
     EventLoop.run(0);
+
+    if (Stopped) {
+        return EBeginExecuteResult::Terminated;
+    }
+
+    return CallbackQueue->BeginExecute(&CurrentAction);
 }
 
-void TTcpDispatcherThread::OnStop(ev::async&, int)
+void TTcpDispatcherThread::EndExecute()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    // NB: No logging here: logging thread may be inactive (e.g. when running with --version).
+    CallbackQueue->EndExecute(&CurrentAction);
+}
+
+void TTcpDispatcherThread::OnCallback(ev::async&, int)
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
     EventLoop.break_loop();
 }
 
@@ -153,26 +172,24 @@ TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TRegisterEntry entry(object);
-    RegisterQueue.Enqueue(entry);
-    RegisterWatcher.send();
-
     LOG_DEBUG("Object registration enqueued (%s)", ~object->GetLoggingId());
 
-    return entry.Promise;
+    return BIND(&TTcpDispatcherThread::DoRegister, MakeStrong(this), object)
+        .Guarded()
+        .AsyncVia(GetInvoker())
+        .Run();
 }
 
 TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TRegisterEntry entry(object);
-    UnregisterQueue.Enqueue(entry);
-    UnregisterWatcher.send();
-
     LOG_DEBUG("Object unregistration enqueued (%s)", ~object->GetLoggingId());
 
-    return entry.Promise;
+    return BIND(&TTcpDispatcherThread::DoUnregister, MakeStrong(this), object)
+        .Guarded()
+        .AsyncVia(GetInvoker())
+        .Run();
 }
 
 void TTcpDispatcherThread::AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event)
@@ -189,38 +206,24 @@ TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType int
     return Statistics_[static_cast<int>(interfaceType)];
 }
 
-void TTcpDispatcherThread::OnRegister(ev::async&, int)
+void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TRegisterEntry entry;
-    while (RegisterQueue.Dequeue(&entry)) {
-        try {
-            LOG_DEBUG("Object registered (%s)", ~entry.Object->GetLoggingId());
-            entry.Object->SyncInitialize();
-            YCHECK(Objects.insert(entry.Object).second);
-            entry.Promise.Set(TError());
-        } catch (const std::exception& ex) {
-            entry.Promise.Set(ex);
-        }
-    }
+    object->SyncInitialize();
+    YCHECK(Objects.insert(object).second);
+
+    LOG_DEBUG("Object registered (%s)", ~object->GetLoggingId());
 }
 
-void TTcpDispatcherThread::OnUnregister(ev::async&, int)
+void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TRegisterEntry entry;
-    while (UnregisterQueue.Dequeue(&entry)) {
-        try {
-            LOG_DEBUG("Object unregistered (%s)", ~entry.Object->GetLoggingId());
-            YCHECK(Objects.erase(entry.Object) == 1);
-            entry.Object->SyncFinalize();
-            entry.Promise.Set(TError());
-        } catch (const std::exception& ex) {
-            entry.Promise.Set(ex);
-        }
-    }
+    object->SyncFinalize();
+    YCHECK(Objects.erase(object) == 1);
+
+    LOG_DEBUG("Object unregistered (%s)", ~object->GetLoggingId());
 }
 
 void TTcpDispatcherThread::OnEvent(ev::async&, int)
@@ -236,11 +239,13 @@ void TTcpDispatcherThread::OnEvent(ev::async&, int)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TImpl::TImpl()
-    : Generator(0)
+    : ThreadIdGenerator(0)
 {
     for (int index = 0; index < ThreadCount; ++index) {
-        Threads.push_back(New<TTcpDispatcherThread>(
-            Sprintf("Bus:%d", index)));
+        auto thread = New<TTcpDispatcherThread>(
+            Sprintf("Bus:%d", index));
+        thread->Start();
+        Threads.push_back(thread);
     }
 }
 
@@ -269,7 +274,7 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::AllocateThread()
 {
     TGuard<TSpinLock> guard(SpinLock);
-    size_t index = Generator.Generate<size_t>() % ThreadCount;
+    size_t index = ThreadIdGenerator.Generate<size_t>() % ThreadCount;
     return Threads[index];
 }
 
