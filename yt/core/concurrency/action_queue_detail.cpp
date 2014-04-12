@@ -399,7 +399,7 @@ void TExecutorThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoker
 {
     SetCurrentInvoker(invoker, fiber.Get());
 
-    auto precontinuation = BIND([] (TFiberPtr fiber, bool cancel) {
+    auto precontinuation = [] (TFiberPtr fiber, bool cancel) {
         if (cancel) {
             fiber->Cancel();
         }
@@ -408,12 +408,12 @@ void TExecutorThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoker
         fiber->SetState(EFiberState::Suspended);
 
         GetCurrentScheduler()->YieldTo(std::move(fiber));
-    }, Passed(std::move(fiber)));
+    };
 
     auto continuation = BIND(&GuardedInvoke,
         Passed(std::move(invoker)),
-        Passed(BIND(precontinuation, false)),
-        Passed(BIND(precontinuation, true)));
+        Passed(BIND(precontinuation, fiber, false)),
+        Passed(BIND(precontinuation, fiber, true)));
 
     if (future) {
         future.Subscribe(std::move(continuation));
