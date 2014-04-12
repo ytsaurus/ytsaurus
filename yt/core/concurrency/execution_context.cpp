@@ -29,7 +29,7 @@ TExecutionContext::TExecutionContext()
     memset(&other.EH, 0, sizeof(other.EH));
 }
 
-TExecutionContext(TExecutionContext&& other)
+TExecutionContext::TExecutionContext(TExecutionContext&& other)
 {
     SP = other.SP;
     other.SP = nullptr;
