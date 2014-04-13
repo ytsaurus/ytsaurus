@@ -167,8 +167,6 @@ TSchedulerThread::TSchedulerThread(
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)
-    // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
-    // , Running(false)
     , Started(NewPromise())
     , ThreadId(InvalidThreadId)
     , Thread(ThreadMain, (void*) this)
