@@ -24,8 +24,7 @@ private:
     TAsyncError AsyncUnregister(IFDWatcherPtr watcher);
 
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
-
+    std::unique_ptr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
