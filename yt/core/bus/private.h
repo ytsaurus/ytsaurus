@@ -31,10 +31,6 @@ DECLARE_ENUM(EConnectionType,
     (Server)
 );
 
-DECLARE_ENUM(EConnectionEvent,
-    (MessageEnqueued)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NBus

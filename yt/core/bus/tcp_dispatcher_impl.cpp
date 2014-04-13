@@ -65,19 +65,7 @@ bool IsLocalServiceAddress(const Stroka& address)
 TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
     : TEVSchedulerThread(threadName, false)
     , Statistics_(ETcpInterfaceType::GetDomainSize())
-    , EventWatcher(EventLoop)
-{
-    EventWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnEvent>(this);
-    EventWatcher.start();
-}
-
-void TTcpDispatcherThread::Shutdown()
-{
-    TEVSchedulerThread::Shutdown();
-
-    TEventEntry entry;
-    while (EventQueue.Dequeue(&entry)) { }
-}
+{ }
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
 {
@@ -104,13 +92,6 @@ TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
         .Run();
 }
 
-void TTcpDispatcherThread::AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event)
-{
-    TEventEntry entry(std::move(connection), event);
-    EventQueue.Enqueue(entry);
-    EventWatcher.send();
-}
-
 TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType interfaceType)
 {
     return Statistics_[static_cast<int>(interfaceType)];
@@ -119,7 +100,7 @@ TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType int
 void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
 {
     object->SyncInitialize();
-    YCHECK(Objects.insert(object).second);
+    YCHECK(Objects_.insert(object).second);
 
     LOG_DEBUG("Object registered (%s)", ~object->GetLoggingId());
 }
@@ -127,29 +108,21 @@ void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
 void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 {
     object->SyncFinalize();
-    YCHECK(Objects.erase(object) == 1);
+    YCHECK(Objects_.erase(object) == 1);
 
     LOG_DEBUG("Object unregistered (%s)", ~object->GetLoggingId());
-}
-
-void TTcpDispatcherThread::OnEvent(ev::async&, int)
-{
-    TEventEntry entry;
-    while (EventQueue.Dequeue(&entry)) {
-        entry.Connection->SyncProcessEvent(entry.Event);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TImpl::TImpl()
-    : ThreadIdGenerator(0)
+    : ThreadIdGenerator_(0)
 {
     for (int index = 0; index < ThreadCount; ++index) {
         auto thread = New<TTcpDispatcherThread>(
             Sprintf("Bus:%d", index));
         thread->Start();
-        Threads.push_back(thread);
+        Threads_.push_back(thread);
     }
 }
 
@@ -160,7 +133,7 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    for (auto thread : Threads) {
+    for (auto thread : Threads_) {
         thread->Shutdown();
     }
 }
@@ -169,7 +142,7 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 {
     // This is racy but should be OK as an approximation.
     TTcpDispatcherStatistics result;
-    for (auto thread : Threads) {
+    for (auto thread : Threads_) {
         result += thread->Statistics(interfaceType);
     }
     return result;
@@ -177,9 +150,9 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::AllocateThread()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    size_t index = ThreadIdGenerator.Generate<size_t>() % ThreadCount;
-    return Threads[index];
+    TGuard<TSpinLock> guard(SpinLock_);
+    size_t index = ThreadIdGenerator_.Generate<size_t>() % ThreadCount;
+    return Threads_[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

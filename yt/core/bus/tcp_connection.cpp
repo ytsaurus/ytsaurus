@@ -72,7 +72,9 @@ TTcpConnection::TTcpConnection(
     , Logger(BusLogger)
     , Profiler(BusProfiler)
     , Port(0)
-    , MessageEnqueuedSent(false)
+    // NB: This produces a cycle, which gets broken in SyncFinalize.
+    , MessageEnqueuedCallback(BIND(&TTcpConnection::OnMessageEnqueued, MakeStrong(this)))
+    , MessageEnqueuedCallbackPending(false)
     , ReadBuffer(MinBatchReadSize)
     , TerminatedPromise(NewPromise<TError>())
 {
@@ -298,6 +300,9 @@ void TTcpConnection::SyncClose(const TError& error)
     // Release memory.
     Cleanup();
 
+    // Break the cycle.
+    MessageEnqueuedCallback.Reset();
+
     // Invoke user callback.
     PROFILE_TIMING ("/terminate_handler_time") {
         TerminatedPromise.Set(error);
@@ -425,10 +430,14 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
     QueuedMessages.Enqueue(queuedMessage);
 
     auto state = AtomicGet(State);
-    bool sent = AtomicGet(MessageEnqueuedSent);
-    if (!sent && state != EState::Resolving && state != EState::Opening)  {
-        AtomicSet(MessageEnqueuedSent, true);
-        DispatcherThread->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
+    bool callbackPending = AtomicGet(MessageEnqueuedCallbackPending);
+    if (!callbackPending &&
+        state != EState::Resolving &&
+        state != EState::Opening &&
+        state != EState::Closed)
+    {
+        AtomicSet(MessageEnqueuedCallbackPending, true);
+        DispatcherThread->GetInvoker()->Invoke(MessageEnqueuedCallback);
     }
 
     return queuedMessage.Promise;
@@ -453,19 +462,6 @@ void TTcpConnection::Terminate(const TError& error)
     DispatcherThread->GetInvoker()->Invoke(BIND(
         &TTcpConnection::OnTerminated,
         MakeStrong(this)));
-}
-
-void TTcpConnection::SyncProcessEvent(EConnectionEvent event)
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    switch (event) {
-        case EConnectionEvent::MessageEnqueued:
-            OnMessageEnqueued();
-            break;
-        default:
-            YUNREACHABLE();
-    }
 }
 
 void TTcpConnection::SubscribeTerminated(const TCallback<void(TError)>& callback)
@@ -1008,7 +1004,7 @@ void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     
-    AtomicSet(MessageEnqueuedSent, false);
+    AtomicSet(MessageEnqueuedCallbackPending, false);
 
     if (State == EState::Closed) {
         DiscardOutcomingMessages(TError(

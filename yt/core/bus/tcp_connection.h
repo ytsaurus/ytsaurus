@@ -55,8 +55,6 @@ public:
     virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
     virtual void Terminate(const TError& error) override;
 
-    void SyncProcessEvent(EConnectionEvent event);
-
     DECLARE_SIGNAL(void(TError), Terminated);
 
 private:
@@ -142,7 +140,8 @@ private:
 
     TAtomic State;
 
-    TAtomic MessageEnqueuedSent;
+    TClosure MessageEnqueuedCallback;
+    TAtomic MessageEnqueuedCallbackPending;
 
     TSpinLock TerminationSpinLock;
     TError TerminationError;

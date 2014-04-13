@@ -44,14 +44,10 @@ class TTcpDispatcherThread
 public:
     explicit TTcpDispatcherThread(const Stroka& threadName);
 
-    void Shutdown();
-
     const ev::loop_ref& GetEventLoop() const;
 
     TAsyncError AsyncRegister(IEventLoopObjectPtr object);
     TAsyncError AsyncUnregister(IEventLoopObjectPtr object);
-
-    void AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event);
 
     TTcpDispatcherStatistics& Statistics(ETcpInterfaceType interfaceType);
 
@@ -59,28 +55,8 @@ private:
     friend class TTcpDispatcherInvokerQueue;
 
     std::vector<TTcpDispatcherStatistics> Statistics_;
+    yhash_set<IEventLoopObjectPtr> Objects_;
 
-    struct TEventEntry
-    {
-        TEventEntry()
-        { }
-
-        TEventEntry(TTcpConnectionPtr connection, EConnectionEvent event)
-            : Connection(std::move(connection))
-            , Event(event)
-        { }
-
-        TTcpConnectionPtr Connection;
-        EConnectionEvent Event;
-    };
-
-    TLockFreeQueue<TEventEntry> EventQueue;
-    ev::async EventWatcher;
-
-    yhash_set<IEventLoopObjectPtr> Objects;
-
-
-    void OnEvent(ev::async&, int);
 
     void DoRegister(IEventLoopObjectPtr object);
     void DoUnregister(IEventLoopObjectPtr object);
@@ -107,10 +83,10 @@ private:
     
     TImpl();
 
-    std::vector<TTcpDispatcherThreadPtr> Threads;
+    std::vector<TTcpDispatcherThreadPtr> Threads_;
 
-    TRandomGenerator ThreadIdGenerator;
-    TSpinLock SpinLock;
+    TSpinLock SpinLock_;
+    TRandomGenerator ThreadIdGenerator_;
 
 };
 
