@@ -4,7 +4,7 @@ from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid
 from errors import YtError, YtResponseError
 from version import VERSION
-from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
+from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy, get_session
 
 from yt.yson.convert import json_to_yson
 
@@ -162,7 +162,7 @@ def make_request(command_name, params,
 
     def request():
         try:
-            rsp = requests.request(
+            rsp = get_session().request(
                 url=url,
                 method=command.http_method(),
                 headers=headers,
