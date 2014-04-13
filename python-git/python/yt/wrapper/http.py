@@ -15,6 +15,10 @@ from datetime import datetime
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
 NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead)
 
+session_ = yt.packages.requests.Session()
+def get_session():
+    return session_
+
 if http_config.FORCE_IPV4 or http_config.FORCE_IPV6:
     import socket
     origGetAddrInfo = socket.getaddrinfo
@@ -106,7 +110,7 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
 
 def make_get_request_with_retries(url):
     response = make_request_with_retries(
-        lambda: Response(yt.packages.requests.get(url)),
+        lambda: Response(session_.get(url)),
         make_retries=True,
         description=url)
     return response.json()
