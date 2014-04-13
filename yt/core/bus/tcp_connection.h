@@ -136,10 +136,9 @@ private:
 
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;
-
-    // Only used for client sockets.
+    
+    // Only used by client sockets.
     int Port;
-    TFuture< TErrorOr<TNetworkAddress> > AsyncAddress;
 
     TAtomic State;
 
@@ -185,7 +184,7 @@ private:
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 
-    void OnAddressResolved();
+    void OnAddressResolutionFinished(TErrorOr<TNetworkAddress> result);
     void OnAddressResolved(const TNetworkAddress& netAddress);
 
     void OnSocket(ev::io&, int revents);

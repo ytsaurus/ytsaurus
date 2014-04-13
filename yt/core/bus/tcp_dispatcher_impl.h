@@ -39,7 +39,7 @@ DEFINE_REFCOUNTED_TYPE(IEventLoopObject)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcherThread
-    : public NConcurrency::TSingleQueueEVSchedulerThread
+    : public NConcurrency::TEVSchedulerThread
 {
 public:
     explicit TTcpDispatcherThread(const Stroka& threadName);

@@ -63,11 +63,7 @@ bool IsLocalServiceAddress(const Stroka& address)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
-    : TSingleQueueEVSchedulerThread(
-        threadName,
-        NProfiling::EmptyTagIds,
-        false,
-        false)
+    : TEVSchedulerThread(threadName, false)
     , Statistics_(ETcpInterfaceType::GetDomainSize())
     , EventWatcher(EventLoop)
 {
@@ -77,7 +73,7 @@ TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
 
 void TTcpDispatcherThread::Shutdown()
 {
-    TSingleQueueEVSchedulerThread::Shutdown();
+    TEVSchedulerThread::Shutdown();
 
     TEventEntry entry;
     while (EventQueue.Dequeue(&entry)) { }

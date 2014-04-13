@@ -32,8 +32,6 @@ DECLARE_ENUM(EConnectionType,
 );
 
 DECLARE_ENUM(EConnectionEvent,
-    (AddressResolved)
-    (Terminated)
     (MessageEnqueued)
 );
 

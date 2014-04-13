@@ -10,11 +10,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TIODispatcher::TImpl::TImpl()
-    : TSingleQueueEVSchedulerThread(
-        "IODispatcher",
-        NProfiling::EmptyTagIds,
-        false,
-        false)
+    : TEVSchedulerThread("Pipes", false)
 { }
 
 TAsyncError TIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)

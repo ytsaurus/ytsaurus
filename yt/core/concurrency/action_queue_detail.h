@@ -134,15 +134,18 @@ protected:
     virtual EBeginExecuteResult BeginExecute() = 0;
     virtual void EndExecute() = 0;
 
+    virtual void OnStart();
+    virtual void OnShutdown();
+
     virtual void OnThreadStart();
     virtual void OnThreadShutdown();
 
     static void* ThreadMain(void* opaque);
     void ThreadMain();
-    void ThreadMainLoop();
-    void FiberMain(unsigned int epoch);
-
-    EBeginExecuteResult Execute(unsigned int spawnedEpoch);
+    void ThreadMainStep();
+    
+    void FiberMain(unsigned int spawnedEpoch);
+    bool FiberMainStep(unsigned int spawnedEpoch);
 
     void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
     void Crash(std::exception_ptr exception);
@@ -206,43 +209,40 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingleQueueEVSchedulerThread
+class TEVSchedulerThread
     : public TSchedulerThread
 {
 public:
-    TSingleQueueEVSchedulerThread(
+    TEVSchedulerThread(
         const Stroka& threadName,
-        const NProfiling::TTagIdList& tagIds,
-        bool enableLogging,
-        bool enableProfiling);
-
-    void Start();
-    void Shutdown();
+        bool enableLogging);
 
     IInvokerPtr GetInvoker();
 
 protected:
-    class TEVInvokerQueue
-        : public TInvokerQueue
+    class TInvoker
+        : public IInvoker
     {
     public:
-        explicit TEVInvokerQueue(TSingleQueueEVSchedulerThread* owner);
+        explicit TInvoker(TEVSchedulerThread* owner);
 
         virtual void Invoke(const TClosure& callback) override;
+        virtual TThreadId GetThreadId() const override;
 
     private:
-        TSingleQueueEVSchedulerThread* Owner;
+        TEVSchedulerThread* Owner;
 
     };
 
+    TEventCount EventCount; // fake
+
     ev::dynamic_loop EventLoop;
-    TEventCount EventCount;
-
-    TIntrusivePtr<TEVInvokerQueue> CallbackQueue;
-    TEnqueuedAction CurrentAction;
-
-    std::atomic_bool Stopped;
     ev::async CallbackWatcher;
+
+    TIntrusivePtr<TInvoker> Invoker;
+    TLockFreeQueue<TClosure> Queue;
+
+    virtual void OnShutdown() override;
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;

@@ -236,20 +236,16 @@ void TTcpConnection::SyncResolve()
         auto netAddress = GetLocalBusAddress(Port);
         OnAddressResolved(netAddress);
     } else {
-        AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
-
-        auto this_ = MakeStrong(this);
-        AsyncAddress.Subscribe(BIND([this, this_] (TErrorOr<TNetworkAddress>) {
-            DispatcherThread->AsyncPostEvent(this_, EConnectionEvent::AddressResolved);
-        }));
+        TAddressResolver::Get()->Resolve(Stroka(hostName)).Subscribe(
+            BIND(&TTcpConnection::OnAddressResolutionFinished, MakeStrong(this))
+                .Via(DispatcherThread->GetInvoker()));
     }
 }
 
-void TTcpConnection::OnAddressResolved()
+void TTcpConnection::OnAddressResolutionFinished(TErrorOr<TNetworkAddress> result)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    auto result = AsyncAddress.Get();
     if (!result.IsOK()) {
         SyncClose(result);
         return;
@@ -452,9 +448,11 @@ void TTcpConnection::Terminate(const TError& error)
         TerminationError = error;
     }
 
-    DispatcherThread->AsyncPostEvent(this, EConnectionEvent::Terminated);
-    
     LOG_DEBUG("Bus termination requested");
+
+    DispatcherThread->GetInvoker()->Invoke(BIND(
+        &TTcpConnection::OnTerminated,
+        MakeStrong(this)));
 }
 
 void TTcpConnection::SyncProcessEvent(EConnectionEvent event)
@@ -462,12 +460,6 @@ void TTcpConnection::SyncProcessEvent(EConnectionEvent event)
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     switch (event) {
-        case EConnectionEvent::AddressResolved:
-            OnAddressResolved();
-            break;
-        case EConnectionEvent::Terminated:
-            OnTerminated();
-            break;
         case EConnectionEvent::MessageEnqueued:
             OnMessageEnqueued();
             break;

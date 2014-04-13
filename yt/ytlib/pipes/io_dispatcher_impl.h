@@ -14,7 +14,7 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIODispatcher::TImpl
-    : public NConcurrency::TSingleQueueEVSchedulerThread
+    : public NConcurrency::TEVSchedulerThread
 {
 public:
     TImpl();
