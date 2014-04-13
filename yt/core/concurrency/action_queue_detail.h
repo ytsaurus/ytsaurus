@@ -247,6 +247,7 @@ protected:
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
 
+    EBeginExecuteResult BeginExecuteCallbacks();
     void OnCallback(ev::async&, int);
 
 };

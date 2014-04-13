@@ -717,16 +717,30 @@ IInvokerPtr TSingleQueueEVSchedulerThread::GetInvoker()
 
 EBeginExecuteResult TSingleQueueEVSchedulerThread::BeginExecute()
 {
-    if (Stopped) {
-        return EBeginExecuteResult::Terminated;
+    {
+        auto result = BeginExecuteCallbacks();
+        if (result != EBeginExecuteResult::QueueEmpty) {
+            return result;
+        }
     }
 
     EventLoop.run(0);
 
+    {
+        auto result = BeginExecuteCallbacks();
+        if (result != EBeginExecuteResult::QueueEmpty) {
+            return result;
+        }
+    }
+
+    return EBeginExecuteResult::QueueEmpty;
+}
+
+EBeginExecuteResult TSingleQueueEVSchedulerThread::BeginExecuteCallbacks()
+{
     if (Stopped) {
         return EBeginExecuteResult::Terminated;
     }
-
     return CallbackQueue->BeginExecute(&CurrentAction);
 }
 
