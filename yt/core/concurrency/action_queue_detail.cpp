@@ -665,8 +665,8 @@ TEVSchedulerThread::TEVSchedulerThread(
         NProfiling::EmptyTagIds,
         enableLogging,
         false)
-    , Invoker(New<TInvoker>(this))
     , CallbackWatcher(EventLoop)
+    , Invoker(New<TInvoker>(this))
 {
     CallbackWatcher.set<TEVSchedulerThread, &TEVSchedulerThread::OnCallback>(this);
     CallbackWatcher.start();
