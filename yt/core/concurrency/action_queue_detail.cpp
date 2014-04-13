@@ -731,7 +731,8 @@ EBeginExecuteResult TSingleQueueEVSchedulerThread::BeginExecute()
         }
     }
 
-    return EBeginExecuteResult::QueueEmpty;
+    // NB: Never return QueueEmpty to prevent waiting on EventCount.
+    return EBeginExecuteResult::Success;
 }
 
 EBeginExecuteResult TSingleQueueEVSchedulerThread::BeginExecuteCallbacks()
