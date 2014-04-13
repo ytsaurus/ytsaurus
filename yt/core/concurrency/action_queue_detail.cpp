@@ -626,7 +626,12 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : TSchedulerThread(eventCount, threadName, tagIds, enableLogging, enableProfiling)
+    : TSchedulerThread(
+        eventCount,
+        threadName,
+        tagIds,
+        enableLogging,
+        enableProfiling)
     , Queue(queue)
 { }
 
@@ -646,6 +651,93 @@ EBeginExecuteResult TSingleQueueSchedulerThread::BeginExecute()
 void TSingleQueueSchedulerThread::EndExecute()
 {
     Queue->EndExecute(&CurrentAction);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+TSingleQueueEVSchedulerThread::TEVInvokerQueue::TEVInvokerQueue(
+    TSingleQueueEVSchedulerThread* owner)
+    : TInvokerQueue(
+        &owner->EventCount,
+        owner->Profiler.TagIds(),
+        owner->EnableLogging,
+        owner->Profiler.GetEnabled())
+    , Owner(owner)
+{ }
+
+void TSingleQueueEVSchedulerThread::TEVInvokerQueue::Invoke(const TClosure& callback)
+{
+    TInvokerQueue::Invoke(callback);
+    Owner->CallbackWatcher.send();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+TSingleQueueEVSchedulerThread::TSingleQueueEVSchedulerThread(
+    const Stroka& threadName,
+    const NProfiling::TTagIdList& tagIds,
+    bool enableLogging,
+    bool enableProfiling)
+    : TSchedulerThread(
+        &EventCount,
+        threadName,
+        tagIds,
+        enableLogging,
+        enableProfiling)
+    , CallbackQueue(New<TEVInvokerQueue>(this))
+    , CallbackWatcher(EventLoop)
+{
+    // XXX(babenko): VS2013 compat
+    Stopped = false;
+
+    CallbackWatcher.set<TSingleQueueEVSchedulerThread, &TSingleQueueEVSchedulerThread::OnCallback>(this);
+    CallbackWatcher.start();
+}
+
+void TSingleQueueEVSchedulerThread::Start()
+{
+    YCHECK(!Stopped);
+
+    TSchedulerThread::Start();
+    CallbackQueue->SetThreadId(GetId());
+}
+
+void TSingleQueueEVSchedulerThread::Shutdown()
+{
+    Stopped = true;   
+    CallbackWatcher.send();
+    CallbackQueue->Shutdown();
+    TSchedulerThread::Shutdown();
+}
+
+IInvokerPtr TSingleQueueEVSchedulerThread::GetInvoker()
+{
+    return CallbackQueue;
+}
+
+EBeginExecuteResult TSingleQueueEVSchedulerThread::BeginExecute()
+{
+    if (Stopped) {
+        return EBeginExecuteResult::Terminated;
+    }
+
+    EventLoop.run(0);
+
+    if (Stopped) {
+        return EBeginExecuteResult::Terminated;
+    }
+
+    return CallbackQueue->BeginExecute(&CurrentAction);
+}
+
+void TSingleQueueEVSchedulerThread::EndExecute()
+{
+    CallbackQueue->EndExecute(&CurrentAction);
+}
+
+void TSingleQueueEVSchedulerThread::OnCallback(ev::async&, int)
+{
+    EventLoop.break_loop();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

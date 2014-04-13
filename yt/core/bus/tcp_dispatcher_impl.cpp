@@ -62,120 +62,34 @@ bool IsLocalServiceAddress(const Stroka& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcherInvokerQueue::TTcpDispatcherInvokerQueue(TTcpDispatcherThread* owner)
-    : TInvokerQueue(
-        &owner->EventCount,
-        NProfiling::EmptyTagIds,
-        false,
-        false)
-    , Owner(owner)
-{ }
-
-void TTcpDispatcherInvokerQueue::Invoke(const TClosure& callback)
-{
-    TInvokerQueue::Invoke(callback);
-    Owner->CallbackWatcher.send();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
-    : TSchedulerThread(
-        &EventCount,
+    : TSingleQueueEVSchedulerThread(
         threadName,
         NProfiling::EmptyTagIds,
         false,
         false)
     , Statistics_(ETcpInterfaceType::GetDomainSize())
-    , CallbackQueue(New<TTcpDispatcherInvokerQueue>(this))
-    , CallbackWatcher(EventLoop)
     , EventWatcher(EventLoop)
 {
-    // XXX(babenko): VS2013 compat
-    Stopped = false;
-
-    CallbackWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnCallback>(this);
     EventWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnEvent>(this);
-
-    CallbackWatcher.start();
     EventWatcher.start();
-}
-
-void TTcpDispatcherThread::Start()
-{
-    YCHECK(!Stopped);
-
-    TSchedulerThread::Start();
-    CallbackQueue->SetThreadId(GetId());
 }
 
 void TTcpDispatcherThread::Shutdown()
 {
-    if (Stopped)
-        return;
-
-    Stopped = true;
-    
-    CallbackWatcher.send();
-    
-    CallbackQueue->Shutdown();
+    TSingleQueueEVSchedulerThread::Shutdown();
 
     TEventEntry entry;
     while (EventQueue.Dequeue(&entry)) { }
-
-    TSchedulerThread::Shutdown();
 }
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     return EventLoop;
-}
-
-
-IInvokerPtr TTcpDispatcherThread::GetInvoker()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return CallbackQueue;
-}
-
-EBeginExecuteResult TTcpDispatcherThread::BeginExecute()
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    if (Stopped) {
-        return EBeginExecuteResult::Terminated;
-    }
-
-    EventLoop.run(0);
-
-    if (Stopped) {
-        return EBeginExecuteResult::Terminated;
-    }
-
-    return CallbackQueue->BeginExecute(&CurrentAction);
-}
-
-void TTcpDispatcherThread::EndExecute()
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    CallbackQueue->EndExecute(&CurrentAction);
-}
-
-void TTcpDispatcherThread::OnCallback(ev::async&, int)
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    EventLoop.break_loop();
 }
 
 TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     LOG_DEBUG("Object registration enqueued (%s)", ~object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoRegister, MakeStrong(this), object)
@@ -186,8 +100,6 @@ TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 
 TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     LOG_DEBUG("Object unregistration enqueued (%s)", ~object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoUnregister, MakeStrong(this), object)
@@ -198,8 +110,6 @@ TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 
 void TTcpDispatcherThread::AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     TEventEntry entry(std::move(connection), event);
     EventQueue.Enqueue(entry);
     EventWatcher.send();
@@ -212,8 +122,6 @@ TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType int
 
 void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
 {
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
     object->SyncInitialize();
     YCHECK(Objects.insert(object).second);
 
@@ -222,8 +130,6 @@ void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
 
 void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 {
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
     object->SyncFinalize();
     YCHECK(Objects.erase(object) == 1);
 
@@ -232,8 +138,6 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 
 void TTcpDispatcherThread::OnEvent(ev::async&, int)
 {
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
     TEventEntry entry;
     while (EventQueue.Dequeue(&entry)) {
         entry.Connection->SyncProcessEvent(entry.Event);

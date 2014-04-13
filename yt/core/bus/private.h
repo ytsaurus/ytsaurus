@@ -23,7 +23,6 @@ DECLARE_REFCOUNTED_STRUCT(IEventLoopObject)
 
 DECLARE_REFCOUNTED_CLASS(TTcpConnection)
 DECLARE_REFCOUNTED_CLASS(TTcpDispatcherThread)
-DECLARE_REFCOUNTED_CLASS(TTcpDispatcherInvokerQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 

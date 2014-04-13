@@ -19,6 +19,10 @@
 
 #include <util/thread/lfqueue.h>
 
+#include <contrib/libev/ev++.h>
+
+#include <atomic>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -133,7 +137,6 @@ protected:
     virtual void OnThreadStart();
     virtual void OnThreadShutdown();
 
-private:
     static void* ThreadMain(void* opaque);
     void ThreadMain();
     void ThreadMainLoop();
@@ -198,6 +201,53 @@ protected:
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSingleQueueEVSchedulerThread
+    : public TSchedulerThread
+{
+public:
+    TSingleQueueEVSchedulerThread(
+        const Stroka& threadName,
+        const NProfiling::TTagIdList& tagIds,
+        bool enableLogging,
+        bool enableProfiling);
+
+    void Start();
+    void Shutdown();
+
+    IInvokerPtr GetInvoker();
+
+protected:
+    class TEVInvokerQueue
+        : public TInvokerQueue
+    {
+    public:
+        explicit TEVInvokerQueue(TSingleQueueEVSchedulerThread* owner);
+
+        virtual void Invoke(const TClosure& callback) override;
+
+    private:
+        TSingleQueueEVSchedulerThread* Owner;
+
+    };
+
+    ev::dynamic_loop EventLoop;
+    TEventCount EventCount;
+
+    TIntrusivePtr<TEVInvokerQueue> CallbackQueue;
+    TEnqueuedAction CurrentAction;
+
+    std::atomic_bool Stopped;
+    ev::async CallbackWatcher;
+
+    virtual EBeginExecuteResult BeginExecute() override;
+    virtual void EndExecute() override;
+
+    void OnCallback(ev::async&, int);
 
 };
 
