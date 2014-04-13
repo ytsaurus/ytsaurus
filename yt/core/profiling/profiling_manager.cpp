@@ -253,11 +253,11 @@ private:
 
 
     class TThread
-        : public TExecutorThread
+        : public TSchedulerThread
     {
     public:
         explicit TThread(TImpl* owner)
-            : TExecutorThread(
+            : TSchedulerThread(
                 &owner->EventCount,
                 "Profiling",
                 EmptyTagIds,

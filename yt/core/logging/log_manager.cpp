@@ -692,11 +692,11 @@ public:
 
 private:
     class TThread
-        : public TExecutorThread
+        : public TSchedulerThread
     {
     public:
         explicit TThread(TImpl* owner)
-            : TExecutorThread(
+            : TSchedulerThread(
                 &owner->EventCount,
                 "Logging",
                 NProfiling::EmptyTagIds,

@@ -53,7 +53,7 @@ public:
             GetThreadTagIds(threadName),
             enableLogging,
             enableProfiling))
-        , Thread_(New<TSingleQueueExecutorThread>(
+        , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
             &EventCount_,
             threadName,
@@ -84,7 +84,7 @@ public:
 private:
     TEventCount EventCount_;
     TInvokerQueuePtr Queue_;
-    TSingleQueueExecutorThreadPtr Thread_;
+    TSingleQueueSchedulerThreadPtr Thread_;
 
 };
 
@@ -121,13 +121,13 @@ TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(const Stroka& threadNam
 ///////////////////////////////////////////////////////////////////////////////
 
 class TFairShareActionQueue::TImpl
-    : public TExecutorThread
+    : public TSchedulerThread
 {
 public:
     TImpl(
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames)
-        : TExecutorThread(
+        : TSchedulerThread(
             &EventCount,
             threadName,
             GetThreadTagIds(threadName),
@@ -158,7 +158,7 @@ public:
         for (auto& bucket : Buckets_) {
             bucket.Queue->Shutdown();
         }
-        TExecutorThread::Shutdown();
+        TSchedulerThread::Shutdown();
     }
 
     IInvokerPtr GetInvoker(int index)
@@ -270,7 +270,7 @@ public:
             true))
     {
         for (int i = 0; i < threadCount; ++i) {
-            auto thread = New<TSingleQueueExecutorThread>(
+            auto thread = New<TSingleQueueSchedulerThread>(
                 Queue_,
                 &EventCount_,
                 Sprintf("%s:%d", ~threadNamePrefix, i),
@@ -303,7 +303,7 @@ public:
 private:
     TEventCount EventCount_;
     TInvokerQueuePtr Queue_;
-    std::vector<TExecutorThreadPtr> Threads_;
+    std::vector<TSchedulerThreadPtr> Threads_;
 
 };
 

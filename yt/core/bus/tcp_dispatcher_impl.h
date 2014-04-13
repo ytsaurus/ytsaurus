@@ -57,7 +57,7 @@ DEFINE_REFCOUNTED_TYPE(TTcpDispatcherInvokerQueue)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcherThread
-    : public NConcurrency::TExecutorThread
+    : public NConcurrency::TSchedulerThread
 {
 public:
     explicit TTcpDispatcherThread(const Stroka& threadName);

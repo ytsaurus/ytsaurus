@@ -27,11 +27,11 @@ namespace NConcurrency {
 class TInvokerQueue;
 typedef TIntrusivePtr<TInvokerQueue> TInvokerQueuePtr;
 
-class TExecutorThread;
-typedef TIntrusivePtr<TExecutorThread> TExecutorThreadPtr;
+class TSchedulerThread;
+typedef TIntrusivePtr<TSchedulerThread> TSchedulerThreadPtr;
 
-class TSingleQueueExecutorThread;
-typedef TIntrusivePtr<TSingleQueueExecutorThread> TSingleQueueExecutorThreadPtr;
+class TSingleQueueSchedulerThread;
+typedef TIntrusivePtr<TSingleQueueSchedulerThread> TSingleQueueSchedulerThreadPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,12 +99,12 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TExecutorThread
+class TSchedulerThread
     : public TRefCounted
     , public IScheduler
 {
 public:
-    virtual ~TExecutorThread();
+    virtual ~TSchedulerThread();
 
     void Start();
     void Shutdown();
@@ -120,7 +120,7 @@ public:
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
 protected:
-    TExecutorThread(
+    TSchedulerThread(
         TEventCount* eventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
@@ -175,11 +175,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingleQueueExecutorThread
-    : public TExecutorThread
+class TSingleQueueSchedulerThread
+    : public TSchedulerThread
 {
 public:
-    TSingleQueueExecutorThread(
+    TSingleQueueSchedulerThread(
         TInvokerQueuePtr queue,
         TEventCount* eventCount,
         const Stroka& threadName,
@@ -187,7 +187,7 @@ public:
         bool enableLogging,
         bool enableProfiling);
 
-    ~TSingleQueueExecutorThread();
+    ~TSingleQueueSchedulerThread();
 
     IInvokerPtr GetInvoker();
 

@@ -80,7 +80,7 @@ void TTcpDispatcherInvokerQueue::Invoke(const TClosure& callback)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
-    : TExecutorThread(
+    : TSchedulerThread(
         &EventCount,
         threadName,
         NProfiling::EmptyTagIds,
@@ -105,7 +105,7 @@ void TTcpDispatcherThread::Start()
 {
     YCHECK(!Stopped);
 
-    TExecutorThread::Start();
+    TSchedulerThread::Start();
     CallbackQueue->SetThreadId(GetId());
 }
 
@@ -123,7 +123,7 @@ void TTcpDispatcherThread::Shutdown()
     TEventEntry entry;
     while (EventQueue.Dequeue(&entry)) { }
 
-    TExecutorThread::Shutdown();
+    TSchedulerThread::Shutdown();
 }
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const

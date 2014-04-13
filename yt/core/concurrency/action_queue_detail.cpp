@@ -150,14 +150,14 @@ bool TInvokerQueue::IsEmpty() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Pointer to the action queue being run by the current thread.
+//! Pointer to the scheduler running in the current thread.
 /*!
- *  Examining |CurrentExecutorThread| could be useful for debugging purposes so we don't
+ *  Examining |CurrentSchedulerThread| could be useful for debugging purposes so we don't
  *  put it into an anonymous namespace to avoid name mangling.
  */
-TLS_STATIC TExecutorThread* CurrentExecutorThread = nullptr;
+TLS_STATIC TSchedulerThread* CurrentSchedulerThread = nullptr;
 
-TExecutorThread::TExecutorThread(
+TSchedulerThread::TSchedulerThread(
     TEventCount* eventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
@@ -179,18 +179,18 @@ TExecutorThread::TExecutorThread(
     Profiler.SetEnabled(enableProfiling);
 }
 
-TExecutorThread::~TExecutorThread()
+TSchedulerThread::~TSchedulerThread()
 {
     YCHECK(!IsRunning());
 }
 
-void* TExecutorThread::ThreadMain(void* opaque)
+void* TSchedulerThread::ThreadMain(void* opaque)
 {
-    static_cast<TExecutorThread*>(opaque)->ThreadMain();
+    static_cast<TSchedulerThread*>(opaque)->ThreadMain();
     return nullptr;
 }
 
-void TExecutorThread::ThreadMain()
+void TSchedulerThread::ThreadMain()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -198,13 +198,13 @@ void TExecutorThread::ThreadMain()
 
     try {
         OnThreadStart();
-        CurrentExecutorThread = this;
+        CurrentSchedulerThread = this;
 
         Started.Set();
 
         ThreadMainLoop();
 
-        CurrentExecutorThread = nullptr;
+        CurrentSchedulerThread = nullptr;
         OnThreadShutdown();
 
         LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)",
@@ -215,7 +215,7 @@ void TExecutorThread::ThreadMain()
     }
 }
 
-void TExecutorThread::ThreadMainLoop()
+void TSchedulerThread::ThreadMainLoop()
 {
     TCurrentSchedulerGuard guard(this);
 
@@ -226,7 +226,7 @@ void TExecutorThread::ThreadMainLoop()
             // Spawn a new idle fiber to run the loop.
             YASSERT(!IdleFiber);
             IdleFiber = New<TFiber>(BIND(
-                &TExecutorThread::FiberMain,
+                &TSchedulerThread::FiberMain,
                 MakeStrong(this),
                 Epoch.load(std::memory_order_relaxed)));
 
@@ -297,7 +297,7 @@ void TExecutorThread::ThreadMainLoop()
     }
 }
 
-void TExecutorThread::FiberMain(unsigned int epoch)
+void TSchedulerThread::FiberMain(unsigned int epoch)
 {
     ++FibersCreated;
     Profiler.Enqueue("/fibers_created", FibersCreated);
@@ -342,7 +342,7 @@ void TExecutorThread::FiberMain(unsigned int epoch)
         FibersAlive);
 }
 
-EBeginExecuteResult TExecutorThread::Execute(unsigned int spawnedEpoch)
+EBeginExecuteResult TSchedulerThread::Execute(unsigned int spawnedEpoch)
 {
     if (!IsRunning()) {
         EventCount->CancelWait();
@@ -388,7 +388,7 @@ EBeginExecuteResult TExecutorThread::Execute(unsigned int spawnedEpoch)
     return EBeginExecuteResult::Success;
 }
 
-void TExecutorThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)
+void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)
 {
     SetCurrentInvoker(invoker, fiber.Get());
 
@@ -415,7 +415,7 @@ void TExecutorThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoker
     }
 }
 
-void TExecutorThread::Crash(std::exception_ptr exception)
+void TSchedulerThread::Crash(std::exception_ptr exception)
 {
     try {
         std::rethrow_exception(std::move(exception));
@@ -427,7 +427,7 @@ void TExecutorThread::Crash(std::exception_ptr exception)
     }
 }
 
-void TExecutorThread::Start()
+void TSchedulerThread::Start()
 {
     Epoch.fetch_or(0x1, std::memory_order_relaxed);
 
@@ -438,7 +438,7 @@ void TExecutorThread::Start()
     Started.Get();
 }
 
-void TExecutorThread::Shutdown()
+void TSchedulerThread::Shutdown()
 {
     if (!IsRunning()) {
         return;
@@ -457,24 +457,24 @@ void TExecutorThread::Shutdown()
     }
 }
 
-TThreadId TExecutorThread::GetId() const
+TThreadId TSchedulerThread::GetId() const
 {
     return TThreadId(Thread.SystemId());
 }
 
-bool TExecutorThread::IsRunning() const
+bool TSchedulerThread::IsRunning() const
 {
     return (Epoch.load(std::memory_order_relaxed) & 0x1) == 0x1;
 }
 
-TFiber* TExecutorThread::GetCurrentFiber()
+TFiber* TSchedulerThread::GetCurrentFiber()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     return CurrentFiber.Get();
 }
 
-void TExecutorThread::Return()
+void TSchedulerThread::Return()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -489,7 +489,7 @@ void TExecutorThread::Return()
     YUNREACHABLE();
 }
 
-void TExecutorThread::Yield()
+void TSchedulerThread::Yield()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -511,7 +511,7 @@ void TExecutorThread::Yield()
     }
 }
 
-void TExecutorThread::YieldTo(TFiberPtr&& other)
+void TSchedulerThread::YieldTo(TFiberPtr&& other)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -544,7 +544,7 @@ void TExecutorThread::YieldTo(TFiberPtr&& other)
     }
 }
 
-void TExecutorThread::SwitchTo(IInvokerPtr invoker)
+void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -573,7 +573,7 @@ void TExecutorThread::SwitchTo(IInvokerPtr invoker)
     }
 }
 
-void TExecutorThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
+void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -604,7 +604,7 @@ void TExecutorThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     }
 }
 
-void TExecutorThread::OnThreadStart()
+void TSchedulerThread::OnThreadStart()
 {
 #ifdef _unix_
     // Set empty sigmask for all threads.
@@ -614,36 +614,36 @@ void TExecutorThread::OnThreadStart()
 #endif
 }
 
-void TExecutorThread::OnThreadShutdown()
+void TSchedulerThread::OnThreadShutdown()
 { }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TSingleQueueExecutorThread::TSingleQueueExecutorThread(
+TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     TInvokerQueuePtr queue,
     TEventCount* eventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : TExecutorThread(eventCount, threadName, tagIds, enableLogging, enableProfiling)
+    : TSchedulerThread(eventCount, threadName, tagIds, enableLogging, enableProfiling)
     , Queue(queue)
 { }
 
-TSingleQueueExecutorThread::~TSingleQueueExecutorThread()
+TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread()
 { }
 
-IInvokerPtr TSingleQueueExecutorThread::GetInvoker()
+IInvokerPtr TSingleQueueSchedulerThread::GetInvoker()
 {
     return Queue;
 }
 
-EBeginExecuteResult TSingleQueueExecutorThread::BeginExecute()
+EBeginExecuteResult TSingleQueueSchedulerThread::BeginExecute()
 {
     return Queue->BeginExecute(&CurrentAction);
 }
 
-void TSingleQueueExecutorThread::EndExecute()
+void TSingleQueueSchedulerThread::EndExecute()
 {
     Queue->EndExecute(&CurrentAction);
 }
