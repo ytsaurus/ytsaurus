@@ -167,7 +167,6 @@ private:
     TFiberPtr IdleFiber;
     TFiberPtr CurrentFiber;
 
-    bool ShouldEndExecute;
     TFuture<void> WaitForFuture;
     IInvokerPtr SwitchToInvoker;
 

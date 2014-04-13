@@ -288,10 +288,7 @@ void TExecutorThread::ThreadMainLoop()
         }
 
         // Finish sync part of the execution.
-        if (ShouldEndExecute) {
-            EndExecute();
-            ShouldEndExecute = false;
-        }
+        EndExecute();
 
         // Check for a clear scheduling state.
         YASSERT(!CurrentFiber);
@@ -353,7 +350,6 @@ EBeginExecuteResult TExecutorThread::Execute(unsigned int spawnedEpoch)
     }
 
     // EventCount->CancelWait must be called within BeginExecute.
-    ShouldEndExecute = true;
     auto result = BeginExecute();
 
     auto currentEpoch = Epoch.load(std::memory_order_relaxed);
@@ -362,10 +358,7 @@ EBeginExecuteResult TExecutorThread::Execute(unsigned int spawnedEpoch)
         // Make the matching call to EndExecute unless it is already done in ThreadMain.
         // NB: It is safe to call EndExecute even if no actual action was dequeued and
         // invoked in BeginExecute.
-        if (ShouldEndExecute) {
-            EndExecute();
-            ShouldEndExecute = false;
-        }
+        EndExecute();
     }
 
     if (
