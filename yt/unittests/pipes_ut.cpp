@@ -71,7 +71,7 @@ TEST(TNonblockingReader, Failed)
     EXPECT_TRUE(reader.InFailedState());
 }
 
-TEST(TIOHolder, CanBeInstantiate)
+TEST(TIOHolder, CanInstantiate)
 {
     int pipefds[2];
     SafeMakeNonblockingPipes(pipefds);
