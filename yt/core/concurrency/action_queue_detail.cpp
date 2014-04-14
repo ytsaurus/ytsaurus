@@ -2,6 +2,7 @@
 #include "action_queue_detail.h"
 #include "fiber.h"
 #include "scheduler.h"
+#include "thread.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -227,6 +228,7 @@ void TSchedulerThread::ThreadMain()
 
     TCurrentSchedulerGuard guard(this);
     ThreadId = GetCurrentThreadId();
+    SetCurrentThreadName(~ThreadName);
 
     try {
         OnThreadStart();
