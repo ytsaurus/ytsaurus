@@ -430,11 +430,16 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
     QueuedMessages.Enqueue(queuedMessage);
 
     auto state = AtomicGet(State);
+    if (state == EState::Closed) {
+        return MakeFuture(TError(
+            NRpc::EErrorCode::TransportError,
+            "Connection closed"));        
+    }
+
     bool callbackPending = AtomicGet(MessageEnqueuedCallbackPending);
     if (!callbackPending &&
         state != EState::Resolving &&
-        state != EState::Opening &&
-        state != EState::Closed)
+        state != EState::Opening)
     {
         AtomicSet(MessageEnqueuedCallbackPending, true);
         DispatcherThread->GetInvoker()->Invoke(MessageEnqueuedCallback);
@@ -1009,7 +1014,7 @@ void TTcpConnection::OnMessageEnqueued()
     if (State == EState::Closed) {
         DiscardOutcomingMessages(TError(
             NRpc::EErrorCode::TransportError,
-            "Connection is closed"));
+            "Connection closed"));
         return;
     }
 
