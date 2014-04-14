@@ -340,8 +340,8 @@ bool TStoreManager::IsOverflowRotationNeeded() const
     return
         store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
         store->GetValueCount() >= config->MaxMemoryStoreValueCount||
-        store->GetAlignedPoolSize() >= config->MaxMemoryStoreAlignedPoolSize ||
-        store->GetUnalignedPoolSize() >= config->MaxMemoryStoreUnalignedPoolSize;
+        store->GetAlignedPoolCapacity() >= config->MaxMemoryStoreAlignedPoolSize ||
+        store->GetUnalignedPoolCapacity() >= config->MaxMemoryStoreUnalignedPoolSize;
 }
 
 bool TStoreManager::IsPeriodicRotationNeeded() const
@@ -376,8 +376,9 @@ bool TStoreManager::IsForcedRotationPossible() const
     }
 
     const auto& store = Tablet_->GetActiveStore();
-    if (store->GetAlignedPoolSize() == Config_->AlignedPoolChunkSize &&
-        store->GetUnalignedPoolSize() == Config_->UnalignedPoolChunkSize)
+    // Check for "almost" initial size.
+    if (store->GetAlignedPoolCapacity() <=  2 * Config_->AlignedPoolChunkSize &&
+        store->GetUnalignedPoolCapacity() <= 2 * Config_->UnalignedPoolChunkSize)
     {
         return false;
     }
