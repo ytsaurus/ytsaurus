@@ -183,15 +183,18 @@ void ResumeFiber(TFiberPtr fiber)
 
 void UnwindFiber(TFiberPtr fiber)
 {
-    if (!UnwindThread.HasValue()) {
-        UnwindThread->Detach();
-    }
-
     fiber->Cancel();
 
     BIND(&ResumeFiber, Passed(std::move(fiber)))
         .Via(UnwindThread->GetInvoker())
         .Run();
+}
+
+void ShutdownUnwindThread()
+{
+    if (UnwindThread.HasValue()) {
+        UnwindThread->Shutdown();
+    }
 }
 
 } // namespace NDetail

@@ -81,6 +81,8 @@ TClosure GetCurrentFiberCanceler();
 void ResumeFiber(TFiberPtr fiber);
 void UnwindFiber(TFiberPtr fiber);
 
+void ShutdownUnwindThread();
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////

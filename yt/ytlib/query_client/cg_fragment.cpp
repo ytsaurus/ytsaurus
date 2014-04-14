@@ -40,7 +40,9 @@ static TLazyIntrusivePtr<NConcurrency::TActionQueue> McjitThread(
 
 void ShutdownLlvm()
 {
-    McjitThread->Shutdown();
+    if (McjitThread.HasValue()) {
+        McjitThread->Shutdown();
+    }
 }
 
 static bool DumpIR()

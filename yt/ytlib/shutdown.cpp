@@ -1,5 +1,7 @@
 #include "shutdown.h"
 
+#include <core/concurrency/fiber.h>
+
 #include <core/profiling/profiling_manager.h>
 
 #include <core/misc/address.h>
@@ -20,9 +22,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef YT_USE_LLVM
 namespace NQueryClient {
     void ShutdownLlvm();
 }
+#endif
 
 void Shutdown()
 {
@@ -34,8 +38,11 @@ void Shutdown()
     NConcurrency::TDelayedExecutor::Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
+#ifdef YT_USE_LLVM
     NQueryClient::ShutdownLlvm();
+#endif
     NLog::TLogManager::Get()->Shutdown();
+    NConcurrency::NDetail::ShutdownUnwindThread();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
