@@ -84,19 +84,19 @@ void Invoke(
     node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
 }
 
-class TUVInvoker
+class TUvInvoker
     : public IInvoker
 {
 public:
-    explicit TUVInvoker(uv_loop_t* loop)
+    explicit TUvInvoker(uv_loop_t* loop)
         : QueueSize(0)
     {
         memset(&AsyncHandle, 0, sizeof(AsyncHandle));
-        YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
+        YCHECK(uv_async_init(loop, &AsyncHandle, &TUvInvoker::Callback) == 0);
         AsyncHandle.data = this;
     }
 
-    ~TUVInvoker()
+    ~TUvInvoker()
     {
         uv_close((uv_handle_t*)&AsyncHandle, nullptr);
     }
@@ -131,7 +131,7 @@ private:
         YCHECK(status == 0);
         YCHECK(handle->data);
 
-        reinterpret_cast<TUVInvoker*>(handle->data)->CallbackImpl();
+        reinterpret_cast<TUvInvoker*>(handle->data)->CallbackImpl();
     }
 
     void CallbackImpl()
@@ -157,8 +157,8 @@ private:
 
 // uv_default_loop() is a static singleton object, so it is safe to call
 // function at the binding time.
-TLazyIntrusivePtr<TUVInvoker> DefaultUvInvoker(BIND(
-    &New<TUVInvoker, uv_loop_t* const&>,
+TLazyIntrusivePtr<TUvInvoker> DefaultUvInvoker(BIND(
+    &New<TUvInvoker, uv_loop_t* const&>,
     uv_default_loop()));
 
 class TResponseParametersConsumer
