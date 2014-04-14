@@ -65,13 +65,13 @@ protected:
 
         bool IsActive() const
         {
-            return !FrontalWriter;
+            return bool(FrontalWriter);
         }
 
         void Reset()
         {
-            FrontalWriter.Reset();
-            UnderlyingWriter.Reset();
+            FrontalWriter = nullptr;
+            UnderlyingWriter = nullptr;
             ChunkId = TChunkId();
             Replicas.clear();
         }
