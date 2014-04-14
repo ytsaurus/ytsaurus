@@ -71,7 +71,10 @@ public:
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
     void CreateActiveStore();
-    
+
+    // For testing only.
+    bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
+
 private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
@@ -97,7 +100,7 @@ private:
         TUnversionedRow key,
         ERowLockMode mode);
 
-    void CheckForUnlockedStore(TDynamicMemoryStore * store);
+    void CheckForUnlockedStore(TDynamicMemoryStore* store);
 
     bool IsRecovery() const;
 

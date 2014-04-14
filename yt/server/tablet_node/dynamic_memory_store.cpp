@@ -536,6 +536,8 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 TDynamicRow TDynamicMemoryStore::MigrateRow(const TDynamicRowRef& rowRef)
 {
     auto row = rowRef.Row;
+    // NB: We may change rowRef if the latter references
+    // an element from transaction->LockedRows().
     auto* store = rowRef.Store;
 
     TDynamicRow migratedRow;
