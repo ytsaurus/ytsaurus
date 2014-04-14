@@ -70,6 +70,11 @@ public:
         Shutdown();
     }
 
+    void Detach()
+    {
+        Thread_->Detach();
+    }
+
     void Shutdown()
     {
         Queue_->Shutdown();
@@ -101,6 +106,11 @@ TActionQueue::TActionQueue(
 TActionQueue::~TActionQueue()
 { }
 
+void TActionQueue::Detach()
+{
+    return Impl->Detach();
+}
+
 void TActionQueue::Shutdown()
 {
     return Impl->Shutdown();
@@ -111,11 +121,15 @@ IInvokerPtr TActionQueue::GetInvoker()
     return Impl->GetInvoker();
 }
 
-TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(const Stroka& threadName)
+TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(
+    const Stroka& threadName,
+    bool enableLogging,
+    bool enableProfiling)
 {
-    return BIND([=] () {
-        return New<TActionQueue>(threadName);
-    });
+    return BIND(&New<TActionQueue, const Stroka&, const bool&, const bool&>,
+        threadName,
+        enableLogging,
+        enableProfiling);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -151,6 +165,11 @@ public:
     ~TImpl()
     {
         Shutdown();
+    }
+
+    void Detach()
+    {
+        TSchedulerThread::Detach();
     }
 
     void Shutdown()

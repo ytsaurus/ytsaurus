@@ -1,6 +1,9 @@
 #include "stdafx.h"
+#include "action_queue.h"
 #include "fiber.h"
 #include "scheduler.h"
+
+#include <core/misc/lazy_ptr.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -42,7 +45,7 @@ TFiber::TFiber(TClosure callee, EExecutionStack stack)
 
 TFiber::~TFiber()
 {
-    YCHECK(State_ == EFiberState::Terminated);
+    YCHECK(CanReturn());
 }
 
 EFiberState TFiber::GetState() const
@@ -156,12 +159,42 @@ void TFiber::Trampoline(void* opaque)
     YUNREACHABLE();
 }
 
-TClosure NDetail::GetCurrentFiberCanceler()
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+static TLazyIntrusivePtr<TActionQueue> UnwindThread(
+    TActionQueue::CreateFactory("Unwind", false, false));
+
+TClosure GetCurrentFiberCanceler()
 {
     return BIND(
         &TFiber::Cancel,
         MakeStrong(GetCurrentScheduler()->GetCurrentFiber()));
 }
+
+void ResumeFiber(TFiberPtr fiber)
+{
+    YCHECK(fiber->GetState() == EFiberState::Sleeping);
+    fiber->SetState(EFiberState::Suspended);
+
+    GetCurrentScheduler()->YieldTo(std::move(fiber));
+}
+
+void UnwindFiber(TFiberPtr fiber)
+{
+    if (!UnwindThread.HasValue()) {
+        UnwindThread->Detach();
+    }
+
+    fiber->Cancel();
+
+    BIND(&ResumeFiber, Passed(std::move(fiber)))
+        .Via(UnwindThread->GetInvoker())
+        .Run();
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

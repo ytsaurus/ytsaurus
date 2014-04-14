@@ -177,13 +177,13 @@ TSchedulerThread::~TSchedulerThread()
 
 void TSchedulerThread::Start()
 {
-    Epoch.fetch_or(0x1, std::memory_order_relaxed);
+    Epoch.fetch_or((unsigned int)0x1, std::memory_order_relaxed);
 
     LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
         ~ThreadName);
 
     Thread.Start();
-    
+
     OnStart();
 
     Started.Get();
@@ -208,6 +208,11 @@ void TSchedulerThread::Shutdown()
     if (GetCurrentThreadId() != ThreadId) {
         Thread.Join();
     }
+}
+
+void TSchedulerThread::Detach()
+{
+    Thread.Detach();
 }
 
 void* TSchedulerThread::ThreadMain(void* opaque)
@@ -332,7 +337,7 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
         FibersCreated,
         FibersAlive);
 
-    while (FiberMainStep(spawnedEpoch)) ;
+    while (FiberMainStep(spawnedEpoch));
 
     --FibersAlive;
     Profiler.Enqueue("/fibers_alive", FibersCreated);
@@ -381,15 +386,6 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
         return false;
     }
 
-    // TODO(sandello): Does this check makes sense in the new setting?
-    /*
-    if (fiber->IsCanceled()) {
-        // All TFiberCanceledException-s are being caught in BeginExecute.
-        // A fiber that is currently being terminated cannot be reused and must be abandoned.
-        return EBeginExecuteResult::Terminated;
-    }
-    */
-
     return true;
 }
 
@@ -397,26 +393,15 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 {
     SetCurrentInvoker(invoker, fiber.Get());
 
-    auto precontinuation = [] (TFiberPtr fiber, bool cancel) {
-        if (cancel) {
-            fiber->Cancel();
-        }
-
-        YCHECK(fiber->GetState() == EFiberState::Sleeping);
-        fiber->SetState(EFiberState::Suspended);
-
-        GetCurrentScheduler()->YieldTo(std::move(fiber));
-    };
-
     auto continuation = BIND(&GuardedInvoke,
         Passed(std::move(invoker)),
-        Passed(BIND(precontinuation, fiber, false)),
-        Passed(BIND(precontinuation, fiber, true)));
+        Passed(BIND(&NDetail::ResumeFiber, fiber)),
+        Passed(BIND(&NDetail::UnwindFiber, fiber)));
 
     if (future) {
         future.Subscribe(std::move(continuation));
     } else {
-        RunQueue.emplace_front(New<TFiber>(std::move(continuation)));
+        continuation.Run();
     }
 }
 
@@ -428,7 +413,7 @@ void TSchedulerThread::Crash(std::exception_ptr exception)
         LOG_FATAL(ex, "Fiber has crashed in executor thread (Name: %s)",
             ~ThreadName);
     } catch (...) {
-        YCHECK(false);
+        YUNREACHABLE();
     }
 }
 

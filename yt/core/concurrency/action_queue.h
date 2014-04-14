@@ -20,11 +20,15 @@ public:
         bool enableProfiling = true);
     virtual ~TActionQueue();
 
+    void Detach();
     void Shutdown();
 
     IInvokerPtr GetInvoker();
 
-    static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
+    static TCallback<TActionQueuePtr()> CreateFactory(
+        const Stroka& threadName,
+        bool enableLogging = true,
+        bool enableProfiling = true);
 
 private:
     class TImpl;
@@ -44,6 +48,7 @@ public:
 
     virtual ~TFairShareActionQueue();
 
+    void Detach();
     void Shutdown();
 
     IInvokerPtr GetInvoker(int index);

@@ -113,6 +113,8 @@ public:
     void Start();
     void Shutdown();
 
+    void Detach();
+
     TThreadId GetId() const;
     bool IsRunning() const;
 
@@ -143,7 +145,7 @@ protected:
     static void* ThreadMain(void* opaque);
     void ThreadMain();
     void ThreadMainStep();
-    
+
     void FiberMain(unsigned int spawnedEpoch);
     bool FiberMainStep(unsigned int spawnedEpoch);
 
