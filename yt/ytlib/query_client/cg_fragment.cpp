@@ -114,7 +114,8 @@ public:
             .create());
 
         if (!Engine_) {
-            THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine: %s", what.c_str());
+            THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine")
+                << TError(Stroka(what));
         }
 
         Module_ = module.release();
