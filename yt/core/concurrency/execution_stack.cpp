@@ -57,13 +57,20 @@ public:
     {
         const size_t guardSize = GuardPages * GetPageSize();
 
+        int flags =
+#if defined(_darwin_)
+            MAP_ANON | MAP_PRIVATE;
+#else
+            MAP_ANONYMOUS | MAP_PRIVATE;
+#endif
+
         Base_ = reinterpret_cast<char*>(::mmap(
-                0,
-                guardSize + Size_,
-                PROT_READ | PROT_WRITE,
-                MAP_ANONYMOUS | MAP_PRIVATE,
-                -1,
-                0));
+            0,
+            guardSize + Size_,
+            PROT_READ | PROT_WRITE,
+            flags,
+            -1,
+            0));
 
         if (Base_ == MAP_FAILED) {
             THROW_ERROR_EXCEPTION("Failed to allocate execution stack")
