@@ -26,6 +26,10 @@ namespace NDetail {
 TClosure GetCurrentFiberCanceler();
 } // namespace NDetail
 
+struct IScheduler;
+IScheduler* GetCurrentScheduler();
+IScheduler* TryGetCurrentScheduler();
+
 } // namespace NConcurrency
 
 namespace NDetail {
@@ -543,12 +547,14 @@ inline void TPromiseState<void>::Subscribe(
 template <class T>
 void RegisterFiberCancelation(TPromise<T>& promise)
 {
-    auto invoker = GetCurrentInvoker();
-    auto canceler = NConcurrency::NDetail::GetCurrentFiberCanceler();
-    promise.OnCanceled(BIND(
-        IgnoreResult(&IInvoker::Invoke),
-        std::move(invoker),
-        std::move(canceler)));
+    if (NConcurrency::TryGetCurrentScheduler()) {
+        auto invoker = GetCurrentInvoker();
+        auto canceler = NConcurrency::NDetail::GetCurrentFiberCanceler();
+        promise.OnCanceled(BIND(
+            IgnoreResult(&IInvoker::Invoke),
+            std::move(invoker),
+            std::move(canceler)));
+    }
 }
 
 template <bool WrappedInFuture, class TSignature>
