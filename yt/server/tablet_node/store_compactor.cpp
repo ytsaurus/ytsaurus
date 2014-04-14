@@ -215,7 +215,7 @@ private:
         auto* tablet = eden->GetTablet();
         auto* slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
-        const auto& tabletId = tablet->GetId();
+        auto tabletId = tablet->GetId();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
@@ -444,7 +444,7 @@ private:
         auto* tablet = partition->GetTablet();
         auto* slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
-        const auto& tabletId = tablet->GetId();
+        auto tabletId = tablet->GetId();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();

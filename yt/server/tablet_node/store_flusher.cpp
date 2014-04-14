@@ -256,16 +256,22 @@ private:
         TTablet* tablet,
         IStorePtr store)
     {
+        // Capture everything needed below.
+        // NB: Avoid accessing tablet from pool invoker.
+        auto* slot = tablet->GetSlot();
+        auto hydraManager = slot->GetHydraManager();
+        auto tabletManager = slot->GetTabletManager();
+        auto tabletId = tablet->GetId();
+        auto writerOptions = tablet->GetWriterOptions();
+        auto keyColumns = tablet->KeyColumns();
+        auto schema = tablet->Schema();
+
         YCHECK(store->GetState() == EStoreState::Flushing);
 
         NLog::TTaggedLogger Logger(TabletNodeLogger);
         Logger.AddTag(Sprintf("TabletId: %s, StoreId: %s",
-            ~ToString(tablet->GetId()),
+            ~ToString(tabletId),
             ~ToString(store->GetId())));
-
-        auto* slot = tablet->GetSlot();
-        auto hydraManager = slot->GetHydraManager();
-        auto tabletManager = slot->GetTabletManager();
 
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
         auto poolInvoker = ThreadPool_->GetInvoker();
@@ -276,7 +282,7 @@ private:
             LOG_INFO("Store flush started");
 
             TReqCommitTabletStoresUpdate updateStoresRequest;
-            ToProto(updateStoresRequest.mutable_tablet_id(), tablet->GetId());
+            ToProto(updateStoresRequest.mutable_tablet_id(), tabletId);
             {
                 auto* descriptor = updateStoresRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
@@ -301,7 +307,7 @@ private:
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Flushing store %s, tablet %s",
                     ~ToString(store->GetId()),
-                    ~ToString(tablet->GetId())));
+                    ~ToString(tabletId)));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -312,9 +318,9 @@ private:
 
             auto writer = CreateVersionedMultiChunkWriter(
                 Config_->Writer,
-                tablet->GetWriterOptions(),
-                tablet->Schema(),
-                tablet->KeyColumns(),
+                writerOptions,
+                schema,
+                keyColumns,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 transaction->GetId());
 
