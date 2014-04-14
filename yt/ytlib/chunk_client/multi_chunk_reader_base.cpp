@@ -14,7 +14,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 
 #include <core/erasure/codec.h>
