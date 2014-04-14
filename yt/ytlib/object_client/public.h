@@ -120,9 +120,8 @@ DECLARE_ENUM(EObjectType,
     ((DynamicMemoryTabletStore)   (704))
 
     // Query stuff
-    // A special type reserved for marking data splits for delegated subfragments
-    // in Query Client.
     ((PlanFragment)               (800))
+    ((EmptyPlanFragment)          (801))
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].

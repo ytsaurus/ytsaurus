@@ -32,6 +32,29 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int MaxCounter = std::numeric_limits<int>::max();
+
+class TEmptySchemafulReader
+    : public ISchemafulReader
+{
+    virtual TAsyncError Open(const TTableSchema& /*schema*/) override
+    {
+        return MakeFuture(TError());
+    }
+
+    virtual bool Read(std::vector<TUnversionedRow>* /*rows*/) override
+    {
+        return false;
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        return MakeFuture(TError());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCoordinator::TCoordinator(
     ICoordinateCallbacks* callbacks,
     const TPlanFragment& fragment)
@@ -101,23 +124,24 @@ std::vector<TPlanFragment> TCoordinator::GetPeerFragments() const
     std::vector<TPlanFragment> result;
     result.reserve(Peers_.size());
     for (const auto& peer : Peers_) {
-        result.emplace_back(std::get<0>(peer));
+        result.emplace_back(peer.Fragment);
     }
     return result;
 }
 
-std::pair<std::vector<const TOperator*>, TSchema> TCoordinator::Scatter(const TOperator* op)
+std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
 {
     auto* context = Fragment_.GetContext().Get();
     std::vector<const TOperator*> resultOps;
-
-    TSchema schema = std::make_pair(op->GetTableSchema(), op->GetKeyColumns());
 
     switch (op->GetKind()) {
 
         case EOperatorKind::Scan: {
             auto* scanOp = op->As<TScanOperator>();
-            auto groupedSplits = Regroup(Split(scanOp->DataSplits()));
+            auto groupedSplits = SplitAndRegroup(
+                scanOp->DataSplits(),
+                scanOp->GetTableSchema(),
+                scanOp->GetKeyColumns());
 
             for (const auto& splits : groupedSplits) {
                 auto* newScanOp = scanOp->Clone(context)->As<TScanOperator>();
@@ -131,7 +155,7 @@ std::pair<std::vector<const TOperator*>, TSchema> TCoordinator::Scatter(const TO
         case EOperatorKind::Filter: {
             auto* filterOp = op->As<TFilterOperator>();
 
-            resultOps = Scatter(filterOp->GetSource()).first;
+            resultOps = Scatter(filterOp->GetSource());
             for (auto& resultOp : resultOps) {
                 auto* newFilterOp = filterOp->Clone(context)->As<TFilterOperator>();
                 newFilterOp->SetSource(resultOp);
@@ -144,7 +168,7 @@ std::pair<std::vector<const TOperator*>, TSchema> TCoordinator::Scatter(const TO
         case EOperatorKind::Group: {
             auto* groupOp = op->As<TGroupOperator>();
 
-            resultOps = Scatter(groupOp->GetSource()).first;
+            resultOps = Scatter(groupOp->GetSource());
             for (auto& resultOp : resultOps) {
                 auto* newGroupOp = groupOp->Clone(context)->As<TGroupOperator>();
                 newGroupOp->SetSource(resultOp);
@@ -155,7 +179,7 @@ std::pair<std::vector<const TOperator*>, TSchema> TCoordinator::Scatter(const TO
                 break;
             }
 
-            auto* finalGroupOp = context->TrackedNew<TGroupOperator>(Gather(std::make_pair(resultOps, schema)));
+            auto* finalGroupOp = context->TrackedNew<TGroupOperator>(Gather(resultOps));
 
             auto& finalGroupItems = finalGroupOp->GroupItems();
             for (const auto& groupItem : groupOp->GroupItems()) {
@@ -187,7 +211,7 @@ std::pair<std::vector<const TOperator*>, TSchema> TCoordinator::Scatter(const TO
         case EOperatorKind::Project: {
             auto* projectOp = op->As<TProjectOperator>();
 
-            resultOps = Scatter(projectOp->GetSource()).first;
+            resultOps = Scatter(projectOp->GetSource());
 
             for (auto& resultOp : resultOps) {
                 auto* newProjectOp = projectOp->Clone(context)->As<TProjectOperator>();
@@ -200,41 +224,40 @@ std::pair<std::vector<const TOperator*>, TSchema> TCoordinator::Scatter(const TO
 
     }
 
-    return std::make_pair(resultOps, schema);
+    return resultOps;
 }
 
-const TOperator* TCoordinator::Gather(const std::pair<std::vector<const TOperator*>, TSchema>& ops)
+const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
 {
-    std::function<const TDataSplit&(const TOperator*)> determineCollocatedSplit =
-        [&determineCollocatedSplit] (const TOperator* op) -> const TDataSplit& {
-            switch (op->GetKind()) {
-                case EOperatorKind::Scan:
-                    return op->As<TScanOperator>()->DataSplits().front();
-                case EOperatorKind::Filter:
-                    return determineCollocatedSplit(op->As<TFilterOperator>()->GetSource());
-                case EOperatorKind::Group:
-                    return determineCollocatedSplit(op->As<TGroupOperator>()->GetSource());
-                case EOperatorKind::Project:
-                    return determineCollocatedSplit(op->As<TProjectOperator>()->GetSource());
-            }
-            YUNREACHABLE();
-        };
+    YASSERT(!ops.empty());
 
     auto* context = Fragment_.GetContext().Get();
 
     auto* resultOp = context->TrackedNew<TScanOperator>();
     auto& resultSplits = resultOp->DataSplits();
 
-    resultOp->SetTableSchema(ops.second.first);
-    resultOp->SetKeyColumns(ops.second.second);
+    std::function<const TDataSplit&(const TOperator*)> collocatedSplit =
+        [&collocatedSplit] (const TOperator* op) -> const TDataSplit& {
+            switch (op->GetKind()) {
+                case EOperatorKind::Scan:
+                    return op->As<TScanOperator>()->DataSplits().front();
+                case EOperatorKind::Filter:
+                    return collocatedSplit(op->As<TFilterOperator>()->GetSource());
+                case EOperatorKind::Group:
+                    return collocatedSplit(op->As<TGroupOperator>()->GetSource());
+                case EOperatorKind::Project:
+                    return collocatedSplit(op->As<TProjectOperator>()->GetSource());
+            }
+            YUNREACHABLE();
+        };
 
-    for (const auto& op : ops.first) {
+    for (const auto& op : ops) {
         auto fragment = TPlanFragment(context, op);
         LOG_DEBUG("Created subfragment (SubFragmentId: %s)",
             ~ToString(fragment.Id()));
 
         int index = Peers_.size();
-        Peers_.emplace_back(fragment, determineCollocatedSplit(op), nullptr);
+        Peers_.emplace_back(fragment, collocatedSplit(op), nullptr);
 
         TDataSplit facadeSplit;
 
@@ -268,27 +291,34 @@ const TOperator* TCoordinator::Simplify(const TOperator* op)
             }
 
             const auto& outerSplit = scanOp->DataSplits().front();
-            auto outerPair = IsInternal(outerSplit);
-            if (!outerPair.first) {
+            auto outerExplanation = Explain(outerSplit);
+            if (!outerExplanation.IsInternal || outerExplanation.IsEmpty) {
                 return op;
             }
 
-            YCHECK(outerPair.second < Peers_.size());
-            const auto& peer = Peers_[outerPair.second];
+            YCHECK(outerExplanation.PeerIndex < Peers_.size());
+            const auto& peer = Peers_[outerExplanation.PeerIndex];
 
-            const auto& innerSplit = std::get<1>(peer);
-            auto innerPair = IsInternal(innerSplit);
-            if (!innerPair.first) {
+            const auto& innerSplit = peer.CollocatedSplit;
+            auto innerExplanation = Explain(innerSplit);
+            if (!innerExplanation.IsInternal) {
                 return op;
             }
 
-            return std::get<0>(peer).GetHead();
+            LOG_DEBUG("Keeping subfragment local (SubFragmentId: %s)",
+                ~ToString(peer.Fragment.Id()));
+
+            return peer.Fragment.GetHead();
         });
 }
 
-TDataSplits TCoordinator::Split(const TDataSplits& splits)
+TGroupedDataSplits TCoordinator::SplitAndRegroup(
+    const TDataSplits& splits,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns)
 {
-    TDataSplits result;
+    TGroupedDataSplits result;
+    TDataSplits allSplits;
 
     for (const auto& split : splits) {
         auto objectId = GetObjectIdFromDataSplit(split);
@@ -296,7 +326,7 @@ TDataSplits TCoordinator::Split(const TDataSplits& splits)
         if (Callbacks_->CanSplit(split)) {
             LOG_DEBUG("Splitting input %s", ~ToString(objectId));
         } else {
-            result.push_back(split);
+            allSplits.push_back(split);
             continue;
         }
 
@@ -308,35 +338,68 @@ TDataSplits TCoordinator::Split(const TDataSplits& splits)
             newSplits.size(),
             ~ToString(objectId));
 
-        result.insert(result.end(), newSplits.begin(), newSplits.end());
+        allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
+    }
+
+    if (allSplits.empty()) {
+        LOG_DEBUG("Adding an empty split");
+
+        allSplits.emplace_back();
+        auto& split = allSplits.back();
+
+        SetObjectId(
+            &split,
+            MakeId(EObjectType::EmptyPlanFragment, 0xdead, MaxCounter, 0xc0ffee));
+        SetTableSchema(&split, tableSchema);
+        SetKeyColumns(&split, keyColumns);
+
+        result.emplace_back(allSplits);
+    } else {
+        LOG_DEBUG("Regrouping %" PRISZT " splits", allSplits.size());
+
+        result = Callbacks_->Regroup(allSplits, Fragment_.GetContext());
     }
 
     return result;
 }
 
-TGroupedDataSplits TCoordinator::Regroup(const TDataSplits& splits)
+TCoordinator::TDataSplitExplanation TCoordinator::Explain(const TDataSplit& split)
 {
-    return Callbacks_->Regroup(splits, Fragment_.GetContext());
-}
+    TDataSplitExplanation explanation;
 
-std::pair<bool, int> TCoordinator::IsInternal(const TDataSplit& split)
-{
     auto objectId = GetObjectIdFromDataSplit(split);
     auto type = TypeFromId(objectId);
-    int counter = static_cast<int>(CounterFromId(objectId));
+    auto counter = static_cast<int>(CounterFromId(objectId));
 
-    if (type == EObjectType::PlanFragment) {
-        return std::make_pair(true, counter);
-    } else {
-        return std::make_pair(false, -1);
+    explanation.IsInternal = true;
+    explanation.IsEmpty = false;
+    explanation.PeerIndex = MaxCounter;
+
+    switch (type) {
+        case EObjectType::PlanFragment:
+            explanation.PeerIndex = counter;
+            break;
+        case EObjectType::EmptyPlanFragment:
+            explanation.IsEmpty = true;
+            break;
+        default:
+            explanation.IsInternal = false;
+            break;
     }
+
+    return explanation;
 }
 
 void TCoordinator::DelegateToPeers()
 {
     for (auto& peer : Peers_) {
-        if (!IsInternal(std::get<1>(peer)).first) {
-            std::get<2>(peer) = Callbacks_->Delegate(std::get<0>(peer), std::get<1>(peer));
+        auto explanation = Explain(peer.CollocatedSplit);
+        if (!explanation.IsInternal) {
+            LOG_DEBUG("Delegating subfragment (SubFragmentId: %s)",
+                ~ToString(peer.Fragment.Id()));
+            peer.Reader = Callbacks_->Delegate(
+                peer.Fragment,
+                peer.CollocatedSplit);
         }
     }
 }
@@ -348,13 +411,18 @@ ISchemafulReaderPtr TCoordinator::GetReader(
     auto objectId = GetObjectIdFromDataSplit(split);
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
 
-    auto pair = IsInternal(split);
-    if (pair.first) {
-        YCHECK(pair.second < Peers_.size());
-        return std::get<2>(Peers_[pair.second]);
-    } else {
-        return Callbacks_->GetReader(split, context);
+    auto explanation = Explain(split);
+
+    if (explanation.IsEmpty) {
+        return New<TEmptySchemafulReader>();
     }
+
+    if (explanation.IsInternal) {
+        YCHECK(explanation.PeerIndex < Peers_.size());
+        return Peers_[explanation.PeerIndex].Reader;
+    }
+
+    return Callbacks_->GetReader(split, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

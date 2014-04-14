@@ -11,8 +11,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::pair<TTableSchema, TKeyColumns> TSchema;
-
 class TCoordinator
     : public IEvaluateCallbacks
 {
@@ -40,15 +38,44 @@ public:
     std::vector<TPlanFragment> GetPeerFragments() const;
 
 private:
-    std::pair<std::vector<const TOperator*>, TSchema> Scatter(const TOperator* op);
-    const TOperator* Gather(const std::pair<std::vector<const TOperator*>, TSchema>& ops);
+    struct TDataSplitExplanation
+    {
+        bool IsInternal;
+        bool IsEmpty;
+        int PeerIndex;
+    };
+
+    struct TPeer
+    {
+        TPeer(
+            TPlanFragment fragment,
+            const TDataSplit& collocatedSplit,
+            ISchemafulReaderPtr reader)
+            : Fragment(std::move(fragment))
+            , CollocatedSplit(collocatedSplit)
+            , Reader(std::move(reader))
+        { }
+
+        TPeer(const TPeer&) = delete;
+        TPeer(TPeer&&) = default;
+
+        TPlanFragment Fragment;
+        const TDataSplit& CollocatedSplit;
+        ISchemafulReaderPtr Reader;
+    };
+
+private:
+    std::vector<const TOperator*> Scatter(const TOperator* op);
+    const TOperator* Gather(const std::vector<const TOperator*>& ops);
 
     const TOperator* Simplify(const TOperator*);
 
-    TDataSplits Split(const TDataSplits& splits);
-    TGroupedDataSplits Regroup(const TDataSplits& splits);
+    TGroupedDataSplits SplitAndRegroup(
+        const TDataSplits& splits,
+        const TTableSchema& tableSchema,
+        const TKeyColumns& keyColumns);
 
-    std::pair<bool, int> IsInternal(const TDataSplit& split);
+    TDataSplitExplanation Explain(const TDataSplit& split);
 
     void DelegateToPeers();
 
@@ -56,7 +83,7 @@ private:
     ICoordinateCallbacks* Callbacks_;
     TPlanFragment Fragment_;
 
-    std::vector<std::tuple<TPlanFragment, const TDataSplit&, ISchemafulReaderPtr>> Peers_;
+    std::vector<TPeer> Peers_;
 
     NLog::TTaggedLogger Logger;
 };

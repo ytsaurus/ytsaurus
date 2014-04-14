@@ -75,7 +75,7 @@ public:
     { }
 
     //! Infers table schema of the query result.
-    virtual TTableSchema GetTableSchema() const = 0;
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const = 0;
 
     //! Piggy-backed method |InferKeyColumns|.
     TKeyColumns GetKeyColumns() const;
@@ -105,8 +105,6 @@ public:
     TScanOperator(TPlanContext* context, const TScanOperator& other)
         : TOperator(context, EOperatorKind::Scan)
         , DataSplits_(other.DataSplits_)
-        , TableSchema_(other.TableSchema_)
-        , KeyColumns_(other.KeyColumns_)
     { }
 
     static inline bool IsClassOf(const TOperator* op)
@@ -114,18 +112,12 @@ public:
         return op->GetKind() == EOperatorKind::Scan;
     }
 
-    virtual TTableSchema GetTableSchema() const override;
-
-    void SetTableSchema(const TTableSchema& tableSchema);
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
     DEFINE_BYREF_RW_PROPERTY(TDataSplits, DataSplits);
 
-    const TKeyColumns& GetKeyColumns() const;
-    void SetKeyColumns(const TKeyColumns& keyColumns);
-
 private:
-    mutable TTableSchema TableSchema_;
-    mutable TKeyColumns KeyColumns_;
+    mutable std::unique_ptr<TTableSchema> TableSchema_;
 
 };
 
@@ -149,7 +141,7 @@ public:
         return op->GetKind() == EOperatorKind::Filter;
     }
 
-    virtual TTableSchema GetTableSchema() const override;
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
     DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
     DEFINE_BYVAL_RW_PROPERTY(const TExpression*, Predicate);
@@ -177,7 +169,7 @@ public:
         return op->GetKind() == EOperatorKind::Group;
     }
 
-    virtual TTableSchema GetTableSchema() const override;
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
     int GetGroupItemCount() const
     {
@@ -204,7 +196,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAggregateItemList, AggregateItems);
 
 private:
-    //mutable TTableSchema TableSchema_;
+    mutable std::unique_ptr<TTableSchema> TableSchema_;
 
 };
 
@@ -228,7 +220,7 @@ public:
         return op->GetKind() == EOperatorKind::Project;
     }
 
-    virtual TTableSchema GetTableSchema() const override;
+    virtual const TTableSchema& GetTableSchema(bool ignoreCache = false) const override;
 
     TNamedExpressionList& Projections()
     {
@@ -254,7 +246,7 @@ public:
 
 private:
     TNamedExpressionList Projections_;
-    //mutable TTableSchema TableSchema_;
+    mutable std::unique_ptr<TTableSchema> TableSchema_;
 
 };
 
