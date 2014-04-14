@@ -192,6 +192,45 @@ protected:
 
 };
 
+TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
+{
+    std::vector<TVersionedRow> expected;
+    WriteThreeRows();
+
+    auto schema = Schema;
+    schema.Columns().push_back(TColumnSchema("kN", EValueType::Double));
+
+    auto chunkMeta = TCachedVersionedChunkMeta::Load(
+        MemoryReader,
+        schema,
+        KeyColumns).Get().ValueOrThrow();
+
+    TUnversionedOwningRowBuilder lowerKeyBuilder;
+    lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
+    lowerKeyBuilder.AddValue(MakeUnversionedIntegerValue(15, 1));
+    lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
+
+    TReadLimit lowerLimit;
+    lowerLimit.SetKey(lowerKeyBuilder.GetRowAndReset());
+
+    auto chunkReader = CreateVersionedChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        chunkMeta,
+        std::move(lowerLimit),
+        TReadLimit(),
+        TColumnFilter());
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    std::vector<TVersionedRow> actual;
+    actual.reserve(10);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+
+    CheckResult(expected, actual);
+}
+
 TEST_F(TVersionedChunksTest, ReadLastCommitted)
 {
     std::vector<TVersionedRow> expected;

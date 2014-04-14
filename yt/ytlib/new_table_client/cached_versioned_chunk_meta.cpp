@@ -100,10 +100,8 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         auto& column = readerSchema.Columns()[readerIndex];
         auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
         if (!chunkColumn) {
-            // ToDo (psushin): this may be a valid case, just skip the column.
-            THROW_ERROR_EXCEPTION(
-                "Incompatible schema: column %s is absent in chunk schema",
-                ~column.Name.Quote());
+            // This is a valid case, simply skip the column.
+            continue;
         }
 
         if (chunkColumn->Type != column.Type) {
