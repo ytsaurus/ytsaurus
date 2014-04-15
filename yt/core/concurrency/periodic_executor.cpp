@@ -55,6 +55,7 @@ void TPeriodicExecutor::ScheduleOutOfBand()
     if (Busy) {
         OutOfBandRequested = true;
     } else {
+        guard.Release();
         PostCallback();
     }
 }
@@ -69,11 +70,12 @@ void TPeriodicExecutor::ScheduleNext()
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
     // 3) Calling ScheduleNext for an invoker in automatic mode
-    YCHECK(!Busy);
+    YCHECK(Busy);
     Busy = false;
 
     if (OutOfBandRequested) {
         OutOfBandRequested = false;
+        guard.Release();
         PostCallback();
     } else {
         PostDelayedCallback(Period);
