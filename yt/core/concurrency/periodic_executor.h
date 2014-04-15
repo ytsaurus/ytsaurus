@@ -59,13 +59,17 @@ private:
     EPeriodicExecutorMode Mode;
     TDuration Splay;
 
-    TAtomic Started;
-    TAtomic Busy;
-    TAtomic OutOfBandRequested;
+    TSpinLock SpinLock;
+    bool Started;
+    bool Busy;
+    bool OutOfBandRequested;
     TDelayedExecutor::TCookie Cookie;
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();
+
+    void OnCallbackSuccess();
+    void OnCallbackFailure();
 
 };
 

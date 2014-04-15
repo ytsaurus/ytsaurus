@@ -4,6 +4,8 @@
 #include <core/actions/invoker_util.h>
 #include <core/actions/bind.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <util/random/random.h>
 
 namespace NYT {
@@ -29,27 +31,29 @@ TPeriodicExecutor::TPeriodicExecutor(
 
 void TPeriodicExecutor::Start()
 {
-    if (!AtomicCas(&Started, true, false))
+    TGuard<TSpinLock> guard(SpinLock);
+    if (Started)
         return;
-
+    Started = true;
     PostDelayedCallback(RandomDuration(Splay));
 }
 
 void TPeriodicExecutor::Stop()
 {
-    if (!AtomicCas(&Started, false, true))
+    TGuard<TSpinLock> guard(SpinLock);
+    if (!Started)
         return;
-
+    Started = false;
     TDelayedExecutor::CancelAndClear(Cookie);
 }
 
 void TPeriodicExecutor::ScheduleOutOfBand()
 {
-    if (!AtomicGet(Started))
+    TGuard<TSpinLock> guard(SpinLock);
+    if (!Started)
         return;
-
-    if (AtomicGet(Busy)) {
-        AtomicSet(OutOfBandRequested, true);
+    if (Busy) {
+        OutOfBandRequested = true;
     } else {
         PostCallback();
     }
@@ -57,16 +61,19 @@ void TPeriodicExecutor::ScheduleOutOfBand()
 
 void TPeriodicExecutor::ScheduleNext()
 {
-    if (!AtomicGet(Started))
+    TGuard<TSpinLock> guard(SpinLock);    
+    if (!Started)
         return;
 
     // There several reasons why this may fail:
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
     // 3) Calling ScheduleNext for an invoker in automatic mode
-    YCHECK(AtomicCas(&Busy, false, true));
+    YCHECK(Busy);
+    Busy = false;
 
-    if (AtomicCas(&OutOfBandRequested, false, true)) {
+    if (OutOfBandRequested) {
+        OutOfBandRequested = false;
         PostCallback();
     } else {
         PostDelayedCallback(Period);
@@ -75,6 +82,7 @@ void TPeriodicExecutor::ScheduleNext()
 
 void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
 {
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
     TDelayedExecutor::CancelAndClear(Cookie);
     Cookie = TDelayedExecutor::Submit(
         BIND(&TPeriodicExecutor::PostCallback, MakeStrong(this)),
@@ -84,19 +92,35 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
 void TPeriodicExecutor::PostCallback()
 {
     auto this_ = MakeStrong(this);
-    bool result = Invoker->Invoke(BIND([this, this_] () {
-        if (AtomicGet(Started) && !AtomicGet(Busy)) {
-            AtomicSet(Busy, true);
-            TDelayedExecutor::CancelAndClear(Cookie);
-            Callback.Run();
-            if (Mode == EPeriodicExecutorMode::Automatic) {
-                ScheduleNext();
-            }
-        }
-    }));
+    bool result = Invoker->Invoke(BIND(&TPeriodicExecutor::OnCallbackSuccess, this_));
     if (!result) {
-        PostDelayedCallback(Period);
+    	OnCallbackFailure();
     }
+}
+
+void TPeriodicExecutor::OnCallbackSuccess()
+{
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (!Started || Busy)
+            return;
+        Busy = true;
+        TDelayedExecutor::CancelAndClear(Cookie);                
+    }
+
+    Callback.Run();
+    
+    if (Mode == EPeriodicExecutorMode::Automatic) {
+        ScheduleNext();
+    }
+}
+
+void TPeriodicExecutor::OnCallbackFailure()
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    if (!Started)
+        return;
+    PostDelayedCallback(Period);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
