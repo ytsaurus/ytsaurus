@@ -7,42 +7,22 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TActionQueue;
-typedef TIntrusivePtr<TActionQueue> TActionQueuePtr;
+DECLARE_REFCOUNTED_CLASS(TActionQueue)
+DECLARE_REFCOUNTED_CLASS(TFairShareActionQueue)
+DECLARE_REFCOUNTED_CLASS(TThreadPool)
+DECLARE_REFCOUNTED_CLASS(TParallelAwaiter)
+DECLARE_REFCOUNTED_CLASS(TPeriodicExecutor)
+DECLARE_REFCOUNTED_CLASS(TFiber)
 
-class TFairShareActionQueue;
-typedef TIntrusivePtr<TFairShareActionQueue> TFairShareActionQueuePtr;
+DECLARE_REFCOUNTED_CLASS(TThroughputThrottlerConfig)
+DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)
 
-class TPrioritizedActionQueue;
-typedef TIntrusivePtr<TPrioritizedActionQueue> TPrioritizedActionQueuePtr;
-
-class TThreadPool;
-typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
-
-class TParallelAwaiter;
-typedef TIntrusivePtr<TParallelAwaiter> TParallelAwaiterPtr;
-
-class TPeriodicExecutor;
-typedef TIntrusivePtr<TPeriodicExecutor> TPeriodicExecutorPtr;
-
-class TThroughputThrottlerConfig;
-typedef TIntrusivePtr<TThroughputThrottlerConfig> TThroughputThrottlerConfigPtr;
-
-struct IThroughputThrottler;
-typedef TIntrusivePtr<IThroughputThrottler> IThroughputThrottlerPtr;
+DECLARE_REFCOUNTED_STRUCT(IAsyncInputStream)
+DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)
 
 class TAsyncSemaphore;
 
-struct IAsyncInputStream;
-typedef TIntrusivePtr<IAsyncInputStream> IAsyncInputStreamPtr;
-
-struct IAsyncOutputStream;
-typedef TIntrusivePtr<IAsyncOutputStream> IAsyncOutputStreamPtr;
-
-class TFiber;
-typedef TIntrusivePtr<TFiber> TFiberPtr;
-
-template <class Signature>
+template <class TSignature>
 class TCoroutine;
 
 ////////////////////////////////////////////////////////////////////////////////

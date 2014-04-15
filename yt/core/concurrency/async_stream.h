@@ -36,6 +36,8 @@ struct IAsyncInputStream
     virtual TAsyncError GetReadyEvent() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IAsyncInputStream)
+
 std::unique_ptr<TInputStream> CreateSyncInputStream(IAsyncInputStreamPtr asyncStream);
 IAsyncInputStreamPtr CreateAsyncInputStream(TInputStream* syncStream);
 
@@ -59,6 +61,8 @@ struct IAsyncOutputStream
 
     virtual TAsyncError GetReadyEvent() = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
 
 std::unique_ptr<TOutputStream> CreateSyncOutputStream(IAsyncOutputStreamPtr asyncStream);
 IAsyncOutputStreamPtr CreateAsyncOutputStream(TOutputStream* asyncStream);

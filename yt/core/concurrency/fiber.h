@@ -72,6 +72,8 @@ private:
     static void Trampoline(void*);
 };
 
+DEFINE_REFCOUNTED_TYPE(TFiber)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
