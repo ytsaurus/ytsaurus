@@ -165,6 +165,9 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 
 TTimestamp TChunkStore::GetLatestCommitTimestamp(TKey key)
 {
+    // TODO(babenko): fixme
+    return NullTimestamp;
+    
     if (key < MinKey_.Get() || key > MaxKey_.Get()) {
         return NullTimestamp;
     }
