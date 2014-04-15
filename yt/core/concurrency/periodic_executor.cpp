@@ -70,7 +70,7 @@ void TPeriodicExecutor::ScheduleNext()
     // 2) Calling ScheduleNext more than once
     // 3) Calling ScheduleNext for an invoker in automatic mode
     YCHECK(!Busy);
-    Busy = true;
+    Busy = false;
 
     if (OutOfBandRequested) {
         OutOfBandRequested = false;
