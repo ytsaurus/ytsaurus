@@ -352,11 +352,11 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
 
 bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
 {
+    auto cookie = EventCount->PrepareWait();
+
     if (!IsRunning()) {
         return false;
     }
-
-    auto cookie = EventCount->PrepareWait();
 
     // CancelWait must be called within BeginExecute, if needed.
     auto result = BeginExecute();
