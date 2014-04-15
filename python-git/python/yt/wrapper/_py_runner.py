@@ -76,11 +76,13 @@ def main():
         __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: extract_key(rec, __keys, __input_format))))
 
     if is_raw:
-        sys.stdout.writelines(__result)
+        for line in __result:
+            sys.stdout.write(line)
     elif isinstance(__output_format, yt.YsonFormat):
         yson.dump(process_output_table_index(__result), sys.stdout, yson_type="list_fragment")
     else:
-        sys.stdout.writelines(itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result))
+        for line in itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result):
+            sys.stdout.write(line)
 
 if __name__ == "__main__":
     main()
