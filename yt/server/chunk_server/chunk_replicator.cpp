@@ -238,7 +238,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         int replicaCount = result.ReplicaCount[index];
         int decommissionedReplicaCount = result.DecommissionedReplicaCount[index];
         
-        if (replicaCount == 1 && decommissionedReplicaCount > 0) {
+        if (replicaCount >= 1 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Overreplicated;
             const auto& replicas = decommissionedReplicas[index];
             result.DecommissionedRemovalRequests.append(replicas.begin(), replicas.end());
