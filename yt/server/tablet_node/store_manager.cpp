@@ -302,7 +302,8 @@ TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
          it != LatestTimestampToStore_.rend() && it->first > startTimestamp;
          ++it)
     {
-        const auto& store = it->second;
+        // NB: Hold by value, LatestTimestampToStore_ may be changed in a concurrent fiber. 
+        auto store = it->second;
 
         if (!logged && store->GetType() == EStoreType::Chunk) {
             LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %s, StartTimestamp: %" PRIu64 ")",
