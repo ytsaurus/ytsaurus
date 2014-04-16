@@ -9,22 +9,18 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages delayed action execution.
+//! Manages delayed callback execution.
 class TDelayedExecutor
 {
 public:
-    struct TEntryBase
-        : public TIntrinsicRefCounted
-    { };
-
     //! An opaque token.
-    typedef TIntrusivePtr<TEntryBase> TCookie;
+    typedef TDelayedExecutorEntryPtr TCookie;
 
-    //! Submits an action for execution after a given delay.
-    static TCookie Submit(TClosure action, TDuration delay);
+    //! Submits #callback for execution after a given #delay.
+    static TCookie Submit(TClosure callback, TDuration delay);
 
-    //! Submits an action for execution at a given deadline time.
-    static TCookie Submit(TClosure action, TInstant deadline);
+    //! Submits #callback for execution at a given #deadline.
+    static TCookie Submit(TClosure callback, TInstant deadline);
 
     //! Cancels an earlier scheduled execution.
     /*!
