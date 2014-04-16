@@ -12,9 +12,9 @@ int GetByteSize(const TVersionedValue& value)
     return GetByteSize(static_cast<TUnversionedValue>(value)) + MaxVarInt64Size;
 }
 
-int GetDataWeigth(const TVersionedValue& value)
+int GetDataWeight(const TVersionedValue& value)
 {
-    return GetDataWeigth(static_cast<TUnversionedValue>(value)) + sizeof(TTimestamp);
+    return GetDataWeight(static_cast<TUnversionedValue>(value)) + sizeof(TTimestamp);
 }
 
 int WriteValue(char* output, const TVersionedValue& value)
@@ -62,7 +62,7 @@ size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount)
         sizeof(TTimestamp) * timestampCount;
 }
 
-i64 GetDataWeigth(TVersionedRow row)
+i64 GetDataWeight(TVersionedRow row)
 {
     i64 result = 0;
     result += std::accumulate(
@@ -70,7 +70,7 @@ i64 GetDataWeigth(TVersionedRow row)
         row.EndValues(),
         0,
         [] (i64 x, const TVersionedValue& value) {
-            return GetDataWeigth(value) + x;
+            return GetDataWeight(value) + x;
         });
 
     result += std::accumulate(
@@ -78,7 +78,7 @@ i64 GetDataWeigth(TVersionedRow row)
         row.EndKeys(),
         0,
         [] (i64 x, const TUnversionedValue& value) {
-            return GetDataWeigth(value) + x;
+            return GetDataWeight(value) + x;
         });
 
     result += row.GetTimestampCount() * sizeof(TTimestamp);

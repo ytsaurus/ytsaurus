@@ -56,7 +56,7 @@ int GetByteSize(const TUnversionedValue& value)
     return result;
 }
 
-int GetDataWeigth(const TUnversionedValue &value)
+int GetDataWeight(const TUnversionedValue &value)
 {
     switch (value.Type) {
         case EValueType::Null:
@@ -503,14 +503,14 @@ size_t GetUnversionedRowDataSize(int valueCount)
     return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
 }
 
-i64 GetDataWeigth(TUnversionedRow row)
+i64 GetDataWeight(TUnversionedRow row)
 {
     return std::accumulate(
         row.Begin(),
         row.End(),
         0,
         [] (i64 x, const TUnversionedValue& value) {
-            return GetDataWeigth(value) + x;
+            return GetDataWeight(value) + x;
         });
 }
 

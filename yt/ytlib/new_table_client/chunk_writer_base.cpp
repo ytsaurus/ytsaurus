@@ -95,13 +95,13 @@ TDataStatistics TChunkWriterBase::GetDataStatistics() const
 
 void TChunkWriterBase::OnRow(TVersionedRow row)
 {
-    DataWeight_ += GetDataWeigth(row);
+    DataWeight_ += GetDataWeight(row);
     OnRow(row.BeginKeys(), row.EndKeys());
 }
 
 void TChunkWriterBase::OnRow(TUnversionedRow row)
 {
-    DataWeight_ += GetDataWeigth(row);
+    DataWeight_ += GetDataWeight(row);
     OnRow(row.Begin(), row.End());
 }
 

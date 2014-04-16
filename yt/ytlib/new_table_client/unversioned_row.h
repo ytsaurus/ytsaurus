@@ -100,7 +100,7 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetByteSize(const TUnversionedValue& value);
-int GetDataWeigth(const TUnversionedValue& value);
+int GetDataWeight(const TUnversionedValue& value);
 int WriteValue(char* output, const TUnversionedValue& value);
 int ReadValue(const char* input, TUnversionedValue* value);
 
@@ -172,7 +172,7 @@ size_t GetHash(TUnversionedRow row);
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
 size_t GetUnversionedRowDataSize(int valueCount);
 
-i64 GetDataWeigth(TUnversionedRow row);
+i64 GetDataWeight(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

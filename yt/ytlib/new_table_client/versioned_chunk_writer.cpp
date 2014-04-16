@@ -217,7 +217,7 @@ void TVersionedChunkWriter::WriteRow(
     }
 
     ++RowCount_;
-    DataWeight_ += GetDataWeigth(row);
+    DataWeight_ += GetDataWeight(row);
     BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
 }
 
