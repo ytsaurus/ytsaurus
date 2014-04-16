@@ -169,7 +169,7 @@ public:
 
     TStoreFlusherConfig()
     {
-        RegisterParameter("flush_thread_pool_size", ThreadPoolSize)
+        RegisterParameter("thread_pool_size", ThreadPoolSize)
             .GreaterThan(0)
             .Default(1);
         RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
