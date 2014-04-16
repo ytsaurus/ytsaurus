@@ -11,6 +11,7 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +139,20 @@ TSharedRefArray SetResponseHeader(TSharedRefArray message, const NProto::TRespon
     parts[0] = headerData;
 
     return TSharedRefArray(parts);
+}
+
+void MergeRequestHeaderExtensions(
+    NProto::TRequestHeader* to,
+    const NProto::TRequestHeader& from)
+{
+#define X(name) \
+    if (from.HasExtension(name)) { \
+        to->SetExtension(name, from.GetExtension(name)); \
+    }
+
+    X(TAuthenticatedExt::authenticated_ext)
+
+#undef X
 }
 
 ////////////////////////////////////////////////////////////////////////////////

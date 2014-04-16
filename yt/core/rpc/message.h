@@ -49,6 +49,10 @@ TSharedRefArray SetResponseHeader(
     TSharedRefArray message,
     const NProto::TResponseHeader& header);
 
+void MergeRequestHeaderExtensions(
+    NProto::TRequestHeader* to,
+    const NProto::TRequestHeader& from);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc
