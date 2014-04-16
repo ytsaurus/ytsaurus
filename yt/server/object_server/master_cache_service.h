@@ -2,20 +2,18 @@
 
 #include "public.h"
 
+#include <core/rpc/public.h>
+
 namespace NYT {
-namespace NRpc {
+namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RedirectServiceRequest(
-    IServiceContextPtr context,
-    IChannelPtr channel);
-
-IServicePtr CreateRedirectorService(
-    const TServiceId& serviceId,
-    IChannelPtr sinkChannel);
+NRpc::IServicePtr CreateMasterCacheService(
+    TMasterCacheServiceConfigPtr config,
+    NRpc::IChannelPtr masterChannel);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
+} // namespace NObjectServer
 } // namespace NYT

@@ -262,6 +262,8 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
 
+DEFINE_REFCOUNTED_TYPE(TObjectManager)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer

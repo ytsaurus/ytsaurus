@@ -23,11 +23,13 @@ public:
         TRemoteTimestampProviderConfigPtr config,
         IChannelFactoryPtr channelFactory)
         : Config_(config)
-        , Channel_(CreateBalancingChannel(config, channelFactory))
-        , Proxy_(Channel_)
         , RequestInProgress_(false)
         , LatestTimestamp_(MinTimestamp)
-    { }
+    {
+        auto channel = CreateBalancingChannel(config, channelFactory);
+        channel->SetDefaultTimeout(Config_->RpcTimeout);
+        Proxy_ = std::make_unique<TTimestampServiceProxy>(channel);
+    }
 
     virtual TFuture<TErrorOr<TTimestamp>> GenerateTimestamps(int count) override
     {
@@ -61,8 +63,7 @@ public:
 private:
     TRemoteTimestampProviderConfigPtr Config_;
 
-    IChannelPtr Channel_;
-    TTimestampServiceProxy Proxy_;
+    std::unique_ptr<TTimestampServiceProxy> Proxy_;
 
     struct TRequest
     {
@@ -89,7 +90,7 @@ private:
             count += request.Count;
         }
 
-        auto req = Proxy_.GenerateTimestamps();
+        auto req = Proxy_->GenerateTimestamps();
         req->set_count(count);
 
         RequestInProgress_ = true;

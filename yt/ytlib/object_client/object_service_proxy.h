@@ -23,6 +23,7 @@ public:
 
     explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
 
+    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
 
     //! Executes a single typed request.
@@ -220,10 +221,6 @@ public:
 
     //! Executes a batched Cypress request.
     TReqExecuteBatchPtr ExecuteBatch();
-
-private:
-    // The back-end.
-    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
 
 };
 

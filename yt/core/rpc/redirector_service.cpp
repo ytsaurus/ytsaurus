@@ -99,13 +99,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef TCallback<void(TSharedRefArray)> TResponseMessageHandler;
+
 class TRedirectedResponseHandler
     : public IClientResponseHandler
 {
 public:
-    TRedirectedResponseHandler(IClientRequestPtr request, IBusPtr replyBus)
+    TRedirectedResponseHandler(
+        IClientRequestPtr request,
+        TResponseMessageHandler responseMessageHandler)
         : Request(request)
-        , ReplyBus(replyBus)
+        , ResponseMessageHandler(responseMessageHandler)
     { }
 
     virtual void OnAcknowledgement() override
@@ -119,7 +123,7 @@ public:
         LOG_DEBUG("Response for redirected request received (RequestId: %s)",
             ~ToString(Request->GetRequestId()));
 
-        ReplyBus->Send(message, EDeliveryTrackingLevel::None);
+        ResponseMessageHandler.Run(std::move(message));
     }
 
     virtual void OnError(const TError& error) override
@@ -128,14 +132,40 @@ public:
             ~ToString(Request->GetRequestId()));
 
         auto message = CreateErrorResponseMessage(Request->GetRequestId(), error);
-        ReplyBus->Send(message, EDeliveryTrackingLevel::None);
+        ResponseMessageHandler.Run(std::move(message));
     }
 
 private:
     IClientRequestPtr Request;
-    IBusPtr ReplyBus;
+    TResponseMessageHandler ResponseMessageHandler;
 
 };
+
+void DoRedirectServiceRequest(
+    std::unique_ptr<NProto::TRequestHeader> requestHeader,
+    TSharedRefArray requestMessage,
+    TResponseMessageHandler responseMessageHandler,
+    IChannelPtr channel)
+{
+    auto request = New<TRedirectedRequest>(
+        std::move(requestHeader),
+        std::move(requestMessage));
+
+    LOG_DEBUG("Redirected request sent (RequestId: %s, Method: %s:%s)",
+            ~ToString(request->GetRequestId()),
+            ~request->GetService(),
+            ~request->GetMethod());
+
+    auto responseHandler = New<TRedirectedResponseHandler>(
+        request,
+        responseMessageHandler);
+
+    channel->Send(
+        request,
+        responseHandler,
+        Null,
+        true);
+}
 
 } // namespace
 
@@ -157,21 +187,15 @@ public:
         TSharedRefArray message,
         IBusPtr replyBus) override
     {
-        auto request = New<TRedirectedRequest>(
+        auto responseMessageHandler = BIND([=] (TSharedRefArray message) {
+            replyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
+        });
+
+        DoRedirectServiceRequest(
             std::move(header),
-            std::move(message));
-
-        LOG_DEBUG("Redirecting request (RequestId: %s, Service: %s, Method: %s)",
-            ~ToString(request->GetRequestId()),
-            ~request->GetService(),
-            ~request->GetMethod());
-
-        auto responseHandler = New<TRedirectedResponseHandler>(request, replyBus);
-        SinkChannel->Send(
-            request,
-            responseHandler,
-            Null,
-            true);
+            std::move(message),
+            std::move(responseMessageHandler),
+            SinkChannel);
     }
 
     virtual TServiceId GetServiceId() const override
@@ -198,6 +222,25 @@ IServicePtr CreateRedirectorService(
     YCHECK(sinkChannel);
 
     return New<TRedirectorService>(serviceId, sinkChannel);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RedirectServiceRequest(
+    IServiceContextPtr context,
+    IChannelPtr channel)
+{
+    auto requestHeader = std::make_unique<NProto::TRequestHeader>(context->RequestHeader());
+
+    auto responseMessageHandler = BIND([=] (TSharedRefArray message) {
+        context->Reply(std::move(message));
+    });
+
+    DoRedirectServiceRequest(
+        std::move(requestHeader),
+        context->GetRequestMessage(),
+        std::move(responseMessageHandler),
+        std::move(channel));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

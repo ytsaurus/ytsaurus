@@ -19,6 +19,8 @@ struct IObjectProxy
     virtual const TObjectId& GetId() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IObjectProxy)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer

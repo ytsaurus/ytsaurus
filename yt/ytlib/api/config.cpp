@@ -26,8 +26,11 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 TConnectionConfig::TConnectionConfig()
 {
-    RegisterParameter("masters", Masters);
-    RegisterParameter("timestamp_provider", TimestampProvider);
+    RegisterParameter("master", Master);
+    RegisterParameter("timestamp_provider", TimestampProvider)
+        .Default(nullptr);
+    RegisterParameter("master_cache", MasterCache)
+        .Default(nullptr);
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();
     RegisterParameter("scheduler", Scheduler)

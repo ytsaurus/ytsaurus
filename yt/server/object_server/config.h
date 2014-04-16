@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/rpc/config.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -32,6 +34,27 @@ public:
             .Default(TDuration::MilliSeconds(10));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterCacheServiceConfig
+    : public NRpc::TThrottlingChannelConfig
+{
+public:
+    //! Maximum amount of space to use for storing cached responses.
+    i64 MaxSpace;
+
+    TMasterCacheServiceConfig()
+    {
+        RegisterParameter("max_space", MaxSpace)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterCacheServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

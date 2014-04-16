@@ -93,7 +93,7 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting scheduler (LocalAddress: %s, MasterAddresses: [%s])",
         ~LocalAddress,
-        ~JoinToString(Config->ClusterConnection->Masters->Addresses));
+        ~JoinToString(Config->ClusterConnection->Master->Addresses));
 
     auto connection = CreateConnection(Config->ClusterConnection);
     MasterClient = CreateClient(connection);

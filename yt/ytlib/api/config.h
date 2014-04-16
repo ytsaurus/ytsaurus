@@ -45,8 +45,9 @@ class TConnectionConfig
     : public virtual TYsonSerializable
 {
 public:
-    TMasterConnectionConfigPtr Masters;
+    TMasterConnectionConfigPtr Master;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    TMasterConnectionConfigPtr MasterCache;
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;

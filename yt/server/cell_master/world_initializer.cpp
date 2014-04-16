@@ -245,7 +245,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            for (const auto& address : Config->Masters->Addresses) {
+            for (const auto& address : Config->Master->Addresses) {
                 auto addressPath = "/" + ToYPathLiteral(address);
 
                 CreateNode(

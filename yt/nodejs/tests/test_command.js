@@ -53,10 +53,7 @@ function stubDriver(echo)
         "high_watermark": 200,
         "proxy": {
             "driver": {
-                "masters": {
-                    "addresses": [ "localhost:0" ]
-                },
-                "timestamp_provider": {
+                "master": {
                     "addresses": [ "localhost:0" ]
                 }
             },

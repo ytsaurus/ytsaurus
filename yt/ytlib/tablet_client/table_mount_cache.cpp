@@ -5,6 +5,8 @@
 
 #include <core/misc/string.h>
 
+#include <core/ytree//ypath.pb.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -20,6 +22,7 @@
 namespace NYT {
 namespace NTabletClient {
 
+using namespace NYTree::NProto;
 using namespace NYPath;
 using namespace NRpc;
 using namespace NObjectClient;
@@ -147,6 +150,10 @@ private:
             ~path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
+        auto* cachingHeaderExt = req->Header().MutableExtension(TCachingHeaderExt::caching_header_ext);
+        cachingHeaderExt->set_success_expiration_time(Config_->SuccessExpirationTime.MilliSeconds());
+        cachingHeaderExt->set_failure_expiration_time(Config_->FailureExpirationTime.MilliSeconds());
+
         ObjectProxy_.Execute(req).Subscribe(
             BIND(&TImpl::OnTableMountInfoResponse, MakeStrong(this), path));
     }

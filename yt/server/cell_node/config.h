@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <core/rpc/config.h>
-
 #include <ytlib/api/config.h>
 
 #include <server/misc/config.h>
@@ -13,6 +11,8 @@
 #include <server/tablet_node/config.h>
 
 #include <server/query_agent/config.h>
+
+#include <server/object_server/config.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -44,8 +44,9 @@ public:
     //! Query node configuration part.
     NQueryAgent::TQueryAgentConfigPtr QueryAgent;
 
-    //! Throttling configuration for jobs-to-master communication.
-    NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
+    //! Metadata cache service configuration.
+    NObjectServer::TMasterCacheServiceConfigPtr MasterCache;
+
 
     TCellNodeConfig()
     {
@@ -63,7 +64,7 @@ public:
             .DefaultNew();
         RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
-        RegisterParameter("jobs_to_master_channel", JobsToMasterChannel)
+        RegisterParameter("caching_object_service", MasterCache)
             .DefaultNew();
 
         SetKeepOptions(true);

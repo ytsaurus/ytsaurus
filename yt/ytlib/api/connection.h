@@ -31,6 +31,7 @@ struct IConnection
 {
     virtual TConnectionConfigPtr GetConfig() = 0;
     virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    virtual NRpc::IChannelPtr GetMasterCacheChannel() = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;

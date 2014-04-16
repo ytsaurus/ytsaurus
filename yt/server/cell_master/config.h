@@ -50,7 +50,7 @@ class TCellMasterConfig
     : public TServerConfig
 {
 public:
-    TMasterCellConfigPtr Masters;
+    TMasterCellConfigPtr Master;
 
     NHydra::TFileChangelogStoreConfigPtr Changelogs;
     NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
@@ -87,7 +87,7 @@ public:
 
     TCellMasterConfig()
     {
-        RegisterParameter("masters", Masters);
+        RegisterParameter("master", Master);
         RegisterParameter("changelogs", Changelogs);
         RegisterParameter("snapshots", Snapshots);
         RegisterParameter("hydra_manager", HydraManager)

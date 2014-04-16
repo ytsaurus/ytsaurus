@@ -61,7 +61,7 @@ class Master(WinNode, Server):
         params = Template('--master --config %(config_path)s')
 
         config = Template({
-                'masters' : {
+                'master' : {
                     'addresses' : MasterAddresses
                 },
                 'timestamp_provider' : {
@@ -104,7 +104,7 @@ class Holder(WinNode, Server):
 
         config = Template({
             'cluster_connection' : {
-                'masters' : {
+                'master' : {
                     'addresses' : MasterAddresses
                 },
                 'timestamp_provider' : {

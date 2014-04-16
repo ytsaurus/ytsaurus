@@ -120,6 +120,8 @@ struct IObjectTypeHandler
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer

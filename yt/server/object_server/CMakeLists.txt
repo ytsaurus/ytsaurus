@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
   ${BASE}/type_handler.cpp
+  ${BASE}/master_cache_service.cpp
 )
 set( HDRS
   ${BASE}/attribute_set.h
@@ -27,6 +28,7 @@ set( HDRS
   ${BASE}/schema.h
   ${BASE}/type_handler.h
   ${BASE}/type_handler_detail.h
+  ${BASE}/master_cache_service.h
 )
 
 list(APPEND YT_SOURCE_FILES

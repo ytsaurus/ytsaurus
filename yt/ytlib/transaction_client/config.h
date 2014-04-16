@@ -31,7 +31,17 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 class TRemoteTimestampProviderConfig
     : public NRpc::TBalancingChannelConfig
-{ };
+{
+public:
+    //! Timeout for RPC requests to timestamp provider.
+    TNullable<TDuration> RpcTimeout;
+
+    TRemoteTimestampProviderConfig()
+    {
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(3));
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)
 

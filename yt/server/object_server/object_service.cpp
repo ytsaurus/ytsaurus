@@ -16,11 +16,14 @@
 
 #include <ytlib/hydra/rpc_helpers.h>
 
+#include <ytlib/object_client/object_service_proxy.h>
+
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_service.h>
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
@@ -46,6 +49,44 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = ObjectServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectService
+    : public NCellMaster::THydraServiceBase
+{
+public:
+    TObjectService(
+        TObjectManagerConfigPtr config,
+        TBootstrap* bootstrap)
+        : THydraServiceBase(
+            bootstrap,
+            NObjectClient::TObjectServiceProxy::GetServiceName(),
+            ObjectServerLogger.GetCategory())
+        , Config(config)
+    {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
+    }
+
+private:
+    class TExecuteSession;
+
+    TObjectManagerConfigPtr Config;
+
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
+
+};
+
+IServicePtr CreateObjectService(
+    TObjectManagerConfigPtr config,
+    TBootstrap* bootstrap)
+{
+    return New<TObjectService>(
+        config,
+        bootstrap);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,19 +372,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TObjectService::TObjectService(
-    TObjectManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : THydraServiceBase(
-        bootstrap,
-        NObjectClient::TObjectServiceProxy::GetServiceName(),
-        ObjectServerLogger.GetCategory())
-    , Config(config)
-{
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
-}
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {

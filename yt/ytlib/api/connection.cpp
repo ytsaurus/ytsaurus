@@ -31,6 +31,7 @@
 
 #include <ytlib/transaction_client/timestamp_provider.h>
 #include <ytlib/transaction_client/remote_timestamp_provider.h>
+#include <ytlib/transaction_client/config.h>
 
 #include <ytlib/driver/dispatcher.h>
 
@@ -138,38 +139,44 @@ public:
     explicit TConnection(TConnectionConfigPtr config)
         : Config_(config)
     {
-        auto channelFactory = GetBusChannelFactory();
+        MasterChannel_ = CreateMasterChannel(Config_->Master);
 
-        auto leaderChannel = CreateLeaderChannel(
-            Config_->Masters,
-            channelFactory);
-        MasterChannel_ = CreateRetryingChannel(
-            Config_->Masters,
-            leaderChannel);
-        MasterChannel_->SetDefaultTimeout(Config_->Masters->RpcTimeout);
+        auto timestampProviderConfig = Config_->TimestampProvider;
+        if (!timestampProviderConfig) {
+            // Use masters for timestamp generation.
+            timestampProviderConfig = New<TRemoteTimestampProviderConfig>();
+            timestampProviderConfig->Addresses = Config_->Master->Addresses;
+            timestampProviderConfig->RpcTimeout = Config_->Master->RpcTimeout;
+        }
+        TimestampProvider_ = CreateRemoteTimestampProvider(
+            timestampProviderConfig,
+            GetBusChannelFactory());
+
+        auto masterCacheConfig = Config_->MasterCache;
+        if (!masterCacheConfig) {
+            // Disable cache.
+            masterCacheConfig = Config_->Master;
+        }
+        MasterCacheChannel_ = CreateMasterChannel(masterCacheConfig);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
-            channelFactory,
+            GetBusChannelFactory(),
             MasterChannel_);
 
         NodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
-        TimestampProvider_ = CreateRemoteTimestampProvider(
-            Config_->TimestampProvider,
-            channelFactory);
-
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
-            channelFactory);
-        CellDirectory_->RegisterCell(config->Masters);
+            GetBusChannelFactory());
+        CellDirectory_->RegisterCell(config->Master);
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache);
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
-            MasterChannel_,
+            MasterCacheChannel_,
             CellDirectory_);
     }
 
@@ -184,6 +191,11 @@ public:
     virtual IChannelPtr GetMasterChannel() override
     {
         return MasterChannel_;
+    }
+
+    virtual IChannelPtr GetMasterCacheChannel() override
+    {
+        return MasterCacheChannel_;
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -324,12 +336,27 @@ private:
     TConnectionConfigPtr Config_;
 
     IChannelPtr MasterChannel_;
+    IChannelPtr MasterCacheChannel_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
     IBlockCachePtr BlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
+
+
+    static IChannelPtr CreateMasterChannel(TMasterConnectionConfigPtr config)
+    {
+        auto leaderChannel = CreateLeaderChannel(
+            config,
+            GetBusChannelFactory());
+        auto masterChannel = CreateRetryingChannel(
+            config,
+            leaderChannel);
+        masterChannel->SetDefaultTimeout(config->RpcTimeout);
+        return masterChannel;
+    }
+
 
     TDataSplit DoGetInitialSplit(
         const TYPath& path,

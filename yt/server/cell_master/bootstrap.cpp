@@ -128,12 +128,12 @@ TBootstrap::~TBootstrap()
 
 const TCellGuid& TBootstrap::GetCellGuid() const
 {
-    return Config->Masters->CellGuid;
+    return Config->Master->CellGuid;
 }
 
 ui16 TBootstrap::GetCellId() const
 {
-    return Config->Masters->CellId;
+    return Config->Master->CellId;
 }
 
 TCellMasterConfigPtr TBootstrap::GetConfig() const
@@ -250,7 +250,7 @@ void TBootstrap::Run()
         TAddressResolver::Get()->GetLocalHostName(),
         Config->RpcPort);
 
-    const auto& addresses = Config->Masters->Addresses;
+    const auto& addresses = Config->Master->Addresses;
 
     auto selfId = std::distance(
         addresses.begin(),
@@ -262,7 +262,7 @@ void TBootstrap::Run()
     }
 
     CellManager = New<TCellManager>(
-        Config->Masters,
+        Config->Master,
         GetBusChannelFactory(),
         selfId);
 
@@ -286,7 +286,7 @@ void TBootstrap::Run()
     CellDirectory = New<TCellDirectory>(
         Config->CellDirectory,
         GetBusChannelFactory());
-    CellDirectory->RegisterCell(Config->Masters);
+    CellDirectory->RegisterCell(Config->Master);
 
     HiveManager = New<THiveManager>(
         GetCellGuid(),
@@ -371,7 +371,7 @@ void TBootstrap::Run()
 
     RpcServer->RegisterService(timestampManager->GetRpcService());
     RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore));
-    RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
+    RpcServer->RegisterService(CreateObjectService(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
     RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));
     RpcServer->RegisterService(CreateJobTrackerService(this));

@@ -21,11 +21,11 @@ using NObjectClient::NullTransactionId;
 
 struct IObjectResolver;
 
-class TObjectManager;
-typedef TIntrusivePtr<TObjectManager> TObjectManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TObjectManager)
+DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
-class TObjectManagerConfig;
-typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterCacheServiceConfig)
 
 class TObjectBase;
 class TNonversionedObjectBase;
@@ -40,17 +40,8 @@ class TNonversionedObjectBase;
 class TSchemaObject;
 class TMasterObject;
 
-struct IObjectProxy;
-typedef TIntrusivePtr<IObjectProxy> IObjectProxyPtr;
-
-struct IObjectTypeHandler;
-typedef TIntrusivePtr<IObjectTypeHandler> IObjectTypeHandlerPtr;
-
-class TObjectService;
-typedef TIntrusivePtr<TObjectService> TObjectServicePtr;
-
-class TGarbageCollector;
-typedef TIntrusivePtr<TGarbageCollector> TGarbageCollectorPtr;
+DECLARE_REFCOUNTED_STRUCT(IObjectProxy)
+DECLARE_REFCOUNTED_STRUCT(IObjectTypeHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

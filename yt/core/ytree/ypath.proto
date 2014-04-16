@@ -18,6 +18,19 @@ message TYPathHeaderExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TCachingHeaderExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TCachingHeaderExt caching_header_ext = 105;
+    }
+
+    required int32 success_expiration_time = 1;
+    required int32 failure_expiration_time = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TAttributeFilter
 {
     required int32 mode = 1;

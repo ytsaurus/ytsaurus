@@ -97,7 +97,7 @@ public:
             
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
-            Connection_->GetConfig()->Masters->CellGuid,
+            Connection_->GetConfig()->Master->CellGuid,
             MasterChannel_,
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());

@@ -80,6 +80,8 @@
 
 #include <server/transaction_server/timestamp_proxy_service.h>
 
+#include <server/object_server/master_cache_service.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -133,7 +135,7 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",
         ~ToString(LocalDescriptor),
-        ~JoinToString(Config->ClusterConnection->Masters->Addresses));
+        ~JoinToString(Config->ClusterConnection->Master->Addresses));
 
     {
         auto result = MemoryUsageTracker.TryAcquire(
@@ -169,15 +171,12 @@ void TBootstrap::Run()
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    auto jobToMasterChannel = CreateThrottlingChannel(
-        Config->JobsToMasterChannel,
+    auto throttlingMasterChannel = CreateThrottlingChannel(
+        Config->MasterCache,
         MasterClient->GetMasterChannel());
     RpcServer->RegisterService(CreateRedirectorService(
-        NObjectClient::TObjectServiceProxy::GetServiceName(),
-        jobToMasterChannel));
-    RpcServer->RegisterService(CreateRedirectorService(
         NChunkClient::TChunkServiceProxy::GetServiceName(),
-        jobToMasterChannel));
+        throttlingMasterChannel));
 
     ReaderCache = New<TReaderCache>(Config->DataNode);
 
@@ -290,6 +289,11 @@ void TBootstrap::Run()
 
     RpcServer->RegisterService(CreateTimestampProxyService(
         clusterConnection->GetTimestampProvider()));
+
+    RpcServer->RegisterService(
+        CreateMasterCacheService(
+            Config->MasterCache,
+            clusterConnection->GetMasterChannel()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
@@ -466,7 +470,7 @@ const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() cons
 
 const TGuid& TBootstrap::GetCellGuid() const
 {
-    return Config->ClusterConnection->Masters->CellGuid;
+    return Config->ClusterConnection->Master->CellGuid;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const
