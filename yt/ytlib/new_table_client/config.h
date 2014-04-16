@@ -17,9 +17,6 @@ public:
 
     double SampleRate;
 
-    //! Applicable to versioned chunk writer.
-    i64 MaxSizePerIndexEntry;
-
     TChunkWriterConfig()
     {
         // Block less than 1M is nonsense.
@@ -31,10 +28,6 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
             .Default(0.0001);
-
-        RegisterParameter("max_size_per_index_entry", MaxSizePerIndexEntry)
-            .GreaterThanOrEqual((i64) 1024)
-            .Default((i64)32 * 1024);
     }
 };
 

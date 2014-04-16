@@ -98,10 +98,7 @@ void TSchemalessChunkWriter<TBase>::OnClose()
 template <class TBase>
 IBlockWriter* TSchemalessChunkWriter<TBase>::CreateBlockWriter()
 {
-    CurrentBlockWriter_ = TBase::KeyColumns_.empty()
-        ? new THorizontalSchemalessBlockWriter()
-        : new THorizontalSchemalessBlockWriter(TBase::KeyColumns_.size());
-
+    CurrentBlockWriter_ = new THorizontalSchemalessBlockWriter();
     return CurrentBlockWriter_;
 }
 
