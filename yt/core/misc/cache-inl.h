@@ -372,6 +372,7 @@ template <class TKey, class TValue, class THash>
 typename TCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
 TCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
 {
+    YASSERT(ValueOrError);
     return ValueOrError;
 }
 
