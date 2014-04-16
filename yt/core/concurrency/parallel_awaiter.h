@@ -20,14 +20,12 @@ public:
     template <class T>
     void Await(
         TFuture<T> result,
-        TCallback<void(T)> onResult = TCallback<void(T)>(),
-        TClosure onCancel = TClosure());
+        TCallback<void(T)> onResult = TCallback<void(T)>());
 
     //! Specialization of #Await for |T = void|.
     void Await(
         TFuture<void> result,
-        TCallback<void()> onResult = TCallback<void()>(),
-        TClosure onCancel = TClosure());
+        TCallback<void()> onResult = TCallback<void()>());
 
     TFuture<void> Complete(TClosure onComplete = TClosure());
     
@@ -67,7 +65,7 @@ private:
     void HandleResult(TCallback<void(T)> onResult, T result);
     void HandleResult(TCallback<void()> onResult);
 
-    void HandleCancel(TClosure onCancel);
+    void HandleCancel();
 
     void HandleResponse();
 

@@ -43,8 +43,7 @@ inline bool TParallelAwaiter::TryAwait()
 template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
-    TCallback<void(T)> onResult,
-    TClosure onCancel)
+    TCallback<void(T)> onResult)
 {
     YASSERT(result);
 
@@ -55,15 +54,13 @@ void TParallelAwaiter::Await(
             Passed(std::move(onResult))));
         result.OnCanceled(BIND(
             &TParallelAwaiter::HandleCancel,
-            MakeStrong(this),
-            Passed(std::move(onCancel))));
+            MakeStrong(this)));
     }
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
-    TCallback<void(void)> onResult,
-    TClosure onCancel)
+    TCallback<void(void)> onResult)
 {
     YASSERT(result);
 
@@ -74,8 +71,7 @@ inline void TParallelAwaiter::Await(
             Passed(std::move(onResult))));
         result.OnCanceled(BIND(
             &TParallelAwaiter::HandleCancel,
-            MakeStrong(this),
-            Passed(std::move(onCancel))));
+            MakeStrong(this)));
     }
 }
 
@@ -98,13 +94,9 @@ inline void TParallelAwaiter::HandleResult(TCallback<void()> onResult)
     HandleResponse();
 }
 
-inline void TParallelAwaiter::HandleCancel(TCallback<void()> onCancel)
+inline void TParallelAwaiter::HandleCancel()
 {
-    if (onCancel) {
-        CancelableInvoker_->Invoke(onCancel);
-    }
-
-    HandleResponse();
+    Cancel();
 }
 
 inline void TParallelAwaiter::HandleResponse()
@@ -178,6 +170,7 @@ inline void TParallelAwaiter::Cancel()
         return;
 
     CancelableContext_->Cancel();
+    CompletedPromise_.Cancel();
     Canceled_ = true;
     Terminate();
 }

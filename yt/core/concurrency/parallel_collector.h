@@ -39,6 +39,7 @@ private:
 
     void OnResult(int index, TResultOrError result);
     void OnCompleted();
+    void OnCanceled();
 
     bool TryLockCompleted();
 

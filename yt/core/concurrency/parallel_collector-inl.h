@@ -82,8 +82,9 @@ void TParallelCollector<T>::Collect(TFuture<TResultOrError> future)
 template <class T>
 TFuture<typename TParallelCollector<T>::TResultsOrError> TParallelCollector<T>::Complete()
 {
-    Awaiter->Complete(
-        BIND(&TThis::OnCompleted, MakeStrong(this)));
+    auto awaiterFuture = Awaiter->Complete();
+    awaiterFuture.Subscribe(BIND(&TThis::OnCompleted, MakeStrong(this)));
+    awaiterFuture.OnCanceled(BIND(&TThis::OnCanceled, MakeStrong(this)));
     return Promise;
 }
 
@@ -107,6 +108,12 @@ void TParallelCollector<T>::OnCompleted()
     if (TryLockCompleted()) {
         Results.SetPromise(Promise);
     }
+}
+
+template <class T>
+void TParallelCollector<T>::OnCanceled()
+{
+    Promise.Cancel();
 }
 
 template <class T>
