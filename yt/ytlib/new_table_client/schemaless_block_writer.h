@@ -18,7 +18,6 @@ class THorizontalSchemalessBlockWriter
 {
 public:
     THorizontalSchemalessBlockWriter();
-    explicit THorizontalSchemalessBlockWriter(int keyColumnCount);
 
     void WriteRow(TUnversionedRow row);
 

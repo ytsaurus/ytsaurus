@@ -18,7 +18,7 @@ class TSimpleVersionedBlockReader
 {
 public:
     TSimpleVersionedBlockReader(
-        const TSharedRef& data,
+        const TSharedRef& block,
         const NProto::TBlockMeta& meta,
         const TTableSchema& chunkSchema,
         const TKeyColumns& keyColumns,
@@ -36,6 +36,8 @@ public:
     static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
 
 private:
+
+    TSharedRef Block_;
     typedef TReadOnlyBitmap<ui64> TBitmap;
 
     TSharedRef Data_;
