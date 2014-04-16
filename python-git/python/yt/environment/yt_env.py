@@ -271,7 +271,7 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[master_name][2 * i]
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
-            config['masters']['addresses'] = self._master_addresses[master_name]
+            config['master']['addresses'] = self._master_addresses[master_name]
             config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
             config['changelogs']['path'] = os.path.join(current, 'changelogs')
             config['snapshots']['path'] = os.path.join(current, 'snapshots')
@@ -336,7 +336,7 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[node_name][2 * i]
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
-            config['cluster_connection']['masters']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['cluster_connection']['master']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
 
             config['data_node']['cache_location']['path'] = \
@@ -414,7 +414,7 @@ class YTEnv(object):
         self._prepare_nodes(nodes_count, node_name)
         self.start_nodes(node_name)
 
-    def _get_balanced_timestamp_provider_addresses(self, instance_id):
+    def _get_cache_addresses(self, instance_id):
         if len(self._node_addresses["node" + instance_id]) > 0:
             return self._node_addresses["node" + instance_id]
         else:
@@ -431,8 +431,8 @@ class YTEnv(object):
             os.mkdir(current)
 
             config = configs.get_scheduler_config()
-            config['cluster_connection']['masters']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
-            config['cluster_connection']['timestamp_provider']['addresses'] = self._get_balanced_timestamp_provider_addresses(scheduler_name.replace("scheduler", "", 1))
+            config['cluster_connection']['master']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
+            config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
             config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
 
@@ -476,8 +476,9 @@ class YTEnv(object):
 
     def _prepare_driver(self, driver_name):
         config = configs.get_driver_config()
-        config['masters']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
-        config['timestamp_provider']['addresses'] = self._get_balanced_timestamp_provider_addresses(driver_name.replace("driver", "", 1))
+        config['master']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
+        config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
+        config['master_cache']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
         self.configs[driver_name] = config
         self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
@@ -503,8 +504,9 @@ class YTEnv(object):
         os.mkdir(current)
 
         driver_config = configs.get_driver_config()
-        driver_config['masters']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        driver_config['timestamp_provider']['addresses'] = self._get_balanced_timestamp_provider_addresses(proxy_name.replace("proxy", "", 1))
+        driver_config['master']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
+        driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
+        driver_config['master_cache']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
 
         proxy_config = configs.get_proxy_config()
         proxy_config['proxy']['logging'] = init_logging(proxy_config['proxy']['logging'], current, "http_proxy")
