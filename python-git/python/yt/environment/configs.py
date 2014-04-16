@@ -46,7 +46,7 @@ def get_master_config():
     return yson.loads(
 """
 {
-    masters = {
+    master = {
         addresses = [ ];
     };
 
@@ -114,7 +114,7 @@ def get_scheduler_config():
 """
 {
     cluster_connection = {
-        masters = {
+        master = {
             addresses = [ ];
         };
 
@@ -151,7 +151,7 @@ def get_node_config():
 """
 {
     cluster_connection = {
-        masters = {
+        master = {
             addresses = [];
             rpc_timeout = 5000
         };
@@ -244,13 +244,18 @@ def get_driver_config():
     return yson.loads(
 """
 {
-    masters = {
+    master = {
         addresses = [ ];
         rpc_timeout = 30000;
     };
 
     timestamp_provider = {
         addresses = [ ];
+    };
+
+    master_cache = {
+        addresses = [ ];
+        rpc_timeout = 30000;
     };
 
     transaction_manager = {
