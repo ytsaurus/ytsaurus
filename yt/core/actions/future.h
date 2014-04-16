@@ -431,6 +431,10 @@ public:
      */
     void OnCanceled(TClosure onCancel);
 
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
+
     TFuture<T> ToFuture() const;
     operator TFuture<T>() const;
 
@@ -555,6 +559,10 @@ public:
      *  #onCancel is discarded.
      */
     void OnCanceled(TClosure onCancel);
+
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
 
     TFuture<void> ToFuture() const;
     operator TFuture<void>() const;

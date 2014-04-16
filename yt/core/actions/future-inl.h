@@ -1181,6 +1181,13 @@ inline void TPromise<T>::OnCanceled(TClosure onCancel)
 }
 
 template <class T>
+inline bool TPromise<T>::Cancel()
+{
+    YASSERT(Impl_);
+    return Impl_->Cancel();
+}
+
+template <class T>
 inline TFuture<T> TPromise<T>::ToFuture() const
 {
     return TFuture<T>(Impl_);
@@ -1294,6 +1301,12 @@ inline void TPromise<void>::OnCanceled(TClosure onCancel)
 {
     YASSERT(Impl_);
     Impl_->OnCanceled(std::move(onCancel));
+}
+
+inline bool TPromise<void>::Cancel()
+{
+    YASSERT(Impl_);
+    return Impl_->Cancel();
 }
 
 inline TFuture<void> TPromise<void>::ToFuture() const
