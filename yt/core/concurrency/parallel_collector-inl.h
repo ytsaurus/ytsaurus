@@ -24,7 +24,7 @@ public:
         if (static_cast<int>(Values_.size()) <= index) {
             Values_.resize(index + 1);
         }
-        Values_[index] = std::move(valueOrError.Value());
+        Values_[index] = valueOrError.Value();
     }
 
     void SetPromise(TPromise<TResultsOrError> promise)
