@@ -527,8 +527,9 @@ private:
         tablet->SetState(ETabletState::Unmounting);
         YCHECK(UnmountingTablets_.insert(tablet).second);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Waiting for all tablet locks to be released (TabletId: %s)",
+        LOG_INFO_UNLESS(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %s)",
             ~ToString(tabletId));
+
         YCHECK(tablet->GetState() == ETabletState::Unmounting);
         tablet->SetState(ETabletState::WaitingForLocks);
 
@@ -557,7 +558,7 @@ private:
                 YCHECK(tablet->GetState() == ETabletState::RotatingStore);
                 tablet->SetState(ETabletState::FlushingStores);
 
-                LOG_INFO_UNLESS(IsRecovery(), "Waiting for all tablet stores to be flushed (TabletId: %s)",
+                LOG_INFO_UNLESS(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %s)",
                     ~ToString(tabletId));
 
                 if (IsLeader()) {
