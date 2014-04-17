@@ -359,7 +359,8 @@ private:
                         Owner_->ScanSlot_.Fire(slot);
                     })
                     .AsyncVia(invoker)
-                    .Run());
+                    .Run()
+                    .Finally());
             }
 
             return awaiter
