@@ -38,7 +38,7 @@ void TBlockWriter::WriteTimestamp(TTimestamp value, bool deleted, int index)
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 8);
-    column.NullBitMap.Push(!deleted);
+    column.NullBitmap.Push(!deleted);
     column.Stream.DoWrite(&value, sizeof(TTimestamp));
 }
 
@@ -48,10 +48,10 @@ void TBlockWriter::WriteInteger(const TUnversionedValue& value, int index)
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 8);
     if (value.Type == EValueType::Null) {
-        column.NullBitMap.Push(false);
+        column.NullBitmap.Push(false);
         column.Stream.DoWrite(&ZeroInteger, sizeof(i64));
     } else {
-        column.NullBitMap.Push(true);
+        column.NullBitmap.Push(true);
         column.Stream.DoWrite(&value.Data.Integer, sizeof(i64));
     }
 }
@@ -62,10 +62,10 @@ void TBlockWriter::WriteDouble(const TUnversionedValue& value, int index)
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 8);
     if (value.Type == EValueType::Null) {
-        column.NullBitMap.Push(false);
+        column.NullBitmap.Push(false);
         column.Stream.DoWrite(&ZeroDouble, sizeof(double));
     } else {
-        column.NullBitMap.Push(true);
+        column.NullBitmap.Push(true);
         column.Stream.DoWrite(&value.Data.Double, sizeof(double));
     }
 }
@@ -77,14 +77,14 @@ void TBlockWriter::WriteString(const TUnversionedValue& value, int index)
     YASSERT(column.ValueSize == 4);
     if (value.Type == EValueType::Null) {
         column.Stream.DoWrite(&ZeroOffset, sizeof(ui32));
-        column.NullBitMap.Push(false);
+        column.NullBitmap.Push(false);
     } else {
         ui32 offset = FixedBuffer.GetSize();
         FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarInt64Size), value.Length));
         FixedBuffer.DoWrite(value.Data.String, value.Length);
 
         column.Stream.DoWrite(&offset, sizeof(ui32));
-        column.NullBitMap.Push(true);
+        column.NullBitmap.Push(true);
     }
 }
 
@@ -99,11 +99,11 @@ TStringBuf TBlockWriter::WriteKeyString(const TUnversionedValue& value, int inde
     auto& column = FixedColumns[index];
     YASSERT(column.ValueSize == 4);
     if (value.Type == EValueType::Null) {
-        column.NullBitMap.Push(false);
+        column.NullBitmap.Push(false);
         column.Stream.DoWrite(&ZeroOffset, sizeof(ui32));
         return TStringBuf(static_cast<char*>(nullptr), static_cast<size_t>(0));
     } else {
-        column.NullBitMap.Push(true);
+        column.NullBitmap.Push(true);
         ui32 offset = FixedBuffer.GetSize();
         column.Stream.DoWrite(&offset, sizeof(ui32));
 
@@ -221,7 +221,7 @@ auto TBlockWriter::FlushBlock() -> TBlock
         variableBufferOffset += column.Stream.GetSize();
 
         insertBuffer(column.Stream.FlushBuffer());
-        column.NullBitMap.Save(&bitmaskStream);
+        column.NullBitmap.Save(&bitmaskStream);
     }
 
     variableBufferOffset += bitmaskStream.GetSize();

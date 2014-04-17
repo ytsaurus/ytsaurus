@@ -88,7 +88,7 @@ TBlockReader::TBlockReader(
         }
 
         for (auto& column: Columns) {
-            column.NullBitMap.Load(&input);
+            column.NullBitmap.Load(&input);
         }
 
         FixedBuffer = input.Buf();
@@ -137,7 +137,7 @@ TUnversionedValue TBlockReader::Read(int index) const
     const auto& column = Columns[index];
 
     TUnversionedValue value;
-    if (column.NullBitMap.Get(RowIndex)) {
+    if (column.NullBitmap.Get(RowIndex)) {
         value.Type = column.Type;
 
         switch (column.Type) {

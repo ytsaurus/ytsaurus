@@ -53,7 +53,7 @@ private:
     struct TColumn {
         TChunkedOutputStream Stream;
         // Bit is set, if corresponding value is not null.
-        TDynBitMap NullBitMap;
+        TDynBitMap NullBitmap;
         int ValueSize;
     };
 

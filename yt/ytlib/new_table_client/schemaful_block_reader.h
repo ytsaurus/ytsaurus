@@ -54,7 +54,7 @@ private:
     struct TColumn
     {
         const char* Begin;
-        TDynBitMap NullBitMap;
+        TDynBitMap NullBitmap;
         EValueType Type;
     };
 

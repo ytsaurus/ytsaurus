@@ -43,16 +43,16 @@ public:
     static const int TimestampSize;
 
 private:
-    typedef TAppendOnlyBitMap<ui64> TBitMap;
+    typedef TAppendOnlyBitmap<ui64> TBitmap;
 
     const int SchemaColumnCount_;
     const int KeyColumnCount_;
 
     TChunkedOutputStream KeyStream_;
-    TBitMap KeyNullFlags_;
+    TBitmap KeyNullFlags_;
 
     TChunkedOutputStream ValueStream_;
-    TBitMap ValueNullFlags_;
+    TBitmap ValueNullFlags_;
 
     TChunkedOutputStream TimestampsStream_;
 
@@ -64,7 +64,7 @@ private:
 
     void WriteValue(
         TChunkedOutputStream& stream,
-        TBitMap& nullFlags,
+        TBitmap& nullFlags,
         const TUnversionedValue& value);
 
 };

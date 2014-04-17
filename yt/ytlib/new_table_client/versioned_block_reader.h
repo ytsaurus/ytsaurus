@@ -39,7 +39,7 @@ public:
     static int FormatVersion;
 
 private:
-    typedef TReadOnlyBitMap<ui64> TBitMap;
+    typedef TReadOnlyBitmap<ui64> TBitmap;
 
     TTimestamp Timestamp_;
     const int KeyColumnCount_;
@@ -51,10 +51,10 @@ private:
     NProto::TSimpleVersionedBlockMeta VersionedMeta_;
 
     TRef KeyData_;
-    TBitMap KeyNullFlags_;
+    TBitmap KeyNullFlags_;
 
     TRef ValueData_;
-    TBitMap ValueNullFlags_;
+    TBitmap ValueNullFlags_;
 
     TRef TimestampsData_;
 

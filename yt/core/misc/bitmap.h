@@ -16,10 +16,10 @@ TChunkType GetChunkMask(int bitIndex, bool value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkType>
-class TAppendOnlyBitMap
+class TAppendOnlyBitmap
 {
 public:
-    explicit TAppendOnlyBitMap(int bitCapacity = 0)
+    explicit TAppendOnlyBitmap(int bitCapacity = 0)
         : BitSize_(0)
     {
         YCHECK(bitCapacity >= 0);
@@ -58,15 +58,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkType>
-class TReadOnlyBitMap
+class TReadOnlyBitmap
 {
 public:
-    TReadOnlyBitMap()
+    TReadOnlyBitmap()
         : Data_(nullptr)
         , BitSize_(0)
     { }
 
-    TReadOnlyBitMap(const TChunkType* data, int bitSize)
+    TReadOnlyBitmap(const TChunkType* data, int bitSize)
     {
         Reset(data, bitSize);
     }

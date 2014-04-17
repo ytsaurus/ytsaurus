@@ -129,7 +129,7 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
 
 void TSimpleVersionedBlockWriter::WriteValue(
     TChunkedOutputStream& stream,
-    TBitMap& nullFlags,
+    TBitmap& nullFlags,
     const TUnversionedValue& value)
 {
     switch (value.Type) {
