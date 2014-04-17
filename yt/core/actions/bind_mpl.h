@@ -352,7 +352,7 @@ struct TIsNonConstReference<const T&>
 /*! \} */
 
 template <class T>
-struct TRawPtrToRefCountedTypeHelper
+struct TIsRawPtrToRefCountedType
 {
 #if defined(_win_)
     enum {
@@ -367,6 +367,30 @@ struct TRawPtrToRefCountedTypeHelper
     };
 #endif
 };
+
+template <class T>
+struct TCheckIsRawPtrToRefCountedTypeHelper
+{
+    static_assert(
+        !NYT::NDetail::TIsRawPtrToRefCountedType<T>::Value,
+        "T has reference-counted type and should not be bound by the raw pointer");
+};
+
+template <class T>
+struct TCheckRunnableSignatureArg
+{
+    static_assert(
+        !NYT::NDetail::TIsNonConstReference<T>::Value,
+        "T is a non-const reference and should not be bound.");
+};
+
+template <class TSignature>
+struct TCheckRunnableSignature;
+
+template <class R, class... TArgs>
+struct TCheckRunnableSignature<R(TArgs...)>
+    : NYT::NMpl::TTypesPack<TCheckRunnableSignatureArg<TArgs>...>
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */

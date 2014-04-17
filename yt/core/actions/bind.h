@@ -76,6 +76,9 @@ Bind(
     //     NMpl::TIsArray<P1>::Value),
     //     "First bound argument to a method cannot be an array");
 
+    typedef NYT::NDetail::TCheckRunnableSignature<typename TRunnableType::Signature> TIsArgsNonConstReferenceStaticCheck;
+    typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TParams>...> TParamsIsRawPtrToRefCountedTypeStaticCheck;
+
     typedef NYT::NDetail::TBindState<TRunnableType, Signature,
         void(typename NMpl::TDecay<TParams>::TType...)> TTypedBindState;
     return TCallback<typename TTypedBindState::UnboundSignature>(
