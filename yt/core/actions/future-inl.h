@@ -1023,7 +1023,7 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> mutator)
     return mutated;
 }
 
-TFuture<void> TFuture<void>::Finally()
+inline TFuture<void> TFuture<void>::Finally()
 {
     auto promise = NewPromise();
     Subscribe(BIND([=] () mutable { promise.Set(); }));
