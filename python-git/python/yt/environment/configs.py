@@ -62,15 +62,8 @@ def get_master_config():
         path = "";
     };
 
-    hydra = {
-        follower_tracker = {
-            ping_interval = 3000;
-        };
-        leader_committer = {
-            changelog_rotation_period = 1000000;
-            max_batch_delay = 0;
-            rpc_timeout = 10000;
-        };
+    cell_directory = {
+        soft_backoff_time = 100;
     };
 
     transaction_manager = {
