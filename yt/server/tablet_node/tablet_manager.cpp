@@ -987,7 +987,7 @@ private:
         if (tablet->GetStoreManager()->HasUnflushedStores())
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "All tablet stores are flushed (TabletId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %s)",
             ~ToString(tablet->GetId()));
 
         TReqSetTabletState request;
