@@ -185,6 +185,10 @@ public:
     //! Converts into a void future by effectively discarding the value.
     TFuture<void> IgnoreResult();
 
+    //! Returns a void future that is set when the original future
+    //! is either set or canceled.
+    TFuture<void> Finally();
+
 private:
     explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
     explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
@@ -299,6 +303,10 @@ public:
     //! Chains the asynchronous computation with another asynchronous function.
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>()> mutator);
+
+    //! Returns a void future that is set when the original future
+    //! is either set or canceled.
+    TFuture<void> Finally();
 
 private:
     explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);

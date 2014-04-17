@@ -19,7 +19,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Implemented in concurrency/ library.
+// Implemented in concurrency library.
 namespace NConcurrency {
 
 namespace NDetail {
@@ -856,6 +856,15 @@ TFuture<void> TFuture<T>::IgnoreResult()
 }
 
 template <class T>
+TFuture<void> TFuture<T>::Finally()
+{
+    auto promise = NewPromise();
+    Subscribe(BIND([=] (T) mutable { promise.Set(); }));
+    OnCanceled(BIND([=] () mutable { promise.Set(); }));
+    return promise;
+}
+
+template <class T>
 inline TFuture<T>::TFuture(
     const TIntrusivePtr< NYT::NDetail::TPromiseState<T>>& state)
     : Impl_(state)
@@ -1012,6 +1021,14 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> mutator)
 
     Subscribe(outer);
     return mutated;
+}
+
+TFuture<void> TFuture<void>::Finally()
+{
+    auto promise = NewPromise();
+    Subscribe(BIND([=] () mutable { promise.Set(); }));
+    OnCanceled(BIND([=] () mutable { promise.Set(); }));
+    return promise;
 }
 
 inline TFuture<void>::TFuture(
