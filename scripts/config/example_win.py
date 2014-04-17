@@ -113,6 +113,9 @@ class Holder(WinNode, Server):
             },
             'query_agent': {
             },
+            'cell_directory' : {
+                'soft_backoff_time' : 100
+            },
             'data_node' : {
                 'incremental_heartbeat_period' : 500,
                 'store_locations' : [
