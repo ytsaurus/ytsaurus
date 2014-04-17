@@ -122,8 +122,7 @@ public:
 
     TBalancingChannelConfig()
     {
-        RegisterParameter("addresses", Addresses)
-            .NonEmpty();
+        RegisterParameter("addresses", Addresses);
         RegisterParameter("discover_timeout", DiscoverTimout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("hard_backoff_time", HardBackoffTime)
