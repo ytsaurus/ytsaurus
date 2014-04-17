@@ -18,6 +18,8 @@
 
 #include <core/misc/cache.h>
 
+#include <core/logging/tagged_logger.h>
+
 #include <llvm/ADT/FoldingSet.h>
 
 #include <llvm/Support/Threading.h>
@@ -282,7 +284,7 @@ class TEvaluator::TImpl
         TFoldingHasher>
 {
 public:
-    TImpl(const int maxCacheSize)
+    expcliit TImpl(const int maxCacheSize)
         : TSizeLimitedCache(maxCacheSize)
     {
         InitializeLlvm();
@@ -298,6 +300,7 @@ public:
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer)
     {
+        auto Logger = BuildLogger(fragment);
         auto result = Codegen(fragment);
 
         auto codegenedFunction = result.first;
@@ -311,11 +314,9 @@ public:
         }
 
         try {
-            LOG_DEBUG("Evaluating plan fragment (FragmentId: %s)",
-                ~ToString(fragment.Id()));
+            LOG_DEBUG("Evaluating plan fragment");
 
-            LOG_DEBUG("Opening writer (FragmentId: %s)",
-                ~ToString(fragment.Id()));
+            LOG_DEBUG("Opening writer");
             {
                 auto error = WaitFor(writer->Open(
                     fragment.GetHead()->GetTableSchema(),
@@ -323,8 +324,7 @@ public:
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            LOG_DEBUG("Writer opened (FragmentId: %s)",
-                ~ToString(fragment.Id()));
+            LOG_DEBUG("Writer opened");
 
             TRowBuffer rowBuffer;
             TChunkedMemoryPool scratchSpace;
@@ -342,9 +342,7 @@ public:
 
             CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
 
-            LOG_DEBUG("Flushing writer (FragmentId: %s)",
-                ~ToString(fragment.Id()));
-
+            LOG_DEBUG("Flushing writer");
             if (!batch.empty()) {
                 if (!writer->Write(batch)) {
                     auto error = WaitFor(writer->GetReadyEvent());
@@ -352,21 +350,17 @@ public:
                 }
             }
 
-            LOG_DEBUG("Closing writer (FragmentId: %s)",
-                ~ToString(fragment.Id()));
+            LOG_DEBUG("Closing writer");
             {
                 auto error = WaitFor(writer->Close());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            LOG_DEBUG("Finished evaluating plan fragment (FragmentId: %s, RowBufferCapacity: %" PRISZT ", ScratchSpaceCapacity: %" PRISZT ")",
-                ~ToString(fragment.Id()),
+            LOG_DEBUG("Finished evaluating plan fragment (RowBufferCapacity: %" PRISZT ", ScratchSpaceCapacity: %" PRISZT ")",
                 rowBuffer.GetCapacity(),
                 scratchSpace.GetCapacity());
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to evaluate plan fragment") << ex;
-            LOG_ERROR(error);
-            return error;
+            return TError("Failed to evaluate plan fragment") << ex;
         }
 
         return TError();
@@ -380,22 +374,24 @@ private:
         TCGVariables variables;
 
         TFoldingProfiler(id, binding, variables).Profile(fragment.GetHead());
+        auto Logger = BuildLogger(fragment);
 
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {
-            LOG_DEBUG("Cache miss for fragment %s", ~ToString(fragment.Id()));
+            LOG_DEBUG("Codegen cache miss");
             try {
-                LOG_DEBUG("Compiling fragment %s", ~ToString(fragment.Id()));
+                LOG_DEBUG("Started compiling fragment");
                 auto newCGFragment = New<TCachedCGFragment>(id);
                 newCGFragment->Embody(Compiler_(fragment, *newCGFragment, binding));
                 newCGFragment->GetCompiledBody();
+                LOG_DEBUG("Finished compiling fragment");
                 cookie.EndInsert(std::move(newCGFragment));
             } catch (const std::exception& ex) {
-                LOG_DEBUG("Failed to compile fragment %s", ~ToString(fragment.Id()));
+                LOG_DEBUG(ex, "Failed to compile fragment");
                 cookie.Cancel(ex);
             }
         } else {
-            LOG_DEBUG("Cache hit for fragment %s", ~ToString(fragment.Id()));
+            LOG_DEBUG("Codegen cache hit");
         }
 
         auto cgFragment = cookie.GetValue().Get().ValueOrThrow();
@@ -419,6 +415,13 @@ private:
 
 private:
     TCGFragmentCompiler Compiler_;
+
+    static NLogging::TTaggedLogger BuildLogger(const TPlanFragment& fragment)
+    {
+        NLogging::TTaggedLogger result;
+        result.AddTag(Sprintf("FragmentId: %s", ~ToString(fragment.Id())));
+        return result;
+    }
 
 };
 
