@@ -113,7 +113,7 @@ private:
             CurrentChannel_ = Owner_->ChannelFactory_->CreateChannel(CurrentAddress_);
         
             TGenericProxy proxy(CurrentChannel_, Request_->GetService());
-            proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimout);
+            proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
 
             auto req = proxy.Discover();
             req->Invoke().Subscribe(BIND(

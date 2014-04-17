@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/hydra/config.h>
+#include <core/rpc/config.h>
 
 namespace NYT {
 namespace NHive {
@@ -10,7 +10,7 @@ namespace NHive {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectoryConfig
-    : public TYsonSerializable
+    : public NRpc::TBalancingChannelConfigBase
 {
 public:
     //! Timeout for RPC requests to cells.

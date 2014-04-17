@@ -102,15 +102,12 @@ DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBalancingChannelConfig
+class TBalancingChannelConfigBase
     : public virtual TYsonSerializable
 {
 public:
-    //! List of seed addresses.
-    std::vector<Stroka> Addresses;
-
     //! Timeout for Discovery requests.
-    TDuration DiscoverTimout;
+    TDuration DiscoverTimeout;
 
     //! Time between consequent attempts to reconnect to a peer, which
     //! returns a hard failure (i.e. non-OK response) to Discover request.
@@ -120,15 +117,27 @@ public:
     //! returns a soft failure (i.e. "down" response) to Discover request.
     TDuration SoftBackoffTime;
 
-    TBalancingChannelConfig()
+    TBalancingChannelConfigBase()
     {
-        RegisterParameter("addresses", Addresses);
-        RegisterParameter("discover_timeout", DiscoverTimout)
+        RegisterParameter("discover_timeout", DiscoverTimeout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("hard_backoff_time", HardBackoffTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("soft_backoff_time", SoftBackoffTime)
             .Default(TDuration::Seconds(5));
+    }
+};
+
+class TBalancingChannelConfig
+    : public TBalancingChannelConfigBase
+{
+public:
+    //! List of seed addresses.
+    std::vector<Stroka> Addresses;
+
+    TBalancingChannelConfig()
+    {
+        RegisterParameter("addresses", Addresses);
     }
 };
 

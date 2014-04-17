@@ -24,15 +24,15 @@ public:
     TImpl(
         TCellDirectoryConfigPtr config,
         IChannelFactoryPtr channelFactory)
-        : Config(config)
-        , ChannelFactory(channelFactory)
+        : Config_(config)
+        , ChannelFactory_(channelFactory)
     { }
 
     IChannelPtr FindChannel(const TCellGuid& cellGuid)
     {
-        TGuard<TSpinLock> guard(Spinlock);
-        auto it = CellMap.find(cellGuid);
-        if (it == CellMap.end()) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = CellMap_.find(cellGuid);
+        if (it == CellMap_.end()) {
             return nullptr;
         }
         return it->second.Channel;
@@ -50,9 +50,9 @@ public:
 
     TNullable<TCellConfig> FindCellConfig(const TCellGuid& cellGuid)
     {
-        TGuard<TSpinLock> guard(Spinlock);
-        auto it = CellMap.find(cellGuid);
-        return it == CellMap.end() ? TNullable<TCellConfig>(Null) : it->second.Config;
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = CellMap_.find(cellGuid);
+        return it == CellMap_.end() ? TNullable<TCellConfig>(Null) : it->second.Config;
     }
 
     TCellConfig GetCellConfigOrThrow(const TCellGuid& cellGuid)
@@ -67,10 +67,10 @@ public:
 
     std::vector<std::pair<TCellGuid, TCellConfig>> GetRegisteredCells()
     {
-        TGuard<TSpinLock> guard(Spinlock);
+        TGuard<TSpinLock> guard(SpinLock_);
         std::vector<std::pair<TCellGuid, TCellConfig>> result;
-        result.reserve(CellMap.size());
-        for (const auto& pair : CellMap) {
+        result.reserve(CellMap_.size());
+        for (const auto& pair : CellMap_) {
             result.push_back(std::make_pair(pair.first, pair.second.Config));
         }
         return result;
@@ -79,11 +79,11 @@ public:
     bool RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
     {
         bool result = false;
-        TGuard<TSpinLock> guard(Spinlock);
-        auto it = CellMap.find(cellGuid);
-        auto* entry = it == CellMap.end() ? nullptr : &it->second;
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = CellMap_.find(cellGuid);
+        auto* entry = it == CellMap_.end() ? nullptr : &it->second;
         if (!entry ) {
-            auto it = CellMap.insert(std::make_pair(cellGuid, TEntry())).first;
+            auto it = CellMap_.insert(std::make_pair(cellGuid, TEntry())).first;
             entry = &it->second;
             result = true;
         }
@@ -107,25 +107,25 @@ public:
 
     bool UnregisterCell(const TCellGuid& cellGuid)
     {
-        TGuard<TSpinLock> guard(Spinlock);
-        auto it = CellMap.find(cellGuid);
-        if (it == CellMap.end()) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = CellMap_.find(cellGuid);
+        if (it == CellMap_.end()) {
             return false;
         } else {
-            CellMap.erase(it);
+            CellMap_.erase(it);
             return true;
         }
     }
 
     void Clear()
     {
-        TGuard<TSpinLock> guard(Spinlock);
-        CellMap.clear();
+        TGuard<TSpinLock> guard(SpinLock_);
+        CellMap_.clear();
     }
 
 private:
-    TCellDirectoryConfigPtr Config;
-    IChannelFactoryPtr ChannelFactory;
+    TCellDirectoryConfigPtr Config_;
+    IChannelFactoryPtr ChannelFactory_;
 
     struct TEntry
     {
@@ -133,8 +133,8 @@ private:
         IChannelPtr Channel;
     };
 
-    TSpinLock Spinlock;
-    yhash_map<TCellGuid, TEntry> CellMap;
+    TSpinLock SpinLock_;
+    yhash_map<TCellGuid, TEntry> CellMap_;
 
 
     void InitChannel(const TCellGuid& cellGuid, TEntry* entry)
@@ -142,14 +142,17 @@ private:
         if (entry->Config.version() == 0)
             return;
 
-        auto config = New<TPeerConnectionConfig>();
-        config->CellGuid = cellGuid;
+        auto peerConfig = New<TPeerConnectionConfig>();
+        peerConfig->CellGuid = cellGuid;
+        peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
+        peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
+        peerConfig->HardBackoffTime = Config_->HardBackoffTime;
         for (const auto& peer : entry->Config.peers()) {
-            config->Addresses.push_back(peer.address());
+            peerConfig->Addresses.push_back(peer.address());
         }
 
-        auto leaderChannel = CreateLeaderChannel(config, ChannelFactory);
-        leaderChannel->SetDefaultTimeout(Config->RpcTimeout);
+        auto leaderChannel = CreateLeaderChannel(peerConfig, ChannelFactory_);
+        leaderChannel->SetDefaultTimeout(Config_->RpcTimeout);
         entry->Channel = leaderChannel;
     }
     
