@@ -98,9 +98,8 @@ public:
     //! Move constructor.
     TFuture(TFuture&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<T>> TFuture::* TUnspecifiedBoolType;
     //! Checks if the future is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();
@@ -229,9 +228,8 @@ public:
     //! Move constructor.
     TFuture(TFuture&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<void>> TFuture::* TUnspecifiedBoolType;
     //! Checks if the future is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();
@@ -357,9 +355,8 @@ public:
     //! Move constructor.
     TPromise(TPromise&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<T>> TPromise::*TUnspecifiedBoolType;
     //! Checks if the promise is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();
@@ -491,9 +488,8 @@ public:
     //! Move constructor.
     TPromise(TPromise&& other);
 
-    typedef TIntrusivePtr<NYT::NDetail::TPromiseState<void>> TPromise::* TUnspecifiedBoolType;
     //! Checks if the promise is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();

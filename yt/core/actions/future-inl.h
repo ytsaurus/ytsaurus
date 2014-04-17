@@ -694,9 +694,9 @@ inline TFuture<T>::TFuture(TFuture<T>&& other)
 { }
 
 template <class T>
-inline TFuture<T>::operator TUnspecifiedBoolType() const
+inline TFuture<T>::operator bool() const
 {
-    return Impl_ ? &TFuture::Impl_ : nullptr;
+    return Impl_ != nullptr;
 }
 
 template <class T>
@@ -895,9 +895,9 @@ inline TFuture<void>::TFuture(TFuture<void>&& other)
     : Impl_(std::move(other.Impl_))
 { }
 
-inline TFuture<void>::operator TUnspecifiedBoolType() const
+inline TFuture<void>::operator bool() const
 {
-    return Impl_ ? &TFuture::Impl_ : nullptr;
+    return Impl_ != nullptr;
 }
 
 inline void TFuture<void>::Reset()
@@ -1093,9 +1093,9 @@ inline TPromise<T>::TPromise(TPromise<T>&& other)
 { }
 
 template <class T>
-inline TPromise<T>::operator TUnspecifiedBoolType() const
+inline TPromise<T>::operator bool() const
 {
-    return Impl_ ? &TPromise::Impl_ : nullptr;
+    return Impl_ != nullptr;
 }
 
 template <class T>
@@ -1248,9 +1248,9 @@ inline TPromise<void>::TPromise(TPromise<void>&& other)
     : Impl_(std::move(other.Impl_))
 { }
 
-inline TPromise<void>::operator TUnspecifiedBoolType() const
+inline TPromise<void>::operator bool() const
 {
-    return Impl_ ? &TPromise::Impl_ : nullptr;
+    return Impl_ != nullptr;
 }
 
 inline void TPromise<void>::Reset()
