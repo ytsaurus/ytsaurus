@@ -36,7 +36,7 @@ public:
             .GreaterThan(0)
             .Default(4);
 
-        RegisterParameter("chunk_reader", ChunkReader)
+        RegisterParameter("reader", ChunkReader)
             .DefaultNew();
     }
 };
