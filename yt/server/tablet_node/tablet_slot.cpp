@@ -537,14 +537,11 @@ private:
             return;
 
         auto cancelableContext = epochContext->CancelableContext;
-        auto actuallyDone = BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
+        auto done = BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
             .AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read))
-            .Run(cancelableContext, consumer);
-        // Wait for actuallyDone to become fulfilled or canceled.
-        auto somehowDone = NewPromise();
-        actuallyDone.Subscribe(BIND([=] () mutable { somehowDone.Set(); }));
-        actuallyDone.OnCanceled(BIND([=] () mutable { somehowDone.Set(); }));
-        WaitFor(somehowDone);
+            .Run(cancelableContext, consumer)
+            .Finally();
+        WaitFor(done);
     }
 
     void DoBuildOrchidYsonAutomaton(TCancelableContextPtr context, IYsonConsumer* consumer)
