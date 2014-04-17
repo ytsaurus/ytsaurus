@@ -284,7 +284,7 @@ class TEvaluator::TImpl
         TFoldingHasher>
 {
 public:
-    expcliit TImpl(const int maxCacheSize)
+    explicit TImpl(const int maxCacheSize)
         : TSizeLimitedCache(maxCacheSize)
     {
         InitializeLlvm();
@@ -416,9 +416,9 @@ private:
 private:
     TCGFragmentCompiler Compiler_;
 
-    static NLogging::TTaggedLogger BuildLogger(const TPlanFragment& fragment)
+    static NLog::TTaggedLogger BuildLogger(const TPlanFragment& fragment)
     {
-        NLogging::TTaggedLogger result;
+        NLog::TTaggedLogger result;
         result.AddTag(Sprintf("FragmentId: %s", ~ToString(fragment.Id())));
         return result;
     }
