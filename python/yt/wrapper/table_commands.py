@@ -333,7 +333,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
         _remove_tables([table])
 
 
-def read_table(table, format=None, table_reader=None, response_type=None):
+def read_table(table, format=None, table_reader=None, response_type=None, raw=True):
     """
     Downloads file from path.
     Response type means the output format. By default it is line generator.
@@ -357,7 +357,7 @@ def read_table(table, format=None, table_reader=None, response_type=None):
             proxy=get_host_for_heavy_operation(),
             return_raw_response=True)
 
-        return read_content(response, get_value(response_type, "iter_lines"))
+        return read_content(response, raw, format, get_value(response_type, "iter_lines"))
     else:
         title = "Python wrapper: read {0}".format(to_name(table))
         tx = PingableTransaction(timeout=config.http.REQUEST_TIMEOUT,
@@ -421,7 +421,7 @@ def read_table(table, format=None, table_reader=None, response_type=None):
                 params,
                 proxy=get_host_for_heavy_operation(),
                 return_raw_response=True)
-            for record in read_content(response, get_value(response_type, "iter_lines")):
+            for record in read_content(response, raw, format, get_value(response_type, "iter_lines")):
                 yield record
                 index.increment()
 
@@ -822,7 +822,7 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
 
     make_request("reshard_table", params)
 
-def select(query, timestamp=None, format=None, response_type=None):
+def select(query, timestamp=None, format=None, response_type=None, raw=True):
     format = _prepare_format(format)
     params = {
         "query": query,
@@ -836,5 +836,5 @@ def select(query, timestamp=None, format=None, response_type=None):
         proxy=get_host_for_heavy_operation(),
         return_raw_response=True)
 
-    return read_content(response, get_value(response_type, "iter_lines"))
+    return read_content(response, raw, format, get_value(response_type, "iter_lines"))
 

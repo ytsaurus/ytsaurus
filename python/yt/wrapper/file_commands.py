@@ -40,7 +40,7 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
         params,
         proxy=get_host_for_heavy_operation(),
         return_raw_response=True)
-    return read_content(response, response_type)
+    return read_content(response, raw=True, format=None, response_type=response_type)
 
 def upload_file(stream, destination, file_writer=None):
     """
