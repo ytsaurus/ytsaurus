@@ -189,6 +189,7 @@ class TStoreCompactorConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
+    int MaxChunksPerCompaction;
 
     NVersionedTableClient::TTableWriterConfigPtr Writer;
 
@@ -200,6 +201,9 @@ public:
         RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("max_chunks_per_compaction", MaxChunksPerCompaction)
+            .GreaterThan(0)
+            .Default(10);
 
         RegisterParameter("writer", Writer)
             .DefaultNew();
