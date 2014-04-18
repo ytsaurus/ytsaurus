@@ -377,22 +377,22 @@ class TestNativeMode(YtTestBase, YTEnv):
 
         yt.write_table(yt.TablePath(table, sorted_by=["a"]), ["a=b\n", "a=c\n", "a=d\n"])
 
-        rsp = yt.read_table(table, response_type="raw")
+        rsp = yt.read_table(table).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 0})
 
-        rsp = yt.read_table(yt.TablePath(table, start_index=1), response_type="raw")
+        rsp = yt.read_table(yt.TablePath(table, start_index=1)).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 1})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), response_type="raw")
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"])).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 2})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), response_type="raw")
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"])).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {})
@@ -434,7 +434,7 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.write_table(table, ["x=1\ty=2\n"])
 
         yt.run_map(foo, table, table,
-                   input_format=yt.Format("yamred_dsv", attributes={"key_column_names": ["y"]}),
+                   input_format=yt.create_format("yamred_dsv", attributes={"key_column_names": ["y"]}),
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
 
@@ -444,6 +444,7 @@ class TestNativeMode(YtTestBase, YTEnv):
 
         table = TEST_DIR + "/table"
         yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
+        self.check(["1\n", "\\n\n"], sorted(list(yt.read_table(table, format=yt.SchemedDsvFormat(columns=["x"])))))
 
         yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
@@ -466,20 +467,29 @@ class TestNativeMode(YtTestBase, YTEnv):
         while yt.get("{}/@tablets/0/state".format(table)) != 'unmounted':
             time.sleep(0.1)
 
-    # def test_select(self):
-    #     table = TEST_DIR + "/table"
+    #def test_select(self):
+    #    table = TEST_DIR + "/table"
 
-    #     yt.create_table(table)
-    #     yt.run_sort(table, sort_by=["x"])
+    #    yt.create_table(table)
+    #    yt.run_sort(table, sort_by=["x"])
 
-    #     yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
-    #     yt.set(table + "/@key_columns", ["x"])
+    #    yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
+    #    yt.set(table + "/@key_columns", ["x"])
 
-    #     self.check([], yt.select("x from [{}]".format(table)))
+    #    self.check([], yt.select("x from [{}]".format(table)))
 
-    #     yt.write_table(yt.TablePath(table, append=True, sorted_by=True), ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+    #    yt.write_table(yt.TablePath(table, append=True, sorted_by=True), ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
 
-    #     self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
+    #    self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
+
+    def test_lenval_python_operations(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["key=1\tvalue=2\n"])
+        yt.run_map(foo, table, table, format=yt.YamrFormat(lenval=True))
+        self.check(["key=1\tvalue=2\n"], list(yt.read_table(table)))
 
 
 # Map method for test operations with python entities

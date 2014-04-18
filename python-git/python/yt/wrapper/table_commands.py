@@ -13,7 +13,7 @@ from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute,
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import PingableTransaction
-from format import Format
+from format import create_format
 from lock import lock
 from heavy_commands import make_heavy_request
 import yt.logger as logger
@@ -79,22 +79,32 @@ def _prepare_files(files):
     return file_paths
 
 def _prepare_formats(format, input_format, output_format):
-    if format is None: format = config.format.TABULAR_DATA_FORMAT
+    if format is None:
+        format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
-        format = Format(format)
+        format = create_format(format)
+    if isinstance(input_format, str):
+        input_format = create_format(input_format)
+    if isinstance(output_format, str):
+        output_format = create_format(output_format)
 
-    if input_format is None: input_format = format
+    if input_format is None:
+        input_format = format
     require(input_format is not None,
             YtError("You should specify input format"))
-    if output_format is None: output_format = format
+    
+    if output_format is None:
+        output_format = format
     require(output_format is not None,
             YtError("You should specify output format"))
+
     return input_format, output_format
 
 def _prepare_format(format):
-    if format is None: format = config.format.TABULAR_DATA_FORMAT
+    if format is None:
+        format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
-        format = Format(format)
+        format = create_format(format)
 
     require(format is not None,
             YtError("You should specify format"))
