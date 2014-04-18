@@ -127,6 +127,7 @@ class TestNativeMode(YtTestBase, YTEnv):
 
         yt.write_table(table, ["y=1\n"])
         self.check(["y=1\n"], yt.read_table(table))
+        assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
