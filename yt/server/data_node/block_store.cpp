@@ -48,7 +48,7 @@ TCachedBlock::TCachedBlock(
 
 TCachedBlock::~TCachedBlock()
 {
-    LOG_DEBUG("Cached block purged: %s", ~ToString(GetKey()));
+    LOG_DEBUG("Cached block purged (BlockId: %s)", ~ToString(GetKey()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +87,7 @@ public:
                 auto block = New<TCachedBlock>(blockId, data, source);
                 cookie.EndInsert(block);
 
-                LOG_DEBUG("Block is put into cache: %s (Size: %" PRISZT ", SourceAddress: %s)",
+                LOG_DEBUG("Block is put into cache (BlockId: %s, Size: %" PRISZT ", SourceAddress: %s)",
                     ~ToString(blockId),
                     data.Size(),
                     ~ToString(source));
@@ -109,7 +109,7 @@ public:
             auto block = result.Value();
 
             if (!TRef::AreBitwiseEqual(data, block->GetData())) {
-                LOG_FATAL("Trying to cache a block for which a different cached copy already exists: %s",
+                LOG_FATAL("Trying to cache block %s for which a different cached copy already exists",
                     ~ToString(blockId));
             }
 
