@@ -119,6 +119,7 @@ private:
         i64 dataSize = eden->GetTotalDataSize();
         int storeCount = static_cast<int>(eden->Stores().size());
 
+        // Check if partitioning is needed.
         auto* tablet = eden->GetTablet();
         const auto& config = tablet->GetConfig();
         if (dataSize <= config->MaxEdenDataSize && storeCount <= config->MaxEdenStoreCount)
@@ -127,6 +128,13 @@ private:
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
         if (!guard)
             return;
+
+        // Limit the number of chunks to process at once.
+        if (storeCount > Config_->MaxChunksPerCompaction) {
+            stores.erase(
+                stores.begin() + Config_->MaxChunksPerCompaction,
+                stores.end());
+        }
 
         for (auto store : stores) {
             store->SetState(EStoreState::Compacting);
@@ -167,15 +175,15 @@ private:
         if (partition->GetTotalDataSize() > config->MaxPartitionDataSize)
             return;
 
-        auto compactionStores = PickStoresForCompaction(allStores);
-        if (compactionStores.empty())
+        auto stores = PickStoresForCompaction(allStores);
+        if (stores.empty())
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
         if (!guard)
             return;
 
-        for (auto store : compactionStores) {
+        for (auto store : stores) {
             store->SetState(EStoreState::Compacting);
         }
 
@@ -186,21 +194,22 @@ private:
             MakeStrong(this),
             Passed(std::move(guard)),
             partition,
-            compactionStores));
+            stores));
     }
 
 
     std::vector<IStorePtr> PickStoresForCompaction(std::vector<IStorePtr>& allStores)
     {
-        std::sort(
-            allStores.begin(),
-            allStores.end(),
-            [&] (const IStorePtr& lhs, const IStorePtr& rhs) {
-                return lhs->GetMinTimestamp() < rhs->GetMinTimestamp();
-            });
-
         // TODO(babenko): need some smart code here
-        return allStores.size() >= 3 ? allStores : std::vector<IStorePtr>();
+        const int Limit = 3;
+        int n = static_cast<int>(allStores.size());
+        if (n <= Limit) {
+            return std::vector<IStorePtr>();
+        }
+
+        return std::vector<IStorePtr>(
+            allStores.begin(),
+            allStores.begin() + std::min(n, Config_->MaxChunksPerCompaction));
     }
 
 
