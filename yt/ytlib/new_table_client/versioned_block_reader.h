@@ -63,6 +63,7 @@ private:
     int RowIndex_;
 
     TOwningKey Key_;
+    TUnversionedValue* KeyBegin_;
     char* KeyDataPtr_;
     i64 TimestampOffset_;
     i64 ValueOffset_;

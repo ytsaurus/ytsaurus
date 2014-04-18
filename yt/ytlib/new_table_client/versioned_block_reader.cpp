@@ -6,6 +6,7 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <core/misc/serialize.h>
+#include <tclDecls.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -49,6 +50,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(const TSharedRef& data,
         KeyColumnCount_,
         MakeUnversionedSentinelValue(EValueType::Null, 0));
     Key_ = TOwningKey(key.data(), key.data() + KeyColumnCount_);
+    KeyBegin_ = Key_.Begin();
 
     VersionedMeta_ = Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext);
 
@@ -123,7 +125,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
         Schema_.Columns().size()) * RowIndex_;
 
     for (int id = 0; id < KeyColumnCount_; ++id) {
-        Key_[id] = ReadKeyValue(id);
+        KeyBegin_[id] = ReadKeyValue(id);
     }
 
     TimestampOffset_ = *reinterpret_cast<i64*>(KeyDataPtr_);
@@ -162,7 +164,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
         GetColumnValueCount(Schema_.Columns().size() - 1),
         TimestampCount_);
 
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
 
     for (int i = 0; i < TimestampCount_; ++i) {
         row.BeginTimestamps()[i] = ReadTimestamp(TimestampOffset_ + i);
@@ -207,7 +209,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         SchemaIdMapping_.size(),
         1);
 
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
     auto ts = ReadTimestamp(TimestampOffset_ + timestampIndex);
     *row.BeginTimestamps() = ts;
 
@@ -257,23 +259,23 @@ TUnversionedValue TSimpleVersionedBlockReader::ReadKeyValue(int id)
     bool isNull = KeyNullFlags_[RowIndex_ * KeyColumnCount_ + id];
     if (isNull) {
         return MakeUnversionedSentinelValue(EValueType::Null, id);
-    } else {
-        switch (Schema_.Columns()[id].Type) {
-            case EValueType::Integer:
-                return MakeUnversionedIntegerValue(*reinterpret_cast<i64*>(valuePtr), id);
+    }
 
-            case EValueType::Double:
-                return MakeUnversionedDoubleValue(*reinterpret_cast<double*>(valuePtr), id);
+    switch (Schema_.Columns()[id].Type) {
+        case EValueType::Integer:
+            return MakeUnversionedIntegerValue(*reinterpret_cast<i64*>(valuePtr), id);
 
-            case EValueType::String:
-                return MakeUnversionedStringValue(ReadString(valuePtr), id);
+        case EValueType::Double:
+            return MakeUnversionedDoubleValue(*reinterpret_cast<double*>(valuePtr), id);
 
-            case EValueType::Any:
-                return MakeUnversionedAnyValue(ReadString(valuePtr), id);
+        case EValueType::String:
+            return MakeUnversionedStringValue(ReadString(valuePtr), id);
 
-            default:
-                YUNREACHABLE();
-        }
+        case EValueType::Any:
+            return MakeUnversionedAnyValue(ReadString(valuePtr), id);
+
+        default:
+            YUNREACHABLE();
     }
 }
 
