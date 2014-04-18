@@ -53,17 +53,85 @@ def iter_lines(response):
     if pending is not None and pending:
         yield add_eoln(pending)
 
-def read_content(response, type):
-    if type == "iter_lines":
-        return iter_lines(response)
-    elif type == "iter_content":
-        return response.iter_content(chunk_size=config.http.CONTENT_CHUNK_SIZE)
-    elif type == "string":
+class ResponseStream(object):
+    def __init__(self, response, iter_type):
+        self.response = response
+        self.iter_type = iter_type
+        self._buffer = ""
+        self._pos = 0
+        self._iter_content = self.response.iter_content(config.READ_BUFFER_SIZE)
+
+    def read(self, length=None):
+        if length is None:
+            length = 2 ** 32
+
+        result = []
+        while length > len(self._buffer) - self._pos:
+            right = min(len(self._buffer), self._pos + length)
+            result.append(self._buffer[self._pos:right])
+            length -= right - self._pos
+            self._pos = right
+            if length == 0 or not self.fetch():
+                break
+        return "".join(result)
+
+    def readline(self):
+        result = []
+        while True:
+            index = self._buffer.find("\n", self._pos)
+            if index != -1:
+                result.append(self._buffer[self._pos: index + 1])
+                self._pos = index + 1
+                break
+
+            result.append(self._buffer[self._pos:])
+            if not self.fetch():
+                break
+        return "".join(result)
+
+    def fetch(self):
+        try:
+            self._buffer = self._iter_content.next()
+            self._pos = 0
+            if not self._buffer:
+                return False
+            return True
+        except StopIteration:
+            return False
+
+    def read_row(self, format):
+        return format.load_row(self)
+
+    def read_rows(self, format):
+        return format.load_rows(self)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self.iter_type == "iter_lines":
+            line = self.readline()
+            if not line:
+                raise StopIteration()
+            return line
+        elif self.iter_type == "iter_content":
+            if self._pos == len(self._buffer) and not self.fetch():
+                raise StopIteration()
+            result = self._buffer[self._pos:]
+            self._pos = len(self._buffer)
+            return result
+        else:
+            raise YtError("Incorrent iter type: " + self.iter_type)
+
+
+def read_content(response, type="iter_lines"):
+    if type == "string":
         return response.text
     elif type == "raw":
         return response
     else:
-        raise YtError("Incorrent response type: " + type)
+        return ResponseStream(response, type)
+
 
 def get_hosts():
     return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(config.http.PROXY), config.HOSTS))

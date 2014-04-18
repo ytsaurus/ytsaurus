@@ -61,11 +61,11 @@ def main():
     is_raw = __attributes.get("is_raw", False)
 
     if is_raw:
-        __records = sys.stdin.xreadlines()
-    elif isinstance(__input_format, yt.YsonFormat):
-        __records = process_input_table_index(yson.load(sys.stdin, yson_type="list_fragment"))
+        __records = sys.stdin
     else:
-        __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
+        __records = __input_format.load_rows(sys.stdin)
+        if isinstance(__input_format, yt.YsonFormat):
+            __records = process_input_table_index(__records)
 
     if __operation_type == "mapper" or is_raw:
         if __attributes.get("is_aggregator", False):
@@ -73,16 +73,18 @@ def main():
         else:
             __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
     else:
-        __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: extract_key(rec, __keys, __input_format))))
+        __result = \
+            itertools.chain.from_iterable(
+                itertools.starmap(__operation, 
+                    itertools.groupby(__records, lambda rec: extract_key(rec, __keys))))
 
     if is_raw:
         for line in __result:
             sys.stdout.write(line)
-    elif isinstance(__output_format, yt.YsonFormat):
-        yson.dump(process_output_table_index(__result), sys.stdout, yson_type="list_fragment")
     else:
-        for line in itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result):
-            sys.stdout.write(line)
+        if isinstance(__output_format, yt.YsonFormat):
+            __result = process_output_table_index(__result)
+        __output_format.dump_rows(__result, sys.stdout)
 
 if __name__ == "__main__":
     main()
