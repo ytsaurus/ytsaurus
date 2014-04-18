@@ -6,7 +6,6 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <core/misc/serialize.h>
-#include <tclDecls.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
