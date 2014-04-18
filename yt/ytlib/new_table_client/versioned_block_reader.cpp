@@ -100,7 +100,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(const TOwningKey& key)
     auto index = LowerBound(
         RowIndex_,
         Meta_.row_count(),
-        [&] (int index) {
+        [&] (int index) -> bool {
             YCHECK(JumpToRowIndex(index));
             return GetKey() < key;
         });

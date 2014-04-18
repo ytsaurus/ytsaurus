@@ -33,9 +33,6 @@ public:
     const TOwningKey& GetKey() const;
     TVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
-    int GetValueCount();
-    int GetTimestampCount();
-
     static int FormatVersion;
 
 private:
