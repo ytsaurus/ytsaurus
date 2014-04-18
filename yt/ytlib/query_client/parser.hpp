@@ -268,6 +268,7 @@ namespace NYT { namespace NQueryClient {
       char dummy12[sizeof(TScanOperator*)];
 
       // "identifier"
+      // "string literal"
       // "YPath literal"
       char dummy13[sizeof(TStringBuf)];
 
@@ -312,7 +313,8 @@ namespace NYT { namespace NQueryClient {
         Identifier = 1010,
         IntegerLiteral = 1011,
         DoubleLiteral = 1012,
-        YPathLiteral = 1013,
+        StringLiteral = 1013,
+        YPathLiteral = 1014,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -322,11 +324,11 @@ namespace NYT { namespace NQueryClient {
         OpMinus = 45,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1014,
+        OpLessOrEqual = 1015,
         OpEqual = 61,
-        OpNotEqual = 1015,
+        OpNotEqual = 1016,
         OpGreater = 62,
-        OpGreaterOrEqual = 1016
+        OpGreaterOrEqual = 1017
       };
     };
 
@@ -507,6 +509,10 @@ namespace NYT { namespace NQueryClient {
 
     static inline
     symbol_type
+    make_StringLiteral (const TStringBuf& v, const location_type& l);
+
+    static inline
+    symbol_type
     make_YPathLiteral (const TStringBuf& v, const location_type& l);
 
     static inline
@@ -650,7 +656,7 @@ namespace NYT { namespace NQueryClient {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const signed char yytable_[];
 
-  static const signed char yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -765,13 +771,13 @@ namespace NYT { namespace NQueryClient {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 63,           //< Last index in yytable_.
+      yylast_ = 62,           //< Last index in yytable_.
       yynnts_ = 22,  //< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 20, //< Termination state number.
+      yyfinal_ = 21, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 31    //< Number of tokens.
+      yyntokens_ = 32    //< Number of tokens.
     };
 
 

@@ -135,6 +135,13 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
             break;
         }
 
+        case EExpressionKind::StringLiteral: {
+            auto* expr = original->As<TStringLiteralExpression>();
+            auto* proto = serialized->MutableExtension(NProto::TStringLiteralExpression::string_literal_expression);
+            proto->set_value(expr->GetValue());
+            break;
+        }
+
         case EExpressionKind::Reference: {
             auto* expr = original->As<TReferenceExpression>();
             auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
@@ -182,6 +189,17 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
         case EExpressionKind::DoubleLiteral: {
             auto data = serialized.GetExtension(NProto::TDoubleLiteralExpression::double_literal_expression);
             auto typedResult = new (context) TDoubleLiteralExpression(
+                context,
+                NullSourceLocation,
+                data.value());
+            YASSERT(!result);
+            result = typedResult;
+            break;
+        }
+
+        case EExpressionKind::StringLiteral: {
+            auto data = serialized.GetExtension(NProto::TStringLiteralExpression::string_literal_expression);
+            auto typedResult = new (context) TStringLiteralExpression(
                 context,
                 NullSourceLocation,
                 data.value());
