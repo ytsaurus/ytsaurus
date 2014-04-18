@@ -110,19 +110,19 @@ private:
             return;
 
         std::vector<IStorePtr> stores;
+        i64 dataSize = 0;
         for (auto store : eden->Stores()) {
             if (store->GetState() == EStoreState::Persistent) {
+                dataSize += store->GetDataSize();
                 stores.push_back(std::move(store));
             }
         }
 
-        i64 dataSize = eden->GetTotalDataSize();
-        int storeCount = static_cast<int>(eden->Stores().size());
-
         // Check if partitioning is needed.
         auto* tablet = eden->GetTablet();
         const auto& config = tablet->GetConfig();
-        if (dataSize <= config->MaxEdenDataSize && storeCount <= config->MaxEdenStoreCount)
+        if (dataSize <= config->MaxEdenDataSize &&
+            static_cast<int>(stores.size()) <= config->MaxEdenStoreCount)
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
@@ -130,7 +130,7 @@ private:
             return;
 
         // Limit the number of chunks to process at once.
-        if (storeCount > Config_->MaxChunksPerCompaction) {
+        if (static_cast<int>(stores.size()) > Config_->MaxChunksPerCompaction) {
             stores.erase(
                 stores.begin() + Config_->MaxChunksPerCompaction,
                 stores.end());
