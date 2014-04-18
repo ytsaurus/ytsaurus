@@ -63,6 +63,7 @@ public:
     void* Allocate(size_t size);
     void Deallocate(void* pointer);
     TStringBuf Capture(const char* begin, const char* end);
+    TStringBuf Capture(const TStringBuf& stringBuf);
 
     void SetSource(Stroka source);
     Stroka GetSource() const;

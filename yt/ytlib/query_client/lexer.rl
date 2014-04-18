@@ -38,8 +38,7 @@ typedef TParser::token_type TToken;
 
     integer_literal = digit+;
     double_literal = fltdot fltexp?;
-    # TODO(sandello): Strings are not supported by the moment.
-    # string_literal = '"' ( [^"\\] | /\\./ )* '"';
+    string_literal = '"' ( [^"\\] | /\\./ )* '"';
 
     # YPath handling relies on continuous chunking.
     ypath := |*
@@ -86,12 +85,11 @@ typedef TParser::token_type TToken;
             value->build(FromString<double>(ts, te - ts));
             fbreak;
         };
-        # TODO(sandello): Strings are not supported by the moment.
-        # string_literal => {
-        #     type = TToken::StringLiteral;
-        #     value->build<Stroka>(UnescapeC(ts, te - ts));
-        #     fbreak;
-        # };
+        string_literal => {
+            type = TToken::StringLiteral;
+            value->build(Context_->Capture(UnescapeC(ts + 1, te - ts - 2)));
+            fbreak;
+        };
 
         '[' => {
             fhold;
