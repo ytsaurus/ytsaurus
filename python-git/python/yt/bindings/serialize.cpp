@@ -231,7 +231,7 @@ Py::Object TPythonObjectBuilder::ExtractObject()
 
 bool TPythonObjectBuilder::HasObject() const
 {
-    return !Objects_.empty();
+    return Objects_.size() > 1 || (Objects_.size() == 1 && Finished_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
