@@ -24,7 +24,7 @@ def writelines_silently(lines):
 
 class ParseFormat(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, yt.Format(values))
+        setattr(namespace, self.dest, yt.create_format(values))
 
 class ParseStructuredArgument(Action):
     def __call__(self, parser, namespace, values, option_string=None):

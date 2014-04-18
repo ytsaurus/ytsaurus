@@ -48,7 +48,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
 
     def dsv_records(self):
         return map(
-            partial(record_to_line, format=yt.Format("dsv")),
+            partial(record_to_line, format=yt.DsvFormat()),
                 [{"a": 12,  "b": "ignat"},
                            {"b": "max",  "c": 17.5},
                  {"a": "x", "b": "name", "c": 0.5}])
