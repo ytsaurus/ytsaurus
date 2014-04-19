@@ -297,7 +297,7 @@ private:
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
             chunkReader = CreateReplicationReader(
-                Config_->ChunkReader,
+                Config_->Reader,
                 std::move(blockCache),
                 std::move(masterChannel),
                 std::move(nodeDirectory),
@@ -306,7 +306,7 @@ private:
         }
 
         return CreateSchemafulChunkReader(
-            Config_->ChunkReader,
+            Config_->Reader,
             std::move(chunkReader),
             split.chunk_meta(),
             lowerBound,

@@ -17,6 +17,8 @@
 
 #include <server/cell_node/public.h>
 
+#include <server/query_agent/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -27,7 +29,6 @@ class TChunkStore
 {
 public:
     TChunkStore(
-        TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet,
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
@@ -61,7 +62,6 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
-    TTabletManagerConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.

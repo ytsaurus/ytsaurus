@@ -18,6 +18,10 @@ class TQueryChunkReaderConfig
     , public NChunkClient::TReplicationReaderConfig
 { };
 
+DEFINE_REFCOUNTED_TYPE(TQueryChunkReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryAgentConfig
     : public TYsonSerializable
 {
@@ -25,7 +29,7 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentRequests;
 
-    TIntrusivePtr<TQueryChunkReaderConfig> ChunkReader;
+    TIntrusivePtr<TQueryChunkReaderConfig> Reader;
 
     TQueryAgentConfig()
     {
@@ -36,7 +40,7 @@ public:
             .GreaterThan(0)
             .Default(4);
 
-        RegisterParameter("reader", ChunkReader)
+        RegisterParameter("reader", Reader)
             .DefaultNew();
     }
 };

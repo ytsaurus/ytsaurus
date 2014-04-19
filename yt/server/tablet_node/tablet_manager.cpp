@@ -1060,7 +1060,6 @@ private:
         const TChunkMeta* chunkMeta)
     {
         return New<TChunkStore>(
-            Config_,
             chunkId,
             tablet,
             chunkMeta,

@@ -28,7 +28,10 @@
 #include <server/data_node/local_chunk_reader.h>
 #include <server/data_node/block_store.h>
 
+#include <server/query_agent/config.h>
+
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -45,13 +48,13 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NDataNode;
 using namespace NCellNode;
+using namespace NQueryAgent;
 
 using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStore::TChunkStore(
-    TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet,
     const TChunkMeta* chunkMeta,
@@ -59,7 +62,6 @@ TChunkStore::TChunkStore(
     : TStoreBase(
         id,
         tablet)
-    , Config_(std::move(config))
     , Bootstrap_(boostrap)
     , DataSize_(-1)
 {
@@ -130,7 +132,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     if (!chunkReader) {
         // TODO(babenko): provide seed replicas
         chunkReader = CreateReplicationReader(
-            Config_->Reader,
+            Bootstrap_->GetConfig()->QueryAgent->Reader,
             Bootstrap_->GetBlockStore()->GetBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(),
             New<TNodeDirectory>(),
@@ -154,7 +156,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     upperLimit.SetKey(std::move(upperKey));
 
     return CreateVersionedChunkReader(
-        Config_->Reader,
+        Bootstrap_->GetConfig()->QueryAgent->Reader,
         chunkReader,
         CachedMeta_,
         lowerLimit,

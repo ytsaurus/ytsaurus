@@ -112,11 +112,6 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletChunkReaderConfig
-    : public NVersionedTableClient::TChunkReaderConfig
-    , public NChunkClient::TReplicationReaderConfig
-{ };
-
 class TTabletManagerConfig
     : public TYsonSerializable
 {
@@ -128,8 +123,6 @@ public:
     TDuration ErrorBackoffTime;
 
     TDuration AutoFlushPeriod;
-
-    TIntrusivePtr<TTabletChunkReaderConfig> Reader;
 
     TTabletManagerConfig()
     {
@@ -148,9 +141,6 @@ public:
 
         RegisterParameter("auto_flush_period", AutoFlushPeriod)
             .Default(TDuration::Minutes(5));
-
-        RegisterParameter("reader", Reader)
-            .DefaultNew();
     }
 };
 
