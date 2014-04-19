@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <core/misc/ref_tracked.h>
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
 #include <core/misc/nullable.h>
@@ -21,6 +22,7 @@ namespace NTabletServer {
 
 class TTabletCell
     : public NObjectServer::TNonversionedObjectBase
+    , public TRefTracked<TTablet>
 {
     DEFINE_BYVAL_RW_PROPERTY(ETabletCellState, State);
     DEFINE_BYVAL_RW_PROPERTY(int, Size);
