@@ -408,7 +408,7 @@ void TFollowerRecovery::DoRun()
                     break;
 
                 case TPostponedMutation::EType::ChangelogRotation:
-                    DecoratedAutomaton->RotateChangelog();
+                    WaitFor(DecoratedAutomaton->RotateChangelog());
                     break;
 
                 default:
