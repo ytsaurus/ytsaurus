@@ -648,8 +648,7 @@ public:
                     return;
                 }
 
-                auto asyncResult = DecoratedAutomaton_->RotateChangelog();
-                WaitFor(asyncResult);
+                WaitFor(DecoratedAutomaton_->RotateChangelog());
 
                 context->Reply();
                 break;
