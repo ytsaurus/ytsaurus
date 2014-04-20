@@ -157,9 +157,6 @@ void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
 void TPythonObjectBuilder::OnEndMap()
 {
     Pop();
-    if (ObjectStack_.empty()) {
-        Finished_ = true;
-    }
 }
 
 void TPythonObjectBuilder::OnBeginAttributes()
@@ -195,7 +192,6 @@ Py::Object TPythonObjectBuilder::AddObject(Py::Object obj)
 {
     if (ObjectStack_.empty()) {
         Objects_.push(obj);
-        Finished_ = false;
     } else if (ObjectStack_.top().second == EObjectType::List) {
         PyList_Append(ObjectStack_.top().first.ptr(), *obj);
     } else {
@@ -231,7 +227,7 @@ Py::Object TPythonObjectBuilder::ExtractObject()
 
 bool TPythonObjectBuilder::HasObject() const
 {
-    return Objects_.size() > 1 || (Objects_.size() == 1 && Finished_);
+    return Objects_.size() > 1 || (Objects_.size() == 1 && ObjectStack_.size() == 0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

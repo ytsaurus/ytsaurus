@@ -58,7 +58,6 @@ private:
     Py::Callable YsonEntity;
 
     std::queue<Py::Object> Objects_;
-    bool Finished_;
 
     std::stack<std::pair<Py::Object, EObjectType>> ObjectStack_;
     std::stack<Stroka> Keys_;
