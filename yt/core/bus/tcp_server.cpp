@@ -236,7 +236,7 @@ protected:
                 GetInterfaceType(),
                 TConnectionId::Create(),
                 clientSocket,
-                ToString(clientAddress, true),
+                ToString(clientAddress, false),
                 0,
                 Handler);
 
