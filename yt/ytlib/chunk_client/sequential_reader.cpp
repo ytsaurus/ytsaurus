@@ -232,7 +232,7 @@ void TSequentialReader::RequestBlocks(
         MakeWeak(this)));
 }
 
-TFuture<void> TSequentialReader::GetFetchingCompleteEvent()
+TFuture<void> TSequentialReader::GetFetchingCompletedEvent()
 {
     return FetchingComplete_;
 }

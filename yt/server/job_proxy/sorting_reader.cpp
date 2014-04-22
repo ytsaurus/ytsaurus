@@ -32,10 +32,12 @@ using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
 
 using NTableClient::TRow;
+
 using NVersionedTableClient::TKey;
+using NVersionedTableClient::EValueType;
+using NVersionedTableClient::MakeUnversionedSentinelValue;
 
 ////////////////////////////////////////////////////////////////////////////////
 

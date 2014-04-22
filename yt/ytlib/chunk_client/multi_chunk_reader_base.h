@@ -20,11 +20,11 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNontemplateMultiChunkReaderBase
+class TMultiChunkReaderBase
     : public virtual IMultiChunkReader
 {
 public:
-    TNontemplateMultiChunkReaderBase(
+    TMultiChunkReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
@@ -70,7 +70,7 @@ protected:
 
     virtual TError DoOpen() = 0;
 
-    virtual IChunkReaderBasePtr CreateTemplateReader(const NProto::TChunkSpec& chunkSpec, IAsyncReaderPtr asyncRaader) = 0;
+    virtual IChunkReaderBasePtr CreateTemplateReader(const NProto::TChunkSpec& chunkSpec, IAsyncReaderPtr asyncReader) = 0;
 
     virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) = 0;
 
@@ -122,11 +122,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNontemplateSequentialMultiChunkReaderBase
-    : public TNontemplateMultiChunkReaderBase
+class TSequentialMultiChunkReaderBase
+    : public TMultiChunkReaderBase
 {
 public:
-    TNontemplateSequentialMultiChunkReaderBase(
+    TSequentialMultiChunkReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
@@ -152,6 +152,7 @@ private:
     TError WaitForNextReader();
 
     TError WaitForCurrentReader();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,14 +165,6 @@ public:
 private:
 };
 */
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TBase, class TReader>
-class TMultiChunkReaderBase
-{
-    
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

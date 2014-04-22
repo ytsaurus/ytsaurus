@@ -65,7 +65,7 @@ public:
     const TFacade* GetFacade() const;
 
     //! Must be called after AsyncOpen has finished.
-    TFuture<void> GetFetchingCompleteEvent();
+    TFuture<void> GetFetchingCompletedEvent();
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 

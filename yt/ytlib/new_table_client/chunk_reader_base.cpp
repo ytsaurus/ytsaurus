@@ -52,15 +52,6 @@ TAsyncError TChunkReaderBase::GetReadyEvent()
 TError TChunkReaderBase::DoOpen()
 {
     try {
-        /*
-        auto extensionTags = GetExtensionTags();
-
-        auto errorOrMeta = WaitFor(UnderlyingReader_->GetChunkMeta(extensionTags));
-        RETURN_IF_ERROR(errorOrMeta);
-
-        auto chunkMeta = errorOrMeta.Value();
-        */
-
         auto blocks = GetBlockSequence();
 
         if (blocks.empty()) {
@@ -218,6 +209,21 @@ int TChunkReaderBase::GetEndBlockIndex(const TBlockIndexExt& blockIndex) const
         }
     }
     return endBlockIndex;
+}
+
+TDataStatistics TChunkReaderBase::GetDataStatistics() const
+{
+    TDataStatistics dataStatistics;
+    dataStatistics.set_chunk_count(1);
+    dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
+    dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+
+    return dataStatistics;
+}
+
+TFuture<void> TChunkReaderBase::GetFetchingCompletedEvent()
+{
+    return SequentialReader_->GetFetchingCompletedEvent();
 }
 
 

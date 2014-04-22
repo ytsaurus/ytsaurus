@@ -125,10 +125,10 @@ DECLARE_REFCOUNTED_CLASS(TSchemafulPipe)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessWriter)
 
-//DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkWriter)
 
-//DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
@@ -151,6 +151,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -56,5 +56,14 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableReaderConfig
+    : public TChunkReaderConfig
+    , public NChunkClient::TMultiChunkReaderConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
 } // namespace NYT
