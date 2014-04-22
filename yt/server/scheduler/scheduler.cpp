@@ -640,6 +640,13 @@ public:
             EOperationState::Failing,
             EOperationState::Failed,
             error);
+
+        LogEventFluently(ELogEventType::OperationFailed)
+            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
+            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
+            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
+            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime())
+            .Item(STRINGBUF("error")).Value(error);
     }
 
 
@@ -1501,6 +1508,13 @@ private:
         } catch (const std::exception& ex) {
             OnOperationFailed(operation, ex);
         }
+
+        LogEventFluently(ELogEventType::OperationCompleted)
+            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
+            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
+            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
+            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime());
+
     }
 
     void TerminateOperation(
