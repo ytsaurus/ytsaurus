@@ -146,6 +146,11 @@ void TJsonWriterImpl::LeaveNode()
     HasUnfoldedStructureStack.pop_back();
 
     Depth -= 1;
+
+    if (Depth == 0 && Type == NYson::EYsonType::ListFragment && InAttributesBalance == 0) {
+        JsonWriter->Reset();
+        Output->Write("\n");
+    }
 }
 
 bool TJsonWriterImpl::IsWriteAllowed()
@@ -235,16 +240,6 @@ void TJsonWriterImpl::OnEndMap()
     if (IsWriteAllowed()) {
         JsonWriter->CloseMap();
         LeaveNode();
-    }
-
-    if (Depth == 0 && Type == NYson::EYsonType::ListFragment) {
-        JsonWriter->Flush();
-        Output->Write("\n");
-
-        UnderlyingJsonWriter.reset(new NJson::TJsonWriter(
-            Output,
-            Config->Format == EJsonFormat::Pretty));
-        JsonWriter = ~UnderlyingJsonWriter;
     }
 }
 

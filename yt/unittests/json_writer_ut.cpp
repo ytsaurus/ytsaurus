@@ -74,6 +74,32 @@ TEST(TJsonWriterTest, DoubleMap)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, ListFragmentWithEntity)
+{
+    TStringStream outputStream;
+    auto writer = CreateJsonConsumer(&outputStream, NYson::EYsonType::ListFragment);
+
+    writer->OnListItem();
+    writer->OnBeginAttributes();
+        writer->OnKeyedItem("x");
+        writer->OnStringScalar("y");
+    writer->OnEndAttributes();
+    writer->OnEntity();
+    writer->OnListItem();
+    writer->OnBeginMap();
+        writer->OnKeyedItem("hello");
+        writer->OnStringScalar("world");
+    writer->OnEndMap();
+    writer->OnListItem();
+    writer->OnBeginMap();
+        writer->OnKeyedItem("foo");
+        writer->OnStringScalar("bar");
+    writer->OnEndMap();
+
+    Stroka output = "{\"$attributes\":{\"x\":\"y\"},\"$value\":null}\n{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TJsonWriterTest, Entity)
 {
     TStringStream outputStream;
