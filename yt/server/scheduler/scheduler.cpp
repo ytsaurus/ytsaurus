@@ -120,6 +120,10 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
         VERIFY_INVOKER_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
+
+        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+        int port = Bootstrap_->GetConfig()->RpcPort;
+        ServiceAddress_ = BuildServiceAddress(localHostName, port);
     }
 
     void Initialize()
@@ -163,7 +167,8 @@ public:
         EventLogWriter_->Open();
         EventLogConsumer_.reset(new TTableConsumer(EventLogWriter_));
 
-        LogEventFluently(ELogEventType::SchedulerStarted);
+        LogEventFluently(ELogEventType::SchedulerStarted)
+            .Item(STRINGBUF("address")).Value(ServiceAddress_);
     }
 
 
@@ -677,9 +682,10 @@ private:
     TNodeResources TotalResourceLimits_;
     TNodeResources TotalResourceUsage_;
 
+    Stroka ServiceAddress_;
+
     NTableClient::IAsyncWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
-
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
@@ -709,7 +715,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LogEventFluently(ELogEventType::MasterConnected);
+        LogEventFluently(ELogEventType::MasterConnected)
+            .Item(STRINGBUF("address")).Value(ServiceAddress_);
 
         ReviveOperations(result.Operations);
     }
@@ -718,7 +725,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LogEventFluently(ELogEventType::MasterDisconnected);
+        LogEventFluently(ELogEventType::MasterDisconnected)
+            .Item(STRINGBUF("address")).Value(ServiceAddress_);
 
         auto operations = IdToOperation_;
         FOREACH (const auto& pair, operations) {
