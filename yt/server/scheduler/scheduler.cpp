@@ -846,9 +846,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
-            if (operation->GetController()) {
-                OnOperationFailed(operation, wrappedError);
-            }
+            OnOperationFailed(operation, wrappedError);
             operation->SetStarted(wrappedError);
             return wrappedError;
         }
@@ -1166,9 +1164,11 @@ private:
 
     void FinishOperation(TOperationPtr operation)
     {
-        operation->SetFinished();
-        operation->SetController(nullptr);
-        UnregisterOperation(operation);
+        if (!operation->GetFinished().IsSet()) {
+            operation->SetFinished();
+            operation->SetController(nullptr);
+            UnregisterOperation(operation);
+        }
     }
 
 
@@ -1559,7 +1559,10 @@ private:
                 return;
         }
 
-        operation->GetController()->Abort();
+        auto controller = operation->GetController();
+        if (controller) {
+            controller->Abort();
+        }
 
         FinishOperation(operation);
     }
