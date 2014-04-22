@@ -438,7 +438,7 @@ private:
         {
             auto localHostName = TAddressResolver::Get()->GetLocalHostName();
             int port = Owner->Bootstrap->GetConfig()->RpcPort;
-            ServiceAddresss = BuildServiceAddress(localHostName, port);
+            ServiceAddress = BuildServiceAddress(localHostName, port);
         }
 
         TErrorOr<TMasterHandshakeResult> Run()
@@ -463,7 +463,7 @@ private:
 
     private:
         TIntrusivePtr<TImpl> Owner;
-        Stroka ServiceAddresss;
+        Stroka ServiceAddress;
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
 
@@ -471,7 +471,7 @@ private:
         void RegisterInstance()
         {
             auto batchReq = Owner->StartBatchRequest(false);
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddresss);
+            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddress);
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -484,7 +484,7 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(EObjectType::Orchid);
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_address", ServiceAddresss);
+                attributes->Set("remote_address", ServiceAddress);
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -506,7 +506,7 @@ private:
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddresss));
+                attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddress));
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 GenerateMutationId(req);
