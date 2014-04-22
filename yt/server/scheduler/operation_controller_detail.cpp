@@ -2236,6 +2236,12 @@ void TOperationControllerBase::OnOperationCompleted()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    LogEventFluently(ELogEventType::OperationCompleted)
+        .Item(STRINGBUF("operation_id")).Value(Operation->GetId())
+        .Item(STRINGBUF("spec")).Value(Operation->GetSpec())
+        .Item(STRINGBUF("start_time")).Value(Operation->GetStartTime())
+        .Item(STRINGBUF("finish_time")).Value(Operation->GetFinishTime());
+
     CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationCompleted, MakeStrong(this)));
 }
 
@@ -2253,6 +2259,13 @@ void TOperationControllerBase::DoOperationCompleted()
 void TOperationControllerBase::OnOperationFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    LogEventFluently(ELogEventType::OperationFailed)
+        .Item(STRINGBUF("operation_id")).Value(Operation->GetId())
+        .Item(STRINGBUF("spec")).Value(Operation->GetSpec())
+        .Item(STRINGBUF("start_time")).Value(Operation->GetStartTime())
+        .Item(STRINGBUF("finish_time")).Value(Operation->GetFinishTime())
+        .Item(STRINGBUF("error")).Value(error);
 
     CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationFailed, MakeStrong(this), error));
 }
