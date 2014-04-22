@@ -190,7 +190,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession&
     LOG_DEBUG("Chunk opened (ChunkIndex: %v)", session.ChunkIndex);
     ReaderProvider->OnReaderOpened(session.Reader, ChunkSpecs[session.ChunkIndex]);
 
-    FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
+    FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompletedEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == ChunkSpecs.size()) {
         FetchingCompleteAwaiter->Complete(BIND(
             &TOldMultiChunkReaderBase<TChunkReader>::OnFetchingComplete,

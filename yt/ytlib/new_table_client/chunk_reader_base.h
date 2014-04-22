@@ -30,8 +30,11 @@ public:
 
     virtual TAsyncError GetReadyEvent() override;
 
-protected:
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
+    virtual TFuture<void> GetFetchingCompletedEvent();
+
+protected:
     TChunkReaderConfigPtr Config_;
 
     NChunkClient::TReadLimit LowerLimit_;
@@ -44,6 +47,8 @@ protected:
     TAsyncError ReadyEvent_;
 
     bool BlockEnded_;
+
+    TChunkedMemoryPool MemoryPool_;
 
 
     int GetBeginBlockIndex(const NProto::TBlockMetaExt& blockMeta) const;

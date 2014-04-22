@@ -85,7 +85,7 @@ public:
     const TFacade* GetFacade() const;
 
     //! Must be called after AsyncOpen has finished.
-    TFuture<void> GetFetchingCompleteEvent();
+    TFuture<void> GetFetchingCompletedEvent();
 
     // Called by facade.
     TSharedRef GetBlock() const;

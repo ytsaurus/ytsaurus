@@ -63,7 +63,7 @@ int CalculatePrefetchWindow(const std::vector<TChunkSpec>& sortedChunkSpecs, TMu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNontemplateMultiChunkReaderBase::TNontemplateMultiChunkReaderBase(
+TMultiChunkReaderBase::TMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
@@ -126,24 +126,24 @@ TNontemplateMultiChunkReaderBase::TNontemplateMultiChunkReaderBase(
     LOG_DEBUG("Created multi chunk reader (PrefetchWindow: %d)", PrefetchWindow_);
 }
 
-TAsyncError TNontemplateMultiChunkReaderBase::Open()
+TAsyncError TMultiChunkReaderBase::Open()
 {
     YCHECK(!IsOpen_);
     IsOpen_ = true;
     if (CompletionError_.IsSet())
         return CompletionError_.ToFuture();
 
-    return BIND(&TNontemplateMultiChunkReaderBase::DoOpen, MakeStrong(this))
+    return BIND(&TMultiChunkReaderBase::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 
-TAsyncError TNontemplateMultiChunkReaderBase::GetReadyEvent()
+TAsyncError TMultiChunkReaderBase::GetReadyEvent()
 {
     return ReadyEvent_;
 }
 
-TDataStatistics TNontemplateMultiChunkReaderBase::GetDataStatistics() const
+TDataStatistics TMultiChunkReaderBase::GetDataStatistics() const
 {
     TGuard<TSpinLock> guard(DataStatisticsLock_);
     auto dataStatistics = DataStatistics_;
@@ -153,29 +153,29 @@ TDataStatistics TNontemplateMultiChunkReaderBase::GetDataStatistics() const
     return dataStatistics;
 }
 
-bool TNontemplateMultiChunkReaderBase::IsFetchingCompleted() const
+bool TMultiChunkReaderBase::IsFetchingCompleted() const
 {
     return FetchingCompletedAwaiter_->IsCompleted() &&
         (FetchingCompletedAwaiter_->GetRequestCount() == FetchingCompletedAwaiter_->GetResponseCount());
 }
 
-void TNontemplateMultiChunkReaderBase::OpenPrefetchChunks()
+void TMultiChunkReaderBase::OpenPrefetchChunks()
 {
     for (int i = 0; i < PrefetchWindow_; ++i) {
         OpenNextChunk();
     }
 }
 
-void TNontemplateMultiChunkReaderBase::OpenNextChunk()
+void TMultiChunkReaderBase::OpenNextChunk()
 {
     BIND(
-        &TNontemplateMultiChunkReaderBase::DoOpenNextChunk, 
+        &TMultiChunkReaderBase::DoOpenNextChunk,
         MakeWeak(this))
     .Via(TDispatcher::Get()->GetReaderInvoker())
     .Run();
 }
 
-void TNontemplateMultiChunkReaderBase::DoOpenNextChunk()
+void TMultiChunkReaderBase::DoOpenNextChunk()
 {
     if (CompletionError_.IsSet())
         return;
@@ -209,7 +209,7 @@ void TNontemplateMultiChunkReaderBase::DoOpenNextChunk()
     YCHECK(ActiveReaders_.insert(reader).second);
 }
 
-IAsyncReaderPtr TNontemplateMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chunkSpec)
+IAsyncReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chunkSpec)
 {
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
@@ -267,7 +267,7 @@ IAsyncReaderPtr TNontemplateMultiChunkReaderBase::CreateRemoteReader(const TChun
     return CreateNonReparingErasureReader(readers);
 }
 
-void TNontemplateMultiChunkReaderBase::OnReaderFinished()
+void TMultiChunkReaderBase::OnReaderFinished()
 {
     if (Options_->KeepInMemory) {
         FinishedReaders_.push_back(CurrentSession_.ChunkReader);
@@ -282,7 +282,7 @@ void TNontemplateMultiChunkReaderBase::OnReaderFinished()
     OpenNextChunk();
 }
 
-bool TNontemplateMultiChunkReaderBase::OnEmptyRead(bool readerFinished)
+bool TMultiChunkReaderBase::OnEmptyRead(bool readerFinished)
 {
     if (readerFinished) {
         OnReaderFinished();
@@ -293,10 +293,10 @@ bool TNontemplateMultiChunkReaderBase::OnEmptyRead(bool readerFinished)
     }
 }
 
-void TNontemplateMultiChunkReaderBase::OnError()
+void TMultiChunkReaderBase::OnError()
 { }
 
-void TNontemplateMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
+void TMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
 {   
     auto chunkId = NYT::FromProto<TChunkId>(ChunkSpecs_[chunkIndex].chunk_id());
     LOG_WARNING("Chunk reader failed (ChunkId: %s)", ~ToString(chunkId));
@@ -309,14 +309,14 @@ void TNontemplateMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNontemplateSequentialMultiChunkReaderBase::TNontemplateSequentialMultiChunkReaderBase(
+TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NProto::TChunkSpec>& chunkSpecs)
-    : TNontemplateMultiChunkReaderBase(
+    : TMultiChunkReaderBase(
         config, 
         options, 
         masterChannel, 
@@ -331,47 +331,53 @@ TNontemplateSequentialMultiChunkReaderBase::TNontemplateSequentialMultiChunkRead
     }
 }
 
-TError TNontemplateSequentialMultiChunkReaderBase::DoOpen()
+TError TSequentialMultiChunkReaderBase::DoOpen()
 {
     OpenPrefetchChunks();
     return WaitForNextReader();
 }
 
-void TNontemplateSequentialMultiChunkReaderBase::OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex)
+void TSequentialMultiChunkReaderBase::OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex)
 {
     // May have already been set in case of error.
     NextReaders_[chunkIndex].TrySet(chunkReader);
 }
 
-void TNontemplateSequentialMultiChunkReaderBase::OnReaderBlocked()
+void TSequentialMultiChunkReaderBase::OnReaderBlocked()
 {
     ReadyEvent_ = BIND(
-        &TNontemplateSequentialMultiChunkReaderBase::WaitForCurrentReader, 
+        &TSequentialMultiChunkReaderBase::WaitForCurrentReader,
         MakeStrong(this))
     .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
     .Run();
 }
 
-void TNontemplateSequentialMultiChunkReaderBase::OnReaderFinished()
+void TSequentialMultiChunkReaderBase::OnReaderFinished()
 {
-    TNontemplateMultiChunkReaderBase::OnReaderFinished();
+    TMultiChunkReaderBase::OnReaderFinished();
  
     if (NextReaderIndex_ < ChunkSpecs_.size()) {
         ReadyEvent_ = BIND(
-            &TNontemplateSequentialMultiChunkReaderBase::WaitForNextReader, 
+            &TSequentialMultiChunkReaderBase::WaitForNextReader,
             MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
     } else {
+        // ToDo(psushin): consider moving this to base.
         CompletionError_.TrySet(TError());
         ReadyEvent_ = CompletionError_.ToFuture();
     }
 }
 
-TError TNontemplateSequentialMultiChunkReaderBase::WaitForNextReader()
+TError TSequentialMultiChunkReaderBase::WaitForNextReader()
 {
     CurrentSession_.ChunkSpecIndex = NextReaderIndex_;
     CurrentSession_.ChunkReader = WaitFor(NextReaders_[NextReaderIndex_].ToFuture());
+
+    if (!CurrentSession_.ChunkReader) {
+        YCHECK(CompletionError_.IsSet());
+        return CompletionError_.Get();
+    }
     
     OnReaderSwitched();
 
@@ -380,7 +386,7 @@ TError TNontemplateSequentialMultiChunkReaderBase::WaitForNextReader()
     return CompletionError_.IsSet() ? CompletionError_.Get() : TError();
 }
 
-TError TNontemplateSequentialMultiChunkReaderBase::WaitForCurrentReader()
+TError TSequentialMultiChunkReaderBase::WaitForCurrentReader()
 {
     auto error = WaitFor(CurrentSession_.ChunkReader->GetReadyEvent());
     if (!error.IsOK()) {
@@ -391,7 +397,7 @@ TError TNontemplateSequentialMultiChunkReaderBase::WaitForCurrentReader()
     return error;
 }
 
-void TNontemplateSequentialMultiChunkReaderBase::OnError()
+void TSequentialMultiChunkReaderBase::OnError()
 {
     // This is to avoid infinite waiting and memory leaks.
     for (auto& nextReader : NextReaders_) {
@@ -405,19 +411,19 @@ void TNontemplateSequentialMultiChunkReaderBase::OnError()
 void TNontemplateParallelMultiChunkReaderBase::OnReaderBlocked()
 {
     BIND(
-        &TNontemplateSequentialMultiChunkReaderBase::WaitForCurrentReader, 
+        &TSequentialMultiChunkReaderBase::WaitForCurrentReader,
         MakeStrong(this))
     .Via(TDispatcher::Get()->GetReaderInvoker())
     .Run();
 
     ReadyEvent_ = BIND(
-        &TNontemplateSequentialMultiChunkReaderBase::WaitForReadyReader, 
+        &TSequentialMultiChunkReaderBase::WaitForReadyReader,
         MakeStrong(this))
     .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
     .Run();
 }
 
-void TNontemplateSequentialMultiChunkReaderBase::OnReaderFinished()
+void TSequentialMultiChunkReaderBase::OnReaderFinished()
 {
     OpenNextChunk();
  
@@ -425,7 +431,7 @@ void TNontemplateSequentialMultiChunkReaderBase::OnReaderFinished()
 
     if (FinishedReaderCount_ < ChunkSpecs_.size()) {
         ReadyEvent_ = BIND(
-            &TNontemplateSequentialMultiChunkReaderBase::WaitForReadyReader, 
+            &TSequentialMultiChunkReaderBase::WaitForReadyReader,
             MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();

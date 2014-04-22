@@ -1008,10 +1008,10 @@ int TTableChunkReader::GetTableIndex() const
     return TableIndex;
 }
 
-TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
+TFuture<void> TTableChunkReader::GetFetchingCompletedEvent()
 {
     if (SequentialReader) {
-        return SequentialReader->GetFetchingCompleteEvent();
+        return SequentialReader->GetFetchingCompletedEvent();
     } else {
         // Error occured during initialization.
         return VoidFuture;

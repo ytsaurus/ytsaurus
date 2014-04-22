@@ -227,9 +227,9 @@ TValue TPartitionChunkReader::ReadValue(const TStringBuf& name) const
     }
 }
 
-TFuture<void> TPartitionChunkReader::GetFetchingCompleteEvent()
+TFuture<void> TPartitionChunkReader::GetFetchingCompletedEvent()
 {
-    return SequentialReader->GetFetchingCompleteEvent();
+    return SequentialReader->GetFetchingCompletedEvent();
 }
 
 TDataStatistics TPartitionChunkReader::GetDataStatistics() const

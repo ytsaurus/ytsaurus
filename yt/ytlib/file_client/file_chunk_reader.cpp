@@ -216,9 +216,9 @@ TSharedRef TFileChunkReader::GetBlock() const
     return block.Slice(TRef(begin, end));
 }
 
-TFuture<void> TFileChunkReader::GetFetchingCompleteEvent()
+TFuture<void> TFileChunkReader::GetFetchingCompletedEvent()
 {
-    return SequentialReader->GetFetchingCompleteEvent();
+    return SequentialReader->GetFetchingCompletedEvent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
