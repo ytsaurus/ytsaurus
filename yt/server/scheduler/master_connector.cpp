@@ -657,7 +657,7 @@ private:
         // - Try to ping the previous incarnations of scheduler transactions.
         void CheckOperationTransactions()
         {
-            auto batchRequest = TMultiCellBatchRequest(Owner->CellDirectory, true);
+            auto batchRequest = TMultiCellBatchRequest(Owner->CellDirectory, false);
 
             auto getRspName = [] (TOperationPtr operation) {
                 return "ping_op_tx:" + ToString(operation->GetId());
@@ -675,17 +675,21 @@ private:
                 auto schedulePing = [&] (ITransactionPtr transaction) {
                     if (transaction) {
                         auto req = TTransactionYPathProxy::Ping(FromObjectId(transaction->GetId()));
-                        batchRequest.AddRequestForTransaction(req, getRspName(operation), transaction->GetId());
+                        return batchRequest.AddRequestForTransaction(req, getRspName(operation), transaction->GetId());
                     }
+                    return false;
                 };
 
                 operation->SetState(EOperationState::Reviving);
 
                 // NB: Async transaction is not checked.
-                schedulePing(operation->GetUserTransaction());
-                schedulePing(operation->GetSyncSchedulerTransaction());
-                schedulePing(operation->GetInputTransaction());
-                schedulePing(operation->GetOutputTransaction());
+                if (!schedulePing(operation->GetUserTransaction()) ||
+                    !schedulePing(operation->GetSyncSchedulerTransaction()) ||
+                    !schedulePing(operation->GetInputTransaction()) ||
+                    !schedulePing(operation->GetOutputTransaction()))
+                {
+                    setCleanStart(operation);
+                }
             }
 
             auto batchResponse = batchRequest.Execute();
