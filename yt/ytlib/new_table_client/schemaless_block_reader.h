@@ -44,7 +44,7 @@ private:
     TRef Data_;
     TRef Offsets_;
 
-    int RowIndex_;
+    i64 RowIndex_;
     const char* RowPointer_;
     const char* CurrentPointer_;
     ui32 ValueCount_;

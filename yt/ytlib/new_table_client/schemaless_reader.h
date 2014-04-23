@@ -19,6 +19,8 @@ struct ISchemalessReader
 
 };
 
+DEFINE_REFCOUNTED_TYPE(ISchemalessReader)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

@@ -5,8 +5,8 @@
 #include "schemaless_reader.h"
 
 #include <ytlib/chunk_client/chunk_reader_base.h>
-#include <ytlib/chunk_client/chunk_spec.pb.h>
 #include <ytlib/chunk_client/multi_chunk_reader.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -34,11 +34,15 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    TChunkReaderConfigPtr config, 
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    NChunkClient::IAsyncReaderPtr asyncReader,
+    TChunkReaderConfigPtr config,
+    NChunkClient::IAsyncReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns);
+    const TKeyColumns& keyColumns,
+    const NChunkClient::NProto::TChunkMeta& masterMeta,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit,
+    const TColumnFilter& columnFilter,
+    TNullable<int> partitionTag = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 

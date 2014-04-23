@@ -40,21 +40,25 @@ class TSchemalessChunkReader
 public:
     TSchemalessChunkReader(
         TChunkReaderConfigPtr config,
+        IAsyncReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TChunkSpec& chunkSpec,
         const TKeyColumns& keyColumns,
-        IAsyncReaderPtr underlyingReader);
+        const TChunkMeta& masterMeta,
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit,
+        const TColumnFilter& columnFilter,
+        TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
 private:
-    TChunkSpec ChunkSpec_;
-
     TNameTablePtr NameTable_;
     TNameTablePtr ChunkNameTable_;
 
     TColumnFilter ColumnFilter_;
     TKeyColumns KeyColumns_;
+
+    TNullable<int> PartitionTag_;
 
     // Maps chunk name table ids into client id.
     // For filtered out columns maps id to -1.
@@ -87,28 +91,33 @@ private:
 
 TSchemalessChunkReader::TSchemalessChunkReader(
     TChunkReaderConfigPtr config,
+    IAsyncReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TChunkSpec& chunkSpec,
     const TKeyColumns& keyColumns,
-    IAsyncReaderPtr underlyingReader)
+    const TChunkMeta& masterMeta,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
+    const TColumnFilter& columnFilter,
+    TNullable<int> partitionTag)
     : TChunkReaderBase(
         config, 
-        TReadLimit(chunkSpec.lower_limit()), 
-        TReadLimit(chunkSpec.upper_limit()),
+        lowerLimit,
+        upperLimit,
         underlyingReader, 
-        GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions()))
-    , ChunkSpec_(chunkSpec)
+        GetProtoExtension<TMiscExt>(masterMeta.extensions()))
     , NameTable_(nameTable)
     , ChunkNameTable_(New<TNameTable>())
-    , ColumnFilter_(CreateColumnFilter(chunkSpec.channel(), nameTable))
+    , ColumnFilter_(columnFilter)
     , KeyColumns_(keyColumns)
+    , PartitionTag_(partitionTag)
+    , ChunkMeta_(masterMeta)
 { }
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence() 
 {
-    YCHECK(ChunkSpec_.chunk_meta().version() == ETableChunkFormat::SchemalessHorizontal);
+    YCHECK(ChunkMeta_.version() == ETableChunkFormat::SchemalessHorizontal);
 
-    if (ChunkSpec_.has_partition_tag()) {
+    if (PartitionTag_) {
         return GetBlockSequencePartition();
     }
 
@@ -284,19 +293,33 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
             return true;
         }
     }
-    YUNREACHABLE();
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    TChunkReaderConfigPtr config, 
-    const TChunkSpec& chunkSpec, 
-    IAsyncReaderPtr asyncReader,
+    TChunkReaderConfigPtr config,
+    IAsyncReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    const TChunkMeta& masterMeta,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
+    const TColumnFilter& columnFilter,
+    TNullable<int> partitionTag)
 {
-    return New<TSchemalessChunkReader>(config, nameTable, chunkSpec, keyColumns, asyncReader);
+    return New<TSchemalessChunkReader>(
+        config, 
+        underlyingReader, 
+        nameTable, 
+        keyColumns, 
+        masterMeta, 
+        lowerLimit, 
+        upperLimit, 
+        columnFilter,
+        partitionTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,7 +396,16 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
     const TChunkSpec& chunkSpec,
     IAsyncReaderPtr asyncReader)
 {
-    return CreateSchemalessChunkReader(Config_, chunkSpec, asyncReader, NameTable_,KeyColumns_);
+    return CreateSchemalessChunkReader(
+        Config_, 
+        asyncReader, 
+        NameTable_,
+        KeyColumns_, 
+        chunkSpec.chunk_meta(),
+        chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
+        chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit(),
+        CreateColumnFilter(chunkSpec.channel(), NameTable_),
+        chunkSpec.has_partition_tag() ? MakeNullable(chunkSpec.partition_tag()) : Null);
 }
 
 template <class TBase>

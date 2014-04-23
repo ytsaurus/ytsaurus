@@ -40,6 +40,7 @@ set( SRCS
   ${BASE}/rpc_ut.cpp
   ${BASE}/schema_ut.cpp
   ${BASE}/schemaless_blocks_ut.cpp
+  ${BASE}/schemaless_chunks_ut.cpp
   ${BASE}/schemaful_dsv_parser_ut.cpp
   ${BASE}/schemaful_dsv_writer_ut.cpp
   ${BASE}/serialize_ut.cpp

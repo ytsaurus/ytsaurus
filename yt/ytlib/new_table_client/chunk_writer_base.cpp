@@ -117,6 +117,8 @@ void TChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedV
     }
 
     FinishBlock();
+
+    BlockWriter_.reset(CreateBlockWriter());
 }
 
 void TChunkWriterBase::EmitSample(const TUnversionedValue* begin, const TUnversionedValue* end)
@@ -148,6 +150,9 @@ void TChunkWriterBase::FinishBlock()
     BlockMetaExt_.add_blocks()->Swap(&block.Meta);
     EncodingChunkWriter_->WriteBlock(std::move(block.Data));
 }
+
+void TChunkWriterBase::OnClose()
+{ }
 
 void TChunkWriterBase::DoClose()
 {

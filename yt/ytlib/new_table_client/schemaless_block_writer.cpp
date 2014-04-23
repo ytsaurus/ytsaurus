@@ -14,16 +14,15 @@ struct THorizontalSchemalessBlockWriterTag { };
 
 THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter()
     : RowCount_(0)
+    , Closed_(false)
     , Offsets_(THorizontalSchemalessBlockWriterTag())
     , Data_(THorizontalSchemalessBlockWriterTag())
 { }
 
-THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter(int /* keyColumns */)
-    : THorizontalSchemalessBlockWriter()
-{ }
-
 void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
 {
+    YCHECK(!Closed_);
+
     ++RowCount_;
 
     WritePod(Offsets_, static_cast<ui32>(Data_.GetSize()));
@@ -46,6 +45,12 @@ void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
 
 TBlock THorizontalSchemalessBlockWriter::FlushBlock()
 {
+    YCHECK(!Closed_);
+
+    TBlockMeta meta;
+    meta.set_row_count(RowCount_);
+    meta.set_uncompressed_size(GetBlockSize());
+
     std::vector<TSharedRef> blockParts;
     auto offsets = Offsets_.Flush();
     blockParts.insert(blockParts.end(), offsets.begin(), offsets.end());
@@ -53,24 +58,24 @@ TBlock THorizontalSchemalessBlockWriter::FlushBlock()
     auto data = Data_.Flush();
     blockParts.insert(blockParts.end(), data.begin(), data.end());
 
-    TBlockMeta meta;
-    meta.set_row_count(RowCount_);
-    meta.set_uncompressed_size(GetBlockSize());
-
     TBlock block;
     block.Data.swap(blockParts);
     block.Meta.Swap(&meta);
+
+    Closed_ = true;
 
     return block;
 }
 
 i64 THorizontalSchemalessBlockWriter::GetBlockSize() const
 {
+    YCHECK(!Closed_);
     return Offsets_.GetSize() + Data_.GetSize();
 }
 
 i64 THorizontalSchemalessBlockWriter::GetRowCount() const
 {
+    YCHECK(!Closed_);
     return RowCount_;
 }
 
