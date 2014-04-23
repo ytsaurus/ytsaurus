@@ -14,6 +14,7 @@ class YtResponseError(YtError):
     Represents error that occurs when we have error in HTTP response.
     """
     def __init__(self, url, headers, error):
+        super(YtResponseError, self).__init__(repr(error))
         self.url = url
         self.headers = headers
         self.error = error
@@ -44,6 +45,12 @@ class YtNetworkError(YtError):
 class YtProxyUnavailable(YtError):
     """
     Represents an error occured when proxy response that it is under heavy load.
+    """
+    pass
+
+class YtIncorrectResponse(YtError):
+    """
+    Represents an error occured when proxy response is incorrect.
     """
     pass
 

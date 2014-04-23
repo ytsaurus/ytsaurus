@@ -1,7 +1,7 @@
 import http_config
 import yt.logger as logger
 from common import require, get_backoff
-from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnavailable
+from errors import YtError, YtNetworkError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse
 
 import os
 import string
@@ -77,6 +77,7 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
     yt.packages.requests.adapters.DEFAULT_TIMEOUT = http_config.REQUEST_TIMEOUT
 
     network_errors = list(NETWORK_ERRORS)
+    network_errors.append(YtIncorrectResponse)
     if retry_unavailable_proxy:
         network_errors.append(YtProxyUnavailable)
 
@@ -88,7 +89,7 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
             # So we should retry this request.
             is_json = response.is_json()
             if not return_raw_response and is_json and not response.content():
-                raise YtResponseError(
+                raise YtIncorrectResponse(
                         "Response has empty body and JSON content type (Headers: %s)" %
                         repr(response.http_response.headers))
             if response.http_response.status_code == 503:
