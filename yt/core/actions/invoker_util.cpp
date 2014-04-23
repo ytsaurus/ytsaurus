@@ -5,6 +5,9 @@
 
 #include <core/misc/singleton.h>
 
+#include <core/actions/bind.h>
+#include <core/actions/callback.h>
+
 #include <core/concurrency/fls.h>
 
 namespace NYT {
@@ -85,59 +88,36 @@ void GuardedInvoke(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFls<IInvokerPtr> CurrentInvokerInFiber;
-TLS_STATIC IInvoker* CurrentInvokerInThread = nullptr;
+TFls<IInvokerPtr> CurrentInvoker;
 
 IInvokerPtr GetCurrentInvoker()
 {
-    auto scheduler = TryGetCurrentScheduler();
-    if (scheduler) {
-        return *CurrentInvokerInFiber.GetFor(scheduler->GetCurrentFiber());
-    } else {
-        if (!CurrentInvokerInThread) {
-            CurrentInvokerInThread = GetSyncInvoker().Get();
-            CurrentInvokerInThread->Ref();
-        }
-        return CurrentInvokerInThread;
+    auto invoker = *CurrentInvoker;
+    if (!invoker) {
+        invoker = GetSyncInvoker();
     }
+    return invoker;
 }
 
 void SetCurrentInvoker(IInvokerPtr invoker)
 {
-    *CurrentInvokerInFiber = std::move(invoker);
+    *CurrentInvoker.Get() = std::move(invoker);
 }
 
 void SetCurrentInvoker(IInvokerPtr invoker, TFiber* fiber)
 {
-    *CurrentInvokerInFiber.GetFor(fiber) = std::move(invoker);
+    *CurrentInvoker.Get(fiber) = std::move(invoker);
 }
 
 TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
     : SavedInvoker_(std::move(invoker))
 {
-    Swap();
+    CurrentInvoker->Swap(SavedInvoker_);
 }
 
 TCurrentInvokerGuard::~TCurrentInvokerGuard()
 {
-    Swap();
-}
-
-void TCurrentInvokerGuard::Swap()
-{
-    auto scheduler = TryGetCurrentScheduler();
-    if (scheduler) {
-        CurrentInvokerInFiber->Swap(SavedInvoker_);
-    } else {
-        auto saved = CurrentInvokerInThread;
-        if (!saved) {
-            saved = GetSyncInvoker().Get();
-            saved->Ref();
-        }
-        CurrentInvokerInThread = SavedInvoker_.Get();
-        CurrentInvokerInThread->Ref();
-        SavedInvoker_ = IInvokerPtr(saved, false);
-    }
+    CurrentInvoker->Swap(SavedInvoker_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,11 +1,26 @@
 #pragma once
 
 #include "public.h"
-#include "fiber.h"
-#include "scheduler.h"
 
 namespace NYT {
 namespace NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail
+{
+    typedef uintptr_t (*TFlsSlotCtor)();
+    typedef void (*TFlsSlotDtor)(uintptr_t);
+
+    int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
+
+    int FlsCountSlots();
+
+    uintptr_t FlsConstruct(int index);
+    void FlsDestruct(int index, uintptr_t value);
+
+    uintptr_t& FlsAt(int index, TFiber* fiber = nullptr);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,14 +36,13 @@ public:
     const T* operator->() const;
     T* operator->();
 
-    T* Get() const;
-    T* GetFor(TFiber* fiber) const;
+    T* Get(TFiber* fiber = nullptr) const;
 
 private:
     const int Index_;
 
-    static TFiber::TFlsSlotValue ValueCtor();
-    static void ValueDtor(TFiber::TFlsSlotValue value);
+    static uintptr_t ValueCtor();
+    static void ValueDtor(uintptr_t value);
 
 };
 

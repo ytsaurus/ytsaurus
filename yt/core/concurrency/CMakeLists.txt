@@ -15,6 +15,7 @@ set( SRCS
   ${BASE}/scheduler.cpp
   ${BASE}/execution_stack.cpp
   ${BASE}/execution_context.cpp
+  ${BASE}/fls.cpp
 )
 set( HDRS
   ${BASE}/public.h

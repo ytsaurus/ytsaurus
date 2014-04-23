@@ -7,6 +7,8 @@
 #include <core/actions/future.h>
 #include <core/actions/invoker.h>
 
+#include <core/misc/small_vector.h>
+
 #include <exception>
 
 namespace NYT {
@@ -45,15 +47,8 @@ public:
     bool IsCanceled() const;
     bool CanReturn() const;
 
-    // Fiber-local information.
-    typedef void* TFlsSlotValue;
-    typedef TFlsSlotValue (*TFlsSlotCtor)();
-    typedef void (*TFlsSlotDtor)(TFlsSlotValue);
-
-    static int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
-
-    TFlsSlotValue FlsGet(int index);
-    void FlsSet(int index, TFlsSlotValue value);
+    // Fiber-specific data.
+    uintptr_t& FsdAt(int index);
 
 private:
     EFiberState State_;
@@ -66,8 +61,8 @@ private:
 
     TClosure Callee_;
 
-    std::vector<TFlsSlotValue> Fls_;
-    void FlsEnsure(int index);
+    SmallVector<uintptr_t, 8> Fsd_;
+    void FsdResize();
 
     static void Trampoline(void*);
 };

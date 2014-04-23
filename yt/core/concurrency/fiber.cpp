@@ -2,6 +2,7 @@
 #include "action_queue.h"
 #include "fiber.h"
 #include "scheduler.h"
+#include "fls.h"
 
 #include <core/misc/lazy_ptr.h>
 
@@ -9,28 +10,6 @@ namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Fiber-local storage support.
-/*
- * Each registered slot maintains a ctor (to be called when a fiber accesses
- * the slot for the first time) and a dtor (to be called when a fiber terminates).
- *
- * To avoid contention, slot registry has a fixed size (see |MaxFlsSlots|).
- * |FlsGet| and |FlsGet| are lock-free.
- *
- * |FlsAllocateSlot|, however, acquires a global lock.
- */
-struct TFlsSlot
-{
-    TFiber::TFlsSlotCtor Ctor;
-    TFiber::TFlsSlotDtor Dtor;
-};
-
-static const int FlsMaxSize = 1024;
-static int FlsSize = 0;
-
-static std::atomic_flag FlsLock = ATOMIC_FLAG_INIT;
-static TFlsSlot FlsSlots[FlsMaxSize] = {};
 
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
     : State_(EFiberState::Suspended)
@@ -46,6 +25,13 @@ TFiber::TFiber(TClosure callee, EExecutionStack stack)
 TFiber::~TFiber()
 {
     YCHECK(CanReturn());
+
+    for (int index = 0; index < Fsd_.size(); ++index) {
+        const auto& slot = Fsd_[index];
+        if (slot) {
+            NDetail::FlsDestruct(index, slot);
+        }
+    }
 }
 
 EFiberState TFiber::GetState() const
@@ -88,53 +74,25 @@ bool TFiber::CanReturn() const
         State_ == EFiberState::Crashed;
 }
 
-int TFiber::FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
+uintptr_t& TFiber::FsdAt(int index)
 {
-    while (FlsLock.test_and_set(std::memory_order_acquire)) {
-        /* Spin. */
+    if (UNLIKELY(index >= Fsd_.size())) {
+        FsdResize();
     }
-
-    int index = FlsSize++;
-    YCHECK(index < FlsMaxSize);
-
-    auto& slot = FlsSlots[index];
-    slot.Ctor = std::move(ctor);
-    slot.Dtor = std::move(dtor);
-
-    FlsLock.clear(std::memory_order_release);
-
-    return index;
+    return Fsd_[index];
 }
 
-TFiber::TFlsSlotValue TFiber::FlsGet(int index)
+void TFiber::FsdResize()
 {
-    FlsEnsure(index);
-    return Fls_[index];
-}
+    int oldSize = static_cast<int>(Fsd_.size());
+    int newSize = NDetail::FlsCountSlots();
 
-void TFiber::FlsSet(int index, TFlsSlotValue value)
-{
-    FlsEnsure(index);
-    Fls_[index] = std::move(value);
-}
+    YASSERT(newSize > oldSize);
 
-void TFiber::FlsEnsure(int index)
-{
-    if (LIKELY(index < Fls_.size())) {
-        return;
-    }
-
-    YASSERT(index >= 0 && index < FlsMaxSize);
-
-    int oldSize = static_cast<int>(Fls_.size());
-    int newSize = FlsSize;
-
-    YASSERT(newSize > oldSize && newSize > index);
-
-    Fls_.resize(newSize);
+    Fsd_.resize(newSize);
 
     for (int index = oldSize; index < newSize; ++index) {
-        Fls_[index] = FlsSlots[index].Ctor();
+        Fsd_[index] = 0;
     }
 }
 

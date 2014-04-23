@@ -10,7 +10,7 @@ namespace NConcurrency {
 
 template <class T>
 TFls<T>::TFls()
-    : Index_(TFiber::FlsAllocateSlot(&ValueCtor, &ValueDtor))
+    : Index_(NDetail::FlsAllocateSlot(&ValueCtor, &ValueDtor))
 { }
 
 template <class T>
@@ -38,25 +38,23 @@ const T& TFls<T>::operator*() const
 }
 
 template <class T>
-T* TFls<T>::Get() const
+T* TFls<T>::Get(TFiber* fiber) const
 {
-    return GetFor(GetCurrentScheduler()->GetCurrentFiber());
+    auto& slot = NDetail::FlsAt(Index_, fiber);
+    if (!slot) {
+        slot = NDetail::FlsConstruct(Index_);
+    }
+    return reinterpret_cast<T*>(slot);
 }
 
 template <class T>
-T* TFls<T>::GetFor(TFiber* fiber) const
+uintptr_t TFls<T>::ValueCtor()
 {
-    return reinterpret_cast<T*>(fiber->FlsGet(Index_));
+    return reinterpret_cast<uintptr_t>(new T());
 }
 
 template <class T>
-TFiber::TFlsSlotValue TFls<T>::ValueCtor()
-{
-    return reinterpret_cast<TFiber::TFlsSlotValue>(new T());
-}
-
-template <class T>
-void TFls<T>::ValueDtor(TFiber::TFlsSlotValue value)
+void TFls<T>::ValueDtor(uintptr_t value)
 {
     delete reinterpret_cast<T*>(value);
 }
