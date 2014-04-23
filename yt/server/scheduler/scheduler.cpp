@@ -829,11 +829,13 @@ private:
         if (operation->GetState() != EOperationState::Initializing)
             throw TFiberTerminatedException();
 
+        bool registered = false;
         try {
             auto controller = CreateController(~operation);
             operation->SetController(controller);
 
             RegisterOperation(operation);
+            registered = true;
 
             controller->Initialize();
             controller->Essentiate();
@@ -846,7 +848,9 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
-            OnOperationFailed(operation, wrappedError);
+            if (registered) {
+                OnOperationFailed(operation, wrappedError);
+            }
             operation->SetStarted(wrappedError);
             return wrappedError;
         }
