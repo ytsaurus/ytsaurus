@@ -3,11 +3,11 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-import sys
+import os
 
 ##################################################################
 
-#@pytest.mark.skipif("True")
+@pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
 class TestQuery(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
