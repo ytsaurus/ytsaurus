@@ -159,6 +159,12 @@ bool TMultiChunkReaderBase::IsFetchingCompleted() const
         (FetchingCompletedAwaiter_->GetRequestCount() == FetchingCompletedAwaiter_->GetResponseCount());
 }
 
+std::vector<TChunkId> TMultiChunkReaderBase::GetFailedChunkIds() const
+{
+    TGuard<TSpinLock> guard(FailedChunksLock_);
+    return FailedChunks_;
+}
+
 void TMultiChunkReaderBase::OpenPrefetchChunks()
 {
     for (int i = 0; i < PrefetchWindow_; ++i) {

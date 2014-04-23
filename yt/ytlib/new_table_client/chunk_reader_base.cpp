@@ -64,6 +64,8 @@ TError TChunkReaderBase::DoOpen()
             UnderlyingReader_,
             ECodec(Misc_.compression_codec()));
 
+        YCHECK(SequentialReader_->HasNext());
+
         auto error = WaitFor(SequentialReader_->AsyncNextBlock());
         RETURN_IF_ERROR(error);
 

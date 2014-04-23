@@ -30,6 +30,7 @@ public:
 
 private:
     i64 RowCount_;
+    bool Closed_;
 
     TChunkedOutputStream Offsets_;
     TChunkedOutputStream Data_;

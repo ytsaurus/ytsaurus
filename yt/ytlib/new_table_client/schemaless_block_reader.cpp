@@ -60,7 +60,7 @@ bool THorizontalSchemalessBlockReader::SkipToKey(const TOwningKey& key)
     auto index = LowerBound(
         RowIndex_,
         Meta_.row_count(),
-        [&] (int index) {
+        [&] (i64 index) {
             YCHECK(JumpToRowIndex(index));
             return GetKey() < key;
         });
@@ -75,7 +75,7 @@ const TOwningKey& THorizontalSchemalessBlockReader::GetKey() const
     
 TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, KeyColumnCount_);
+    TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, ValueCount_);
     ::memcpy(row.Begin(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
 
     int valueCount = KeyColumnCount_;
