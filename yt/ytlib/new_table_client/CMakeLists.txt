@@ -17,6 +17,7 @@ set( SRCS
   ${BASE}/schemaful_chunk_writer.cpp
   ${BASE}/schemaless_block_writer.cpp
   ${BASE}/schemaless_chunk_writer.cpp
+  ${BASE}/table_producer.cpp
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp
   ${BASE}/versioned_block_writer.cpp
@@ -49,6 +50,7 @@ set( HDRS
   ${BASE}/schemaless_block_writer.h
   ${BASE}/schemaless_chunk_writer.h
   ${BASE}/schemaless_writer.h
+  ${BASE}/table_producer.h
   ${BASE}/unversioned_row.h
   ${BASE}/unversioned_writer.h
   ${BASE}/versioned_block_writer.h

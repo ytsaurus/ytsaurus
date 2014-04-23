@@ -40,6 +40,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/table_producer.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/api/transaction.h>
@@ -335,31 +336,7 @@ void TSelectCommand::DoExecute()
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
     for (auto row : rowset->GetRows()) {
-        consumer->OnListItem();
-        consumer->OnBeginMap();
-        for (int i = 0; i < row.GetCount(); ++i) {
-            const auto& value = row[i];
-            if (value.Type == EValueType::Null)
-                continue;
-            consumer->OnKeyedItem(nameTable->GetName(value.Id));
-            switch (value.Type) {
-                case EValueType::Integer:
-                    consumer->OnIntegerScalar(value.Data.Integer);
-                    break;
-                case EValueType::Double:
-                    consumer->OnDoubleScalar(value.Data.Double);
-                    break;
-                case EValueType::String:
-                    consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                    break;
-                case EValueType::Any:
-                    consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-        }
-        consumer->OnEndMap();
+        ProduceRow(consumer.get(), row);
     }
 
     auto output = Context_->Request().OutputStream;
@@ -398,31 +375,7 @@ void TLookupCommand::DoExecute()
         auto format = Context_->GetOutputFormat();
         auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
         
-        consumer->OnListItem();
-        consumer->OnBeginMap();
-        for (int index = 0; index < row.GetCount(); ++index) {
-            const auto& value = row[index];
-            if (value.Type == EValueType::Null)
-                continue;
-            consumer->OnKeyedItem(nameTable->GetName(value.Id));
-            switch (value.Type) {
-                case EValueType::Integer:
-                    consumer->OnIntegerScalar(value.Data.Integer);
-                    break;
-                case EValueType::Double:
-                    consumer->OnDoubleScalar(value.Data.Double);
-                    break;
-                case EValueType::String:
-                    consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                    break;
-                case EValueType::Any:
-                    consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-        }
-        consumer->OnEndMap();
+        ProduceRow(consumer.get(), row);
 
         auto output = Context_->Request().OutputStream;
         if (!output->Write(buffer.Begin(), buffer.Size())) {

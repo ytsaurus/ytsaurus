@@ -1,0 +1,44 @@
+#include "stdafx.h"
+
+#include "table_produer.h"
+
+#include <core/yson/consumer.h>
+
+namespace NYT {
+namespace NVersionedTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProduceRow(NYson::IYsonConsumer* consumer, TUnversionedRow row)
+{
+    consumer->OnListItem();
+    consumer->OnBeginMap();
+    for (int i = 0; i < row.GetCount(); ++i) {
+        const auto& value = row[i];
+        if (value.Type == EValueType::Null)
+            continue;
+        consumer->OnKeyedItem(nameTable->GetName(value.Id));
+        switch (value.Type) {
+            case EValueType::Integer:
+                consumer->OnIntegerScalar(value.Data.Integer);
+                break;
+            case EValueType::Double:
+                consumer->OnDoubleScalar(value.Data.Double);
+                break;
+            case EValueType::String:
+                consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                break;
+            case EValueType::Any:
+                consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+    consumer->OnEndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVersionedTableClient
+} // namespace NYT
