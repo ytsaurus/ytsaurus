@@ -1,15 +1,19 @@
 #include "stdafx.h"
 
-#include "table_produer.h"
+#include "table_producer.h"
+
+#include "name_table.h"
 
 #include <core/yson/consumer.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProduceRow(NYson::IYsonConsumer* consumer, TUnversionedRow row)
+void ProduceRow(NYson::IYsonConsumer* consumer, TUnversionedRow row, TNameTablePtr nameTable)
 {
     consumer->OnListItem();
     consumer->OnBeginMap();

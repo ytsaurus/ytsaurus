@@ -336,7 +336,7 @@ void TSelectCommand::DoExecute()
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
     for (auto row : rowset->GetRows()) {
-        ProduceRow(consumer.get(), row);
+        ProduceRow(consumer.get(), row, nameTable);
     }
 
     auto output = Context_->Request().OutputStream;
@@ -375,7 +375,7 @@ void TLookupCommand::DoExecute()
         auto format = Context_->GetOutputFormat();
         auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
         
-        ProduceRow(consumer.get(), row);
+        ProduceRow(consumer.get(), row, nameTable);
 
         auto output = Context_->Request().OutputStream;
         if (!output->Write(buffer.Begin(), buffer.Size())) {
