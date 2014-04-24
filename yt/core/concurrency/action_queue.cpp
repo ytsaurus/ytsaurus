@@ -552,9 +552,7 @@ private:
             : Owner_(std::move(owner))
         { }
 
-        TGuard(TGuard&& other)
-            : Owner_(std::move(other.Owner_))
-        { }
+        TGuard(TGuard&& other) = default;
 
         ~TGuard()
         {
