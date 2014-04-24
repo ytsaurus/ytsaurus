@@ -293,6 +293,39 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
+bool TCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+
+    auto valueIt = ValueMap.find(value->GetKey());
+    if (valueIt == ValueMap.end() || valueIt->second != value) {
+        return false;
+    }
+    ValueMap.erase(valueIt);
+
+    auto itemIt = ItemMap.find(value->GetKey());
+    if (itemIt != ItemMap.end()) {
+        auto* item = itemIt->second;
+        ItemMap.erase(itemIt);
+        --ItemMapSize;
+
+        if (!item->Empty()) {
+            item->Unlink();
+        }
+
+        delete item;
+    }
+
+    value->Cache.Reset();
+
+    guard.Release();
+
+    OnRemoved(value.Get());
+
+    return true;
+}
+
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 {
     if (!item->Empty()) {

@@ -82,6 +82,7 @@ protected:
     bool BeginInsert(TInsertCookie* cookie);
     void Touch(const TKey& key);
     bool Remove(const TKey& key);
+    bool Remove(TValuePtr value);
 
     //! Called under #SpinLock.
     virtual bool IsTrimNeeded() const = 0;
