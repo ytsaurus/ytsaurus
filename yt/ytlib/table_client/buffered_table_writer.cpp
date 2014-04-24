@@ -146,6 +146,7 @@ public:
         if (!CurrentBuffer_) {
             if (EmptyBuffers_.empty()) {
                 // Buffer overfilled - drop row.
+                LOG_DEBUG("Buffer overfilled. Drop row");
                 ++DroppedRowCount_;
                 return;
             }

@@ -1,5 +1,6 @@
 import pytest
 import sys
+import time
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -12,12 +13,35 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        'scheduler' : {
+            'event_log' : {
+                'flush_period' : 1000
+            }
+        }
+    }
+
     def test_empty_table(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         map(in_='//tmp/t1', out='//tmp/t2', command='cat')
 
         assert read('//tmp/t2') == []
+
+    def test_scheduler_event_log(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"a": "b"} for i in xrange(100*1000)])
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat; find /home/tramsmm -name "job.cpp" 2>&1 >/dev/null')
+
+        time.sleep(5)
+        res = read('//sys/scheduler/event_log')
+        for item in res:
+            if item['event_type'] == 'job_completed':
+                print item['cpu_user']
+                print item['cpu_system']
+
+        assert False
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_one_chunk(self):

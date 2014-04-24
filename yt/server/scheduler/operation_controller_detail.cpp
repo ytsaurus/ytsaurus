@@ -3567,11 +3567,18 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
 {
     const auto& result = job->Result();
 
-    return LogEventFluently(eventType)
+    auto record = LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("statistics").Value(result.statistics());
+    if (result.has_cpu_user()) {
+        record.Item("cpu_user").Value(result.cpu_user());
+    }
+    if (result.has_cpu_system()) {
+        record.Item("cpu_system").Value(result.cpu_system());
+    }
+    return record;
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)

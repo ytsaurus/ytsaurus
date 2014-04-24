@@ -32,6 +32,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <util/folder/dirut.h>
 
 #include <util/stream/null.h>
@@ -91,6 +93,7 @@ public:
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
+        , CpuAcct("/sys/fs/cgroup/cpuacct", ToString(TGuid::Create()))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -107,6 +110,9 @@ public:
         InitPipes();
 
         InitCompleted = true;
+
+        // create group
+        CpuAcct.Create();
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -131,6 +137,13 @@ public:
 
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
+
+        // get stats and remove group
+        auto stats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
+        CpuAcct.Destroy();
+
+        result.set_cpu_user(stats.user.count());
+        result.set_cpu_system(stats.system.count());
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
@@ -496,6 +509,9 @@ private:
                 }
             }
 
+            // add myself to groups
+            CpuAcct.AddMyself();
+
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
@@ -635,6 +651,7 @@ private:
     TInstant ProcessStartTime;
     int ProcessId;
 
+    NCGroup::TCGroup CpuAcct;
 };
 
 TJobPtr CreateUserJob(
