@@ -182,7 +182,7 @@ public:
             for (auto it = startIt; it != tabletDescriptor->SplitKeys.end(); ++it) {
                 const auto& splitKey = *it;
                 auto nextSplitKey = (it + 1 == tabletDescriptor->SplitKeys.end()) ? MaxKey() : *(it + 1);
-                if (upperBound <= partitionKey)
+                if (upperBound <= splitKey)
                     break;
 
                 TDataSplit subsplit;
