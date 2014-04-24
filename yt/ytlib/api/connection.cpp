@@ -394,10 +394,6 @@ private:
                 YUNREACHABLE();
         }
 
-        LOG_DEBUG("Subsplits built (ObjectId: %s, SubsplitCount: %d)",
-            ~ToString(objectId),
-            static_cast<int>(subsplits.size()));
-
         return subsplits;
     }
 

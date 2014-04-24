@@ -195,10 +195,6 @@ public:
                 subsplits.push_back(std::move(subsplit));
             }
 
-            LOG_DEBUG("Subsplits built (TabletId: %s, SubsplitCount: %d)",
-                ~ToString(tabletId),
-                static_cast<int>(subsplits.size()));
-
             return MakeFuture(TErrorOr<TDataSplits>(std::move(subsplits)));
         } catch (const std::exception& ex) {
             return MakeFuture(TErrorOr<TDataSplits>(ex));
