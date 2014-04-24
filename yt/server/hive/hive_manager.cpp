@@ -167,7 +167,7 @@ public:
             ~ToString(mailbox->GetCellGuid()),
             messageId);
 
-        MaybeSendOutcomingMessages(mailbox);
+        MaybePostOutcomingMessages(mailbox);
     }
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
@@ -377,12 +377,12 @@ private:
 
         SetMailboxConnected(mailbox);
         HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
-        MaybeSendOutcomingMessages(mailbox);
+        MaybePostOutcomingMessages(mailbox);
         SchedulePing(mailbox);
     }
 
 
-    void MaybeSendOutcomingMessages(TMailbox* mailbox)
+    void MaybePostOutcomingMessages(TMailbox* mailbox)
     {
         if (!IsLeader())
             return;
