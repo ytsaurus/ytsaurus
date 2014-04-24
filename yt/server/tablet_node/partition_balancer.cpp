@@ -255,6 +255,9 @@ private:
             if (samples.empty() || samples.front() > partition->GetPivotKey()) {
                 samples.insert(samples.begin(), partition->GetPivotKey());
             }
+            samples.erase(
+                std::unique(samples.begin(), samples.end()),
+                samples.end());
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
