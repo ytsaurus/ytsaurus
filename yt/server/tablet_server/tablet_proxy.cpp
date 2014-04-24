@@ -45,6 +45,7 @@ private:
         attributes->push_back("state");
         attributes->push_back("index");
         attributes->push_back("table_id");
+        attributes->push_back("pivot_key");
         attributes->push_back(TAttributeInfo("cell_id", tablet->GetCell()));
         TBase::ListSystemAttributes(attributes);
     }
@@ -68,6 +69,12 @@ private:
         if (key == "table_id") {
             BuildYsonFluently(consumer)
                 .Value(tablet->GetTable()->GetId());
+            return true;
+        }
+
+        if (key == "pivot_key") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetPivotKey());
             return true;
         }
 
