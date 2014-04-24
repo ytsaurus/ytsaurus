@@ -3566,17 +3566,18 @@ TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventTy
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
 {
     const auto& result = job->Result();
+    const auto& statistics = result.statistics();
 
     auto record = LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
-        .Item("statistics").Value(result.statistics());
-    if (result.has_cpu_user()) {
-        record.Item("cpu_user").Value(result.cpu_user());
+        .Item("statistics").Value(statistics);
+    if (statistics.has_cpu_user()) {
+        record.Item("cpu_user").Value(statistics.cpu_user());
     }
-    if (result.has_cpu_system()) {
-        record.Item("cpu_system").Value(result.cpu_system());
+    if (statistics.has_cpu_system()) {
+        record.Item("cpu_system").Value(statistics.cpu_system());
     }
     return record;
 }

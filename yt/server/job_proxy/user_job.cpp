@@ -139,11 +139,8 @@ public:
         ToProto(result.mutable_error(), JobExitError);
 
         // get stats and remove group
-        auto stats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
+        CpuAcctStats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
         CpuAcct.Destroy();
-
-        result.set_cpu_user(stats.user.count());
-        result.set_cpu_system(stats.system.count());
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
@@ -620,6 +617,10 @@ private:
 
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
+
+        result.set_cpu_user(CpuAcctStats.user.count());
+        result.set_cpu_system(CpuAcctStats.system.count());
+
         return result;
     }
 
@@ -652,6 +653,7 @@ private:
     int ProcessId;
 
     NCGroup::TCGroup CpuAcct;
+    NCGroup::TCpuAcctStat CpuAcctStats;
 };
 
 TJobPtr CreateUserJob(

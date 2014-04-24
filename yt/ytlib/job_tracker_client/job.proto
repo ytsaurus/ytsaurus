@@ -20,6 +20,9 @@ message TJobStatistics
     required NChunkClient.NProto.TDataStatistics input = 1;
     required NChunkClient.NProto.TDataStatistics output = 2;
     required int64 time = 3;
+
+    optional int64 cpu_user = 4;
+    optional int64 cpu_system = 5;
 }
 
 // Describes the outcome of the job, in particular if it has finished successfully.
@@ -27,9 +30,6 @@ message TJobResult
 {
     required NYT.NProto.TError error = 1;
     required TJobStatistics statistics = 2; 
-
-    optional int64 cpu_user = 4;
-    optional int64 cpu_system = 5;
 
     extensions 100 to max;
 }
