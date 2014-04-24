@@ -159,7 +159,7 @@ private:
                     ~ToString(successExpirationTime),
                     ~ToString(failureExpirationTime));
 
-                Remove(key);
+                Remove(entry);
             }
 
             auto cookie = std::make_unique<TInsertCookie>(key);
@@ -229,7 +229,7 @@ private:
         {
             return
                 TInstant::Now() > entry->GetTimestamp() +
-                (entry->GetSuccess()? successExpirationTime : failureExpirationTime);
+                (entry->GetSuccess() ? successExpirationTime : failureExpirationTime);
         }
 
 
