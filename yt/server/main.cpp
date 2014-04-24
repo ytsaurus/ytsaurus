@@ -18,6 +18,8 @@
 
 #include <ytlib/scheduler/config.h>
 
+#include <ytlib/chunk_client/dispatcher.h>
+
 #include <server/data_node/config.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -226,6 +228,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // Configure singletons.
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
         TAddressResolver::Get()->Configure(config->AddressResolver);
+        NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
         NProfiling::TProfilingManager::Get()->Start();
     }
 
