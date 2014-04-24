@@ -46,7 +46,7 @@ static uintptr_t& TsdAt(int index)
 {
 #if defined(_unix_)
 #define TLS_GET_ pthread_getspecific
-#define TLS_SET_ pthread_setspecific
+#define TLS_SET_ !pthread_setspecific
 #elif defined(_win_)
 #define TLS_GET_ TlsGetValue
 #define TLS_SET_ TlsSetValue
@@ -59,7 +59,7 @@ static uintptr_t& TsdAt(int index)
     tsd = new uintptr_t[FlsMaxSize];
     YASSERT(tsd);
     memset(tsd, 0, FlsMaxSize * sizeof(uintptr_t));
-    YASSERT(TLS_SET_(FlsTsdKey, tsd) == 0);
+    YASSERT(TLS_SET_(FlsTsdKey, tsd));
 
     return tsd[index];
 #undef TLS_GET_
