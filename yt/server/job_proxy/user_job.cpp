@@ -111,7 +111,6 @@ public:
 
         InitCompleted = true;
 
-        // create group
         CpuAcct.Create();
 
         ProcessStartTime = TInstant::Now();
@@ -138,7 +137,6 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        // get stats and remove group
         CpuAcctStats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
         CpuAcct.Destroy();
 
@@ -506,7 +504,6 @@ private:
                 }
             }
 
-            // add myself to groups
             CpuAcct.AddMyself();
 
             if (config->UserId > 0) {
