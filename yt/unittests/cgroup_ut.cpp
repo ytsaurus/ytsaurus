@@ -24,12 +24,6 @@ TEST(CGroup, CreateDestroy)
     }
 }
 
-TEST(CGroup, DestroyNotExistingGroup)
-{
-    TCGroup group("/sys/fs/cgroup/blkio", "wierd_name");
-    EXPECT_THROW(group.Destroy(), std::exception);
-}
-
 TEST(CGroup, NotExistingGroupGetTasks)
 {
     TCGroup group("/sys/fs/cgroup/blkio", "wierd_name");
