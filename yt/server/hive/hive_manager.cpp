@@ -259,8 +259,7 @@ private:
             mailbox->GetFirstOutcomingMessageId());
 
         if (IsLeader()) {
-            YCHECK(mailbox->GetInFlightMessageCount() >= trimCount);
-            mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() - trimCount);
+            mailbox->SetInFlightMessageCount(std::max(0, mailbox->GetInFlightMessageCount() - trimCount));
         }
     }
 
