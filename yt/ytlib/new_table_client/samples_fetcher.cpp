@@ -59,7 +59,9 @@ TAsyncError TSamplesFetcher::Fetch()
         static_cast<int>(Chunks_.size()),
         DesiredSampleCount_);
 
-    YCHECK(TotalDataSize_ > 0);
+    if (TotalDataSize_ == 0) {
+        return MakeFuture(TError());
+    }
 
     if (TotalDataSize_ < DesiredSampleCount_) {
         SizeBetweenSamples_ = 1;
