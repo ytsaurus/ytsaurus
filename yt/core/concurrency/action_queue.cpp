@@ -608,7 +608,7 @@ private:
 
     void ReleaseSemaphore()
     {
-        YASSERT(--Semaphore_ >= 0);
+        YCHECK(--Semaphore_ >= 0);
     }
 
 };
