@@ -15,8 +15,15 @@ namespace NCGroup {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGroup::TCGroup(const Stroka& parent, const Stroka& name)
+    : FullName_(NFS::CombinePaths(parent, name))
+    , Created_(false)
+{ }
+
+TCGroup::~TCGroup()
 {
-    FullName_ = NFS::CombinePaths(parent, name);
+    if (Created_) {
+        Destroy();
+    }
 }
 
 void TCGroup::Create()
@@ -26,16 +33,20 @@ void TCGroup::Create()
     if (hasError != 0) {
         THROW_ERROR(TError::FromSystem());
     }
+    Created_ = true;
 #endif
 }
 
 void TCGroup::Destroy()
 {
 #ifndef _win_
+    YCHECK(Created_);
+
     int hasError = NFs::Remove(FullName_.data());
     if (hasError != 0) {
         THROW_ERROR(TError::FromSystem());
     }
+    Created_ = false;
 #endif
 }
 

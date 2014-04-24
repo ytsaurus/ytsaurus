@@ -11,9 +11,11 @@ namespace NCGroup {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCGroup
+    : private TNonCopyable
 {
 public:
     TCGroup(const Stroka& parent, const Stroka& name);
+    ~TCGroup();
 
     void AddMyself();
 
@@ -24,6 +26,7 @@ public:
     const Stroka& GetFullName() const;
 private:
     Stroka FullName_;
+    bool Created_;
 };
 
 struct TCpuAcctStat
