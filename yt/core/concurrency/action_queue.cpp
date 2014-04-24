@@ -558,7 +558,9 @@ private:
 
         ~TGuard()
         {
-            Owner_->OnCallbackFinished();
+            if (Owner_) {
+                Owner_->OnCallbackFinished();
+            }
         }
 
     private:
