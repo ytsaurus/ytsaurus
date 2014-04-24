@@ -180,8 +180,8 @@ public:
 
             std::vector<TDataSplit> subsplits;
             for (auto it = startIt; it != tabletDescriptor->SplitKeys.end(); ++it) {
-                const auto& partitionKey = *it;
-                auto nextPartitionKey = (it + 1 == tabletDescriptor->SplitKeys.end()) ? MaxKey() : *(it + 1);
+                const auto& splitKey = *it;
+                auto nextSplitKey = (it + 1 == tabletDescriptor->SplitKeys.end()) ? MaxKey() : *(it + 1);
                 if (upperBound <= partitionKey)
                     break;
 
@@ -189,15 +189,15 @@ public:
                 SetObjectId(&subsplit, tabletId);
                 SetKeyColumns(&subsplit, keyColumns);
                 SetTableSchema(&subsplit, schema);
-                SetLowerBound(&subsplit, std::max(lowerBound, partitionKey));
-                SetUpperBound(&subsplit, std::min(upperBound, nextPartitionKey));
+                SetLowerBound(&subsplit, std::max(lowerBound, splitKey));
+                SetUpperBound(&subsplit, std::min(upperBound, nextSplitKey));
                 SetTimestamp(&subsplit, context->GetTimestamp());
                 subsplits.push_back(std::move(subsplit));
             }
 
             LOG_DEBUG("Subsplits built (TabletId: %s, SubsplitCount: %d)",
-                    ~ToString(tabletId),
-                    static_cast<int>(subsplits.size()));
+                ~ToString(tabletId),
+                static_cast<int>(subsplits.size()));
 
             return MakeFuture(TErrorOr<TDataSplits>(std::move(subsplits)));
         } catch (const std::exception& ex) {
