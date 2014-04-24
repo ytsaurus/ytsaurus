@@ -234,14 +234,14 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
    
     auto now = GetCpuInstant();
 
-    TGuard<TSpinLock> guard(counter.SpinLock);
+    //TGuard<TSpinLock> guard(counter.SpinLock);
     counter.Value += delta;
     if (now > counter.Deadline) {
         if (counter.LastTime != 0) {
             auto counterDelta = counter.Value - counter.LastValue;
             auto timeDelta = now - counter.LastTime;
             auto sampleValue = counterDelta * counter.Interval / timeDelta;
-            guard.Release();
+            //guard.Release();
             Enqueue(counter.Path, sampleValue, counter.TagIds);
         }
         counter.LastTime = now;
@@ -267,8 +267,8 @@ TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta /* = 1*/)
 
     auto now = GetCpuInstant();
 
-    TGuard<TSpinLock> guard(counter.SpinLock);
-    DoAggregate(counter, guard, counter.Current + delta, now);
+    //TGuard<TSpinLock> guard(counter.SpinLock);
+    //DoAggregate(counter, guard, counter.Current + delta, now);
     return counter.Current;
 }
 

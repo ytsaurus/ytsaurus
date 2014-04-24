@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <core/concurrency/thread.h>
 
 namespace NYT {
@@ -52,9 +54,6 @@ struct TLogEvent
     const char* Function;
 
 };
-
-struct ILogWriter;
-typedef TIntrusivePtr<ILogWriter> ILogWriterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

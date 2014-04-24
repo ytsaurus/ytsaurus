@@ -19,9 +19,9 @@ public:
     explicit TLogger(const Stroka& category = "");
     TLogger(const TLogger& other);
 
-    Stroka GetCategory() const;
+    const Stroka& GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
-    void Write(const TLogEvent& event);
+    void Write(TLogEvent&& event);
 
 private:
     TLogManager* GetLogManager() const;
@@ -128,7 +128,7 @@ void LogEventImpl(
     event.Line = line;
     event.ThreadId = NConcurrency::GetCurrentThreadId();
     event.Function = function;
-    logger.Write(event);
+    logger.Write(std::move(event));
 }
 
 } // namespace NDetail

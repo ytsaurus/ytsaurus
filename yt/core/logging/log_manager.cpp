@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "log_manager.h"
 #include "writer.h"
+#include "config.h"
+#include "private.h"
 
 #include <core/misc/property.h>
 #include <core/misc/pattern_formatter.h>
@@ -35,15 +37,6 @@ using namespace NYTree;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO: review this and that
-static const char* const SystemPattern = "$(datetime) $(level) $(category) $(message)";
-
-static const char* const DefaultStdErrWriterName = "StdErr";
-static const ELogLevel DefaultStdErrMinLevel= ELogLevel::Info;
-static const char* const DefaultStdErrPattern = "$(datetime) $(level) $(category) $(message)";
-
-static const char* const AllCategoriesName = "*";
 
 static TLogger Logger(SystemLoggingCategory);
 static NProfiling::TProfiler LoggingProfiler("/logging");
@@ -201,356 +194,6 @@ private:
     TClosure Callback;
 };
 
-struct TRule
-    : public TYsonSerializable
-{
-    typedef TIntrusivePtr<TRule> TPtr;
-
-    bool IncludeAllCategories;
-    yhash_set<Stroka> IncludeCategories;
-    yhash_set<Stroka> ExcludeCategories;
-
-    ELogLevel MinLevel;
-    ELogLevel MaxLevel;
-
-    std::vector<Stroka> Writers;
-
-    TRule()
-        : IncludeAllCategories(false)
-    {
-        // TODO(babenko): rename to include_categories
-        RegisterParameter("categories", IncludeCategories)
-            .NonEmpty();
-        RegisterParameter("exclude_categories", ExcludeCategories)
-            .Default(yhash_set<Stroka>());
-        RegisterParameter("min_level", MinLevel)
-            .Default(ELogLevel::Minimum);
-        RegisterParameter("max_level", MaxLevel)
-            .Default(ELogLevel::Maximum);
-        RegisterParameter("writers", Writers)
-            .NonEmpty();
-    }
-
-    virtual void OnLoaded() override
-    {
-        if (IncludeCategories.size() == 1 && *IncludeCategories.begin() == AllCategoriesName) {
-            IncludeAllCategories = true;
-        }
-    }
-
-    bool IsApplicable(const Stroka& category) const
-    {
-        if (!IncludeAllCategories && IncludeCategories.find(category) == IncludeCategories.end()) {
-            // No match in include_categories.
-            return false;
-        }
-
-        if (ExcludeCategories.find(category) != ExcludeCategories.end()) {
-            // Match in exclude_categories.
-            return false;
-        }
-
-        return true;
-    }
-
-    bool IsApplicable(const Stroka& category, ELogLevel level) const
-    {
-        return
-            MinLevel <= level && level <= MaxLevel &&
-            IsApplicable(category);
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef std::vector<ILogWriterPtr> TLogWriters;
-
-class TLogConfig;
-typedef TIntrusivePtr<TLogConfig> TLogConfigPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLogConfig
-    : public TYsonSerializable
-{
-public:
-    /*!
-     * Needs to be public for TYsonSerializable.
-     * Not for public use.
-     * Use #CreateDefault instead.
-     */
-    TLogConfig()
-        : Version(0)
-    {
-        RegisterParameter("flush_period", FlushPeriod)
-            .Default(Null);
-        RegisterParameter("watch_period", WatchPeriod)
-            .Default(Null);
-        RegisterParameter("check_space_period", CheckSpacePeriod)
-            .Default(Null);
-        RegisterParameter("min_disk_space", MinDiskSpace)
-            .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
-            .Default((i64) 5 * 1024 * 1024 * 1024);
-        RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
-            .GreaterThan(0)
-            .Default(1000000);
-        RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
-            .GreaterThan(0)
-            .Default(100000);
-
-        RegisterParameter("writers", WriterConfigs);
-        RegisterParameter("rules", Rules);
-
-        RegisterValidator([&] () {
-            FOREACH (const auto& rule, Rules) {
-                FOREACH (const Stroka& writer, rule->Writers) {
-                    if (WriterConfigs.find(writer) == WriterConfigs.end()) {
-                        THROW_ERROR_EXCEPTION("Unknown writer: %s", ~writer.Quote());
-                    }
-                }
-            }
-        });
-    }
-
-    TLogWriters GetWriters(const TLogEvent& event)
-    {
-        // Place a return value on top to promote RVO.
-        TLogWriters writers;
-        std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
-        auto it = CachedWriters.find(cacheKey);
-        if (it != CachedWriters.end())
-            return it->second;
-
-        yhash_set<Stroka> writerIds;
-        FOREACH (auto& rule, Rules) {
-            if (rule->IsApplicable(event.Category, event.Level)) {
-                writerIds.insert(rule->Writers.begin(), rule->Writers.end());
-            }
-        }
-
-        FOREACH (const Stroka& writerId, writerIds) {
-            auto writerIt = Writers.find(writerId);
-            YASSERT(writerIt != Writers.end());
-            writers.push_back(writerIt->second);
-        }
-
-        YCHECK(CachedWriters.insert(std::make_pair(cacheKey, writers)).second);
-        return writers;
-    }
-
-    ELogLevel GetMinLevel(const Stroka& category) const
-    {
-        ELogLevel level = ELogLevel::Maximum;
-        FOREACH (const auto& rule, Rules) {
-            if (rule->IsApplicable(category)) {
-                level = Min(level, rule->MinLevel);
-            }
-        }
-        return level;
-    }
-
-    void CheckSpace()
-    {
-        FOREACH (auto& pair, Writers) {
-            pair.second->CheckSpace(MinDiskSpace);
-        }
-    }
-
-    void FlushWriters()
-    {
-        FOREACH (auto& pair, Writers) {
-            pair.second->Flush();
-        }
-    }
-
-    void WatchWriters()
-    {
-        if (!NotificationHandle)
-            return;
-
-        int previousWd = -1, currentWd = -1;
-        while ((currentWd = NotificationHandle->Poll()) > 0) {
-            if (currentWd == previousWd) {
-                continue;
-            }
-            auto&& it = NotificationWatchesIndex.find(currentWd);
-            auto&& jt = NotificationWatchesIndex.end();
-            YCHECK(it != jt);
-
-            auto* watch = it->second;
-            watch->Run();
-
-            if (watch->GetWd() != currentWd) {
-                NotificationWatchesIndex.erase(it);
-                if (watch->GetWd() >= 0) {
-                    // Watch can fail to initialize if the writer is disabled
-                    // e.g. due to the lack of space.
-                    YCHECK(NotificationWatchesIndex.insert(
-                        std::make_pair(watch->GetWd(), watch)).second);
-                }
-            }
-
-            previousWd = currentWd;
-        }
-    }
-
-    void ReloadWriters()
-    {
-        AtomicIncrement(Version);
-        FOREACH (auto& pair, Writers) {
-            pair.second->Reload();
-        }
-    }
-
-    static TLogConfigPtr CreateDefault()
-    {
-        auto config = New<TLogConfig>();
-
-        config->Writers.insert(std::make_pair(
-            DefaultStdErrWriterName,
-            New<TStdErrLogWriter>(DefaultStdErrPattern)));
-
-        auto rule = New<TRule>();
-
-        rule->IncludeAllCategories = true;
-        rule->MinLevel = DefaultStdErrMinLevel;
-        rule->Writers.push_back(DefaultStdErrWriterName);
-
-        config->Rules.push_back(rule);
-
-        return config;
-    }
-
-    static TLogConfigPtr CreateFromNode(INodePtr node, const TYPath& path = "")
-    {
-        auto config = New<TLogConfig>();
-        config->Load(node, true, true, path);
-        config->CreateWriters();
-        return config;
-    }
-
-    int GetVersion() const
-    {
-        return Version;
-    }
-
-    TNullable<TDuration> GetFlushPeriod() const
-    {
-        return FlushPeriod;
-    }
-
-    TNullable<TDuration> GetWatchPeriod() const
-    {
-        return WatchPeriod;
-    }
-
-    TNullable<TDuration> GetCheckSpacePeriod() const
-    {
-        return CheckSpacePeriod;
-    }
-
-    int GetHighBacklogWatermark() const
-    {
-        return HighBacklogWatermark;
-    }
-
-    int GetLowBacklogWatermark() const
-    {
-        return LowBacklogWatermark;
-    }
-
-private:
-    std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
-    {
-#ifdef _linux_
-        if (WatchPeriod) {
-            if (!NotificationHandle) {
-                NotificationHandle.reset(new TNotificationHandle());
-            }
-            return std::unique_ptr<TNotificationWatch>(
-                new TNotificationWatch(
-                ~NotificationHandle,
-                fileName.c_str(),
-                BIND(&ILogWriter::Reload, writer)));
-        }
-#endif
-        return nullptr;
-    }
-
-    void CreateWriters()
-    {
-        FOREACH (const auto& pair, WriterConfigs) {
-            const auto& name = pair.first;
-            const auto& config = pair.second;
-            const auto& pattern = config->Pattern;
-
-            ILogWriterPtr writer;
-            std::unique_ptr<TNotificationWatch> watch;
-
-            switch (config->Type) {
-                case ILogWriter::EType::StdOut:
-                    writer = New<TStdOutLogWriter>(pattern);
-                    break;
-
-                case ILogWriter::EType::StdErr:
-                    writer = New<TStdErrLogWriter>(pattern);
-                    break;
-
-                case ILogWriter::EType::File:
-                    writer = New<TFileLogWriter>(config->FileName, pattern);
-                    watch = CreateNoficiationWatch(writer, config->FileName);
-                    break;
-
-                case ILogWriter::EType::Raw:
-                    writer = New<TRawFileLogWriter>(config->FileName);
-                    watch = CreateNoficiationWatch (writer, config->FileName);
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-
-            if (writer) {
-                YCHECK(Writers.insert(
-                    std::make_pair(name, std::move(writer))).second);
-            }
-
-            if (watch) {
-                if (watch->GetWd() >= 0) {
-                    // Watch can fail to initialize if the writer is disabled
-                    // e.g. due to the lack of space.
-                    YCHECK(NotificationWatchesIndex.insert(
-                        std::make_pair(watch->GetWd(), ~watch)).second);
-                }
-                NotificationWatches.emplace_back(std::move(watch));
-            }
-
-            AtomicIncrement(Version);
-        }
-    }
-
-    TAtomic Version;
-
-    TNullable<TDuration> FlushPeriod;
-    TNullable<TDuration> WatchPeriod;
-    TNullable<TDuration> CheckSpacePeriod;
-
-    i64 MinDiskSpace;
-
-    int HighBacklogWatermark;
-    int LowBacklogWatermark;
-
-    std::vector<TRule::TPtr> Rules;
-    yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
-
-    yhash_map<Stroka, ILogWriterPtr> Writers;
-    ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
-
-    std::unique_ptr<TNotificationHandle> NotificationHandle;
-    std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
-    std::map<int, TNotificationWatch*> NotificationWatchesIndex;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -561,6 +204,8 @@ void ReloadSignalHandler(int signal)
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TLogManager::TImpl
     : public TRefCounted
@@ -576,14 +221,16 @@ public:
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
         , Version(-1)
+        , WritersRevision(-1)
         , EnqueueCounter("/enqueue_rate")
         , WriteCounter("/write_rate")
         , BacklogCounter("/backlog")
         , Suspended(false)
         , ReopenEnqueued(false)
     {
-        SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
+        SystemWriters.push_back(New<TStdErrLogWriter>());
         DoUpdateConfig(TLogConfig::CreateDefault());
+        Writers.insert(std::make_pair(DefaultStdErrWriterName, New<TStdErrLogWriter>()));
 
         Thread->Start();
         Queue->SetThreadId(Thread->GetId());
@@ -614,7 +261,7 @@ public:
     {
         Queue->Shutdown();
         Thread->Shutdown();
-        Config->FlushWriters();
+        FlushWriters();
     }
 
     /*!
@@ -626,32 +273,24 @@ public:
         return Version;
     }
 
-    int GetConfigRevision()
+    int GetWritersRevision() const
     {
-        return Config->GetVersion();
+        return WritersRevision;
     }
 
-    void GetLoggerConfig(
-        const Stroka& category,
-        ELogLevel* minLevel,
-        int* configVersion)
+    ELogLevel GetMinLevel(const Stroka& category) const
     {
-        TGuard<TSpinLock> guard(&SpinLock);
-        *minLevel = Config->GetMinLevel(category);
-        *configVersion = Version;
-    }
-
-    void Enqueue(const TLogEvent& event)
-    {
-        if (!Thread->IsRunning() || Suspended) {
-            return;
+        ELogLevel level = ELogLevel::Maximum;
+        FOREACH (const auto& rule, Config->Rules) {
+            if (rule->IsApplicable(category)) {
+                level = Min(level, rule->MinLevel);
+            }
         }
+        return level;
+    }
 
-        int backlogSize = LoggingProfiler.Increment(BacklogCounter);
-        LoggingProfiler.Increment(EnqueueCounter);
-        LogEventQueue.Enqueue(event);
-        EventCount.Notify();
-
+    void Enqueue(TLogEvent&& event)
+    {
         if (event.Level == ELogLevel::Fatal) {
             // Flush everything and die.
             Shutdown();
@@ -674,9 +313,18 @@ public:
             std::terminate();
         }
 
-        if (!Suspended && backlogSize == Config->GetHighBacklogWatermark()) {
+        if (!Thread->IsRunning() || Suspended) {
+            return;
+        }
+
+        int backlogSize = LoggingProfiler.Increment(BacklogCounter);
+        LoggingProfiler.Increment(EnqueueCounter);
+        LogEventQueue.Enqueue(std::move(event));
+        EventCount.Notify();
+
+        if (!Suspended && backlogSize == Config->HighBacklogWatermark) {
             LOG_WARNING("Backlog size has exceeded high watermark %d, logging suspended",
-                Config->GetHighBacklogWatermark());
+                Config->HighBacklogWatermark);
             Suspended = true;
         }
     }
@@ -760,7 +408,7 @@ private:
 
             if (ReopenEnqueued) {
                 ReopenEnqueued = false;
-                Config->ReloadWriters();
+                ReloadWriters();
             }
 
             Write(event);
@@ -768,14 +416,14 @@ private:
         }
 
         int backlogSize = LoggingProfiler.Increment(BacklogCounter, -eventsWritten);
-        if (Suspended && backlogSize < Config->GetLowBacklogWatermark()) {
+        if (Suspended && backlogSize < Config->LowBacklogWatermark) {
             Suspended = false;
             LOG_INFO("Backlog size has dropped below low watermark %d, logging resumed",
-                Config->GetLowBacklogWatermark());
+                Config->LowBacklogWatermark);
         }
 
-        if (eventsWritten > 0 && Config->GetFlushPeriod() == TDuration::Zero()) {
-            Config->FlushWriters();
+        if (eventsWritten > 0 && !Config->FlushPeriod) {
+            FlushWriters();
         }
 
         if (configsUpdated || eventsWritten > 0) {
@@ -791,36 +439,108 @@ private:
         Queue->EndExecute(&CurrentAction);
     }
 
-
-    typedef std::vector<ILogWriterPtr> TWriters;
-
-    TWriters GetWriters(const TLogEvent& event)
+    ILogWriters GetWriters(const TLogEvent& event)
     {
         if (event.Category == SystemLoggingCategory) {
             return SystemWriters;
         } else {
-            return Config->GetWriters(event);
+            ILogWriters writers;
+
+            std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
+            auto it = CachedWriters.find(cacheKey);
+            if (it != CachedWriters.end())
+                return it->second;
+
+            yhash_set<Stroka> writerIds;
+            for (const auto& rule : Config->Rules) {
+                if (rule->IsApplicable(event.Category, event.Level)) {
+                    writerIds.insert(rule->Writers.begin(), rule->Writers.end());
+                }
+            }
+
+            for (const Stroka& writerId : writerIds) {
+                auto writerIt = Writers.find(writerId);
+                YASSERT(writerIt != Writers.end());
+                writers.push_back(writerIt->second);
+            }
+
+            YCHECK(CachedWriters.insert(std::make_pair(cacheKey, writers)).second);
+
+            return writers;
         }
     }
 
     void Write(const TLogEvent& event)
     {
-        FOREACH (auto& writer, GetWriters(event)) {
+        for (auto& writer : GetWriters(event)) {
             LoggingProfiler.Increment(WriteCounter);
             writer->Write(event);
         }
     }
 
+    std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
+    {
+#ifdef _linux_
+        if (Config->WatchPeriod) {
+            if (!NotificationHandle) {
+                NotificationHandle.reset(new TNotificationHandle());
+            }
+            return std::unique_ptr<TNotificationWatch>(
+                new TNotificationWatch(
+                ~NotificationHandle,
+                fileName.c_str(),
+                BIND(&ILogWriter::Reload, writer)));
+        }
+#endif
+        return nullptr;
+    }
+
     void DoUpdateConfig(TLogConfigPtr config)
     {
-        if (Config) {
-            Config->FlushWriters();
-        }
+        FlushWriters();
 
         {
             TGuard<TSpinLock> guard(&SpinLock);
 
             Config = config;
+
+            for (const auto& pair : Config->WriterConfigs) {
+                const auto& name = pair.first;
+                const auto& config = pair.second;
+
+                ILogWriterPtr writer;
+                std::unique_ptr<TNotificationWatch> watch;
+
+                switch (config->Type) {
+                    case EType::StdOut:
+                        writer = New<TStdOutLogWriter>();
+                        break;
+                    case EType::StdErr:
+                        writer = New<TStdErrLogWriter>();
+                        break;
+                    case EType::File:
+                        writer = New<TFileLogWriter>(config->FileName);
+                        watch = CreateNoficiationWatch(writer, config->FileName);
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
+
+                if (writer) {
+                    YCHECK(Writers.insert(std::make_pair(name, std::move(writer))).second);
+                }
+
+                if (watch) {
+                    if (watch->GetWd() >= 0) {
+                        // Watch can fail to initialize if the writer is disabled
+                        // e.g. due to the lack of space.
+                        YCHECK(NotificationWatchesIndex.insert(
+                            std::make_pair(watch->GetWd(), ~watch)).second);
+                    }
+                    NotificationWatches.emplace_back(std::move(watch));
+                }
+            }
+
             AtomicIncrement(Version);
 
             if (FlushExecutor) {
@@ -833,48 +553,86 @@ private:
                 WatchExecutor.Reset();
             }
 
-            auto flushPeriod = Config->GetFlushPeriod();
+            auto flushPeriod = Config->FlushPeriod;
             if (flushPeriod) {
                 FlushExecutor = New<TPeriodicExecutor>(
                     Queue,
-                    BIND(&TImpl::DoFlushWritersPeriodically, MakeStrong(this)),
+                    BIND(&TImpl::FlushWriters, MakeStrong(this)),
                     *flushPeriod);
                 FlushExecutor->Start();
             }
 
-            auto watchPeriod = Config->GetWatchPeriod();
+            auto watchPeriod = Config->WatchPeriod;
             if (watchPeriod) {
                 WatchExecutor = New<TPeriodicExecutor>(
                     Queue,
-                    BIND(&TImpl::DoWatchWritersPeriodically, MakeStrong(this)),
+                    BIND(&TImpl::WatchWriters, MakeStrong(this)),
                     *watchPeriod);
                 WatchExecutor->Start();
             }
 
-            auto checkSpacePeriod = Config->GetCheckSpacePeriod();
+            auto checkSpacePeriod = Config->CheckSpacePeriod;
             if (checkSpacePeriod) {
                 CheckSpaceExecutor = New<TPeriodicExecutor>(
                     Queue,
-                    BIND(&TImpl::DoCheckSpacePeriodically, MakeStrong(this)),
+                    BIND(&TImpl::CheckSpace, MakeStrong(this)),
                     *checkSpacePeriod);
                 CheckSpaceExecutor->Start();
             }
         }
     }
 
-    void DoFlushWritersPeriodically()
+    void FlushWriters()
     {
-        Config->FlushWriters();
+        for (auto& pair : Writers) {
+            pair.second->Flush();
+        }
     }
 
-    void DoWatchWritersPeriodically()
+    void ReloadWriters()
     {
-        Config->WatchWriters();
+        AtomicIncrement(WritersRevision);
+        for (auto& pair : Writers) {
+            pair.second->Reload();
+        }
     }
 
-    void DoCheckSpacePeriodically()
+    void CheckSpace()
     {
-        Config->CheckSpace();
+        for (auto& pair : Writers) {
+            pair.second->CheckSpace(Config->MinDiskSpace);
+        }
+    }
+
+    void WatchWriters()
+    {
+        if (!NotificationHandle)
+            return;
+
+        int previousWd = -1, currentWd = -1;
+        while ((currentWd = NotificationHandle->Poll()) > 0) {
+            if (currentWd == previousWd) {
+                continue;
+            }
+            auto&& it = NotificationWatchesIndex.find(currentWd);
+            auto&& jt = NotificationWatchesIndex.end();
+            YCHECK(it != jt);
+
+            auto* watch = it->second;
+            watch->Run();
+
+            if (watch->GetWd() != currentWd) {
+                NotificationWatchesIndex.erase(it);
+                if (watch->GetWd() >= 0) {
+                    // Watch can fail to initialize if the writer is disabled
+                    // e.g. due to the lack of space.
+                    YCHECK(NotificationWatchesIndex.insert(
+                        std::make_pair(watch->GetWd(), watch)).second);
+                }
+            }
+
+            previousWd = currentWd;
+        }
     }
 
 
@@ -885,6 +643,7 @@ private:
 
     // Configuration.
     TAtomic Version;
+    TAtomic WritersRevision;
 
     TLogConfigPtr Config;
     NProfiling::TRateCounter EnqueueCounter;
@@ -896,7 +655,9 @@ private:
     TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate;
     TLockFreeQueue<TLogEvent> LogEventQueue;
 
-    TWriters SystemWriters;
+    yhash_map<Stroka, ILogWriterPtr> Writers;
+    ymap<std::pair<Stroka, ELogLevel>, ILogWriters> CachedWriters;
+    ILogWriters SystemWriters;
 
     volatile bool ReopenEnqueued;
 
@@ -904,6 +665,9 @@ private:
     TPeriodicExecutorPtr WatchExecutor;
     TPeriodicExecutorPtr CheckSpaceExecutor;
 
+    std::unique_ptr<TNotificationHandle> NotificationHandle;
+    std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
+    std::map<int, TNotificationWatch*> NotificationWatchesIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -932,27 +696,24 @@ void TLogManager::Shutdown()
     Impl->Shutdown();
 }
 
-int TLogManager::GetConfigVersion()
+int TLogManager::GetConfigVersion() const
 {
     return Impl->GetConfigVersion();
 }
 
-int TLogManager::GetConfigRevision()
+int TLogManager::GetWritersRevision() const
 {
-    return Impl->GetConfigRevision();
+    return Impl->GetWritersRevision();
 }
 
-void TLogManager::GetLoggerConfig(
-    const Stroka& category,
-    ELogLevel* minLevel,
-    int* configVersion)
+ELogLevel TLogManager::GetMinLevel(const Stroka& category) const
 {
-    Impl->GetLoggerConfig(category, minLevel, configVersion);
+    return Impl->GetMinLevel(category);
 }
 
-void TLogManager::Enqueue(const TLogEvent& event)
+void TLogManager::Enqueue(TLogEvent&& event)
 {
-    Impl->Enqueue(event);
+    Impl->Enqueue(std::move(event));
 }
 
 void TLogManager::Reopen()

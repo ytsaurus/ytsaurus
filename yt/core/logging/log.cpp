@@ -24,14 +24,14 @@ TLogger::TLogger(const TLogger& other)
     , LogManager(NULL)
 { }
 
-Stroka TLogger::GetCategory() const
+const Stroka& TLogger::GetCategory() const
 {
     return Category;
 }
 
-void TLogger::Write(const TLogEvent& event)
+void TLogger::Write(TLogEvent&& event)
 {
-    GetLogManager()->Enqueue(event);
+    GetLogManager()->Enqueue(std::move(event));
 }
 
 bool TLogger::IsEnabled(ELogLevel level) const
@@ -49,10 +49,8 @@ bool TLogger::IsEnabled(ELogLevel level) const
 
 void TLogger::UpdateConfig()
 {
-    GetLogManager()->GetLoggerConfig(
-        Category,
-        &MinLevel,
-        &ConfigVersion);
+    MinLevel = GetLogManager()->GetMinLevel(Category);
+    ConfigVersion = GetLogManager()->GetConfigVersion();
 }
 
 TLogManager* TLogger::GetLogManager() const
