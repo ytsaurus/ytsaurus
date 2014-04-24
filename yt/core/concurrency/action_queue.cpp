@@ -528,21 +528,8 @@ public:
 
     virtual void Invoke(const TClosure& callback) override
     {
-        // Fast path, no queue.
-        if (++Semaphore_ <= MaxConcurrentInvocations_) {
-            Schedule(callback);
-            return;
-        }
-
-        // Slow path, with queue.
-        --Semaphore_;
         Queue_.Enqueue(callback);
-
-        if (++Semaphore_ <= MaxConcurrentInvocations_) {
-            ScheduleOrRelease();
-        } else {
-            --Semaphore_;
-        }
+        ScheduleMore();
     }
 
     virtual TThreadId GetThreadId() const
@@ -558,28 +545,70 @@ private:
     TLockFreeQueue<TClosure> Queue_;
 
 
-    void Schedule(const TClosure& callback)
+    class TGuard
     {
-        UnderlyingInvoker_->Invoke(BIND(
-            &TBoundedConcurrencyInvoker::CallbackWrapper,
-            MakeStrong(this),
-            callback));
-    }
+    public:
+        explicit TGuard(TIntrusivePtr<TBoundedConcurrencyInvoker> owner)
+            : Owner_(std::move(owner))
+        { }
 
-    void ScheduleOrRelease()
-    {
-        TClosure callback;
-        if (Queue_.Dequeue(&callback)) {
-            Schedule(callback);
-        } else {
-            --Semaphore_;
+        TGuard(TGuard&& other)
+            : Owner_(std::move(other.Owner_))
+        { }
+
+        ~TGuard()
+        {
+            Owner_->OnCallbackFinished();
         }
-    }
 
-    void CallbackWrapper(const TClosure& callback)
+    private:
+        TIntrusivePtr<TBoundedConcurrencyInvoker> Owner_;
+
+    };
+
+
+    static void CallbackWrapper(const TClosure& callback, TGuard /*guard*/)
     {
         callback.Run();
-        ScheduleOrRelease();
+    }
+
+    void OnCallbackFinished()
+    {
+        ReleaseSemaphore();
+        ScheduleMore();
+    }
+
+    void ScheduleMore()
+    {
+        while (true) {
+            if (!AcquireSemaphore())
+                break;
+
+            TClosure callback;
+            if (!Queue_.Dequeue(&callback)) {
+                ReleaseSemaphore();
+                break;
+            }
+
+            UnderlyingInvoker_->Invoke(BIND(
+                &TBoundedConcurrencyInvoker::CallbackWrapper,
+                callback,
+                Passed(TGuard(this))));
+        }        
+    }
+
+    bool AcquireSemaphore()
+    {
+        if (++Semaphore_ <= MaxConcurrentInvocations_) {
+            return true;
+        }
+        ReleaseSemaphore();
+        return false;
+    }
+
+    void ReleaseSemaphore()
+    {
+        YASSERT(--Semaphore_ >= 0);
     }
 
 };
