@@ -94,6 +94,7 @@ public:
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
         , CpuAcct("/sys/fs/cgroup/cpuacct", ToString(TGuid::Create()))
+        , BlockIO("/sys/fs/cgroup/blkio", ToString(TGuid::Create()))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -112,6 +113,7 @@ public:
         InitCompleted = true;
 
         CpuAcct.Create();
+        BlockIO.Create();
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -139,6 +141,9 @@ public:
 
         CpuAcctStats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
         CpuAcct.Destroy();
+
+        BlockIOStats = NCGroup::GetBlockIOStat(BlockIO.GetFullName());
+        BlockIO.Destroy();
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
@@ -505,6 +510,7 @@ private:
             }
 
             CpuAcct.AddMyself();
+            BlockIO.AddMyself();
 
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
@@ -618,6 +624,10 @@ private:
         result.set_cpu_user(CpuAcctStats.user.count());
         result.set_cpu_system(CpuAcctStats.system.count());
 
+        result.set_sectors(BlockIOStats.Sectors);
+        result.set_read_bytes(BlockIOStats.ReadBytes);
+        result.set_write_bytes(BlockIOStats.WriteBytes);
+
         return result;
     }
 
@@ -651,6 +661,9 @@ private:
 
     NCGroup::TCGroup CpuAcct;
     NCGroup::TCpuAcctStat CpuAcctStats;
+
+    NCGroup::TCGroup BlockIO;
+    NCGroup::TBlockIOStat BlockIOStats;
 };
 
 TJobPtr CreateUserJob(

@@ -29,6 +29,8 @@ private:
     bool Created_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCpuAcctStat
 {
     std::chrono::nanoseconds user;
@@ -36,6 +38,17 @@ struct TCpuAcctStat
 };
 
 TCpuAcctStat GetCpuAccStat(const Stroka& fullName);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBlockIOStat
+{
+    int64_t Sectors;
+    int64_t ReadBytes;
+    int64_t WriteBytes;
+};
+
+TBlockIOStat GetBlockIOStat(const Stroka& fullName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,6 +23,10 @@ message TJobStatistics
 
     optional int64 cpu_user = 4;
     optional int64 cpu_system = 5;
+
+    optional int64 sectors = 6;
+    optional int64 read_bytes = 7;
+    optional int64 write_bytes = 8;
 }
 
 // Describes the outcome of the job, in particular if it has finished successfully.

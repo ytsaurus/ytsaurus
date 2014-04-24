@@ -84,6 +84,19 @@ TEST(CGroup, GetCpuAccStat)
     group.Destroy();
 }
 
+TEST(CGroup, GetBlockIOStat)
+{
+    TCGroup group("/sys/fs/cgroup/blkio", "some");
+    group.Create();
+
+    auto stats = GetBlockIOStat(group.GetFullName());
+    EXPECT_EQ(0, stats.ReadBytes);
+    EXPECT_EQ(0, stats.WriteBytes);
+    EXPECT_EQ(0, stats.Sectors);
+
+    group.Destroy();
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

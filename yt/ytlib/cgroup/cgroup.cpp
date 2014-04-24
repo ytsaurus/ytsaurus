@@ -128,5 +128,57 @@ TCpuAcctStat GetCpuAccStat(const Stroka& fullName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBlockIOStat GetBlockIOStat(const Stroka& fullName)
+{
+    TBlockIOStat result;
+#ifdef _linux_
+    {
+        std::fstream stats(NFS::CombinePaths(fullName, "blkio.io_service_bytes").data(), std::ios_base::in);
+        if (stats.fail()) {
+            THROW_ERROR_EXCEPTION("Unable to open a blkio stat");
+        }
+        result.ReadBytes = result.WriteBytes = 0;
+        while (!stats.eof()) {
+            std::string device_id, type;
+            int64_t bytes;
+            stats >> device_id >> type >> bytes;
+            if (stats.bad()) {
+                THROW_ERROR_EXCEPTION("Unable to read|write bytes stats");
+            }
+            if (stats.good()) {
+                if (type == "Read") {
+                    result.ReadBytes += bytes;
+                } else if (type == "Write") {
+                    result.WriteBytes += bytes;
+                } else {
+                    YCHECK((type == "Sync") || (type == "Async") || (type == "Total"));
+                }
+            }
+        }
+    }
+    {
+        std::fstream stats(NFS::CombinePaths(fullName, "blkio.sectors").data(), std::ios_base::in);
+        if (stats.fail()) {
+            THROW_ERROR_EXCEPTION("Unable to open a blkio stat");
+        }
+        result.Sectors = 0;
+        while (!stats.eof()) {
+            std::string device_id;
+            int64_t sectors;
+            stats >> device_id >> sectors;
+            if (stats.bad()) {
+                THROW_ERROR_EXCEPTION("Unable to read sector count");
+            }
+            if (stats.good()) {
+                result.Sectors += sectors;
+            }
+        }
+    }
+#endif
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCGroup
 } // namespace NYT
