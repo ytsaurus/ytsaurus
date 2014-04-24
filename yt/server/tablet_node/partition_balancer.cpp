@@ -277,7 +277,7 @@ private:
         TPartition* partition,
         int maxSampleCount)
     {
-        if (maxSampleCount == 0) {
+        if (maxSampleCount == 1) {
             return std::vector<TOwningKey>();
         }
 
