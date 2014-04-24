@@ -302,7 +302,7 @@ private:
             auto req = proxy.LocateChunks();
 
             for (auto store : partition->Stores()) {
-                YCHECK(store->GetState() == EStoreState::Persistent);
+                YCHECK(store->GetType() == EStoreType::Chunk);
                 auto chunkId = store->GetId();
                 ToProto(req->add_chunk_ids(), chunkId);
             }
