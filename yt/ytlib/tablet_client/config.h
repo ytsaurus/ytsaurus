@@ -19,7 +19,7 @@ public:
     TTableMountCacheConfig()
     {
         RegisterParameter("success_expiration_time", SuccessExpirationTime)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(5));
         RegisterParameter("failure_expiration_time", FailureExpirationTime)
             .Default(TDuration::Seconds(5));
     }
