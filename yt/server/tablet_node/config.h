@@ -33,11 +33,12 @@ public:
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
     i64 MinPartitionDataSize;
+    int MaxPartitionChunkCount;
 
     int MaxPartitionCount;
 
     i64 MaxEdenDataSize;
-    int MaxEdenStoreCount;
+    int MaxEdenChunkCount;
 
     TTableMountConfig()
     {
@@ -63,6 +64,9 @@ public:
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
             .Default((i64) 16 * 1024 * 1024)
             .GreaterThan(0);
+        RegisterParameter("max_partition_chunk_count", MaxPartitionChunkCount)
+            .Default(3)
+            .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
             .Default(64)
@@ -71,7 +75,7 @@ public:
         RegisterParameter("max_eden_data_size", MaxEdenDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-        RegisterParameter("max_eden_store_count", MaxEdenStoreCount)
+        RegisterParameter("max_eden_chunk_count", MaxEdenChunkCount)
             .Default(8)
             .GreaterThan(0);
 

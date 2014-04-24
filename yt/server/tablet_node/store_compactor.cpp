@@ -120,9 +120,9 @@ private:
 
         // Check if partitioning is needed.
         auto* tablet = eden->GetTablet();
-        const auto& config = tablet->GetConfig();
+        auto config = tablet->GetConfig();
         if (dataSize <= config->MaxEdenDataSize &&
-            static_cast<int>(stores.size()) <= config->MaxEdenStoreCount)
+            static_cast<int>(stores.size()) <= config->MaxEdenChunkCount)
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
@@ -171,11 +171,11 @@ private:
         // Don't compact partitions whose data size exceeds the limit.
         // Let Partition Balancer do its job.
         auto* tablet = partition->GetTablet();
-        const auto& config = tablet->GetConfig();
+        auto config = tablet->GetConfig();
         if (partition->GetTotalDataSize() > config->MaxPartitionDataSize)
             return;
 
-        auto stores = PickStoresForCompaction(allStores);
+        auto stores = PickStoresForCompaction(config, allStores);
         if (stores.empty())
             return;
 
@@ -198,18 +198,18 @@ private:
     }
 
 
-    std::vector<IStorePtr> PickStoresForCompaction(std::vector<IStorePtr>& allStores)
+    std::vector<IStorePtr> PickStoresForCompaction(
+        TTableMountConfigPtr config,
+        std::vector<IStorePtr>& allStores)
     {
-        // TODO(babenko): need some smart code here
-        const int Limit = 3;
-        int n = static_cast<int>(allStores.size());
-        if (n <= Limit) {
+        int chunkCount = static_cast<int>(allStores.size());
+        if (chunkCount <= config->MaxPartitionChunkCount) {
             return std::vector<IStorePtr>();
         }
 
         return std::vector<IStorePtr>(
             allStores.begin(),
-            allStores.begin() + std::min(n, Config_->MaxChunksPerCompaction));
+            allStores.begin() + std::min(chunkCount, Config_->MaxChunksPerCompaction));
     }
 
 
