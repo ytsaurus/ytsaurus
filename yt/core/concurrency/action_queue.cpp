@@ -624,14 +624,5 @@ IInvokerPtr CreateBoundedConcurrencyInvoker(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IPrioritizedInvokerPtr CreateBoundedConcurrencyInvoker(
-    IPrioritizedInvokerPtr underlyingInvoker,
-    int maxConcurrentInvocations)
-{
-    YUNIMPLEMENTED();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 } // namespace NConcurrency
 } // namespace NYT
