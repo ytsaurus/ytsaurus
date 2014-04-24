@@ -22,6 +22,7 @@
 #include <ytlib/tablet_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/object_server/type_handler_detail.h>
 
@@ -71,6 +72,8 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NTabletNode::NProto;
 using namespace NChunkServer;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NCypressServer;
 using namespace NCellMaster;
 
@@ -1120,22 +1123,30 @@ private:
 
             // Collect all changes first.
             std::vector<TChunkTree*> chunksToAttach;
+            i64 attachedRowCount = 0;
             for (const auto& descriptor : request.stores_to_add()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 if (TypeFromId(storeId) == EObjectType::Chunk ||
                     TypeFromId(storeId) == EObjectType::ErasureChunk)
                 {
-                    chunksToAttach.push_back(chunkManager->GetChunkOrThrow(storeId));
+                    auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                    auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+                    attachedRowCount += miscExt.row_count();
+                    chunksToAttach.push_back(chunk);
                 }
             }
 
             std::vector<TChunkTree*> chunksToDetach;
+            i64 detachedRowCount = 0;
             for (const auto& descriptor : request.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 if (TypeFromId(storeId) == EObjectType::Chunk ||
                     TypeFromId(storeId) == EObjectType::ErasureChunk)
                 {
-                    chunksToDetach.push_back(chunkManager->GetChunkOrThrow(storeId));
+                    auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                    auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+                    detachedRowCount += miscExt.row_count();
+                    chunksToDetach.push_back(chunk);
                 }
             }
 
@@ -1151,10 +1162,13 @@ private:
             }
             securityManager->UpdateAccountNodeUsage(table);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s])",
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s], "
+                "AttachedRowCount: %" PRId64 ", DetachedRowCount: %" PRId64 ")",
                 ~ToString(tabletId),
                 ~JoinToString(ToObjectIds(chunksToAttach)),
-                ~JoinToString(ToObjectIds(chunksToDetach)));
+                ~JoinToString(ToObjectIds(chunksToDetach)),
+                attachedRowCount,
+                detachedRowCount);
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error, "Error updating tablet stores (TabletId: %s)",
