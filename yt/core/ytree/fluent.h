@@ -339,6 +339,12 @@ public:
             return TAny<TThis>(this->Consumer, *this);
         }
 
+        template <size_t Size>
+        TAny<TThis> Item(const char (&key)[Size])
+        {
+            return Item(TStringBuf(key, Size - 1));
+        }
+
         TThis& Items(IMapNodePtr map)
         {
             FOREACH (const auto& pair, map->GetChildren()) {
