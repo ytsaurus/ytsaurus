@@ -70,6 +70,7 @@ void TReadTableCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context_->GetConfig()->TableReader,
         Request_->TableReader);
+
     config = UpdateYsonSerializable(
         config,
         Request_->GetOptions());

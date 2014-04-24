@@ -42,24 +42,25 @@ class TTableWriterConfig
 
 DEFINE_REFCOUNTED_TYPE(TTableWriterConfig)
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkReaderConfig
-    : public NChunkClient::TSequentialReaderConfig
-{
-public:
-    TChunkReaderConfig()
-    { }
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableReaderConfig
-    : public TChunkReaderConfig
-    , public NChunkClient::TMultiChunkReaderConfig
-{ };
+    : public NChunkClient::TMultiChunkReaderConfig
+{
+public:
+     bool SuppressAccessTracking;
+     bool IgnoreUnavailableChunks;
+
+     TTableReaderConfig()
+     {
+         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+             .Default(false);
+
+         RegisterParameter("ignore_unavailable_chunks", IgnoreUnavailableChunks)
+             .Default(false);
+     }
+};
 
 DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)
 

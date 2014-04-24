@@ -131,6 +131,8 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
 
+DECLARE_REFCOUNTED_STRUCT(ISchemalessTableReader)
+
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
@@ -148,7 +150,9 @@ typedef NChunkClient::TMultiChunkWriterOptions TTableWriterOptions;
 typedef NChunkClient::TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
-DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
+
+typedef NChunkClient::TSequentialReaderConfig TChunkReaderConfig;
+typedef NChunkClient::TSequentialReaderConfigPtr TChunkReaderConfigPtr;
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)

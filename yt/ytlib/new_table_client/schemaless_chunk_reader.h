@@ -10,6 +10,8 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
+#include <ytlib/transaction_client/public.h>
+
 #include <core/rpc/public.h>
 
 namespace NYT {
@@ -27,7 +29,9 @@ struct IPartitionReader
 struct ISchemalessChunkReader
     : public virtual NChunkClient::IChunkReaderBase
     , public ISchemalessReader
-{ };
+{ 
+    virtual i64 GetTableRowIndex() const = 0;
+};
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 
@@ -42,6 +46,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
     const TColumnFilter& columnFilter,
+    i64 tableRowIndex = 0,
     TNullable<int> partitionTag = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,21 +54,43 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 struct ISchemalessMultiChunkReader
     : public virtual NChunkClient::IMultiChunkReader
     , ISchemalessReader
-{ };
+{
+    virtual i64 GetTableRowIndex() const = 0;
+};
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
-    TTableReaderConfigPtr config,
+    NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns);
+    const TKeyColumns& keyColumns = TKeyColumns());
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ISchemalessTableReader
+    : ISchemalessReader
+{
+    virtual i64 GetTableRowIndex() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ISchemalessTableReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessTableReaderPtr CreateSchemalessTableReader(
+    TTableReaderConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    NTransactionClient::TTransactionPtr transaction,
+    NChunkClient::IBlockCachePtr blockCache,
+    const NYPath::TRichYPath& richPath,
+    TNameTablePtr nameTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 
