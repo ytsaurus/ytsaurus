@@ -32,19 +32,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"} for i in xrange(100*1000)])
-        map(in_='//tmp/t1', out='//tmp/t2', command='cat; sudo dd if=/dev/sdb of=/dev/null bs=1M count=1000 skip=10000; true')
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
 
         time.sleep(5)
         res = read('//sys/scheduler/event_log')
         for item in res:
             if item['event_type'] == 'job_completed':
-                print item['cpu_user']
-                print item['cpu_system']
-                print item['sectors']
-                print item['bytes_read']
-                print item['bytes_write']
-
-        assert False
+                for key in ['cpu_user', 'cpu_system', 'sectors', 'read_bytes', 'write_bytes']:
+                    assert key in item
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_one_chunk(self):
