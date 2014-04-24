@@ -19,13 +19,13 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable descriptor for a tablet, which helps to coordindate and
+//! An immutable descriptor for a tablet, which helps to coordinate and
 //! run queries against it.
 struct TTabletDescriptor
     : public TIntrinsicRefCounted
 {
     TTabletSlotPtr Slot;
-    std::vector<NVersionedTableClient::TOwningKey> PartitionKeys;
+    std::vector<NVersionedTableClient::TOwningKey> SplitKeys;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletDescriptor)

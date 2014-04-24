@@ -74,5 +74,12 @@ message TReqMergePartitions
     required int32 partition_count = 3;
 }
 
+message TReqUpdatePartitionSampleKeys
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bytes pivot_key = 2;
+    repeated bytes sample_keys = 3;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

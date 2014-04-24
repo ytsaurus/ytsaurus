@@ -27,6 +27,11 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, ResampleNeeded);
+    DEFINE_BYVAL_RW_PROPERTY(bool, ResampleRunning);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastResampleTime);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOwningKey>, SampleKeys);
+
 public:
     TPartition(TTablet* tablet, int index);
     ~TPartition();

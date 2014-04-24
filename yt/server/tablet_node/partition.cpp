@@ -21,6 +21,9 @@ TPartition::TPartition(TTablet* tablet, int index)
     , PivotKey_(MinKey())
     , NextPivotKey_(MaxKey())
     , State_(EPartitionState::None)
+    , ResampleNeeded_(false)
+    , ResampleRunning_(false)
+    , LastResampleTime_(TInstant::Zero())
 { }
 
 TPartition::~TPartition()
@@ -32,6 +35,8 @@ void TPartition::Save(TSaveContext& context) const
 
     Save(context, PivotKey_);
     Save(context, NextPivotKey_);
+    Save(context, ResampleNeeded_);
+    Save(context, SampleKeys_);
 
     Save(context, Stores_.size());
     for (auto store : Stores_) {
@@ -45,6 +50,8 @@ void TPartition::Load(TLoadContext& context)
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
+    Load(context, ResampleNeeded_);
+    Load(context, SampleKeys_);
 
     size_t storeCount = Load<size_t>(context);
     for (size_t index = 0; index < storeCount; ++index) {

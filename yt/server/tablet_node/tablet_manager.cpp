@@ -108,6 +108,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletStoresUpdated, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSplitPartition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraMergePartitions, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdatePartitionSampleKeys, Unretained(this)));
     }
 
     void Initialize()
@@ -452,7 +453,7 @@ private:
             keyColumns,
             pivotKey,
             nextPivotKey);
-        tablet->AddPartition(pivotKey);
+        tablet->CreateInitialPartition();
         InitializeTablet(tablet);
 
         auto storeManager = tablet->GetStoreManager();
@@ -792,6 +793,32 @@ private:
         }
     }
 
+    void HydraUpdatePartitionSampleKeys(const TReqUpdatePartitionSampleKeys& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
+        auto* partition = tablet->FindPartitionByPivotKey(pivotKey);
+        if (!partition)
+            return;
+
+        LOG_INFO_UNLESS(IsRecovery(), "Updating partition sample keys (TabletId: %s, PartitionIndex: %d, SampleKeyCount: %d)",
+            ~ToString(tablet->GetId()),
+            partition->GetIndex(),
+            request.sample_keys_size());
+
+        partition->SampleKeys() = FromProto<TOwningKey>(request.sample_keys());
+        partition->SetResampleNeeded(false);
+
+        if (!IsRecovery()) {
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            tabletSlotManager->UpdateTablet(tablet);
+        }
+    }
+
 
     void OnTransactionPrepared(TTransaction* transaction)
     {
@@ -1038,6 +1065,7 @@ private:
     {
         for (const auto& partition : tablet->Partitions()) {
             partition->SetState(EPartitionState::None);
+            partition->SetResampleRunning(false);
         }
 
         for (const auto& pair : tablet->Stores()) {
@@ -1098,6 +1126,8 @@ private:
                 .Item("state").Value(partition->GetState())
                 .Item("pivot_key").Value(partition->GetPivotKey())
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
+                .Item("sample_key_count").Value(partition->SampleKeys().size())
+                .Item("resample_needed").Value(partition->GetResampleNeeded())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
                     fluent
                         .Item(ToString(store->GetId()))

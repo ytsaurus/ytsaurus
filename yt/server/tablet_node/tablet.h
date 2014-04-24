@@ -62,7 +62,7 @@ public:
 
     const TPartitionList& Partitions() const;
     TPartition* GetEden() const;
-    TPartition* AddPartition(TOwningKey pivotKey);
+    void CreateInitialPartition();
     TPartition* FindPartitionByPivotKey(const TOwningKey& pivotKey);
     TPartition* GetPartitionByPivotKey(const TOwningKey& pivotKey);
     void MergePartitions(int firstIndex, int lastIndex);

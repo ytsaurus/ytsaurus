@@ -119,6 +119,10 @@ private:
 
             RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
         }
+
+        if (partition->GetResampleNeeded()) {
+            RunResample(partition);
+        }
     }
 
 
@@ -151,73 +155,15 @@ private:
             splitFactor);
 
         try {
-            auto nodeDirectory = New<TNodeDirectory>();
-
-            auto fetcher = New<TSamplesFetcher>(
-                Config_->SamplesFetcher,
-                Config_->SamplesFetcher->MaxSampleCount,
-                tablet->KeyColumns(),
-                nodeDirectory,
-                GetCurrentInvoker(),
-                Logger);
-
-            {
-                LOG_INFO("Locating store chunks");
-
-                TChunkServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
-                auto req = proxy.LocateChunks();
-
-                for (auto store : partition->Stores()) {
-                    YCHECK(store->GetState() == EStoreState::Persistent);
-                    auto chunkId = store->GetId();
-                    ToProto(req->add_chunk_ids(), chunkId);
-                }
-
-                auto rsp = WaitFor(req->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-                LOG_INFO("Store chunks located");
-
-                nodeDirectory->MergeFrom(rsp->node_directory());
-
-                for (const auto& chunkInfo : rsp->chunks()) {
-                    auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-                    auto store = tablet->GetStore(chunkId);
-                    auto* chunkStore = dynamic_cast<TChunkStore*>(store.Get());
-
-                    auto chunkSpec = New<TRefCountedChunkSpec>();
-                    chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
-                    chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
-                    chunkSpec->mutable_chunk_meta()->CopyFrom(chunkStore->GetChunkMeta());
-                    fetcher->AddChunk(chunkSpec);
-                }
-            }
-
-            {
-                auto result = WaitFor(fetcher->Fetch());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            auto samples = fetcher->GetSamples();
-            samples.erase(
-                std::remove_if(
-                    samples.begin(),
-                    samples.end(),
-                    [&] (const TOwningKey& key) {
-                        return key < partition->GetPivotKey() || key >= partition->GetNextPivotKey();
-                    }),
-                samples.end());
-
+            auto samples = GetPartitionSamples(partition, Config_->MaxPartitioningSampleCount);
             int sampleCount = static_cast<int>(samples.size());
-            int minSampleCount = std::max(Config_->SamplesFetcher->MinSampleCount, splitFactor);
+            int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
                 THROW_ERROR_EXCEPTION("Too few samples fetched: %d < %d",
                     sampleCount,
                     minSampleCount);
             }
 
-            std::sort(samples.begin(), samples.end());
-            
             std::vector<TOwningKey> pivotKeys;
             pivotKeys.push_back(partition->GetPivotKey());
             for (int i = 0; i < splitFactor; ++i) {
@@ -273,6 +219,131 @@ private:
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
         CreateMutation(hydraManager, request)
             ->Commit();
+    }
+
+
+
+    void RunResample(TPartition* partition)
+    {
+        if (partition->GetResampleRunning())
+            return;
+        if (partition->GetLastResampleTime() > TInstant::Now() - Config_->ResamplingPeriod)
+            return;
+
+        partition->SetResampleRunning(true);
+
+        BIND(&TPartitionBalancer::DoRunResample, MakeStrong(this))
+            .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write))
+            .Run(partition);
+    }
+
+    void DoRunResample(TPartition* partition)
+    {
+        auto Logger = BuildLogger(partition);
+
+        auto* tablet = partition->GetTablet();
+        auto config = tablet->GetConfig();
+
+        auto slot = tablet->GetSlot();
+        auto hydraManager = slot->GetHydraManager();
+
+        LOG_INFO("Resampling partition (DesiredSampleCount: %d)",
+            config->SamplesPerPartition);
+
+        try {
+            auto samples = GetPartitionSamples(partition, config->SamplesPerPartition - 1);
+            if (samples.empty() || samples.front() > partition->GetPivotKey()) {
+                samples.insert(samples.begin(), partition->GetPivotKey());
+            }
+
+            TReqUpdatePartitionSampleKeys request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            ToProto(request.mutable_pivot_key(), partition->GetPivotKey());
+            ToProto(request.mutable_sample_keys(), samples);
+            CreateMutation(hydraManager, request)
+                ->Commit();
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Partition resampling aborted");
+        }
+
+        partition->SetResampleRunning(false);
+        // NB: Update the timestamp even in case of failure to prevent
+        // repeating unsuccessful samplings too rapidly.
+        partition->SetLastResampleTime(TInstant::Now());
+    }
+
+
+    std::vector<TOwningKey> GetPartitionSamples(
+        TPartition* partition,
+        int maxSampleCount)
+    {
+        if (maxSampleCount == 0) {
+            return std::vector<TOwningKey>();
+        }
+
+        auto Logger = BuildLogger(partition);
+
+        auto* tablet = partition->GetTablet();
+
+        auto nodeDirectory = New<TNodeDirectory>();
+
+        auto fetcher = New<TSamplesFetcher>(
+            Config_->SamplesFetcher,
+            maxSampleCount,
+            tablet->KeyColumns(),
+            nodeDirectory,
+            GetCurrentInvoker(),
+            Logger);
+
+        {
+            LOG_INFO("Locating partition chunks");
+
+            TChunkServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+            auto req = proxy.LocateChunks();
+
+            for (auto store : partition->Stores()) {
+                YCHECK(store->GetState() == EStoreState::Persistent);
+                auto chunkId = store->GetId();
+                ToProto(req->add_chunk_ids(), chunkId);
+            }
+
+            auto rsp = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+            LOG_INFO("Partition chunks located");
+
+            nodeDirectory->MergeFrom(rsp->node_directory());
+
+            for (const auto& chunkInfo : rsp->chunks()) {
+                auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                auto store = tablet->GetStore(chunkId);
+                auto* chunkStore = dynamic_cast<TChunkStore*>(store.Get());
+
+                auto chunkSpec = New<TRefCountedChunkSpec>();
+                chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
+                chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
+                chunkSpec->mutable_chunk_meta()->CopyFrom(chunkStore->GetChunkMeta());
+                fetcher->AddChunk(chunkSpec);
+            }
+        }
+
+        {
+            auto result = WaitFor(fetcher->Fetch());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        auto samples = fetcher->GetSamples();
+        samples.erase(
+            std::remove_if(
+                samples.begin(),
+                samples.end(),
+                [&] (const TOwningKey& key) {
+                    return key < partition->GetPivotKey() || key >= partition->GetNextPivotKey();
+                }),
+            samples.end());
+
+        std::sort(samples.begin(), samples.end());
+        return samples;
     }
 
 

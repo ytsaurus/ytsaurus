@@ -256,8 +256,8 @@ public:
         }
 
         LOG_INFO("Tablet descriptor updated (TabletId: %s, CellGuid: %s)",
-                ~ToString(tablet->GetId()),
-                ~ToString(tablet->GetSlot()->GetCellGuid()));
+            ~ToString(tablet->GetId()),
+            ~ToString(tablet->GetSlot()->GetCellGuid()));
     }
 
     void UnregisterTablets(TTabletSlotPtr slot)
@@ -408,9 +408,11 @@ private:
     {
         auto descriptor = New<TTabletDescriptor>();
         descriptor->Slot = tablet->GetSlot();
-        descriptor->PartitionKeys.reserve(tablet->Partitions().size());
         for (const auto& partition : tablet->Partitions()) {
-            descriptor->PartitionKeys.push_back(partition->GetPivotKey());
+            descriptor->SplitKeys.insert(
+                descriptor->SplitKeys.end(),
+                partition->SampleKeys().begin(),
+                partition->SampleKeys().end());
         }
         return descriptor;
     }

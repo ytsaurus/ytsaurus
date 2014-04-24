@@ -40,6 +40,8 @@ public:
     i64 MaxEdenDataSize;
     int MaxEdenChunkCount;
 
+    int SamplesPerPartition;
+
     TTableMountConfig()
     {
         RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
@@ -78,6 +80,10 @@ public:
         RegisterParameter("max_eden_chunk_count", MaxEdenChunkCount)
             .Default(8)
             .GreaterThan(0);
+
+        RegisterParameter("samples_per_partition", SamplesPerPartition)
+            .Default(1)
+            .GreaterThanOrEqual(1);
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
@@ -206,37 +212,33 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
-class TSamplesFetcherConfig
-    : public NChunkClient::TFetcherConfig
-{
-public:
-    //! Minimum number of samples needed for partitioning.
-    int MinSampleCount;
-
-    //! Maximum number of samples to request for partitioning.
-    int MaxSampleCount;
-
-    TSamplesFetcherConfig()
-    {
-        RegisterParameter("min_sample_count", MinSampleCount)
-            .Default(10)
-            .GreaterThanOrEqual(3);
-        RegisterParameter("max_sample_count", MaxSampleCount)
-            .Default(1000)
-            .GreaterThanOrEqual(10);
-    }
-};
-
 class TPartitionBalancerConfig
     : public TYsonSerializable
 {
 public:
-    TIntrusivePtr<TSamplesFetcherConfig> SamplesFetcher;
+    NChunkClient::TFetcherConfigPtr SamplesFetcher;
+
+    //! Minimum number of samples needed for partitioning.
+    int MinPartitioningSampleCount;
+
+    //! Maximum number of samples to request for partitioning.
+    int MaxPartitioningSampleCount;
+
+    //! Mininmum intervals between resampling.
+    TDuration ResamplingPeriod;
 
     TPartitionBalancerConfig()
     {
         RegisterParameter("samples_fetcher", SamplesFetcher)
             .DefaultNew();
+        RegisterParameter("min_partitioning_sample_count", MinPartitioningSampleCount)
+            .Default(10)
+            .GreaterThanOrEqual(3);
+        RegisterParameter("max_partitioning_sample_count", MaxPartitioningSampleCount)
+            .Default(1000)
+            .GreaterThanOrEqual(10);
+        RegisterParameter("resampling_period", ResamplingPeriod)
+            .Default(TDuration::Minutes(1));
     }
 };
 

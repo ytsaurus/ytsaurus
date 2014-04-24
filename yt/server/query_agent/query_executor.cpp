@@ -171,17 +171,17 @@ public:
 
             // Run binary search to find the relevant partitions.
             auto startIt = std::upper_bound(
-                tabletDescriptor->PartitionKeys.begin(),
-                tabletDescriptor->PartitionKeys.end(),
+                tabletDescriptor->SplitKeys.begin(),
+                tabletDescriptor->SplitKeys.end(),
                 lowerBound,
                 [] (const TOwningKey& lhs, const TOwningKey& rhs) {
                     return lhs < rhs;
                 }) - 1;
 
             std::vector<TDataSplit> subsplits;
-            for (auto it = startIt; it != tabletDescriptor->PartitionKeys.end(); ++it) {
+            for (auto it = startIt; it != tabletDescriptor->SplitKeys.end(); ++it) {
                 const auto& partitionKey = *it;
-                auto nextPartitionKey = (it + 1 == tabletDescriptor->PartitionKeys.end()) ? MaxKey() : *(it + 1);
+                auto nextPartitionKey = (it + 1 == tabletDescriptor->SplitKeys.end()) ? MaxKey() : *(it + 1);
                 if (upperBound <= partitionKey)
                     break;
 
