@@ -25,11 +25,14 @@ public:
     TLoggingTest()
         : SomeDate("2014-04-24 23:41:09,804")
         , DateLength(SomeDate.length())
+        , Logger("Test")
     { }
 
 protected:
     Stroka SomeDate;
     int DateLength;
+
+    TLogger Logger;
 
     void WriteEvent(ILogWriter* writer)
     {
@@ -64,8 +67,6 @@ protected:
 
 TEST_F(TLoggingTest, ReloadsOnSigHup)
 {
-    TLogger Logger("Test");
-
     LOG_INFO("Prepaing logging thread");
     sleep(1); // In sleep() we trust.
 
@@ -88,6 +89,8 @@ TEST_F(TLoggingTest, ReloadsOnSigHup)
 
 TEST_F(TLoggingTest, FileWriter)
 {
+    NFs::Remove("test.log");
+
     auto writer = New<TFileLogWriter>("test.log");
     WriteEvent(~writer);
 
@@ -131,7 +134,7 @@ TEST_F(TLoggingTest, Rule)
     auto rule = New<TRule>();
     rule->Load(ConvertToNode(TYsonString(
         R"({
-            include_categories = [\"*\"];
+            include_categories = ["*"];
             exclude_categories = [ bus ];
             min_level = info;
             writers = [ some_writer ];
@@ -149,8 +152,6 @@ TEST_F(TLoggingTest, LogManager)
 {
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
-
-    TLogger Logger("Test");
 
     auto config = R"({
         rules = [

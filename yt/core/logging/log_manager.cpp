@@ -502,6 +502,9 @@ private:
         {
             TGuard<TSpinLock> guard(&SpinLock);
 
+            Writers.clear();
+            CachedWriters.clear();
+
             Config = config;
 
             for (const auto& pair : Config->WriterConfigs) {
