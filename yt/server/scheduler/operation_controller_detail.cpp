@@ -1536,7 +1536,10 @@ void TOperationControllerBase::OnJobRunning(TJobPtr job, const TJobStatus& statu
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(job);
+
+    LogEventFluently(ELogEventType::JobStarted)
+        .Item(STRINGBUF("job_id")).Value(job->GetId())
+        .Item(STRINGBUF("resource_limits")).Value(job->ResourceUsage());
 
     JobCounter.Start(1);
 }
@@ -1546,6 +1549,8 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& result = job->Result();
+
+    LogFinishedJobFluently(ELogEventType::JobCompleted, job);
 
     JobCounter.Completed(1);
     CompletedJobStatistics += result.statistics();
@@ -1573,6 +1578,11 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     const auto& result = job->Result();
 
+    auto error = FromProto(result.error());
+
+    LogFinishedJobFluently(ELogEventType::JobFailed, job)
+        .Item(STRINGBUF("error")).Value(error);
+
     JobCounter.Failed(1);
     FailedJobStatistics += result.statistics();
 
@@ -1581,7 +1591,6 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     RemoveJoblet(job);
 
-    auto error = FromProto(job->Result().error());
     if (error.Attributes().Get<bool>("fatal", false)) {
         OnOperationFailed(error);
         return;
@@ -1602,6 +1611,9 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     auto abortReason = GetAbortReason(job);
     const auto& result = job->Result();
+
+    LogFinishedJobFluently(ELogEventType::JobAborted, job)
+        .Item(STRINGBUF("reason")).Value(abortReason);
 
     JobCounter.Aborted(1, abortReason);
     AbortedJobStatistics += result.statistics();
@@ -3548,6 +3560,17 @@ TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventTy
         .Item(STRINGBUF("timestamp")).Value(Now())
         .Item(STRINGBUF("event_type")).Value(eventType)
         .Item(STRINGBUF("operation_id")).Value(Operation->GetId());
+}
+
+TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
+{
+    const auto& result = job->Result();
+
+    return LogEventFluently(eventType)
+        .Item(STRINGBUF("job_id")).Value(job->GetId())
+        .Item(STRINGBUF("start_time")).Value(job->GetStartTime())
+        .Item(STRINGBUF("finish_time")).Value(job->GetFinishTime())
+        .Item(STRINGBUF("statistics")).Value(result.statistics());
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)

@@ -814,6 +814,7 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
     TFluentLogEvent LogEventFluently(ELogEventType eventType);
+    TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job);
 
 private:
     typedef TOperationControllerBase TThis;

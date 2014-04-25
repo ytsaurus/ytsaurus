@@ -120,6 +120,10 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
         VERIFY_INVOKER_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
+
+        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+        int port = Bootstrap_->GetConfig()->RpcPort;
+        ServiceAddress_ = BuildServiceAddress(localHostName, port);
     }
 
     void Initialize()
@@ -163,7 +167,8 @@ public:
         EventLogWriter_->Open();
         EventLogConsumer_.reset(new TTableConsumer(EventLogWriter_));
 
-        LogEventFluently(ELogEventType::SchedulerStarted);
+        LogEventFluently(ELogEventType::SchedulerStarted)
+            .Item(STRINGBUF("address")).Value(ServiceAddress_);
     }
 
 
@@ -635,6 +640,13 @@ public:
             EOperationState::Failing,
             EOperationState::Failed,
             error);
+
+        LogEventFluently(ELogEventType::OperationFailed)
+            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
+            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
+            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
+            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime())
+            .Item(STRINGBUF("error")).Value(error);
     }
 
 
@@ -677,9 +689,10 @@ private:
     TNodeResources TotalResourceLimits_;
     TNodeResources TotalResourceUsage_;
 
+    Stroka ServiceAddress_;
+
     NTableClient::IAsyncWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
-
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
@@ -709,7 +722,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LogEventFluently(ELogEventType::MasterConnected);
+        LogEventFluently(ELogEventType::MasterConnected)
+            .Item(STRINGBUF("address")).Value(ServiceAddress_);
 
         ReviveOperations(result.Operations);
     }
@@ -718,7 +732,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LogEventFluently(ELogEventType::MasterDisconnected);
+        LogEventFluently(ELogEventType::MasterDisconnected)
+            .Item(STRINGBUF("address")).Value(ServiceAddress_);
 
         auto operations = IdToOperation_;
         FOREACH (const auto& pair, operations) {
@@ -814,11 +829,13 @@ private:
         if (operation->GetState() != EOperationState::Initializing)
             throw TFiberTerminatedException();
 
+        bool registered = false;
         try {
             auto controller = CreateController(~operation);
             operation->SetController(controller);
 
             RegisterOperation(operation);
+            registered = true;
 
             controller->Initialize();
             controller->Essentiate();
@@ -831,7 +848,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
-            if (operation->GetController()) {
+            if (registered) {
                 OnOperationFailed(operation, wrappedError);
             }
             operation->SetStarted(wrappedError);
@@ -1151,9 +1168,11 @@ private:
 
     void FinishOperation(TOperationPtr operation)
     {
-        operation->SetFinished();
-        operation->SetController(nullptr);
-        UnregisterOperation(operation);
+        if (!operation->GetFinished().IsSet()) {
+            operation->SetFinished();
+            operation->SetController(nullptr);
+            UnregisterOperation(operation);
+        }
     }
 
 
@@ -1492,7 +1511,15 @@ private:
             FinishOperation(operation);
         } catch (const std::exception& ex) {
             OnOperationFailed(operation, ex);
+            return;
         }
+
+        LogEventFluently(ELogEventType::OperationCompleted)
+            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
+            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
+            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
+            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime());
+
     }
 
     void TerminateOperation(
@@ -1537,7 +1564,10 @@ private:
                 return;
         }
 
-        operation->GetController()->Abort();
+        auto controller = operation->GetController();
+        if (controller) {
+            controller->Abort();
+        }
 
         FinishOperation(operation);
     }
