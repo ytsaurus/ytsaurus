@@ -811,7 +811,7 @@ private:
             request.sample_keys_size());
 
         partition->SampleKeys() = FromProto<TOwningKey>(request.sample_keys());
-        partition->SetResampleNeeded(false);
+        partition->SetSamplingNeeded(false);
 
         if (!IsRecovery()) {
             auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
@@ -1065,7 +1065,7 @@ private:
     {
         for (const auto& partition : tablet->Partitions()) {
             partition->SetState(EPartitionState::None);
-            partition->SetResampleRunning(false);
+            partition->SetSamplingNeeded(false);
         }
 
         for (const auto& pair : tablet->Stores()) {
@@ -1127,7 +1127,7 @@ private:
                 .Item("pivot_key").Value(partition->GetPivotKey())
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
                 .Item("sample_key_count").Value(partition->SampleKeys().size())
-                .Item("resample_needed").Value(partition->GetResampleNeeded())
+                .Item("sampling_needed").Value(partition->GetSamplingNeeded())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
                     fluent
                         .Item(ToString(store->GetId()))

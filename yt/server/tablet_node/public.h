@@ -53,6 +53,7 @@ DECLARE_ENUM(EPartitionState,
     (Splitting)          // split mutation is submitted
     (Merging)            // merge mutation is submitted
     (Compacting)         // compaction (or partitioning) is in progress 
+    (Sampling)           // sampling is in progress
 );
 
 DECLARE_ENUM(ETabletState,

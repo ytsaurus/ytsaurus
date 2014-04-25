@@ -120,8 +120,8 @@ private:
             RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
         }
 
-        if (partition->GetResampleNeeded()) {
-            RunResample(partition);
+        if (partition->GetSamplingNeeded()) {
+            RunSample(partition);
         }
     }
 
@@ -223,21 +223,21 @@ private:
 
 
 
-    void RunResample(TPartition* partition)
+    void RunSample(TPartition* partition)
     {
-        if (partition->GetResampleRunning())
+        if (partition->GetState() != EPartitionState::None)
             return;
-        if (partition->GetLastResampleTime() > TInstant::Now() - Config_->ResamplingPeriod)
+        if (partition->GetLastSamplingTime() > TInstant::Now() - Config_->ResamplingPeriod)
             return;
 
-        partition->SetResampleRunning(true);
+        partition->SetState(EPartitionState::Sampling);
 
-        BIND(&TPartitionBalancer::DoRunResample, MakeStrong(this))
+        BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write))
             .Run(partition);
     }
 
-    void DoRunResample(TPartition* partition)
+    void DoRunSample(TPartition* partition)
     {
         auto Logger = BuildLogger(partition);
 
@@ -247,7 +247,7 @@ private:
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Resampling partition (DesiredSampleCount: %d)",
+        LOG_INFO("Sampling partition (DesiredSampleCount: %d)",
             config->SamplesPerPartition);
 
         try {
@@ -266,13 +266,13 @@ private:
             CreateMutation(hydraManager, request)
                 ->Commit();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Partition resampling aborted");
+            LOG_ERROR(ex, "Partition sampling aborted");
         }
 
-        partition->SetResampleRunning(false);
+        partition->SetState(EPartitionState::None);
         // NB: Update the timestamp even in case of failure to prevent
         // repeating unsuccessful samplings too rapidly.
-        partition->SetLastResampleTime(TInstant::Now());
+        partition->SetLastSamplingTime(TInstant::Now());
     }
 
 
