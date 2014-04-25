@@ -600,8 +600,15 @@ TCGValue TCGContext::CodegenFunctionExpr(
         }
 
         return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, nameTwine);
+    } else if (functionName == "concat" || functionName == "concat_ws" || functionName == "substr") {
+        
+        //innerBuilder.CreateCall3(
+        //    Fragment_.GetRoutine("AllocateRow"),
+        //    passedFragmentParamsPtrRef,
+        //    builder.getInt32(keySize + aggregateItemCount),
+        //    newRowPtrRef);
+        
     }
-
     YUNIMPLEMENTED();
 }
 
