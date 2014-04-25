@@ -297,11 +297,22 @@ private:
         // Confirm
         LOG_INFO("Confirming output chunk");
         {
+            static const int masterMetaTagsArray[] = {
+                TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+                TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value };
+            static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 2);
+
+            auto masterChunkMeta = chunkMeta;
+            FilterProtoExtensions(
+                masterChunkMeta.mutable_extensions(),
+                chunkMeta.extensions(),
+                masterMetaTags);
+
             auto confirmReq = TChunkYPathProxy::Confirm(
                 NCypressClient::FromObjectId(outputChunkId));
             NMetaState::GenerateMutationId(confirmReq);
             *confirmReq->mutable_chunk_info() = chunkInfo;
-            *confirmReq->mutable_chunk_meta() = chunkMeta;
+            *confirmReq->mutable_chunk_meta() = masterChunkMeta;
             NYT::ToProto(confirmReq->mutable_replicas(), replicas);
 
             auto confirmReqRsp = objectProxy.Execute(confirmReq).Get();
