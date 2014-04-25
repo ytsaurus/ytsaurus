@@ -123,6 +123,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     // XXX(babenko): fix snapshot bloat caused by remote copy
     RemoveProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_.mutable_extensions());
+    RemoveProtoExtension<NChunkClient::NProto::TErasurePlacementExt>(ChunkMeta_.mutable_extensions());
     RemoveProtoExtension<NTableClient::NProto::TSamplesExt>(ChunkMeta_.mutable_extensions());
     RemoveProtoExtension<NTableClient::NProto::TIndexExt>(ChunkMeta_.mutable_extensions());
 
