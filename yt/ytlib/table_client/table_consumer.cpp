@@ -6,14 +6,20 @@
 #include <core/misc/string.h>
 
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/schemaless_writer.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+
+#include <core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NTableClient {
 
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NVersionedTableClient;
+
+const i64 MaxValueBufferSize = 10 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -365,14 +371,24 @@ TTableConsumerBase::TTableConsumerBase(
     , AllowNonSchemaColumns_(true)
     , KeyColumnCount_(static_cast<int>(keyColumns.size()))
     , NameTable_(TNameTable::FromSchema(schema))
-    , ControlState_(ETableConsumerControlState::None)
+    , ControlState_(EControlState::None)
+    , ValueWriter_(&ValueBuffer_)
     , Depth_(0)
     , ColumnIndex_(0)
 {
-    SchemaColumnDescriptors_.resize(schema.Columns().size());
-    for (const auto& column : schema.Columns()) {
-        int id = NameTable_->GetId(column.Name);
-        SchemaColumnDescriptors_[id].Type = column.Type;
+    if (schema.Columns().empty()) {
+        SchemaColumnDescriptors_.resize(keyColumns.size());
+        for (const auto& name : keyColumns) {
+            int id = NameTable_->GetId(name);
+            SchemaColumnDescriptors_[id].Type = EValueType::TheBottom;
+        }
+    } else {
+        // ToDo(psushin): validate key columns is schema prefix.
+        SchemaColumnDescriptors_.resize(schema.Columns().size());
+        for (const auto& column : schema.Columns()) {
+            int id = NameTable_->GetId(column.Name);
+            SchemaColumnDescriptors_[id].Type = column.Type;
+        }
     }
 }
 
@@ -418,8 +434,10 @@ void TTableConsumerBase::OnStringScalar(const TStringBuf& value)
 
     if (Depth_ == 0) {
         ThrowMapExpected();
+    } else if (Depth_ == 1) {
+        WriteValue(MakeUnversionedStringValue(value, ColumnIndex_));
     } else {
-        WriteValue(MakeStringValue<TUnversionedValue>(value, ColumnIndex_));
+        ValueWriter_.OnStringScalar(value);
     }
 }
 
@@ -435,6 +453,8 @@ void TTableConsumerBase::OnInt64Scalar(i64 value)
 
     if (Depth_ == 0) {
         ThrowMapExpected();
+    } else if (Depth_ == 1) {
+        WriteValue(MakeIntegerValue<TUnversionedValue>(value, ColumnIndex_));
     } else {
         WriteValue(MakeInt64Value<TUnversionedValue>(value, ColumnIndex_));
     }
@@ -442,13 +462,13 @@ void TTableConsumerBase::OnInt64Scalar(i64 value)
 
 void TTableConsumerBase::OnUint64Scalar(ui64 value)
 {
-    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
+    if (ControlState_ == EControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a uint64 value");
         return;
     }
 
-    YASSERT(ControlState_ == ETableConsumerControlState::None);
+    YASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -469,8 +489,10 @@ void TTableConsumerBase::OnDoubleScalar(double value)
 
     if (Depth_ == 0) {
         ThrowMapExpected();
-    } else {
+    } else if (Depth_ == 1) {
         WriteValue(MakeDoubleValue<TUnversionedValue>(value, ColumnIndex_));
+    } else {
+        ValueWriter_.OnDoubleScalar(value);
     }
 }
 
@@ -509,7 +531,7 @@ void TTableConsumerBase::OnEntity()
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        ThrowCompositesNotSupported();
+        ValueWriter_.OnEntity();
     }
 }
 
@@ -526,9 +548,12 @@ void TTableConsumerBase::OnBeginList()
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        ++Depth_;
-        ThrowCompositesNotSupported();
+        if (Depth_ == 1) {
+            ValueBegin_ = ValueBuffer_.Begin() + ValueBuffer_.Size();
+        }
+        ValueWriter_.OnBeginList();
     }
+    ++Depth_;
 }
 
 void TTableConsumerBase::OnBeginAttributes()
@@ -543,7 +568,10 @@ void TTableConsumerBase::OnBeginAttributes()
     if (Depth_ == 0) {
         ControlState_ = ETableConsumerControlState::ExpectName;
     } else {
-        ThrowCompositesNotSupported();
+        if (Depth_ == 1) {
+            ValueBegin_ = ValueBuffer_.Begin() + ValueBuffer_.Size();
+        }
+        ValueWriter_.OnBeginAttributes();
     }
 
     ++Depth_;
@@ -586,7 +614,7 @@ void TTableConsumerBase::OnListItem()
     if (Depth_ == 0) {
         // Row separator, do nothing.
     } else {
-        ThrowCompositesNotSupported();
+        ValueWriter_.OnListItem();
     }
 }
 
@@ -599,12 +627,15 @@ void TTableConsumerBase::OnBeginMap()
 
     YASSERT(ControlState_ == ETableConsumerControlState::None);
 
-    ++Depth_;
-    if (Depth_ == 1) {
+    if (Depth_ == 0) {
         OnBeginRow();
     } else {
-        ThrowCompositesNotSupported();
+        if (Depth_ == 1) {
+            ValueBegin_ = ValueBuffer_.Begin() + ValueBuffer_.Size();
+        }
+        ValueWriter_.OnBeginMap();
     }
+    ++Depth_;
 }
 
 void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
@@ -647,7 +678,7 @@ void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
             ColumnIndex_ = *maybeIndex;
         }
     } else {
-        ThrowCompositesNotSupported();
+        ValueWriter_.OnKeyedItem(name);
     }
 }
 
@@ -659,14 +690,19 @@ void TTableConsumerBase::OnEndMap()
 
     --Depth_;
     if (Depth_ > 0) {
-        ThrowCompositesNotSupported();
+        ValueWriter_.OnEndMap();
+        if (Depth_ == 1) {
+            OnValue(MakeUnversionedAnyValue(
+                TStringBuf(ValueBegin_, ValueBuffer_.Begin() + ValueBuffer_.Size()),
+                ColumnIndex_));
+        }
     } else {
         for (int id = 0; id < static_cast<int>(SchemaColumnDescriptors_.size()); ++id) {
             if (SchemaColumnDescriptors_[id].Written) {
                 SchemaColumnDescriptors_[id].Written = false;
             } else {
                 if (id >= KeyColumnCount_ && TreatMissingAsNull_) {
-                    OnValue(MakeSentinelValue<TUnversionedValue>(EValueType::Null, id));
+                    OnValue(MakeUnversionedSentinelValue(EValueType::Null, id));
                 }
             }
         }
@@ -681,7 +717,13 @@ void TTableConsumerBase::OnEndList()
 
     --Depth_;
     YASSERT(Depth_ > 0);
-    ThrowCompositesNotSupported();
+
+    ValueWriter_.OnEndList();
+    if (Depth_ == 1) {
+        OnValue(MakeUnversionedAnyValue(
+            TStringBuf(ValueBegin_, ValueBuffer_.Begin() + ValueBuffer_.Size()),
+            ColumnIndex_));
+    }
 }
 
 void TTableConsumerBase::OnEndAttributes()
@@ -700,7 +742,7 @@ void TTableConsumerBase::OnEndAttributes()
 
         case ETableConsumerControlState::None:
             YASSERT(Depth_ > 0);
-            ThrowCompositesNotSupported();
+            ValueWriter_.OnEndAttributes();
             break;
 
         default:
@@ -717,7 +759,7 @@ void TTableConsumerBase::WriteValue(const TUnversionedValue& value)
 {
     int id = value.Id;
     if (id < SchemaColumnDescriptors_.size()) {
-        auto type = NVersionedTableClient::EValueType(value.Type);
+        auto type = EValueType(value.Type);
         auto& descriptor = SchemaColumnDescriptors_[id];
         if (type != descriptor.Type) {
             ThrowInvalidSchemaColumnType(id, type);
@@ -775,6 +817,97 @@ void TBuildingTableConsumer::OnEndRow()
         });
     Rows_.emplace_back(Builder_.FinishRow());
     ++RowIndex_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWritingTableConsumer::TWritingTableConsumer(
+    const TKeyColumns& keyColumns)
+    : TTableConsumerBase(TTableSchema(), keyColumns)
+    , RowIndex_(0)
+    , TableIndex_(0)
+{
+    TreatMissingAsNull_ = false;
+    ResetValues();
+}
+
+void TWritingTableConsumer::AddWriter(ISchemalessWriterPtr writer)
+{
+    Writers_.push_back(writer);
+    if (!CurrentWriter_) {
+        CurrentWriter_ = writer;
+    }
+}
+
+void TWritingTableConsumer::ResetValues()
+{
+    Values_.clear();
+    for (int i = 0; i < KeyColumnCount_; ++i) {
+        Values_.push_back(MakeUnversionedSentinelValue(EValueType::Null, i));
+    }
+}
+
+void TWritingTableConsumer::Flush()
+{
+    YCHECK(CurrentWriter_);
+
+    if (!CurrentWriter_->Write(Rows_)) {
+        auto error = WaitFor(CurrentWriter_->GetReadyEvent());
+        if (!error.IsOK()) {
+            THROW_ERROR_EXCEPTION("Table writer failed (TableIndex: %d)", TableIndex_) << error;
+        }
+    }
+
+    Rows_.clear();
+    MemoryPool_.Clear();
+}
+
+TError TWritingTableConsumer::AttachLocationAttributes(TError error)
+{
+    return error << TErrorAttribute("row_index", RowIndex_);
+}
+
+void TWritingTableConsumer::OnBeginRow()
+{ }
+
+void TWritingTableConsumer::OnValue(const TUnversionedValue& value)
+{
+    if (value.Id < KeyColumnCount_) {
+        Values_[value.Id] = value;
+    } else {
+        Values_.push_back(value);
+    }
+}
+
+void TWritingTableConsumer::OnEndRow()
+{
+    auto row = TUnversionedRow::Allocate(&MemoryPool_, Values_.size());
+    ::memcpy(row.Begin(), Values_.data(), Values_.size() * sizeof(TUnversionedValue));
+    Rows_.push_back(row);
+    ResetValues();
+
+    if (ValueBuffer_.Size() > MaxValueBufferSize) {
+        Flush();
+        ValueBuffer_.Clear();
+    }
+}
+
+void TWritingTableConsumer::OnControlIntegerScalar(i64 value)
+{
+    YCHECK(ControlAttribute_ == EControlAttribute::TableIndex);
+    YCHECK(Values_.empty());
+
+    if (value >= Writers_.size()) {
+        THROW_ERROR_EXCEPTION(
+            "Invalid table index (Value: " PRId64 ", WriterCount: %d)",
+            value,
+            static_cast<int>(Writers_.size()));
+    }
+
+    Flush();
+
+    TableIndex_ = value;
+    CurrentWriter_ = Writers_[TableIndex_];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

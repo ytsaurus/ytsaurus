@@ -90,7 +90,6 @@ void TReadTableCommand::DoExecute()
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
-    // TODO(babenko): provide custom allocation tag
     TBlobOutput buffer;
 
     auto format = Context_->GetOutputFormat();
@@ -257,7 +256,7 @@ void TInsertCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
-        Context_->GetConfig()->TableWriter,
+        Context_->GetConfig()->NewTableWriter,
         Request_->TableWriter);
     config = UpdateYsonSerializable(
         config,
