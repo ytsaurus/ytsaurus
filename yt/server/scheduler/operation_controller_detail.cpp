@@ -3580,13 +3580,13 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         record.Item("cpu_system").Value(statistics.cpu_system());
     }
     if (statistics.has_sectors()) {
-        record.Item(STRINGBUF("sectors")).Value(statistics.sectors());
+        record.Item("sectors").Value(statistics.sectors());
     }
     if (statistics.has_read_bytes()) {
-        record.Item(STRINGBUF("read_bytes")).Value(statistics.read_bytes());
+        record.Item("read_bytes").Value(statistics.read_bytes());
     }
     if (statistics.has_write_bytes()) {
-        record.Item(STRINGBUF("write_bytes")).Value(statistics.write_bytes());
+        record.Item("write_bytes").Value(statistics.write_bytes());
     }
     return record;
 }
