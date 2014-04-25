@@ -1511,6 +1511,7 @@ private:
             FinishOperation(operation);
         } catch (const std::exception& ex) {
             OnOperationFailed(operation, ex);
+            return;
         }
 
         LogEventFluently(ELogEventType::OperationCompleted)

@@ -1536,7 +1536,6 @@ void TOperationControllerBase::OnJobRunning(TJobPtr job, const TJobStatus& statu
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(job);
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item(STRINGBUF("job_id")).Value(job->GetId())
@@ -1581,7 +1580,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     auto error = FromProto(result.error());
 
-    LogFinishedJobFluently(ELogEventType::JobCompleted, job)
+    LogFinishedJobFluently(ELogEventType::JobFailed, job)
         .Item(STRINGBUF("error")).Value(error);
 
     JobCounter.Failed(1);
@@ -1613,7 +1612,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     auto abortReason = GetAbortReason(job);
     const auto& result = job->Result();
 
-    LogFinishedJobFluently(ELogEventType::JobCompleted, job)
+    LogFinishedJobFluently(ELogEventType::JobAborted, job)
         .Item(STRINGBUF("reason")).Value(abortReason);
 
     JobCounter.Aborted(1, abortReason);
@@ -3567,7 +3566,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
 {
     const auto& result = job->Result();
 
-    return LogEventFluently(ELogEventType::JobAborted)
+    return LogEventFluently(eventType)
         .Item(STRINGBUF("job_id")).Value(job->GetId())
         .Item(STRINGBUF("start_time")).Value(job->GetStartTime())
         .Item(STRINGBUF("finish_time")).Value(job->GetFinishTime())
