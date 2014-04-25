@@ -353,7 +353,7 @@ private:
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             InitializeTablet(tablet);
-            if (tablet->GetState() >= ETabletState::Unmounting) {
+            if (tablet->GetState() >= ETabletState::WaitingForLocks) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
         }
@@ -525,14 +525,12 @@ private:
 
         // Just a formality.
         YCHECK(tablet->GetState() == ETabletState::Mounted);
-        tablet->SetState(ETabletState::Unmounting);
+        tablet->SetState(ETabletState::WaitingForLocks);
+
         YCHECK(UnmountingTablets_.insert(tablet).second);
 
         LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %s)",
             ~ToString(tabletId));
-
-        YCHECK(tablet->GetState() == ETabletState::Unmounting);
-        tablet->SetState(ETabletState::WaitingForLocks);
 
         if (IsLeader()) {
             CheckIfFullyUnlocked(tablet);
@@ -549,15 +547,11 @@ private:
         auto requestedState = ETabletState(request.state());
 
         switch (requestedState) {
-            case ETabletState::RotatingStore: {
-                // Just a formality.
-                YCHECK(tablet->GetState() == ETabletState::WaitingForLocks);
-                tablet->SetState(ETabletState::RotatingStore);
+            case ETabletState::Flushing: {
+                tablet->SetState(ETabletState::Flushing);
+
                 // NB: Flush requests for all other stores must already be on their way.
                 RotateStores(tablet, false);
-
-                YCHECK(tablet->GetState() == ETabletState::RotatingStore);
-                tablet->SetState(ETabletState::FlushingStores);
 
                 LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %s)",
                     ~ToString(tabletId));
@@ -569,8 +563,6 @@ private:
             }
 
             case ETabletState::Unmounted: {
-                // Not really necessary, just for fun.
-                YCHECK(tablet->GetState() == ETabletState::FlushingStores);
                 tablet->SetState(ETabletState::Unmounted);
 
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %s)",
@@ -991,7 +983,6 @@ private:
     void CheckIfFullyUnlocked(TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::WaitingForLocks)
-
             return;
 
         if (tablet->GetStoreManager()->HasActiveLocks())
@@ -1000,15 +991,17 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %s)",
             ~ToString(tablet->GetId()));
 
+        tablet->SetState(ETabletState::FlushPending);
+
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_state(ETabletState::RotatingStore);
+        request.set_state(ETabletState::Flushing);
         PostTabletMutation(request);
     }
 
     void CheckIfAllStoresFlushed(TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::FlushingStores)
+        if (tablet->GetState() != ETabletState::Flushing)
             return;
 
         if (tablet->GetStoreManager()->HasUnflushedStores())
@@ -1016,6 +1009,8 @@ private:
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %s)",
             ~ToString(tablet->GetId()));
+
+        tablet->SetState(ETabletState::UnmountPending);
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());

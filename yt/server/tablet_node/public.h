@@ -61,10 +61,10 @@ DECLARE_ENUM(ETabletState,
     (Mounted)
 
     // NB: All states below are for unmounting workflow only!
-    (Unmounting)       // transient, requested by master, immediately becomes WaitingForLock
     (WaitingForLocks)
-    (RotatingStore)    // transient, immediately becomes FlushingStores
-    (FlushingStores)
+    (FlushPending)     // transient, transition to Flushing is pending
+    (Flushing)
+    (UnmountPending)   // transient, transition to Unmounted is pending
     (Unmounted)
 );
 
