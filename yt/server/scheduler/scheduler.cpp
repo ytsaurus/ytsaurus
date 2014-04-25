@@ -168,7 +168,7 @@ public:
         EventLogConsumer_.reset(new TTableConsumer(EventLogWriter_));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
-            .Item(STRINGBUF("address")).Value(ServiceAddress_);
+            .Item("address").Value(ServiceAddress_);
     }
 
 
@@ -642,11 +642,11 @@ public:
             error);
 
         LogEventFluently(ELogEventType::OperationFailed)
-            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
-            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
-            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
-            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime())
-            .Item(STRINGBUF("error")).Value(error);
+            .Item("operation_id").Value(operation->GetId())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("start_time").Value(operation->GetStartTime())
+            .Item("finish_time").Value(operation->GetFinishTime())
+            .Item("error").Value(error);
     }
 
 
@@ -726,7 +726,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LogEventFluently(ELogEventType::MasterConnected)
-            .Item(STRINGBUF("address")).Value(ServiceAddress_);
+            .Item("address").Value(ServiceAddress_);
 
         ReviveOperations(result.Operations);
     }
@@ -736,7 +736,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LogEventFluently(ELogEventType::MasterDisconnected)
-            .Item(STRINGBUF("address")).Value(ServiceAddress_);
+            .Item("address").Value(ServiceAddress_);
 
         auto operations = IdToOperation_;
         FOREACH (const auto& pair, operations) {
@@ -1518,10 +1518,10 @@ private:
         }
 
         LogEventFluently(ELogEventType::OperationCompleted)
-            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
-            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
-            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
-            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime());
+            .Item("operation_id").Value(operation->GetId())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("start_time").Value(operation->GetStartTime())
+            .Item("finish_time").Value(operation->GetFinishTime());
 
     }
 
@@ -1814,8 +1814,8 @@ private:
     TFluentLogEvent LogEventFluently(ELogEventType eventType)
     {
         return EventLogger_.LogEventFluently(GetEventLogConsumer())
-            .Item(STRINGBUF("timestamp")).Value(Now())
-            .Item(STRINGBUF("event_type")).Value(eventType);
+            .Item("timestamp").Value(Now())
+            .Item("event_type").Value(eventType);
     }
 
 };

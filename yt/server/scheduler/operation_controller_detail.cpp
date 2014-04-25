@@ -1539,8 +1539,8 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LogEventFluently(ELogEventType::JobStarted)
-        .Item(STRINGBUF("job_id")).Value(job->GetId())
-        .Item(STRINGBUF("resource_limits")).Value(job->ResourceUsage());
+        .Item("job_id").Value(job->GetId())
+        .Item("resource_limits").Value(job->ResourceUsage());
 
     JobCounter.Start(1);
 }
@@ -1582,7 +1582,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     auto error = FromProto(result.error());
 
     LogFinishedJobFluently(ELogEventType::JobFailed, job)
-        .Item(STRINGBUF("error")).Value(error);
+        .Item("error").Value(error);
 
     JobCounter.Failed(1);
     FailedJobStatistics += result.statistics();
@@ -1614,7 +1614,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     const auto& result = job->Result();
 
     LogFinishedJobFluently(ELogEventType::JobAborted, job)
-        .Item(STRINGBUF("reason")).Value(abortReason);
+        .Item("reason").Value(abortReason);
 
     JobCounter.Aborted(1, abortReason);
     AbortedJobStatistics += result.statistics();
@@ -3558,9 +3558,9 @@ void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
 {
     return EventLogger.LogEventFluently(Host->GetEventLogConsumer())
-        .Item(STRINGBUF("timestamp")).Value(Now())
-        .Item(STRINGBUF("event_type")).Value(eventType)
-        .Item(STRINGBUF("operation_id")).Value(Operation->GetId());
+        .Item("timestamp").Value(Now())
+        .Item("event_type").Value(eventType)
+        .Item("operation_id").Value(Operation->GetId());
 }
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
@@ -3568,10 +3568,10 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
     const auto& result = job->Result();
 
     return LogEventFluently(eventType)
-        .Item(STRINGBUF("job_id")).Value(job->GetId())
-        .Item(STRINGBUF("start_time")).Value(job->GetStartTime())
-        .Item(STRINGBUF("finish_time")).Value(job->GetFinishTime())
-        .Item(STRINGBUF("statistics")).Value(result.statistics());
+        .Item("job_id").Value(job->GetId())
+        .Item("start_time").Value(job->GetStartTime())
+        .Item("finish_time").Value(job->GetFinishTime())
+        .Item("statistics").Value(result.statistics());
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)
