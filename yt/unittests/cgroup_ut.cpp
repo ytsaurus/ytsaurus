@@ -4,7 +4,7 @@
 
 #include <ytlib/cgroup/cgroup.h>
 
-#ifndef _win_
+#ifdef _linux_
   #include <sys/wait.h>
   #include <unistd.h>
 #endif
@@ -47,7 +47,7 @@ TEST(CGroup, EmptyHasNoTasks)
     group.Destroy();
 }
 
-#ifndef _win_
+#ifdef _linux_
 
 TEST(CGroup, AddMyself)
 {

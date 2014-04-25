@@ -28,7 +28,7 @@ TCGroup::~TCGroup()
 
 void TCGroup::Create()
 {
-#ifndef _win_
+#ifdef _linux_
     int hasError = Mkdir(FullName_.data(), 0755);
     if (hasError != 0) {
         THROW_ERROR(TError::FromSystem());
@@ -39,7 +39,7 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-#ifndef _win_
+#ifdef _linux_
     YCHECK(Created_);
 
     int hasError = NFs::Remove(FullName_.data());
@@ -52,7 +52,7 @@ void TCGroup::Destroy()
 
 void TCGroup::AddMyself()
 {
-#ifndef _win_
+#ifdef _linux_
     std::fstream tasks(NFS::CombinePaths(FullName_, "tasks").data(), std::ios_base::out | std::ios_base::app);
     tasks << getpid() << std::endl;
 #endif
@@ -61,7 +61,7 @@ void TCGroup::AddMyself()
 std::vector<int> TCGroup::GetTasks()
 {
     std::vector<int> results;
-#ifndef _win_
+#ifdef _linux_
     std::fstream tasks(NFS::CombinePaths(FullName_, "tasks").data(), std::ios_base::in);
     if (tasks.fail()) {
         THROW_ERROR_EXCEPTION("Unable to open a task list file");
@@ -88,7 +88,7 @@ const Stroka& TCGroup::GetFullName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _win_
+#ifdef _linux_
 
 std::chrono::nanoseconds from_jiffs(int64_t jiffs)
 {
@@ -101,7 +101,7 @@ std::chrono::nanoseconds from_jiffs(int64_t jiffs)
 TCpuAcctStat GetCpuAccStat(const Stroka& fullName)
 {
     TCpuAcctStat result;
-#ifndef _win_
+#ifdef _linux_
     std::fstream stats(NFS::CombinePaths(fullName, "cpuacct.stat").data(), std::ios_base::in);
     if (stats.fail()) {
         THROW_ERROR_EXCEPTION("Unable to open a cpuacc stat");
