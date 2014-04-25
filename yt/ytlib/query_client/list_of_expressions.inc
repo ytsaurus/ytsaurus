@@ -1,6 +1,5 @@
 XX(IntegerLiteral)
 XX(DoubleLiteral)
-XX(StringLiteral)
 XX(Reference)
 XX(Function)
 XX(BinaryOp)

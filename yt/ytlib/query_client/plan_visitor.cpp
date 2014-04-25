@@ -77,11 +77,6 @@ bool Traverse(IPlanVisitor* visitor, const TExpression* root)
                 if (!visitor->Visit(typedItem)) { return false; }
                 break;
             }
-            case EExpressionKind::StringLiteral: {
-                auto* typedItem = item->As<TStringLiteralExpression>();
-                if (!visitor->Visit(typedItem)) { return false; }
-                break;
-            }
             case EExpressionKind::Reference: {
                 auto* typedItem = item->As<TReferenceExpression>();
                 if (!visitor->Visit(typedItem)) { return false; }
@@ -147,7 +142,6 @@ const TExpression* Apply(
     switch (mutatedRoot->GetKind()) {
         case EExpressionKind::IntegerLiteral:
         case EExpressionKind::DoubleLiteral:
-        case EExpressionKind::StringLiteral:
         case EExpressionKind::Reference:
             break;
         case EExpressionKind::Function: {
@@ -175,7 +169,6 @@ void Visit(
     switch (root->GetKind()) {
         case EExpressionKind::IntegerLiteral:
         case EExpressionKind::DoubleLiteral:
-        case EExpressionKind::StringLiteral:
         case EExpressionKind::Reference:
             break;
         case EExpressionKind::Function:

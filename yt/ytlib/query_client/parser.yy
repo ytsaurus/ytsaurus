@@ -70,7 +70,6 @@
 
 %token <i64> IntegerLiteral "integer literal"
 %token <double> DoubleLiteral "double literal"
-%token <TStringBuf> StringLiteral "string literal"
 %token <TStringBuf> YPathLiteral "YPath literal"
 
 %token OpModulo 37 "`%`"
@@ -320,10 +319,6 @@ atomic-expr
     | DoubleLiteral[value]
         {
             $$ = context->TrackedNew<TDoubleLiteralExpression>(@$, $value);
-        }
-    | StringLiteral[value]
-        {
-            $$ = context->TrackedNew<TStringLiteralExpression>(@$, $value);
         }
     | LeftParenthesis or-op-expr[expr] RightParenthesis
         {

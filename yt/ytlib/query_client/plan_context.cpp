@@ -85,11 +85,6 @@ TStringBuf TPlanContext::Capture(const char* begin, const char* end)
     return TStringBuf(buffer, length);
 }
 
-TStringBuf TPlanContext::Capture(const TStringBuf& stringBuf)
-{
-    return Capture(~stringBuf, ~stringBuf + +stringBuf);
-}
-
 void TPlanContext::SetSource(Stroka source) {
     Source_ = std::move(source);
 }

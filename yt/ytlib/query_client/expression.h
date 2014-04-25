@@ -16,7 +16,6 @@ namespace NQueryClient {
 DECLARE_ENUM(EExpressionKind,
     (IntegerLiteral)
     (DoubleLiteral)
-    (StringLiteral)
     (Reference)
     (Function)
     (BinaryOp)
@@ -146,35 +145,6 @@ public:
     }
 
     DEFINE_BYVAL_RO_PROPERTY(double, Value);
-
-};
-
-//! Represents a constant string value.
-class TStringLiteralExpression
-    : public TExpression
-{
-public:
-    TStringLiteralExpression(
-        TPlanContext* context,
-        const TSourceLocation& sourceLocation,
-        const TStringBuf& value)
-        : TExpression(context, EExpressionKind::StringLiteral, sourceLocation)
-        , Value_(value)
-    { }
-
-    TStringLiteralExpression(
-        TPlanContext* context,
-        const TStringLiteralExpression& other)
-        : TExpression(context, EExpressionKind::StringLiteral, other.SourceLocation_)
-        , Value_(other.Value_)
-    { }
-
-    static inline bool IsClassOf(const TExpression* expr)
-    {
-        return expr->GetKind() == EExpressionKind::StringLiteral;
-    }
-
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Value);
 
 };
 

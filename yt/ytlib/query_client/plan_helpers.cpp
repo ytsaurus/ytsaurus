@@ -355,31 +355,10 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
             return EValueType::Integer;
         case EExpressionKind::DoubleLiteral:
             return EValueType::Double;
-        case EExpressionKind::StringLiteral:
-            return EValueType::String;
         case EExpressionKind::Reference:
             return sourceSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetColumnName()).Type;
-        case EExpressionKind::Function: {
-            auto* typedExpr = expr->As<TFunctionExpression>();
-
-            Stroka functionName(typedExpr->GetFunctionName());
-            functionName.to_lower();
-
-            if (functionName == "if") {
-                CHECK(typedExpr->GetArgumentCount() == 3);
-                const TExpression* thenExpr = typedExpr->Arguments()[1];
-                const TExpression* elseExpr = typedExpr->Arguments()[2];
-
-                EValueType thenType = thenExpr->GetType(sourceSchema);
-                EValueType elseType = elseExpr->GetType(sourceSchema);
-
-                YCHECK(thenType == elseType);
-                
-                return thenType;
-            }
+        case EExpressionKind::Function:
             YUNIMPLEMENTED();
-        }
-            
         case EExpressionKind::BinaryOp: {
             auto* typedExpr = expr->As<TBinaryOpExpression>();
             auto lhsType = InferType(typedExpr->GetLhs(), sourceSchema);
@@ -440,8 +419,6 @@ Stroka InferName(const TExpression* expr)
             return ToString(expr->As<TIntegerLiteralExpression>()->GetValue());
         case EExpressionKind::DoubleLiteral:
             return ToString(expr->As<TDoubleLiteralExpression>()->GetValue());
-        case EExpressionKind::StringLiteral:
-            return ToString(expr->As<TStringLiteralExpression>()->GetValue());
         case EExpressionKind::Reference:
             return expr->As<TReferenceExpression>()->GetColumnName();
         case EExpressionKind::Function: {

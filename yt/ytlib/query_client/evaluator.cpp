@@ -61,7 +61,6 @@ DECLARE_ENUM(EFoldingObjectType,
 
     (IntegerLiteralExpr)
     (DoubleLiteralExpr)
-    (StringLiteralExpr)
     (ReferenceExpr)
     (FunctionExpr)
     (BinaryOpExpr)
@@ -170,7 +169,6 @@ void TFoldingProfiler::Profile(const TExpression* expr)
 {
     using NVersionedTableClient::MakeIntegerValue;
     using NVersionedTableClient::MakeDoubleValue;
-    using NVersionedTableClient::MakeStringValue;
 
     switch (expr->GetKind()) {
 
@@ -191,17 +189,6 @@ void TFoldingProfiler::Profile(const TExpression* expr)
 
             int index = Variables_.ConstantArray.size();
             Variables_.ConstantArray.push_back(MakeIntegerValue<TValue>(doubleLiteralExpr->GetValue()));
-            Binding_.NodeToConstantIndex[expr] = index;
-
-            break;
-        }
-
-        case EExpressionKind::StringLiteral: {
-            const auto* doubleLiteralExpr = expr->As<TStringLiteralExpression>();
-            Id_.AddInteger(EFoldingObjectType::StringLiteralExpr);
-
-            int index = Variables_.ConstantArray.size();
-            Variables_.ConstantArray.push_back(MakeStringValue<TValue>(doubleLiteralExpr->GetValue()));
             Binding_.NodeToConstantIndex[expr] = index;
 
             break;

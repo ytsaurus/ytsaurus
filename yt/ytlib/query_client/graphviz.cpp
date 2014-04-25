@@ -436,14 +436,6 @@ public:
         return true;
     }
 
-    virtual bool Visit(const TStringLiteralExpression* expr) override
-    {
-        WriteNode(
-            expr,
-            TLabel(expr, CurrentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
-        return true;
-    }
-
     virtual bool Visit(const TReferenceExpression* expr) override
     {
         WriteNode(

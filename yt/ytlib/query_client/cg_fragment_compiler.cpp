@@ -130,16 +130,6 @@ public:
         Value* data,
         Twine name = Twine())
     {
-        if (data) {
-            if (data->getType()->isPointerTy()) {
-                data = builder.CreatePtrToInt(data,
-                    TDataTypeBuilder::get(builder.getContext()));
-            } else {
-                data = builder.CreateBitCast(data,
-                    TDataTypeBuilder::get(builder.getContext()));
-            }
-        }
-
         return TCGValue(builder, type, length, data, name);
     }
 
@@ -231,11 +221,6 @@ public:
         return Type_;
     }
 
-    Value* GetLength()
-    {
-        return Length_;
-    }
-
     Value* GetData(EValueType type)
     {
         TDataTypeBuilder::Fields field;
@@ -252,18 +237,10 @@ public:
             default:
                 YUNREACHABLE();
         }
-
-        Type* targetType = TDataTypeBuilder::getAs(field, Builder_.getContext());
-
-        if (targetType->isPointerTy()) {
-            return Builder_.CreateIntToPtr(Data_,
-                targetType,
-                Twine(Name_) + ".data");
-        } else {
-            return Builder_.CreateBitCast(Data_,
-                targetType,
-                Twine(Name_) + ".data");
-        }
+        return Builder_.CreateBitCast(
+            Data_,
+            TDataTypeBuilder::getAs(field, Builder_.getContext()),
+            Twine(Name_) + ".data");
     }
 
     TCGValue& SetType(EValueType type)
@@ -523,92 +500,6 @@ TCGValue TCGContext::CodegenFunctionExpr(
     const TTableSchema& schema,
     Value* row)
 {
-    Stroka functionName(expr->GetFunctionName());
-    functionName.to_lower();
-    if (functionName == "if") {
-        auto name = "{" + expr->GetName() + "}";
-        auto type = expr->GetType(schema);
-
-        auto nameTwine = Twine(name.c_str());
-
-        YCHECK(expr->GetArgumentCount() == 3);
-        const TExpression* condExpr = expr->Arguments()[0];
-        const TExpression* thenExpr = expr->Arguments()[1];
-        const TExpression* elseExpr = expr->Arguments()[2];
-
-        YCHECK(thenExpr->GetType(schema) == type);
-        YCHECK(elseExpr->GetType(schema) == type);
-
-        auto* conditionBB = builder.CreateBBHere("condition");
-        auto* ifBB = builder.CreateBBHere("if");
-        auto* thenBB = builder.CreateBBHere("then");
-        auto* elseBB = builder.CreateBBHere("else");
-        auto* endBB = builder.CreateBBHere("end");
-        builder.CreateBr(conditionBB);
-
-        builder.SetInsertPoint(conditionBB);
-        auto condition = CodegenExpr(builder, condExpr, schema, row);
-        builder.CreateCondBr(condition.IsNull(), endBB, ifBB);
-        conditionBB = builder.GetInsertBlock();
-
-        builder.SetInsertPoint(ifBB);
-        Value* conditionResult = builder.CreateZExtOrBitCast(
-            condition.GetData(EValueType::Integer),
-            builder.getInt64Ty());
-
-        builder.CreateCondBr(
-            builder.CreateICmpNE(conditionResult, builder.getInt64(0)),
-            thenBB,
-            elseBB);
-        ifBB = builder.GetInsertBlock();
-
-        builder.SetInsertPoint(thenBB);
-        auto thenValue = CodegenExpr(builder, thenExpr, schema, row);
-        Value* thenLength = thenValue.GetLength();
-        Value* thenData = thenValue.GetData(type);
-        builder.CreateBr(endBB);
-        thenBB = builder.GetInsertBlock();
-
-        builder.SetInsertPoint(elseBB);
-        auto elseValue = CodegenExpr(builder, elseExpr, schema, row);
-        Value* elseLength = elseValue.GetLength();
-        Value* elseData = elseValue.GetData(type);
-        builder.CreateBr(endBB);
-        elseBB = builder.GetInsertBlock();
-
-        builder.SetInsertPoint(endBB);
-        PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 3, nameTwine + ".phiType");
-        phiType->addIncoming(builder.getInt16(EValueType::Null), conditionBB);
-        phiType->addIncoming(builder.getInt16(type), thenBB);
-        phiType->addIncoming(builder.getInt16(type), elseBB);
-
-        YCHECK(thenData->getType() == elseData->getType());
-
-        PHINode* phiData = builder.CreatePHI(thenData->getType(), 3, nameTwine + ".phiData");
-        phiData->addIncoming(llvm::UndefValue::get(thenData->getType()), conditionBB);
-        phiData->addIncoming(thenData, thenBB);
-        phiData->addIncoming(elseData, elseBB);
-
-        PHINode* phiLength = nullptr;
-        if (type == EValueType::String) {
-            YCHECK(thenLength->getType() == elseLength->getType());
-
-            phiLength = builder.CreatePHI(thenLength->getType(), 3, nameTwine + ".phiLength");
-            phiLength->addIncoming(llvm::UndefValue::get(thenLength->getType()), conditionBB);
-            phiLength->addIncoming(thenLength, thenBB);
-            phiLength->addIncoming(elseLength, elseBB);
-        }
-
-        return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, nameTwine);
-    } else if (functionName == "concat" || functionName == "concat_ws" || functionName == "substr") {
-        
-        //innerBuilder.CreateCall3(
-        //    Fragment_.GetRoutine("AllocateRow"),
-        //    passedFragmentParamsPtrRef,
-        //    builder.getInt32(keySize + aggregateItemCount),
-        //    newRowPtrRef);
-        
-    }
     YUNIMPLEMENTED();
 }
 
@@ -743,8 +634,7 @@ TCGValue TCGContext::CodegenExpr(
     YASSERT(expr);
     switch (expr->GetKind()) {
         case EExpressionKind::IntegerLiteral:
-        case EExpressionKind::DoubleLiteral:
-        case EExpressionKind::StringLiteral: {
+        case EExpressionKind::DoubleLiteral: {
             auto it = Binding_.NodeToConstantIndex.find(expr);
             YCHECK(it != Binding_.NodeToConstantIndex.end());
             auto index = it->second;
