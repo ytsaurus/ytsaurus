@@ -304,9 +304,11 @@ private:
             TChunkServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
             auto req = proxy.LocateChunks();
 
+            yhash_map<TChunkId, TChunkStorePtr> storeMap;
             for (auto store : partition->Stores()) {
                 YCHECK(store->GetType() == EStoreType::Chunk);
                 auto chunkId = store->GetId();
+                YCHECK(storeMap.insert(std::make_pair(chunkId, store->AsChunk())).second);
                 ToProto(req->add_chunk_ids(), chunkId);
             }
 
@@ -319,13 +321,14 @@ private:
 
             for (const auto& chunkInfo : rsp->chunks()) {
                 auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-                auto store = tablet->GetStore(chunkId);
-                auto* chunkStore = dynamic_cast<TChunkStore*>(store.Get());
+                auto storeIt = storeMap.find(chunkId);
+                YCHECK(storeIt != storeMap.end());
+                auto store = storeIt->second;
 
                 auto chunkSpec = New<TRefCountedChunkSpec>();
                 chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
                 chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
-                chunkSpec->mutable_chunk_meta()->CopyFrom(chunkStore->GetChunkMeta());
+                chunkSpec->mutable_chunk_meta()->CopyFrom(store->GetChunkMeta());
                 fetcher->AddChunk(chunkSpec);
             }
         }

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "store.h"
 #include "dynamic_memory_store.h"
+#include "chunk_store.h"
 
 namespace NYT {
 namespace NTabletNode {
@@ -26,6 +27,13 @@ EStoreState IStore::GetPersistentState() const
 TDynamicMemoryStorePtr IStore::AsDynamicMemory()
 {
     auto* result = dynamic_cast<TDynamicMemoryStore*>(this);
+    YCHECK(result);
+    return result;
+}
+
+TChunkStorePtr IStore::AsChunk()
+{
+    auto* result = dynamic_cast<TChunkStore*>(this);
     YCHECK(result);
     return result;
 }

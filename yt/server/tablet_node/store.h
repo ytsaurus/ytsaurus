@@ -29,6 +29,7 @@ struct IStore
     virtual void SetState(EStoreState state) = 0;
 
     TDynamicMemoryStorePtr AsDynamicMemory();
+    TChunkStorePtr AsChunk();
 
     virtual TPartition* GetPartition() const = 0;
     virtual void SetPartition(TPartition* partition) = 0;
