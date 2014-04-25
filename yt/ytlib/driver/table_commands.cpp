@@ -18,17 +18,17 @@
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
 
-#include <ytlib/table_client/table_reader.h>
 #include <ytlib/table_client/table_writer.h>
 #include <ytlib/table_client/table_consumer.h>
-#include <ytlib/table_client/table_producer.h>
 
-#include <ytlib/new_table_client/schemaful_chunk_reader.h>
-#include <ytlib/new_table_client/schemaful_chunk_writer.h>
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/new_table_client/schemaful_chunk_reader.h>
+#include <ytlib/new_table_client/schemaful_chunk_writer.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/table_producer.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
@@ -37,10 +37,6 @@
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/table_producer.h>
-#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/api/transaction.h>
 #include <ytlib/api/rowset.h>
@@ -75,60 +71,53 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto reader = New<TAsyncTableReader>(
+    auto nameTable = New<TNameTable>();
+    auto reader = CreateSchemalessTableReader(
         config,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
-        Context_->GetClient()->GetConnection()->GetUncompressedBlockCache(),
-        Request_->Path);
+        Context_->GetClient()->GetConnection()->GetBlockCache(),
+        Request_->Path,
+        nameTable);
 
     auto output = Context_->Request().OutputStream;
 
-    // TODO(babenko): provide custom allocation tag
-    TBlobOutput buffer;
-    auto flushBuffer = [&] () {
-        auto result = WaitFor(output->Write(buffer.Begin(), buffer.Size()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        buffer.Clear();
-    };
-
-    auto format = Context_->GetOutputFormat();
-    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
-
-    reader->Open();
-
-    auto fetchNextItem = [&] () -> bool {
-        if (!reader->FetchNextItem()) {
-            auto result = WaitFor(reader->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-        return reader->IsValid();
-    };
-
-
-    if (!fetchNextItem()) {
-        return;
+    {
+        auto error = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
-    while (true) {
-        ProduceRow(consumer.get(), reader->GetRow());
+    // TODO(babenko): provide custom allocation tag
+    TBlobOutput buffer;
 
-        if (buffer.Size() > Context_->GetConfig()->ReadBufferSize) {
-            flushBuffer();
+    auto format = Context_->GetOutputFormat();
+    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(Context_->GetConfig()->ReadBufferRowCount);
+
+    while (reader->Read(&rows)) {
+        if (rows.empty()) {
+            auto error = WaitFor(reader->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            continue;
         }
 
-        if (!fetchNextItem()) {
-            break;
+        for (auto row : rows) {
+            ProduceRow(consumer.get(), row, nameTable);
         }
-    }
 
-    if (buffer.Size() > 0) {
-        flushBuffer();
+        if (!output->Write(buffer.Begin(), buffer.Size())) {
+            auto result = WaitFor(output->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        buffer.Clear();
     }
+    YCHECK(rows.empty());
 }
 
 //////////////////////////////////////////////////////////////////////////////////
