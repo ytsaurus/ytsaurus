@@ -24,6 +24,7 @@ public:
 
     std::vector<int> GetTasks();
     const Stroka& GetFullName() const;
+    bool IsCreated() const;
 private:
     Stroka FullName_;
     bool Created_;

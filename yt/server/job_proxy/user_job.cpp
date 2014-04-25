@@ -112,8 +112,12 @@ public:
 
         InitCompleted = true;
 
-        CpuAcct.Create();
-        BlockIO.Create();
+        try {
+            CpuAcct.Create();
+            BlockIO.Create();
+        } catch (const TErrorException& e) {
+            LOG_ERROR("Unable to create a cgroup to track job resource consumption");
+        }
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -139,11 +143,23 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        CpuAcctStats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
-        CpuAcct.Destroy();
+        if (CpuAcct.IsCreated()) {
+            CpuAcctStats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
+            try {
+                CpuAcct.Destroy();
+            } catch (const TErrorException& e) {
+                LOG_ERROR("Unable to remove a cgroup");
+            }
+        }
 
-        BlockIOStats = NCGroup::GetBlockIOStat(BlockIO.GetFullName());
-        BlockIO.Destroy();
+        if (BlockIO.IsCreated()) {
+            BlockIOStats = NCGroup::GetBlockIOStat(BlockIO.GetFullName());
+            try {
+                BlockIO.Destroy();
+            } catch (const TErrorException& e) {
+                LOG_ERROR("Unable to remove a cgroup");
+            }
+        }
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();

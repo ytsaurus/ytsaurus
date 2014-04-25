@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "private.h"
 #include "cgroup.h"
 
 #include <core/misc/fs.h>
@@ -14,6 +15,10 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static auto& Logger = CGroupLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCGroup::TCGroup(const Stroka& parent, const Stroka& name)
     : FullName_(NFS::CombinePaths(parent, name))
     , Created_(false)
@@ -22,12 +27,18 @@ TCGroup::TCGroup(const Stroka& parent, const Stroka& name)
 TCGroup::~TCGroup()
 {
     if (Created_) {
-        Destroy();
+        try {
+            Destroy();
+        } catch (const TErrorException& ) {
+            LOG_ERROR("Unable to destroy a cgroup: %s", ~FullName_);
+        }
     }
 }
 
 void TCGroup::Create()
 {
+    LOG_INFO("Create cgroup: %s", ~FullName_);
+
 #ifdef _linux_
     int hasError = Mkdir(FullName_.data(), 0755);
     if (hasError != 0) {
@@ -39,6 +50,8 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
+    LOG_INFO("Destroy cgroup: %s", ~FullName_);
+
 #ifdef _linux_
     YCHECK(Created_);
 
@@ -53,6 +66,9 @@ void TCGroup::Destroy()
 void TCGroup::AddMyself()
 {
 #ifdef _linux_
+    auto pid = getpid();
+    LOG_INFO("Add process %d to cgroup: %s", pid, ~FullName_);
+
     std::fstream tasks(NFS::CombinePaths(FullName_, "tasks").data(), std::ios_base::out | std::ios_base::app);
     tasks << getpid() << std::endl;
 #endif
@@ -84,6 +100,11 @@ std::vector<int> TCGroup::GetTasks()
 const Stroka& TCGroup::GetFullName() const
 {
     return FullName_;
+}
+
+bool TCGroup::IsCreated() const
+{
+    return Created_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
