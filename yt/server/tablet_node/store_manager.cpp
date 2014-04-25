@@ -435,7 +435,7 @@ void TStoreManager::RotateStores(bool createNew)
     }
 
     YCHECK(PassiveStores_.insert(activeStore).second);
-    LOG_INFO("Passive store registered (TabletId: %s, StoreId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Passive store registered (TabletId: %s, StoreId: %s)",
         ~ToString(Tablet_->GetId()),
         ~ToString(activeStore->GetId()));
 
@@ -468,7 +468,7 @@ void TStoreManager::RemoveStore(IStorePtr store)
 
     if (store->GetType() == EStoreType::DynamicMemory) {
         if (PassiveStores_.erase(store->AsDynamicMemory()) == 1) {
-            LOG_INFO("Passive store unregistered (TabletId: %s, StoreId: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (TabletId: %s, StoreId: %s)",
                 ~ToString(Tablet_->GetId()),
                 ~ToString(store->GetId()));
         }
