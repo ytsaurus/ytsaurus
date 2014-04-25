@@ -419,7 +419,10 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 {
     YCHECK(ReadyEvent_.IsSet());
     YCHECK(ReadyEvent_.Get().IsOK());
-    YCHECK(CurrentReader_);
+
+    // Nothing to read.
+    if (!CurrentReader_)
+        return false;
 
     bool readerFinished = !CurrentReader_->Read(rows);
     if (rows->empty()) {
@@ -457,8 +460,7 @@ void TSchemalessMultiChunkReader<TBase>::OnReaderSwitched()
 template <class TBase>
 i64 TSchemalessMultiChunkReader<TBase>::GetTableRowIndex() const
 {
-    YCHECK(CurrentReader_);
-    return CurrentReader_->GetTableRowIndex();
+    return CurrentReader_ ? CurrentReader_->GetTableRowIndex() : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -665,6 +667,24 @@ i64 TSchemalessTableReader::GetTableRowIndex() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessTableReaderPtr CreateSchemalessTableReader(
+    TTableReaderConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    NTransactionClient::TTransactionPtr transaction,
+    NChunkClient::IBlockCachePtr blockCache,
+    const NYPath::TRichYPath& richPath,
+    TNameTablePtr nameTable)
+{
+    return New<TSchemalessTableReader>(
+        config,
+        masterChannel,
+        transaction,
+        blockCache,
+        richPath,
+        nameTable);
+}
+
 
 /*
 IPartitionChunkReaderPtr CreatePartitionChunkReader()
