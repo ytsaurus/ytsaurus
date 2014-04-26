@@ -253,7 +253,7 @@ const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
 
     for (const auto& op : ops) {
         auto fragment = TPlanFragment(context, op);
-        LOG_DEBUG("Created subfragment (SubFragmentId: %s)",
+        LOG_DEBUG("Created subfragment (SubfragmentId: %s)",
             ~ToString(fragment.Id()));
 
         int index = Peers_.size();
@@ -305,7 +305,7 @@ const TOperator* TCoordinator::Simplify(const TOperator* op)
                 return op;
             }
 
-            LOG_DEBUG("Keeping subfragment local (SubFragmentId: %s)",
+            LOG_DEBUG("Keeping subfragment local (SubfragmentId: %s)",
                 ~ToString(peer.Fragment.Id()));
 
             return peer.Fragment.GetHead();
@@ -395,7 +395,7 @@ void TCoordinator::DelegateToPeers()
     for (auto& peer : Peers_) {
         auto explanation = Explain(peer.CollocatedSplit);
         if (!explanation.IsInternal) {
-            LOG_DEBUG("Delegating subfragment (SubFragmentId: %s)",
+            LOG_DEBUG("Delegating subfragment (SubfragmentId: %s)",
                 ~ToString(peer.Fragment.Id()));
             peer.Reader = Callbacks_->Delegate(
                 peer.Fragment,
