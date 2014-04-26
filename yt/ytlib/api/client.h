@@ -85,6 +85,10 @@ struct TUnmountTableOptions
     bool Force;
 };
 
+struct TRemountTableOptions
+    : public TTabletRangeOptions
+{ };
+
 struct TReshardTableOptions
     : public TTabletRangeOptions
 { };
@@ -422,6 +426,10 @@ struct IClient
     virtual TAsyncError UnmountTable(
         const NYPath::TYPath& path,
         const TUnmountTableOptions& options = TUnmountTableOptions()) = 0;
+
+    virtual TAsyncError RemountTable(
+        const NYPath::TYPath& path,
+        const TRemountTableOptions& options = TRemountTableOptions()) = 0;
 
     virtual TAsyncError ReshardTable(
         const NYPath::TYPath& path,

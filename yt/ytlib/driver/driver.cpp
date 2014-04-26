@@ -120,6 +120,7 @@ public:
 
         REGISTER(TMountTableCommand,        "mount_table",       Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,      "unmount_table",     Null,       Null,       true,  false);
+        REGISTER(TRemountTableCommand,      "remount_table",     Null,       Null,       true,  false);
         REGISTER(TReshardTableCommand,      "reshard_table",     Null,       Null,       true,  false);
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);

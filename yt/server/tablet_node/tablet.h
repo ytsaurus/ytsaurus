@@ -56,6 +56,12 @@ public:
     const TTableMountConfigPtr& GetConfig();
     const TTabletWriterOptionsPtr& GetWriterOptions();
 
+    const TTableMountConfigPtr& GetConfig() const;
+    void SetConfig(TTableMountConfigPtr config);
+
+    const TTabletWriterOptionsPtr& GetWriterOptions() const;
+    void SetWriterOptions(TTabletWriterOptionsPtr options);
+
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr manager);
 

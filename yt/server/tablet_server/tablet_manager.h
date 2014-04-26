@@ -44,6 +44,11 @@ public:
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
 
+    void RemountTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
     void ClearTablets(
         NTableServer::TTableNode* table);
 

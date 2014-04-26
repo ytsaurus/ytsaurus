@@ -367,26 +367,9 @@ public:
             }
         }
 
-        auto tableProxy = objectManager->GetProxy(table);
-        const auto& tableAttributes = tableProxy->Attributes();
-
-        // Parse and prepare mount config.
-        TTableMountConfigPtr mountConfig;
-        try {
-            mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
-                << ex;
-        }
-        auto serializedMountConfig = ConvertToYsonString(mountConfig);
-
-        // Prepare tablet writer options.
-        auto writerOptions = New<NTabletNode::TTabletWriterOptions>();
-        writerOptions->ReplicationFactor = table->GetReplicationFactor();
-        writerOptions->Account = table->GetAccount()->GetName();
-        writerOptions->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
-        writerOptions->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
-        auto serializedWriterOptions = ConvertToYsonString(writerOptions);
+        TYsonString serializedMountConfig;
+        TYsonString serializedWriterOptions;
+        GetTableSettings(table, &serializedMountConfig, &serializedWriterOptions);
 
         // When mounting a table with no tablets, create the tablet automatically.
         if (table->Tablets().empty()) {
@@ -481,6 +464,46 @@ public:
         }
 
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
+    }
+
+    void RemountTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(table->IsTrunk());
+
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+
+        TYsonString serializedMountConfig;
+        TYsonString serializedWriterOptions;
+        GetTableSettings(table, &serializedMountConfig, &serializedWriterOptions);
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
+            auto* cell = tablet->GetCell();
+
+            if (tablet->GetState() == ETabletState::Mounted ||
+                tablet->GetState() == ETabletState::Mounting)
+            {
+                LOG_INFO_UNLESS(IsRecovery(), "Remounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
+                    ~ToString(table->GetId()),
+                    ~ToString(tablet->GetId()),
+                    ~ToString(cell->GetId()));
+
+                auto hiveManager = Bootstrap->GetHiveManager();
+
+                {
+                    TReqRemountTablet request;
+                    request.set_mount_config(serializedMountConfig.Data());
+                    request.set_writer_options(serializedWriterOptions.Data());
+                    ToProto(request.mutable_tablet_id(), tablet->GetId());
+                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                    hiveManager->PostMessage(mailbox, request);
+                }
+            }
+        }
     }
 
     void ClearTablets(TTableNode* table)
@@ -1278,10 +1301,10 @@ private:
     void DoUnmountTable(
         TTableNode* table,
         bool force,
-        int firstTableIndex,
+        int firstTabletIndex,
         int lastTabletIndex)
     {
-        for (int index = firstTableIndex; index <= lastTabletIndex; ++index) {
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
 
@@ -1310,6 +1333,35 @@ private:
         }
     }
 
+
+    void GetTableSettings(
+        TTableNode* table,
+        TYsonString* serializedMountConfig,
+        TYsonString* serializedWriterOptions)
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto tableProxy = objectManager->GetProxy(table);
+        const auto& tableAttributes = tableProxy->Attributes();
+
+        // Parse and prepare mount config.
+        TTableMountConfigPtr mountConfig;
+        try {
+            mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
+                << ex;
+        }
+
+        *serializedMountConfig = ConvertToYsonString(mountConfig);
+
+        // Prepare tablet writer options.
+        auto writerOptions = New<NTabletNode::TTabletWriterOptions>();
+        writerOptions->ReplicationFactor = table->GetReplicationFactor();
+        writerOptions->Account = table->GetAccount()->GetName();
+        writerOptions->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
+        writerOptions->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        *serializedWriterOptions = ConvertToYsonString(writerOptions);
+    }
 
     static void ParseTabletRange(
         TTableNode* table,
@@ -1442,6 +1494,17 @@ void TTabletManager::UnmountTable(
     Impl_->UnmountTable(
         table,
         force,
+        firstTabletIndex,
+        lastTabletIndex);
+}
+
+void TTabletManager::RemountTable(
+    TTableNode* table,
+    int firstTabletIndex,
+    int lastTabletIndex)
+{
+    Impl_->RemountTable(
+        table,
         firstTabletIndex,
         lastTabletIndex);
 }

@@ -27,6 +27,13 @@ message TReqUnmountTablet
     required bool force = 2;
 }
 
+message TReqRemountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required string mount_config = 7;
+    required string writer_options = 8;
+}
+
 message TReqSetTabletState
 {
     required NYT.NProto.TGuid tablet_id = 1;

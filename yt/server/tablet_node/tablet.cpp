@@ -71,14 +71,34 @@ ETabletState TTablet::GetPersistentState() const
     }
 }
 
-const TTableMountConfigPtr& TTablet::GetConfig()
+const TTableMountConfigPtr& TTablet::GetConfig() const
 {
     return Config_;
 }
 
-const TTabletWriterOptionsPtr& TTablet::GetWriterOptions()
+void TTablet::SetConfig(TTableMountConfigPtr config)
+{
+    Config_ = config;
+}
+
+const TTabletWriterOptionsPtr& TTablet::GetWriterOptions() const
 {
     return WriterOptions_;
+}
+
+void TTablet::SetWriterOptions(TTabletWriterOptionsPtr options)
+{
+    WriterOptions_ = options;
+}
+
+const TStoreManagerPtr& TTablet::GetStoreManager() const
+{
+    return StoreManager_;
+}
+
+void TTablet::SetStoreManager(TStoreManagerPtr manager)
+{
+    StoreManager_ = manager;
 }
 
 void TTablet::Save(TSaveContext& context) const
@@ -162,16 +182,6 @@ void TTablet::Load(TLoadContext& context)
         auto partition = loadPartition(index);
         Partitions_.push_back(std::move(partition));
     }
-}
-
-const TStoreManagerPtr& TTablet::GetStoreManager() const
-{
-    return StoreManager_;
-}
-
-void TTablet::SetStoreManager(TStoreManagerPtr manager)
-{
-    StoreManager_ = manager;
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::Partitions() const

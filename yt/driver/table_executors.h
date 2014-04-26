@@ -90,6 +90,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRemountTableExecutor
+    : public TTabletExecutor
+{
+public:
+    TRemountTableExecutor();
+
+private:
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReshardTableExecutor
     : public TTabletExecutor
 {

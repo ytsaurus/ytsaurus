@@ -225,6 +225,24 @@ void TUnmountTableCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRemountTableCommand::DoExecute()
+{
+    TRemountTableOptions options;
+    if (Request_->FirstTabletIndex) {
+        options.FirstTabletIndex = *Request_->FirstTabletIndex;
+    }
+    if (Request_->LastTabletIndex) {
+        options.LastTabletIndex = *Request_->LastTabletIndex;
+    }
+
+    auto result = WaitFor(Context_->GetClient()->RemountTable(
+        Request_->Path.GetPath(),
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TReshardTableCommand::DoExecute()
 {
     TReshardTableOptions options;

@@ -188,6 +188,10 @@ def unmount_table(path, **kwargs):
     kwargs["path"] = path
     return command('unmount_table', kwargs)
 
+def remount_table(path, **kwargs):
+    kwargs["path"] = path
+    return command('remount_table', kwargs)
+
 def reshard_table(path, pivot_keys, **kwargs):
     kwargs["path"] = path
     kwargs["pivot_keys"] = pivot_keys

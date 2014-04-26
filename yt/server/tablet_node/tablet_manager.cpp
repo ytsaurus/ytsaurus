@@ -101,6 +101,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRemountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
@@ -535,6 +536,27 @@ private:
         if (IsLeader()) {
             CheckIfFullyUnlocked(tablet);
         }
+    }
+
+    void HydraRemountTablet(const TReqRemountTablet& request)
+    {
+        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
+        auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
+
+        tablet->SetConfig(mountConfig);
+        tablet->SetWriterOptions(writerOptions);
+
+        for (const auto& partition : tablet->Partitions()) {
+            partition->SetSamplingNeeded(true);
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %s)",
+            ~ToString(tabletId));
     }
 
     void HydraSetTabletState(const TReqSetTabletState& request)

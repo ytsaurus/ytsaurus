@@ -233,6 +233,7 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
         DISPATCH_YPATH_SERVICE_METHOD(Mount);
         DISPATCH_YPATH_SERVICE_METHOD(Unmount);
+        DISPATCH_YPATH_SERVICE_METHOD(Remount);
         DISPATCH_YPATH_SERVICE_METHOD(Reshard);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
         return TBase::DoInvoke(context);
@@ -327,6 +328,29 @@ private:
         tabletManager->UnmountTable(
             impl,
             force,
+            firstTabletIndex,
+            lastTabletIndex);
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Remount)
+    {
+        DeclareMutating();
+
+        int firstTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->first_tablet_index();
+        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+            firstTabletIndex,
+            lastTabletIndex);
+
+        ValidateNoTransaction();
+
+        auto* impl = LockThisTypedImpl();
+
+        auto tabletManager = Bootstrap->GetTabletManager();
+        tabletManager->RemountTable(
+            impl,
             firstTabletIndex,
             lastTabletIndex);
 

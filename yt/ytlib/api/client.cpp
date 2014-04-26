@@ -200,6 +200,10 @@ public:
         const TYPath& path,
         const TUnmountTableOptions& options),
         (path, options))
+    IMPLEMENT_METHOD(void, RemountTable, (
+        const TYPath& path,
+        const TRemountTableOptions& options),
+        (path, options))
     IMPLEMENT_METHOD(void, ReshardTable, (
         const TYPath& path,
         const std::vector<NVersionedTableClient::TKey>& pivotKeys,
@@ -550,6 +554,22 @@ private:
             req->set_first_tablet_index(*options.LastTabletIndex);
         }
         req->set_force(options.Force);
+
+        auto rsp = WaitFor(ObjectProxy_->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    }
+
+    void DoRemountTable(
+        const TYPath& path,
+        const TRemountTableOptions& options)
+    {
+        auto req = TTableYPathProxy::Remount(path);
+        if (options.FirstTabletIndex) {
+            req->set_first_tablet_index(*options.FirstTabletIndex);
+        }
+        if (options.LastTabletIndex) {
+            req->set_first_tablet_index(*options.LastTabletIndex);
+        }
 
         auto rsp = WaitFor(ObjectProxy_->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

@@ -63,14 +63,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMountTableRequest
+struct TTabletRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
     TNullable<int> FirstTabletIndex;
     TNullable<int> LastTabletIndex;
 
-    TMountTableRequest()
+    TTabletRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
@@ -79,6 +79,10 @@ struct TMountTableRequest
             .Default(Null);
     }
 };
+
+struct TMountTableRequest
+    : public TTabletRequest
+{ };
 
 class TMountTableCommand
     : public TTypedCommand<TMountTableRequest>
@@ -91,20 +95,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUnmountTableRequest
-    : public TRequest
+    : public TTabletRequest
 {
-    NYPath::TRichYPath Path;
-    TNullable<int> FirstTabletIndex;
-    TNullable<int> LastTabletIndex;
     bool Force;
 
     TUnmountTableRequest()
     {
-        RegisterParameter("path", Path);
-        RegisterParameter("first_tablet_index", FirstTabletIndex)
-            .Default(Null);
-        RegisterParameter("last_tablet_index", LastTabletIndex)
-            .Default(Null);
         RegisterParameter("force", Force)
             .Default(false);
     }
@@ -112,6 +108,20 @@ struct TUnmountTableRequest
 
 class TUnmountTableCommand
     : public TTypedCommand<TUnmountTableRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemountTableRequest
+    : public TTabletRequest
+{ };
+
+class TRemountTableCommand
+    : public TTypedCommand<TRemountTableRequest>
 {
 private:
     virtual void DoExecute() override;

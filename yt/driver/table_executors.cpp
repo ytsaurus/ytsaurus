@@ -143,6 +143,21 @@ Stroka TUnmountTableExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRemountTableExecutor::TRemountTableExecutor()
+{ }
+
+void TRemountTableExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    TTabletExecutor::BuildArgs(consumer);
+}
+
+Stroka TRemountTableExecutor::GetCommandName() const 
+{
+    return "remount_table";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TReshardTableExecutor::TReshardTableExecutor()
     : PivotKeysArg("pivot_keys", "pivot keys", false, "", "YSON_LIST_FRAGMENT")
 {

@@ -45,6 +45,18 @@ message TRspUnmount
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqRemount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspRemount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqReshard
 {
     // If omitted then all tablets are affected.
