@@ -51,6 +51,8 @@ public:
 
     ~TTablet();
 
+    ETabletState GetPersistentState() const;
+
     const TTableMountConfigPtr& GetConfig();
     const TTabletWriterOptionsPtr& GetWriterOptions();
 

@@ -59,6 +59,18 @@ TTablet::TTablet(
 TTablet::~TTablet()
 { }
 
+ETabletState TTablet::GetPersistentState() const
+{
+    switch (State_) {
+        case ETabletState::FlushPending:
+            return ETabletState::WaitingForLocks;
+        case ETabletState::UnmountPending:
+            return ETabletState::Flushing;
+        default:
+            return State_;
+    }
+}
+
 const TTableMountConfigPtr& TTablet::GetConfig()
 {
     return Config_;
@@ -77,7 +89,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, KeyColumns_);
     Save(context, PivotKey_);
     Save(context, NextPivotKey_);
-    Save(context, State_);
+    Save(context, GetPersistentState());
     Save(context, *Config_);
     Save(context, *WriterOptions_);
 

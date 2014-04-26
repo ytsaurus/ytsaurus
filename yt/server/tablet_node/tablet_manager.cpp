@@ -1058,6 +1058,8 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
+        tablet->SetState(tablet->GetPersistentState());
+        
         for (const auto& partition : tablet->Partitions()) {
             partition->SetState(EPartitionState::None);
             partition->SetSamplingNeeded(false);
