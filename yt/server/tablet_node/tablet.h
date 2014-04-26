@@ -53,9 +53,6 @@ public:
 
     ETabletState GetPersistentState() const;
 
-    const TTableMountConfigPtr& GetConfig();
-    const TTabletWriterOptionsPtr& GetWriterOptions();
-
     const TTableMountConfigPtr& GetConfig() const;
     void SetConfig(TTableMountConfigPtr config);
 
