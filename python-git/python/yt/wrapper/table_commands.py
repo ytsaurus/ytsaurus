@@ -812,6 +812,15 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
 
     make_request("unmount_table", params)
 
+def remount_table(path, first_tablet_index=None, last_tablet_index=None):
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    make_request("remount_table", params)
+
 def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None):
     params = {"path": path,
               "pivot_keys": pivot_keys}

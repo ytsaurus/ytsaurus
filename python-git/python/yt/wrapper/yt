@@ -283,7 +283,7 @@ def mount_table(args):
                    last_tablet_index=args.last_tablet_index)
 
 def add_mount_table_parser(add_parser):
-    parser = add_parser("mount-table", help="mount table (or part of it)")
+    parser = add_parser("mount-table", help="mount table (or a part of it)")
     parser.add_argument("path")
     parser.add_argument("--first-tablet-index", type=int)
     parser.add_argument("--last-tablet-index", type=int)
@@ -296,12 +296,24 @@ def unmount_table(args):
                      force=args.force)
 
 def add_unmount_table_parser(add_parser):
-    parser = add_parser("unmount-table", help="unmount table (or part of it)")
+    parser = add_parser("unmount-table", help="unmount table (or a part of it)")
     parser.add_argument("path")
     parser.add_argument("--first-tablet-index", type=int)
     parser.add_argument("--last-tablet-index", type=int)
     parser.add_argument("--force", action="store_true", default=False)
     parser.set_defaults(func=unmount_table)
+
+def remount_table(args):
+    yt.remount_table(args.path,
+                     first_tablet_index=args.first_tablet_index,
+                     last_tablet_index=args.last_tablet_index)
+
+def add_remount_table_parser(add_parser):
+    parser = add_parser("remount-table", help="remount table (or a part of it)")
+    parser.add_argument("path")
+    parser.add_argument("--first-tablet-index", type=int)
+    parser.add_argument("--last-tablet-index", type=int)
+    parser.set_defaults(func=remount_table)
 
 def reshard_table(args):
     yt.reshard_table(args.path,
@@ -631,6 +643,7 @@ def main():
     add_remove_parser(add_parser)
     add_mount_table_parser(add_parser)
     add_unmount_table_parser(add_parser)
+    add_remount_table_parser(add_parser)
     add_reshard_table_parser(add_parser)
     add_select_parser(add_parser)
     add_erase_parser(add_parser)
