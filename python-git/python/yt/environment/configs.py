@@ -42,6 +42,13 @@ def get_logging_pattern():
 }
 """)
 
+def get_tracing_config():
+    return yson.loads(
+"""
+{
+}
+""")
+
 def get_master_config():
     return yson.loads(
 """
@@ -99,6 +106,8 @@ def get_master_config():
     };
 
     logging = { };
+
+    tracing = { };
 }
 """)
 
@@ -136,6 +145,8 @@ def get_scheduler_config():
     };
 
     logging = { };
+
+    tracing = { };
 }
 """)
 
@@ -230,6 +241,8 @@ def get_node_config():
             };
         }
     };
+
+    tracing = { };
 }
 """)
 
@@ -272,6 +285,7 @@ def get_console_driver_config():
 {
     driver = { };
     logging = { };
+    tracing = { };
 }
 """)
 
