@@ -101,30 +101,37 @@ TTraceContextGuard::~TTraceContextGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NConcurrency::TFls<std::vector<TTraceContext>> TraceContextStack;
+typedef NConcurrency::TFls<std::vector<TTraceContext>>  TTraceContextStack;
+
+static TTraceContextStack& TraceContextStack()
+{
+    static TTraceContextStack stack;
+    return stack;
+}
 
 const TTraceContext& GetCurrentTraceContext()
 {
     static TTraceContext NullContext;
-    if (TraceContextStack->empty()) {
+    auto& stack = TraceContextStack();
+    if (stack->empty()) {
         // Empty context stack.
         return NullContext;
     }
-    return TraceContextStack->back();
+    return stack->back();
 }
 
 void PushContext(const TTraceContext& context)
 {
     if (context.IsEnabled()) {
         LOG_TRACE("Push context %s", ~ToString(context));
-        TraceContextStack->push_back(context);
+        TraceContextStack()->push_back(context);
     }
 }
 
 void PopContext()
 {
     LOG_TRACE("Pop context %s", ~ToString(GetCurrentTraceContext()));
-    TraceContextStack->pop_back();
+    TraceContextStack()->pop_back();
 }
 
 TTraceContext CreateChildTraceContext()

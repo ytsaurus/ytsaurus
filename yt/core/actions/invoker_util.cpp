@@ -88,11 +88,15 @@ void GuardedInvoke(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFls<IInvokerPtr> CurrentInvoker;
+static TFls<IInvokerPtr>& CurrentInvoker()
+{
+    static TFls<IInvokerPtr> invoker;
+    return invoker;
+}
 
 IInvokerPtr GetCurrentInvoker()
 {
-    auto invoker = *CurrentInvoker;
+    auto invoker = *CurrentInvoker();
     if (!invoker) {
         invoker = GetSyncInvoker();
     }
@@ -101,23 +105,23 @@ IInvokerPtr GetCurrentInvoker()
 
 void SetCurrentInvoker(IInvokerPtr invoker)
 {
-    *CurrentInvoker.Get() = std::move(invoker);
+    *CurrentInvoker().Get() = std::move(invoker);
 }
 
 void SetCurrentInvoker(IInvokerPtr invoker, TFiber* fiber)
 {
-    *CurrentInvoker.Get(fiber) = std::move(invoker);
+    *CurrentInvoker().Get(fiber) = std::move(invoker);
 }
 
 TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
     : SavedInvoker_(std::move(invoker))
 {
-    CurrentInvoker->Swap(SavedInvoker_);
+    CurrentInvoker()->Swap(SavedInvoker_);
 }
 
 TCurrentInvokerGuard::~TCurrentInvokerGuard()
 {
-    CurrentInvoker->Swap(SavedInvoker_);
+    CurrentInvoker()->Swap(SavedInvoker_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
