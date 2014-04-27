@@ -20,7 +20,7 @@ class TFileChunkWriterFacade
     : public TNonCopyable
 {
 public:
-    TFileChunkWriterFacade(TFileChunkWriter* writer);
+    explicit TFileChunkWriterFacade(TFileChunkWriter* writer);
 
     void Write(const TRef& data);
 
@@ -61,7 +61,7 @@ private:
     TFileChunkWriterConfigPtr Config;
     NChunkClient::TEncodingWriterOptionsPtr Options;
     NChunkClient::TEncodingWriterPtr EncodingWriter;
-    NChunkClient::IAsyncWriterPtr AsyncWriter;
+    NChunkClient::IAsyncWriterPtr ChunkWriter;
 
     TFileChunkWriterFacade Facade;
     TBlob Buffer;

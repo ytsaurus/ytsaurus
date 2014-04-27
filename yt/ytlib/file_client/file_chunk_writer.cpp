@@ -21,7 +21,7 @@ TFileChunkWriter::TFileChunkWriter(
     : Config(config)
     , Options(options)
     , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
-    , AsyncWriter(chunkWriter)
+    , ChunkWriter(chunkWriter)
     , Facade(this)
     , Size(0)
     , BlockCount(0)
@@ -78,7 +78,7 @@ TAsyncError TFileChunkWriter::Close()
 
     EncodingWriter->AsyncFlush().Subscribe(
         BIND(&TFileChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-        .Via(TDispatcher::Get()->GetWriterInvoker()));
+            .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }
@@ -103,7 +103,7 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
     SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 
     auto this_ = MakeStrong(this);
-    AsyncWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
+    ChunkWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));
@@ -204,10 +204,8 @@ void TFileChunkWriterProvider::OnChunkFinished()
     YCHECK(ActiveWriters == 0);
 }
 
-void TFileChunkWriterProvider::OnChunkClosed(TFileChunkWriterPtr writer)
-{
-    UNUSED(writer);
-}
+void TFileChunkWriterProvider::OnChunkClosed(TFileChunkWriterPtr /*writer*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
