@@ -128,8 +128,8 @@ void PushContext(const TTraceContext& context)
 
 void PopContext()
 {
-     LOG_TRACE("Pop context %s", ~ToString(GetCurrentTraceContext()));
-     TraceContextStack->pop_back();
+    LOG_TRACE("Pop context %s", ~ToString(GetCurrentTraceContext()));
+    TraceContextStack->pop_back();
 }
 
 TTraceContext CreateChildTraceContext()
