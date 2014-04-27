@@ -465,7 +465,7 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::
 //
 
 template <class TRunnable, class TSignature, class TBoundArgs>
-class TBindState;
+struct TBindState;
 
 template <bool IsMethod, class... S>
 struct TBindStateIsWeakMethodHelper
