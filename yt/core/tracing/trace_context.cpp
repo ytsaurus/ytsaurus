@@ -106,11 +106,6 @@ static NConcurrency::TFls<std::vector<TTraceContext>> TraceContextStack;
 const TTraceContext& GetCurrentTraceContext()
 {
     static TTraceContext NullContext;
-    // TODO(babenko): fixme
-    if (!NConcurrency::TryGetCurrentScheduler() || !NConcurrency::GetCurrentScheduler()->GetCurrentFiber()) {
-        // No FLS here.
-        return NullContext;
-    }
     if (TraceContextStack->empty()) {
         // Empty context stack.
         return NullContext;
