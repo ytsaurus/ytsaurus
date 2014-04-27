@@ -27,6 +27,12 @@ class TAsyncSemaphore;
 template <class TSignature>
 class TCoroutine;
 
+typedef size_t TThreadId;
+const size_t InvalidThreadId = 0;
+
+typedef size_t TFiberId;
+const size_t InvalidFiberId = 0;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency

@@ -16,7 +16,8 @@ namespace NConcurrency {
 //! and provide means for cooperative multitasking on that thread.
 struct IScheduler
 {
-    virtual ~IScheduler();
+    virtual ~IScheduler()
+    { }
 
     virtual TFiber* GetCurrentFiber() = 0;
 
@@ -63,6 +64,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 // Shortcuts.
+
+TFiberId GetCurrentFiberId();
 
 void Yield();
 

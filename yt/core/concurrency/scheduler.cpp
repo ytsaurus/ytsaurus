@@ -2,14 +2,10 @@
 #include "scheduler.h"
 #include "scheduler.h"
 #include "fls.h"
+#include "fiber.h"
 
 namespace NYT {
 namespace NConcurrency {
-
-////////////////////////////////////////////////////////////////////////////////
-
-IScheduler::~IScheduler()
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +34,19 @@ TCurrentSchedulerGuard::~TCurrentSchedulerGuard()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TFiberId GetCurrentFiberId()
+{
+    auto* scheduler = TryGetCurrentScheduler();
+    if (!scheduler) {
+        return InvalidFiberId;
+    }
+    auto* fiber = scheduler->GetCurrentFiber();
+    if (!fiber) {
+        return InvalidFiberId;
+    }
+    return fiber->GetId();
+}
 
 void Yield()
 {

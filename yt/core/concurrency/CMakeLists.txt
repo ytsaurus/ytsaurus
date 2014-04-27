@@ -40,7 +40,6 @@ set( HDRS
   ${BASE}/fiber.h
   ${BASE}/fls.h
   ${BASE}/fls-inl.h
-  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

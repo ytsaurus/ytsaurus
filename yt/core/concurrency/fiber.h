@@ -29,12 +29,16 @@ class TFiber
     : public TRefCounted
 {
 public:
-    explicit TFiber(TClosure callee, EExecutionStack stack = EExecutionStack::Small);
+    explicit TFiber(
+        TClosure callee,
+        EExecutionStack stack = EExecutionStack::Small);
 
     TFiber(const TFiber&) = delete;
     TFiber(TFiber&&) = delete;
 
     ~TFiber();
+
+    TFiberId GetId() const;
 
     EFiberState GetState() const;
     void SetState(EFiberState state);
@@ -51,6 +55,7 @@ public:
     uintptr_t& FsdAt(int index);
 
 private:
+    TFiberId Id_;
     EFiberState State_;
 
     std::shared_ptr<TExecutionStack> Stack_;

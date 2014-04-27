@@ -11,8 +11,11 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static std::atomic<TFiberId> FiberIdGenerator(InvalidFiberId + 1);
+
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
-    : State_(EFiberState::Suspended)
+    : Id_(FiberIdGenerator++)
+    , State_(EFiberState::Suspended)
     , Stack_(CreateExecutionStack(stack))
     , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
     , Exception_(nullptr)
@@ -32,6 +35,11 @@ TFiber::~TFiber()
             NDetail::FlsDestruct(index, slot);
         }
     }
+}
+
+TFiberId TFiber::GetId() const
+{
+    return Id_;
 }
 
 EFiberState TFiber::GetState() const
