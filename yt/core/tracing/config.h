@@ -17,7 +17,7 @@ public:
     //! If |Null| then push is disabled.
     TNullable<Stroka> Address;
 
-    //! Maximum number of trace event per batch.
+    //! Maximum number of trace events per batch.
     int MaxBatchSize;
 
     //! Send period.
