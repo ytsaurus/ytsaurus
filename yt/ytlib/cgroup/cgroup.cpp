@@ -7,8 +7,10 @@
 
 #include <util/folder/dirut.h>
 #include <util/system/fs.h>
+#include <util/string/split.h>
 
 #include <fstream>
+#include <sstream>
 
 namespace NYT {
 namespace NCGroup {
@@ -109,6 +111,49 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<typename T>
+T To(const char* str)
+{
+    T result;
+    std::stringstream stream;
+    stream << str;
+    stream >> result;
+    return result;
+}
+
+std::vector<char> ReadAll(const Stroka& fileName)
+{
+    const size_t blockSize = 4096;
+    std::vector<char> buffer(blockSize, 0);
+    size_t alreadyRead = 0;
+
+    std::fstream file(fileName.data(), std::ios_base::in);
+    if (file.fail()) {
+        // add a name of file
+        THROW_ERROR_EXCEPTION("Unable to open a file");
+    }
+
+    while (file.good()) {
+        file.read(buffer.data() + alreadyRead, buffer.size() - alreadyRead);
+        alreadyRead = buffer.size();
+
+        buffer.resize(buffer.size() + blockSize);
+    }
+    if (file.bad()) {
+        // add a name of file
+        THROW_ERROR_EXCEPTION("Unable to read data from a file");
+    }
+
+    if (file.eof()) {
+        alreadyRead += file.gcount();
+
+        buffer.resize(alreadyRead + 1);
+        buffer[alreadyRead] = 0;
+    }
+
+    return buffer;
+}
+
 #ifdef _linux_
 
 std::chrono::nanoseconds from_jiffs(int64_t jiffs)
@@ -123,17 +168,17 @@ TCpuAcctStat GetCpuAccStat(const Stroka& fullName)
 {
     TCpuAcctStat result;
 #ifdef _linux_
-    std::fstream stats(NFS::CombinePaths(fullName, "cpuacct.stat").data(), std::ios_base::in);
-    if (stats.fail()) {
-        THROW_ERROR_EXCEPTION("Unable to open a cpuacc stat");
-    }
+    std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(fullName, "cpuacct.stat"));
+    yvector<Stroka> values;
+    int count = Split(statsRaw.data(), " \n", values);
+    YCHECK(count == 4);
 
     std::string type[2];
     int64_t jiffs[2];
 
-    stats >> type[0] >> jiffs[0] >> type[1] >> jiffs[1];
-    if (stats.fail()) {
-        THROW_ERROR_EXCEPTION("Unable to read cpu stats");
+    for (int i = 0; i < 2; ++i) {
+        type[i] = values[2 * i];
+        jiffs[i] = To<int64_t>(~values[2 * i + 1]);
     }
 
     for (int i = 0; i < 2; ++ i) {
@@ -154,45 +199,48 @@ TBlockIOStat GetBlockIOStat(const Stroka& fullName)
     TBlockIOStat result;
 #ifdef _linux_
     {
-        std::fstream stats(NFS::CombinePaths(fullName, "blkio.io_service_bytes").data(), std::ios_base::in);
-        if (stats.fail()) {
-            THROW_ERROR_EXCEPTION("Unable to open a blkio stat");
-        }
+        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(fullName, "blkio.io_service_bytes").data());
+        yvector<Stroka> values;
+        Split(statsRaw.data(), " \n", values);
+
         result.ReadBytes = result.WriteBytes = 0;
-        while (!stats.eof()) {
-            std::string device_id, type;
-            int64_t bytes;
-            stats >> device_id >> type >> bytes;
-            if (stats.bad()) {
-                THROW_ERROR_EXCEPTION("Unable to read|write bytes stats");
+        int line_number = 0;
+        while (3 * line_number + 2 < values.size()) {
+            const Stroka& deviceId = values[3 * line_number];
+            const Stroka& type = values[3 * line_number + 1];
+            int64_t bytes = To<int64_t>(~values[3 * line_number + 2]);
+
+            YCHECK(deviceId.Size() > 2);
+            YCHECK(deviceId[0] == '8');
+            YCHECK(deviceId[1] == ':');
+
+            if (type == "Read") {
+                result.ReadBytes += bytes;
+            } else if (type == "Write") {
+                result.WriteBytes += bytes;
+            } else {
+                YCHECK((type == "Sync") || (type == "Async") || (type == "Total"));
             }
-            if (stats.good()) {
-                if (type == "Read") {
-                    result.ReadBytes += bytes;
-                } else if (type == "Write") {
-                    result.WriteBytes += bytes;
-                } else {
-                    YCHECK((type == "Sync") || (type == "Async") || (type == "Total"));
-                }
-            }
+            ++line_number;
         }
     }
     {
-        std::fstream stats(NFS::CombinePaths(fullName, "blkio.sectors").data(), std::ios_base::in);
-        if (stats.fail()) {
-            THROW_ERROR_EXCEPTION("Unable to open a blkio stat");
-        }
+        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(fullName, "blkio.sectors").data());
+        yvector<Stroka> values;
+        Split(statsRaw.data(), " \n", values);
+
         result.Sectors = 0;
-        while (!stats.eof()) {
-            std::string device_id;
-            int64_t sectors;
-            stats >> device_id >> sectors;
-            if (stats.bad()) {
-                THROW_ERROR_EXCEPTION("Unable to read sector count");
-            }
-            if (stats.good()) {
-                result.Sectors += sectors;
-            }
+        int line_number = 0;
+        while (2 * line_number < values.size()) {
+            const Stroka& deviceId = values[2 * line_number];
+            int64_t sectors = To<int64_t>(~values[2 * line_number + 1]);
+
+            YCHECK(deviceId.Size() > 2);
+            YCHECK(deviceId[0] == '8');
+            YCHECK(deviceId[1] == ':');
+
+            result.Sectors += sectors;
+            ++line_number;
         }
     }
 #endif
