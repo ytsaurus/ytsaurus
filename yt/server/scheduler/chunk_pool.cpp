@@ -428,8 +428,10 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && 
-            GetPendingJobCount() == 0 && 
+        return
+            Finished && 
+            GetPendingJobCount() == 0 &&
+            SuspendedStripeCount == 0 && 
             JobCounter.GetRunning() == 0;
     }
 
@@ -679,11 +681,12 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished &&
-               LostCookies.empty() &&
-               SuspendedDataSize == 0 &&
-               PendingGlobalStripes.empty() &&
-               JobCounter.GetRunning() == 0;
+        return
+            Finished &&
+            LostCookies.empty() &&
+            SuspendedDataSize == 0 &&
+            PendingGlobalStripes.empty() &&
+            JobCounter.GetRunning() == 0;
     }
 
     virtual int GetTotalJobCount() const override
@@ -1374,8 +1377,9 @@ private:
 
         virtual bool IsCompleted() const override
         {
-            return Owner->Finished &&
-                   JobCounter.GetCompleted() == Runs.size();
+            return
+                Owner->Finished &&
+                JobCounter.GetCompleted() == Runs.size();
         }
 
         virtual int GetTotalJobCount() const override
