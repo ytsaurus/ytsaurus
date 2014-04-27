@@ -13,6 +13,8 @@
 #include <core/misc/crash_handler.h>
 #include <core/misc/collection_helpers.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <ytlib/shutdown.h>
 
 #include <ytlib/driver/driver.h>
@@ -132,6 +134,7 @@ public:
                 args.push_back(std::string(argv[i]));
             }
 
+            NTracing::TTraceContextGuard guard(NTracing::CreateRootTraceContext());
             executor->Execute(args);
         } catch (const std::exception& ex) {
             Cerr << "ERROR: " << ex.what() << Endl;
