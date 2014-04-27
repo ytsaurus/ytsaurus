@@ -39,6 +39,11 @@ def init_logging(node, path, name):
 
     return traverse(node)
 
+def init_tracing(address, endpoint_port):
+    config = configs.get_tracing_config()
+    config['endpoint_port'] = endpoint_port
+    return config
+
 def write_config(config, filename):
     with open(filename, 'wt') as f:
         f.write(yson.dumps(config, yson_format="pretty"))
@@ -135,6 +140,8 @@ class YTEnv(object):
         list_ports(scheduler_name, 2 * schedulers_count)
         list_ports(node_name, 2 * nodes_count)
         list_ports(proxy_name, 2)
+
+        self._tracing_address = "localhost:9800"
 
         logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers.' %
                      (masters_count, nodes_count, schedulers_count))
@@ -276,6 +283,7 @@ class YTEnv(object):
             config['changelogs']['path'] = os.path.join(current, 'changelogs')
             config['snapshots']['path'] = os.path.join(current, 'snapshots')
             config['logging'] = init_logging(config['logging'], current, 'master-' + str(i))
+            config['tracing'] = init_tracing(self._tracing_address, config['rpc_port'])
 
             self.modify_master_config(config)
             update(config, self.DELTA_MASTER_CONFIG)
@@ -292,7 +300,7 @@ class YTEnv(object):
 
         def masters_ready():
             good_marker = "World initialization completed"
-            bad_marker = "Active quorum lost"
+            bad_marker = "Stopped leading"
 
             master_id = 0
             for logging_file in self.log_paths[master_name]:
@@ -308,7 +316,7 @@ class YTEnv(object):
             return False
 
         self._wait_for(masters_ready, name=master_name)
-        logging.info('(Leader is: %d)', self.leader_id)
+        logging.info('Leader is %d', self.leader_id)
 
 
     def _run_masters(self, masters_count, master_name):
@@ -356,6 +364,7 @@ class YTEnv(object):
             current_user += config['exec_agent']['job_controller']['resource_limits']['slots'] + 1
 
             config['logging'] = init_logging(config['logging'], current, 'node-%d' % i)
+            config['tracing'] = init_tracing(self._tracing_address, config['rpc_port'])
             config['exec_agent']['job_proxy_logging'] = \
                     init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
 
@@ -441,6 +450,8 @@ class YTEnv(object):
 
             config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
 
+            config['tracing'] = init_tracing(self._tracing_address, config['rpc_port'])
+
             self.modify_scheduler_config(config)
             update(config, self.DELTA_SCHEDULER_CONFIG)
             config_path = os.path.join(current, 'scheduler_config.yson')
@@ -482,14 +493,16 @@ class YTEnv(object):
 
         self.configs[driver_name] = config
         self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
-
+        self.driver_tracing_config = init_tracing(self._tracing_address, 0)
 
     def _prepare_console_driver(self, console_driver_name, driver_config):
         config = configs.get_console_driver_config()
         config["driver"] = driver_config
         config['logging'] = init_logging(config['logging'], self.path_to_run, 'console_driver')
+        config['tracing'] = init_tracing(self._tracing_address, 0)
 
         config_path = os.path.join(self.path_to_run, 'console_driver_config.yson')
+
         write_config(config, config_path)
 
         self.configs[console_driver_name].append(config)

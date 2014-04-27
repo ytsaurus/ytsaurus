@@ -13,6 +13,8 @@
 
 #include <core/logging/log_manager.h>
 
+#include <core/tracing/trace_manager.h>
+
 #include <core/ytree/convert.h>
 
 #include <ytlib/formats/format.h>
@@ -271,6 +273,7 @@ public:
         TCommandDescriptor::InitType();
 
         add_keyword_method("configure_logging", &driver_module::ConfigureLogging, "configure logging of driver instances");
+        add_keyword_method("configure_tracing", &driver_module::ConfigureTracing, "configure tracing");
 
         initialize("Python bindings for driver");
 
@@ -294,6 +297,23 @@ public:
 
         return Py::None();
     }
+
+    Py::Object ConfigureTracing(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
+
+        if (args.length() > 0 || kwargs.length() > 0) {
+            throw CreateYtError("Incorrect arguments");
+        }
+
+        NTracing::TTraceManager::Get()->Configure(config->AsMap());
+
+        return Py::None();
+    }
+ 
     virtual ~driver_module()
     { }
 };
