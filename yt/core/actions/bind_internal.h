@@ -410,7 +410,7 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArg
             void(TRunArgs...)
         > TInvokerHelperType;
 
-        NTracing::TTraceContextGuard guard(state->Context);
+        NTracing::TTraceContextGuard guard(state->TraceContext);
         return TInvokerHelperType::Run(
             state->Runnable,
             std::forward<TRunArgs>(runArgs)...);
@@ -436,7 +436,7 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::
         typedef TUnwrapTraits<typename std::tuple_element<0, typename TTypedBindState::TTuple>::type> TBoundUnwrapTraits0;
         typedef typename TBoundUnwrapTraits0::TType TBoundArg0;
 
-        NTracing::TTraceContextGuard guard(state->Context);
+        NTracing::TTraceContextGuard guard(state->TraceContext);
         return TInvokerHelperType::Run(
             state->Runnable,
             TMaybeCopyHelper<BA0>::Do(

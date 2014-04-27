@@ -45,7 +45,7 @@ public:
 
     virtual ~TBindStateBase();
 
-    NTracing::TTraceContext Context;
+    NTracing::TTraceContext TraceContext;
 #ifdef ENABLE_BIND_LOCATION_TRACKING
     TSourceLocation Location;
 #endif

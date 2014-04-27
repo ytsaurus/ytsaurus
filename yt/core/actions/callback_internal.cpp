@@ -11,7 +11,7 @@ TBindStateBase::TBindStateBase(
     const TSourceLocation& location
 #endif
     )
-    : Context(NTracing::GetCurrentTraceContext())
+    : TraceContext(NTracing::GetCurrentTraceContext())
 #ifdef ENABLE_BIND_LOCATION_TRACKING
     , Location(location)
 #endif
