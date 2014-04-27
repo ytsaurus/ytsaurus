@@ -280,11 +280,9 @@ void TSession::EnqueueWrites()
             WriteIndex)
         .AsyncVia(WriteInvoker)
         .Run()
-        .Subscribe(BIND(
-            &TSession::OnBlockWritten,
-            MakeStrong(this),
-            WriteIndex)
-        .Via(Bootstrap->GetControlInvoker()));
+        .Subscribe(
+            BIND(&TSession::OnBlockWritten, MakeStrong(this), WriteIndex)
+                .Via(Bootstrap->GetControlInvoker()));
         ++WriteIndex;
     }
 }
@@ -366,10 +364,8 @@ TAsyncError TSession::FlushBlock(int blockIndex)
     }
 
     // IsWritten is set in the control thread, hence no need for AsyncVia.
-    return slot.IsWritten.ToFuture().Apply(BIND(
-        &TSession::OnBlockFlushed,
-        MakeStrong(this),
-        blockIndex));
+    return slot.IsWritten.ToFuture().Apply(
+        BIND(&TSession::OnBlockFlushed, MakeStrong(this), blockIndex));
 }
 
 TError TSession::OnBlockFlushed(int blockIndex)
@@ -402,7 +398,7 @@ TFuture< TErrorOr<TChunkPtr> > TSession::Finish(const TChunkMeta& chunkMeta)
 
     return CloseFile(chunkMeta).Apply(
         BIND(&TSession::OnFileClosed, MakeStrong(this))
-        .AsyncVia(Bootstrap->GetControlInvoker()));
+            .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 void TSession::Cancel(const TError& error)
@@ -412,17 +408,17 @@ void TSession::Cancel(const TError& error)
     LOG_DEBUG(error, "Session canceled");
 
     CloseLease();
+
     AbortWriter()
         .Apply(BIND(&TSession::OnWriterAborted, MakeStrong(this))
-        .AsyncVia(Bootstrap->GetControlInvoker()));
+            .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 TAsyncError TSession::AbortWriter()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return
-        BIND(&TSession::DoAbortWriter, MakeStrong(this))
+    return BIND(&TSession::DoAbortWriter, MakeStrong(this))
         .AsyncVia(WriteInvoker)
         .Run();
 }
@@ -467,8 +463,7 @@ TAsyncError TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return
-        BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
+    return BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
         .AsyncVia(WriteInvoker)
         .Run();
 }
@@ -626,9 +621,8 @@ void TSession::OnIOError(const TError& error)
 
     LOG_ERROR(Error, "Session failed");
 
-    Bootstrap->GetControlInvoker()->Invoke(BIND(
-        &TSession::MarkAllSlotsWritten,
-        MakeStrong(this)));
+    Bootstrap->GetControlInvoker()->Invoke(
+        BIND(&TSession::MarkAllSlotsWritten, MakeStrong(this)));
 
     Location->Disable();
 }
@@ -684,11 +678,8 @@ TSessionPtr TSessionManager::StartSession(
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
-        BIND(
-            &TSessionManager::OnLeaseExpired,
-            MakeStrong(this),
-            session)
-        .Via(Bootstrap->GetControlInvoker()));
+        BIND(&TSessionManager::OnLeaseExpired, MakeStrong(this), session)
+            .Via(Bootstrap->GetControlInvoker()));
     session->SetLease(lease);
 
     return session;
