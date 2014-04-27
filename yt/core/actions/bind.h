@@ -39,25 +39,25 @@ namespace NYT {
 // harder to read.
 //
 
-template <class Functor, class... TParams>
+template <class TFunctor, class... TParams>
 TCallback<
     typename NYT::NDetail::TBindState<
-        typename NYT::NDetail::TFunctorTraits<Functor>::TRunnableType,
-        typename NYT::NDetail::TFunctorTraits<Functor>::Signature,
+        typename NYT::NDetail::TFunctorTraits<TFunctor>::TRunnable,
+        typename NYT::NDetail::TFunctorTraits<TFunctor>::TSignature,
         void(typename NMpl::TDecay<TParams>::TType...)
-    >::UnboundSignature>
+    >::TUnboundSignature>
 Bind(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location,
 #endif
-    Functor functor, TParams&&... params) {
+    TFunctor functor, TParams&&... params) {
 
     // Typedefs for how to store and run the functor.
-    typedef NYT::NDetail::TFunctorTraits<Functor> TFunctorTraits;
-    typedef typename TFunctorTraits::TRunnableType TRunnableType;
-    typedef typename TFunctorTraits::Signature Signature;
+    typedef NYT::NDetail::TFunctorTraits<TFunctor> TFunctorTraits;
+    typedef typename TFunctorTraits::TRunnable TRunnable;
+    typedef typename TFunctorTraits::TSignature TSignature;
 
-    // Use TRunnableType::Signature instead of Signature above because our
+    // Use TRunnable::TSignature instead of TSignature above because our
     // checks should below for bound references need to know what the actual
     // functor is going to interpret the argument as.
 
@@ -72,22 +72,22 @@ Bind(
     // because #TBindState do not hold references to parameters.
 
     // static_assert(!(
-    //     NYT::NDetail::TIsMethodHelper<TRunnableType>::Value &&
+    //     NYT::NDetail::TIsMethodHelper<TRunnable>::Value &&
     //     NMpl::TIsArray<P1>::Value),
     //     "First bound argument to a method cannot be an array");
 
-    typedef NYT::NDetail::TCheckRunnableSignature<typename TRunnableType::Signature> TIsArgsNonConstReferenceStaticCheck;
+    typedef NYT::NDetail::TCheckRunnableSignature<typename TRunnable::TSignature> TIsArgsNonConstReferenceStaticCheck;
     typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TParams>...> TParamsIsRawPtrToRefCountedTypeStaticCheck;
 
-    typedef NYT::NDetail::TBindState<TRunnableType, Signature,
+    typedef NYT::NDetail::TBindState<TRunnable, TSignature,
         void(typename NMpl::TDecay<TParams>::TType...)> TTypedBindState;
-    return TCallback<typename TTypedBindState::UnboundSignature>(
+    return TCallback<typename TTypedBindState::TUnboundSignature>(
         New<TTypedBindState>(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
             location,
 #endif
             NYT::NDetail::MakeRunnable(functor),
-                std::forward<TParams>(params)...));
+            std::forward<TParams>(params)...));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,7 +16,7 @@ public:
 private:
     TCLAP::SwitchArg DontTrackArg;
 
-    virtual EExitCode DoExecute(const NDriver::TDriverRequest& request) override;
+    virtual void DoExecute(const NDriver::TDriverRequest& request) override;
 
     virtual NScheduler::EOperationType GetOperationType() const = 0;
 };
@@ -201,7 +201,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual EExitCode DoExecute() override;
+    virtual void DoExecute() override;
     virtual Stroka GetCommandName() const override;
 
 };

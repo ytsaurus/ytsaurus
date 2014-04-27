@@ -1,7 +1,5 @@
 #include "stdafx.h"
-
 #include "replication_writer.h"
-
 #include "async_writer.h"
 #include "config.h"
 #include "chunk_meta_extensions.h"
@@ -381,23 +379,17 @@ void TGroup::SetFlushing()
 
 void TGroup::ScheduleProcess()
 {
-    TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
-        &TGroup::Process,
-        MakeWeak(this)));
+    TDispatcher::Get()->GetWriterInvoker()->Invoke(
+        BIND(&TGroup::Process, MakeWeak(this)));
 }
 
 void TGroup::Process()
 {
     auto writer = Writer_.Lock();
-    if (!writer)
+    if (!writer || !writer->State_.IsActive())
         return;
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
-
-    if (!writer->State_.IsActive()) {
-        return;
-    }
-
     YCHECK(writer->IsInitComplete_);
 
     LOG_DEBUG("Processing blocks (Blocks: %d-%d)",
@@ -405,19 +397,19 @@ void TGroup::Process()
         GetEndBlockIndex());
 
     TNodePtr nodeWithBlocks;
-    bool emptyHolderFound = false;
+    bool emptyNodeFound = false;
     for (int nodeIndex = 0; nodeIndex < IsSentTo_.size(); ++nodeIndex) {
         auto node = writer->Nodes_[nodeIndex];
         if (node->IsAlive()) {
             if (IsSentTo_[nodeIndex]) {
                 nodeWithBlocks = node;
             } else {
-                emptyHolderFound = true;
+                emptyNodeFound = true;
             }
         }
     }
 
-    if (!emptyHolderFound) {
+    if (!emptyNodeFound) {
         writer->ShiftWindow();
     } else if (!nodeWithBlocks) {
         PutGroup(writer);
@@ -490,15 +482,13 @@ void TReplicationWriter::Open()
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     for (auto node : Nodes_) {
         awaiter->Await(
-            BIND(
-                &TReplicationWriter::StartChunk,
-                MakeWeak(this),
-                node)
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-            .Run());
+            BIND(&TReplicationWriter::StartChunk, MakeWeak(this), node)
+                .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+                .Run());
     }
 
-    awaiter->Complete(BIND(&TReplicationWriter::OnSessionStarted, MakeWeak(this)));
+    awaiter->Complete(
+        BIND(&TReplicationWriter::OnSessionStarted, MakeWeak(this)));
 
     IsOpen_ = true;
 }
@@ -531,18 +521,12 @@ void TReplicationWriter::ShiftWindow()
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     for (auto node : Nodes_) {
         awaiter->Await(
-            BIND(
-                &TReplicationWriter::FlushBlock,
-                MakeWeak(this),
-                node,
-                lastFlushableBlock)
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-            .Run());
+            BIND(&TReplicationWriter::FlushBlock, MakeWeak(this), node,lastFlushableBlock)
+                .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+                .Run());
     }
-    awaiter->Complete(BIND(
-        &TReplicationWriter::OnWindowShifted,
-        MakeWeak(this),
-        lastFlushableBlock));
+    awaiter->Complete(
+        BIND(&TReplicationWriter::OnWindowShifted, MakeWeak(this), lastFlushableBlock));
 }
 
 void TReplicationWriter::FlushBlock(TNodePtr node, int blockIndex)
@@ -706,14 +690,12 @@ void TReplicationWriter::CloseSession()
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     for (auto node : Nodes_) {
         awaiter->Await(
-            BIND(
-                &TReplicationWriter::FinishChunk,
-                MakeWeak(this),
-                node)
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-            .Run());
+            BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
+                .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+                .Run());
     }
-    awaiter->Complete(BIND(&TReplicationWriter::OnSessionFinished, MakeWeak(this)));
+    awaiter->Complete(
+        BIND(&TReplicationWriter::OnSessionFinished, MakeWeak(this)));
 }
 
 void TReplicationWriter::FinishChunk(TNodePtr node)
@@ -819,10 +801,8 @@ bool TReplicationWriter::WriteBlock(const TSharedRef& block)
     YCHECK(!State_.IsClosed());
 
     WindowSlots_.Acquire(block.Size());
-    TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
-        &TReplicationWriter::AddBlock,
-        MakeWeak(this),
-        block));
+    TDispatcher::Get()->GetWriterInvoker()->Invoke(
+        BIND(&TReplicationWriter::AddBlock, MakeWeak(this), block));
 
     return WindowSlots_.IsReady();
 }

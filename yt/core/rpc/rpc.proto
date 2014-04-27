@@ -1,5 +1,7 @@
 package NYT.NRpc.NProto;
 
+option java_package = "ru.yandex.yt.rpc";
+
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 
@@ -26,8 +28,22 @@ message TAuthenticatedExt
 {
     extend NRpc.NProto.TRequestHeader
     {
-        optional string authenticated_ext = 102;
+        optional TAuthenticatedExt authenticated_ext = 102;
     }
+
+    required string user = 1;
+}
+
+message TTracingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TTracingExt tracing_ext = 106;
+    }
+
+    optional uint64 trace_id = 1;
+    optional uint64 span_id = 2;
+    optional uint64 parent_span_id = 3;
 }
 
 message TResponseHeader

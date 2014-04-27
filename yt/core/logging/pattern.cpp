@@ -77,6 +77,10 @@ void SetupFormatter(TPatternFormatter* formatter, const TLogEvent& event)
         formatter->AddProperty("thread", ToString(event.ThreadId));
     }
 
+    if (event.FiberId != NConcurrency::InvalidFiberId) {
+        formatter->AddProperty("fiber", ToString(event.FiberId));
+    }
+
     if (event.Function) {
         formatter->AddProperty("function", event.Function);
     }

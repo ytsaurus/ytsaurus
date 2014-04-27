@@ -10,6 +10,8 @@
 
 #include <core/profiling/profiling_manager.h>
 
+#include <core/tracing/trace_manager.h>
+
 #include <core/ytree/yson_serializable.h>
 
 #include <ytlib/shutdown.h>
@@ -229,6 +231,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
         TAddressResolver::Get()->Configure(config->AddressResolver);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
+        NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");
         NProfiling::TProfilingManager::Get()->Start();
     }
 

@@ -99,12 +99,39 @@ void TClientRequest::SetStartTime(TInstant value)
     Header_.set_request_start_time(value.MicroSeconds());
 }
 
+TClientContextPtr TClientRequest::CreateClientContext()
+{
+    auto traceContext = NTracing::CreateChildTraceContext();
+    if (traceContext.IsEnabled()) {
+        SetTraceContext(&Header(), traceContext);
+
+        NTracing::TraceEvent(
+            traceContext,
+            GetService(),
+            GetMethod(),
+            NTracing::ClientSendAnnotation);
+
+        NTracing::TraceEvent(
+            traceContext,
+            GetService(),
+            GetMethod(),
+            "request_id",
+            GetRequestId());
+    }
+
+    return New<TClientContext>(
+        GetRequestId(),
+        traceContext,
+        GetService(),
+        GetMethod());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponseBase::TClientResponseBase(const TRequestId& requestId)
-    : RequestId_(requestId)
-    , StartTime_(TInstant::Now())
+TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
+    : StartTime_(TInstant::Now())
     , State(EState::Sent)
+    , ClientContext(std::move(clientContext))
 { }
 
 bool TClientResponseBase::IsOK() const
@@ -133,10 +160,19 @@ void TClientResponseBase::OnError(const TError& error)
     FireCompleted();
 }
 
+void TClientResponseBase::BeforeCompleted()
+{
+    NTracing::TraceEvent(
+        ClientContext->GetTraceContext(),
+        ClientContext->GetService(),
+        ClientContext->GetMethod(),
+        NTracing::ClientReceiveAnnotation);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponse::TClientResponse(const TRequestId& requestId)
-    : TClientResponseBase(requestId)
+TClientResponse::TClientResponse(TClientContextPtr clientContext)
+    : TClientResponseBase(std::move(clientContext))
 { }
 
 TSharedRefArray TClientResponse::GetResponseMessage() const
@@ -185,8 +221,8 @@ void TClientResponse::OnResponse(TSharedRefArray message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOneWayClientResponse::TOneWayClientResponse(const TRequestId& requestId)
-    : TClientResponseBase(requestId)
+TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
+    : TClientResponseBase(std::move(clientContext))
     , Promise(NewPromise<TThisPtr>())
 { }
 
@@ -216,6 +252,7 @@ TFuture<TOneWayClientResponsePtr> TOneWayClientResponse::GetAsyncResult()
 
 void TOneWayClientResponse::FireCompleted()
 {
+    BeforeCompleted();
     Promise.Set(this);
     Promise.Reset();
 }

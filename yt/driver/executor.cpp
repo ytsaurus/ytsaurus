@@ -125,7 +125,7 @@ void TExecutor::InitConfig()
     }
 }
 
-EExitCode TExecutor::Execute(const std::vector<std::string>& args)
+void TExecutor::Execute(const std::vector<std::string>& args)
 {
     auto argsCopy = args;
     CmdLine.parse(argsCopy);
@@ -138,7 +138,8 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     TDispatcher::Get()->Configure(Config->Driver->HeavyPoolSize);
     Driver = CreateDriver(Config->Driver);
 
-    return DoExecute();
+    NTracing::TTraceContextGuard guard(NTracing::CreateRootTraceContext());
+    DoExecute();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,8 +158,7 @@ TRequestExecutor::TRequestExecutor()
     CmdLine.add(OptArg);
 }
 
-
-EExitCode TRequestExecutor::DoExecute()
+void TRequestExecutor::DoExecute()
 {
     auto commandName = GetCommandName();
 
@@ -211,14 +211,13 @@ EExitCode TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing output format") << ex;
     }
 
-    return DoExecute(request);
+    DoExecute(request);
 }
 
-EExitCode TRequestExecutor::DoExecute(const TDriverRequest& request)
+void TRequestExecutor::DoExecute(const TDriverRequest& request)
 {
     auto response = Driver->Execute(request).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(response.Error);
-    return EExitCode::OK;
 }
 
 IMapNodePtr TRequestExecutor::GetArgs()

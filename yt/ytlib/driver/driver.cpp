@@ -173,24 +173,11 @@ public:
             ? TDispatcher::Get()->GetHeavyInvoker()
             : TDispatcher::Get()->GetLightInvoker();
 
-        return BIND([=] () -> TDriverResponse {
-            command->Execute(context);
-
-            const auto& request = context->Request();
-            const auto& response = context->Response();
-
-            if (response.Error.IsOK()) {
-                LOG_INFO("Command completed (Command: %s)", ~request.CommandName);
-            } else {
-                LOG_INFO(response.Error, "Command failed (Command: %s)", ~request.CommandName);
-            }
-
-            WaitFor(context->Terminate());
-
-            return response;
-        }).AsyncVia(invoker).Run();
+        return BIND(&TDriver::DoExecute, command, context)
+            .AsyncVia(invoker)
+            .Run();
     }
-
+    
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
     {
         auto it = Commands.find(commandName);
@@ -242,6 +229,27 @@ private:
             return New<TCommand>();
         });
         YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
+    }
+
+    static TDriverResponse DoExecute(ICommandPtr command, TCommandContextPtr context)
+    {
+        const auto& request = context->Request();
+        const auto& response = context->Response();
+
+        {
+            NTracing::TTraceSpanGuard guard("Driver", request.CommandName);
+            command->Execute(context);
+        }
+
+        if (response.Error.IsOK()) {
+            LOG_INFO("Command completed (Command: %s)", ~request.CommandName);
+        } else {
+            LOG_INFO(response.Error, "Command failed (Command: %s)", ~request.CommandName);
+        }
+
+        WaitFor(context->Terminate());
+
+        return response;
     }
 
     class TCommandContext

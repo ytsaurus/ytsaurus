@@ -28,14 +28,14 @@ TOperationTracker::TOperationTracker(
     , OperationId(operationId)
 { }
 
-EExitCode TOperationTracker::Run()
+void TOperationTracker::Run()
 {
     OperationType = GetOperationType(OperationId);
     while (!CheckFinished())  {
         DumpProgress();
         Sleep(Config->OperationPollPeriod);
     }
-    return DumpResult();
+    DumpResult();
 }
 
 void TOperationTracker::AppendPhaseProgress(
@@ -146,7 +146,7 @@ void TOperationTracker::DumpProgress()
     }
 }
 
-EExitCode TOperationTracker::DumpResult()
+void TOperationTracker::DumpResult()
 {
     auto operationPath = GetOperationPath(OperationId);
     auto jobsPath = GetJobsPath(OperationId);
@@ -178,7 +178,7 @@ EExitCode TOperationTracker::DumpResult()
         attributeFilter->add_keys("error");
         batchReq->AddRequest(req, "get_jobs");
     }
-    EExitCode exitCode;
+
     auto batchRsp = batchReq->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting operation result");
     {
@@ -186,29 +186,23 @@ EExitCode TOperationTracker::DumpResult()
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation result");
         auto resultNode = ConvertToNode(TYsonString(rsp->value()));
         auto error = ConvertTo<TError>(GetNodeByYPath(resultNode, "/error"));
-        if (error.IsOK()) {
-            TInstant startTime;
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation start time");
-                startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
-            }
-
-            TInstant endTime;
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_finish_time");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation finish time");
-                endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
-            }
-            TDuration duration = endTime - startTime;
-
-            printf("Operation completed successfully in %s\n", ~ToString(duration));
-            exitCode = EExitCode::OK;
-
-        } else {
-            fprintf(stderr, "%s\n", ~ToString(error));
-            exitCode = EExitCode::Error;
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        TInstant startTime;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation start time");
+            startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
         }
+
+        TInstant endTime;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_finish_time");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation finish time");
+            endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
+        }
+        TDuration duration = endTime - startTime;
+
+        printf("Operation completed successfully in %s\n", ~ToString(duration));
     }
 
     {
@@ -223,7 +217,7 @@ EExitCode TOperationTracker::DumpResult()
 
         auto jobs = ConvertToNode(TYsonString(rsp->value()))->AsMap();
         if (jobs->GetChildCount() == 0) {
-            return exitCode;
+            return;
         }
 
         std::list<TJobId> failedJobIds;
@@ -294,7 +288,6 @@ EExitCode TOperationTracker::DumpResult()
             }
         }
     }
-    return exitCode;
 }
 
 EOperationType TOperationTracker::GetOperationType(const TOperationId& operationId)

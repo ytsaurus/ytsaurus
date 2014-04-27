@@ -1,14 +1,17 @@
 #pragma once
 
+#include <core/misc/common.h>
+
+#include <core/logging/log.h>
+
 namespace NYT {
+namespace NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSignature>
-class TCallback;
-
-typedef TCallback<void()> TClosure;
+extern NLog::TLogger TracingLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTracing
 } // namespace NYT

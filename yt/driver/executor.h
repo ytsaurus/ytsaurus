@@ -34,7 +34,7 @@ class TExecutor
 public:
     TExecutor();
 
-    virtual EExitCode Execute(const std::vector<std::string>& args);
+    virtual void Execute(const std::vector<std::string>& args);
     virtual Stroka GetCommandName() const = 0;
 
 protected:
@@ -49,7 +49,7 @@ protected:
     void InitConfig();
     void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
 
-    virtual EExitCode DoExecute() = 0;
+    virtual void DoExecute() = 0;
 };
 
 typedef TIntrusivePtr<TExecutor> TExecutorPtr;
@@ -71,8 +71,8 @@ protected:
     TCLAP::ValueArg<Stroka> OutputFormatArg;
     TCLAP::MultiArg<Stroka> OptArg;
 
-    virtual EExitCode DoExecute() override;
-    virtual EExitCode DoExecute(const TDriverRequest& request);
+    virtual void DoExecute() override;
+    virtual void DoExecute(const TDriverRequest& request);
 
     NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
 

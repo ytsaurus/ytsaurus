@@ -1,14 +1,14 @@
-#pragma once
+#include "stdafx.h"
+#include "private.h"
 
 namespace NYT {
+namespace NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSignature>
-class TCallback;
-
-typedef TCallback<void()> TClosure;
+NLog::TLogger TracingLogger("Tracing");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTracing
 } // namespace NYT

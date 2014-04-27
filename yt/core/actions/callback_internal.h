@@ -13,9 +13,12 @@ $$==============================================================================
 */
 
 #include <core/misc/common.h>
+
 #ifdef ENABLE_BIND_LOCATION_TRACKING
 #include <core/misc/source_location.h>
 #endif
+
+#include <core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NDetail {
@@ -30,30 +33,32 @@ namespace NDetail {
  * to perform the function execution. This allows us to shield the #TCallback<>
  * class from the types of the bound argument via "type erasure."
  */
-class TBindStateBase
+struct TBindStateBase
     : public TIntrinsicRefCounted
 {
-protected:
+public:
+    explicit TBindStateBase(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-    TBindStateBase(const ::NYT::TSourceLocation& location);
+        const TSourceLocation& location
+#endif
+    );
+
+    virtual ~TBindStateBase();
+
+    NTracing::TTraceContext Context;
+#ifdef ENABLE_BIND_LOCATION_TRACKING
+    TSourceLocation Location;
 #endif
 
-    friend class TIntrinsicRefCounted;
-    virtual ~TBindStateBase();
-#ifdef ENABLE_BIND_LOCATION_TRACKING
-    ::NYT::TSourceLocation Location_;
-#endif
 };
 
 //! Holds the TCallback methods that don't require specialization to reduce
 //! template bloat.
 class TCallbackBase
 {
-    typedef void (TCallbackBase::*TUnspecifiedBoolType)() const;
-    void MemberForUnspecifiedBoolType() const {}
 public:
     //! Returns true iff #TCallback<> is not null (does not refer to anything).
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Returns the #TCallback<> into an uninitialized state.
     void Reset();

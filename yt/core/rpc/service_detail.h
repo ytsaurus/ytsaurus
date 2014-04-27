@@ -20,6 +20,8 @@
 
 #include <core/profiling/profiler.h>
 
+#include <core/tracing/trace_context.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -498,7 +500,8 @@ protected:
         TActiveRequest(
             const TRequestId& id,
             NBus::IBusPtr replyBus,
-            TRuntimeMethodInfoPtr runtimeInfo);
+            TRuntimeMethodInfoPtr runtimeInfo,
+            const NTracing::TTraceContext& traceContext);
 
         //! Request id.
         TRequestId Id;
@@ -528,6 +531,8 @@ protected:
         //! The moment when the synchronous part of the execution finished.
         NProfiling::TCpuInstant SyncStopTime;
 
+        //! Trace context
+        NTracing::TTraceContext TraceContext;
     };
 
     typedef TIntrusivePtr<TActiveRequest> TActiveRequestPtr;

@@ -147,10 +147,11 @@ void MergeRequestHeaderExtensions(
 {
 #define X(name) \
     if (from.HasExtension(name)) { \
-        to->SetExtension(name, from.GetExtension(name)); \
+        to->MutableExtension(name)->CopyFrom(from.GetExtension(name)); \
     }
 
     X(TAuthenticatedExt::authenticated_ext)
+    X(TTracingExt::tracing_ext)
 
 #undef X
 }

@@ -156,7 +156,7 @@ public:
         typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
 
         TRspExecuteBatch(
-            const NRpc::TRequestId& requestId,
+            NRpc::TClientContextPtr clientContext,
             const TKeyToIndexMultimap& keyToIndexes);
 
         TFuture<TRspExecuteBatchPtr> GetAsyncResult();

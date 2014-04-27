@@ -12,6 +12,8 @@
 
 #include <core/logging/log_manager.h>
 
+#include <core/tracing/trace_manager.h>
+
 #include <ytlib/driver/dispatcher.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
@@ -42,6 +44,7 @@ void Shutdown()
     NQueryClient::ShutdownLlvm();
 #endif
     NLog::TLogManager::Get()->Shutdown();
+    NTracing::TTraceManager::Get()->Shutdown();
     NConcurrency::NDetail::ShutdownUnwindThread();
 }
 

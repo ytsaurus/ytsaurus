@@ -1,6 +1,10 @@
 #pragma once
 
-#include <core/concurrency/thread.h>
+#include <core/misc/common.h>
+
+#include <core/concurrency/public.h>
+
+#include <core/tracing/public.h>
 
 namespace NYT {
 namespace NLog {
@@ -21,14 +25,16 @@ DECLARE_ENUM(ELogLevel,
 
 struct TLogEvent
 {
-    static const i32 InvalidLine = -1;
+    static const int InvalidLine = -1;
 
     TLogEvent()
         : DateTime(TInstant::Now())
-        , FileName(NULL)
+        , FileName(nullptr)
         , Line(InvalidLine)
         , ThreadId(NConcurrency::InvalidThreadId)
-        , Function(NULL)
+        , FiberId(NConcurrency::InvalidFiberId)
+        , TraceId(NTracing::InvalidTraceId)
+        , Function(nullptr)
     { }
 
     TLogEvent(const Stroka& category, ELogLevel level, const Stroka& message)
@@ -36,10 +42,12 @@ struct TLogEvent
         , Level(level)
         , Message(message)
         , DateTime(TInstant::Now())
-        , FileName(NULL)
+        , FileName(nullptr)
         , Line(InvalidLine)
         , ThreadId(NConcurrency::InvalidThreadId)
-        , Function(NULL)
+        , FiberId(NConcurrency::InvalidFiberId)
+        , TraceId(NTracing::InvalidTraceId)
+        , Function(nullptr)
     { }
 
     Stroka Category;
@@ -49,6 +57,8 @@ struct TLogEvent
     const char* FileName;
     i32 Line;
     NConcurrency::TThreadId ThreadId;
+    NConcurrency::TFiberId FiberId;
+    NTracing::TTraceId TraceId;
     const char* Function;
 
 };

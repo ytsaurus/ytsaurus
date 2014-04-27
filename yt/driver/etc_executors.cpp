@@ -28,7 +28,7 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
     CmdLine.add(SetReadOnlyArg);
 }
 
-EExitCode TBuildSnapshotExecutor::DoExecute()
+void TBuildSnapshotExecutor::DoExecute()
 {
     THydraServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
@@ -40,8 +40,6 @@ EExitCode TBuildSnapshotExecutor::DoExecute()
 
     int snapshotId = rsp->snapshot_id();
     printf("Snapshot %d is built\n", snapshotId);
-
-    return EExitCode::OK;
 }
 
 Stroka TBuildSnapshotExecutor::GetCommandName() const
@@ -54,14 +52,13 @@ Stroka TBuildSnapshotExecutor::GetCommandName() const
 TGCCollectExecutor::TGCCollectExecutor()
 { }
 
-EExitCode TGCCollectExecutor::DoExecute()
+void TGCCollectExecutor::DoExecute()
 {
     TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.GCCollect();
     auto rsp = req->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error collecting garbage");
-    return EExitCode::OK;
 }
 
 Stroka TGCCollectExecutor::GetCommandName() const

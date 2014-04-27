@@ -223,8 +223,16 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
     buffer->AppendChar('\t');
     FormatMessage(buffer, event.Message);
     buffer->AppendChar('\t');
-    if (event.ThreadId != 0) {
+    if (event.ThreadId != NConcurrency::InvalidThreadId) {
         buffer->AppendNumber(event.ThreadId, 16);
+    }
+    buffer->AppendChar('\t');
+    if (event.FiberId != NConcurrency::InvalidFiberId) {
+        buffer->AppendNumber(event.FiberId, 16);
+    }
+    buffer->AppendChar('\t');
+    if (event.TraceId != NTracing::InvalidTraceId) {
+        buffer->AppendNumber(event.TraceId, 16);
     }
     buffer->AppendChar('\n');
 

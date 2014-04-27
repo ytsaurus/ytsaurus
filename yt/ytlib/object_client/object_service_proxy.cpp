@@ -22,7 +22,8 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
-    auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+    auto clientContxt = CreateClientContext();
+    auto batchRsp = New<TRspExecuteBatch>(clientContxt, KeyToIndexes);
     auto promise = batchRsp->GetAsyncResult();
     DoInvoke(batchRsp);
     return promise;
@@ -99,9 +100,9 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
-    const TRequestId& requestId,
+    TClientContextPtr clientContext,
     const std::multimap<Stroka, int>& keyToIndexes)
-    : TClientResponse(requestId)
+    : TClientResponse(std::move(clientContext))
     , KeyToIndexes(keyToIndexes)
     , Promise(NewPromise<TRspExecuteBatchPtr>())
 { }
@@ -114,6 +115,7 @@ TObjectServiceProxy::TRspExecuteBatch::GetAsyncResult()
 
 void TObjectServiceProxy::TRspExecuteBatch::FireCompleted()
 {
+    BeforeCompleted();
     Promise.Set(this);
     Promise.Reset();
 }

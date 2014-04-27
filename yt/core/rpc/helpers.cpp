@@ -8,12 +8,14 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NRpc::NProto;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetAuthenticatedUser(TRequestHeader* header, const Stroka& user)
 {
-    header->SetExtension(TAuthenticatedExt::authenticated_ext, user);
+    auto* ext = header->MutableExtension(TAuthenticatedExt::authenticated_ext);
+    ext->set_user(user);
 }
 
 void SetAuthenticatedUser(IClientRequestPtr request, const Stroka& user)
@@ -24,8 +26,8 @@ void SetAuthenticatedUser(IClientRequestPtr request, const Stroka& user)
 TNullable<Stroka> FindAuthenticatedUser(const TRequestHeader& header)
 {
     return header.HasExtension(TAuthenticatedExt::authenticated_ext)
-           ? TNullable<Stroka>(header.GetExtension(TAuthenticatedExt::authenticated_ext))
-           : Null;
+        ? TNullable<Stroka>(header.GetExtension(TAuthenticatedExt::authenticated_ext).user())
+        : Null;
 }
 
 TNullable<Stroka> FindAuthenticatedUser(IServiceContextPtr context)
@@ -37,7 +39,7 @@ Stroka GetAuthenticatedUserOrThrow(IServiceContextPtr context)
 {
     auto user = FindAuthenticatedUser(context);
     if (!user) {
-        THROW_ERROR_EXCEPTION("Must specify authenticated user in request header");
+        THROW_ERROR_EXCEPTION("Must specify an authenticated user in request header");
     }
     return user.Get();
 }
@@ -180,6 +182,29 @@ IChannelFactoryPtr CreateRealmChannelFactory(
     YCHECK(underlyingFactory);
 
     return New<TRealmChannelFactory>(underlyingFactory, realmId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTraceContext GetTraceContext(const TRequestHeader& header)
+{
+    if (!header.HasExtension(TTracingExt::tracing_ext)) {
+        return TTraceContext();
+    }
+
+    const auto& ext = header.GetExtension(TTracingExt::tracing_ext);
+    return TTraceContext(
+        ext.trace_id(),
+        ext.span_id(),
+        ext.parent_span_id());
+}
+
+void SetTraceContext(TRequestHeader* header, const NTracing::TTraceContext& context)
+{
+    auto* ext = header->MutableExtension(TTracingExt::tracing_ext);
+    ext->set_trace_id(context.GetTraceId());
+    ext->set_span_id(context.GetSpanId());
+    ext->set_parent_span_id(context.GetParentSpanId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

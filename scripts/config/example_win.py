@@ -158,7 +158,8 @@ class Holder(WinNode, Server):
             },
             'rpc_port' : r'%(port)d',
             'monitoring_port' : r'%(monport)d',
-            'logging' : Logging
+            'logging' : Logging,
+            'tracing' : { }
         })
 
         def clean(cls, fd):

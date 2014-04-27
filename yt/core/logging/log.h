@@ -4,7 +4,9 @@
 
 #include <core/misc/error.h>
 
-#include <util/system/thread.h>
+#include <core/concurrency/scheduler.h>
+
+#include <core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NLog {
@@ -127,6 +129,8 @@ void LogEventImpl(
     event.FileName = fileName;
     event.Line = line;
     event.ThreadId = NConcurrency::GetCurrentThreadId();
+    event.FiberId = NConcurrency::GetCurrentFiberId();
+    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
     event.Function = function;
     logger.Write(event);
 }

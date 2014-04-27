@@ -18,7 +18,7 @@ public:
 private:
     TCLAP::SwitchArg SetReadOnlyArg;
 
-    virtual EExitCode DoExecute() override;
+    virtual void DoExecute() override;
     virtual Stroka GetCommandName() const override;
 
 };
@@ -32,7 +32,7 @@ public:
     TGCCollectExecutor();
 
 private:
-    virtual EExitCode DoExecute() override;
+    virtual void DoExecute() override;
     virtual Stroka GetCommandName() const override;
 
 };

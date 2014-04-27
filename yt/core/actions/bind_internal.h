@@ -22,26 +22,26 @@ namespace NDetail {
 // includes canonical C++ functors, C++11 lambdas and many other things with
 // properly declared operator().
 //
-// === Runnable ===
-// A typeclass that has a single Run() method and a Signature
-// typedef that corresponds to the type of Run(). A Runnable can declare that
+// === TRunnable ===
+// A typeclass that has a single Run() method and a TSignature
+// typedef that corresponds to the type of Run(). A TRunnable can declare that
 // it should treated like a method call by including a typedef named IsMethod.
 // The value of this typedef is not inspected, only the existence (see
 // "bind_mpl.h").
-// When a Runnable declares itself a method, #Bind() will enforce special
+// When a TRunnable declares itself a method, #Bind() will enforce special
 // weak reference handling semantics for the first argument which is expected
 // to be an object (an invocation target).
 //
-// === Functor ===
+// === TFunctor ===
 // A copyable type representing something that should be called. All function
 // pointers, #TCallback<>s, Callables and Runnables are functors even if
 // the invocation syntax differs.
 //
-// === Signature ===
+// === TSignature ===
 // A function type (as opposed to function _pointer_ type) for a Run() function.
 // Usually just a convenience typedef.
 //
-// === (Bound)Args ===
+// === T(Bound)Args ===
 // A function type that is being (ab)used to store the types of set of
 // arguments. The "return" type is always void here. We use this hack so 
 // that we do not need a new type name for each arity of type. (eg., BindState1, 
@@ -51,12 +51,12 @@ namespace NDetail {
 // TYPES
 //
 // === TCallableAdapter ===
-// Wraps Callable objects into an object that adheres to the Runnable interface.
+// Wraps Callable objects into an object that adheres to the TRunnable interface.
 // There are |ARITY| TCallableAdapter types.
 //
 // === TRunnableAdapter ===
 // Wraps the various "function" pointer types into an object that adheres to the
-// Runnable interface.
+// TRunnable interface.
 //
 // === TSignatureTraits ===
 // Type traits that unwrap a function signature into a set of easier to use
@@ -67,21 +67,21 @@ namespace NDetail {
 // a "void" return type.
 //
 // === TFunctorTraits ===
-// Type traits used determine the correct Signature and TRunnableType for
-// a Runnable. This is where function signature adapters are applied.
+// Type traits used determine the correct TSignature and TRunnable for
+// a TRunnable. This is where function signature adapters are applied.
 //
 // === MakeRunnable ===
-// Takes a Functor and returns an object in the Runnable typeclass that
-// represents the underlying Functor.
+// Takes a TFunctor and returns an object in the TRunnable typeclass that
+// represents the underlying TFunctor.
 //
 // === TInvokerHelper ===
-// Take a Runnable and arguments and actully invokes it. Also handles
+// Take a TRunnable and arguments and actully invokes it. Also handles
 // the differing syntaxes needed for #TWeakPtr<> support and for ignoring
 // return values. This is separate from TInvoker to avoid creating multiple
 // version of #TInvoker<> which grows at |O(n^2)| with the arity.
 //
 // === TInvoker ===
-// Unwraps the curried parameters and executes the Runnable.
+// Unwraps the curried parameters and executes the TRunnable.
 //
 // === TBindState ===
 // Stores the curried parameters, and is the main entry point into the #Bind()
@@ -92,7 +92,7 @@ namespace NDetail {
 // #TCallableAdapter<>
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class Signature>
+template <class T, class TSignature>
 class TCallableAdapter;
 
 template <class R, class T, class... TArgs>
@@ -102,7 +102,7 @@ public:
     typedef NMpl::TTrueType IsCallable;
 
     enum { Arity = sizeof...(TArgs) };
-    typedef R (Signature)(TArgs...);
+    typedef R (TSignature)(TArgs...);
 
     explicit TCallableAdapter(const T& functor)
         : Functor(functor)
@@ -128,7 +128,7 @@ public:
     typedef NMpl::TTrueType IsCallable;
 
     enum { Arity = sizeof...(TArgs) };
-    typedef R (Signature)(TArgs...);
+    typedef R (TSignature)(TArgs...);
 
     explicit TCallableAdapter(const T& functor)
         : Functor(functor)
@@ -162,7 +162,7 @@ private:
 // is considered to be the received of the method.  This is similar to STL's
 // mem_fun().
 //
-// This class also exposes a Signature typedef that is the function type of the
+// This class also exposes a TSignature typedef that is the function type of the
 // Run() function.
 //
 // If and only if the wrapper contains a method or const method pointer, an
@@ -193,7 +193,7 @@ class TRunnableAdapter<R(*)(TArgs...)>
 {
 public:
     enum { Arity = sizeof...(TArgs) };
-    typedef R (Signature)(TArgs...);
+    typedef R (TSignature)(TArgs...);
 
     explicit TRunnableAdapter(R(*function)(TArgs...))
         : Function(function)
@@ -216,7 +216,7 @@ public:
     typedef NMpl::TTrueType IsMethod;
 
     enum { Arity = 1 + sizeof...(TArgs) };
-    typedef R (Signature)(T*, TArgs...);
+    typedef R (TSignature)(T*, TArgs...);
 
     explicit TRunnableAdapter(R(T::*method)(TArgs...))
         : Method(method)
@@ -239,7 +239,7 @@ public:
     typedef NMpl::TTrueType IsMethod;
 
     enum { Arity = 1 + sizeof...(TArgs) };
-    typedef R (Signature)(const T*, TArgs...);
+    typedef R (TSignature)(const T*, TArgs...);
 
     explicit TRunnableAdapter(R(T::*method)(TArgs...) const)
         : Method(method)
@@ -258,13 +258,13 @@ private:
 // #TIgnoreResultInSignature<>
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class Signature>
+template <class TSignature>
 struct TIgnoreResultInSignature;
 
 template <class R, class... TArgs>
 struct TIgnoreResultInSignature<R(TArgs...)>
 {
-    typedef void(Signature)(TArgs...);
+    typedef void(TSignature)(TArgs...);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,24 +274,24 @@ struct TIgnoreResultInSignature<R(TArgs...)>
 template <class T>
 struct TFunctorTraits
 {
-    typedef TRunnableAdapter<T> TRunnableType;
-    typedef typename TRunnableType::Signature Signature;
+    typedef TRunnableAdapter<T> TRunnable;
+    typedef typename TRunnable::TSignature TSignature;
 };
 
 template <class T>
 struct TFunctorTraits< TIgnoreResultWrapper<T> >
 {
-    typedef typename TFunctorTraits<T>::TRunnableType TRunnableType;
+    typedef typename TFunctorTraits<T>::TRunnable TRunnable;
     typedef typename TIgnoreResultInSignature<
-        typename TRunnableType::Signature
-    >::Signature Signature;
+        typename TRunnable::TSignature
+    >::TSignature TSignature;
 };
 
 template <class T>
 struct TFunctorTraits< TCallback<T> >
 {
-    typedef TCallback<T> TRunnableType;
-    typedef typename TCallback<T>::Signature Signature;
+    typedef TCallback<T> TRunnable;
+    typedef typename TCallback<T>::TSignature TSignature;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -299,21 +299,21 @@ struct TFunctorTraits< TCallback<T> >
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-typename TFunctorTraits<T>::TRunnableType
+typename TFunctorTraits<T>::TRunnable
 MakeRunnable(const T& x)
 {
     return TRunnableAdapter<T>(x);
 }
 
 template <class T>
-typename TFunctorTraits<T>::TRunnableType
+typename TFunctorTraits<T>::TRunnable
 MakeRunnable(const TIgnoreResultWrapper<T>& wrapper)
 {
     return MakeRunnable(wrapper.Functor);
 }
 
 template <class T>
-const typename TFunctorTraits< TCallback<T> >::TRunnableType&
+const typename TFunctorTraits< TCallback<T> >::TRunnable&
 MakeRunnable(const TCallback<T>& x)
 {
     return x;
@@ -329,10 +329,10 @@ MakeRunnable(const TCallback<T>& x)
 // The normal type just calls the underlying runnable.
 //
 // We need a TInvokerHelper to handle void return types in order to support
-// IgnoreResult().  Normally, if the Runnable's Signature had a void return,
+// IgnoreResult().  Normally, if the TRunnable's TSignature had a void return,
 // the template system would just accept "return functor.Run()" ignoring
 // the fact that a void function is being used with return. This piece of
-// sugar breaks though when the Runnable's Signature is not void.  Thus, we
+// sugar breaks though when the TRunnable's TSignature is not void.  Thus, we
 // need a partial specialization to change the syntax to drop the "return"
 // from the invocation call.
 //
@@ -340,31 +340,31 @@ MakeRunnable(const TCallback<T>& x)
 // argument to check if they should no-op themselves.
 //
 
-template <bool IsWeakMethod, class Runnable, class ReturnType, class Args>
+template <bool IsWeakMethod, class TRunnable, class R, class TArgs>
 struct TInvokerHelper;
 
-template <class Runnable, class R, class... TArgs>
-struct TInvokerHelper<false, Runnable, R, void(TArgs...)>
+template <class TRunnable, class R, class... TArgs>
+struct TInvokerHelper<false, TRunnable, R, void(TArgs...)>
 {
-    static inline R Run(Runnable runnable, TArgs&&... args)
+    static inline R Run(TRunnable runnable, TArgs&&... args)
     {
         return runnable.Run(std::forward<TArgs>(args)...);
     }
 };
 
-template <class Runnable, class... TArgs>
-struct TInvokerHelper<false, Runnable, void, void(TArgs...)>
+template <class TRunnable, class... TArgs>
+struct TInvokerHelper<false, TRunnable, void, void(TArgs...)>
 {
-    static inline void Run(Runnable runnable, TArgs&&... args)
+    static inline void Run(TRunnable runnable, TArgs&&... args)
     {
         runnable.Run(std::forward<TArgs>(args)...);
     }
 };
 
-template <class Runnable, class A0, class... TArgs>
-struct TInvokerHelper<true, Runnable, void, void(A0, TArgs...)>
+template <class TRunnable, class A0, class... TArgs>
+struct TInvokerHelper<true, TRunnable, void, void(A0, TArgs...)>
 {
-    static inline void Run(Runnable runnable, A0&& a0, TArgs&&... args)
+    static inline void Run(TRunnable runnable, A0&& a0, TArgs&&... args)
     {
         if (!a0) {
             return;
@@ -374,8 +374,8 @@ struct TInvokerHelper<true, Runnable, void, void(A0, TArgs...)>
     }
 };
 
-template <class Runnable, class R, class Args>
-struct TInvokerHelper<true, Runnable, R, Args>
+template <class TRunnable, class R, class TArgs>
+struct TInvokerHelper<true, TRunnable, R, TArgs>
 {
     // Weak calls are only supported for functions with a void return type.
     // Otherwise, the function result would be undefined if the #TWeakPtr<>
@@ -394,40 +394,41 @@ struct TInvoker;
 template <class TTypedBindState, class R, class... TRunArgs>
 struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<> >
 {
-    typedef R(RunSignature)(TBindStateBase*, TRunArgs&&...);
-    typedef R(UnboundSignature)(TRunArgs...);
+    typedef R(TUnboundSignature)(TRunArgs...);
 
     static R Run(TBindStateBase* stateBase, TRunArgs&&... runArgs)
     {
-        TTypedBindState* state = static_cast<TTypedBindState*>(stateBase);
+        auto* state = static_cast<TTypedBindState*>(stateBase);
 
         static_assert(!TTypedBindState::IsMethod::Value,
             "The target object for a bound method have to be bound.");
 
         typedef TInvokerHelper<
             TTypedBindState::IsWeakMethod::Value,
-            typename TTypedBindState::TRunnableType,
+            typename TTypedBindState::TRunnable,
             R,
             void(TRunArgs...)
         > TInvokerHelperType;
 
-        return TInvokerHelperType::Run(state->Runnable_, std::forward<TRunArgs>(runArgs)...);
+        NTracing::TTraceContextGuard guard(state->Context);
+        return TInvokerHelperType::Run(
+            state->Runnable,
+            std::forward<TRunArgs>(runArgs)...);
     }
 };
 
 template <class TTypedBindState, class R, class BA0, class... TBoundArgs, class... TRunArgs, unsigned... BoundIndexes>
 struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<0, BoundIndexes...> >
 {
-    typedef R(RunSignature)(TBindStateBase*, TRunArgs&&...);
-    typedef R(UnboundSignature)(TRunArgs...);
+    typedef R(TUnboundSignature)(TRunArgs...);
 
     static R Run(TBindStateBase* stateBase, TRunArgs&&... runArgs)
     {
-        TTypedBindState* state = static_cast<TTypedBindState*>(stateBase);
+        auto* state = static_cast<TTypedBindState*>(stateBase);
 
         typedef TInvokerHelper<
             TTypedBindState::IsWeakMethod::Value,
-            typename TTypedBindState::TRunnableType,
+            typename TTypedBindState::TRunnable,
             R,
             void(BA0, TBoundArgs..., TRunArgs...)
         > TInvokerHelperType;
@@ -435,7 +436,9 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::
         typedef TUnwrapTraits<typename std::tuple_element<0, typename TTypedBindState::TTuple>::type> TBoundUnwrapTraits0;
         typedef typename TBoundUnwrapTraits0::TType TBoundArg0;
 
-        return TInvokerHelperType::Run(state->Runnable_,
+        NTracing::TTraceContextGuard guard(state->Context);
+        return TInvokerHelperType::Run(
+            state->Runnable,
             TMaybeCopyHelper<BA0>::Do(
                 TMaybeLockHelper<TTypedBindState::IsMethod::Value, TBoundArg0>(
                     std::forward<TBoundArg0>(
@@ -452,64 +455,66 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::
 // This stores all the state passed into Bind() and is also where most
 // of the template resolution magic occurs.
 //
-// Runnable is the functor we are binding arguments to.
-// Signature is type of the Run() function that the TInvoker<> should use.
-// Normally, this is the same as the Signature of the Runnable, but it can
+// TRunnable is the functor we are binding arguments to.
+// TSignature is type of the Run() function that the TInvoker<> should use.
+// Normally, this is the same as the TSignature of the TRunnable, but it can
 // be different if an adapter like IgnoreResult() has been used.
 //
-// BoundArgs contains the storage type for all the bound arguments by
+// TBoundArgs contains the storage type for all the bound arguments by
 // (ab)using a function type.
 //
 
-template <class Runnable, class Signature, class BoundArgs>
+template <class TRunnable, class TSignature, class TBoundArgs>
 class TBindState;
 
 template <bool IsMethod, class... S>
-struct TBindStateIsWeakMethodHelper : NMpl::TFalseType
+struct TBindStateIsWeakMethodHelper
+    : public NMpl::TFalseType
 { };
 
 template <bool IsMethod, class S0, class... S>
-struct TBindStateIsWeakMethodHelper<IsMethod, S0, S...> : TIsWeakMethodHelper<IsMethod, S0>
+struct TBindStateIsWeakMethodHelper<IsMethod, S0, S...>
+    : public TIsWeakMethodHelper<IsMethod, S0>
 { };
 
-template <class Runnable, class R, class... TArgs, class... S>
-class TBindState<Runnable, R(TArgs...), void(S...)>
+template <class TRunnable_, class R, class... TArgs, class... S>
+struct TBindState<TRunnable_, R(TArgs...), void(S...)>
     : public TBindStateBase
 {
-public:
-    typedef TIsMethodHelper<Runnable> IsMethod;
-    typedef TBindStateIsWeakMethodHelper<IsMethod::Value, S...> IsWeakMethod;
+    typedef TRunnable_ TRunnable;
 
-    typedef Runnable TRunnableType;
+    typedef TIsMethodHelper<TRunnable> IsMethod;
+    typedef TBindStateIsWeakMethodHelper<IsMethod::Value, S...> IsWeakMethod;
 
     typedef NMpl::TSplitVariadic<sizeof...(S), NMpl::TTypesPack<>, NMpl::TTypesPack<TArgs...> > TSplitVariadicType;
     typedef typename TSplitVariadicType::THead TBoundArgsPack;
     typedef typename TSplitVariadicType::TTail TRunArgsPack;
 
     typedef TInvoker<TBindState, R, TBoundArgsPack, TRunArgsPack, typename NMpl::TGenerateSequence<TBoundArgsPack::Size>::TType> TInvokerType;
-    typedef typename TInvokerType::UnboundSignature UnboundSignature;
+    typedef typename TInvokerType::TUnboundSignature TUnboundSignature;
 
     template<class... P>
     TBindState(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-        const ::NYT::TSourceLocation& location,
+        const TSourceLocation& location,
 #endif
-        const TRunnableType& runnable, P&&... p)
+        const TRunnable& runnable,
+        P&&... p)
+        : TBindStateBase(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-        : TBindStateBase(location)
-        , Runnable_(runnable)
-#else
-        : Runnable_(runnable)
+            location
 #endif
+        )
+        , Runnable(runnable)
         , State(std::forward<P>(p)...)
     { }
 
     virtual ~TBindState()
     { }
 
-    TRunnableType Runnable_;
-    typedef std::tuple<S...> TTuple;
+    TRunnable Runnable;
 
+    typedef std::tuple<S...> TTuple;
     TTuple State;
 };
 

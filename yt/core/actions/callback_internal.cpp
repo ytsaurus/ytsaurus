@@ -6,24 +6,29 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBindStateBase::TBindStateBase(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-TBindStateBase::TBindStateBase(const ::NYT::TSourceLocation& location)
-    : Location_(location)
-{ }
+    const TSourceLocation& location
 #endif
+    )
+    : Context(NTracing::GetCurrentTraceContext())
+#ifdef ENABLE_BIND_LOCATION_TRACKING
+    , Location(location)
+#endif
+{ }
 
 TBindStateBase::~TBindStateBase()
 { }
 
-TCallbackBase::operator TUnspecifiedBoolType() const
+TCallbackBase::operator bool() const
 {
-    return BindState.Get() != NULL ? &TCallbackBase::MemberForUnspecifiedBoolType : 0;
+    return static_cast<bool>(BindState);
 }
 
 void TCallbackBase::Reset()
 {
-    BindState = NULL;
-    UntypedInvoke = NULL;
+    BindState = nullptr;
+    UntypedInvoke = nullptr;
 }
 
 void* TCallbackBase::GetHandle() const

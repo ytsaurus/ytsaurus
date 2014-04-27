@@ -127,6 +127,8 @@ struct TServiceId
 bool operator == (const TServiceId& lhs, const TServiceId& rhs);
 bool operator != (const TServiceId& lhs, const TServiceId& rhs);
 
+Stroka ToString(const TServiceId& serviceId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract service registered within TServer.

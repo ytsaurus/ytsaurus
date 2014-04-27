@@ -37,8 +37,10 @@ namespace NObjectServer {
 
 using namespace NHydra;
 using namespace NRpc;
+using namespace NRpc::NProto;
 using namespace NBus;
 using namespace NYTree;
+using namespace NYTree::NProto;
 using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NSecurityClient;
@@ -121,13 +123,13 @@ public:
         securityManager->ValidateUserAccess(user, requestCount);
 
         ResponseMessages.resize(requestCount);
+        RequestHeaders.resize(requestCount);
 
         if (requestCount == 0) {
             Reply();
-            return;
+        } else {
+            Continue();
         }
-        
-        Continue();
     }
 
 private:
@@ -139,6 +141,7 @@ private:
     std::atomic<bool> Replied;
     std::atomic<int> ResponseCount;
     std::vector<TSharedRefArray> ResponseMessages;
+    std::vector<TRequestHeader> RequestHeaders;
     int CurrentRequestIndex;
     int CurrentRequestPartIndex;
     TNullable<Stroka> UserName;
@@ -173,7 +176,12 @@ private:
                 int partCount = request.part_counts(CurrentRequestIndex);
                 if (partCount == 0) {
                     // Skip empty requests.
-                    OnResponse(CurrentRequestIndex, false, TSharedRefArray());
+                    OnResponse(
+                        CurrentRequestIndex,
+                        false,
+                        NTracing::TTraceContext(),
+                        nullptr,
+                        TSharedRefArray());
                     NextRequest();
                     continue;
                 }
@@ -184,14 +192,14 @@ private:
 
                 auto requestMessage = TSharedRefArray(std::move(requestParts));
 
-                NRpc::NProto::TRequestHeader requestHeader;
+                auto& requestHeader = RequestHeaders[CurrentRequestIndex];
                 if (!ParseRequestHeader(requestMessage, &requestHeader)) {
                     THROW_ERROR_EXCEPTION(
                         NRpc::EErrorCode::ProtocolError,
                         "Error parsing request header");
                 }
 
-                const auto& requestHeaderExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+                const auto& requestHeaderExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
                 const auto& path = requestHeaderExt.path();
 
                 auto mutationId = GetMutationId(requestHeader);
@@ -214,6 +222,12 @@ private:
                     ~FormatBool(mutating),
                     ~ToString(mutationId));
 
+                NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
+                NTracing::TraceEvent(
+                    ~requestHeader.service(),
+                    ~requestHeader.method(),
+                    NTracing::ServerReceiveAnnotation);
+
                 auto asyncResponseMessage = ExecuteVerb(
                     rootService,
                     std::move(requestMessage));
@@ -222,10 +236,20 @@ private:
                 if (asyncResponseMessage.IsSet() &&
                     TInstant::Now() < startTime + Config->YieldTimeout)
                 {
-                    OnResponse(CurrentRequestIndex, mutating, asyncResponseMessage.Get());
+                    OnResponse(
+                        CurrentRequestIndex,
+                        mutating,
+                        traceContextGuard.GetContext(),
+                        &requestHeader,
+                        asyncResponseMessage.Get());
                 } else {
-                    LastMutationCommitted = asyncResponseMessage.Apply(
-                        BIND(&TExecuteSession::OnResponse, MakeStrong(this), CurrentRequestIndex, mutating));
+                    LastMutationCommitted = asyncResponseMessage.Apply(BIND(
+                        &TExecuteSession::OnResponse,
+                        MakeStrong(this),
+                        CurrentRequestIndex,
+                        mutating,
+                        traceContextGuard.GetContext(),
+                        &requestHeader));
                 }
 
                 NextRequest();
@@ -235,18 +259,29 @@ private:
         }
     }
 
-    void OnResponse(int index, bool mutating, TSharedRefArray responseMessage)
+    void OnResponse(
+        int requestIndex,
+        bool mutating,
+        const NTracing::TTraceContext& traceContext,
+        const TRequestHeader* requestHeader,
+        TSharedRefArray responseMessage)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (responseMessage) {
-            NRpc::NProto::TResponseHeader responseHeader;
+            NTracing::TraceEvent(
+                traceContext,
+                requestHeader->service(),
+                requestHeader->method(),
+                NTracing::ServerSendAnnotation);
+
+            TResponseHeader responseHeader;
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
             auto error = FromProto(responseHeader.error());
 
             LOG_DEBUG("Execute[%d] -> Error: %s (RequestId: %s)",
-                index,
+                requestIndex,
                 ~ToString(error),
                 ~ToString(Context->GetRequestId()));
 
@@ -257,7 +292,7 @@ private:
             }
         }
 
-        ResponseMessages[index] = std::move(responseMessage);
+        ResponseMessages[requestIndex] = std::move(responseMessage);
 
         if (++ResponseCount == ResponseMessages.size()) {
             Reply();

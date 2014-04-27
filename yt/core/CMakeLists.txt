@@ -11,6 +11,7 @@ set( DIRS
   yson
   ypath
   profiling
+  tracing
 )
 
 foreach( _d_ ${DIRS} )

@@ -51,6 +51,16 @@ bool operator != (const TServiceId& lhs, const TServiceId& rhs)
     return !(lhs == rhs);
 }
 
+Stroka ToString(const TServiceId& serviceId)
+{
+    auto result = serviceId.ServiceName;
+    if (!serviceId.RealmId.IsEmpty()) {
+        result.append(':');
+        result.append(ToString(serviceId.RealmId));
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

@@ -538,13 +538,13 @@ protected:
             << "Right bound: " << ::testing::PrintToString(keyRange.second);
     }
 
-    template <class TTypedExpression, class... Args>
-    const TTypedExpression* Make(Args&&... args)
+    template <class TTypedExpression, class... TArgs>
+    const TTypedExpression* Make(TArgs&&... args)
     {
         return new (Context_.Get()) TTypedExpression(
             Context_.Get(),
             NullSourceLocation,
-            std::forward<Args>(args)...);
+            std::forward<TArgs>(args)...);
     }
 
     TPlanContextPtr Context_;

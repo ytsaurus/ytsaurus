@@ -95,7 +95,7 @@ if(YT_BUILD_ENABLE_PYTHON)
 endif()
 
 # Discover Perl world.
-if(YT_BUILD_ENABLE_PERL)
+if(xYT_BUILD_ENABLE_PERL)
   find_package(Perl 5.14)
   find_package(PerlLibs 5.14)
   if(NOT PERL_FOUND)

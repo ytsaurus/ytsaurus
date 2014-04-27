@@ -4,18 +4,22 @@
 #include "channel.h"
 
 #include <core/misc/property.h>
-#include <core/concurrency/delayed_executor.h>
 #include <core/misc/protobuf_helpers.h>
+
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/compression/public.h>
 
 #include <core/bus/client.h>
 
+#include <core/rpc/helpers.h>
 #include <core/rpc/rpc.pb.h>
 
 #include <core/actions/future.h>
 
 #include <core/logging/log.h>
+
+#include <core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NRpc {
@@ -47,9 +51,36 @@ DEFINE_REFCOUNTED_TYPE(IClientRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClientContext
+    : public TIntrinsicRefCounted
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+    DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContext, TraceContext);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Service);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Method);
+
+public:
+    explicit TClientContext(
+        const TRequestId& requestId,
+        const NTracing::TTraceContext& traceContext,
+        const Stroka& service,
+        const Stroka& method)
+        : RequestId_(requestId)
+        , TraceContext_(traceContext)
+        , Service_(service)
+        , Method_(method)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClientContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClientRequest
     : public IClientRequest
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(NProto::TRequestHeader, Header);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
@@ -83,6 +114,8 @@ protected:
     virtual bool IsResponseHeavy() const;
     virtual TSharedRef SerializeBody() const = 0;
 
+    TClientContextPtr CreateClientContext();
+
     void DoInvoke(IClientResponseHandlerPtr responseHandler);
 };
 
@@ -108,7 +141,8 @@ public:
 
     TFuture< TIntrusivePtr<TResponse> > Invoke()
     {
-        auto response = NYT::New<TResponse>(GetRequestId());
+        auto clientContext = CreateClientContext();
+        auto response = NYT::New<TResponse>(std::move(clientContext));
         auto promise = response->GetAsyncResult();
         DoInvoke(response);
         return promise;
@@ -184,11 +218,13 @@ DEFINE_REFCOUNTED_TYPE(IClientResponseHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////////////////////////////////////////////////////////
+
 //! Provides a common base for both one-way and two-way responses.
 class TClientResponseBase
     : public IClientResponseHandler
 {
-    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+public:
     DEFINE_BYVAL_RO_PROPERTY(TError, Error);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
@@ -206,14 +242,16 @@ protected:
     TSpinLock SpinLock; // Protects state.
     EState State;
 
-    explicit TClientResponseBase(const TRequestId& requestId);
+    TClientContextPtr ClientContext;
+
+    explicit TClientResponseBase(TClientContextPtr clientContext);
 
     virtual void FireCompleted() = 0;
 
     // IClientResponseHandler implementation.
     virtual void OnError(const TError& error) override;
 
-
+    void BeforeCompleted();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,13 +260,14 @@ protected:
 class TClientResponse
     : public TClientResponseBase
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
     TSharedRefArray GetResponseMessage() const;
 
 protected:
-    explicit TClientResponse(const TRequestId& requestId);
+    explicit TClientResponse(TClientContextPtr clientContext);
 
     virtual void DeserializeBody(const TRef& data) = 0;
 
@@ -254,8 +293,8 @@ class TTypedClientResponse
 public:
     typedef TIntrusivePtr<TTypedClientResponse> TThisPtr;
 
-    explicit TTypedClientResponse(const TRequestId& requestId)
-        : TClientResponse(requestId)
+    explicit TTypedClientResponse(TClientContextPtr clientContext)
+        : TClientResponse(std::move(clientContext))
         , Promise(NewPromise<TThisPtr>())
     { }
 
@@ -269,6 +308,7 @@ private:
 
     virtual void FireCompleted()
     {
+        BeforeCompleted();
         Promise.Set(this);
         Promise.Reset();
     }
@@ -288,7 +328,7 @@ class TOneWayClientResponse
 public:
     typedef TIntrusivePtr<TOneWayClientResponse> TThisPtr;
 
-    explicit TOneWayClientResponse(const TRequestId& requestId);
+    explicit TOneWayClientResponse(TClientContextPtr clientContext);
 
     TFuture<TThisPtr> GetAsyncResult();
 

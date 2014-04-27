@@ -62,7 +62,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
 TServiceBase::TActiveRequest::TActiveRequest(
     const TRequestId& id,
     IBusPtr replyBus,
-    TRuntimeMethodInfoPtr runtimeInfo)
+    TRuntimeMethodInfoPtr runtimeInfo,
+    const NTracing::TTraceContext& traceContext)
     : Id(id)
     , ReplyBus(std::move(replyBus))
     , RuntimeInfo(std::move(runtimeInfo))
@@ -71,6 +72,7 @@ TServiceBase::TActiveRequest::TActiveRequest(
     , ArrivalTime(GetCpuInstant())
     , SyncStartTime(-1)
     , SyncStopTime(-1)
+    , TraceContext(traceContext)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,10 +299,21 @@ void TServiceBase::OnRequest(
         Profiler.Aggregate(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
     }
 
+    auto traceContext = GetTraceContext(*header);
+
+    NTracing::TTraceContextGuard traceContextGuard(traceContext);
+
     auto activeRequest = New<TActiveRequest>(
         requestId,
         replyBus,
-        runtimeInfo);
+        runtimeInfo,
+        traceContext);
+
+    NTracing::TraceEvent(
+        traceContext,
+        ServiceId_.ServiceName,
+        method,
+        NTracing::ServerReceiveAnnotation);
 
     auto context = New<TServiceContext>(
         this,
@@ -353,6 +366,7 @@ void TServiceBase::OnInvocationPrepared(
         }
 
         try {
+            NTracing::TTraceContextGuard guard(activeRequest->TraceContext);
             if (!runtimeInfo->Descriptor.System) {
                 BeforeInvoke();
             }
@@ -400,6 +414,12 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray m
     TGuard<TSpinLock> guard(activeRequest->SpinLock);
 
     const auto& runtimeInfo = activeRequest->RuntimeInfo;
+
+    NTracing::TraceEvent(
+        activeRequest->TraceContext,
+        ServiceId_.ServiceName,
+        runtimeInfo->Descriptor.Method,
+        NTracing::ServerSendAnnotation);
 
     YASSERT(!activeRequest->Completed);
     activeRequest->Completed = true;

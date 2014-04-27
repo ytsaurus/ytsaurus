@@ -149,12 +149,16 @@ TPromise<T> NewPromise();
 // please include "callback_forward.h" instead.
 //
 
-template <class Signature>
+template <class TSignature>
 class TCallback;
+
+// Syntactic sugar to make Callbacks<void()> easier to declare since it
+// will be used in a lot of APIs with delayed execution.
+typedef TCallback<void()> TClosure;
 
 namespace NDetail {
 
-template <class Runnable, class Signature, class BoundArgs>
+template <class TRunnable, class TSignature, class TBoundArgs>
 class TBindState;
 
 // TODO(sandello): Move these somewhere closer to TFuture & TPromise.
@@ -193,7 +197,7 @@ class TCallback<R(TArgs...)>
     : public NYT::NDetail::TCallbackBase
 {
 public:
-    typedef R(Signature)(TArgs...);
+    typedef R(TSignature)(TArgs...);
 
     TCallback()
         : TCallbackBase(TIntrusivePtr< NYT::NDetail::TBindStateBase >())
@@ -207,17 +211,17 @@ public:
         : TCallbackBase(std::move(other))
     { }
 
-    template <class Runnable, class Signature, class BoundArgs>
+    template <class TRunnable, class TSignature, class TBoundArgs>
     explicit TCallback(TIntrusivePtr<
-            NYT::NDetail::TBindState<Runnable, Signature, BoundArgs>
+            NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>
         >&& bindState)
         : TCallbackBase(std::move(bindState))
     {
         // Force the assignment to a local variable of TTypedInvokeFunction
         // so the compiler will typecheck that the passed in Run() method has
         // the correct type.
-        TTypedInvokeFunction invokeFunction =
-            &NYT::NDetail::TBindState<Runnable, Signature, BoundArgs>
+        auto invokeFunction =
+            &NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>
             ::TInvokerType::Run;
         UntypedInvoke =
             reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
@@ -239,9 +243,9 @@ public:
 
     R Run(TArgs... args) const
     {
-        TTypedInvokeFunction invokeFunction =
-            reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
-        return invokeFunction(BindState.Get(),
+      auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
+        return invokeFunction(
+        	BindState.Get(),
             std::forward<TArgs>(args)...);
     }
 
@@ -256,12 +260,10 @@ public:
 
 private:
     typedef R(*TTypedInvokeFunction)(
-        NYT::NDetail::TBindStateBase*, TArgs&& ...);
+        NYT::NDetail::TBindStateBase*,
+        TArgs&& ...);
 
 };
-// Syntactic sugar to make Callbacks<void()> easier to declare since it
-// will be used in a lot of APIs with delayed execution.
-typedef TCallback<void()> TClosure;
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */

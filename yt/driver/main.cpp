@@ -31,6 +31,7 @@ namespace NYT {
 using namespace NDriver;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +43,7 @@ class TDriverProgram
 {
 public:
     TDriverProgram()
-        : ExitCode(0)
+        : ExitCode(EExitCode::OK)
     {
         RegisterExecutor(New<TStartTxExecutor>());
         RegisterExecutor(New<TPingTxExecutor>());
@@ -124,14 +125,14 @@ public:
                 return 0;
             }
 
-            auto Executor = GetExecutor(commandName);
+            auto executor = GetExecutor(commandName);
 
             std::vector<std::string> args;
             for (int i = 1; i < argc; ++i) {
                 args.push_back(std::string(argv[i]));
             }
 
-            ExitCode = Executor->Execute(args);
+            executor->Execute(args);
         } catch (const std::exception& ex) {
             Cerr << "ERROR: " << ex.what() << Endl;
             ExitCode = EExitCode::Error;

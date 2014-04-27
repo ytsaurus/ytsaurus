@@ -17,6 +17,8 @@ namespace NRpc {
 using namespace NConcurrency;
 using namespace NBus;
 
+using ::ToString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = RpcServerLogger;

@@ -13,7 +13,7 @@ namespace NYT {
 // White-box testpoint.
 struct TFakeInvoker
 {
-    typedef void(Signature)(NDetail::TBindStateBase*);
+    typedef void(TSignature)(NDetail::TBindStateBase*);
     static void Run(NDetail::TBindStateBase*)
     { }
 };
@@ -22,7 +22,7 @@ struct TFakeInvoker
 
 namespace NDetail {
 
-template <class Runnable, class Signature, class BoundArgs>
+template <class TRunnable, class TSignature, class TBoundArgs>
 class TBindState;
 
 // White-box injection into a #TCallback<> object for checking
