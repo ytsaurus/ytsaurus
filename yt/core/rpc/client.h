@@ -61,7 +61,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Method);
 
 public:
-    explicit TClientContext(
+    TClientContext(
         const TRequestId& requestId,
         const NTracing::TTraceContext& traceContext,
         const Stroka& service,
