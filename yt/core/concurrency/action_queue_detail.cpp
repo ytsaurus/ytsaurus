@@ -230,6 +230,9 @@ void TSchedulerThread::ThreadMain()
     ThreadId = GetCurrentThreadId();
     SetCurrentThreadName(~ThreadName);
 
+    // Hold this strongly.
+    auto this_ = MakeStrong(this);
+
     try {
         OnThreadStart();
         Started.Set();
