@@ -53,6 +53,7 @@ public:
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
+    TDuration QueryTimeout;
 
     TConnectionConfig();
 };

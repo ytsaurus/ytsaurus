@@ -325,6 +325,7 @@ public:
         auto channel = NodeChannelFactory_->CreateChannel(address);
 
         TQueryServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Config_->QueryTimeout);
         auto req = proxy.Execute();
 
         fragment.GetContext()->GetNodeDirectory()->DumpTo(req->mutable_node_directory());
