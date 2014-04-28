@@ -118,6 +118,9 @@ bool DeserializeFromProtoWithEnvelope(
         serializedMessage.Size() + 1,
         serializedMessage.Size() + 1);
 
+    // Raise recursion limit.
+    codedInputStream.SetRecursionLimit(1024);
+
     if (!message->ParsePartialFromCodedStream(&codedInputStream)) {
         return false;
     }
