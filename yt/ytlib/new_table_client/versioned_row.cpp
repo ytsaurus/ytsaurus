@@ -68,7 +68,7 @@ i64 GetDataWeight(TVersionedRow row)
     result += std::accumulate(
         row.BeginValues(),
         row.EndValues(),
-        0,
+        0ll,
         [] (i64 x, const TVersionedValue& value) {
             return GetDataWeight(value) + x;
         });
@@ -76,7 +76,7 @@ i64 GetDataWeight(TVersionedRow row)
     result += std::accumulate(
         row.BeginKeys(),
         row.EndKeys(),
-        0,
+        0ll,
         [] (i64 x, const TUnversionedValue& value) {
             return GetDataWeight(value) + x;
         });
