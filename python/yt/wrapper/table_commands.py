@@ -1,11 +1,11 @@
 import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
-                   is_prefix, get_value, compose, execute_handling_sigint, bool_to_string, \
-                   chunk_iter_lines
+                   is_prefix, get_value, compose, bool_to_string, chunk_iter_lines
 from errors import YtError, YtNetworkError
 from version import VERSION
 from driver import read_content, get_host_for_heavy_operation, make_request
+from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                           move, mkdir, find_free_subpath, create, get_type, \
@@ -215,28 +215,23 @@ def _add_table_writer_spec(job_types, table_writer, spec):
     return spec
 
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
-    def run_operation(finalizer):
+    def run_operation_(finalizer):
         operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, verbose=verbose)
         get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
 
-    if not config.DETACHED:
+    if config.DETACHED:
+        run_operation_(finalizer)
+    else:
         transaction = PingableTransaction(
             config.OPERATION_TRANSACTION_TIMEOUT,
             attributes={"title": "Python wrapper: envelope transaction of operation"})
-        def run_in_transaction():
-            def envelope_finalizer(state):
-                if finalizer is not None:
-                    finalizer(state)
-                transaction.__exit__(*sys.exc_info())
-            with transaction:
-                run_operation(envelope_finalizer)
 
         def finish_transaction():
             transaction.__exit__(*sys.exc_info())
 
-        execute_handling_sigint(run_in_transaction, finish_transaction)
-    else:
-        run_operation(finalizer)
+        with KeyboardInterruptsCatcher(finish_transaction):
+            with transaction:
+                run_operation_(finalizer)
 
 """ Common table methods """
 def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None):

@@ -60,6 +60,12 @@ class YtTokenError(YtError):
 class YtFormatError(YtError):
     pass
 
+class YtWaitStrategyTimeoutError(YtError):
+    """
+    Oops! WaitStrategy timeout expired.
+    """
+    pass
+
 
 def format_error(error, indent=0):
     if errors_config.ERROR_FORMAT == "json":
