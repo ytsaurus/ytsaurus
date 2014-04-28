@@ -425,7 +425,7 @@ class YTEnv(object):
         if len(self._node_addresses["node" + instance_id]) > 0:
             return self._node_addresses["node" + instance_id]
         else:
-            return self._master_addresses["master" + instance_id]     
+            return self._master_addresses["master" + instance_id]
 
     def _prepare_schedulers(self, schedulers_count, scheduler_name):
         if schedulers_count == 0:
@@ -605,3 +605,18 @@ class YTEnv(object):
             return context
         with context:
             callableObj(*args, **kwargs)
+
+    def assertAlmostEqual(self, first, second, places=None, msg=None, delta=None):
+        """ check equality of float numbers with some precision """
+        if first == second:
+            return
+
+        if delta is not None and places is not None:
+            raise TypeError("specify delta or places not both")
+
+        if delta is not None:
+            assert abs(first - second) <= delta
+        else:
+            if places is None:
+                places = 7
+            assert round(abs(second-first), places) == 0
