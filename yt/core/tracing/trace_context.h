@@ -33,6 +33,7 @@ Stroka ToString(const TTraceContext& context);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceContextGuard
+    : private TNonCopyable
 {
 public:
     explicit TTraceContextGuard(const TTraceContext& context);
@@ -55,6 +56,7 @@ TTraceContext CreateRootTraceContext();
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceSpanGuard
+    : private TNonCopyable
 {
 public:
     TTraceSpanGuard(
