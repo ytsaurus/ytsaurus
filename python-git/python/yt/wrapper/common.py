@@ -84,20 +84,6 @@ def get_value(value, default):
 def dump_to_json(obj):
     return json.dumps(yson.yson_to_json(obj), indent=2)
 
-def execute_handling_sigint(action, except_action):
-    try:
-        return action()
-    except KeyboardInterrupt:
-        while True:
-            try:
-                except_action()
-            except KeyboardInterrupt:
-                continue
-            break
-        raise
-    except:
-        raise
-
 def chunk_iter(stream, chunk_size):
     while True:
         chunk = stream.read(chunk_size)
