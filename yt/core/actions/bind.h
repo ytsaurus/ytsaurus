@@ -71,13 +71,9 @@ Bind(
     // Binding a raw pointer can result in invocation with dead parameters,
     // because #TBindState do not hold references to parameters.
 
-    // static_assert(!(
-    //     NYT::NDetail::TIsMethodHelper<TRunnable>::Value &&
-    //     NMpl::TIsArray<P1>::Value),
-    //     "First bound argument to a method cannot be an array");
-
-    typedef NYT::NDetail::TCheckRunnableSignature<typename TRunnable::TSignature> TIsArgsNonConstReferenceStaticCheck;
-    typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TParams>...> TParamsIsRawPtrToRefCountedTypeStaticCheck;
+    typedef NYT::NDetail::TCheckFirstArgument<TRunnable, TParams...> TCheckFirstArgument;
+    typedef NYT::NDetail::TCheckReferencesInSignature<typename TRunnable::TSignature> TCheckReferencesInSignature;
+    typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TParams>...> TCheckParamsIsRawPtrToRefCountedType;
 
     typedef NYT::NDetail::TBindState<TRunnable, TSignature,
         void(typename NMpl::TDecay<TParams>::TType...)> TTypedBindState;

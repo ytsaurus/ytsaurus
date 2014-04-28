@@ -351,6 +351,19 @@ struct TIsNonConstReference<const T&>
 
 /*! \} */
 
+template <class TRunnable, class... TParams>
+struct TCheckFirstArgument
+{ };
+
+template <class TRunnable, class TFirstParam, class... TOtherParams>
+struct TCheckFirstArgument<TRunnable, TFirstParam, TOtherParams...>
+{
+     static_assert(!(
+         NYT::NDetail::TIsMethodHelper<TRunnable>::Value &&
+         NMpl::TIsArray<TFirstParam>::Value),
+         "First bound argument to a method cannot be an array");
+};
+
 template <class T>
 struct TIsRawPtrToRefCountedType
 {
@@ -377,7 +390,7 @@ struct TCheckIsRawPtrToRefCountedTypeHelper
 };
 
 template <class T>
-struct TCheckRunnableSignatureArg
+struct TCheckArgIsNonConstReference
 {
     static_assert(
         !NYT::NDetail::TIsNonConstReference<T>::Value,
@@ -385,11 +398,11 @@ struct TCheckRunnableSignatureArg
 };
 
 template <class TSignature>
-struct TCheckRunnableSignature;
+struct TCheckReferencesInSignature;
 
 template <class R, class... TArgs>
-struct TCheckRunnableSignature<R(TArgs...)>
-    : NYT::NMpl::TTypesPack<TCheckRunnableSignatureArg<TArgs>...>
+struct TCheckReferencesInSignature<R(TArgs...)>
+    : NYT::NMpl::TTypesPack<TCheckArgIsNonConstReference<TArgs>...>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
