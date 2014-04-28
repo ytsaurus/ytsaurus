@@ -80,7 +80,7 @@ FORCED_INLINE void* GetRefCountedTrackerCookie()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
     void* cookie = ::NYT::GetRefCountedTrackerCookie<T>()
@@ -88,7 +88,7 @@ FORCED_INLINE void* GetRefCountedTrackerCookie()
 #define REF_COUNTED_NEW_EPILOGUE() \
     InitializeTracking(result.Get(), cookie, sizeof (T))
 
-#else // !ENABLE_REF_COUNTED_TRACKING
+#else // !YT_ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
     (void) 0
@@ -96,7 +96,7 @@ FORCED_INLINE void* GetRefCountedTrackerCookie()
 #define REF_COUNTED_NEW_EPILOGUE() \
     (void) 0
 
-#endif // ENABLE_REF_COUNTED_TRACKING
+#endif // YT_ENABLE_REF_COUNTED_TRACKING
 
 template <class T, class... As>
 inline TIntrusivePtr<T> New(As&&... args)

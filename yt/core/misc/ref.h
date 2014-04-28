@@ -191,7 +191,7 @@ public:
     static TSharedRef FromString(const Stroka& str, void* tagCookie)
     {
         auto holder = New<TStringHolder>(str);
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
         holder->InitializeTracking(tagCookie);
 #endif
         auto ref = TRef::FromString(holder->Data_);
@@ -219,7 +219,7 @@ public:
     static TSharedRef FromBlob(TBlob&& blob, void* tagCookie)
     {
         auto holder = New<TBlobHolder>(std::move(blob));
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
         holder->InitializeTracking(tagCookie);
 #endif
         auto ref = TRef::FromBlob(holder->Blob_);
@@ -335,7 +335,7 @@ private:
 
         TBlob Blob_;
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
         void* Cookie_;
         void InitializeTracking(void* cookie);
         void FinalizeTracking();
@@ -354,7 +354,7 @@ private:
 
         Stroka Data_;
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
         void* Cookie_;
         void InitializeTracking(void* cookie);
         void FinalizeTracking();

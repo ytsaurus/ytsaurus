@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#define ENABLE_REF_COUNTED_TRACKING
+#define YT_ENABLE_REF_COUNTED_TRACKING
 
 #include <core/misc/common.h>
 #include <core/misc/ref_counted_tracker.h>

@@ -106,7 +106,7 @@
 
 #include <core/misc/mpl.h>
 
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
 #include <core/misc/source_location.h>
 #endif
 

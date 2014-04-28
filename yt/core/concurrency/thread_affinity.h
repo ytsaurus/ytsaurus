@@ -55,7 +55,7 @@ private:
 
 };
 
-#ifdef ENABLE_THREAD_AFFINITY_CHECK
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
     mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, __Slot)

@@ -14,7 +14,7 @@ $$==============================================================================
 
 #include <core/misc/common.h>
 
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
 #include <core/misc/source_location.h>
 #endif
 
@@ -38,7 +38,7 @@ struct TBindStateBase
 {
 public:
     explicit TBindStateBase(
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         const TSourceLocation& location
 #endif
     );
@@ -46,7 +46,7 @@ public:
     virtual ~TBindStateBase();
 
     NTracing::TTraceContext TraceContext;
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TSourceLocation Location;
 #endif
 

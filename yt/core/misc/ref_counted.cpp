@@ -8,7 +8,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedBase::TRefCountedBase()
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     : TypeCookie(nullptr)
     , InstanceSize(0)
 #endif
@@ -16,12 +16,12 @@ TRefCountedBase::TRefCountedBase()
 
 TRefCountedBase::~TRefCountedBase()
 {
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     FinalizeTracking();
 #endif
 }
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 void TRefCountedBase::InitializeTracking(void* typeCookie, size_t instanceSize)
 {

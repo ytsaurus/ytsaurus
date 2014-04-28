@@ -23,19 +23,19 @@ bool TRef::AreBitwiseEqual(const TRef& lhs, const TRef& rhs)
 
 TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
     : Blob_(std::move(blob))
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     , Cookie_(nullptr)
 #endif
 { }
 
 TSharedRef::TBlobHolder::~TBlobHolder()
 {
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     FinalizeTracking();
 #endif
 }
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 void TSharedRef::TBlobHolder::InitializeTracking(void* cookie)
 {
@@ -56,19 +56,19 @@ void TSharedRef::TBlobHolder::FinalizeTracking()
 
 TSharedRef::TStringHolder::TStringHolder(const Stroka& string)
     : Data_(string)
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     , Cookie_(nullptr)
 #endif
 { }
 
 TSharedRef::TStringHolder::~TStringHolder()
 {
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     FinalizeTracking();
 #endif
 }
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 void TSharedRef::TStringHolder::InitializeTracking(void* cookie)
 {

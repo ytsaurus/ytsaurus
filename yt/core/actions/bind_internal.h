@@ -4,7 +4,7 @@
 #include "bind_mpl.h"
 #include "callback_internal.h"
 
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
 #include <core/misc/source_location.h>
 #endif
 
@@ -495,13 +495,13 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
 
     template<class... P>
     TBindState(
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         const TSourceLocation& location,
 #endif
         const TRunnable& runnable,
         P&&... p)
         : TBindStateBase(
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             location
 #endif
         )

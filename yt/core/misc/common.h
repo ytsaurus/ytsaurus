@@ -26,22 +26,22 @@
 
 // This define enables tracking of reference-counted objects to provide
 // various insightful information on memory usage and object creation patterns.
-#define ENABLE_REF_COUNTED_TRACKING
+#define YT_ENABLE_REF_COUNTED_TRACKING
 
 // This define causes printing enormous amount of debugging information to stderr.
 // Use when you really have to.
-#undef ENABLE_REF_COUNTED_DEBUGGING
+#undef YT_ENABLE_REF_COUNTED_DEBUGGING
 
 #ifndef NDEBUG
     // This define enables thread affinity check -- a user-defined verification ensuring
     // that some functions are called from particular threads.
-    #define ENABLE_THREAD_AFFINITY_CHECK
+    #define YT_ENABLE_THREAD_AFFINITY_CHECK
 
     // This define enables logging with TRACE level.
-    #define ENABLE_TRACE_LOGGING
+    #define YT_ENABLE_TRACE_LOGGING
 
     // This define enables tracking of bind location
-    #define ENABLE_BIND_LOCATION_TRACKING
+    #define YT_ENABLE_BIND_LOCATION_TRACKING
 #endif
 
 // Configure SSE usage.

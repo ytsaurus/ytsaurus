@@ -7,12 +7,12 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 TBindStateBase::TBindStateBase(
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location
 #endif
     )
     : TraceContext(NTracing::GetCurrentTraceContext())
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     , Location(location)
 #endif
 { }

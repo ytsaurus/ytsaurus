@@ -3,7 +3,7 @@
 #include "bind_internal.h"
 #include "callback_internal.h"
 
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
 #define BIND(...) ::NYT::Bind(FROM_HERE, __VA_ARGS__)
 #else
 #define BIND(...) ::NYT::Bind(__VA_ARGS__)
@@ -47,7 +47,7 @@ TCallback<
         void(typename NMpl::TDecay<TParams>::TType...)
     >::TUnboundSignature>
 Bind(
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location,
 #endif
     TFunctor functor, TParams&&... params) {
@@ -83,7 +83,7 @@ Bind(
         void(typename NMpl::TDecay<TParams>::TType...)> TTypedBindState;
     return TCallback<typename TTypedBindState::TUnboundSignature>(
         New<TTypedBindState>(
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             location,
 #endif
             NYT::NDetail::MakeRunnable(functor),

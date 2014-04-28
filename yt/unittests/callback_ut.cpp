@@ -36,7 +36,7 @@ class TBindState<void(), void(), void(TFakeInvoker)>
 {
 public:
     typedef TFakeInvoker TInvokerType;
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TBindState()
         : TBindStateBase(FROM_HERE)
     { }
@@ -49,7 +49,7 @@ class TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
 {
 public:
     typedef TFakeInvoker TInvokerType;
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TBindState()
         : TBindStateBase(FROM_HERE)
     { }
