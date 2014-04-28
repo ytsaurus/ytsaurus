@@ -508,7 +508,7 @@ i64 GetDataWeight(TUnversionedRow row)
     return std::accumulate(
         row.Begin(),
         row.End(),
-        0,
+        0ll,
         [] (i64 x, const TUnversionedValue& value) {
             return GetDataWeight(value) + x;
         });
