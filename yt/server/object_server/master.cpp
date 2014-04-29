@@ -54,27 +54,6 @@ private:
         return TObjectProxyBase::DoInvoke(context);
     }
 
-    TAccount* GetAccount(const Stroka& name)
-    {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        auto* account = securityManager->FindAccountByName(name);
-        if (!account) {
-            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
-        }
-        return account;
-    }
-
-    TTransaction* GetTransaction(const TTransactionId& id)
-    {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        auto* transaction = transactionManager->FindTransaction(id);
-        if (!IsObjectAlive(transaction)) {
-            THROW_ERROR_EXCEPTION("No such transaction %s", ~ToString(id));
-        }
-        transaction->ValidateActive();
-        return transaction;
-    }
-
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
     {
         DeclareMutating();
@@ -91,14 +70,14 @@ private:
             request->has_account() ? ~request->account() : "<Null>",
             request->object_count());
 
-        auto* transaction =
-            transactionId != NullTransactionId
-            ? GetTransaction(transactionId)
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto* transaction =  transactionId != NullTransactionId
+            ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 
-        auto* account =
-            request->has_account()
-            ? GetAccount(request->account())
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* account = request->has_account()
+            ? securityManager->GetAccountByNameOrThrow(request->account())
             : nullptr;
 
         auto attributes =

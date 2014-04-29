@@ -83,6 +83,9 @@ public:
     //! Returns account with a given name (|nullptr| if none).
     TAccount* FindAccountByName(const Stroka& name);
 
+    //! Returns user with a given name (throws if none).
+    TAccount* GetAccountByNameOrThrow(const Stroka& name);
+
     //! Returns "root" built-in account.
     TAccount* GetSysAccount();
 
@@ -137,6 +140,9 @@ public:
 
     //! Returns subject (a user or a group) with a given name (|nullptr| if none).
     TSubject* FindSubjectByName(const Stroka& name);
+
+    //! Returns subject (a user or a group) with a given name (throws if none).
+    TSubject* GetSubjectByNameOrThrow(const Stroka& name);
 
     //! Adds a new member into the group. Throws on failure.
     void AddMember(TGroup* group, TSubject* member);

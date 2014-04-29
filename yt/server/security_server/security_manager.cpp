@@ -318,6 +318,14 @@ public:
         return it == AccountNameMap.end() ? nullptr : it->second;
     }
 
+    TAccount* GetAccountByNameOrThrow(const Stroka& name)
+    {
+        auto* account = FindAccountByName(name);
+        if (!account) {
+            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
+        }
+    }
+
 
     TAccount* GetSysAccount()
     {
@@ -580,6 +588,16 @@ public:
 
         return nullptr;
     }
+
+    TSubject* GetSubjectByNameOrThrow(const Stroka& name)
+    {
+        auto* subject = FindSubjectByName(name);
+        if (!IsObjectAlive(subject)) {
+            THROW_ERROR_EXCEPTION("No such subject %s", ~name.Quote());
+        }
+        return subject;
+    }
+
 
     void AddMember(TGroup* group, TSubject* member)
     {
@@ -1501,6 +1519,11 @@ TAccount* TSecurityManager::FindAccountByName(const Stroka& name)
     return Impl->FindAccountByName(name);
 }
 
+TAccount* TSecurityManager::GetAccountByNameOrThrow(const Stroka& name)
+{
+    return Impl->GetAccountByNameOrThrow(name);
+}
+
 TAccount* TSecurityManager::GetSysAccount()
 {
     return Impl->GetSysAccount();
@@ -1582,6 +1605,11 @@ TGroup* TSecurityManager::GetUsersGroup()
 TSubject* TSecurityManager::FindSubjectByName(const Stroka& name)
 {
     return Impl->FindSubjectByName(name);
+}
+
+TSubject* TSecurityManager::GetSubjectByNameOrThrow(const Stroka& name)
+{
+    return Impl->GetSubjectByNameOrThrow(name);
 }
 
 void TSecurityManager::AddMember(TGroup* group, TSubject* member)

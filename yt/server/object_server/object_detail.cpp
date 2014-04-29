@@ -226,12 +226,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
         ~ToString(permission));
 
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto objectManager = Bootstrap->GetObjectManager();
-
-    auto* user = securityManager->FindUserByName(userName);
-    if (!IsObjectAlive(user)) {
-        THROW_ERROR_EXCEPTION("No such user %s", ~userName.Quote());
-    }
+    auto* user = securityManager->GetUserByNameOrThrow(userName);
 
     auto result = securityManager->CheckPermission(Object, user, permission);
 
@@ -707,11 +702,7 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
             ValidateNoTransaction();
 
             auto name = ConvertTo<Stroka>(value);
-            auto* owner = securityManager->FindSubjectByName(name);
-            if (!IsObjectAlive(owner)) {
-                THROW_ERROR_EXCEPTION("No such subject %s", ~name.Quote());
-            }
-
+            auto* owner = securityManager->GetSubjectByNameOrThrow(name);
             auto* user = securityManager->GetAuthenticatedUser();
             if (user != securityManager->GetRootUser() && user != owner) {
                 THROW_ERROR_EXCEPTION(
