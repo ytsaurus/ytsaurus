@@ -206,7 +206,7 @@ public:
         }
 
         JobResult = jobResult;
-        auto resultError = FromProto(jobResult.error());
+        auto resultError = FromProto<TError>(jobResult.error());
 
         if (resultError.IsOK()) {
             return;
@@ -733,7 +733,7 @@ private:
 
     static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
-        auto resultError = FromProto(jobResult.error());
+        auto resultError = FromProto<TError>(jobResult.error());
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||

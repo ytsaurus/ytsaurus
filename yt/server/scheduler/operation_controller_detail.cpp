@@ -1414,7 +1414,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     RemoveJoblet(job);
 
-    auto error = FromProto(job->Result().error());
+    auto error = FromProto<TError>(job->Result().error());
     if (error.Attributes().Get<bool>("fatal", false)) {
         OnOperationFailed(error);
         return;
@@ -2872,7 +2872,7 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 {
-    auto error = FromProto(job->Result().error());
+    auto error = FromProto<TError>(job->Result().error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
 }
 
@@ -3122,7 +3122,7 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto error = FromProto(Operation->Result().error());
+    auto error = FromProto<TError>(Operation->Result().error());
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("error").Value(error)

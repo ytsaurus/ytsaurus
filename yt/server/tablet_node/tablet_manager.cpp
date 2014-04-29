@@ -713,7 +713,7 @@ private:
             return;
 
         if (response.has_error()) {
-            auto error = FromProto(response.error());
+            auto error = FromProto<TError>(response.error());
             LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %s)",
                 ~ToString(tabletId));
 

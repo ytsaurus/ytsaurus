@@ -59,7 +59,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
             NRpc::NProto::TResponseHeader responseHeader;
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-            auto error = FromProto(responseHeader.error());
+            auto error = FromProto<TError>(responseHeader.error());
 
             context->SetResponseInfo("InnerError: %s", ~ToString(error));
 

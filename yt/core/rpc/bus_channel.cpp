@@ -311,7 +311,7 @@ private:
                 UnregisterRequest(it);
             }
 
-            auto error = FromProto(header.error());
+            auto error = FromProto<TError>(header.error());
             if (error.IsOK()) {
                 NotifyResponse(activeRequest, std::move(message));
             } else {

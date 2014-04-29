@@ -81,7 +81,7 @@ private:
 Stroka ToString(const TError& error);
 
 void ToProto(NProto::TError* protoError, const TError& error);
-TError FromProto(const NProto::TError& protoError);
+void FromProto(TError* error, const NProto::TError& protoError);
 
 void Serialize(const TError& error, NYson::IYsonConsumer* consumer);
 void Deserialize(TError& error, NYTree::INodePtr node);

@@ -1809,7 +1809,7 @@ private:
                 break;
 
             case EJobState::Failed: {
-                auto error = FromProto(jobStatus->result().error());
+                auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_WARNING(error, "Job failed, removal scheduled");
                 OnJobFailed(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
@@ -1817,7 +1817,7 @@ private:
             }
 
             case EJobState::Aborted: {
-                auto error = FromProto(jobStatus->result().error());
+                auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_INFO(error, "Job aborted, removal scheduled");
                 OnJobAborted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);

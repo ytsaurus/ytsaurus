@@ -321,21 +321,17 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
     }
 }
 
-TError FromProto(const NYT::NProto::TError& protoError)
+void FromProto(TError* error, const NYT::NProto::TError& protoError)
 {
-    TError error(
+    *error = TError(
         protoError.code(),
         protoError.has_message() ? protoError.message() : "");
 
     if (protoError.has_attributes()) {
-        error.Attributes().MergeFrom(*FromProto(protoError.attributes()));
+        error->Attributes().MergeFrom(*FromProto(protoError.attributes()));
     }
 
-    for (const auto& innerProtoError : protoError.inner_errors()) {
-        error.InnerErrors().push_back(FromProto(innerProtoError));
-    }
-
-    return error;
+    error->InnerErrors() = FromProto<TError>(protoError.inner_errors());
 }
 
 void Serialize(const TError& error, NYson::IYsonConsumer* consumer)

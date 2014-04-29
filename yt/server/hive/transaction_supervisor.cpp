@@ -359,7 +359,7 @@ private:
         }
 
         if (request.has_error()) {
-            auto error = FromProto(request.error());
+            auto error = FromProto<TError>(request.error());
             LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %s, ParticipantCellGuid: %s)",
                 ~ToString(transactionId),
                 ~ToString(participantCellGuid));

@@ -81,7 +81,7 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
     TResponseHeader header;
     YCHECK(DeserializeFromProto(&header, responseMessage[0]));
 
-    Error_ = FromProto(header.error());
+    Error_ = FromProto<TError>(header.error());
     if (Error_.IsOK()) {
         YASSERT(responseMessage.Size() >= 2);
         ResponseBody_ = responseMessage[1];

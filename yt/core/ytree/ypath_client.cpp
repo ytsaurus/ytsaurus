@@ -125,7 +125,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
         return;
     }
 
-    Error_ = NYT::FromProto(header.error());
+    Error_ = NYT::FromProto<TError>(header.error());
 
     if (Error_.IsOK()) {
         // Deserialize body.
@@ -230,7 +230,7 @@ void OnYPathResponse(
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-    auto error = NYT::FromProto(responseHeader.error());
+    auto error = NYT::FromProto<TError>(responseHeader.error());
 
     if (error.IsOK()) {
         asyncResponseMessage.Set(responseMessage);

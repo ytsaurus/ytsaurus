@@ -839,7 +839,7 @@ void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, TObjectServi
     auto responseMessage = batchRsp->GetResponseMessage(0);
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-    auto error = FromProto(responseHeader.error());
+    auto error = FromProto<TError>(responseHeader.error());
     LOG_DEBUG(error, "Received response for forwarded request");
     context->Reply(responseMessage);
 }

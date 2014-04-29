@@ -250,7 +250,7 @@ private:
 
             TResponseHeader responseHeader;
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-            auto responseError = FromProto(responseHeader.error());
+            auto responseError = FromProto<TError>(responseHeader.error());
 
             LOG_DEBUG("Cache population request succeded (Key: {%s}, Error: %s)",
                 ~ToString(key),

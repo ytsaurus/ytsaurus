@@ -57,7 +57,7 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            auto error = FromProto(job->Result().error());
+            auto error = FromProto<TError>(job->Result().error());
             fluent.Item("error").Value(error);
         });
 }

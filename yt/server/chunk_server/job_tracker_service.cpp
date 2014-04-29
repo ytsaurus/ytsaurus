@@ -99,7 +99,7 @@ private:
                 if (job) {
                     job->SetState(state);
                     if (state == EJobState::Completed || state == EJobState::Failed) {
-                        job->Error() = FromProto(jobStatus.result().error());
+                        job->Error() = FromProto<TError>(jobStatus.result().error());
                     }
                     currentJobs.push_back(job);
                 } else {

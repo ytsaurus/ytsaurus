@@ -278,7 +278,7 @@ private:
             TResponseHeader responseHeader;
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-            auto error = FromProto(responseHeader.error());
+            auto error = FromProto<TError>(responseHeader.error());
 
             LOG_DEBUG("Execute[%d] -> Error: %s (RequestId: %s)",
                 requestIndex,
