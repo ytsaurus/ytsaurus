@@ -114,9 +114,12 @@ public:
         const TColumnIdMapping* idMapping)
     {
         if (row) {
-            WriteRowValues(row.Begin(), row.End(), idMapping);
+            WriteUInt32(row.GetCount() + 1);
+            for (int index = 0; index < row.GetCount(); ++index) {
+                WriteRowValue(row[index], idMapping);
+            }
         } else {
-            WriteRowValues(nullptr, nullptr, idMapping);
+            WriteUInt32(0);
         }
     }
 
@@ -124,16 +127,19 @@ public:
         const std::vector<TUnversionedValue>& row,
         const TColumnIdMapping* idMapping)
     {
-        WriteRowValues(row.data(), row.data() + row.size(), idMapping);
+        WriteUInt32(row.size() + 1);
+        for (int index = 0; index < row.size(); ++index) {
+            WriteRowValue(row[index], idMapping);
+        }
     }
 
     void WriteUnversionedRowset(
         const std::vector<TUnversionedRow>& rowset,
         const TColumnIdMapping* idMapping)
     {
-        int rowCount = static_cast<int>(rowset.size());
-        ValidateRowCount(rowCount);
-        WriteUInt32(static_cast<ui32>(rowCount));
+        int count = static_cast<int>(rowset.size());
+        ValidateRowCount(count);
+        WriteUInt32(static_cast<ui32>(count));
         for (auto row : rowset) {
             WriteUnversionedRow(row, idMapping);
         }
@@ -152,7 +158,6 @@ private:
     std::unique_ptr<google::protobuf::io::StringOutputStream> RawStream_;
     std::unique_ptr<google::protobuf::io::CodedOutputStream> CodedStream_;
 
-    std::vector<TUnversionedValue> PooledValues_;
 
     void WriteUInt32(ui32 value)
     {
@@ -185,8 +190,20 @@ private:
         CodedStream_->WriteRaw(buffer, size);
     }
 
-    void WriteRowValue(const TUnversionedValue& value)
+    void WriteRowValue(
+        const TUnversionedValue& value,
+        const TColumnIdMapping* idMapping)
     {
+        if (idMapping) {
+            if (value.Id >= idMapping->size()) {
+                THROW_ERROR_EXCEPTION("Invalid column id %d, expected in range [0, %d]",
+                    static_cast<int>(value.Id),
+                    static_cast<int>(idMapping->size()));
+            }
+            WriteUInt32((*idMapping)[value.Id]);
+        } else {
+            WriteUInt32(value.Id);
+        }
         WriteUInt32(value.Type);
         switch (value.Type) {
             case EValueType::Integer:
@@ -205,56 +222,6 @@ private:
 
             default:
                 break;
-        }
-    }
-
-    void WriteRowValues(
-        const TUnversionedValue* begin,
-        const TUnversionedValue* end,
-        const TColumnIdMapping* idMapping)
-    {
-        if (!begin) {
-            WriteUInt32(0);
-            return;
-        }
-
-        int valueCount = end - begin;
-        WriteUInt32(valueCount + 1);
-
-        if (idMapping) {
-            PooledValues_.resize(valueCount);
-            for (int index = 0; index < valueCount; ++index) {
-                const auto& srcValue = begin[index];
-                auto& dstValue = PooledValues_[index];
-
-                if (srcValue.Id >= idMapping->size()) {
-                    THROW_ERROR_EXCEPTION("Invalid column id %d, expected in range [0, %d]",
-                        static_cast<int>(srcValue.Id),
-                        static_cast<int>(idMapping->size()));
-                }
-
-                dstValue = srcValue;
-                dstValue.Id = (*idMapping)[srcValue.Id];
-            }
-
-            std::sort(
-                PooledValues_.begin(),
-                PooledValues_.end(),
-                [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
-                    return lhs.Id < rhs.Id;
-                });
-
-            for (int index = 0; index < valueCount; ++index) {
-                if (index > 0 && PooledValues_[index - 1].Id == PooledValues_[index].Id) {
-                    THROW_ERROR_EXCEPTION("Duplicate column id %d",
-                        static_cast<int>(PooledValues_[index].Id));
-                }
-                WriteRowValue(PooledValues_[index]);
-            }
-        } else {
-            for (int index = 0; index < valueCount; ++index) {
-                WriteRowValue(begin[index]);
-            }
         }
     }
 
