@@ -6,6 +6,8 @@
 
 #include <core/logging/log_manager.h>
 
+#include <core/tracing/trace_manager.h>
+
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/shutdown.h>
@@ -104,6 +106,7 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
 
     try {
         NLog::TLogManager::Get()->Configure(config->Logging);
+        NTracing::TTraceManager::Get()->Configure(config->Tracing);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
         TAddressResolver::Get()->Configure(config->AddressResolver);
     } catch (const std::exception& ex) {
