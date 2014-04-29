@@ -156,7 +156,9 @@ private:
                 THROW_ERROR_EXCEPTION("Operation is not supported");
             }
 
-            node->KeyColumns() = ConvertTo<TKeyColumns>(value);
+            auto keyColumns = ConvertTo<TKeyColumns>(value);
+            ValidateKeyColumns(keyColumns);
+            node->KeyColumns() = keyColumns;
             node->SetSorted(!node->KeyColumns().empty());
             return true;
         }
@@ -169,8 +171,6 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
-        UNUSED(oldValue);
-
         if (key == "channels") {
             if (!newValue) {
                 ThrowCannotRemoveAttribute(key);
@@ -277,6 +277,7 @@ private:
             THROW_ERROR_EXCEPTION("Table must be in \"overwrite\" mode");
         }
 
+        ValidateKeyColumns(keyColumns);
         node->KeyColumns() = keyColumns;
         node->SetSorted(true);
 

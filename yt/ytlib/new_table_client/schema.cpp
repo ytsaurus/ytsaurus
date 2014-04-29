@@ -223,6 +223,25 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateKeyColumns(const TKeyColumns& keyColumns)
+{
+    if (keyColumns.size() > MaxKeyColumnCount) {
+        THROW_ERROR_EXCEPTION("Too many key columns: %d > %d",
+            static_cast<int>(keyColumns.size()),
+            MaxKeyColumnCount);
+    }
+
+    yhash_set<Stroka> names;
+    for (const auto& name : keyColumns) {
+        if (!names.insert(name).second) {
+            THROW_ERROR_EXCEPTION("Duplicate key column name %s",
+                ~name.Quote());
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
 } // namespace NYT
 
