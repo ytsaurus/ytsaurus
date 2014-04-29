@@ -134,7 +134,10 @@ config = {
     user_interface    : opts.argv.user_interface,
     read_only         : opts.argv.read_only,
     agent             : opts.argv.agent,
-    proxy             : { logging : { rules : [], writers : {} } },
+    proxy             : {
+        logging : { rules : [], writers : {} },
+        tracing : { },
+    },
     services : {
         oauth : {
             host: "oauth.yandex-team.ru",
