@@ -245,6 +245,10 @@ private:
                 });
 
             for (int index = 0; index < valueCount; ++index) {
+                if (index > 0 && PooledValues_[index - 1].Id == PooledValues_[index].Id) {
+                    THROW_ERROR_EXCEPTION("Duplicate column id %d",
+                        static_cast<int>(PooledValues_[index].Id));
+                }
                 WriteRowValue(PooledValues_[index]);
             }
         } else {
