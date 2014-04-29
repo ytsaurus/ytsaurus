@@ -265,6 +265,8 @@ struct TExecuteRequest
     TDriverRequest DriverRequest;
     TDriverResponse DriverResponse;
 
+    NTracing::TTraceContext TraceContext;
+
     TExecuteRequest(
         TDriverWrap* wrap,
         TInputStreamWrap* inputStream,
@@ -315,6 +317,11 @@ struct TExecuteRequest
         DriverRequest.CommandName = std::move(commandName);
         DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
         DriverRequest.Arguments = arguments->AsMap();
+
+        auto trace = DriverRequest.Arguments->FindChild("trace");
+        if (trace && ConvertTo<bool>(trace)) {
+            TraceContext = NTracing::CreateRootTraceContext();
+        }
     }
 
     void SetInputCompression(ECompression compression)
@@ -669,6 +676,8 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
     if (LIKELY(!request->Wrap->Echo)) {
+        // TODO(sandello): Make trace id coherent with trace id in nodejs.
+        NTracing::TTraceContextGuard guard(request->TraceContext);
         // Execute() method is guaranteed to be exception-safe,
         // so no try-catch here.
         request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest).Get();
