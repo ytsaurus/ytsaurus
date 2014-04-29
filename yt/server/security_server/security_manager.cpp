@@ -324,6 +324,7 @@ public:
         if (!account) {
             THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
         }
+        return account;
     }
 
 
