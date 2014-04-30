@@ -73,7 +73,7 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
             logger.error("Trying to remove operation (%s) that is not in final state", op)
             sys.exit(1)
         if log is not None:
-            log_output.write(yt.get("//sys/operations/%s/@" % op, format=yt.Format("<format=text>json")))
+            log_output.write(yt.get("//sys/operations/%s/@" % op, format=yt.create_format("<format=text>json")))
             log_output.write("\n")
         logger.info("Removing operation %s", op)
         yt.remove("//sys/operations/%s" % op, recursive=True)
