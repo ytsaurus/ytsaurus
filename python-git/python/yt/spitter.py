@@ -12,17 +12,30 @@ import logging
 import json
 
 
+DEFAULT_KAFKA_ENDPOINT = ("kafka02gt.stat.yandex.net", 9000)
+DEFAULT_SERVICE_ID = "yt"
+DEFAULT_SOURCE_ID = "tramsmm43"
+
+
 class State(object):
-    def __init__(self, log_broker, event_log):
-        self.log_broker_ = log_broker
+    log = logging.getLogger("State")
+
+    def __init__(self, event_log, chunk_size=1000):
+        self.log_broker_ = None
         self.event_log_ = event_log
-        self.chunk_size = 1000
+        self.chunk_size = chunk_size
         self.last_saved_seqno_ = 0
         self.last_seqno_ = 0
         self.acked_seqno_ = set()
 
+    def start(self, io_loop=None, IOStreamClass=None):
+        self.log_broker_ = LogBroker(self, io_loop, IOStreamClass)
+        self.log_broker_.start()
+        self.maybe_save_another_chunk()
+
     def maybe_save_another_chunk(self):
         if self.last_saved_seqno_ - self.last_seqno_ < 1:
+            self.log.debug("Schedule chunk save")
             seqno = self.last_saved_seqno_ + 1
             data = self.event_log_.get_data(self.to_line_index(seqno), self.chunk_size)
             self.log_broker_.save_chunk(seqno, data)
@@ -51,6 +64,8 @@ class State(object):
             self.update_last_seqno(last_seqno)
 
     def update_last_seqno(self, new_last_seqno):
+        self.log.debug("Update last seqno: %d", new_last_seqno)
+
         self.event_log_.set_next_line_to_save(self.to_line_index(new_last_seqno))
         self.last_seqno_ = new_last_seqno
         for seqno in list(self.acked_seqno_):
@@ -63,25 +78,26 @@ class State(object):
 
 
 class EventLog(object):
-    def __init__(self, yt):
+    def __init__(self, yt, table_name=None):
         self.yt = yt
-        self.table_name_ = "//sys/scheduler/event_log"
+        self.table_name_ = table_name or "//tmp/event_log"
 
     def get_data(self, begin, count):
         with self.yt.Transaction():
             lines_removed = int(self.yt.get("{0}/@index_of_first_line".format(self.table_name_)))
             begin -= lines_removed
-            return self.yt.read("{0}[#{1}:#{2}]".format(
+            assert begin >= 0
+            return [json.loads(item) for item in self.yt.read_table("{0}[#{1}:#{2}]".format(
                 self.table_name_,
                 begin,
-                begin + count))
+                begin + count), format="json")]
 
     def set_next_line_to_save(self, line_index):
-        self.yt.set("{0}/@lines_to_save", line_index - lines_removed)
+        self.yt.set("{0}/@lines_to_save".format(self.table_name_), line_index)
 
 
-def serialize_chunk(seqno, data):
-    serialized_data = struct.pack("<QQQ", 0, seqno, 0)
+def serialize_chunk(chunk_id, seqno, lines, data):
+    serialized_data = struct.pack("<QQQ", chunk_id, seqno, lines)
     for row in data:
         serialized_data += json.dumps(row)
     return serialized_data
@@ -94,7 +110,7 @@ def parse_chunk(serialized_data):
     assert index != -1
     index += len("\r\n")
 
-    _1, seqno, _3 = struct.unpack("<QQQ", serialized_data[index:index + 3*8])
+    chunk_id, seqno, lines = struct.unpack("<QQQ", serialized_data[index:index + 3*8])
     index += 3*8
 
     data = []
@@ -109,11 +125,12 @@ def parse_chunk(serialized_data):
 class LogBroker(object):
     log = logging.getLogger("log_broker")
 
-    def __init__(self, state, io_loop=None, IOStreamClass=None):
-        self.endpoint_ = ("kafka02gt.stat.yandex.net", 9000)
-#        self.endpoint_ = ("localhost", 9000)
+    def __init__(self, state, io_loop=None, IOStreamClass=None, endpoint=None):
+        self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
         self.state_ = state
         self.starting_ = False
+        self.chunk_id_ = 0
+        self.lines_ = 0
         self.session_ = None
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
         self.iostream_ = None
@@ -124,28 +141,35 @@ class LogBroker(object):
         if not self.starting_:
             self.starting_ = True
             self.log.info("Start a log broker")
-            self.session_ = Session(self.state_, self, self.io_loop_, self.IOStreamClass)
+            self.session_ = Session(self.state_, self, self.io_loop_, self.IOStreamClass, endpoint=self.endpoint_)
             self.session_.connect()
 
     def save_chunk(self, seqno, data):
         if self.iostream_ is not None:
-            serialized_data = serialize_chunk(seqno, data)
+            serialized_data = serialize_chunk(self.chunk_id_, seqno, self.lines_, data)
+            self.chunk_id_ += 1
+            self.lines_ += 1
 
-            self.log.debug("Save chunk: %s", serialized_data)
+            self.log.debug("Save chunk: %r", serialized_data)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
             self.iostream_.write(data_to_write)
         else:
             self.start()
+            self.log.debug("Add %d chunk to pending queue", seqno)
             self.pending_data.append((seqno, data))
 
     def on_session_changed(self, id_):
         self.starting_ = False
         # close old iostream_
+        self.chunk_id_ = 0
+        self.lines_ = 0
+
         self.log.info("Create a push channel")
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self.iostream_ = self.IOStreamClass(s, io_loop=self.io_loop_)
         self.iostream_.set_close_callback(self.on_close)
         self.iostream_.connect(self.endpoint_, callback=self.on_connect)
+        self.log.info("Send request")
         self.iostream_.write(
             "PUT /rt/store HTTP/1.1\r\n"
             "Host: 127.0.0.1\r\n"
@@ -177,8 +201,18 @@ class LogBroker(object):
 class Session(object):
     log = logging.getLogger("session")
 
-    def __init__(self, state, log_broker, io_loop=None, IOStreamClass=None):
-        self.endpoint_ = ("kafka02gt.stat.yandex.net", 9000)
+    def __init__(
+            self,
+            state,
+            log_broker,
+            io_loop=None,
+            IOStreamClass=None,
+            endpoint=None,
+            service_id=None,
+            source_id=None):
+        self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self.service_id_ = service_id or DEFAULT_SERVICE_ID
+        self.source_id_ = source_id or DEFAULT_SOURCE_ID
         self.id_ = None
         self.state_ = state
         self.log_broker_ = log_broker
@@ -203,7 +237,7 @@ class Session(object):
             "Host: kafka02gt.stat.yandex.net\r\n"
             "Accept: */*\r\n\r\n".format(
                 ident="yt",
-                source_id="tramsmm42")
+                source_id=self.source_id_)
         )
 
     @gen.coroutine
@@ -263,7 +297,20 @@ class Session(object):
 
 
 def main():
-    pass
+    table_name = "//tmp/event_log"
+    proxy_path = "quine.yt.yandex.net"
+
+    logging.basicConfig(level=logging.DEBUG)
+
+    io_loop = ioloop.IOLoop.instance()
+    def stop():
+        io_loop.stop()
+
+    yt.config.set_proxy(proxy_path)
+    event_log = EventLog(yt, table_name=table_name)
+    state = State(event_log=event_log, chunk_size=1)
+    state.start()
+    io_loop.start()
 
 
 if __name__ == "__main__":

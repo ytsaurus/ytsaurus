@@ -3,20 +3,20 @@ import spitter
 from tornado import iostream
 from tornado import ioloop
 
+from yt import wrapper as yt
+
 import pytest
 import mock
 import datetime
 import unittest
+import json
 
 
 @pytest.fixture
 def fake_state():
-    return spitter.State(mock.Mock(name="log_broker"), mock.Mock(name="event_log"))
-
-
-def test_on_skip_new(fake_state):
-    fake_state.on_skip(10);
-    assert fake_state.event_log_.set_next_line_to_save.called
+    state = spitter.State(event_log=mock.Mock(name="event_log"))
+    state.log_broker_ = mock.Mock(name="log_broker")
+    return state
 
 
 def test_on_skip_new(fake_state):
@@ -75,11 +75,13 @@ def test_save(fake_state):
 
 
 def test_event_log_get_data():
-    event_log = spitter.EventLog(mock.Mock(name="yt"))
-    event_log.yt.get = mock.Mock(return_value = 200)
-    event_log.yt.Transaction = mock.MagicMock()
+    fake_yt = mock.Mock(name="yt")
+    fake_yt.get = mock.Mock(return_value=200)
+    fake_yt.read_table = mock.Mock(return_value=[json.dumps("1")])
+    fake_yt.Transaction = mock.MagicMock()
+    event_log = spitter.EventLog(fake_yt, table_name="//tmp/event_log")
     event_log.get_data(200, 1000)
-    event_log.yt.read.assert_called_with("//sys/scheduler/event_log[#0:#1000]")
+    fake_yt.read_table.assert_called_with("//tmp/event_log[#0:#1000]", format="json")
 
 
 @pytest.fixture
@@ -297,20 +299,3 @@ def test_session_integration():
     s.connect()
     io_loop.start()
     assert s.id_ is not None
-
-
-def test_integration():
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
-
-    io_loop = ioloop.IOLoop.instance()
-    def stop():
-        io_loop.stop()
-
-    io_loop.add_timeout(datetime.timedelta(seconds=4), stop)
-    broker = spitter.LogBroker(mock.Mock(), io_loop, iostream.IOStream)
-    broker.save_chunk(0, [{"key":"value"}])
-    broker.save_chunk(1, [{"key":"value"}])
-    broker.save_chunk(2, [{"key":"value"}])
-    broker.save_chunk(3, [{"key":"value"}])
-    io_loop.start()
