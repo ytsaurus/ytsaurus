@@ -4,6 +4,7 @@ import yt.wrapper as yt
 
 from tornado import ioloop
 from tornado import iostream
+from tornado import gen
 
 import socket
 import struct
@@ -180,15 +181,19 @@ class Session(object):
                 source_id="tramsmm42")
         )
 
+    @gen.coroutine
     def on_connect(self):
-        self.iostream_.read_until("\r\n\r\n", self.on_headers)
+        metadata_raw = yield gen.Task(self.iostream_.read_until, "\r\n\r\n")
 
-    def on_headers(self, data):
-        assert data.endswith("\r\n\r\n")
-        self.log.debug("Parse response %s", data)
+        self.log.debug("Parse response %s", metadata_raw)
+        self.read_metadata(metadata_raw[:-4])
 
-        self.read_metadata(data[:-4])
-        self.iostream_.read_until("\r\n", self.on_data_headers)
+        while True:
+            headers_raw = yield gen.Task(self.iostream_.read_until, "\r\n")
+            data = yield gen.Task(self.iostream_.read_until, "\r\n")
+
+            self.log.debug("Process status: %s", data)
+            self.process_data(data)
 
     def read_metadata(self, data):
         for index, line in enumerate(data.split("\n")):
@@ -198,14 +203,6 @@ class Session(object):
                     self.id_ = value.strip()
                     self.log.info("Session id: %s", self.id_)
                     self.log_broker_.on_session_changed(self.id_)
-
-    def on_data_headers(self, data):
-        self.iostream_.read_until("\r\n", self.on_data)
-
-    def on_data(self, data):
-        self.log.debug("Process status: %s", data)
-        self.process_data(data)
-        self.iostream_.read_until("\r\n", self.on_data_headers)
 
     def on_close(self):
         pass
