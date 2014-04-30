@@ -64,6 +64,8 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
         response->set_encoded_response(protocolWriter.GetData());
+        ToProto(response->mutable_query_statistics(), result.Value());
+
         context->Reply();
     }
 

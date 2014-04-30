@@ -63,6 +63,8 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static auto& Logger = DriverLogger;
+
 void TReadCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request_->TableReader
@@ -340,18 +342,37 @@ void TSelectCommand::DoExecute()
     // TODO(babenko): read output via streaming
     TSelectRowsOptions options;
     options.Timestamp = Request_->Timestamp;
+    options.RowLimit = Request_->RowLimit;
 
     auto rowsetOrError = WaitFor(Context_->GetClient()->SelectRows(
         Request_->Query,
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError);
 
-    auto rowset = rowsetOrError.Value();
+    NYT::NApi::IRowsetPtr rowset;
+    NYT::NQueryClient::TQueryStatistics queryStat;
+
+    std::tie(rowset, queryStat) = rowsetOrError.Value();
     auto nameTable = rowset->GetNameTable();
 
     TBlobOutput buffer;
     auto format = Context_->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+
+    LOG_INFO(
+        "Query result statistics (RowsRead: %" PRIu64 ", RowsWritten: %" PRIu64 ", AsyncTime: %lfs., SyncTime: %lfs., Incomplete: %)",
+        queryStat.RowsRead,
+        queryStat.RowsWritten,
+        queryStat.AsyncTime.SecondsFloat(),
+        queryStat.SyncTime.SecondsFloat(),
+        ~ToString(queryStat.Incomplete));
+
+    BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+        .Item("rows_read").Value(queryStat.RowsRead)
+        .Item("rows_written").Value(queryStat.RowsWritten)
+        .Item("async_time").Value(queryStat.AsyncTime.SecondsFloat())
+        .Item("sync_time").Value(queryStat.SyncTime.SecondsFloat())
+        .Item("incomplete").Value(ToString(queryStat.Incomplete));
 
     for (auto row : rowset->GetRows()) {
         ProduceRow(consumer.get(), row, nameTable);

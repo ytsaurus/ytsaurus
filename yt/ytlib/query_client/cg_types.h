@@ -34,6 +34,7 @@ using NVersionedTableClient::TRowBuffer;
 class TPlanFragment;
 class TCGFragment;
 
+// TODO(lukyan): rename to TExecutionContext
 struct TPassedFragmentParams
 {
 #ifdef DEBUG
@@ -47,6 +48,9 @@ struct TPassedFragmentParams
     TChunkedMemoryPool* ScratchSpace;
     ISchemafulWriter* Writer;
     std::vector<TRow>* Batch;
+
+    TQueryStatistics* QueryStat;
+    ui64 RowLimit;
 };
 
 namespace NDetail {

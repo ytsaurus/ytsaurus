@@ -15,6 +15,7 @@ message TReqExecute
 message TRspExecute
 {
     required bytes encoded_response = 1;
+    required TQueryStatistics query_statistics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

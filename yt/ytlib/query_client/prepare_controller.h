@@ -13,8 +13,9 @@ class TPrepareController
 public:
     TPrepareController(
         IPrepareCallbacks* callbacks,
-        TTimestamp timestamp,
-        const Stroka& source);
+        const Stroka& source,
+        ui64 rowLimit,
+        TTimestamp timestamp);
 
     ~TPrepareController();
 

@@ -7,6 +7,8 @@
 #include <core/misc/property.h>
 #include <core/misc/guid.h>
 
+#include <ytlib/query_client/query_service.pb.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -38,6 +40,12 @@ public:
         const Stroka& source,
         TTimestamp timestamp,
         IPrepareCallbacks* callbacks);
+
+    static TPlanFragment Prepare(
+        const Stroka& source,
+        TTimestamp timestamp,
+        ui64 limit,
+        IPrepareCallbacks* callbacks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,6 +61,11 @@ void TPlanFragment::Rewrite(const TFunctor& functor)
 {
     SetHead(Apply(GetContext().Get(), GetHead(), functor));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& original);
+TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

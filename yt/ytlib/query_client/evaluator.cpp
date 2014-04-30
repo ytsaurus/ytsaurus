@@ -15,6 +15,7 @@
 #include <ytlib/new_table_client/row_buffer.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/profiling/scoped_timer.h>
 
 #include <core/misc/cache.h>
 
@@ -308,25 +309,30 @@ public:
         CallCodegenedFunctionPtr_ = &CallCodegenedFunction;
     }
 
-    TError Run(
+    TErrorOr<TQueryStatistics> Run(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer)
     {
         auto Logger = BuildLogger(fragment);
-        auto result = Codegen(fragment);
-
-        auto codegenedFunction = result.first;
-        auto fragmentParams = result.second;
-
-        // Make TRow from fragmentParams.ConstantArray.
-        TChunkedMemoryPool memoryPool;
-        auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
-        for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
-            constants[i] = fragmentParams.ConstantArray[i];
-        }
+        TQueryStatistics queryStat;
+        TDuration wallTime;
 
         try {
+            NProfiling::TScopedRaiiTimer scopedRaiiTimer(&wallTime);
+
+            TCodegenedFunction codegenedFunction;
+            TCGVariables fragmentParams;
+
+            std::tie(codegenedFunction, fragmentParams) = Codegen(fragment);
+
+            // Make TRow from fragmentParams.ConstantArray.
+            TChunkedMemoryPool memoryPool;
+            auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
+            for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
+                constants[i] = fragmentParams.ConstantArray[i];
+            }
+
             LOG_DEBUG("Evaluating plan fragment");
 
             LOG_DEBUG("Opening writer");
@@ -352,12 +358,15 @@ public:
             passedFragmentParams.ScratchSpace = &scratchSpace;
             passedFragmentParams.Writer = writer.Get();
             passedFragmentParams.Batch = &batch;
+            passedFragmentParams.QueryStat = &queryStat;
+            passedFragmentParams.RowLimit = fragment.GetContext()->GetRowLimit();
 
             CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
 
             LOG_DEBUG("Flushing writer");
             if (!batch.empty()) {
                 if (!writer->Write(batch)) {
+                    NProfiling::TScopedRaiiTimer scopedRaiiTimer(&queryStat.AsyncTime);
                     auto error = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
@@ -365,6 +374,7 @@ public:
 
             LOG_DEBUG("Closing writer");
             {
+                NProfiling::TScopedRaiiTimer scopedRaiiTimer(&queryStat.AsyncTime);
                 auto error = WaitFor(writer->Close());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
@@ -372,11 +382,13 @@ public:
             LOG_DEBUG("Finished evaluating plan fragment (RowBufferCapacity: %" PRISZT ", ScratchSpaceCapacity: %" PRISZT ")",
                 rowBuffer.GetCapacity(),
                 scratchSpace.GetCapacity());
+
         } catch (const std::exception& ex) {
             return TError("Failed to evaluate plan fragment") << ex;
         }
+        queryStat.SyncTime = wallTime - queryStat.AsyncTime;
 
-        return TError();
+        return queryStat;
     }
 
 private:
@@ -447,7 +459,7 @@ TEvaluator::TEvaluator()
 TEvaluator::~TEvaluator()
 { }
 
-TError TEvaluator::Run(
+TErrorOr<TQueryStatistics> TEvaluator::Run(
     IEvaluateCallbacks* callbacks,
     const TPlanFragment& fragment,
     ISchemafulWriterPtr writer)
