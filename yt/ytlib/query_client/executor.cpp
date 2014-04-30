@@ -13,9 +13,9 @@ namespace NQueryClient {
 
 #ifndef YT_USE_LLVM
 
-static TFuture<TErrorOr<TQueryStatistics>> GetQueriesNotSupportedErrror()
+static TAsyncError GetQueriesNotSupportedErrror()
 {
-    return MakeFuture(TErrorOr<TQueryStatistics>(TError("Query evaluation is not supported in this build")));
+    return MakeFuture(TError("Query evaluation is not supported in this build"));
 }
 
 #endif
