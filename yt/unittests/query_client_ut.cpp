@@ -100,7 +100,7 @@ public:
         const TDataSplits&,
         TPlanContextPtr));
 
-    MOCK_METHOD2(Delegate, std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>>(
+    MOCK_METHOD2(Delegate, ISchemafulReaderPtr(
         const TPlanFragment&,
         const TDataSplit&));
 };
@@ -291,7 +291,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    TPlanFragment::Prepare("a, b FROM [//t] WHERE k > 3", NullTimestamp, std::numeric_limits<ui64>::max(), &PrepareMock_);
+    TPlanFragment::Prepare("a, b FROM [//t] WHERE k > 3", NullTimestamp, &PrepareMock_);
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -420,7 +420,7 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
     EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(1), _))
         .WillOnce(Return(singleGroupedSplit));
     EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
-        .WillOnce(Return(std::make_pair(nullptr, NYT::TFuture<NYT::TErrorOr<NYT::NQueryClient::TQueryStatistics>>())));
+        .WillOnce(Return(nullptr));
 
     EXPECT_NO_THROW({
         Coordinate("k from [//t]");
@@ -1173,7 +1173,7 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
     EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(3), _))
         .WillOnce(Return(groupedSplits));
     EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
-        .WillOnce(Return(std::make_pair(nullptr, NYT::TFuture<NYT::TErrorOr<NYT::NQueryClient::TQueryStatistics>>())));
+        .WillOnce(Return(nullptr));
 
     EXPECT_NO_THROW({
         Coordinate("a from [//t] where k = 1 and l = 2 and m = 3");
@@ -1535,47 +1535,6 @@ TEST_F(TQueryEvaluateTest, Complex)
     result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
 
     Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result);
-
-    SUCCEED();
-}
-
-TEST_F(TQueryEvaluateTest, Complex2)
-{
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Integer);
-    columns.emplace_back("b", EValueType::Integer);
-    columns.emplace_back("c", EValueType::Integer);
-    auto simpleSplit = MakeSplit(columns);
-
-    const char* sourceRowsData[] = {
-        "a=1;b=10",
-        "a=2;b=20",
-        "a=3;b=30",
-        "a=4;b=40",
-        "a=5;b=50",
-        "a=6;b=60",
-        "a=7;b=70",
-        "a=8;b=80",
-        "a=9;b=90"
-    };
-
-    std::vector<TUnversionedOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
-    }
-
-
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("x", EValueType::Integer);
-    resultColumns.emplace_back("q", EValueType::Integer);
-    resultColumns.emplace_back("t", EValueType::Integer);
-    auto resultSplit = MakeSplit(resultColumns);
-
-    std::vector<TUnversionedOwningRow> result;
-    result.push_back(BuildRow("x=0;q=0;t=200", resultSplit, false));
-    result.push_back(BuildRow("x=1;q=0;t=241", resultSplit, false));
-
-    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", source, result);
 
     SUCCEED();
 }

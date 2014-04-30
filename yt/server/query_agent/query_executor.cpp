@@ -134,7 +134,7 @@ public:
 
 
     // IExecutor implementation.
-    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+    virtual TAsyncError Execute(
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer) override
     {
@@ -212,19 +212,18 @@ public:
         return result;
     }
 
-    virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
+    virtual ISchemafulReaderPtr Delegate(
         const TPlanFragment& fragment,
         const TDataSplit& /*collocatedSplit*/) override
     {
         auto pipe = New<TSchemafulPipe>();
-        TFuture<TErrorOr<TQueryStatistics>> result = Evaluator_->Execute(fragment, pipe->GetWriter());
-        result.Subscribe(BIND([pipe] (TErrorOr<TQueryStatistics> result) {
-            if (!result.IsOK()) {
-                pipe->Fail(result);
-            }
-        }));
-
-        return std::make_pair(pipe->GetReader(), result);
+        Evaluator_->Execute(fragment, pipe->GetWriter())
+            .Subscribe(BIND([pipe] (TError error) {
+                if (!error.IsOK()) {
+                    pipe->Fail(error);
+                }
+            }));
+        return pipe->GetReader();
     }
 
     virtual ISchemafulReaderPtr GetReader(

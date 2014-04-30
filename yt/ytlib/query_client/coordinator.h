@@ -37,9 +37,6 @@ public:
     //! Returns plan fragments to be evaluated by peers.
     std::vector<TPlanFragment> GetPeerFragments() const;
 
-    //! Returns summary of delegated to peers query results.
-    TQueryStatistics GetQueryStatSummary() const;
-
 private:
     struct TDataSplitExplanation
     {
@@ -53,12 +50,10 @@ private:
         TPeer(
             TPlanFragment fragment,
             const TDataSplit& collocatedSplit,
-            ISchemafulReaderPtr reader,
-            const TFuture<TErrorOr<TQueryStatistics>>& QueryResult)
+            ISchemafulReaderPtr reader)
             : Fragment(std::move(fragment))
             , CollocatedSplit(collocatedSplit)
             , Reader(std::move(reader))
-            , QueryResult(QueryResult)
         { }
 
         TPeer(const TPeer&) = delete;
@@ -67,7 +62,6 @@ private:
         TPlanFragment Fragment;
         const TDataSplit& CollocatedSplit;
         ISchemafulReaderPtr Reader;
-        TFuture<TErrorOr<TQueryStatistics>> QueryResult;
     };
 
 private:
@@ -90,8 +84,6 @@ private:
     TPlanFragment Fragment_;
 
     std::vector<TPeer> Peers_;
-
-    TQueryStatistics QueryStat;
 
     NLog::TTaggedLogger Logger;
 };

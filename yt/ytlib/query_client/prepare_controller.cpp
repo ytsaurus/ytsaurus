@@ -35,12 +35,11 @@ static auto& Logger = QueryClientLogger;
 
 TPrepareController::TPrepareController(
     IPrepareCallbacks* callbacks,
-    const Stroka& source,
-    ui64 rowLimit,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const Stroka& source)
     : Callbacks_(callbacks)
     , Source_(source)
-    , Context_(New<TPlanContext>(timestamp, rowLimit))
+    , Context_(New<TPlanContext>(timestamp))
     , Head_(nullptr)
 { }
 
@@ -114,7 +113,6 @@ TPlanFragment TPrepareController::Run()
     MoveAggregateExpressions();
     CheckAndPruneReferences();
     TypecheckExpressions();
-
     return TPlanFragment(std::move(Context_), Head_);
 }
 

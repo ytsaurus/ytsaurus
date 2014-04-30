@@ -15,7 +15,7 @@ namespace NQueryClient {
 struct IExecutor
     : public virtual TRefCounted
 {
-    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+    virtual TAsyncError Execute(
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer) = 0;
 

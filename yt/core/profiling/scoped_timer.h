@@ -30,25 +30,6 @@ private:
 
 };
 
-class TScopedRaiiTimer
-{
-public:
-    explicit TScopedRaiiTimer(TDuration* value)
-        : Value_(value)
-        , StartTime_(GetCpuInstant())
-    { }
-
-    ~TScopedRaiiTimer()
-    {
-        *Value_ += CpuDurationToDuration(GetCpuInstant() - StartTime_);
-    }
-
-private:
-    TDuration* Value_;
-    TCpuInstant StartTime_;
-    
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProfiling

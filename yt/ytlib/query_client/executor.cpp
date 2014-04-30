@@ -31,13 +31,13 @@ public:
         , Callbacks_(callbacks)
     { }
 
-    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+    virtual TAsyncError Execute(
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer) override
     {
 #ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
-        return BIND([this, this_, fragment, writer] () -> TErrorOr<TQueryStatistics> {
+        return BIND([this, this_, fragment, writer] () -> TError {
                 return Evaluator_.Run(Callbacks_, fragment, std::move(writer));
             })
             .AsyncVia(Invoker_)
@@ -67,34 +67,22 @@ public:
         , Callbacks_(callbacks)
     { }
 
-    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+    virtual TAsyncError Execute(
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer) override
     {
 #ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
-
-        return BIND([this, this_, fragment, writer] () -> TErrorOr<TQueryStatistics> {
+        return BIND([this, this_, fragment, writer] () -> TError {
                 TCoordinator coordinator(Callbacks_, fragment);
 
                 auto error = coordinator.Run();
                 RETURN_IF_ERROR(error);
 
-                auto resultOrError = Evaluator_.Run(
+                return Evaluator_.Run(
                     &coordinator,
                     coordinator.GetCoordinatorFragment(),
                     std::move(writer));
-
-                RETURN_IF_ERROR(resultOrError);
-
-                TQueryStatistics result = resultOrError.Value();
-                TQueryStatistics subQueriesResult = coordinator.GetQueryStatSummary();
-
-                result.RowsRead += subQueriesResult.RowsRead;
-                result.RowsWritten += subQueriesResult.RowsWritten;
-                result.Incomplete |= subQueriesResult.Incomplete;
-
-                return result;
             })
             .AsyncVia(Invoker_)
             .Run();

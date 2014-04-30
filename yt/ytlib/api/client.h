@@ -19,8 +19,6 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/query_client/public.h>
-
 #include <ytlib/cypress_client/public.h>
 
 #include <ytlib/new_table_client/public.h>
@@ -150,7 +148,6 @@ struct TSelectRowsOptions
 
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp;
-    ui64 RowLimit;
 };
 
 struct TGetNodeOptions
@@ -313,12 +310,12 @@ struct IClientBase
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NQueryClient::TQueryStatistics>> SelectRows(
+    virtual TAsyncError SelectRows(
         const Stroka& query,
         NVersionedTableClient::ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>>> SelectRows(
+    virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 

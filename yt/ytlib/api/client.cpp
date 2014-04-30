@@ -199,33 +199,26 @@ public:
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
-    IMPLEMENT_METHOD(TQueryStatistics, SelectRows, (
+    IMPLEMENT_METHOD(void, SelectRows, (
         const Stroka& query,
         ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options),
         (query, writer, options))
 
-    virtual TFuture<TErrorOr<std::pair<IRowsetPtr, TQueryStatistics>>> SelectRows(
+    virtual TFuture<TErrorOr<IRowsetPtr>> SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options) override
     {
         ISchemafulWriterPtr writer;
         TPromise<TErrorOr<IRowsetPtr>> rowset;
-
-        TPromise<TErrorOr<std::pair<IRowsetPtr, TQueryStatistics>>> result = NewPromise<TErrorOr<std::pair<IRowsetPtr, TQueryStatistics>>>();
-
         std::tie(writer, rowset) = CreateSchemafulRowsetWriter();
-
-        SelectRows(query, writer, options).Subscribe(BIND([=] (TErrorOr<TQueryStatistics> error) mutable {
+        SelectRows(query, writer, options).Subscribe(BIND([=] (TError error) mutable {
             if (!error.IsOK()) {
                 // It's uncommon to have the promise set here but let's be sloppy about it.
-                result.Set(static_cast<TError>(error));
-            } else {
-                result.Set(std::make_pair(rowset.Get().Value(), error.Value()));
+                rowset.TrySet(error);
             }
         }));
-
-        return result;
+        return rowset;
     }
 
 
@@ -533,7 +526,7 @@ private:
             std::move(resultRows));
     }
 
-    TQueryStatistics DoSelectRows(
+    void DoSelectRows(
         const Stroka& query,
         ISchemafulWriterPtr writer,
         TSelectRowsOptions options)
@@ -541,7 +534,6 @@ private:
         auto fragment = TPlanFragment::Prepare(
             query,
             options.Timestamp,
-            options.RowLimit,
             Connection_->GetQueryPrepareCallbacks());
 
         auto coordinator = CreateCoordinator(
@@ -550,8 +542,6 @@ private:
 
         auto error = WaitFor(coordinator->Execute(fragment, writer));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
-
-        return error.Value();
     }
 
 
@@ -1028,16 +1018,13 @@ public:
         TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
-        (path, keys, options))
         (path, nameTable, keys, options))
-    DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<NQueryClient::TQueryStatistics>>, SelectRows, (
+    DELEGATE_TIMESTAMPTED_METHOD(TAsyncError, SelectRows, (
         const Stroka& query,
         ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options),
         (query, writer, options))
-
-    typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
-    DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<TSelectRowsResult>>, SelectRows, (
+    DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, SelectRows, (
         const Stroka& query,
         const TSelectRowsOptions& options),
         (query, options))

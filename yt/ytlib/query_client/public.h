@@ -64,15 +64,6 @@ typedef NVersionedTableClient::TUnversionedValueData TValueData;
 typedef NVersionedTableClient::TOwningKey TKey;
 typedef std::pair<TKey, TKey> TKeyRange;
 
-struct TQueryStatistics
-{
-    ui64 RowsRead = 0;
-    ui64 RowsWritten = 0;
-    TDuration SyncTime;
-    TDuration AsyncTime;
-    bool Incomplete = false;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

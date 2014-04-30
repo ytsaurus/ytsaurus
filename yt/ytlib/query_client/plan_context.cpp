@@ -53,9 +53,8 @@ void TPlanContext::TTrackedObject::operator delete(void*) throw()
 
 struct TPlanContextPoolTag { };
 
-TPlanContext::TPlanContext(TTimestamp timestamp, ui64 rowLimit)
+TPlanContext::TPlanContext(TTimestamp timestamp)
     : Timestamp_(timestamp)
-    , RowLimit_(rowLimit)
     , NodeDirectory_(New<TNodeDirectory>())
     , MemoryPool_(TPlanContextPoolTag())
 { }
@@ -85,11 +84,36 @@ TStringBuf TPlanContext::Capture(const char* begin, const char* end)
 
     return TStringBuf(buffer, length);
 }
+
 TStringBuf TPlanContext::Capture(const TStringBuf& stringBuf)
 {
     return Capture(~stringBuf, ~stringBuf + +stringBuf);
 }
 
+void TPlanContext::SetSource(Stroka source) {
+    Source_ = std::move(source);
+}
+
+Stroka TPlanContext::GetSource() const {
+    return Source_;
+}
+
+void TPlanContext::SetTablePath(Stroka tablePath) {
+    TablePath_ = std::move(tablePath);
+}
+
+Stroka TPlanContext::GetTablePath() const {
+    return TablePath_;
+}
+
+void TPlanContext::SetTimestamp(TTimestamp timestamp) {
+    Timestamp_ = std::move(timestamp);
+}
+
+TTimestamp TPlanContext::GetTimestamp() const
+{
+    return Timestamp_;
+}
 
 TNodeDirectoryPtr TPlanContext::GetNodeDirectory() const
 {
