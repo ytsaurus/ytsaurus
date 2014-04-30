@@ -80,8 +80,8 @@ int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
     }
 
     auto& slot = FlsSlots[index];
-    slot.Ctor = std::move(ctor);
-    slot.Dtor = std::move(dtor);
+    slot.Ctor = ctor;
+    slot.Dtor = dtor;
 
     FlsLock.clear(std::memory_order_release);
 
