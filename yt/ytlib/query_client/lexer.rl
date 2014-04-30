@@ -40,8 +40,7 @@ typedef TParser::token_type TToken;
     double_literal = fltdot fltexp?;
     string_literal = '"' ( [^"\\] | /\\./ )* '"';
 
-    # YPath handling relies on continuous chunking.
-    ypath := |*
+    quoted_identifier := |*
         '[' => {
             if (++rd == 1) {
                 rs = fpc + 1;
@@ -50,7 +49,7 @@ typedef TParser::token_type TToken;
         ']' => {
             if (--rd == 0) {
                 re = fpc;
-                type = TToken::YPathLiteral;
+                type = TToken::Identifier;
                 value->build(Context_->Capture(rs, re));
                 fnext main;
                 fbreak;
@@ -93,7 +92,7 @@ typedef TParser::token_type TToken;
 
         '[' => {
             fhold;
-            fgoto ypath;
+            fgoto quoted_identifier;
         };
         ']' => {
             YUNREACHABLE();

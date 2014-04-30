@@ -71,7 +71,6 @@
 %token <i64> IntegerLiteral "integer literal"
 %token <double> DoubleLiteral "double literal"
 %token <TStringBuf> StringLiteral "string literal"
-%token <TStringBuf> YPathLiteral "YPath literal"
 
 %token OpModulo 37 "`%`"
 
@@ -162,7 +161,7 @@ select-clause
 ;
 
 from-clause
-    : KwFrom YPathLiteral[path]
+    : KwFrom Identifier[path]
         {
             context->SetTablePath(Stroka(~$path, +$path));
 

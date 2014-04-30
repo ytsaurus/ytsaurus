@@ -23,7 +23,7 @@ static const int Lexer_start = 8;
 static const int Lexer_first_final = 8;
 static const int Lexer_error = 0;
 
-static const int Lexer_en_ypath = 39;
+static const int Lexer_en_quoted_identifier = 39;
 static const int Lexer_en_main = 8;
 
 
@@ -889,7 +889,7 @@ tr64:
 	{te = p+1;{
             if (--rd == 0) {
                 re = p;
-                type = TToken::YPathLiteral;
+                type = TToken::Identifier;
                 value->build(Context_->Capture(rs, re));
                 cs = 8;
                 {p++; goto _out;}
