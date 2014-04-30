@@ -20,8 +20,9 @@ DEFAULT_SOURCE_ID = "tramsmm43"
 class State(object):
     log = logging.getLogger("State")
 
-    def __init__(self, event_log, chunk_size=1000):
+    def __init__(self, event_log, chunk_size=1000, **options):
         self.log_broker_ = None
+        self.log_broker_options_ = options
         self.event_log_ = event_log
         self.chunk_size = chunk_size
         self.last_saved_seqno_ = 0
@@ -30,7 +31,7 @@ class State(object):
 
     def start(self, io_loop=None, IOStreamClass=None):
         self.init_seqno()
-        self.log_broker_ = LogBroker(self, io_loop, IOStreamClass)
+        self.log_broker_ = LogBroker(self, io_loop, IOStreamClass, **self.log_broker_options_)
         self.log_broker_.start()
         self.maybe_save_another_chunk()
 
@@ -137,13 +138,14 @@ def parse_chunk(serialized_data):
 class LogBroker(object):
     log = logging.getLogger("log_broker")
 
-    def __init__(self, state, io_loop=None, IOStreamClass=None, endpoint=None):
+    def __init__(self, state, io_loop=None, IOStreamClass=None, endpoint=None, **options):
         self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
         self.state_ = state
         self.starting_ = False
         self.chunk_id_ = 0
         self.lines_ = 0
         self.session_ = None
+        self.session_options_ = options
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
         self.iostream_ = None
         self.pending_data = []
@@ -153,7 +155,7 @@ class LogBroker(object):
         if not self.starting_:
             self.starting_ = True
             self.log.info("Start a log broker")
-            self.session_ = Session(self.state_, self, self.io_loop_, self.IOStreamClass, endpoint=self.endpoint_)
+            self.session_ = Session(self.state_, self, self.io_loop_, self.IOStreamClass, endpoint=self.endpoint_, **self.session_options_)
             self.session_.connect()
 
     def save_chunk(self, seqno, data):
@@ -311,6 +313,8 @@ class Session(object):
 def main():
     table_name = "//tmp/event_log"
     proxy_path = "quine.yt.yandex.net"
+    service_id = "yt"
+    source_id = "tramsmm43"
 
     logging.basicConfig(level=logging.DEBUG)
 
@@ -320,7 +324,7 @@ def main():
 
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
-    state = State(event_log=event_log, chunk_size=1)
+    state = State(event_log=event_log, chunk_size=1, service_id=service_id, source_id=source_id)
     state.start()
     io_loop.start()
 
