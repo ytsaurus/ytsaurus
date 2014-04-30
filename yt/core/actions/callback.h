@@ -159,7 +159,7 @@ typedef TCallback<void()> TClosure;
 namespace NDetail {
 
 template <class TRunnable, class TSignature, class TBoundArgs>
-class TBindState;
+struct TBindState;
 
 // TODO(sandello): Move these somewhere closer to TFuture & TPromise.
 template <class R>
