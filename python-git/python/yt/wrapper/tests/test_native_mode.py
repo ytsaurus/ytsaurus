@@ -503,16 +503,16 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.write_table(table, records)
 
         # skip long loading time
-        yt.run_map(sleeep, table, "//tmp/1", format=yt.DsvFormat(), strategy=yt.WaitStrategy(), job_count=1)
+        yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
 
         start = time.time()
-        yt.run_map(sleeep, table, "//tmp/1", format=yt.DsvFormat(), strategy=yt.WaitStrategy(), job_count=1)
+        yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
         usual_time = time.time() - start
         loading_time = usual_time - pause
 
         start = time.time()
         self.assertRaises(yt.YtWaitStrategyTimeoutError,
-                          lambda: yt.run_map(sleeep, table, "//tmp/1", format=yt.DsvFormat(), strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1))
+                          lambda: yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1))
         timeout_time = time.time() - start
         self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
 

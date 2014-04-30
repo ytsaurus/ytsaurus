@@ -606,17 +606,13 @@ class YTEnv(object):
         with context:
             callableObj(*args, **kwargs)
 
-    def assertAlmostEqual(self, first, second, places=None, msg=None, delta=None):
+    def assertAlmostEqual(self, first, second, places=7, msg="", delta=None):
         """ check equality of float numbers with some precision """
         if first == second:
             return
 
-        if delta is not None and places is not None:
-            raise TypeError("specify delta or places not both")
-
         if delta is not None:
-            assert abs(first - second) <= delta
+            assert (abs(first - second) <= delta), msg if msg else "|{} - {}| > {}".format(first, second, delta)
         else:
-            if places is None:
-                places = 7
-            assert round(abs(second-first), places) == 0
+            rounding = round(abs(second - first), places)
+            assert (rounding == 0), msg if msg else "rounding is {0} (not zero!)".format(rounding)
