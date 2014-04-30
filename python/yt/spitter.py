@@ -29,9 +29,15 @@ class State(object):
         self.acked_seqno_ = set()
 
     def start(self, io_loop=None, IOStreamClass=None):
+        self.init_seqno()
         self.log_broker_ = LogBroker(self, io_loop, IOStreamClass)
         self.log_broker_.start()
         self.maybe_save_another_chunk()
+
+    def init_seqno(self):
+        self.last_saved_seqno_ = self.from_line_index(self.event_log_.get_next_line_to_save())
+        self.last_seqno_ = self.last_saved_seqno_
+        self.log.info("Last saved seqno is %d", self.last_seqno_)
 
     def maybe_save_another_chunk(self):
         if self.last_saved_seqno_ - self.last_seqno_ < 1:
@@ -76,6 +82,9 @@ class State(object):
     def to_line_index(self, reqno):
         return reqno * self.chunk_size
 
+    def from_line_index(self, line_index):
+        return line_index / self.chunk_size
+
 
 class EventLog(object):
     def __init__(self, yt, table_name=None):
@@ -94,6 +103,9 @@ class EventLog(object):
 
     def set_next_line_to_save(self, line_index):
         self.yt.set("{0}/@lines_to_save".format(self.table_name_), line_index)
+
+    def get_next_line_to_save(self):
+        return self.yt.get("{0}/@lines_to_save".format(self.table_name_))
 
 
 def serialize_chunk(chunk_id, seqno, lines, data):
@@ -150,7 +162,7 @@ class LogBroker(object):
             self.chunk_id_ += 1
             self.lines_ += 1
 
-            self.log.debug("Save chunk: %r", serialized_data)
+            self.log.debug("Save chunk [%d]: %r", seqno, serialized_data)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
             self.iostream_.write(data_to_write)
         else:
