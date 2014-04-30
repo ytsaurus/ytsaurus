@@ -18,6 +18,15 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
     return nameTable;
 }
 
+TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
+{
+    auto nameTable = New<TNameTable>();
+    for (const auto& name : keyColumns) {
+        nameTable->RegisterName(name);
+    }
+    return nameTable;
+}
+
 int TNameTable::GetSize() const
 {
     TGuard<TSpinLock> guard(SpinLock_);

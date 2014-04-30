@@ -76,6 +76,7 @@ public:
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
     typedef SmallVector<int, NVersionedTableClient::TypicalColumnCount> TColumnIdMapping;
+
     void WriteUnversionedRow(
         NVersionedTableClient::TUnversionedRow row,
         const TColumnIdMapping* idMapping = nullptr);

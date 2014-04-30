@@ -45,8 +45,13 @@ using NTableClient::TKeyColumns; // TODO(babenko): remove after migration
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int TypicalColumnCount = 64;
-static const int MaxKeyColumnCount = 64;
+const int TypicalColumnCount = 64;
+const int MaxKeyColumnCount = 64;
+const int MaxValuesPerRow = 1024;
+const int MaxRowsPerRowset = 1024 * 1024;
+const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
+
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EValueType,
     ((Min)         (0))

@@ -137,7 +137,7 @@ struct TLookupRowsOptions
         : Timestamp(NTransactionClient::LastCommittedTimestamp)
     { }
 
-    TNullable<std::vector<Stroka>> ColumnNames;
+    NVersionedTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp;
 };
@@ -303,11 +303,13 @@ struct IClientBase
     // Tables
     virtual TFuture<TErrorOr<IRowsetPtr>> LookupRow(
         const NYPath::TYPath& path,
+        NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
     virtual TFuture<TErrorOr<IRowsetPtr>> LookupRows(
         const NYPath::TYPath& path,
+        NVersionedTableClient::TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 

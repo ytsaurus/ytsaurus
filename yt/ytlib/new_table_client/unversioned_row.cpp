@@ -563,6 +563,18 @@ void ValidateRowValueCount(int count)
     }
 }
 
+void ValidateKeyColumnCount(int count)
+{
+    if (count < 1) {
+        THROW_ERROR_EXCEPTION("Non-positive number of key columns");
+    }
+    if (count > MaxKeyColumnCount) {
+        THROW_ERROR_EXCEPTION("Too many columns in key: actual %d, limit %d",
+            count,
+            MaxKeyColumnCount);
+    }
+}
+
 void ValidateRowCount(int count)
 {
     if (count < 0) {
@@ -575,26 +587,107 @@ void ValidateRowCount(int count)
     }
 }
 
-void ValidateRow(TUnversionedRow row)
+void ValidateClientDataRow(TUnversionedRow row, int keyColumnCount)
 {
     ValidateRowValueCount(row.GetCount());
+
+    bool keyColumnFlags[MaxKeyColumnCount] = {};
+    int keyColumnSeen = 0;
     for (const auto* value = row.Begin(); value != row.End(); ++value) {
         ValidateDataValue(*value);
+        int id = value->Id;
+        if (id < keyColumnCount) {
+            if (keyColumnFlags[id]) {
+                THROW_ERROR_EXCEPTION("Duplicate key component with id %d",
+                    id);
+            }
+            keyColumnFlags[id] = true;
+            ++keyColumnSeen;
+        }
+    }
+
+    if (keyColumnSeen != keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Some key components are missing: actual %d, expected %d",
+            keyColumnSeen,
+            keyColumnCount);
     }
 }
 
-void ValidateKey(TKey key, int keyColumnCount)
+void ValidateServerDataRow(TUnversionedRow row, int keyColumnCount)
+{
+    ValidateRowValueCount(row.GetCount());
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        const auto& value = row[index];
+        ValidateDataValue(value);
+        int id = value.Id;
+        if (index < keyColumnCount) {
+            if (id != index) {
+                THROW_ERROR_EXCEPTION("Invalid key component id: actual %d, expected %d",
+                    id,
+                    index);
+            }
+        } else {
+            if (id < keyColumnCount) {
+                THROW_ERROR_EXCEPTION("Misplaced key component: id %d, position %d",
+                    id,
+                    index);
+            }
+        }
+    }
+}
+
+void ValidateClientKey(TKey key, int keyColumnCount)
 {
     if (!key) {
         THROW_ERROR_EXCEPTION("Key cannot be null");
     }
+
     if (key.GetCount() != keyColumnCount) {
         THROW_ERROR_EXCEPTION("Invalid number of key components: expected %d, actual %d",
             keyColumnCount,
             key.GetCount());
     }
-    for (const auto* value = key.Begin(); value != key.End(); ++value) {
-        ValidateKeyValue(*value);
+
+    bool keyColumnFlags[MaxKeyColumnCount] = {};
+    for (int index = 0; index < keyColumnCount; ++index) {
+        const auto& value = key[index];
+        ValidateKeyValue(value);
+        int id = value.Id;
+        if (id >= keyColumnCount) {
+            THROW_ERROR_EXCEPTION("Invalid value id: actual %d, expected in range [0, %d]",
+                id,
+                keyColumnCount - 1);
+        }
+        if (keyColumnFlags[id]) {
+            THROW_ERROR_EXCEPTION("Duplicate key component with id %d",
+                id);
+        }
+        keyColumnFlags[id] = true;
+    }
+}
+
+void ValidateServerKey(TKey key, int keyColumnCount)
+{
+    if (!key) {
+        THROW_ERROR_EXCEPTION("Key cannot be null");
+    }
+
+    if (key.GetCount() != keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %d, actual %d",
+                keyColumnCount,
+                key.GetCount());
+    }
+
+    for (int index = 0; index < keyColumnCount; ++index) {
+        const auto& value = key[index];
+        ValidateKeyValue(value);
+        int id = value.Id;
+        if (id != index) {
+            THROW_ERROR_EXCEPTION("Invalid key component id: actual %d, expected %d",
+                id,
+                index);
+        }
     }
 }
 

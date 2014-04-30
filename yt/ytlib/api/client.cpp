@@ -73,6 +73,33 @@ DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TWireProtocolWriter::TColumnIdMapping BuildColumnIdMapping(
+    const TTableMountInfoPtr& tableInfo,
+    const TNameTablePtr& nameTable)
+{
+    for (const auto& name : tableInfo->KeyColumns) {
+        if (nameTable->FindId(name)) {
+            THROW_ERROR_EXCEPTION("Missing key column %s in name table",
+                ~name.Quote());
+        }
+    }
+
+    TWireProtocolWriter::TColumnIdMapping mapping;
+    mapping.resize(nameTable->GetSize());
+    for (int nameTableId = 0; nameTableId < nameTable->GetSize(); ++nameTableId) {
+        const auto& name = nameTable->GetName(nameTableId);
+        int schemaId = tableInfo->Schema.GetColumnIndexOrThrow(name);
+        mapping[nameTableId] = schemaId;
+    }
+    return mapping;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClient
     : public IClient
 {
@@ -155,20 +182,23 @@ public:
 
     virtual TFuture<TErrorOr<IRowsetPtr>> LookupRow(
         const TYPath& path,
+        TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options) override
     {
         return LookupRows(
             path,
+            std::move(nameTable),
             std::vector<NVersionedTableClient::TKey>(1, key),
             options);
     }
     
     IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
         const TYPath& path,
+        TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
-        (path, keys, options))
+        (path, nameTable, keys, options))
     IMPLEMENT_METHOD(TQueryStatistics, SelectRows, (
         const Stroka& query,
         ISchemafulWriterPtr writer,
@@ -420,25 +450,14 @@ private:
 
     IRowsetPtr DoLookupRows(
         const TYPath& path,
+        TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
-
-        TTableSchema resultSchema;
-        const auto& tableSchema = tableInfo->Schema;
-
-        TColumnFilter columnFilter;
-        if (options.ColumnNames) {
-            columnFilter.All = false;
-            for (const auto& name : *options.ColumnNames) {
-                int index = tableSchema.GetColumnIndexOrThrow(name);
-                columnFilter.Indexes.push_back(index);
-                resultSchema.Columns().push_back(tableSchema.Columns()[index]);
-            }
-        } else {
-            resultSchema = tableSchema;
-        }
+        auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
+        int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
+        auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
 
         struct TSubrequest
         {
@@ -452,7 +471,7 @@ private:
 
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
-            ValidateKey(key, tableInfo->KeyColumns.size());
+            ValidateClientKey(key, keyColumnCount);
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = subrequests.find(tabletInfo);
             if (it == subrequests.end()) {
@@ -470,8 +489,8 @@ private:
 
             TWireProtocolWriter writer;
             writer.WriteCommand(EWireProtocolCommand::LookupRows);
-            writer.WriteColumnFilter(columnFilter);
-            writer.WriteUnversionedRowset(subrequest.Keys);
+            writer.WriteColumnFilter(options.ColumnFilter);
+            writer.WriteUnversionedRowset(subrequest.Keys, &idMapping);
             writer.WriteCommand(EWireProtocolCommand::End);
 
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
@@ -954,20 +973,24 @@ public:
 
     virtual void DeleteRow(
         const TYPath& path,
+        TNameTablePtr nameTable,
         NVersionedTableClient::TKey key) override
     {
         DeleteRows(
             path,
+            std::move(nameTable),
             std::vector<NVersionedTableClient::TKey>(1, key));
     }
 
     virtual void DeleteRows(
         const TYPath& path,
+        TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::TKey> keys) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
             this,
             path,
+            std::move(nameTable),
             std::move(keys))));
     }
 
@@ -996,14 +1019,17 @@ public:
 
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRow, (
         const TYPath& path,
+        TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options),
-        (path, key, options));
+        (path, nameTable, key, options));
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRows, (
         const TYPath& path,
+        TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, keys, options))
+        (path, nameTable, keys, options))
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<NQueryClient::TQueryStatistics>>, SelectRows, (
         const Stroka& query,
         ISchemafulWriterPtr writer,
@@ -1100,13 +1126,16 @@ private:
     protected:
         explicit TRequestBase(
             TTransaction* transaction,
-            const TYPath& path)
+            const TYPath& path,
+            TNameTablePtr nameTable)
             : Transaction_(transaction)
             , Path_(path)
+            , NameTable_(std::move(nameTable))
         { }
 
         TTransaction* Transaction_;
         TYPath Path_;
+        TNameTablePtr NameTable_;
 
         TTableMountInfoPtr TableInfo_;
 
@@ -1121,8 +1150,7 @@ private:
             const TYPath& path,
             TNameTablePtr nameTable,
             std::vector<TUnversionedRow> rows)
-            : TRequestBase(transaction, path)
-            , NameTable_(std::move(nameTable))
+            : TRequestBase(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
         { }
 
@@ -1131,8 +1159,9 @@ private:
             TRequestBase::Run();
 
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
+            int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
             for (auto row : Rows_) {
-                ValidateRow(row);
+                ValidateClientDataRow(row, keyColumnCount);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EWireProtocolCommand::WriteRow);
@@ -1141,7 +1170,6 @@ private:
         }
 
     private:
-        TNameTablePtr NameTable_;
         std::vector<TUnversionedRow> Rows_;
 
     };
@@ -1153,8 +1181,9 @@ private:
         TDeleteRequest(
             TTransaction* transaction,
             const TYPath& path,
+            TNameTablePtr nameTable,
             std::vector<NVersionedTableClient::TKey> keys)
-            : TRequestBase(transaction, path)
+            : TRequestBase(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
         { }
 
@@ -1162,12 +1191,14 @@ private:
         {
             TRequestBase::Run();
 
+            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
+            int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
             for (auto key : Keys_) {
-                ValidateKey(key, TableInfo_->KeyColumns.size());
+                ValidateClientKey(key, keyColumnCount);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
                 writer->WriteCommand(EWireProtocolCommand::DeleteRow);
-                writer->WriteUnversionedRow(key);
+                writer->WriteUnversionedRow(key, &idMapping);
             }
         }
 
@@ -1191,15 +1222,8 @@ private:
     {
         auto it = NameTableToIdMapping_.find(nameTable);
         if (it == NameTableToIdMapping_.end()) {
-            it = NameTableToIdMapping_.insert(std::make_pair(nameTable, TColumnIdMapping())).first;
-            auto& mapping = it->second;
-            mapping.resize(nameTable->GetSize());
-            const auto& schema = tableInfo->Schema;
-            for (int nameTableId = 0; nameTableId < nameTable->GetSize(); ++nameTableId) {
-                const auto& name = nameTable->GetName(nameTableId);
-                int schemaId = schema.GetColumnIndexOrThrow(name);
-                mapping[nameTableId] = schemaId;
-            }
+            auto mapping = BuildColumnIdMapping(tableInfo, nameTable);
+            it = NameTableToIdMapping_.insert(std::make_pair(nameTable, std::move(mapping))).first;
         }
         return it->second;
     }

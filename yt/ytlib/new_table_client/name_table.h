@@ -14,6 +14,7 @@ class TNameTable
 {
 public:
     static TNameTablePtr FromSchema(const TTableSchema& schema);
+    static TNameTablePtr FromKeyColumns(const TKeyColumns& keyColumns);
 
     int GetSize() const;
 

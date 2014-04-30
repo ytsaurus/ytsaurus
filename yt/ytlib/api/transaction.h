@@ -44,10 +44,12 @@ struct ITransaction
     
     virtual void DeleteRow(
         const NYPath::TYPath& path,
+        NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::TKey key) = 0;
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
+        NVersionedTableClient::TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::TKey> keys) = 0;
 
 };

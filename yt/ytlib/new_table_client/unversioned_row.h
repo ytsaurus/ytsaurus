@@ -22,12 +22,6 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int MaxValuesPerRow = 1024;
-const int MaxRowsPerRowset = 1024 * 1024;
-const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
-
-////////////////////////////////////////////////////////////////////////////////
-
 union TUnversionedValueData
 {
     //! Integral value.
@@ -279,15 +273,42 @@ void ValidateKeyValue(const TUnversionedValue& value);
 //! Checks that #count represents an allowed number of values in a row. Throws on failure.
 void ValidateRowValueCount(int count);
 
+//! Checks that #count represents an allowed number of components in a key. Throws on failure.
+void ValidateKeyColumnCount(int count);
+
 //! Checks that #count represents an allowed number of rows in a rowset. Throws on failure.
 void ValidateRowCount(int count);
 
-//! Checks that #row is a valid data row. Throws on failure.
-void ValidateRow(TUnversionedRow row);
+//! Checks that #row is a valid client-side data row. Throws on failure.
+/*! The row must obey the following properties:
+ *  1. Its value count must pass #ValidateRowValueCount checks.
+ *  2. It must contain all key components (values with ids in range [0, keyColumnCount - 1]).
+ */
+void ValidateClientDataRow(TUnversionedRow row, int keyColumnCount);
 
-//! Checks that #key is a valid key, in particular, it contains exactly #keyColumnCount
-//! components. Throws on failure.
-void ValidateKey(TKey key, int keyColumnCount);
+//! Checks that #row is a valid server-side data row. Throws on failure.
+/*! The row must obey the following properties:
+ *  1. Its value count must pass #ValidateRowValueCount checks.
+ *  2. It must contain all key components (values with ids in range [0, keyColumnCount - 1])
+ *  in this order at the very begining.
+ */
+void ValidateServerDataRow(TUnversionedRow row, int keyColumnCount);
+
+//! Checks that #key is a valid client-side key. Throws on failure.
+/*! The key must obey the following properties:
+ *  1. It cannot be null.
+ *  2. It must contain exactly #keyColumnCount components.
+ *  3. Value ids must be a permutation of {0, ..., keyColumnCount - 1}.
+ */
+void ValidateClientKey(TKey key, int keyColumnCount);
+
+//! Checks that #key is a valid server-side key. Throws on failure.
+/*! The key must obey the following properties:
+ *  1. It cannot be null.
+ *  2. It must contain exactly #keyColumnCount components with ids
+ *  0, ..., keyColumnCount - 1 in this order.
+ */
+void ValidateServerKey(TKey key, int keyColumnCount);
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 // by appending a |EValueType::Min| sentinel.

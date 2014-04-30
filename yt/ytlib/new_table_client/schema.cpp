@@ -9,6 +9,7 @@
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h> // TODO(babenko): remove after migration
 #include "row_base.h"
+#include "unversioned_row.h"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -145,6 +146,24 @@ TError TTableSchema::CheckKeyColumns(const TKeyColumns& keyColumns) const
     return TError();
 }
 
+TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
+{
+    if (columnFilter.All) {
+        return *this;
+    }
+
+    TTableSchema result;
+    for (int id : columnFilter.Indexes) {
+        if (id < 0 || id >= Columns_.size()) {
+            THROW_ERROR_EXCEPTION("Invalid id in column filter: actual %d, expected in range [0, %d]",
+                id,
+                static_cast<int>(Columns_.size()));
+        }
+        result.Columns().push_back(Columns_[id]);
+    }
+    return result;
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     NYT::Save(context, NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(*this));
@@ -225,11 +244,7 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs)
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns)
 {
-    if (keyColumns.size() > MaxKeyColumnCount) {
-        THROW_ERROR_EXCEPTION("Too many key columns: %d > %d",
-            static_cast<int>(keyColumns.size()),
-            MaxKeyColumnCount);
-    }
+    ValidateKeyColumnCount(keyColumns.size());
 
     yhash_set<Stroka> names;
     for (const auto& name : keyColumns) {

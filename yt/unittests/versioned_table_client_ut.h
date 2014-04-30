@@ -25,27 +25,33 @@ inline TUnversionedOwningRow BuildKey(const Stroka& yson)
     auto keyParts = ConvertTo<std::vector<INodePtr>>(
         TYsonString(yson, EYsonType::ListFragment));
 
-    for (auto keyPart : keyParts) {
+    for (int id = 0; id < keyParts.size(); ++id) {
+        const auto& keyPart = keyParts[id];
         switch (keyPart->GetType()) {
             case ENodeType::Integer:
                 keyBuilder.AddValue(MakeIntegerValue<TUnversionedValue>(
-                    keyPart->GetValue<i64>()));
+                    keyPart->GetValue<i64>(),
+                    id));
                 break;
             case ENodeType::Double:
                 keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
-                    keyPart->GetValue<double>()));
+                    keyPart->GetValue<double>(),
+                    id));
                 break;
             case ENodeType::String:
                 keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
-                    keyPart->GetValue<Stroka>()));
+                    keyPart->GetValue<Stroka>(),
+                    id));
                 break;
             case ENodeType::Entity:
-                    keyBuilder.AddValue(MakeSentinelValue<TUnversionedValue>(
-                        keyPart->Attributes().Get<EValueType>("type")));
+                keyBuilder.AddValue(MakeSentinelValue<TUnversionedValue>(
+                    keyPart->Attributes().Get<EValueType>("type"),
+                    id));
                 break;
             default:
                 keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
-                    ConvertToYsonString(keyPart).Data()));
+                    ConvertToYsonString(keyPart).Data(),
+                    id));
                 break;
         }
     }

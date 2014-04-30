@@ -394,14 +394,21 @@ void TLookupCommand::DoExecute()
     auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
     const auto& tableInfo = tableInfoOrError.Value();
-    auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
+    auto nameTable = TNameTable::FromKeyColumns(tableInfo->KeyColumns);
 
     TLookupRowsOptions options;
     options.Timestamp = Request_->Timestamp;
-    options.ColumnNames = Request_->ColumnNames;
+    if (Request_->ColumnNames) {
+        options.ColumnFilter.All = false;
+        for (const auto& name : *Request_->ColumnNames) {
+            int id = nameTable->GetId(name);
+            options.ColumnFilter.Indexes.push_back(id);
+        }
+    }
 
     auto lookupResult = WaitFor(Context_->GetClient()->LookupRow(
         Request_->Path.GetPath(),
+        nameTable,
         Request_->Key.Get(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
@@ -428,11 +435,20 @@ void TLookupCommand::DoExecute()
 
 void TDeleteCommand::DoExecute()
 {
+    auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
+    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
+    const auto& tableInfo = tableInfoOrError.Value();
+    auto nameTable = TNameTable::FromKeyColumns(tableInfo->KeyColumns);
+
     auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(ETransactionType::Tablet));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
     auto transaction = transactionOrError.Value();
 
-    transaction->DeleteRow(Request_->Path.GetPath(), Request_->Key.Get());
+    transaction->DeleteRow(
+        Request_->Path.GetPath(),
+        nameTable,
+        Request_->Key.Get());
 
     auto commitResult = WaitFor(transaction->Commit());
     THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);

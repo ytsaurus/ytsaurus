@@ -50,6 +50,8 @@ public:
 
     TError CheckKeyColumns(const TKeyColumns& keyColumns) const;
 
+    TTableSchema Filter(const TColumnFilter& columnFilter) const;
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
