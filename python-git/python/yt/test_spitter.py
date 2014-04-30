@@ -6,6 +6,7 @@ from tornado import ioloop
 import pytest
 import mock
 import datetime
+import unittest
 
 
 @pytest.fixture
@@ -197,27 +198,63 @@ Partition: 0\r\n\r\n5
 ping
 """
 
-def test_session_connect():
-    failed = False
-    io_loop = ioloop.IOLoop()
-    def stop():
-        failed = True
-        io_loop.stop()
 
-    io_loop.add_timeout(datetime.timedelta(seconds=1), stop)
+class IOLoopedTestCase(unittest.TestCase):
+    def setUp(self):
+        self.stream_holder = {}
+        self.force_stop = False
+        self.io_loop = ioloop.IOLoop()
+        self.io_loop.add_timeout(datetime.timedelta(seconds=1), self.stop)
+        pass
 
-    def stream_factory(s, io_loop):
-        return StreamToKafka(session_data, "", io_loop)
+    def tearDown(self):
+        pass
 
-    s = spitter.Session(
-        mock.Mock(name="state"),
-        mock.Mock(name="log_broker"),
-        io_loop,
-        stream_factory)
-    s.connect()
-    io_loop.start()
-    assert s.id_ is not None
-    assert not failed
+    def test_empty(self):
+        pass
+
+    def start(self):
+        self.io_loop.start()
+
+    def stop(self):
+        self.force_stop = True
+
+    def stream_factory(self, s, io_loop):
+        return StreamToKafka(session_data, "", io_loop, stream_holder=self.stream_holder)
+
+
+class TestSession(IOLoopedTestCase):
+    def test_connect(self):
+        s = spitter.Session(
+            mock.Mock(name="state"),
+            mock.Mock(name="log_broker"),
+            self.io_loop,
+            self.stream_factory)
+        s.connect()
+        self.start()
+        assert s.id_ is not None
+        assert not self.force_stop
+
+
+class TestSaveChunk(IOLoopedTestCase):
+    def test_basic(self):
+        l = spitter.LogBroker(
+            mock.Mock(name="state"),
+            io_loop=self.io_loop,
+            IOStreamClass = self.stream_factory)
+        l.save_chunk(0, [{"key0":"value0"}])
+        l.save_chunk(1, [{"key1":"value1"}])
+        l.save_chunk(2, [{"key2":"value2"}, {"key3":"value3"}])
+        self.start()
+
+        assert "session" in self.stream_holder
+        assert "store" in self.stream_holder
+
+        chunks = [spitter.parse_chunk(x) for x in self.stream_holder["store"].output_data_[1:]]
+        assert len(chunks) == 3
+        assert chunks[0][0]["key0"] == "value0"
+        assert chunks[1][0]["key1"] == "value1"
+        assert chunks[2][1]["key3"] == "value3"
 
 
 def test_session_integration():
@@ -233,35 +270,6 @@ def test_session_integration():
     s.connect()
     io_loop.start()
     assert s.id_ is not None
-
-
-def test_save_chunk():
-    stream_holder = {}
-    io_loop = ioloop.IOLoop.instance()
-    def stop():
-        io_loop.stop()
-
-    io_loop.add_timeout(datetime.timedelta(seconds=2), stop)
-    def stream_factory(s, io_loop):
-        return StreamToKafka(session_data, "", io_loop, stream_holder)
-
-    l = spitter.LogBroker(
-        mock.Mock(name="state"),
-        io_loop=io_loop,
-        IOStreamClass = stream_factory)
-    l.save_chunk(0, [{"key0":"value0"}])
-    l.save_chunk(1, [{"key1":"value1"}])
-    l.save_chunk(2, [{"key2":"value2"}, {"key3":"value3"}])
-    io_loop.start()
-
-    assert "session" in stream_holder
-    assert "store" in stream_holder
-
-    chunks = [spitter.parse_chunk(x) for x in stream_holder["store"].output_data_[1:]]
-    assert len(chunks) == 3
-    assert chunks[0][0]["key0"] == "value0"
-    assert chunks[1][0]["key1"] == "value1"
-    assert chunks[2][1]["key3"] == "value3"
 
 
 def test_integration():
