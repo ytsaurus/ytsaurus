@@ -47,6 +47,8 @@ private:
 };
 
 const TTraceContext& GetCurrentTraceContext();
+bool IsTracingEnabled();
+
 void PushContext(const TTraceContext& context);
 void PopContext();
 

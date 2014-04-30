@@ -116,6 +116,11 @@ const TTraceContext& GetCurrentTraceContext()
     return stack->empty() ? NullContext : stack->back();
 }
 
+bool IsTracingEnabled()
+{
+    return GetCurrentTraceContext().IsEnabled();
+}
+
 void PushContext(const TTraceContext& context)
 {
     if (context.IsEnabled()) {
