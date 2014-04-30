@@ -92,7 +92,7 @@ def _prepare_formats(format, input_format, output_format):
         input_format = format
     require(input_format is not None,
             YtError("You should specify input format"))
-    
+
     if output_format is None:
         output_format = format
     require(output_format is not None,

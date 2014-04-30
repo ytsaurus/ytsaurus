@@ -50,32 +50,31 @@ class TimeWatcher(object):
         self.max_interval = max_interval
         self.slowdown_coef = slowdown_coef
         self.total_time = 0.0
-        if timeout is not None:
-            self.timeout_time = time() + timeout
-        else:
-            self.timeout_time = None
+        self.timeout_time = time() + timeout if (timeout is not None) else None
 
-    def is_time_up(self, time_=None):
-        """ Is time for timeout? """
+    def _bound(self, interval):
+        return min(max(interval, self.min_interval), self.max_interval)
+
+    def _is_time_up(self, time):
         if not self.timeout_time:
             return False
-        if time_ is None:
-            time_ = time()
-        return time_ >= self.timeout_time
+        return time >= self.timeout_time
 
-    def sleep_(self):
-        """ sleep proper time """
-        current_tm = time()
-        if self.timeout_time < current_tm:
+    def is_time_up(self):
+        """ Is time elapsed? """
+        return self._is_time_up(time())
+
+    def wait(self):
+        """ sleep proper time. If timeout occured, wake up. """
+        if self.is_time_up():
             return
-
-        def bound(val, a, b):
-            return min(max(val, a), b)
-        pause = bound(self.total_time * self.slowdown_coef, self.min_interval, self.max_interval)
-        if self.is_time_up(current_tm + pause):
-            pause = self.timeout_time - current_tm
+        pause = self._bound(self.total_time * self.slowdown_coef)
+        current_time = time()
+        if self._is_time_up(current_time + pause):
+            pause = self.timeout_time - current_time
         self.total_time += pause
         sleep(pause)
+
 
 class OperationProgressFormatter(logging.Formatter):
     def __init__(self, format="%(asctime)-15s\t%(message)s", date_format=None, start_time=None):
@@ -181,22 +180,24 @@ def suspend_operation(operation):
 def resume_operation(operation):
     make_request("resume_op", {"operation_id": operation})
 
-def wait_final_state(operation, tm_watcher, print_info, action=lambda: None):
+def wait_final_state(operation, time_watcher, print_info, action=lambda: None):
     """
     Wait for final state of operation. If timeout occured, abort operation and wait for final state anyway.
     """
-    curr_tm_watcher = tm_watcher
-    abort_tm_wathcer = TimeWatcher(1.0, 1.0, 0.0)
     while True:
+        if time_watcher.is_time_up():
+            abort_operation(operation)
+            return wait_final_state(operation, TimeWatcher(1.0, 1.0, 0, timeout=None), print_info)
+
+        action()
+
         state = get_operation_state(operation)
         print_info(state)
         if state.is_final():
             break
-        if curr_tm_watcher.is_time_up():
-            abort_operation(operation)
-            curr_tm_watcher = abort_tm_wathcer
-        action()
-        tm_watcher.sleep_()
+
+        time_watcher.wait()
+
     return state
 
 def get_stderrs(operation, only_failed_jobs, limit=None):
@@ -257,21 +258,20 @@ class WaitStrategy(object):
         If KeyboardInterrupt occured, abort operation, remove files and reraise KeyboardInterrupt.
         """
         finalize = finalize if finalize else lambda state: None
-        tm_watcher = TimeWatcher(config.OPERATION_STATE_UPDATE_PERIOD / 5.0, config.OPERATION_STATE_UPDATE_PERIOD, 0.1, self.timeout)
+        time_watcher = TimeWatcher(config.OPERATION_STATE_UPDATE_PERIOD / 5.0, config.OPERATION_STATE_UPDATE_PERIOD, 0.1, self.timeout)
         print_info = PrintOperationInfo(operation) if self.print_progress else lambda state: None
 
         def abort():
-            abort_tm_wathcer = TimeWatcher(1.0, 1.0, 0.0)
-            state = wait_final_state(operation, abort_tm_wathcer, print_info, lambda: abort_operation(operation))
+            state = wait_final_state(operation, TimeWatcher(1.0, 1.0, 0.0, timeout=None), print_info, lambda: abort_operation(operation))
             finalize(state)
             return state
 
         with KeyboardInterruptsCatcher(abort):
-            state = wait_final_state(operation, tm_watcher, print_info)
-            timeout_occured = tm_watcher.is_time_up()
+            state = wait_final_state(operation, time_watcher, print_info)
+            timeout_occured = time_watcher.is_time_up()
             finalize(state)
             if timeout_occured:
-                logger.info("Timeout occured!")
+                logger.info("Timeout occured.")
                 raise YtWaitStrategyTimeoutError
 
 
@@ -299,8 +299,8 @@ class AsyncStrategy(object):
     def __init__(self):
         self.operations = []
 
-    def process_operation(self, type, operation, finalization):
-        self.operations.append(tuple([type, operation, finalization]))
+    def process_operation(self, type, operation, finalize):
+        self.operations.append(tuple([type, operation, finalize]))
 
     def get_last_operation(self):
         return self.operations[-1]
