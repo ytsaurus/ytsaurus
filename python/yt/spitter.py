@@ -80,6 +80,32 @@ class EventLog(object):
         self.yt.set("{0}/@lines_to_save", line_index - lines_removed)
 
 
+def serialize_chunk(seqno, data):
+    serialized_data = struct.pack("<QQQ", 0, seqno, 0)
+    for row in data:
+        serialized_data += json.dumps(row)
+    return serialized_data
+
+
+def parse_chunk(serialized_data):
+    serialized_data = serialized_data.strip()
+
+    index = serialized_data.find("\r\n")
+    assert index != -1
+    index += len("\r\n")
+
+    _1, seqno, _3 = struct.unpack("<QQQ", serialized_data[index:index + 3*8])
+    index += 3*8
+
+    data = []
+    decoder = json.JSONDecoder()
+    while index < len(serialized_data):
+        item, shift = decoder.raw_decode(serialized_data[index:])
+        index += shift
+        data.append(item)
+    return data
+
+
 class LogBroker(object):
     log = logging.getLogger("log_broker")
 
@@ -103,9 +129,8 @@ class LogBroker(object):
 
     def save_chunk(self, seqno, data):
         if self.iostream_ is not None:
-            serialized_data = struct.pack("<QQQ", 0, seqno, 0)
-            for row in data:
-                serialized_data += json.dumps(row)
+            serialized_data = serialize_chunk(seqno, data)
+
             self.log.debug("Save chunk: %s", serialized_data)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
             self.iostream_.write(data_to_write)

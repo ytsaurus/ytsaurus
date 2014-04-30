@@ -137,31 +137,51 @@ Partition: 0"""
     assert fake_session.id_ == "00291e7c-eedf-42cd-99cc-f18331b9db77"
 
 
-class IOStringStream(object):
-    def __init__(self, data, io_loop):
-        self.data_ = data
+class StreamToKafka(object):
+    def __init__(self, session_data, store_data, io_loop, stream_holder=None):
+        self.session_data_ = session_data
+        self.store_data_ = store_data
+        self.data_ = None
+        self.index_ = 0
         self.io_loop_ = io_loop
+        self.output_data_ = []
+        self.stream_holder_ = stream_holder
 
     def write(self, data):
-        pass
+        if len(self.output_data_) == 0:
+            name = None
+            if data.startswith("GET /rt/session"):
+                name = "session"
+                self.data_ = self.session_data_
+            else:
+                name = "store"
+                self.data_ = self.store_data_
+
+            if name is not None and self.stream_holder_ is not None:
+                self.stream_holder_[name] = self
+
+        self.output_data_.append(data)
 
     def connect(self, endpoint, callback):
         self.io_loop_.add_callback(callback)
 
     def read_until(self, delimiter, callback):
-        index = self.data_.find(delimiter)
+        index = self.data_.find(delimiter, self.index_)
         if index != -1:
-            self.io_loop_.add_callback(callback, self.data_[:index + len(delimiter)])
-            self.data_ = self.data_[index + len(delimiter)]
+            index += len(delimiter)
+            self.io_loop_.add_callback(callback, self.data_[self.index_:index])
+            self.index_ = index
         else:
             self.io_loop_.stop()
+
+    def read_until_close(self, callback, streaming_callback):
+        pass
 
     def set_close_callback(self, callback):
         pass
 
 
-def test_session_connect():
-    data = """HTTP/1.1 200 OK
+session_data = """HTTP/1.1 200 OK
 Server: nginx/1.4.4
 Date: Wed, 19 Mar 2014 11:09:54 GMT
 Content-Type: text/plain
@@ -176,8 +196,10 @@ Topic: rt3.fol--other
 Partition: 0\r\n\r\n5
 ping
 """
+
+def test_session_connect():
     failed = False
-    io_loop = ioloop.IOLoop.instance()
+    io_loop = ioloop.IOLoop()
     def stop():
         failed = True
         io_loop.stop()
@@ -185,7 +207,7 @@ ping
     io_loop.add_timeout(datetime.timedelta(seconds=1), stop)
 
     def stream_factory(s, io_loop):
-        return IOStringStream(data, io_loop)
+        return StreamToKafka(session_data, "", io_loop)
 
     s = spitter.Session(
         mock.Mock(name="state"),
@@ -202,7 +224,7 @@ def test_session_integration():
     import logging
     logging.basicConfig(level=logging.DEBUG)
 
-    io_loop = ioloop.IOLoop.instance()
+    io_loop = ioloop.IOLoop()
     def stop():
         io_loop.stop()
 
@@ -211,6 +233,35 @@ def test_session_integration():
     s.connect()
     io_loop.start()
     assert s.id_ is not None
+
+
+def test_save_chunk():
+    stream_holder = {}
+    io_loop = ioloop.IOLoop.instance()
+    def stop():
+        io_loop.stop()
+
+    io_loop.add_timeout(datetime.timedelta(seconds=2), stop)
+    def stream_factory(s, io_loop):
+        return StreamToKafka(session_data, "", io_loop, stream_holder)
+
+    l = spitter.LogBroker(
+        mock.Mock(name="state"),
+        io_loop=io_loop,
+        IOStreamClass = stream_factory)
+    l.save_chunk(0, [{"key0":"value0"}])
+    l.save_chunk(1, [{"key1":"value1"}])
+    l.save_chunk(2, [{"key2":"value2"}, {"key3":"value3"}])
+    io_loop.start()
+
+    assert "session" in stream_holder
+    assert "store" in stream_holder
+
+    chunks = [spitter.parse_chunk(x) for x in stream_holder["store"].output_data_[1:]]
+    assert len(chunks) == 3
+    assert chunks[0][0]["key0"] == "value0"
+    assert chunks[1][0]["key1"] == "value1"
+    assert chunks[2][1]["key3"] == "value3"
 
 
 def test_integration():
