@@ -230,7 +230,9 @@ class Session(object):
                     self.log_broker_.on_session_changed(self.id_)
 
     def on_close(self):
-        pass
+        self.log.error("Connection is closed")
+        self.iostream_ = None
+        self.connect()
 
     def process_data(self, data):
         if data.startswith("skip"):

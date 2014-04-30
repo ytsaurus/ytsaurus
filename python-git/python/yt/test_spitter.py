@@ -139,14 +139,16 @@ Partition: 0"""
 
 
 class StreamToKafka(object):
-    def __init__(self, session_data, store_data, io_loop, stream_holder=None):
+    def __init__(self, session_data, store_data, io_loop, stream_holder=None, counters=None):
         self.session_data_ = session_data
         self.store_data_ = store_data
         self.data_ = None
         self.index_ = 0
         self.io_loop_ = io_loop
         self.output_data_ = []
+        self.close_callback_ = None
         self.stream_holder_ = stream_holder
+        self.counters_ = counters or 0
 
     def write(self, data):
         if len(self.output_data_) == 0:
@@ -164,7 +166,12 @@ class StreamToKafka(object):
         self.output_data_.append(data)
 
     def connect(self, endpoint, callback):
-        self.io_loop_.add_callback(callback)
+        if self.counters_.fail_connections_ > 0:
+            self.counters_.fail_connections_ -= 1
+            if self.close_callback_:
+                self.io_loop_.add_callback(self.close_callback_)
+        else:
+            self.io_loop_.add_callback(callback)
 
     def read_until(self, delimiter, callback):
         index = self.data_.find(delimiter, self.index_)
@@ -179,7 +186,7 @@ class StreamToKafka(object):
         pass
 
     def set_close_callback(self, callback):
-        pass
+        self.close_callback_ = callback
 
 
 session_data = """HTTP/1.1 200 OK
@@ -205,7 +212,7 @@ class IOLoopedTestCase(unittest.TestCase):
         self.force_stop = False
         self.io_loop = ioloop.IOLoop()
         self.io_loop.add_timeout(datetime.timedelta(seconds=1), self.stop)
-        pass
+        self.fail_connections_ = 0
 
     def tearDown(self):
         pass
@@ -218,13 +225,33 @@ class IOLoopedTestCase(unittest.TestCase):
 
     def stop(self):
         self.force_stop = True
+        self.io_loop.stop()
 
     def stream_factory(self, s, io_loop):
-        return StreamToKafka(session_data, "", io_loop, stream_holder=self.stream_holder)
+        return StreamToKafka(
+            session_data,
+            "",
+            io_loop,
+            stream_holder=self.stream_holder,
+            counters=self)
 
 
 class TestSession(IOLoopedTestCase):
     def test_connect(self):
+        s = spitter.Session(
+            mock.Mock(name="state"),
+            mock.Mock(name="log_broker"),
+            self.io_loop,
+            self.stream_factory)
+        s.connect()
+        self.start()
+        assert s.id_ is not None
+        assert not self.force_stop
+
+
+class TestSessionReconanect(IOLoopedTestCase):
+    def test_basic(self):
+        self.fail_connections_ = 1
         s = spitter.Session(
             mock.Mock(name="state"),
             mock.Mock(name="log_broker"),
