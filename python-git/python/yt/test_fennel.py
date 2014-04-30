@@ -1,4 +1,4 @@
-import spitter
+import fennel
 
 from tornado import iostream
 from tornado import ioloop
@@ -14,7 +14,7 @@ import json
 
 @pytest.fixture
 def fake_state():
-    state = spitter.State(event_log=mock.Mock(name="event_log"))
+    state = fennel.State(event_log=mock.Mock(name="event_log"))
     state.log_broker_ = mock.Mock(name="log_broker")
     return state
 
@@ -79,16 +79,16 @@ def test_event_log_get_data():
     fake_yt.get = mock.Mock(return_value=200)
     fake_yt.read_table = mock.Mock(return_value=[json.dumps("1")])
     fake_yt.Transaction = mock.MagicMock()
-    event_log = spitter.EventLog(fake_yt, table_name="//tmp/event_log")
+    event_log = fennel.EventLog(fake_yt, table_name="//tmp/event_log")
     event_log.get_data(200, 1000)
     fake_yt.read_table.assert_called_with("//tmp/event_log[#0:#1000]", format="json")
 
 
 @pytest.fixture
 def fake_session():
-    return spitter.Session(
-        mock.Mock(spec=spitter.State, name="state"),
-        mock.Mock(spec=spitter.LogBroker, name="logbroker"),
+    return fennel.Session(
+        mock.Mock(spec=fennel.State, name="state"),
+        mock.Mock(spec=fennel.LogBroker, name="logbroker"),
         mock.Mock(name="ioloop"),
         mock.Mock(name="IOStreamClass"))
 
@@ -240,7 +240,7 @@ class IOLoopedTestCase(unittest.TestCase):
 
 class TestSession(IOLoopedTestCase):
     def test_connect(self):
-        s = spitter.Session(
+        s = fennel.Session(
             mock.Mock(name="state"),
             mock.Mock(name="log_broker"),
             self.io_loop,
@@ -254,7 +254,7 @@ class TestSession(IOLoopedTestCase):
 class TestSessionReconanect(IOLoopedTestCase):
     def test_basic(self):
         self.fail_connections_ = 1
-        s = spitter.Session(
+        s = fennel.Session(
             mock.Mock(name="state"),
             mock.Mock(name="log_broker"),
             self.io_loop,
@@ -267,7 +267,7 @@ class TestSessionReconanect(IOLoopedTestCase):
 
 class TestSaveChunk(IOLoopedTestCase):
     def test_basic(self):
-        l = spitter.LogBroker(
+        l = fennel.LogBroker(
             mock.Mock(name="state"),
             io_loop=self.io_loop,
             IOStreamClass = self.stream_factory)
@@ -279,7 +279,7 @@ class TestSaveChunk(IOLoopedTestCase):
         assert "session" in self.stream_holder
         assert "store" in self.stream_holder
 
-        chunks = [spitter.parse_chunk(x) for x in self.stream_holder["store"].output_data_[1:]]
+        chunks = [fennel.parse_chunk(x) for x in self.stream_holder["store"].output_data_[1:]]
         assert len(chunks) == 3
         assert chunks[0][0]["key0"] == "value0"
         assert chunks[1][0]["key1"] == "value1"
@@ -295,7 +295,7 @@ def test_session_integration():
         io_loop.stop()
 
     io_loop.add_timeout(datetime.timedelta(seconds=1), stop)
-    s = spitter.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream)
+    s = fennel.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream)
     s.connect()
     io_loop.start()
     assert s.id_ is not None
