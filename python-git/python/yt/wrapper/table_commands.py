@@ -215,12 +215,12 @@ def _add_table_writer_spec(job_types, table_writer, spec):
     return spec
 
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
-    def run_operation_(finalizer):
+    def _run_operation(finalizer):
         operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, verbose=verbose)
         get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
 
     if config.DETACHED:
-        run_operation_(finalizer)
+        _run_operation(finalizer)
     else:
         transaction = PingableTransaction(
             config.OPERATION_TRANSACTION_TIMEOUT,
@@ -231,7 +231,7 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 
         with KeyboardInterruptsCatcher(finish_transaction):
             with transaction:
-                run_operation_(finalizer)
+                _run_operation(finalizer)
 
 """ Common table methods """
 def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None):

@@ -496,7 +496,7 @@ class TestNativeMode(YtTestBase, YTEnv):
         records = ["x=1\n", "y=2\n", "z=3\n"]
         do_nothing = "cat > /dev/null"
         pause = 3.
-        sleeep = "sleep {}; cat > /dev/null".format(pause)
+        sleeep = "sleep {0}; cat > /dev/null".format(pause)
         desired_timeout = 1.
 
         table = TEST_DIR + "/table"
@@ -511,8 +511,8 @@ class TestNativeMode(YtTestBase, YTEnv):
         loading_time = usual_time - pause
 
         start = time.time()
-        self.assertRaises(yt.YtWaitStrategyTimeoutError,
-                          lambda: yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1))
+        with self.assertRaises(yt.YtWaitStrategyTimeoutError):
+            yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
         timeout_time = time.time() - start
         self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
 

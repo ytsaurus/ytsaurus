@@ -612,7 +612,7 @@ class YTEnv(object):
             return
 
         if delta is not None:
-            assert (abs(first - second) <= delta), msg if msg else "|{} - {}| > {}".format(first, second, delta)
+            assert (abs(first - second) <= delta), msg if msg else "|{0} - {1}| > {2}".format(first, second, delta)
         else:
             rounding = round(abs(second - first), places)
             assert (rounding == 0), msg if msg else "rounding is {0} (not zero!)".format(rounding)

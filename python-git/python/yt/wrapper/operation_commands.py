@@ -50,7 +50,7 @@ class TimeWatcher(object):
         self.max_interval = max_interval
         self.slowdown_coef = slowdown_coef
         self.total_time = 0.0
-        self.timeout_time = time() + timeout if (timeout is not None) else None
+        self.timeout_time = (time() + timeout) if (timeout is not None) else None
 
     def _bound(self, interval):
         return min(max(interval, self.min_interval), self.max_interval)
