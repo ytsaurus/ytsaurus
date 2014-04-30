@@ -316,8 +316,9 @@ def get_proxy_config():
     },
 
     "proxy" : {
+        "driver" : { },
         "logging" : { },
-        "driver" : { }
+        "tracing" : { }
     }
 }
 """)
