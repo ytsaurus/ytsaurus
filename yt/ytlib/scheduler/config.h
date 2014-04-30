@@ -613,6 +613,7 @@ public:
     TNullable<int> JobCount;
     i64 DataSizePerJob;
     TJobIOConfigPtr JobIO;
+    int MaxChunkCountPerJob;
 
     TRemoteCopyOperationSpec()
     {
@@ -630,6 +631,8 @@ public:
             .DefaultNew();
         RegisterParameter("network_name", NetworkName)
             .Default(NNodeTrackerClient::DefaultNetworkName);
+        RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
+            .Default(100);
     }
 
     virtual void OnLoaded() override
