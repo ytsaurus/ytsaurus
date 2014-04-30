@@ -185,13 +185,15 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     if memory_limit is not None:
         spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
-    if config.POOL is not None:
-        spec = update({"pool": config.POOL}, spec)
-
     return spec, files + additional_files
 
-def _add_user_spec(spec):
-    return update({"wrapper_version": VERSION}, spec)
+def _configure_spec(spec):
+    spec = update({"wrapper_version": VERSION}, spec)
+    if config.POOL is not None:
+        spec = update({"pool": config.POOL}, spec)
+    if config.INTERMEDIATE_DATA_ACCOUNT is not None:
+        spec = update({"intermediate_data_account": config.INTERMEDIATE_DATA_ACCOUNT}, spec)
+    return spec
 
 def _add_input_output_spec(source_table, destination_table, spec):
     def get_input_name(table):
@@ -496,6 +498,7 @@ def run_erase(table, spec=None, strategy=None):
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return
     spec = update({"table_path": table.get_json()}, get_value(spec, {}))
+    spec = _configure_spec(spec)
     _make_operation_request("erase", spec, strategy)
 
 def records_count(table):
@@ -533,7 +536,7 @@ def run_merge(source_table, destination_table, mode=None,
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec))
 
     spec = compose(
-        _add_user_spec,
+        _configure_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
@@ -573,7 +576,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         return
 
     spec = compose(
-        _add_user_spec,
+        _configure_spec,
         lambda _: _add_table_writer_spec(["sort_job_io", "merge_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
@@ -666,7 +669,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     reduce_by = _prepare_reduce_by(reduce_by)
 
     spec = compose(
-        _add_user_spec,
+        _configure_spec,
         lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by, "reduce_by": reduce_by}, _),
@@ -751,12 +754,11 @@ def run_operation(binary, source_table, destination_table,
     if op_name == "reduce": op_type = "reducer"
 
     spec = compose(
-        _add_user_spec,
+        _configure_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
-        lambda _: update({"memory_limit": memory_limit}, _) if memory_limit is not None else _,
         lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
             format, input_format, output_format,
             files, file_paths,
@@ -782,6 +784,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None))
     spec = compose(
+        _configure_spec,
         lambda _: update({"network_name": network_name}, _) if network_name is not None else _,
         lambda _: update({"input_table_paths": map(get_input_name, source_table),
                           "output_table_path": destination_table.get_json(),
