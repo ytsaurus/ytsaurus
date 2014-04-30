@@ -113,11 +113,7 @@ const TTraceContext& GetCurrentTraceContext()
 {
     static TTraceContext NullContext;
     auto& stack = TraceContextStack();
-    if (stack->empty()) {
-        // Empty context stack.
-        return NullContext;
-    }
-    return stack->back();
+    return stack->empty() ? NullContext : stack->back();
 }
 
 void PushContext(const TTraceContext& context)
