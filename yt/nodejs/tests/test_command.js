@@ -57,6 +57,8 @@ function stubDriver(echo)
                     "addresses": [ "localhost:0" ]
                 }
             },
+            "tracing": {
+            },
             "logging": {
                 "rules": [],
                 "writers": {}
