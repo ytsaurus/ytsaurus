@@ -276,6 +276,7 @@ private:
  *  Keep implementation in header to ensure inlining.
  */
 class TTimingGuard
+    : private TNonCopyable
 {
 public:
     TTimingGuard(
@@ -283,15 +284,21 @@ public:
         const NYPath::TYPath& path,
         const TTagIdList& tagIds = EmptyTagIds)
         : Profiler(profiler)
-        , Timer(profiler->TimingStart(path, tagIds))
+        , Timer(Profiler->TimingStart(path, tagIds))
+    { }
+
+    TTimingGuard(TTimingGuard&& other)
+        : Profiler(other.Profiler)
+        , Timer(other.Timer)
     {
-        YASSERT(profiler);
+        other.Profiler = nullptr;
     }
+
 
     ~TTimingGuard()
     {
         // Don't measure anything during exception unwinding.
-        if (!std::uncaught_exception()) {
+        if (!std::uncaught_exception() && Profiler) {
             Profiler->TimingStop(Timer);
         }
     }
@@ -301,6 +308,7 @@ public:
         Profiler->TimingCheckpoint(Timer, key);
     }
 
+    //! Needed for PROFILE_TIMING.
     operator bool() const
     {
         return false;
@@ -335,6 +343,7 @@ TValue CpuDurationToValue(TCpuDuration duration);
  *  Keep implementation in header to ensure inlining.
  */
 class TAggregatedTimingGuard
+    : private TNonCopyable
 {
 public:
     TAggregatedTimingGuard(TProfiler* profiler, TAggregateCounter* counter)
@@ -346,10 +355,18 @@ public:
         YASSERT(counter);
     }
 
+    TAggregatedTimingGuard(TAggregatedTimingGuard&& other)
+        : Profiler(other.Profiler)
+        , Counter(other.Counter)
+        , Start(other.Start)
+    {
+        other.Profiler = nullptr;
+    }
+
     ~TAggregatedTimingGuard()
     {
         // Don't measure anything during exception unwinding.
-        if (!std::uncaught_exception()) {
+        if (!std::uncaught_exception() && Profiler) {
             auto stop = GetCpuInstant();
             auto value = CpuDurationToValue(stop - Start);
             Profiler->Aggregate(*Counter, value);
