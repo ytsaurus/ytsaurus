@@ -6,6 +6,8 @@
 
 #include <iterator>
 
+#include <core/misc/address.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -105,16 +107,21 @@ TClientContextPtr TClientRequest::CreateClientContext()
     if (traceContext.IsEnabled()) {
         SetTraceContext(&Header(), traceContext);
 
-        NTracing::TraceEvent(
+        TRACE_ANNOTATION(
             traceContext,
             GetService(),
             GetMethod(),
             NTracing::ClientSendAnnotation);
 
-        NTracing::TraceEvent(
+        TRACE_ANNOTATION(
             traceContext,
             "request_id",
             GetRequestId());
+
+        TRACE_ANNOTATION(
+            traceContext,
+            "client_host",
+            TAddressResolver::Get()->GetLocalHostName());
     }
 
     return New<TClientContext>(

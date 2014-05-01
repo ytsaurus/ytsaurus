@@ -316,6 +316,8 @@ public:
         ISchemafulWriterPtr writer)
     {
         TRACE_SPAN("QueryClient", "Evaluate") {
+            TRACE_ANNOTATION("fragment_id", fragment.Id());
+
             auto Logger = BuildLogger(fragment);
             auto result = Codegen(fragment);
 

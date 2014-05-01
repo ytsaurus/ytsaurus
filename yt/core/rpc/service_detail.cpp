@@ -8,6 +8,7 @@
 #include "helpers.h"
 
 #include <core/misc/string.h>
+#include <core/misc/address.h>
 
 #include <core/concurrency/thread_affinity.h>
 
@@ -300,6 +301,7 @@ void TServiceBase::OnRequest(
     }
 
     auto traceContext = GetTraceContext(*header);
+    TRACE_ANNOTATION(traceContext, "server_host", TAddressResolver::Get()->GetLocalHostName());
 
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
 

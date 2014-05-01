@@ -75,6 +75,8 @@ TCoordinator::~TCoordinator()
 TError TCoordinator::Run()
 {
     TRACE_SPAN("QueryClient", "Coordinate") {
+        TRACE_ANNOTATION("fragment_id", Fragment_.Id());
+
         try {
             LOG_DEBUG("Coordinating plan fragment");
 
