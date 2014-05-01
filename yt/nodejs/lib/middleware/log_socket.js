@@ -1,4 +1,4 @@
-var uuid = require("node-uuid");
+var crypto = require("crypto");
 
 var YtRegistry = require("../registry").that;
 var YtError = require("../error").that;
@@ -12,7 +12,6 @@ exports.that = function Middleware__YtLogSocket()
     "use strict";
 
     var logger = YtRegistry.get("logger");
-    var buffer = new Buffer(16);
 
     function getSocketMeta(socket, with_tls) {
         var meta = {
@@ -35,7 +34,9 @@ exports.that = function Middleware__YtLogSocket()
     }
 
     return function(socket) {
-        socket.uuid = uuid.v4(undefined, buffer).toString("base64");
+        socket.uuid_ui64 = crypto.pseudoRandomBytes(8);
+        socket.uuid = socket.uuid.toString("hex");
+
         logger.debug("New connection was established", getSocketMeta(socket, true));
 
         socket.once("close", function() {

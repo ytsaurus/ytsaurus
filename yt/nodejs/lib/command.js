@@ -138,6 +138,7 @@ function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause
     this.rsp = null;
 
     this.omit_trailers = undefined;
+    this.request_id = undefined;
 
     this.name = undefined;
     this.user = undefined;
@@ -179,6 +180,8 @@ YtCommand.prototype.dispatch = function(req, rsp) {
     // XXX(sandello): IE is bugged; it fails to parse request with trailing
     // headers that include colons. Remarkable.
     self.omit_trailers = is_ie;
+
+    self.request_id = self.req.uuid_ui64;
 
     self.req.parsedUrl = url.parse(self.req.url);
     self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
@@ -716,7 +719,8 @@ YtCommand.prototype._execute = function(cb) {
     return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression,
         this.output_stream, this.output_compression,
-        this.parameters, this.pause,
+        this.parameters, this.request_id,
+        this.pause,
         function(key, value) {
             self.logger.debug(
                 "Got a response parameter",

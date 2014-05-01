@@ -117,10 +117,12 @@ function YtDriver(config, echo)
     this.__DBG("New");
 }
 
-YtDriver.prototype.execute = function(name, user,
+YtDriver.prototype.execute = function(
+    name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters, pause, response_parameters_consumer
+    parameters, request_id, pause,
+    response_parameters_consumer
 )
 {
     "use strict";
@@ -163,7 +165,7 @@ YtDriver.prototype.execute = function(name, user,
     this._binding.Execute(name, user,
         wrapped_input_stream._binding, input_compression,
         wrapped_output_stream._binding, output_compression,
-        parameters,
+        parameters, request_id,
         function(result) {
             self.__DBG("execute -> (on-execute callback)");
             // XXX(sandello): Can we move |_endSoon| to C++?
@@ -203,7 +205,8 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
-        new binding.TNodeWrap(parameters), pause, function(){})
+        new binding.TNodeWrap(parameters), null,
+        pause, function(){})
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
         if (body.length) {

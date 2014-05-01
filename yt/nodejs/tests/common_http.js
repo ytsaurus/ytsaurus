@@ -5,7 +5,7 @@ exports.srv = function srv()
 {
     var app = connect()
         .use(function(req, rsp, next) {
-            req.uuid = require("node-uuid").v4();
+            req.uuid = require("crypto").pseudoRandomBytes(8).toString("hex");
             next();
         });
 

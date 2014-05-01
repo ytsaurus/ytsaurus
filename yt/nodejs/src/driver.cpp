@@ -312,7 +312,8 @@ struct TExecuteRequest
     void SetCommand(
         Stroka commandName,
         Stroka authenticatedUser,
-        INodePtr arguments)
+        INodePtr arguments,
+        ui64 requestId)
     {
         DriverRequest.CommandName = std::move(commandName);
         DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
@@ -321,6 +322,12 @@ struct TExecuteRequest
         auto trace = DriverRequest.Arguments->FindChild("trace");
         if (trace && ConvertTo<bool>(trace)) {
             TraceContext = NTracing::CreateRootTraceContext();
+            if (requestId) {
+                TraceContext = NTracing::TTraceContext(
+                    requestId,
+                    TraceContext.GetSpanId(),
+                    TraceContext.GetParentSpanId());
+            }
         }
     }
 
@@ -600,7 +607,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 9);
+    YASSERT(args.Length() == 10);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
     EXPECT_THAT_IS(args[1], String); // AuthenticatedUser
@@ -612,8 +619,9 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
 
     EXPECT_THAT_HAS_INSTANCE(args[6], TNodeWrap); // Parameters
-    EXPECT_THAT_IS(args[7], Function); // ExecuteCallback
-    EXPECT_THAT_IS(args[8], Function); // ParameterCallback
+
+    EXPECT_THAT_IS(args[8], Function); // ExecuteCallback
+    EXPECT_THAT_IS(args[9], Function); // ParameterCallback
 
     // Unwrap arguments.
     TDriverWrap* host = ObjectWrap::Unwrap<TDriverWrap>(args.This());
@@ -632,8 +640,19 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         (ECompression)args[5]->Uint32Value();
 
     INodePtr parameters = TNodeWrap::UnwrapNode(args[6]);
-    Local<Function> executeCallback = args[7].As<Function>();
-    Local<Function> parameterCallback = args[8].As<Function>();
+
+    ui64 requestId = 0;
+
+    if (node::Buffer::HasInstance(args[7])) {
+        const char* buffer = node::Buffer::Data(args[7].As<Object>());
+        size_t length = node::Buffer::Length(args[7].As<Object>());
+        if (length == 8) {
+            requestId = __builtin_bswap64(*(ui64*)buffer);
+        }
+    }
+
+    Local<Function> executeCallback = args[8].As<Function>();
+    Local<Function> parameterCallback = args[9].As<Function>();
 
     // Build an atom of work.
     YCHECK(parameters);
@@ -650,7 +669,8 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         request->SetCommand(
             Stroka(*commandName, commandName.length()),
             Stroka(*authenticatedUser, authenticatedUser.length()),
-            std::move(parameters));
+            std::move(parameters),
+            requestId);
 
         request->SetInputCompression(inputCompression);
         request->SetOutputCompression(outputCompression);
@@ -676,8 +696,8 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
     if (LIKELY(!request->Wrap->Echo)) {
-        // TODO(sandello): Make trace id coherent with trace id in nodejs.
         NTracing::TTraceContextGuard guard(request->TraceContext);
+
         // Execute() method is guaranteed to be exception-safe,
         // so no try-catch here.
         request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest).Get();
