@@ -109,10 +109,10 @@ protected:
 
     virtual void TearDown()
     {
-        if (Queue1.HasValue()) {
+        if (Queue1) {
             Queue1->Shutdown();
         }
-        if (Queue2.HasValue()) {
+        if (Queue2) {
             Queue2->Shutdown();
         }
 

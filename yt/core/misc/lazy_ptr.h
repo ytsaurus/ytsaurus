@@ -4,10 +4,11 @@
 
 #include <core/actions/callback.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <util/system/spinlock.h>
 
-namespace NYT
-{
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,15 +39,16 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
+                NTracing::TTraceContextGuard guard(NTracing::NullTraceContext);
                 Value = Factory.Run();
             }
         }
         return Value.Get();
     }
 
-    bool HasValue() const throw()
+    explicit operator bool() const throw()
     {
-        return Value;
+        return static_cast<bool>(Value);
     }
 
 private:
@@ -85,15 +87,16 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
+                NTracing::TTraceContextGuard guard(NTracing::NullTraceContext);
                 Value.reset(Factory.Run());
             }
         }
-        return ~Value;
+        return Value.get();
     }
 
-    bool HasValue() const throw()
+    explicit operator bool() const throw()
     {
-        return Value;
+        return static_cast<bool>(Value);
     }
 
 private:

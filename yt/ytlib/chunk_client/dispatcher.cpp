@@ -33,20 +33,20 @@ TDispatcher* TDispatcher::Get()
 void TDispatcher::Configure(TDispatcherConfigPtr config)
 {
     // We believe in proper memory ordering here.
-    YCHECK(!CompressionThreadPool.HasValue());
+    YCHECK(!CompressionThreadPool);
     // We do not really want to store entire config within us.
     CompressionPoolSize = config->CompressionPoolSize;
     // This is not redundant, since the check and the assignment above are
     // not atomic and (adversary) thread can initialize thread pool in parallel.
-    YCHECK(!CompressionThreadPool.HasValue());
+    YCHECK(!CompressionThreadPool);
 
     // We believe in proper memory ordering here.
-    YCHECK(!ErasureThreadPool.HasValue());
+    YCHECK(!ErasureThreadPool);
     // We do not really want to store entire config within us.
     ErasurePoolSize = config->ErasurePoolSize;
     // This is not redundant, since the check and the assignment above are
     // not atomic and (adversary) thread can initialize thread pool in parallel.
-    YCHECK(!ErasureThreadPool.HasValue());
+    YCHECK(!ErasureThreadPool);
 }
 
 IInvokerPtr TDispatcher::GetReaderInvoker()
@@ -71,19 +71,19 @@ IInvokerPtr TDispatcher::GetErasureInvoker()
 
 void TDispatcher::Shutdown()
 {
-    if (ReaderThread.HasValue()) {
+    if (ReaderThread) {
         ReaderThread->Shutdown();
     }
 
-    if (WriterThread.HasValue()) {
+    if (WriterThread) {
         WriterThread->Shutdown();
     }
 
-    if (CompressionThreadPool.HasValue()) {
+    if (CompressionThreadPool) {
         CompressionThreadPool->Shutdown();
     }
 
-    if (ErasureThreadPool.HasValue()) {
+    if (ErasureThreadPool) {
         ErasureThreadPool->Shutdown();
     }
 }
