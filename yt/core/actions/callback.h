@@ -243,7 +243,7 @@ public:
 
     R Run(TArgs... args) const
     {
-      auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
+        auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
         return invokeFunction(
         	BindState.Get(),
             std::forward<TArgs>(args)...);
