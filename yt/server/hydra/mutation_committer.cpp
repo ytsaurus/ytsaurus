@@ -12,6 +12,8 @@
 
 #include <core/profiling/profiler.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <ytlib/election/cell_manager.h>
 
 namespace NYT {
@@ -292,6 +294,8 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    NTracing::TTraceContextGuard guard(NTracing::NullTraceContext);
+    
     if (LoggingSuspended_) {
         TPendingMutation pendingMutation;
         pendingMutation.Request = request;
