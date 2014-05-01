@@ -41,6 +41,8 @@ private:
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
 
+    void Capture(TUnversionedValue* dstValue, const TUnversionedValue& srcValue);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

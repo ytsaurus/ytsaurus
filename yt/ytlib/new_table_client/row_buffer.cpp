@@ -46,12 +46,9 @@ const TChunkedMemoryPool* TRowBuffer::GetUnalignedPool() const
 
 TUnversionedValue TRowBuffer::Capture(const TUnversionedValue& value)
 {
-    auto capturedValue = value;
-    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
-        capturedValue.Data.String = UnalignedPool_.AllocateUnaligned(value.Length);
-        memcpy(const_cast<char*>(capturedValue.Data.String), value.Data.String, value.Length);
-    }
-    return capturedValue;
+    TUnversionedValue result;
+    Capture(&result, value);
+    return result;
 }
 
 TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
@@ -60,9 +57,10 @@ TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
         return row;
     }
 
-    auto capturedRow = TUnversionedRow::Allocate(&AlignedPool_, row.GetCount());
-    for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-        capturedRow[index] = Capture(row[index]);
+    int count = row.GetCount();
+    auto capturedRow = TUnversionedRow::Allocate(&AlignedPool_, count);
+    for (int index = 0; index < count; ++index) {
+        Capture(&capturedRow[index], row[index]);
     }
 
     return capturedRow;
@@ -75,6 +73,15 @@ std::vector<TUnversionedRow> TRowBuffer::Capture(const std::vector<TUnversionedR
         capturedRows[index] = Capture(rows[index]);
     }
     return capturedRows;
+}
+
+void TRowBuffer::Capture(TUnversionedValue* dstValue, const TUnversionedValue& srcValue)
+{
+    *dstValue = srcValue;
+    if (srcValue.Type == EValueType::String || srcValue.Type == EValueType::Any) {
+        dstValue->Data.String = UnalignedPool_.AllocateUnaligned(srcValue.Length);
+        memcpy(const_cast<char*>(dstValue->Data.String), srcValue.Data.String, srcValue.Length);
+    }
 }
 
 i64 TRowBuffer::GetSize() const
