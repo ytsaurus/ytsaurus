@@ -135,10 +135,8 @@ bool IsTracingEnabled()
 
 void PushContext(const TTraceContext& context)
 {
-    if (context.IsEnabled()) {
-        LOG_TRACE("Push context %s", ~ToString(context));
-        TraceContextStack()->push_back(context);
-    }
+    LOG_TRACE("Push context %s", ~ToString(context));
+    TraceContextStack()->push_back(context);
 }
 
 void PopContext()
