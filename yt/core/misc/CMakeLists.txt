@@ -71,7 +71,6 @@ set( HDRS
   ${BASE}/hr_timer.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
-  ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
   ${BASE}/lfalloc_helpers.h
