@@ -10,14 +10,11 @@ namespace NTracing {
 
 template <class T>
 void TraceEvent(
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const T& annotationValue)
 {
+    using ::ToString;
     TraceEvent(
-        serviceName,
-        spanName,
         annotationKey,
         ToString(annotationValue));
 }
@@ -25,15 +22,12 @@ void TraceEvent(
 template <class T>
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const T& annotationValue)
 {
+    using ::ToString;
     TraceEvent(
         context,
-        serviceName,
-        spanName,
         annotationKey,
         ToString(annotationValue));
 }

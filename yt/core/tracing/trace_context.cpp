@@ -80,10 +80,23 @@ Stroka ToString(const TTraceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceContextGuard::TTraceContextGuard(const TTraceContext& context)
+    : Context_(context)
+    , Active_(true)
 {
-    if (context.IsEnabled()) {
-        Context_ = context;
-        PushContext(context);
+    PushContext(context);
+}
+
+TTraceContextGuard::TTraceContextGuard(TTraceContextGuard&& other)
+    : Context_(other.Context_)
+    , Active_(true)
+{
+    other.Active_ = false;
+}
+
+TTraceContextGuard::~TTraceContextGuard()
+{
+    if (Active_) {
+        PopContext();
     }
 }
 
@@ -92,11 +105,9 @@ const TTraceContext& TTraceContextGuard::GetContext() const
     return Context_;
 }
 
-TTraceContextGuard::~TTraceContextGuard()
+bool TTraceContextGuard::IsActive() const
 {
-    if (Context_.IsEnabled()) {
-        PopContext();
-    }
+    return Active_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,6 +169,7 @@ TTraceSpanGuard::TTraceSpanGuard(
     , SpanName_(spanName)
 {
     TraceEvent(
+        ContextGuard_.GetContext(),
         ServiceName_,
         SpanName_,
         ClientSendAnnotation);
@@ -166,6 +178,7 @@ TTraceSpanGuard::TTraceSpanGuard(
 TTraceSpanGuard::~TTraceSpanGuard()
 {
     TraceEvent(
+        ContextGuard_.GetContext(),
         ServiceName_,
         SpanName_,
         ClientReceiveAnnotation);
@@ -193,15 +206,11 @@ void TraceEvent(
 }
 
 void TraceEvent(
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const Stroka& annotationValue)
 {
     TraceEvent(
         GetCurrentTraceContext(),
-        serviceName,
-        spanName,
         annotationKey,
         annotationValue);
 }
@@ -223,16 +232,12 @@ void TraceEvent(
 
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const Stroka& annotationValue)
 {
     if (context.IsEnabled()) {
         TTraceManager::Get()->Enqueue(
             context,
-            serviceName,
-            spanName,
             annotationKey,
             annotationValue);
     }

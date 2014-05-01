@@ -33,16 +33,18 @@ Stroka ToString(const TTraceContext& context);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceContextGuard
-    : private TNonCopyable
 {
 public:
     explicit TTraceContextGuard(const TTraceContext& context);
+    TTraceContextGuard(TTraceContextGuard&& other);
     ~TTraceContextGuard();
 
     const TTraceContext& GetContext() const;
+    bool IsActive() const;
 
 private:
     TTraceContext Context_;
+    bool Active_;
 
 };
 
@@ -58,13 +60,19 @@ TTraceContext CreateRootTraceContext();
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceSpanGuard
-    : private TNonCopyable
 {
 public:
     TTraceSpanGuard(
         const Stroka& serviceName,
         const Stroka& spanName);
+    TTraceSpanGuard(TTraceSpanGuard&& other) = default;
     ~TTraceSpanGuard();
+
+    //! Needed for TRACE_SPAN.
+    operator bool() const
+    {
+        return false;
+    }
 
 private:
     TTraceContextGuard ContextGuard_;
@@ -88,15 +96,11 @@ void TraceEvent(
     const Stroka& annotationName);
 
 void TraceEvent(
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const Stroka& annotationValue);
 
 template <class T>
 void TraceEvent(
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const T& annotationValue);
 
@@ -108,18 +112,28 @@ void TraceEvent(
 
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const Stroka& annotationValue);
 
 template <class T>
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const T& annotationValue);
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define TRACE_ANNOTATION(key, value) \
+    do { \
+        if (::NYT::NTracing::IsTracingEnabled()) { \
+            ::NYT::NTracing::TraceEvent(key, value); \
+        } \
+    } while (false)
+
+#define TRACE_SPAN(serviceName, spanName) \
+    if (auto TRACE_SPAN__Guard = ::NYT::NTracing::TTraceSpanGuard(serviceName, spanName)) \
+    { YUNREACHABLE(); } \
+    else
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -29,8 +29,6 @@ public:
 
     void Enqueue(
         const NTracing::TTraceContext& context,
-        const Stroka& serviceName,
-        const Stroka& spanName,
         const Stroka& annotationKey,
         const Stroka& annotationValue);
 

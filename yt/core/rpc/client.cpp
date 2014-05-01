@@ -113,8 +113,6 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
         NTracing::TraceEvent(
             traceContext,
-            GetService(),
-            GetMethod(),
             "request_id",
             GetRequestId());
     }

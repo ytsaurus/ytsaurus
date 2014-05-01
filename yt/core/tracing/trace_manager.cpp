@@ -98,8 +98,6 @@ public:
 
     void Enqueue(
         const NTracing::TTraceContext& context,
-        const Stroka& serviceName,
-        const Stroka& spanName,
         const Stroka& annotationKey,
         const Stroka& annotationValue)
     {
@@ -111,8 +109,6 @@ public:
         event.set_span_id(context.GetSpanId());
         event.set_parent_span_id(context.GetParentSpanId());
         event.set_timestamp(TInstant::Now().MicroSeconds());
-        event.set_service_name(serviceName);
-        event.set_span_name(spanName);
         event.set_annotation_key(annotationKey);
         event.set_annotation_value(annotationValue);
         EnqueueEvent(event);
@@ -229,9 +225,7 @@ private:
     void EnqueueEvent(const NProto::TTraceEvent& event)
     {
         if (event.has_annotation_key()) {
-            LOG_DEBUG("Event %s:%s %s=%s %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
-                ~event.service_name(),
-                ~event.span_name(),
+            LOG_DEBUG("Event %s=%s %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
                 ~event.annotation_key(),
                 ~event.annotation_value(),
                 event.trace_id(),
@@ -327,15 +321,11 @@ void TTraceManager::Enqueue(
 
 void TTraceManager::Enqueue(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
     const Stroka& annotationKey,
     const Stroka& annotationValue)
 {
     Impl_->Enqueue(
         context,
-        serviceName,
-        spanName,
         annotationKey,
         annotationValue);
 }
