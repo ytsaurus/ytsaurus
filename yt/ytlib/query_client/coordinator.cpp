@@ -14,6 +14,8 @@
 
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/new_table_client/schemaful_reader.h>
@@ -72,45 +74,47 @@ TCoordinator::~TCoordinator()
 
 TError TCoordinator::Run()
 {
-    try {
-        LOG_DEBUG("Coordinating plan fragment");
+    TRACE_SPAN("QueryClient", "Coordinate") {
+        try {
+            LOG_DEBUG("Coordinating plan fragment");
 
-        // Infer key range and push it down.
-        auto keyRange = Fragment_.GetHead()->GetKeyRange();
-        auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
-            return Sprintf("[%s .. %s]",
-                ~ToString(range.first),
-                ~ToString(range.second));
-        };
-        Fragment_.Rewrite([&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-            if (auto* scanOp = op->As<TScanOperator>()) {
-                auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-                for (auto& split : clonedScanOp->DataSplits()) {
-                    auto originalRange = GetBothBoundsFromDataSplit(split);
-                    auto intersectedRange = Intersect(originalRange, keyRange);
-                    LOG_DEBUG("Narrowing split %s key range from %s to %s",
-                        ~ToString(GetObjectIdFromDataSplit(split)),
-                        ~keyRangeFormatter(originalRange),
-                        ~keyRangeFormatter(intersectedRange));
-                    SetBothBounds(&split, intersectedRange);
+            // Infer key range and push it down.
+            auto keyRange = Fragment_.GetHead()->GetKeyRange();
+            auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
+                return Sprintf("[%s .. %s]",
+                    ~ToString(range.first),
+                    ~ToString(range.second));
+            };
+            Fragment_.Rewrite([&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+                if (auto* scanOp = op->As<TScanOperator>()) {
+                    auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
+                    for (auto& split : clonedScanOp->DataSplits()) {
+                        auto originalRange = GetBothBoundsFromDataSplit(split);
+                        auto intersectedRange = Intersect(originalRange, keyRange);
+                        LOG_DEBUG("Narrowing split %s key range from %s to %s",
+                                ~ToString(GetObjectIdFromDataSplit(split)),
+                                ~keyRangeFormatter(originalRange),
+                                ~keyRangeFormatter(intersectedRange));
+                        SetBothBounds(&split, intersectedRange);
+                    }
+                    return clonedScanOp;
                 }
-                return clonedScanOp;
-            }
-            return op;
-        });
+                return op;
+            });
 
-        // Now build and distribute fragments.
-        Fragment_ = TPlanFragment(
-            Fragment_.GetContext(),
-            Simplify(Gather(Scatter(Fragment_.GetHead()))));
+            // Now build and distribute fragments.
+            Fragment_ = TPlanFragment(
+                Fragment_.GetContext(),
+                Simplify(Gather(Scatter(Fragment_.GetHead()))));
 
-        DelegateToPeers();
+            DelegateToPeers();
 
-        return TError();
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to coordinate query fragment") << ex;
-        LOG_ERROR(error);
-        return error;
+            return TError();
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to coordinate query fragment") << ex;
+            LOG_ERROR(error);
+            return error;
+        }
     }
 }
 

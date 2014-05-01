@@ -20,6 +20,8 @@
 
 #include <core/logging/tagged_logger.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <llvm/ADT/FoldingSet.h>
 
 #include <llvm/Support/Threading.h>
@@ -313,70 +315,72 @@ public:
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildLogger(fragment);
-        auto result = Codegen(fragment);
+        TRACE_SPAN("QueryClient", "Evaluate") {
+            auto Logger = BuildLogger(fragment);
+            auto result = Codegen(fragment);
 
-        auto codegenedFunction = result.first;
-        auto fragmentParams = result.second;
+            auto codegenedFunction = result.first;
+            auto fragmentParams = result.second;
 
-        // Make TRow from fragmentParams.ConstantArray.
-        TChunkedMemoryPool memoryPool;
-        auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
-        for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
-            constants[i] = fragmentParams.ConstantArray[i];
-        }
-
-        try {
-            LOG_DEBUG("Evaluating plan fragment");
-
-            LOG_DEBUG("Opening writer");
-            {
-                auto error = WaitFor(writer->Open(
-                    fragment.GetHead()->GetTableSchema(),
-                    fragment.GetHead()->GetKeyColumns()));
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            // Make TRow from fragmentParams.ConstantArray.
+            TChunkedMemoryPool memoryPool;
+            auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
+            for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
+                constants[i] = fragmentParams.ConstantArray[i];
             }
 
-            LOG_DEBUG("Writer opened");
+            try {
+                LOG_DEBUG("Evaluating plan fragment");
 
-            TRowBuffer rowBuffer;
-            TChunkedMemoryPool scratchSpace;
-            std::vector<TRow> batch;
-            batch.reserve(MaxRowsPerWrite);
-
-            TPassedFragmentParams passedFragmentParams;
-            passedFragmentParams.Callbacks = callbacks;
-            passedFragmentParams.Context = fragment.GetContext().Get();
-            passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
-            passedFragmentParams.RowBuffer = &rowBuffer;
-            passedFragmentParams.ScratchSpace = &scratchSpace;
-            passedFragmentParams.Writer = writer.Get();
-            passedFragmentParams.Batch = &batch;
-
-            CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
-
-            LOG_DEBUG("Flushing writer");
-            if (!batch.empty()) {
-                if (!writer->Write(batch)) {
-                    auto error = WaitFor(writer->GetReadyEvent());
+                LOG_DEBUG("Opening writer");
+                {
+                    auto error = WaitFor(writer->Open(
+                        fragment.GetHead()->GetTableSchema(),
+                        fragment.GetHead()->GetKeyColumns()));
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
-            }
 
-            LOG_DEBUG("Closing writer");
-            {
-                auto error = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
-            }
+                LOG_DEBUG("Writer opened");
 
-            LOG_DEBUG("Finished evaluating plan fragment (RowBufferCapacity: %" PRISZT ", ScratchSpaceCapacity: %" PRISZT ")",
-                rowBuffer.GetCapacity(),
-                scratchSpace.GetCapacity());
-        } catch (const std::exception& ex) {
-            return TError("Failed to evaluate plan fragment") << ex;
+                TRowBuffer rowBuffer;
+                TChunkedMemoryPool scratchSpace;
+                std::vector<TRow> batch;
+                batch.reserve(MaxRowsPerWrite);
+
+                TPassedFragmentParams passedFragmentParams;
+                passedFragmentParams.Callbacks = callbacks;
+                passedFragmentParams.Context = fragment.GetContext().Get();
+                passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
+                passedFragmentParams.RowBuffer = &rowBuffer;
+                passedFragmentParams.ScratchSpace = &scratchSpace;
+                passedFragmentParams.Writer = writer.Get();
+                passedFragmentParams.Batch = &batch;
+
+                CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
+
+                LOG_DEBUG("Flushing writer");
+                if (!batch.empty()) {
+                    if (!writer->Write(batch)) {
+                        auto error = WaitFor(writer->GetReadyEvent());
+                        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                    }
+                }
+
+                LOG_DEBUG("Closing writer");
+                {
+                    auto error = WaitFor(writer->Close());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                }
+
+                LOG_DEBUG("Finished evaluating plan fragment (RowBufferCapacity: %" PRISZT ", ScratchSpaceCapacity: %" PRISZT ")",
+                    rowBuffer.GetCapacity(),
+                    scratchSpace.GetCapacity());
+
+                return TError();
+            } catch (const std::exception& ex) {
+                return TError("Failed to evaluate plan fragment") << ex;
+            }
         }
-
-        return TError();
     }
 
 private:
@@ -393,12 +397,14 @@ private:
         if (BeginInsert(&cookie)) {
             LOG_DEBUG("Codegen cache miss");
             try {
-                LOG_DEBUG("Started compiling fragment");
-                auto newCGFragment = New<TCachedCGFragment>(id);
-                newCGFragment->Embody(Compiler_(fragment, *newCGFragment, binding));
-                newCGFragment->GetCompiledBody();
-                LOG_DEBUG("Finished compiling fragment");
-                cookie.EndInsert(std::move(newCGFragment));
+                TRACE_SPAN("QueryClient", "Compile") {
+                    LOG_DEBUG("Started compiling fragment");
+                    auto newCGFragment = New<TCachedCGFragment>(id);
+                    newCGFragment->Embody(Compiler_(fragment, *newCGFragment, binding));
+                    newCGFragment->GetCompiledBody();
+                    LOG_DEBUG("Finished compiling fragment");
+                    cookie.EndInsert(std::move(newCGFragment));
+                }
             } catch (const std::exception& ex) {
                 LOG_DEBUG(ex, "Failed to compile fragment");
                 cookie.Cancel(ex);
