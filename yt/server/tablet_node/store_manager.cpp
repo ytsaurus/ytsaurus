@@ -137,7 +137,7 @@ void TStoreManager::LookupRows(
     LookupMemoryPool_.Clear();
 
     for (auto key : PooledKeys_) {
-        ValidateServerKey(key, keyColumnCount);
+        //ValidateServerKey(key, keyColumnCount);
 
         auto lowerBound = TOwningKey(key);
         auto upperBound = GetKeySuccessor(key);
@@ -205,7 +205,7 @@ void TStoreManager::WriteRow(
     bool prewrite,
     std::vector<TDynamicRowRef>* lockedRowRefs)
 {
-    ValidateServerDataRow(row, Tablet_->GetKeyColumnCount());
+    //ValidateServerDataRow(row, Tablet_->GetKeyColumnCount());
 
     auto store = FindRelevantStoreAndCheckLocks(
         transaction,
@@ -228,7 +228,7 @@ void TStoreManager::DeleteRow(
     bool prewrite,
     std::vector<TDynamicRowRef>* lockedRowRefs)
 {
-    ValidateServerKey(key, Tablet_->GetKeyColumnCount());
+    //ValidateServerKey(key, Tablet_->GetKeyColumnCount());
 
     auto store = FindRelevantStoreAndCheckLocks(
         transaction,
