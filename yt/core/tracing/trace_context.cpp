@@ -77,6 +77,8 @@ Stroka ToString(const TTraceContext& context)
         context.GetParentSpanId());
 }
 
+TTraceContext NullTraceContext;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceContextGuard::TTraceContextGuard(const TTraceContext& context)
@@ -112,7 +114,7 @@ bool TTraceContextGuard::IsActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef NConcurrency::TFls<std::vector<TTraceContext>>  TTraceContextStack;
+typedef NConcurrency::TFls<std::vector<TTraceContext>> TTraceContextStack;
 
 static TTraceContextStack& TraceContextStack()
 {
@@ -122,9 +124,8 @@ static TTraceContextStack& TraceContextStack()
 
 const TTraceContext& GetCurrentTraceContext()
 {
-    static TTraceContext NullContext;
     auto& stack = TraceContextStack();
-    return stack->empty() ? NullContext : stack->back();
+    return stack->empty() ? NullTraceContext : stack->back();
 }
 
 bool IsTracingEnabled()

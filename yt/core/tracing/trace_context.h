@@ -30,6 +30,8 @@ public:
 
 Stroka ToString(const TTraceContext& context);
 
+extern TTraceContext NullTraceContext;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceContextGuard
