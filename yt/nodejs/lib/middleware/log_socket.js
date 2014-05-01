@@ -35,7 +35,7 @@ exports.that = function Middleware__YtLogSocket()
 
     return function(socket) {
         socket.uuid_ui64 = crypto.pseudoRandomBytes(8);
-        socket.uuid = socket.uuid.toString("hex");
+        socket.uuid = socket.uuid_ui64.toString("hex");
 
         logger.debug("New connection was established", getSocketMeta(socket, true));
 

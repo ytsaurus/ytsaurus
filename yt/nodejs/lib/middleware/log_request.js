@@ -16,7 +16,8 @@ exports.that = function Middleware__YtLogRequest()
 
     return function(req, rsp, next) {
         req.uuid_ui64 = crypto.pseudoRandomBytes(8);
-        req.uuid = req.uuid.toString("hex");
+        req.uuid = req.uuid_ui64.toString("hex");
+
         req.connection.last_request_id = req.uuid;
 
         // Store useful information.
