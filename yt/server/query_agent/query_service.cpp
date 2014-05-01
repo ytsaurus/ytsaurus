@@ -43,7 +43,8 @@ public:
         YCHECK(Executor_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetEnableReorder(true));
+            .SetEnableReorder(true)
+            .SetResponseCodec(NCompression::ECodec::Lz4));
     }
 
 private:
