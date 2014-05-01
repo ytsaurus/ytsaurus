@@ -40,7 +40,7 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                NTracing::TTraceContextGuard guard(NTracing::NullTraceContext);
+                NTracing::TNullTraceContextGuard guard;
                 Value = Factory.Run();
             }
         }
@@ -88,7 +88,7 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                NTracing::TTraceContextGuard guard(NTracing::NullTraceContext);
+                NTracing::TNullTraceContextGuard guard;
                 Value.reset(Factory.Run());
             }
         }

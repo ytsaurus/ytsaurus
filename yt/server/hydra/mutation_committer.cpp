@@ -294,7 +294,7 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    NTracing::TTraceContextGuard guard(NTracing::NullTraceContext);
+    NTracing::TNullTraceContextGuard guard;
     
     if (LoggingSuspended_) {
         TPendingMutation pendingMutation;

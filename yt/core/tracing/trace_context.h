@@ -42,10 +42,21 @@ public:
     ~TTraceContextGuard();
 
     const TTraceContext& GetContext() const;
-    bool IsActive() const;
 
 private:
     TTraceContext Context_;
+    bool Active_;
+
+};
+
+class TNullTraceContextGuard
+{
+public:
+    TNullTraceContextGuard();
+    TNullTraceContextGuard(TNullTraceContextGuard&& other);
+    ~TNullTraceContextGuard();
+
+private:
     bool Active_;
 
 };

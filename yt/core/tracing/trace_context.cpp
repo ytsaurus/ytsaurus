@@ -83,9 +83,11 @@ TTraceContext NullTraceContext;
 
 TTraceContextGuard::TTraceContextGuard(const TTraceContext& context)
     : Context_(context)
-    , Active_(true)
+    , Active_(context.IsEnabled())
 {
-    PushContext(context);
+    if (Active_) {
+        PushContext(context);
+    }
 }
 
 TTraceContextGuard::TTraceContextGuard(TTraceContextGuard&& other)
@@ -107,9 +109,25 @@ const TTraceContext& TTraceContextGuard::GetContext() const
     return Context_;
 }
 
-bool TTraceContextGuard::IsActive() const
+////////////////////////////////////////////////////////////////////////////////
+
+TNullTraceContextGuard::TNullTraceContextGuard()
+    : Active_(true)
 {
-    return Active_;
+    PushContext(NullTraceContext);
+}
+
+TNullTraceContextGuard::TNullTraceContextGuard(TNullTraceContextGuard&& other)
+    : Active_(true)
+{
+    other.Active_ = false;
+}
+
+TNullTraceContextGuard::~TNullTraceContextGuard()
+{
+    if (Active_) {
+        PopContext();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
