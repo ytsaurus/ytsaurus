@@ -13,7 +13,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYamrWriter::TYamrWriter(TOutputStream* stream, TYamrFormatConfigPtr config)
+TYamrConsumer::TYamrConsumer(TOutputStream* stream, TYamrFormatConfigPtr config)
     : Stream(stream)
     , Config(config)
     , Table(
@@ -29,10 +29,10 @@ TYamrWriter::TYamrWriter(TOutputStream* stream, TYamrFormatConfigPtr config)
     YCHECK(Stream);
 }
 
-TYamrWriter::~TYamrWriter()
+TYamrConsumer::~TYamrConsumer()
 { }
 
-void TYamrWriter::OnIntegerScalar(i64 value)
+void TYamrConsumer::OnIntegerScalar(i64 value)
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Integer values are not supported by YAMR");
@@ -62,13 +62,13 @@ void TYamrWriter::OnIntegerScalar(i64 value)
     State = EState::ExpectEndAttributes;
 }
 
-void TYamrWriter::OnDoubleScalar(double value)
+void TYamrConsumer::OnDoubleScalar(double value)
 {
     YASSERT(State == EState::ExpectValue || State == EState::ExpectAttributeValue);
     THROW_ERROR_EXCEPTION("Double values are not supported by YAMR");
 }
 
-void TYamrWriter::OnStringScalar(const TStringBuf& value)
+void TYamrConsumer::OnStringScalar(const TStringBuf& value)
 {
     YCHECK(State != EState::ExpectAttributeValue);
     YASSERT(State == EState::ExpectValue);
@@ -97,7 +97,7 @@ void TYamrWriter::OnStringScalar(const TStringBuf& value)
     State = EState::ExpectColumnName;
 }
 
-void TYamrWriter::OnEntity()
+void TYamrConsumer::OnEntity()
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Entities are not supported by YAMR");
@@ -107,23 +107,23 @@ void TYamrWriter::OnEntity()
     State = EState::None;
 }
 
-void TYamrWriter::OnBeginList()
+void TYamrConsumer::OnBeginList()
 {
     YASSERT(State == EState::ExpectValue);
     THROW_ERROR_EXCEPTION("Lists are not supported by YAMR");
 }
 
-void TYamrWriter::OnListItem()
+void TYamrConsumer::OnListItem()
 {
     YASSERT(State == EState::None);
 }
 
-void TYamrWriter::OnEndList()
+void TYamrConsumer::OnEndList()
 {
     YUNREACHABLE();
 }
 
-void TYamrWriter::OnBeginMap()
+void TYamrConsumer::OnBeginMap()
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Embedded maps are not supported by YAMR");
@@ -136,7 +136,7 @@ void TYamrWriter::OnBeginMap()
     Value = Null;
 }
 
-void TYamrWriter::OnKeyedItem(const TStringBuf& key)
+void TYamrConsumer::OnKeyedItem(const TStringBuf& key)
 {
     switch (State) {
     case EState::ExpectColumnName:
@@ -168,7 +168,7 @@ void TYamrWriter::OnKeyedItem(const TStringBuf& key)
     }
 }
 
-void TYamrWriter::OnEndMap()
+void TYamrConsumer::OnEndMap()
 {
     YASSERT(State == EState::ExpectColumnName);
     State = EState::None;
@@ -176,7 +176,7 @@ void TYamrWriter::OnEndMap()
     WriteRow();
 }
 
-void TYamrWriter::OnBeginAttributes()
+void TYamrConsumer::OnBeginAttributes()
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Attributes are not supported by YAMR");
@@ -186,13 +186,13 @@ void TYamrWriter::OnBeginAttributes()
     State = EState::ExpectAttributeName;
 }
 
-void TYamrWriter::OnEndAttributes()
+void TYamrConsumer::OnEndAttributes()
 {
     YASSERT(State == EState::ExpectEndAttributes);
     State = EState::ExpectEntity;
 }
 
-void TYamrWriter::WriteRow()
+void TYamrConsumer::WriteRow()
 {
     if (!Key) {
         THROW_ERROR_EXCEPTION("Missing column %s in YAMR record",
@@ -226,13 +226,13 @@ void TYamrWriter::WriteRow()
     }
 }
 
-void TYamrWriter::WriteInLenvalMode(const TStringBuf& value)
+void TYamrConsumer::WriteInLenvalMode(const TStringBuf& value)
 {
     WritePod(*Stream, static_cast<ui32>(value.size()));
     Stream->Write(value);
 }
 
-void TYamrWriter::EscapeAndWrite(const TStringBuf& value, bool inKey)
+void TYamrConsumer::EscapeAndWrite(const TStringBuf& value, bool inKey)
 {
     if (Config->EnableEscaping) {
         WriteEscaped(

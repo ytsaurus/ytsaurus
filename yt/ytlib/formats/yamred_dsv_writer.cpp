@@ -13,7 +13,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfigPtr config)
+TYamredDsvConsumer::TYamredDsvConsumer(TOutputStream* stream, TYamredDsvFormatConfigPtr config)
     : Stream(stream)
     , Config(config)
     , RowCount(-1)
@@ -33,10 +33,10 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     }
 }
 
-TYamredDsvWriter::~TYamredDsvWriter()
+TYamredDsvConsumer::~TYamredDsvConsumer()
 { }
 
-void TYamredDsvWriter::OnIntegerScalar(i64 value)
+void TYamredDsvConsumer::OnIntegerScalar(i64 value)
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Integer values are not supported by YAMRed DSV");
@@ -67,12 +67,12 @@ void TYamredDsvWriter::OnIntegerScalar(i64 value)
     State = EState::ExpectEndAttributes;
 }
 
-void TYamredDsvWriter::OnDoubleScalar(double value)
+void TYamredDsvConsumer::OnDoubleScalar(double value)
 {
     THROW_ERROR_EXCEPTION("Double values are not supported by YAMRed DSV");
 }
 
-void TYamredDsvWriter::OnStringScalar(const TStringBuf& value)
+void TYamredDsvConsumer::OnStringScalar(const TStringBuf& value)
 {
     YCHECK(State != EState::ExpectAttributeValue);
     YASSERT(State == EState::ExpectValue);
@@ -107,7 +107,7 @@ void TYamredDsvWriter::OnStringScalar(const TStringBuf& value)
     IncreaseLength(&ValueLength, CalculateLength(ColumnName, true) + CalculateLength(value, false) + 1);
 }
 
-void TYamredDsvWriter::OnEntity()
+void TYamredDsvConsumer::OnEntity()
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Entities are not supported by YAMRed DSV");
@@ -116,23 +116,23 @@ void TYamredDsvWriter::OnEntity()
     State = EState::None;
 }
 
-void TYamredDsvWriter::OnBeginList()
+void TYamredDsvConsumer::OnBeginList()
 {
     YASSERT(State == EState::ExpectValue);
     THROW_ERROR_EXCEPTION("Lists are not supported by YAMRed DSV");
 }
 
-void TYamredDsvWriter::OnListItem()
+void TYamredDsvConsumer::OnListItem()
 {
     YASSERT(State == EState::None);
 }
 
-void TYamredDsvWriter::OnEndList()
+void TYamredDsvConsumer::OnEndList()
 {
     YUNREACHABLE();
 }
 
-void TYamredDsvWriter::OnBeginMap()
+void TYamredDsvConsumer::OnBeginMap()
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Embedded maps are not supported by YAMRed DSV");
@@ -152,7 +152,7 @@ void TYamredDsvWriter::OnBeginMap()
     ++RowCount;
 }
 
-void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
+void TYamredDsvConsumer::OnKeyedItem(const TStringBuf& key)
 {
     switch (State) {
     case EState::ExpectColumnName:
@@ -175,13 +175,13 @@ void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
     }
 }
 
-void TYamredDsvWriter::OnEndMap()
+void TYamredDsvConsumer::OnEndMap()
 {
     WriteRow();
     State = EState::None;
 }
 
-void TYamredDsvWriter::OnBeginAttributes()
+void TYamredDsvConsumer::OnBeginAttributes()
 {
     if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Attributes are not supported by YAMRed DSV");
@@ -191,13 +191,13 @@ void TYamredDsvWriter::OnBeginAttributes()
     State = EState::ExpectAttributeName;
 }
 
-void TYamredDsvWriter::OnEndAttributes()
+void TYamredDsvConsumer::OnEndAttributes()
 {
     YASSERT(State == EState::ExpectEndAttributes);
     State = EState::ExpectEntity;
 }
 
-void TYamredDsvWriter::WriteRow()
+void TYamredDsvConsumer::WriteRow()
 {
     if (Config->Lenval) {
         WritePod(*Stream, KeyLength);
@@ -224,7 +224,7 @@ void TYamredDsvWriter::WriteRow()
     }
 }
 
-void TYamredDsvWriter::WriteYamrKey(
+void TYamredDsvConsumer::WriteYamrKey(
     const std::vector<Stroka>& columnNames,
     const TDictionary& fieldValues,
     i32 fieldCount)
@@ -252,7 +252,7 @@ void TYamredDsvWriter::WriteYamrKey(
     }
 }
 
-void TYamredDsvWriter::WriteYamrValue()
+void TYamredDsvConsumer::WriteYamrValue()
 {
     YASSERT(ValueFields.size() % 2 == 0);
 
@@ -274,7 +274,7 @@ void TYamredDsvWriter::WriteYamrValue()
     }
 }
 
-void TYamredDsvWriter::EscapeAndWrite(const TStringBuf& string, bool inKey)
+void TYamredDsvConsumer::EscapeAndWrite(const TStringBuf& string, bool inKey)
 {
     if (Config->EnableEscaping) {
         WriteEscaped(
@@ -288,7 +288,7 @@ void TYamredDsvWriter::EscapeAndWrite(const TStringBuf& string, bool inKey)
     }
 }
 
-void TYamredDsvWriter::IncreaseLength(ui32* length, ui32 delta)
+void TYamredDsvConsumer::IncreaseLength(ui32* length, ui32 delta)
 {
     if (*length > 0) {
         *length  += 1;
@@ -296,7 +296,7 @@ void TYamredDsvWriter::IncreaseLength(ui32* length, ui32 delta)
     *length += delta;
 }
 
-ui32 TYamredDsvWriter::CalculateLength(const TStringBuf& string, bool inKey)
+ui32 TYamredDsvConsumer::CalculateLength(const TStringBuf& string, bool inKey)
 {
     return Config->EnableEscaping 
         ?  CalculateEscapedLength(

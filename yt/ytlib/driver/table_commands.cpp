@@ -337,32 +337,18 @@ void TInsertCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
-    // TODO(babenko): read output via streaming
     TSelectRowsOptions options;
     options.Timestamp = Request_->Timestamp;
 
-    auto rowsetOrError = WaitFor(Context_->GetClient()->SelectRows(
-        Request_->Query,
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError);
-
-    auto rowset = rowsetOrError.Value();
-    auto nameTable = rowset->GetNameTable();
-
-    TBlobOutput buffer;
     auto format = Context_->GetOutputFormat();
-    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
-
-    for (auto row : rowset->GetRows()) {
-        ProduceRow(consumer.get(), row, nameTable);
-    }
-
     auto output = Context_->Request().OutputStream;
-    if (!output->Write(buffer.Begin(), buffer.Size())) {
-        auto result = WaitFor(output->GetReadyEvent());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
-    buffer.Clear();
+    auto writer = CreateSchemafulWriterForFormat(format, output);
+
+    auto error = WaitFor(Context_->GetClient()->SelectRows(
+        Request_->Query,
+        writer,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

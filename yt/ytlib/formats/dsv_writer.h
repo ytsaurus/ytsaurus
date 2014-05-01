@@ -14,11 +14,11 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDsvWriterBase
+class TDsvConsumerBase
     : public virtual TFormatsConsumerBase
 {
 public:
-    explicit TDsvWriterBase(
+    explicit TDsvConsumerBase(
         TOutputStream* stream,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
@@ -34,14 +34,14 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDsvTabularWriter
-    : public TDsvWriterBase
+class TDsvTabularConsumer
+    : public TDsvConsumerBase
 {
 public:
-    explicit TDsvTabularWriter(
+    explicit TDsvTabularConsumer(
         TOutputStream* stream,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
-    ~TDsvTabularWriter();
+    ~TDsvTabularConsumer();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -81,14 +81,14 @@ private:
 //  * Each element of list is ended with RecordSeparator
 //  * Items in map are separated with FieldSeparator
 //  * Key and Values in map are separated with KeyValueSeparator
-class TDsvNodeWriter
-    : public TDsvWriterBase
+class TDsvNodeConsumer
+    : public TDsvConsumerBase
 {
 public:
-    explicit TDsvNodeWriter(
+    explicit TDsvNodeConsumer(
         TOutputStream* stream,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
-    ~TDsvNodeWriter();
+    ~TDsvNodeConsumer();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;

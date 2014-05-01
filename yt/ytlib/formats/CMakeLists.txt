@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/yamr_writer.cpp
   ${BASE}/yamred_dsv_parser.cpp
   ${BASE}/yamred_dsv_writer.cpp
+  ${BASE}/yson_writer.cpp
   ${BASE}/yson_parser.cpp
 )
 set( HDRS
@@ -38,6 +39,7 @@ set( HDRS
   ${BASE}/yamr_writer.h
   ${BASE}/yamred_dsv_parser.h
   ${BASE}/yamred_dsv_writer.h
+  ${BASE}/yson_writer.h
   ${BASE}/yson_parser.h
 )
 

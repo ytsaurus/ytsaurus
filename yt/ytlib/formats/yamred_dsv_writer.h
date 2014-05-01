@@ -16,15 +16,15 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Note: TYamrWriter only supports tabular data.
-class TYamredDsvWriter
+class TYamredDsvConsumer
     : public TFormatsConsumerBase
 {
 public:
-    explicit TYamredDsvWriter(
+    explicit TYamredDsvConsumer(
         TOutputStream* stream,
         TYamredDsvFormatConfigPtr config = New<TYamredDsvFormatConfig>());
 
-    ~TYamredDsvWriter();
+    ~TYamredDsvConsumer();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;

@@ -13,11 +13,13 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYamredDsvConsumer
+namespace {
+
+class TYamredDsvParserConsumer
     : public TYamrConsumerBase
 {
 public:
-    TYamredDsvConsumer(IYsonConsumer* consumer, TYamredDsvFormatConfigPtr config)
+    TYamredDsvParserConsumer(IYsonConsumer* consumer, TYamredDsvFormatConfigPtr config)
         : TYamrConsumerBase(consumer)
         , Config(config)
         , DsvParser(CreateParserForDsv(consumer, Config, /*wrapWithMap*/ false))
@@ -81,22 +83,24 @@ private:
 
 };
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IParser> CreateParserForYamredDsv(
     IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {
-    auto yamredDsvConsumer = New<TYamredDsvConsumer>(consumer, config);
+    auto parserConsumer = New<TYamredDsvParserConsumer>(consumer, config);
 
     return config->Lenval
         ? std::unique_ptr<IParser>(
             new TYamrLenvalBaseParser(
-                yamredDsvConsumer,
+                parserConsumer,
                 config->HasSubkey))
         : std::unique_ptr<IParser>(
             new TYamrDelimitedBaseParser(
-                yamredDsvConsumer,
+                parserConsumer,
                 config->HasSubkey,
                 config->FieldSeparator,
                 config->RecordSeparator,

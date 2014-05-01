@@ -5,26 +5,28 @@
 #include "helpers.h"
 #include "schemed_dsv_table.h"
 
-#include <core/misc/blob_output.h>
+#include <core/misc/blob.h>
 #include <core/misc/nullable.h>
 
+#include <core/concurrency/async_stream.h>
+
 #include <ytlib/table_client/public.h>
+
+#include <ytlib/new_table_client/schemaful_writer.h>
 
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Note: #TSchemedDsvWriter supports only tabular data
-class TSchemedDsvWriter
+//! Note: only tabular format is supported.
+class TSchemedDsvConsumer
     : public virtual TFormatsConsumerBase
 {
 public:
-    explicit TSchemedDsvWriter(
+    explicit TSchemedDsvConsumer(
         TOutputStream* stream,
         TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
-
-    ~TSchemedDsvWriter();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -71,6 +73,38 @@ private:
 
     void WriteRow();
     void EscapeAndWrite(const TStringBuf& value) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemafulDsvWriter
+    : public NVersionedTableClient::ISchemafulWriter
+{
+public:
+    explicit TSchemafulDsvWriter(
+        NConcurrency::IAsyncOutputStreamPtr stream,
+        TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
+
+    virtual TAsyncError Open(
+        const NVersionedTableClient::TTableSchema& schema,
+        const TNullable<NVersionedTableClient::TKeyColumns>& keyColumns) override;
+
+    virtual TAsyncError Close() override;
+
+    virtual bool Write(const std::vector<NVersionedTableClient::TUnversionedRow>& rows) override;
+
+    virtual TAsyncError GetReadyEvent() override;
+
+private:
+    void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
+    void WriteRaw(const TStringBuf& str);
+
+    NConcurrency::IAsyncOutputStreamPtr Stream_;
+    TSchemedDsvFormatConfigPtr Config_;
+
+    std::vector<int> ColumnIdMapping_;
+    TBlob Buffer_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

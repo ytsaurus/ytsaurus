@@ -9,11 +9,13 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYamrConsumer
+namespace {
+
+class TYamrParserConsumer
     : public TYamrConsumerBase
 {
 public:
-    TYamrConsumer(NYson::IYsonConsumer* consumer, TYamrFormatConfigPtr config)
+    TYamrParserConsumer(NYson::IYsonConsumer* consumer, TYamrFormatConfigPtr config)
         : TYamrConsumerBase(consumer)
         , Config(config)
     { }
@@ -41,7 +43,10 @@ public:
 
 private:
     TYamrFormatConfigPtr Config;
+
 };
+
+} // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -53,21 +58,21 @@ std::unique_ptr<IParser> CreateParserForYamr(
         config = New<TYamrFormatConfig>();
     }
 
-    auto yamrConsumer = New<TYamrConsumer>(consumer, config);
+    auto parserConsumer = New<TYamrParserConsumer>(consumer, config);
 
     return config->Lenval
         ? std::unique_ptr<IParser>(
             new TYamrLenvalBaseParser(
-                yamrConsumer,
+                parserConsumer,
                 config->HasSubkey))
         : std::unique_ptr<IParser>(
             new TYamrDelimitedBaseParser(
-                yamrConsumer,
+                parserConsumer,
                 config->HasSubkey,
                 config->FieldSeparator,
                 config->RecordSeparator,
-                config->EnableEscaping, //Enable key escaping
-                config->EnableEscaping, //Enable value escaping
+                config->EnableEscaping, // Enable key escaping
+                config->EnableEscaping, // Enable value escaping
                 config->EscapingSymbol));
 }
 

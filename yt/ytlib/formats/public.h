@@ -7,6 +7,9 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonFormatConfig;
+typedef TIntrusivePtr<TYsonFormatConfig> TYsonFormatConfigPtr;
+
 class TDsvFormatConfig;
 typedef TIntrusivePtr<TDsvFormatConfig> TDsvFormatConfigPtr;
 

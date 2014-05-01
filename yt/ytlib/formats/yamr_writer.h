@@ -15,16 +15,16 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Note: #TYamrWriter supports only tabular data
-class TYamrWriter
+//! Note: only tabular format is supported.
+class TYamrConsumer
     : public virtual TFormatsConsumerBase
 {
 public:
-    explicit TYamrWriter(
+    explicit TYamrConsumer(
         TOutputStream* stream,
         TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 
-    ~TYamrWriter();
+    ~TYamrConsumer();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -75,6 +75,7 @@ private:
     void WriteInLenvalMode(const TStringBuf& value);
 
     void EscapeAndWrite(const TStringBuf& value, bool inKey);
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,7 +14,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvWriterBase::TDsvWriterBase(
+TDsvConsumerBase::TDsvConsumerBase(
     TOutputStream* stream,
     TDsvFormatConfigPtr config)
     : Stream(stream)
@@ -25,7 +25,7 @@ TDsvWriterBase::TDsvWriterBase(
     YCHECK(Config);
 }
 
-void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey)
+void TDsvConsumerBase::EscapeAndWrite(const TStringBuf& string, bool inKey)
 {
     if (Config->EnableEscaping) {
         WriteEscaped(
@@ -41,25 +41,25 @@ void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvTabularWriter::TDsvTabularWriter(
+TDsvTabularConsumer::TDsvTabularConsumer(
     TOutputStream* stream,
     TDsvFormatConfigPtr config)
-    : TDsvWriterBase(stream, config)
+    : TDsvConsumerBase(stream, config)
     , State(EState::None)
     , TableIndex(0)
 { }
 
-TDsvTabularWriter::~TDsvTabularWriter()
+TDsvTabularConsumer::~TDsvTabularConsumer()
 { }
 
-void TDsvTabularWriter::OnStringScalar(const TStringBuf& value)
+void TDsvTabularConsumer::OnStringScalar(const TStringBuf& value)
 {
     YASSERT(State == EState::ExpectColumnValue);
     EscapeAndWrite(value, false);
     State = EState::ExpectColumnName;
 }
 
-void TDsvTabularWriter::OnIntegerScalar(i64 value)
+void TDsvTabularConsumer::OnIntegerScalar(i64 value)
 {
     if (State == EState::ExpectColumnValue) {
         Stream->Write(::ToString(value));
@@ -79,7 +79,7 @@ void TDsvTabularWriter::OnIntegerScalar(i64 value)
     State = EState::ExpectAttributeName;
 }
 
-void TDsvTabularWriter::OnDoubleScalar(double value)
+void TDsvTabularConsumer::OnDoubleScalar(double value)
 {
     switch (State) {
         case EState::ExpectColumnValue:
@@ -102,7 +102,7 @@ void TDsvTabularWriter::OnDoubleScalar(double value)
     };
 }
 
-void TDsvTabularWriter::OnEntity()
+void TDsvTabularConsumer::OnEntity()
 {
     switch (State) {
         case EState::ExpectColumnValue:
@@ -126,7 +126,7 @@ void TDsvTabularWriter::OnEntity()
     };
 }
 
-void TDsvTabularWriter::OnBeginList()
+void TDsvTabularConsumer::OnBeginList()
 {
     switch (State) {
         case EState::ExpectColumnValue:
@@ -144,17 +144,17 @@ void TDsvTabularWriter::OnBeginList()
     };
 }
 
-void TDsvTabularWriter::OnListItem()
+void TDsvTabularConsumer::OnListItem()
 {
     YASSERT(State == EState::None);
 }
 
-void TDsvTabularWriter::OnEndList()
+void TDsvTabularConsumer::OnEndList()
 {
     YUNREACHABLE();
 }
 
-void TDsvTabularWriter::OnBeginMap()
+void TDsvTabularConsumer::OnBeginMap()
 {
 
     switch (State) {
@@ -181,7 +181,7 @@ void TDsvTabularWriter::OnBeginMap()
     };
 }
 
-void TDsvTabularWriter::OnKeyedItem(const TStringBuf& key)
+void TDsvTabularConsumer::OnKeyedItem(const TStringBuf& key)
 {
     switch (State) {
         case EState::ExpectAttributeName:
@@ -208,7 +208,7 @@ void TDsvTabularWriter::OnKeyedItem(const TStringBuf& key)
     };
 }
 
-void TDsvTabularWriter::OnEndMap()
+void TDsvTabularConsumer::OnEndMap()
 {
     if (Config->EnableTableIndex) {
         switch (State) {
@@ -234,7 +234,7 @@ void TDsvTabularWriter::OnEndMap()
     Stream->Write(Config->RecordSeparator);
 }
 
-void TDsvTabularWriter::OnBeginAttributes()
+void TDsvTabularConsumer::OnBeginAttributes()
 {
     switch (State) {
         case EState::ExpectAttributeValue:
@@ -255,7 +255,7 @@ void TDsvTabularWriter::OnBeginAttributes()
     };
 }
 
-void TDsvTabularWriter::OnEndAttributes()
+void TDsvTabularConsumer::OnEndAttributes()
 {
     YASSERT(State == EState::ExpectAttributeName);
     State = EState::ExpectEntity;
@@ -263,40 +263,40 @@ void TDsvTabularWriter::OnEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvNodeWriter::TDsvNodeWriter(
+TDsvNodeConsumer::TDsvNodeConsumer(
     TOutputStream* stream,
     TDsvFormatConfigPtr config)
-    : TDsvWriterBase(stream, config)
+    : TDsvConsumerBase(stream, config)
     , AllowBeginList(true)
     , AllowBeginMap(true)
     , BeforeFirstMapItem(true)
     , BeforeFirstListItem(true)
 { }
 
-TDsvNodeWriter::~TDsvNodeWriter()
+TDsvNodeConsumer::~TDsvNodeConsumer()
 { }
 
-void TDsvNodeWriter::OnStringScalar(const TStringBuf& value)
+void TDsvNodeConsumer::OnStringScalar(const TStringBuf& value)
 {
     EscapeAndWrite(value, false);
 }
 
-void TDsvNodeWriter::OnIntegerScalar(i64 value)
+void TDsvNodeConsumer::OnIntegerScalar(i64 value)
 {
     Stream->Write(::ToString(value));
 }
 
-void TDsvNodeWriter::OnDoubleScalar(double value)
+void TDsvNodeConsumer::OnDoubleScalar(double value)
 {
     Stream->Write(::ToString(value));
 }
 
-void TDsvNodeWriter::OnEntity()
+void TDsvNodeConsumer::OnEntity()
 {
     THROW_ERROR_EXCEPTION("Entities are not supported by DSV");
 }
 
-void TDsvNodeWriter::OnBeginList()
+void TDsvNodeConsumer::OnBeginList()
 {
     if (AllowBeginList) {
         AllowBeginList = false;
@@ -305,7 +305,7 @@ void TDsvNodeWriter::OnBeginList()
     }
 }
 
-void TDsvNodeWriter::OnListItem()
+void TDsvNodeConsumer::OnListItem()
 {
     AllowBeginMap = true;
     if (BeforeFirstListItem) {
@@ -316,12 +316,12 @@ void TDsvNodeWriter::OnListItem()
     }
 }
 
-void TDsvNodeWriter::OnEndList()
+void TDsvNodeConsumer::OnEndList()
 {
     Stream->Write(Config->RecordSeparator);
 }
 
-void TDsvNodeWriter::OnBeginMap()
+void TDsvNodeConsumer::OnBeginMap()
 {
     if (AllowBeginMap) {
         AllowBeginList = false;
@@ -332,7 +332,7 @@ void TDsvNodeWriter::OnBeginMap()
     }
 }
 
-void TDsvNodeWriter::OnKeyedItem(const TStringBuf& key)
+void TDsvNodeConsumer::OnKeyedItem(const TStringBuf& key)
 {
     YASSERT(!AllowBeginMap);
     YASSERT(!AllowBeginList);
@@ -347,18 +347,18 @@ void TDsvNodeWriter::OnKeyedItem(const TStringBuf& key)
     Stream->Write(Config->KeyValueSeparator);
 }
 
-void TDsvNodeWriter::OnEndMap()
+void TDsvNodeConsumer::OnEndMap()
 {
     YASSERT(!AllowBeginMap);
     YASSERT(!AllowBeginList);
 }
 
-void TDsvNodeWriter::OnBeginAttributes()
+void TDsvNodeConsumer::OnBeginAttributes()
 {
     THROW_ERROR_EXCEPTION("Embedded attributes are not supported by DSV");
 }
 
-void TDsvNodeWriter::OnEndAttributes()
+void TDsvNodeConsumer::OnEndAttributes()
 {
     YUNREACHABLE();
 }

@@ -9,6 +9,10 @@
 
 #include <core/yson/public.h>
 
+#include <core/concurrency/public.h>
+
+#include <ytlib/new_table_client/public.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -61,6 +65,10 @@ std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
     TOutputStream* output);
+
+NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
+    const TFormat& format,
+    NConcurrency::IAsyncOutputStreamPtr output);
 
 NYTree::TYsonProducer CreateProducerForFormat(
     const TFormat& format,
