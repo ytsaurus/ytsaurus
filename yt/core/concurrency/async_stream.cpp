@@ -51,15 +51,21 @@ public:
     explicit TInputStreamAsyncWrapper(TInputStream* inputStream)
         : InputStream_(inputStream)
         , Length_(0)
+        , Failed_(false)
     { }
     
     virtual bool Read(void* buf, size_t len) override
     {
+        if (Failed_) {
+            return false;
+        }
+
         try {
             Length_ = InputStream_->Read(buf, len);
             return true;
         } catch (const std::exception& ex) {
             Result_ = MakeFuture(TError("Failed reading from the stream") << ex);
+            Failed_ = true;
             return false;
         }
     }
@@ -78,8 +84,9 @@ private:
     TInputStream* InputStream_;
     
     size_t Length_;
-
     TAsyncError Result_;
+    bool Failed_;
+
 };
 
 } // namespace
@@ -134,14 +141,20 @@ class TOutputStreamAsyncWrapper
 public:
     explicit TOutputStreamAsyncWrapper(TOutputStream* inputStream)
         : OutputStream_(inputStream)
+        , Failed_(false)
     { }
     
     virtual bool Write(const void* buf, size_t len) override
     {
+        if (Failed_) {
+            return false;
+        }
+
         try {
             OutputStream_->Write(buf, len);
         } catch (const std::exception& ex) {
             Result_ = MakeFuture(TError("Failed writing to the stream") << ex);
+            Failed_ = true;
             return false;
         }
         return true;
@@ -156,6 +169,8 @@ private:
     TOutputStream* OutputStream_;
 
     TAsyncError Result_;
+    bool Failed_;
+
 };
 
 } // anonymous namespace
