@@ -44,10 +44,9 @@ public:
 };
 
 template <>
-class TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
+struct TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
     : public TBindStateBase
 {
-public:
     typedef TFakeInvoker TInvokerType;
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TBindState()
