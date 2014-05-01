@@ -31,7 +31,7 @@ class TQueryService
     : public TServiceBase
 {
 public:
-    explicit TQueryService(
+    TQueryService(
         IInvokerPtr invoker,
         IExecutorPtr executor)
         : TServiceBase(
