@@ -8,7 +8,8 @@
 
 #include <util/system/spinlock.h>
 
-namespace NYT {
+namespace NYT
+{
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,9 +47,9 @@ public:
         return Value.Get();
     }
 
-    explicit operator bool() const throw()
+    bool HasValue() const throw()
     {
-        return static_cast<bool>(Value);
+        return Value;
     }
 
 private:
@@ -94,9 +95,9 @@ public:
         return Value.get();
     }
 
-    explicit operator bool() const throw()
+    bool HasValue() const throw()
     {
-        return static_cast<bool>(Value);
+        return Value;
     }
 
 private:

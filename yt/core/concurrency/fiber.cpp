@@ -158,7 +158,7 @@ void UnwindFiber(TFiberPtr fiber)
 
 void ShutdownUnwindThread()
 {
-    if (UnwindThread) {
+    if (UnwindThread.HasValue()) {
         UnwindThread->Shutdown();
     }
 }
