@@ -125,10 +125,29 @@ void TraceEvent(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define TRACE_ANNOTATION(key, value) \
+namespace NDetail {
+
+inline bool IsTracingEnabled(const Stroka&)
+{
+    return NTracing::IsTracingEnabled();
+}
+
+inline bool IsTracingEnabled(const char*)
+{
+    return GetCurrentTraceContext().IsEnabled();
+}
+
+inline bool IsTracingEnabled(const TTraceContext& context)
+{
+    return context.IsEnabled();
+}
+
+} // namespace NDetail
+
+#define TRACE_ANNOTATION(head, ...) \
     do { \
-        if (::NYT::NTracing::IsTracingEnabled()) { \
-            ::NYT::NTracing::TraceEvent(key, value); \
+        if (::NYT::NTracing::NDetail::IsTracingEnabled(head)) { \
+            ::NYT::NTracing::TraceEvent(head, __VA_ARGS__); \
         } \
     } while (false)
 
