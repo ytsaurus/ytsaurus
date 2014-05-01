@@ -80,7 +80,7 @@ TWireProtocolWriter::TColumnIdMapping BuildColumnIdMapping(
     const TNameTablePtr& nameTable)
 {
     for (const auto& name : tableInfo->KeyColumns) {
-        if (nameTable->FindId(name)) {
+        if (!nameTable->FindId(name)) {
             THROW_ERROR_EXCEPTION("Missing key column %s in name table",
                 ~name.Quote());
         }
