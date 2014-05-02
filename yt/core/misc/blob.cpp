@@ -126,6 +126,7 @@ void TBlob::Append(const void* data, size_t size)
         memcpy(Begin_ + Size_ - size, data, size);
     } else {
         memcpy(Begin_ + Size_, data, size);
+        Size_ += size;
     }
 }
 
