@@ -1,4 +1,4 @@
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtApplicationHosts = require("../application_hosts").that;
 var YtRegistry = require("../registry").that;
@@ -15,6 +15,6 @@ exports.that = function Middleware__YtApplicationHosts()
     var app = new YtApplicationHosts(logger, coordinator);
 
     return function(req, rsp, next) {
-        return Q(app.dispatch(req, rsp, next)).done();
+        return Q.cast(app.dispatch(req, rsp, next)).done();
     };
 };

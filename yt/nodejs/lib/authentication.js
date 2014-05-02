@@ -1,4 +1,4 @@
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtError = require("./error").that;
 var utils = require("./utils");
@@ -57,11 +57,10 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
         return void utils.dispatchUnauthorized(rsp, "YT");
     }
 
-    return Q
-    .when(authority.authenticate(
+    return authority.authenticate(
         logger,
         req.origin || req.connection.remoteAddress,
-        token))
+        token)
     .then(
     function(result) {
         if (result.isAuthenticated) {

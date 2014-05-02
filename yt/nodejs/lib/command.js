@@ -3,7 +3,7 @@ var url = require("url");
 var buffertools = require("buffertools");
 var qs = require("qs");
 
-var Q = require("q");
+var Q = require("bluebird");
 
 var utils = require("./utils");
 var binding = require("./ytnode");
@@ -187,7 +187,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
     self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
 
     Q
-        .fcall(function() {
+        .try(function() {
             self._getName();
             self._getUser();
             self._getDescriptor();
@@ -205,7 +205,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
             self._addHeaders();
         })
         .then(self._execute.bind(self))
-        .fail(function(err) {
+        .catch(function(err) {
             return YtError.ensureWrapped(
                 err,
                 "Unhandled error in the command pipeline");

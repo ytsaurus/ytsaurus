@@ -2,7 +2,7 @@ var url = require("url");
 var http = require("http");
 var https = require("https");
 var buffertools = require("buffertools");
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtError = require("./error").that;
 
