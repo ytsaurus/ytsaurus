@@ -508,6 +508,11 @@ bool TStoreManager::IsStoreLocked(TDynamicMemoryStorePtr store) const
     return LockedStores_.find(store) != LockedStores_.end();
 }
 
+const yhash_set<IStorePtr>& TStoreManager::GetLockedStores() const
+{
+    return LockedStores_;
+}
+
 bool TStoreManager::IsRecovery() const
 {
     auto slot = Tablet_->GetSlot();

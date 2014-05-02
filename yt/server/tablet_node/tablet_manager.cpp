@@ -509,6 +509,11 @@ private:
                 SetStoreOrphaned(pair.second);
             }
 
+            auto storeManager = tablet->GetStoreManager();
+            for (auto store : storeManager->GetLockedStores()) {
+                SetStoreOrphaned(store);
+            }
+
             TabletMap_.Remove(tabletId);
             UnmountingTablets_.erase(tablet); // don't check the result
             return;
@@ -897,18 +902,21 @@ private:
 
     void SetStoreOrphaned(IStorePtr store)
     {
+        if (store->GetState() == EStoreState::Orphaned)
+            return;
         store->SetState(EStoreState::Orphaned);
 
-        if (store->GetType() == EStoreType::DynamicMemory) {
-            auto dynamicStore = store->AsDynamicMemory();
-            int lockCount = dynamicStore->GetLockCount();
-            if (lockCount > 0) {
-                YCHECK(OrphanedStores_.insert(dynamicStore).second);
-                LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %s, TabletId: %s, LockCount: %d)",
-                    ~ToString(store->GetId()),
-                    ~ToString(store->GetTablet()->GetId()),
-                    lockCount);
-            }
+        if (store->GetType() != EStoreType::DynamicMemory)
+            return;
+        
+        auto dynamicStore = store->AsDynamicMemory();
+        int lockCount = dynamicStore->GetLockCount();
+        if (lockCount > 0) {
+            YCHECK(OrphanedStores_.insert(dynamicStore).second);
+            LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %s, TabletId: %s, LockCount: %d)",
+                ~ToString(store->GetId()),
+                ~ToString(store->GetTablet()->GetId()),
+                lockCount);
         }
     }
 
