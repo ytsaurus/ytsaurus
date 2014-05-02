@@ -359,7 +359,7 @@ void TLookupCommand::DoExecute()
     auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
     THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
     const auto& tableInfo = tableInfoOrError.Value();
-    auto nameTable = TNameTable::FromKeyColumns(tableInfo->KeyColumns);
+    auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
 
     TLookupRowsOptions options;
     options.Timestamp = Request_->Timestamp;
@@ -380,19 +380,23 @@ void TLookupCommand::DoExecute()
     
     auto rowset = lookupResult.Value();
     YCHECK(rowset->GetRows().size() == 1);
-    auto row = rowset->GetRows()[0];
-    if (row) {
-        TBlobOutput buffer;
-        auto format = Context_->GetOutputFormat();
-        auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
-        
-        ProduceRow(consumer.get(), row, nameTable);
+    if (!rowset->GetRows()[0])
+        return;
 
-        auto output = Context_->Request().OutputStream;
-        if (!output->Write(buffer.Begin(), buffer.Size())) {
-            auto result = WaitFor(output->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+    auto format = Context_->GetOutputFormat();
+    auto output = Context_->Request().OutputStream;
+    auto writer = CreateSchemafulWriterForFormat(format, output);
+
+    {
+        auto result = WaitFor(writer->Open(rowset->GetSchema()));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    writer->Write(rowset->GetRows());
+
+    {
+        auto result = WaitFor(writer->Close());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 }
 
