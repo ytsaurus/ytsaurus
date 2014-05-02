@@ -112,8 +112,7 @@ public:
         WriteInt64(size);
         EnsureCapacity(size);
         YCHECK(message.SerializePartialToArray(Current_, size));
-        Current_ += size;
-        Current_ += GetPaddingSize(size);
+        Current_ += AlignUp(size);
     }
 
     void WriteUnversionedRow(
@@ -448,7 +447,7 @@ public:
             reinterpret_cast<const ui8*>(Current_),
             size);
         message->ParsePartialFromCodedStream(&chunkStream);
-        Current_ += size;
+        Current_ += AlignUp(size);
     }
 
     TUnversionedRow ReadUnversionedRow()
