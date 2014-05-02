@@ -22,6 +22,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Wire protocol readers/writer rely on this fixed layout.
 union TUnversionedValueData
 {
     //! Integral value.
@@ -32,6 +33,7 @@ union TUnversionedValueData
     const char* String;
 };
 
+// NB: Wire protocol readers/writer rely on this fixed layout.
 struct TUnversionedValue
 {
     //! Column id obtained from a name table.

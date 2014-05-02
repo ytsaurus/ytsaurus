@@ -2,17 +2,14 @@
 #include "wire_protocol.h"
 
 #include <core/misc/error.h>
-#include <core/misc/zigzag.h>
 #include <core/misc/chunked_memory_pool.h>
+#include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
-
-#include <contrib/libs/protobuf/io/coded_stream.h>
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT {
 namespace NTabletClient {
@@ -21,9 +18,12 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const ui32 CurrentProtocolVersion = 1;
+static const i64 CurrentProtocolVersion = 1;
+
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
+
+static const size_t WriterInitialBufferCapacity = 1024;
 
 static const auto PresetResult = MakeFuture(TError());
 
@@ -74,25 +74,25 @@ class TWireProtocolWriter::TImpl
 {
 public:
     TImpl()
-        : RawStream_(new google::protobuf::io::StringOutputStream(&Data_))
-        , CodedStream_(new google::protobuf::io::CodedOutputStream(RawStream_.get()))
+        : Current_(const_cast<char*>(Data_.data()))
     {
-        WriteUInt32(CurrentProtocolVersion);
+        EnsureCapacity(WriterInitialBufferCapacity);
+        WriteInt64(CurrentProtocolVersion);
     }
 
     void WriteCommand(EWireProtocolCommand command)
     {
-        WriteUInt32(command);
+        WriteInt64(command);
     }
 
     void WriteColumnFilter(const TColumnFilter& filter)
     {
         if (filter.All) {
-            WriteUInt32(0);
+            WriteInt64(-1);
         } else {
-            WriteUInt32(filter.Indexes.size() + 1);
+            WriteInt64(filter.Indexes.size());
             for (int index : filter.Indexes) {
-                WriteUInt32(index);
+                WriteInt64(index);
             }
         }
     }
@@ -104,9 +104,12 @@ public:
 
     void WriteMessage(const ::google::protobuf::MessageLite& message)
     {
-        WriteUInt32(message.ByteSize());
-
-        message.SerializePartialToCodedStream(CodedStream_.get());
+        int size = message.ByteSize();
+        WriteInt64(size);
+        EnsureCapacity(size);
+        YCHECK(message.SerializePartialToArray(Current_, size));
+        Current_ += size;
+        Current_ += GetPaddingSize(size);
     }
 
     void WriteUnversionedRow(
@@ -133,7 +136,7 @@ public:
     {
         int rowCount = static_cast<int>(rowset.size());
         ValidateRowCount(rowCount);
-        WriteUInt32(rowCount);
+        WriteInt64(rowCount);
         for (auto row : rowset) {
             WriteUnversionedRow(row, idMapping);
         }
@@ -141,68 +144,84 @@ public:
 
     Stroka GetData()
     {
-        // Destroying the streams also trims the (preallocated) tail of the string.
-        CodedStream_.reset();
-        RawStream_.reset();
+        Data_.resize(Current_ - Data_.data());
         return Data_;
     }
 
 private:
     Stroka Data_;
-    std::unique_ptr<google::protobuf::io::StringOutputStream> RawStream_;
-    std::unique_ptr<google::protobuf::io::CodedOutputStream> CodedStream_;
+    char* Current_;
 
     std::vector<TUnversionedValue> PooledValues_;
 
 
-    void WriteUInt32(ui32 value)
+    void EnsureCapacity(i64 bytes)
     {
-        CodedStream_->WriteVarint32(value);
+        i64 size = Current_ - Data_.data();
+        Data_.ReserveAndResize(size + bytes);
+        Current_ = const_cast<char*>(Data_.data() + size);
     }
 
-    void WriteUInt64(ui64 value)
+    void UnsafeWriteInt64(i64 value)
     {
-        CodedStream_->WriteVarint64(value);
+        *reinterpret_cast<i64*>(Current_) = value;
+        Current_ += sizeof (i64); // 8 bytes
     }
 
     void WriteInt64(i64 value)
     {
-        WriteUInt64(ZigZagEncode64(value));
+        EnsureCapacity(sizeof (i64));
+        UnsafeWriteInt64(value);
     }
 
-    void WriteDouble(double value)
+    void UnsafeWriteDouble(double value)
     {
-        WriteRaw(&value, sizeof (double));
+        *reinterpret_cast<double*>(Current_) = value;
+        Current_ += sizeof (double); // 8 bytes
     }
 
-    void WriteString(const Stroka& value)
+    void UnsafeWriteRaw(const void* buffer, size_t size)
     {
-        WriteUInt32(value.length());
-        WriteRaw(value.begin(), value.length());
+        memcpy(Current_, buffer, size);
+        Current_ += size;
+        Current_ += GetPaddingSize(size);
     }
 
     void WriteRaw(const void* buffer, size_t size)
     {
-        CodedStream_->WriteRaw(buffer, size);
+        EnsureCapacity(size + SerializationAlignment);
+        UnsafeWriteRaw(buffer, size);
+    }
+
+
+    void WriteString(const Stroka& value)
+    {
+        WriteInt64(value.length());
+        WriteRaw(value.begin(), value.length());
     }
 
     void WriteRowValue(const TUnversionedValue& value)
     {
-        WriteUInt32(value.Id);
-        WriteUInt32(value.Type);
+        i64 bytes = sizeof (i64);
+        if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+            bytes += value.Length + SerializationAlignment;
+        }
+        EnsureCapacity(bytes);
+
+        // Id, Type, Length
+        UnsafeWriteInt64(*reinterpret_cast<const i64*>(&value));
         switch (value.Type) {
             case EValueType::Integer:
-                WriteInt64(value.Data.Integer);
+                UnsafeWriteInt64(value.Data.Integer);
                 break;
 
             case EValueType::Double:
-                WriteDouble(value.Data.Double);
+                UnsafeWriteInt64(value.Data.Double);
                 break;
             
             case EValueType::String:
             case EValueType::Any:
-                WriteUInt32(value.Length);
-                WriteRaw(value.Data.String, value.Length);
+                UnsafeWriteRaw(value.Data.String, value.Length);
                 break;
 
             default:
@@ -216,12 +235,12 @@ private:
         const TColumnIdMapping* idMapping)
     {
         if (!begin) {
-            WriteUInt32(0);
+            WriteInt64(-1);
             return;
         }
 
         int valueCount = end - begin;
-        WriteUInt32(valueCount + 1);
+        WriteInt64(valueCount);
 
         if (idMapping) {
             PooledValues_.resize(valueCount);
@@ -377,7 +396,7 @@ class TWireProtocolReader::TImpl
 public:
     explicit TImpl(const Stroka& data)
         : Data_(data)
-        , CodedStream_(reinterpret_cast<const ui8*>(data.data()), data.length())
+        , Current_(Data_.data())
         , AlignedPool_(
         	TAlignedWireProtocolReaderPoolTag(),
         	ReaderAlignedChunkSize)
@@ -385,26 +404,27 @@ public:
         	TUnalignedWireProtocolReaderPoolTag(),
             ReaderUnalignedChunkSize)
     {
-        ProtocolVersion_ = ReadUInt32();
-        if (ProtocolVersion_ != 1) {
-            THROW_ERROR_EXCEPTION("Unsupported wire protocol version %d",
+        ProtocolVersion_ = ReadInt64();
+        if (ProtocolVersion_ != CurrentProtocolVersion) {
+            THROW_ERROR_EXCEPTION("Unsupported wire protocol version %" PRId64,
                 ProtocolVersion_);
         }
     }
 
     EWireProtocolCommand ReadCommand()
     {
-        return EWireProtocolCommand(ReadUInt32());
+        return EWireProtocolCommand(ReadInt64());
     }
 
     TColumnFilter ReadColumnFilter()
     {
         TColumnFilter filter;
-        ui32 count = ReadUInt32();
-        if (count != 0) {
+        // TODO(babenko): check
+        int columnCount = ReadInt64();
+        if (columnCount != -1) {
             filter.All = false;
-            for (int index = 0; index < count - 1; ++index) {
-                filter.Indexes.push_back(ReadUInt32());
+            for (int index = 0; index < columnCount; ++index) {
+                filter.Indexes.push_back(ReadInt64());
             }
             std::sort(filter.Indexes.begin(), filter.Indexes.end());
         }
@@ -420,19 +440,12 @@ public:
 
     void ReadMessage(::google::protobuf::MessageLite* message)
     {
-        ui32 messageSize = ReadUInt32();
-
-        const void* chunk;
-        intptr_t chunkSize;
-        CheckResult(CodedStream_.GetDirectBufferPointer(&chunk, &chunkSize));
-        CheckResult(chunkSize >= messageSize);
-
+        i64 size = ReadInt64();
         ::google::protobuf::io::CodedInputStream chunkStream(
-            reinterpret_cast<const ui8*>(chunk),
-            messageSize);
+            reinterpret_cast<const ui8*>(Current_),
+            size);
         message->ParsePartialFromCodedStream(&chunkStream);
-
-        CodedStream_.Skip(messageSize);
+        Current_ += size;
     }
 
     TUnversionedRow ReadUnversionedRow()
@@ -442,7 +455,7 @@ public:
 
     void ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
     {
-        int rowCount = static_cast<int>(ReadUInt32());
+        int rowCount = static_cast<int>(ReadInt64());
         ValidateRowCount(rowCount);
         rowset->reserve(rowset->size() + rowCount);
         for (int index = 0; index != rowCount; ++index) {
@@ -452,66 +465,53 @@ public:
 
 private:
     Stroka Data_;
+    const char* Current_;
 
-    google::protobuf::io::CodedInputStream CodedStream_;
-
-    int ProtocolVersion_;
+    i64 ProtocolVersion_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
 
 
-    void CheckResult(bool result)
-    {
-        if (!result) {
-            THROW_ERROR_EXCEPTION("Error parsing wire protocol");
-        }
-    }
+    static_assert(sizeof (i64) == SerializationAlignment, "Wrong serialization alignment");
+    static_assert(sizeof (double) == SerializationAlignment, "Wrong serialization alignment");
 
-    ui32 ReadUInt32()
-    {
-        ui32 value;
-        CheckResult(CodedStream_.ReadVarint32(&value));
-        return value;
-    }
-
-    ui64 ReadUInt64()
-    {
-        ui64 value;
-        CheckResult(CodedStream_.ReadVarint64(&value));
-        return value;
-    }
 
     i64 ReadInt64()
     {
-        return ZigZagDecode64(ReadUInt64());
+        i64 result = *reinterpret_cast<const i64*>(Current_);
+        Current_ += sizeof (result); // 8 bytes
+        return result;
     }
 
     double ReadDouble()
     {
-        double value;
-        ReadRaw(&value, sizeof (value));
-        return value;
+        double result = *reinterpret_cast<const double*>(Current_);
+        Current_ += sizeof (result); // 8 bytes
+        return result;
     }
+
+    void ReadRaw(void* buffer, size_t size)
+    {
+        memcpy(buffer, Current_, size);
+        Current_ += size;
+        Current_ += GetPaddingSize(size);
+    }
+
 
     Stroka ReadString()
     {
-        size_t length = ReadUInt32();
+        size_t length = ReadInt64();
         Stroka value(length);
         ReadRaw(const_cast<char*>(value.data()), length);
         return value;
     }
 
-    void ReadRaw(void* buffer, size_t size)
-    {
-        CheckResult(CodedStream_.ReadRaw(buffer, size));
-    }
-
-
     void ReadRowValue(TUnversionedValue* value)
     {
-        value->Id = ReadUInt32();
-        value->Type = ReadUInt32();
+        // Id, Type, Length
+        *reinterpret_cast<i64*>(value) = ReadInt64();
+
         switch (value->Type) {
             case EValueType::Integer:
                 value->Data.Integer = ReadInt64();
@@ -523,7 +523,6 @@ private:
             
             case EValueType::String:
             case EValueType::Any:
-                value->Length = ReadUInt32();
                 if (value->Length > MaxStringValueLength) {
                     THROW_ERROR_EXCEPTION("Value is too long: length %" PRId64 ", limit %" PRId64,
                         static_cast<i64>(value->Length),
@@ -540,12 +539,12 @@ private:
 
     TUnversionedRow ReadRow()
     {
-        int valueCount = static_cast<int>(ReadUInt32());
-        if (valueCount == 0) {
+        // TODO(babenko): check for overflow
+        int valueCount = ReadInt64();
+        if (valueCount == -1) {
             return TUnversionedRow();
         }
 
-        --valueCount;
         ValidateRowValueCount(valueCount);
 
         auto row = TUnversionedRow::Allocate(&AlignedPool_, valueCount);
