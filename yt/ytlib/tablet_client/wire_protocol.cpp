@@ -18,7 +18,7 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 CurrentProtocolVersion = 1;
+static const i64 CurrentProtocolVersion = 2;
 
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
@@ -26,6 +26,10 @@ static const size_t ReaderUnalignedChunkSize = 16384;
 static const size_t WriterInitialBufferCapacity = 1024;
 
 static const auto PresetResult = MakeFuture(TError());
+
+static_assert(sizeof (i64) == SerializationAlignment, "Wrong serialization alignment");
+static_assert(sizeof (double) == SerializationAlignment, "Wrong serialization alignment");
+static_assert(sizeof (TUnversionedValue) == 2 * sizeof (i64), "Wrong TUnversionedValue size");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,17 +159,17 @@ private:
     std::vector<TUnversionedValue> PooledValues_;
 
 
-    void EnsureCapacity(i64 bytes)
+    void EnsureCapacity(i64 more)
     {
         i64 size = Current_ - Data_.data();
-        Data_.ReserveAndResize(size + bytes);
+        Data_.ReserveAndResize(size + more);
         Current_ = const_cast<char*>(Data_.data() + size);
     }
 
     void UnsafeWriteInt64(i64 value)
     {
         *reinterpret_cast<i64*>(Current_) = value;
-        Current_ += sizeof (i64); // 8 bytes
+        Current_ += sizeof (i64);
     }
 
     void WriteInt64(i64 value)
@@ -174,17 +178,17 @@ private:
         UnsafeWriteInt64(value);
     }
 
-    void UnsafeWriteDouble(double value)
+    void UnsafeWriteInt128(i64 valueLo, i64 valueHi)
     {
-        *reinterpret_cast<double*>(Current_) = value;
-        Current_ += sizeof (double); // 8 bytes
+        reinterpret_cast<i64*>(Current_)[0] = valueLo;
+        reinterpret_cast<i64*>(Current_)[1] = valueHi;
+        Current_ += 2 * sizeof (i64);
     }
 
     void UnsafeWriteRaw(const void* buffer, size_t size)
     {
         memcpy(Current_, buffer, size);
-        Current_ += size;
-        Current_ += GetPaddingSize(size);
+        Current_ += AlignUp(size);
     }
 
     void WriteRaw(const void* buffer, size_t size)
@@ -202,29 +206,28 @@ private:
 
     void WriteRowValue(const TUnversionedValue& value)
     {
-        i64 bytes = sizeof (i64);
+        // This includes value and possible serialization alignment.
+        i64 bytes = 2 * sizeof (i64);
         if (value.Type == EValueType::String || value.Type == EValueType::Any) {
-            bytes += value.Length + SerializationAlignment;
+            bytes += value.Length;
         }
         EnsureCapacity(bytes);
 
-        // Id, Type, Length
-        UnsafeWriteInt64(*reinterpret_cast<const i64*>(&value));
+        const i64* rawValue = reinterpret_cast<const i64*>(&value);
         switch (value.Type) {
             case EValueType::Integer:
-                UnsafeWriteInt64(value.Data.Integer);
-                break;
-
             case EValueType::Double:
-                UnsafeWriteInt64(value.Data.Double);
+                UnsafeWriteInt128(rawValue[0], rawValue[1]);
                 break;
             
             case EValueType::String:
             case EValueType::Any:
+                UnsafeWriteInt64(*rawValue);
                 UnsafeWriteRaw(value.Data.String, value.Length);
                 break;
 
             default:
+                UnsafeWriteInt64(*rawValue);
                 break;
         }
     }
@@ -473,21 +476,10 @@ private:
     TChunkedMemoryPool UnalignedPool_;
 
 
-    static_assert(sizeof (i64) == SerializationAlignment, "Wrong serialization alignment");
-    static_assert(sizeof (double) == SerializationAlignment, "Wrong serialization alignment");
-
-
     i64 ReadInt64()
     {
         i64 result = *reinterpret_cast<const i64*>(Current_);
-        Current_ += sizeof (result); // 8 bytes
-        return result;
-    }
-
-    double ReadDouble()
-    {
-        double result = *reinterpret_cast<const double*>(Current_);
-        Current_ += sizeof (result); // 8 bytes
+        Current_ += sizeof (result);
         return result;
     }
 
@@ -509,16 +501,13 @@ private:
 
     void ReadRowValue(TUnversionedValue* value)
     {
-        // Id, Type, Length
-        *reinterpret_cast<i64*>(value) = ReadInt64();
+        i64* rawValue = reinterpret_cast<i64*>(value);
+        rawValue[0] = ReadInt64();
 
         switch (value->Type) {
             case EValueType::Integer:
-                value->Data.Integer = ReadInt64();
-                break;
-
             case EValueType::Double:
-                value->Data.Double = ReadDouble();
+                rawValue[1] = ReadInt64();
                 break;
             
             case EValueType::String:
