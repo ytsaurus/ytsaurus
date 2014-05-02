@@ -97,7 +97,10 @@ public:
 
 private:
     void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
+    static char* WriteIntegerReversed(char* ptr, i64 value);
+
     void WriteRaw(const TStringBuf& str);
+    void WriteRaw(char ch);
 
     NConcurrency::IAsyncOutputStreamPtr Stream_;
     TSchemedDsvFormatConfigPtr Config_;

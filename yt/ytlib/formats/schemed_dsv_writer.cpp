@@ -253,10 +253,10 @@ bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
             int id = *idMappingCurrent;
             WriteValue(row[id]);
             if (idMappingCurrent != idMappingEnd) {
-                WriteRaw(STRINGBUF("\t"));
+                WriteRaw('\t');
             }
         }
-        WriteRaw(STRINGBUF("\n"));
+        WriteRaw('\n');
     }
 
     return Stream_->Write(Buffer_.Begin(), Buffer_.Size());
@@ -267,13 +267,66 @@ TAsyncError TSchemafulDsvWriter::GetReadyEvent()
     return Stream_->GetReadyEvent();
 }
 
+static ui16 DigitPairs[100] = {
+    12336,  12337,  12338,  12339,  12340,  12341,  12342,  12343,  12344,  12345,
+    12592,  12593,  12594,  12595,  12596,  12597,  12598,  12599,  12600,  12601,
+    12848,  12849,  12850,  12851,  12852,  12853,  12854,  12855,  12856,  12857,
+    13104,  13105,  13106,  13107,  13108,  13109,  13110,  13111,  13112,  13113,
+    13360,  13361,  13362,  13363,  13364,  13365,  13366,  13367,  13368,  13369,
+    13616,  13617,  13618,  13619,  13620,  13621,  13622,  13623,  13624,  13625,
+    13872,  13873,  13874,  13875,  13876,  13877,  13878,  13879,  13880,  13881,
+    14128,  14129,  14130,  14131,  14132,  14133,  14134,  14135,  14136,  14137,
+    14384,  14385,  14386,  14387,  14388,  14389,  14390,  14391,  14392,  14393,
+    14640,  14641,  14642,  14643,  14644,  14645,  14646,  14647,  14648,  14649
+};
+
+char* TSchemafulDsvWriter::WriteIntegerReversed(char* ptr, i64 value)
+{
+    if (value == 0) {
+        *ptr++ = '0';
+        return ptr;
+    }
+
+    bool negative = false;
+    if (value < 0) {
+        negative = true;
+        value = -value;
+    }
+
+    while (value >= 10) {
+        i64 rem = value % 100;
+        i64 quot = value / 100;
+        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
+        ptr += 2;
+        value = quot;
+    }
+
+    if (value > 0) {
+        *ptr++ = ('0' + value);
+    }
+
+    if (negative) {
+        *ptr++ = '-';
+    }
+
+    return ptr;
+}
+
 void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Integer: {
-            char buffer[64];
-            int length = sprintf(buffer, "%" PRId64, value.Data.Integer);
-            WriteRaw(TStringBuf(buffer, length));
+            char buf[64];
+            char* begin = buf;
+            char* end = WriteIntegerReversed(begin, value.Data.Integer);
+            size_t length = end - begin;
+            
+            Buffer_.Resize(Buffer_.Size() + length, false);
+            char* src = begin;
+            char* dst = Buffer_.End() - 1;
+            while (src != end) {
+                *dst-- = *src++;
+            }
             break;
         }
 
@@ -283,7 +336,7 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
 
         default:
             // TODO(babenko): improve
-            WriteRaw(STRINGBUF("???"));
+            WriteRaw('?');
             break;
     }
 }
@@ -291,6 +344,11 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
 void TSchemafulDsvWriter::WriteRaw(const TStringBuf& str)
 {
     Buffer_.Append(str.begin(), str.length());
+}
+
+void TSchemafulDsvWriter::WriteRaw(char ch)
+{
+    Buffer_.Append(ch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
