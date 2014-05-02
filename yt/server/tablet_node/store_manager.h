@@ -73,7 +73,7 @@ public:
     void CreateActiveStore();
 
     bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
-    const yhash_set<IStorePtr>& GetLockedStores() const;
+    const yhash_set<TDynamicMemoryStorePtr>& GetLockedStores() const;
 
 private:
     TTabletManagerConfigPtr Config_;
