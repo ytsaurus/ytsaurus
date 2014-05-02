@@ -129,6 +129,10 @@ public:
     //! Appends a chunk of memory to the end.
     void Append(const TRef& ref);
 
+    //! Appends a single char to the end.
+    void Append(char ch);
+
+
 private:
     char* Begin_;
     size_t Size_;
