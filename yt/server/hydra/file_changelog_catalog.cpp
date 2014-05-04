@@ -61,7 +61,7 @@ class TFileChangelogCatalog
 public:
     explicit TFileChangelogCatalog(TFileChangelogCatalogConfigPtr config)
         : Config(config)
-        , ChangelogCache(new TChangelogCache(this))
+        , ChangelogCache(New<TChangelogCache>(this))
     { }
 
     void Start()
@@ -630,7 +630,7 @@ private:
     
     yhash_map<TCellGuid, TStorePtr> StoreMap;
 
-    std::unique_ptr<TChangelogCache> ChangelogCache;
+    TIntrusivePtr<TChangelogCache> ChangelogCache;
 
 
     TFuture<void> Append(const TMultiplexedRecord& record, TChangelogPtr changelog)
