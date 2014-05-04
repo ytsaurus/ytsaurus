@@ -81,7 +81,7 @@ public:
 
     bool operator[] (int index) const
     {
-        YCHECK(index < BitSize_);
+        YASSERT(index < BitSize_);
         int dataIndex = index / (sizeof(TChunkType) * 8);
         return static_cast<bool>(Data_[dataIndex] & GetChunkMask<TChunkType>(index, true));
     }
