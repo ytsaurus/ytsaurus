@@ -164,16 +164,19 @@ ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
 
 TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *memoryPool)
 {
-    TVersionedRow row = TVersionedRow::Allocate(
+    auto row = TVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
         GetColumnValueCount(Schema_.Columns().size() - 1),
         TimestampCount_);
+    auto* keys = row.BeginKeys();
+    auto* values = row.BeginValues();
+    auto* timestamps = row.BeginTimestamps();
 
-    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(keys, KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
 
     for (int i = 0; i < TimestampCount_; ++i) {
-        row.BeginTimestamps()[i] = ReadTimestamp(TimestampOffset_ + i);
+        timestamps[i] = ReadTimestamp(TimestampOffset_ + i);
     }
 
     int valueCount = 0;
@@ -185,7 +188,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
 
         for (int valueIndex = lowerValueIndex; valueIndex < upperValueIndex; ++valueIndex) {
-            row.BeginValues()[valueCount] = ReadValue(
+            values[valueCount] = ReadValue(
                 ValueOffset_ + valueIndex,
                 valueId,
                 chunkSchemaId);
@@ -214,18 +217,22 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         KeyColumnCount_,
         SchemaIdMapping_.size(),
         1);
+    auto* keys = row.BeginKeys();
+    auto* values = row.BeginValues();
+    auto* timestamps = row.BeginTimestamps();
 
-    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
-    auto ts = ReadTimestamp(TimestampOffset_ + timestampIndex);
-    *row.BeginTimestamps() = ts;
+    ::memcpy(keys, KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
+    
+    auto timestamp = ReadTimestamp(TimestampOffset_ + timestampIndex);
+    timestamps[0] = timestamp;
 
-    if (TombstoneTimestampMask & ts) {
+    if (TombstoneTimestampMask & timestamp) {
         row.GetHeader()->ValueCount = 0;
         return row;
     }
 
     if (timestampIndex == TimestampCount_ - 1) {
-        row.BeginTimestamps()[0] |= IncrementalTimestampMask;
+        timestamps[0] |= IncrementalTimestampMask;
     }
 
     int valueCount = 0;
@@ -243,9 +250,9 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
         if (valueIndex < GetColumnValueCount(chunkSchemaId)) {
             auto value = ReadValue(ValueOffset_ + valueIndex, valueId, chunkSchemaId);
-            if (value.Timestamp >= (ts & TimestampValueMask)) {
+            if (value.Timestamp >= (timestamp & TimestampValueMask)) {
                 // Check that value didn't come from the previous incarnation of this row.
-                row.BeginValues()[valueCount] = value;
+                values[valueCount] = value;
                 ++valueCount;
             }
         } else {
@@ -297,27 +304,27 @@ TStringBuf TSimpleVersionedBlockReader::ReadString(char* ptr)
 
 TVersionedValue TSimpleVersionedBlockReader::ReadValue(int valueIndex, int id, int chunkSchemaId)
 {
-    YCHECK(id >= KeyColumnCount_);
+    YASSERT(id >= KeyColumnCount_);
     char* valuePtr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
-    auto ts = *reinterpret_cast<TTimestamp*>(valuePtr + 8);
+    auto timestamp = *reinterpret_cast<TTimestamp*>(valuePtr + 8);
 
     bool isNull = ValueNullFlags_[valueIndex];
     if (isNull) {
-        return MakeVersionedSentinelValue(EValueType::Null,  ts, id);
+        return MakeVersionedSentinelValue(EValueType::Null,  timestamp, id);
     }
 
     switch (Schema_.Columns()[chunkSchemaId].Type) {
         case EValueType::Integer:
-            return MakeVersionedIntegerValue(*reinterpret_cast<i64*>(valuePtr), ts, id);
+            return MakeVersionedIntegerValue(*reinterpret_cast<i64*>(valuePtr), timestamp, id);
 
         case EValueType::Double:
-            return MakeVersionedDoubleValue(*reinterpret_cast<double*>(valuePtr), ts, id);
+            return MakeVersionedDoubleValue(*reinterpret_cast<double*>(valuePtr), timestamp, id);
 
         case EValueType::String:
-            return MakeVersionedStringValue(ReadString(valuePtr), ts, id);
+            return MakeVersionedStringValue(ReadString(valuePtr), timestamp, id);
 
         case EValueType::Any:
-            return MakeVersionedAnyValue(ReadString(valuePtr), ts, id);
+            return MakeVersionedAnyValue(ReadString(valuePtr), timestamp, id);
 
         default:
             YUNREACHABLE();
