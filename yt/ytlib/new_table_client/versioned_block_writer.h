@@ -19,6 +19,7 @@ namespace NVersionedTableClient {
 class TSimpleVersionedBlockWriter
     : public IBlockWriter
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MinTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp);
 
@@ -38,9 +39,9 @@ public:
     static int GetKeySize(int keyColumnCount, int schemaColumnCount);
     static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);
 
-    static const int FormatVersion;
-    static const int ValueSize;
-    static const int TimestampSize;
+    static const int FormatVersion = ETableChunkFormat::VersionedSimple;
+    static const int ValueSize = 16;
+    static const int TimestampSize = 8;
 
 private:
     typedef TAppendOnlyBitmap<ui64> TBitmap;

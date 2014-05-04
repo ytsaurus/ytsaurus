@@ -9,19 +9,11 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NProto;
-
-using NTransactionClient::TimestampValueMask;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 NullValue = 0;
-
-const int TSimpleVersionedBlockWriter::FormatVersion = ETableChunkFormat::VersionedSimple;
-
-// 8 bytes for value and 8 bytes for timestamp.
-const int TSimpleVersionedBlockWriter::ValueSize = 16;
-
-const int TSimpleVersionedBlockWriter::TimestampSize = 8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
