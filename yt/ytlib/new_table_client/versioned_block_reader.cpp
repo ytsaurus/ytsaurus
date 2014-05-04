@@ -169,17 +169,16 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
         KeyColumnCount_,
         GetColumnValueCount(Schema_.Columns().size() - 1),
         TimestampCount_);
-    auto* keys = row.BeginKeys();
-    auto* values = row.BeginValues();
-    auto* timestamps = row.BeginTimestamps();
 
-    ::memcpy(keys, KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
 
+    auto* beginTimestamps = row.BeginTimestamps();
     for (int i = 0; i < TimestampCount_; ++i) {
-        timestamps[i] = ReadTimestamp(TimestampOffset_ + i);
+        beginTimestamps[i] = ReadTimestamp(TimestampOffset_ + i);
     }
 
-    int valueCount = 0;
+    auto* beginValues = row.BeginValues();
+    auto* currentValue = beginValues;
     for (const auto& mapping : SchemaIdMapping_) {
         int valueId = mapping.ReaderSchemaIndex;
         int chunkSchemaId = mapping.ChunkSchemaIndex;
@@ -188,14 +187,13 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
 
         for (int valueIndex = lowerValueIndex; valueIndex < upperValueIndex; ++valueIndex) {
-            values[valueCount] = ReadValue(
+            *currentValue++ = ReadValue(
                 ValueOffset_ + valueIndex,
                 valueId,
                 chunkSchemaId);
-            ++valueCount;
         }
     }
-    row.GetHeader()->ValueCount = valueCount;
+    row.GetHeader()->ValueCount = (currentValue - beginValues);
 
     return row;
 }
@@ -217,14 +215,13 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         KeyColumnCount_,
         SchemaIdMapping_.size(),
         1);
-    auto* keys = row.BeginKeys();
-    auto* values = row.BeginValues();
-    auto* timestamps = row.BeginTimestamps();
 
-    ::memcpy(keys, KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
     
     auto timestamp = ReadTimestamp(TimestampOffset_ + timestampIndex);
-    timestamps[0] = timestamp;
+    
+    auto* beginTimestamps = row.BeginTimestamps();
+    beginTimestamps[0] = timestamp;
 
     if (TombstoneTimestampMask & timestamp) {
         row.GetHeader()->ValueCount = 0;
@@ -232,10 +229,11 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
     }
 
     if (timestampIndex == TimestampCount_ - 1) {
-        timestamps[0] |= IncrementalTimestampMask;
+        beginTimestamps[0] |= IncrementalTimestampMask;
     }
 
-    int valueCount = 0;
+    auto* beginValues = row.BeginValues();
+    auto* currentValue = beginValues;
     for (const auto& mapping : SchemaIdMapping_) {
         int valueId = mapping.ReaderSchemaIndex;
         int chunkSchemaId = mapping.ChunkSchemaIndex;
@@ -245,22 +243,21 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
             GetColumnValueCount(chunkSchemaId),
             [&] (int index) {
                 auto value = ReadValue(ValueOffset_ + index, valueId, chunkSchemaId);
-                return (value.Timestamp  > Timestamp_);
+                return value.Timestamp  > Timestamp_;
             });
 
         if (valueIndex < GetColumnValueCount(chunkSchemaId)) {
-            auto value = ReadValue(ValueOffset_ + valueIndex, valueId, chunkSchemaId);
-            if (value.Timestamp >= (timestamp & TimestampValueMask)) {
+            *currentValue = ReadValue(ValueOffset_ + valueIndex, valueId, chunkSchemaId);
+            if (currentValue->Timestamp >= (timestamp & TimestampValueMask)) {
                 // Check that value didn't come from the previous incarnation of this row.
-                values[valueCount] = value;
-                ++valueCount;
+                ++currentValue;
             }
         } else {
-            // No value in the current column satisfy timestamp filtering.
+            // No value in the current column satisfies timestamp filtering.
         }
     }
+    row.GetHeader()->ValueCount = (currentValue - beginValues);
 
-    row.GetHeader()->ValueCount = valueCount;
     return row;
 }
 
