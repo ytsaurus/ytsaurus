@@ -281,7 +281,7 @@ public:
     ELogLevel GetMinLevel(const Stroka& category) const
     {
         ELogLevel level = ELogLevel::Maximum;
-        FOREACH (const auto& rule, Config->Rules) {
+        for (const auto& rule : Config->Rules) {
             if (rule->IsApplicable(category)) {
                 level = Min(level, rule->MinLevel);
             }
@@ -515,13 +515,13 @@ private:
                 std::unique_ptr<TNotificationWatch> watch;
 
                 switch (config->Type) {
-                    case EType::StdOut:
+                    case EWriterType::StdOut:
                         writer = New<TStdOutLogWriter>();
                         break;
-                    case EType::StdErr:
+                    case EWriterType::StdErr:
                         writer = New<TStdErrLogWriter>();
                         break;
-                    case EType::File:
+                    case EWriterType::File:
                         writer = New<TFileLogWriter>(config->FileName);
                         watch = CreateNoficiationWatch(writer, config->FileName);
                         break;

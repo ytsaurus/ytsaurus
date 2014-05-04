@@ -30,23 +30,20 @@ bool TRule::IsApplicable(const Stroka& category) const
 
 bool TRule::IsApplicable(const Stroka& category, ELogLevel level) const
 {
-    return
-        MinLevel <= level && level <= MaxLevel &&
-        IsApplicable(category);
+    return MinLevel <= level && level <= MaxLevel && IsApplicable(category);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogConfigPtr TLogConfig::CreateDefault()
 {
-    auto config = New<TLogConfig>();
-
     auto rule = New<TRule>();
     rule->IncludeAllCategories = true;
     rule->MinLevel = DefaultStdErrMinLevel;
     rule->Writers.push_back(DefaultStdErrWriterName);
+    
+    auto config = New<TLogConfig>();
     config->Rules.push_back(rule);
-
     return config;
 }
 

@@ -10,7 +10,7 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EType,
+DECLARE_ENUM(EWriterType,
     (File)
     (StdOut)
     (StdErr)
@@ -19,8 +19,7 @@ DECLARE_ENUM(EType,
 struct TWriterConfig
     : public TYsonSerializable
 {
-    EType Type;
-    Stroka Pattern;
+    EWriterType Type;
     Stroka FileName;
 
     TWriterConfig()
@@ -30,10 +29,10 @@ struct TWriterConfig
             .Default();
 
         RegisterValidator([&] () {
-            if (Type == EType::File && FileName.empty()) {
-                THROW_ERROR_EXCEPTION("FileName is empty while type is File");
-            } else if (Type != EType::File && !FileName.empty()) {
-                THROW_ERROR_EXCEPTION("FileName is not empty while type is not File");
+            if (Type == EWriterType::File && FileName.empty()) {
+                THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
+            } else if (Type != EWriterType::File && !FileName.empty()) {
+                THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %s writer", ~Type.ToString());
             }
         });
     }
@@ -119,10 +118,10 @@ public:
         RegisterParameter("rules", Rules);
 
         RegisterValidator([&] () {
-            FOREACH (const auto& rule, Rules) {
-                FOREACH (const Stroka& writer, rule->Writers) {
+            for (const auto& rule : Rules) {
+                for (const Stroka& writer : rule->Writers) {
                     if (WriterConfigs.find(writer) == WriterConfigs.end()) {
-                        THROW_ERROR_EXCEPTION("Unknown writer: %s", ~writer.Quote());
+                        THROW_ERROR_EXCEPTION("Unknown writer %s", ~writer.Quote());
                     }
                 }
             }
