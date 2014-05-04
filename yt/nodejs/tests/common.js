@@ -42,6 +42,9 @@ global.HTTP_LAG  = 5;
 var sinonChai = require("sinon-chai");
 chai.use(sinonChai);
 
+// Capture long traces in testing mode.
+require("q").longStackJumpLimit = 12;
+
 // A bunch of helpful assertions to use while testing HTTP.
 
 chai.Assertion.addProperty("http2xx", function() {
