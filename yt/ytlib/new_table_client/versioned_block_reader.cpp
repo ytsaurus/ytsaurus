@@ -15,7 +15,14 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int LowerBound(int lowerIndex, int upperIndex, std::function<bool(int)> less)
+int TSimpleVersionedBlockReader::FormatVersion = ETableChunkFormat::VersionedSimple;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <class TPredicate>
+int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)
 {
     while (upperIndex - lowerIndex > 0) {
         auto middle = (upperIndex + lowerIndex) / 2;
@@ -28,7 +35,7 @@ int LowerBound(int lowerIndex, int upperIndex, std::function<bool(int)> less)
     return lowerIndex;
 }
 
-int TSimpleVersionedBlockReader::FormatVersion = ETableChunkFormat::VersionedSimple;
+} // namespace
 
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(const TSharedRef& data,
     const TBlockMeta& meta,
