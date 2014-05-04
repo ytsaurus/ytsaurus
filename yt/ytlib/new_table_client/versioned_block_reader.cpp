@@ -146,7 +146,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
     return true;
 }
 
-TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool *memoryPool)
+TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     YCHECK(!Closed_);
     if (Timestamp_ == AllCommittedTimestamp) {
@@ -162,7 +162,7 @@ ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
     return *(reinterpret_cast<ui32*>(KeyDataPtr_) + schemaColumnId - KeyColumnCount_);
 }
 
-TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *memoryPool)
+TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* memoryPool)
 {
     auto row = TVersionedRow::Allocate(
         memoryPool,
@@ -198,7 +198,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool *mem
     return row;
 }
 
-TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryPool *memoryPool)
+TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool)
 {
     int timestampIndex = LowerBound(0, TimestampCount_, [&] (int index) {
         auto ts = ReadTimestamp(TimestampOffset_ + index);
