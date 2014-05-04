@@ -1,7 +1,7 @@
 var util = require("util");
 
 var buffertools = require("buffertools");
-var Q = require("bluebird");
+var Q = require("q");
 
 var YtError = require("./error").that;
 var YtReadableStream = require("./readable_stream").that;
@@ -22,79 +22,81 @@ var _SIMPLE_EXECUTE_FORMAT = new binding.TNodeWrap({ $value : "json" });
 function promisinglyPipe(source, destination)
 {
     "use strict";
-    return new Q(function(resolve, reject) {
-        var debug = __DBG.Tagged("Pipe");
 
-        function on_data(chunk) {
-            if (destination.writable && destination.write(chunk) === false) {
-                source.pause();
-            }
+    var deferred = Q.defer();
+    var debug = __DBG.Tagged("Pipe");
+
+    function on_data(chunk) {
+        if (destination.writable && destination.write(chunk) === false) {
+            source.pause();
         }
+    }
 
-        source.on("data", on_data);
+    source.on("data", on_data);
 
-        function on_drain() {
-            debug("on_drain");
-            if (source.readable) {
-                source.resume();
-            }
+    function on_drain() {
+        debug("on_drain");
+        if (source.readable) {
+            source.resume();
         }
+    }
 
-        destination.on("drain", on_drain);
+    destination.on("drain", on_drain);
 
-        function on_end() {
-            debug("Piping has ended");
-            resolve();
-        }
-        function on_source_close() {
-            debug("Source stream has been closed");
-            reject(new YtError("Source stream in the pipe has been closed."));
-        }
-        function on_destination_close() {
-            debug("Destination stream has been closed");
-            reject(new YtError("Destination stream in the pipe has been closed."));
-        }
-        function on_error(err) {
-            debug("An error occured");
-            cleanup();
-            reject(err);
-        }
+    function on_end() {
+        debug("Piping has ended");
+        deferred.resolve();
+    }
+    function on_source_close() {
+        debug("Source stream has been closed");
+        deferred.reject(new YtError("Source stream in the pipe has been closed."));
+    }
+    function on_destination_close() {
+        debug("Destination stream has been closed");
+        deferred.reject(new YtError("Destination stream in the pipe has been closed."));
+    }
+    function on_error(err) {
+        debug("An error occured");
+        cleanup();
+        deferred.reject(err);
+    }
 
-        source.on("end", on_end);
-        source.on("close", on_source_close);
-        source.on("error", on_error);
+    source.on("end", on_end);
+    source.on("close", on_source_close);
+    source.on("error", on_error);
 
-        destination.on("close", on_destination_close);
-        destination.on("error", on_error);
+    destination.on("close", on_destination_close);
+    destination.on("error", on_error);
 
-        function cleanup() {
-            debug("Cleaning up");
+    function cleanup() {
+        debug("Cleaning up");
 
-            source.removeListener("data", on_data);
-            destination.removeListener("drain", on_drain);
+        source.removeListener("data", on_data);
+        destination.removeListener("drain", on_drain);
 
-            source.removeListener("end", on_end);
-            source.removeListener("close", on_source_close);
-            source.removeListener("error", on_error);
+        source.removeListener("end", on_end);
+        source.removeListener("close", on_source_close);
+        source.removeListener("error", on_error);
 
-            destination.removeListener("close", on_destination_close);
-            destination.removeListener("error", on_error);
+        destination.removeListener("close", on_destination_close);
+        destination.removeListener("error", on_error);
 
-            source.removeListener("end", cleanup);
-            source.removeListener("close", cleanup);
+        source.removeListener("end", cleanup);
+        source.removeListener("close", cleanup);
 
-            destination.removeListener("end", cleanup);
-            destination.removeListener("close", cleanup);
-        }
+        destination.removeListener("end", cleanup);
+        destination.removeListener("close", cleanup);
+    }
 
-        source.on("end", cleanup);
-        source.on("close", cleanup);
+    source.on("end", cleanup);
+    source.on("close", cleanup);
 
-        destination.on("end", cleanup);
-        destination.on("close", cleanup);
+    destination.on("end", cleanup);
+    destination.on("close", cleanup);
 
-        destination.emit("pipe", source);
-    });
+    destination.emit("pipe", source);
+
+    return deferred.promise;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,8 +136,8 @@ YtDriver.prototype.execute = function(
     var deferred = Q.defer();
     var self = this;
 
-    var input_pipe_promise = promisinglyPipe(input_stream, wrapped_input_stream)
-        .then(
+    var input_pipe_promise = Q.when(
+        promisinglyPipe(input_stream, wrapped_input_stream),
         function() {
             self.__DBG("execute -> input_pipe_promise has been resolved");
             wrapped_input_stream.end();
@@ -147,8 +149,8 @@ YtDriver.prototype.execute = function(
             deferred.reject(new YtError("Input pipe has been cancelled", err));
         });
 
-    var output_pipe_promise = promisinglyPipe(wrapped_output_stream, output_stream)
-        .then(
+    var output_pipe_promise = Q.when(
+        promisinglyPipe(wrapped_output_stream, output_stream),
         function() {
             // Do not close |output_stream| here since we have to write out trailers.
             self.__DBG("execute -> output_pipe_promise has been resolved");

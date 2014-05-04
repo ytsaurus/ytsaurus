@@ -11,7 +11,6 @@
   },
   "main": "index",
   "dependencies": {
-    "bluebird": "1.2.4",
     "buffertools": "1.1.0",
     "connect": "2.6.0",
     "lru-cache": "2.2.2",
@@ -19,6 +18,7 @@
     "node-static": "0.6.2",
     "optimist": "0.3.5",
     "qs": "0.5.1",
+    "q": "0.9.3",
     "winston": "0.7.2",
     "uid-number": "0.0.3",
     "heapdump": "0.1.0",

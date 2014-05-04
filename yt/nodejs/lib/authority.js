@@ -1,5 +1,5 @@
 var lru_cache = require("lru-cache");
-var Q = require("bluebird");
+var Q = require("q");
 
 var YtError = require("./error").that;
 var YtRegistry = require("./registry").that;
@@ -76,8 +76,8 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
     var token_cache = this.token_cache;
 
     // Perform proper authentication here and cache the result.
-    return Q.resolve()
-    .then(this._asyncQueryCypress.bind(this, context, result))
+    return Q
+    .when(this._asyncQueryCypress(context, result))
     .then(this._asyncQueryBlackbox.bind(this, context, result))
     .then(this._ensureUserExists.bind(this, context, result))
     .then(function() {
@@ -244,7 +244,9 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
 
     var path = self.config.cypress.where + "/" + utils.escapeYPath(context.token);
 
-    return self.driver.executeSimple("get", { path: path }).then(
+    return Q
+    .when(self.driver.executeSimple("get", { path: path }))
+    .then(
     function(login) {
         if (typeof(login) !== "string") {
             context.logger.debug("Encountered garbage at path '" + path + "'");
@@ -277,10 +279,11 @@ YtAuthority.prototype._ensureUserExists = function(context, result)
         return;
     }
 
-    return self.driver.executeSimple("create", {
+    return Q
+    .when(self.driver.executeSimple("create", {
         type: "user",
         attributes: { name: name }
-    })
+    }))
     .then(
     function(create) {
         context.logger.debug("User created", { name: name });

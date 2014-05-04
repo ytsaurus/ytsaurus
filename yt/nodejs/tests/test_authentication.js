@@ -1,4 +1,4 @@
-var Q = require("bluebird");
+var Q = require("q");
 
 var YtAuthentication = require("../lib/middleware/authentication").that;
 var YtAuthority = require("../lib/authority").that;
@@ -62,7 +62,7 @@ function stubRegistry()
     };
 
     var logger = stubLogger();
-    var driver = { executeSimple: function(){ return Q.resolve(); } };
+    var driver = { executeSimple: function(){} };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);

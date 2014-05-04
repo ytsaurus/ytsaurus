@@ -2,7 +2,7 @@ var url = require("url");
 var qs = require("querystring");
 var fs = require("fs");
 var mustache = require("mustache");
-var Q = require("bluebird");
+var Q = require("q");
 
 var YtError = require("./error").that;
 var utils = require("./utils");
@@ -50,7 +50,8 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
                 return utils.dispatchAs(rsp, _STATIC_STYLE, "text/css");
         }
         throw new YtError("Unknown URI");
-    }).catch(self._dispatchError.bind(self, req, rsp));
+    })
+    .fail(self._dispatchError.bind(self, req, rsp));
 };
 
 YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
@@ -119,11 +120,12 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
 
     var state = JSON.parse(params.state);
 
-    return self.authority.oAuthObtainToken(
+    return Q
+    .when(self.authority.oAuthObtainToken(
         logger,
         origin,
         state.realm,
-        params.code)
+        params.code))
     .then(function(token) {
         return Q.all([
             token,
@@ -154,7 +156,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
             return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
         }
     })
-    .catch(function(err) {
+    .fail(function(err) {
         return Q.reject(new YtError(
             "Failed to receive OAuth token or Blackbox login",
             err));

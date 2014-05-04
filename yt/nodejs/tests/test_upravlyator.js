@@ -1,5 +1,5 @@
 var querystring = require("querystring");
-var Q = require("bluebird");
+var Q = require("q");
 
 var YtApplicationUpravlyator = require("../lib/middleware/application_upravlyator").that;
 var YtError = require("../lib/error").that;
@@ -23,7 +23,7 @@ function stubRegistry()
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
-    YtRegistry.set("driver", { executeSimple: function(){ return Q.resolve(); } });
+    YtRegistry.set("driver", { executeSimple: function(){} });
 }
 
 function map(object, iterator, context)

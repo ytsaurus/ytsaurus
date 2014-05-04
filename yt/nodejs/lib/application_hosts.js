@@ -1,6 +1,6 @@
 var url = require("url");
 
-var Q = require("bluebird");
+var Q = require("q");
 
 var YtError = require("./error").that;
 var utils = require("./utils");
@@ -46,7 +46,8 @@ YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
             return self._dispatchBasic(req, rsp, suffix);
         }
         throw new YtError("Unknown URI");
-    }).catch(self._dispatchError.bind(self, req, rsp));
+    })
+    .fail(self._dispatchError.bind(self, req, rsp));
 };
 
 YtApplicationHosts.prototype._dispatchError = function(req, rsp, err)
