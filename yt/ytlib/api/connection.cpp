@@ -322,11 +322,6 @@ public:
 
         auto descriptor = fragment.GetContext()->GetNodeDirectory()->GetDescriptor(replica);
         auto address = descriptor.Address;
-
-        LOG_DEBUG("Delegating fragment (FragmentId: %s, Address: %s)",
-            ~ToString(fragment.Id()),
-            ~address);
-
         auto channel = NodeChannelFactory_->CreateChannel(address);
 
         TQueryServiceProxy proxy(channel);
@@ -369,9 +364,6 @@ private:
         const TYPath& path,
         TPlanContextPtr context)
     {
-        LOG_DEBUG("Getting initial split (Path: %s)",
-            ~path);
-
         auto asyncInfoOrError = TableMountCache_->GetTableInfo(path);
         auto infoOrError = WaitFor(asyncInfoOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(infoOrError);
@@ -423,8 +415,6 @@ private:
         TPlanContextPtr context)
     {
         auto tableId = GetObjectIdFromDataSplit(split);
-        LOG_DEBUG("Splitting sorted table further into chunks (TableId: %s)",
-            ~ToString(tableId));
 
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
@@ -473,8 +463,6 @@ private:
         TTableMountInfoPtr tableInfo)
     {
         auto tableId = GetObjectIdFromDataSplit(split);
-        LOG_DEBUG("Splitting unsorted table further into tablets (TableId: %s)",
-            ~ToString(tableId));
 
         if (tableInfo->Tablets.empty()) {
             THROW_ERROR_EXCEPTION("Table %s is neither sorted nor has tablets",
