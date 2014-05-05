@@ -38,7 +38,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         res = read('//sys/scheduler/event_log')
         for item in res:
             if item['event_type'] == 'job_completed':
-                for key in ['cpu_user', 'cpu_system', 'sectors', 'read_bytes', 'write_bytes']:
+                for key in ['cpu_user_time', 'cpu_system_time', 'block_io_sectors', 'block_io_bytes_read', 'block_io_bytes_written']:
                     assert key in item
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
