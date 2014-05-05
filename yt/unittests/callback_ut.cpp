@@ -31,7 +31,7 @@ struct TBindState;
 // chance of colliding with another instantiation and breaking the
 // one-definition-rule.
 template <>
-class TBindState<void(), void(), void(TFakeInvoker)>
+struct TBindState<void(), void(), void(TFakeInvoker)>
     : public TBindStateBase
 {
 public:
