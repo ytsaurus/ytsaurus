@@ -112,8 +112,9 @@ bool DeserializeFromProtoWithEnvelope(
 
     // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
     // to find out more about protobuf message size limits.
-    ArrayInputStream arrayInputStream(serializedMessage.Begin(), serializedMessage.Size());
-    CodedInputStream codedInputStream(&arrayInputStream);
+    CodedInputStream codedInputStream(
+        reinterpret_cast<const ui8*>(serializedMessage.Begin()),
+        static_cast<int>(serializedMessage.Size()));
     codedInputStream.SetTotalBytesLimit(
         serializedMessage.Size() + 1,
         serializedMessage.Size() + 1);
