@@ -1,5 +1,5 @@
 var lru_cache = require("lru-cache");
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtError = require("./error").that;
 var YtRegistry = require("./registry").that;
@@ -36,7 +36,8 @@ function YtAuthority(config, driver)
     this.__DBG("New");
 }
 
-YtAuthority.prototype.authenticate = function(logger, party, token)
+YtAuthority.prototype.authenticate = Q.method(
+function YtAuthority$authenticate(logger, party, token)
 {
     "use strict";
     this.__DBG("authenticate");
@@ -66,18 +67,17 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
         enumerable: true
     });
 
-    // This is a fast function so we are not using the promise chain here.
-    // We want to behave as fast as possible for these cases. So no fancy shit.
+    // Fast-path.
     if (this._syncCheckCache(context, result)) {
-        return result;
+        return;
     }
 
     // Cache |token_cache| variable. :)
     var token_cache = this.token_cache;
 
     // Perform proper authentication here and cache the result.
-    return Q
-    .when(this._asyncQueryCypress(context, result))
+    return Q.resolve()
+    .then(this._asyncQueryCypress.bind(this, context, result))
     .then(this._asyncQueryBlackbox.bind(this, context, result))
     .then(this._ensureUserExists.bind(this, context, result))
     .then(function() {
@@ -95,20 +95,19 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
         }
         return result;
     });
-};
+});
 
-YtAuthority.prototype.oAuthObtainToken = function(
-    logger, party, key, code)
+YtAuthority.prototype.oAuthObtainToken = Q.method(
+function YtAuthority$oAuthObtainToken(logger, party, key, code)
 {
     "use strict";
     this.__DBG("oAuthObtainToken");
 
-    var app = this._findOAuthApplicationBy("key", key || this.config.default_oauth_application_key);
+    var app = this._findOAuthApplicationByKey(key);
     if (typeof(app) === "undefined") {
-        var error = new YtError(
+        throw new YtError(
             "There is no OAuth application with key " +
             JSON.stringify(key) + ".");
-        return Q.reject(error);
     }
 
     return external_services.oAuthObtainToken(
@@ -118,29 +117,27 @@ YtAuthority.prototype.oAuthObtainToken = function(
         code)
     .then(function(data) {
         if (typeof(data.access_token) === "undefined") {
-            return Q.reject(new YtError("Unreachable (you are lucky)"));
+            throw new YtError("Unreachable (you are lucky)");
         }
-
         return data.access_token;
     });
-};
+});
 
-YtAuthority.prototype.oAuthBuildUrlToRedirect = function(
-    logger, party, key, state)
+YtAuthority.prototype.oAuthBuildUrlToRedirect = Q.method(
+function YtAuthority$oAuthBuildUrlToRedirect(logger, party, key, state)
 {
     "use strict";
     this.__DBG("oAuthBuildUrlToRedirect");
 
-    var app = this._findOAuthApplicationBy("key", key || this.config.default_oauth_application_key);
+    var app = this._findOAuthApplicationByKey(key);
     if (typeof(app) === "undefined") {
-        var error = new YtError(
+        throw new YtError(
             "There is no OAuth application with key " +
             JSON.stringify(key) + ".");
-        throw error;
     }
 
     return external_services.oAuthBuildUrlToRedirect(app.client_id, state);
-};
+});
 
 YtAuthority.prototype._findOAuthApplicationBy = function(key, value)
 {
@@ -153,6 +150,16 @@ YtAuthority.prototype._findOAuthApplicationBy = function(key, value)
             return apps[i];
         }
     }
+};
+
+YtAuthority.prototype._findOAuthApplicationByKey = function(key)
+{
+    "use strict";
+    this.__DBG("_findOAuthApplicationByKey");
+
+    return this._findOAuthApplicationBy(
+        "key",
+        key || this.config.default_oauth_application_key);
 };
 
 YtAuthority.prototype._syncCheckCache = function(context, result)
@@ -181,11 +188,11 @@ YtAuthority.prototype._asyncQueryBlackbox = function(context, result)
     "use strict";
     this.__DBG("_asyncQueryBlackbox");
 
-    var self = this;
-
-    if (!self.config.blackbox.enable || result.isAuthenticated) {
-        return;
+    if (!this.config.blackbox.enable || result.isAuthenticated) {
+        return Q.resolve();
     }
+
+    var self = this;
 
     return external_services.blackboxValidateToken(
         context.logger,
@@ -195,7 +202,7 @@ YtAuthority.prototype._asyncQueryBlackbox = function(context, result)
         // Since we are caching results, we don't have to bother too much about
         // the most efficient order here. We prefer to keep logic readable.
         if (typeof(data.error) === "undefined") {
-            return Q.reject(new YtError("Unreachable (you are lucky)"));
+            throw new YtError("Unreachable (you are lucky)");
         }
 
         if (!(data.error === "OK" &&
@@ -236,16 +243,16 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
     "use strict";
     this.__DBG("_asyncQueryCypress");
 
-    var self = this;
-
-    if (!self.config.cypress.enable || result.isAuthenticated) {
-        return;
+    if (!this.config.cypress.enable || result.isAuthenticated) {
+        return Q.resolve();
     }
 
+    var self = this;
     var path = self.config.cypress.where + "/" + utils.escapeYPath(context.token);
 
-    return Q
-    .when(self.driver.executeSimple("get", { path: path }))
+    return this.driver.executeSimple("get", {
+        path: path
+    })
     .then(
     function(login) {
         if (typeof(login) !== "string") {
@@ -272,18 +279,17 @@ YtAuthority.prototype._ensureUserExists = function(context, result)
     "use strict";
     this.__DBG("_ensureUserExists");
 
+    if (!result.isAuthenticated || this.exist_cache.get(name)) {
+        return Q.resolve();
+    }
+
     var self = this;
     var name = result.login;
 
-    if (!result.isAuthenticated || self.exist_cache.get(name)) {
-        return;
-    }
-
-    return Q
-    .when(self.driver.executeSimple("create", {
+    return this.driver.executeSimple("create", {
         type: "user",
         attributes: { name: name }
-    }))
+    })
     .then(
     function(create) {
         context.logger.debug("User created", { name: name });

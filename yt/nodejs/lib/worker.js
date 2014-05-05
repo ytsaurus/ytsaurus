@@ -10,7 +10,7 @@ var connect = require("connect");
 var node_static = require("node-static");
 var winston = require("winston");
 
-var Q = require("q");
+var Q = require("bluebird");
 
 var profiler = require("profiler");
 var heapdump = require("heapdump");
@@ -48,9 +48,6 @@ var logger = {
 };
 
 var version;
-
-// Speed stuff.
-Q.longStackJumpLimit = 0;
 
 try {
     version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
@@ -336,7 +333,7 @@ if (config.ssl_port && config.ssl_address) {
 // $ssl_client_s_dn == "/C=RU/ST=Russia/L=Moscow/O=Yandex/OU=Information Security/CN=agranat.yandex-team.ru/emailAddress=security@yandex-team.ru";
 
 Q
-    .allResolved([ insecure_listening_deferred.promise, secure_listening_deferred.promise ])
+    .settle([ insecure_listening_deferred.promise, secure_listening_deferred.promise ])
     .then(function() {
         "use strict";
         logger.info("Worker is up and running", {
@@ -347,5 +344,5 @@ Q
     });
 
 Q
-    .allResolved([ insecure_close_deferred.promise, secure_close_deferred.promise ])
+    .settle([ insecure_close_deferred.promise, secure_close_deferred.promise ])
     .then(violentlyDie);

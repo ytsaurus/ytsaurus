@@ -2,7 +2,7 @@ var url = require("url");
 var qs = require("querystring");
 var fs = require("fs");
 var mustache = require("mustache");
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtError = require("./error").that;
 var utils = require("./utils");
@@ -50,8 +50,7 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
                 return utils.dispatchAs(rsp, _STATIC_STYLE, "text/css");
         }
         throw new YtError("Unknown URI");
-    })
-    .fail(self._dispatchError.bind(self, req, rsp));
+    }).catch(self._dispatchError.bind(self, req, rsp));
 };
 
 YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
@@ -120,12 +119,11 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
 
     var state = JSON.parse(params.state);
 
-    return Q
-    .when(self.authority.oAuthObtainToken(
+    return self.authority.oAuthObtainToken(
         logger,
         origin,
         state.realm,
-        params.code))
+        params.code)
     .then(function(token) {
         return Q.all([
             token,
@@ -156,7 +154,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
             return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
         }
     })
-    .fail(function(err) {
+    .catch(function(err) {
         return Q.reject(new YtError(
             "Failed to receive OAuth token or Blackbox login",
             err));
@@ -171,13 +169,15 @@ YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
     var origin = req.origin || req.connection.remoteAddress;
 
     var state = params;
-    var target = this.authority.oAuthBuildUrlToRedirect(
+
+    return this.authority.oAuthBuildUrlToRedirect(
         logger,
         origin,
         state.realm,
-        state);
-
-    return utils.redirectTo(rsp, target, 303);
+        state)
+    .then(function(target) {
+        return utils.redirectTo(rsp, target, 303);
+    });
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-var Q = require("q");
+var Q = require("bluebird");
 var url = require("url");
 var querystring = require("querystring");
 
@@ -68,7 +68,7 @@ exports.blackboxValidateToken = function(logger, party, token)
                 return data;
             }
         })
-        .fail(function(err) {
+        .catch(function(err) {
             var error = YtError.ensureWrapped(err);
             tagged_logger.info("Retrying to query Blackbox", {
                 // XXX(sandello): Embed.

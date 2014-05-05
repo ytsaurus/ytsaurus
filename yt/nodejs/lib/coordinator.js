@@ -2,7 +2,7 @@ var events = require("events");
 var os = require("os");
 var util = require("util");
 
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtAccrualFailureDetector = require("./accrual_failure_detector").that;
 var YtError = require("./error").that;
@@ -209,11 +209,10 @@ YtCoordinator.prototype._initialize = function()
     var fqdn = self.fqdn;
     var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
 
-    return Q
-    .when(self.driver.executeSimple("create", {
+    return self.driver.executeSimple("create", {
         type: "map_node",
         path: path
-    }))
+    })
     .then(
     function(create) {
         var req1 = self.driver.executeSimple(
@@ -240,7 +239,7 @@ YtCoordinator.prototype._initialize = function()
 
         return self._refresh();
     })
-    .fail(function(err) {
+    .catch(function(err) {
         var error = YtError.ensureWrapped(err);
         self.logger.error(
             "An error occured while initializing coordination",
@@ -258,7 +257,7 @@ YtCoordinator.prototype._refresh = function()
     var fqdn = self.fqdn;
     var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
 
-    var sync = Q();
+    var sync = Q.resolve();
 
     if (self.config.announce) {
         if (!self.initialized) {
@@ -285,7 +284,7 @@ YtCoordinator.prototype._refresh = function()
         });
     }
 
-    return Q.when(sync)
+    return sync
     .then(function() {
         // We are dropping failure count as soon as we pushed it to Cypress.
         self.failure_count = 0;
@@ -326,7 +325,7 @@ YtCoordinator.prototype._refresh = function()
             ref.liveness = utils.getYsonAttribute(entry, "liveness");
         });
     })
-    .fail(function(err) {
+    .catch(function(err) {
         // Re-run initialization next time, just in case.
         self.initialized = false;
 

@@ -1,4 +1,5 @@
-var qs = require("querystring");
+var querystring = require("querystring");
+var Q = require("bluebird");
 
 var YtApplicationAuth = require("../lib/middleware/application_auth").that;
 var YtError = require("../lib/error").that;
@@ -74,7 +75,7 @@ function stubRegistry()
     };
 
     var logger = stubLogger();
-    var driver = { executeSimple: function(){} };
+    var driver = { executeSimple: function(){ return Q.resolve(); } };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
@@ -106,7 +107,7 @@ describe("ApplicationAuth", function() {
                 "?response_type=code" +
                 "&display=popup" +
                 "&client_id=" + realm + "_client_id" +
-                "&state=" + qs.escape('{' +
+                "&state=" + querystring.escape('{' +
                     '"foo":"bar",' +
                     '"spam":"ham",' +
                     '"realm":"' + realm + '"' +
@@ -116,7 +117,7 @@ describe("ApplicationAuth", function() {
     });
 
     it("should request token and display it to the user", function(done) {
-        var params = qs.stringify({
+        var params = querystring.stringify({
             code: 123456789,
             state: JSON.stringify({
                 realm: "ytrealm-key",
@@ -143,7 +144,7 @@ describe("ApplicationAuth", function() {
     });
 
     it("should request token and redirect the user", function(done) {
-        var params = qs.stringify({
+        var params = querystring.stringify({
             code: 123456789,
             state: JSON.stringify({
                 realm: "ytrealm-key",

@@ -1,7 +1,7 @@
 var buffertools = require("buffertools");
 var querystring = require("querystring");
 var url = require("url");
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtError = require("./error").that;
 
@@ -25,11 +25,10 @@ YtApplicationUpravlyator.prototype._getFromYt = function(type, name)
 {
     "use strict";
 
-    return Q
-    .when(this.driver.executeSimple(
+    return this.driver.executeSimple(
         "get",
-        { path: "//sys/" + type + "/" + utils.escapeYPath(name) + "/@" }))
-    .fail(function(error) {
+        { path: "//sys/" + type + "/" + utils.escapeYPath(name) + "/@" })
+    .catch(function(error) {
         if (error.code === 500) {
             return; // Resolve error, return 'undefined';
         } else {
@@ -46,9 +45,7 @@ YtApplicationUpravlyator.prototype._getManagedUser = function(name)
         return Q.reject(new YtError("User name is not specified"));
     }
 
-    return Q
-    .when(this._getFromYt("users", name))
-    .then(function(user) {
+    return this._getFromYt("users", name).then(function(user) {
         if (typeof(user) === "undefined") {
             return Q.reject(new YtError(
                 "No such user: " + JSON.stringify(name))
@@ -74,9 +71,7 @@ YtApplicationUpravlyator.prototype._getManagedGroup = function(name)
         return Q.reject(new YtError("Group name is not specified"));
     }
 
-    return Q
-    .when(this._getFromYt("groups", name))
-    .then(function(group) {
+    return this._getFromYt("groups", name).then(function(group) {
         if (typeof(group) === "undefined") {
             return Q.reject(new YtError(
                 "No such group: " + JSON.stringify(name))
@@ -100,14 +95,13 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 
     var logger = this.logger;
 
-    return Q
-    .when(this.driver.executeSimple("list", {
+    return this.driver.executeSimple("list", {
         path: "//sys/users",
         attributes: [
             "upravlyator_managed",
             "member_of"
         ]
-    }))
+    })
     .then(
     function(users) {
         var total, managed;
@@ -143,15 +137,14 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
 
     var logger = this.logger;
 
-    return Q
-    .when(this.driver.executeSimple("list", {
+    return this.driver.executeSimple("list", {
         path: "//sys/groups",
         attributes: [
             "upravlyator_managed",
             "upravlyator_name",
             "upravlyator_help"
         ]
-    }))
+    })
     .then(
     function(groups) {
         var total, managed;
@@ -207,8 +200,7 @@ YtApplicationUpravlyator.prototype.dispatch = function(req, rsp, next)
                 return self._dispatchGetAllRoles(req, rsp);
         }
         throw new YtError("Unknown URI");
-    })
-    .fail(self._dispatchError.bind(self, req, rsp));
+    }).catch(self._dispatchError.bind(self, req, rsp));
 };
 
 YtApplicationUpravlyator.prototype._dispatchError = function(req, rsp, err)
@@ -242,11 +234,7 @@ YtApplicationUpravlyator.prototype._dispatchInfo = function(req, rsp)
 {
     "use strict";
 
-    var self = this;
-
-    return Q
-    .when(self._getManagedGroups())
-    .then(function(groups) {
+    return this._getManagedGroups().then(function(groups) {
         return utils.dispatchJson(rsp, {
             code: 0,
             roles: {
@@ -265,8 +253,7 @@ YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
     var self = this;
     var logger = req.logger || self.logger;
 
-    return Q
-    .when(self._extractUserGroup(req, rsp))
+    return self._extractUserGroup(req, rsp)
     .spread(function(user, group) {
         var user_name = user.name;
         var group_name = group.name;
@@ -292,7 +279,7 @@ YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
         tagged_logger.debug("Successfully added Upravlyator role");
         return utils.dispatchJson(rsp, { code: 0 });
     })
-    .fail(function(err) {
+    .catch(function(err) {
         return Q.reject(YtError.ensureWrapped(
             err, "Failed to add Upravlyator role"));
     });
@@ -305,8 +292,7 @@ YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
     var self = this;
     var logger = req.logger || self.logger;
 
-    return Q
-    .when(self._extractUserGroup(req, rsp))
+    return self._extractUserGroup(req, rsp)
     .spread(function(user, group) {
         var user_name = user.name;
         var group_name = group.name;
@@ -332,7 +318,7 @@ YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
         tagged_logger.debug("Successfully removed Upravlyator role");
         return utils.dispatchJson(rsp, { code: 0 });
     })
-    .fail(function(err) {
+    .catch(function(err) {
         return Q.reject(YtError.ensureWrapped(
             err, "Failed to remove Upravlyator role"));
     });
@@ -349,9 +335,7 @@ YtApplicationUpravlyator.prototype._dispatchGetUserRoles = function(req, rsp)
     var login = params.login;
 
     // TODO(sandello): This is hacky. Fix me?
-    var maybe_user = Q
-    .when(self._getManagedUser(login))
-    .fail(function(err) {
+    var maybe_user = self._getManagedUser(login).catch(function(err) {
         var error = YtError.ensureWrapped(err);
         if (error.attributes.missing || error.attributes.unmanaged) {
             return;
@@ -375,7 +359,7 @@ YtApplicationUpravlyator.prototype._dispatchGetUserRoles = function(req, rsp)
         });
         utils.dispatchJson(rsp, { code: 0, roles: roles });
     })
-    .fail(function(err) {
+    .catch(function(err) {
         return Q.reject(YtError.ensureWrapped(
             err, "Failed to get Upravlyator user roles"));
     });
@@ -404,7 +388,7 @@ YtApplicationUpravlyator.prototype._dispatchGetAllRoles = function(req, rsp)
         });
         utils.dispatchJson(rsp, { code: 0, users: users });
     })
-    .fail(function(err) {
+    .catch(function(err) {
         return Q.reject(YtError.ensureWrapped(
             err, "Failed to get Upravlyator users and roles"));
     });
@@ -444,9 +428,7 @@ YtApplicationUpravlyator.prototype._extractUserGroup = function(req, rsp)
         return Q.reject(error);
     }
 
-    return Q
-    .when(req.body)
-    .then(function(body) {
+    return Q.cast(req.body).then(function(body) {
         logger.debug("Verifying Upravlyator user and group", {
             payload: body
         });
@@ -458,8 +440,8 @@ YtApplicationUpravlyator.prototype._extractUserGroup = function(req, rsp)
         var user_name = body.login;
         var group_name = role.group;
 
-        var user = self._getManagedUser(user_name).fail(tracer);
-        var group = self._getManagedGroup(group_name).fail(tracer);
+        var user = self._getManagedUser(user_name).catch(tracer);
+        var group = self._getManagedGroup(group_name).catch(tracer);
 
         return Q.all([ user, group ]);
     });

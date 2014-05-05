@@ -1,4 +1,4 @@
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtApplicationUpravlyator = require("../application_upravlyator").that;
 var YtRegistry = require("../registry").that;
@@ -15,6 +15,6 @@ exports.that = function Middleware__YtApplicationUpravlyator()
     var app = new YtApplicationUpravlyator(logger, driver);
 
     return function(req, rsp, next) {
-        return Q(app.dispatch(req, rsp, next)).done();
+        return Q.cast(app.dispatch(req, rsp, next)).done();
     };
 };

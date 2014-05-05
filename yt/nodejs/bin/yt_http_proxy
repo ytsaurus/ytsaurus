@@ -10,7 +10,7 @@ var optimist = require("optimist");
 var uid_number = require("uid-number");
 var winston = require("winston");
 
-var Q = require("q");
+var Q = require("bluebird");
 
 var profiler = require("profiler");
 var heapdump = require("heapdump");
@@ -246,27 +246,25 @@ if (config.agent) {
 
 function ensureFileExistsAndOwned(path, user, group) {
     return Q
-        .nfcall(fs.exists, fs, path)
-        .fail(function(exists) {
+        .promisify(fs.exists)(path)
+        .catch(function(exists) {
             return exists || Q
-                .nfcall(fs.writeFile, fs, path, "")
+                .promisify(fs.writeFile)(path, "")
                 .then(Q
-                    .nfcall(uid_number, undefined, user || process.getuid(), group || process.getgid)
-                    .spread(Q.nfbind(fs.chown, path))
+                    .promisify(uid_number)(user || process.getuid(), group || process.getgid)
+                    .spread(Q.promisify(fs.chown).bind(undefined, path))
                 );
         });
 };
 
 function provideWinstonTransport() {
     if (config.logging) {
-        return Q.when(
-            ensureFileExistsAndOwned(config.logging.filename, config.user, config.group),
-            function() {
-                console.error("Setting up logging to file '%s'", config.logging.filename);
-                return new winston.transports.File(config.logging);
-            });
+        return ensureFileExistsAndOwned(config.logging.filename, config.user, config.group).then(function() {
+            console.error("Setting up logging to file '%s'", config.logging.filename);
+            return new winston.transports.File(config.logging);
+        });
     } else {
-        return Q.fcall(function() {
+        return Q.try(function() {
             console.error("Setting up logging to console");
             return new winston.transports.Console({ timestamp : true, raw : false, colorize : true });
         });
@@ -278,7 +276,7 @@ function provideWinstonLogger(transport) {
 }
 
 function createLogger() {
-    return Q.fcall(provideWinstonTransport).then(provideWinstonLogger);
+    return Q.try(provideWinstonTransport).then(provideWinstonLogger);
 }
 
 function runProxy(logger) {
