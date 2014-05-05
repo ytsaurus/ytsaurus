@@ -177,13 +177,6 @@ private:
         UnsafeWriteInt64(value);
     }
 
-    void UnsafeWriteInt128(i64 valueLo, i64 valueHi)
-    {
-        reinterpret_cast<i64*>(Current_)[0] = valueLo;
-        reinterpret_cast<i64*>(Current_)[1] = valueHi;
-        Current_ += 2 * sizeof (i64);
-    }
-
     void UnsafeWriteRaw(const void* buffer, size_t size)
     {
         memcpy(Current_, buffer, size);
@@ -213,20 +206,19 @@ private:
         EnsureCapacity(bytes);
 
         const i64* rawValue = reinterpret_cast<const i64*>(&value);
+        UnsafeWriteInt64(rawValue[0]);
         switch (value.Type) {
             case EValueType::Integer:
             case EValueType::Double:
-                UnsafeWriteInt128(rawValue[0], rawValue[1]);
+                UnsafeWriteInt64(rawValue[1]);
                 break;
             
             case EValueType::String:
             case EValueType::Any:
-                UnsafeWriteInt64(*rawValue);
                 UnsafeWriteRaw(value.Data.String, value.Length);
                 break;
 
             default:
-                UnsafeWriteInt64(*rawValue);
                 break;
         }
     }
@@ -421,8 +413,7 @@ public:
     TColumnFilter ReadColumnFilter()
     {
         TColumnFilter filter;
-        // TODO(babenko): check
-        int columnCount = ReadInt64();
+        int columnCount = ReadInt32();
         if (columnCount != -1) {
             filter.All = false;
             for (int index = 0; index < columnCount; ++index) {
@@ -457,7 +448,7 @@ public:
 
     void ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
     {
-        int rowCount = static_cast<int>(ReadInt64());
+        int rowCount = ReadInt32();
         ValidateRowCount(rowCount);
         rowset->reserve(rowset->size() + rowCount);
         for (int index = 0; index != rowCount; ++index) {
@@ -481,6 +472,16 @@ private:
         Current_ += sizeof (result);
         return result;
     }
+
+    i32 ReadInt32()
+    {
+        i64 result = ReadInt64();
+        if (result > std::numeric_limits<i32>::max()) {
+            THROW_ERROR_EXCEPTION("Value is too big to fit into int32");
+        }
+        return static_cast<i32>(result);
+    }
+
 
     void ReadRaw(void* buffer, size_t size)
     {
@@ -527,8 +528,7 @@ private:
 
     TUnversionedRow ReadRow()
     {
-        // TODO(babenko): check for overflow
-        int valueCount = ReadInt64();
+        int valueCount = ReadInt32();
         if (valueCount == -1) {
             return TUnversionedRow();
         }
