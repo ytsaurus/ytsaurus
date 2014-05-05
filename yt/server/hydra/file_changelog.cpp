@@ -170,61 +170,66 @@ public:
     }
     
 
-    std::vector<TSharedRef> Read(int recordId, int maxRecords, i64 maxBytes)
+    std::vector<TSharedRef> Read(int firstRecordId, int maxRecords, i64 maxBytes)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // First in-memory record index.
-        int flushedRecordCount;
-        
         std::vector<TSharedRef> records;
+        int currentRecordId = firstRecordId;
+        int needRecords = maxRecords;
+        i64 needBytes = maxBytes;
+        i64 readBytes = 0;
 
-        // First take in-memory records (tail part).
-        PROFILE_TIMING ("/changelog_read_copy_time") {
+        auto appendRecord = [&] (const TSharedRef& record) {
+            records.push_back(record);
+            --needRecords;
+            needBytes -= record.Size();
+            readBytes += record.Size();
+        };
+
+        auto needMore = [&] () {
+            return needRecords > 0 && needBytes > 0;
+        };
+
+        while (needMore()) {
             TGuard<TSpinLock> guard(SpinLock);
-            flushedRecordCount = FlushedRecordCount;
+            if (currentRecordId < FlushedRecordCount) {
+                // Read from disk, w/o spinlock.
+                guard.Release();
 
-            CopyRecords(
-                FlushedRecordCount,
-                FlushQueue,
-                recordId,
-                maxRecords,
-                &records);
+                PROFILE_TIMING ("/changelog_read_io_time") {
+                    auto diskRecords = Changelog->Read(currentRecordId, needRecords, needBytes);
+                    for (const auto& record : diskRecords) {
+                        appendRecord(record);
+                    }
+                }
+            } else {
+                // Read from memory, w/ spinlock.
 
-            CopyRecords(
-                FlushedRecordCount + FlushQueue.size(),
-                AppendQueue,
-                recordId,
-                maxRecords,
-                &records);
-        }
+                auto readFromMemory = [&] (const std::vector<TSharedRef>& memoryRecords, int firstMemoryRecordId) {
+                    if (!needMore())
+                        return;
+                    int memoryIndex = currentRecordId - firstMemoryRecordId;
+                    YCHECK(memoryIndex >= 0);
+                    while (memoryIndex < static_cast<int>(memoryRecords.size()) && needMore()) {
+                        appendRecord(memoryRecords[memoryIndex]);
+                    }
+                };
 
-        // Then take on-disk records, if needed (head part).
-        PROFILE_TIMING ("/changelog_read_io_time") {
-            if (recordId < flushedRecordCount) {
-                int neededRecordCount = std::min(maxRecords, flushedRecordCount - recordId);
-                auto diskResult = Changelog->Read(recordId, neededRecordCount, maxBytes);
-                // Combine head + tail.
-                diskResult.insert(diskResult.end(), records.begin(), records.end());
-                records.swap(diskResult);
+                PROFILE_TIMING ("/changelog_read_copy_time") {
+                    readFromMemory(FlushQueue, FlushedRecordCount);
+                    readFromMemory(AppendQueue, FlushedRecordCount + FlushQueue.size());
+                }
+
+                // Break since we don't except more records beyond this point.
+                break;
             }
-        }
-
-        // Trim to enforce size limit.
-        i64 actualBytes = 0;
-        {
-            auto it = records.begin();
-            while (it != records.end() && actualBytes <= maxBytes) {
-                actualBytes += it->Size();
-                ++it;
-            }
-            records.erase(it, records.end());
         }
 
         Profiler.Enqueue("/changelog_read_record_count", records.size());
-        Profiler.Enqueue("/changelog_read_size", actualBytes);
+        Profiler.Enqueue("/changelog_read_size", readBytes);
 
-        return std::move(records);
+        return records;
     }
 
 private:
@@ -232,11 +237,16 @@ private:
 
     TSpinLock SpinLock;
     std::atomic<int> UseCount;
+
+    //! Number of records flushed to the underlying sync changelog.
     int FlushedRecordCount;
-    i64 ByteSize;
-    
-    std::vector<TSharedRef> AppendQueue;
+    //! These records are currently being flushed to the underlying sync changelog and
+    //! immediately follow the flushed part.
     std::vector<TSharedRef> FlushQueue;
+    //! Newly appended records to here. These records immediately follow the flush part.
+    std::vector<TSharedRef> AppendQueue;
+
+    i64 ByteSize;
 
     TPromise<void> FlushPromise;
     bool FlushForced;
@@ -247,27 +257,6 @@ private:
 
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
-
-
-    static void CopyRecords(
-        int firstRecordId,
-        const std::vector<TSharedRef>& records,
-        int neededFirstRecordId,
-        int neededRecordCount,
-        std::vector<TSharedRef>* result)
-    {
-        int size = records.size();
-        int beginIndex = neededFirstRecordId - firstRecordId;
-        int endIndex = neededFirstRecordId + neededRecordCount - firstRecordId;
-        auto beginIt = records.begin() + std::min(std::max(beginIndex, 0), size);
-        auto endIt = records.begin() + std::min(std::max(endIndex, 0), size);
-        if (endIt != beginIt) {
-            result->insert(
-                result->end(),
-                beginIt,
-                endIt);
-        }
-    }
 
 
     void SyncFlush()
