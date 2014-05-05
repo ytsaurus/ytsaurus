@@ -285,7 +285,7 @@ class TCachedCGFragment
     , public TCGFragment
 {
 public:
-    TCachedCGFragment(const llvm::FoldingSetNodeID& id)
+    explicit TCachedCGFragment(const llvm::FoldingSetNodeID& id)
         : TCacheValueBase(id)
         , TCGFragment()
     { }
