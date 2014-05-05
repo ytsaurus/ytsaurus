@@ -10,7 +10,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpBusConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int Priority;

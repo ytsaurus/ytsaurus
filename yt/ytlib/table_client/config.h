@@ -121,7 +121,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReaderOptions
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     bool ReadKey;

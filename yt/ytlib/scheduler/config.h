@@ -25,7 +25,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobIOConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NTableClient::TTableReaderConfigPtr TableReader;
@@ -50,7 +50,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationSpecBase
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Account holding intermediate data produces by the operation.
@@ -111,7 +111,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobSpec
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     Stroka Command;
@@ -652,7 +652,7 @@ DECLARE_ENUM(ESchedulingMode,
 );
 
 class TPoolResourceLimitsConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TNullable<int> UserSlots;
@@ -674,7 +674,7 @@ public:
 };
 
 class TPoolConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     double Weight;
@@ -708,7 +708,7 @@ public:
 ////////////////////////////////////////////////////////////////////
 
 class TFairShareOperationSpec
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TNullable<Stroka> Pool;
@@ -749,7 +749,7 @@ public:
 ////////////////////////////////////////////////////////////////////
 
 class TFairShareOperationRuntimeParams
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     double Weight;

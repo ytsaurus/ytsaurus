@@ -34,7 +34,7 @@ struct ILogWriter
     );
 
     struct TConfig
-        : public TYsonSerializable
+        : public NYTree::TYsonSerializable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

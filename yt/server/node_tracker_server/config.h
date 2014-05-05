@@ -10,7 +10,7 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTrackerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration RegisteredNodeTimeout;
@@ -34,7 +34,7 @@ public:
 };
 
 class TNodeConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     bool Banned;

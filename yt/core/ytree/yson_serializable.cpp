@@ -8,8 +8,8 @@
 #include <core/yson/consumer.h>
 
 namespace NYT {
+namespace NYTree {
 
-using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
 
@@ -83,7 +83,8 @@ void TYsonSerializableLite::Validate(const TYPath& path) const
             validator.Run();
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Validation failed at %s", ~path)
+        THROW_ERROR_EXCEPTION("Validation failed at %s",
+            path.empty() ? "/" : ~path)
             << ex;
     }
 }
@@ -105,13 +106,13 @@ void TYsonSerializableLite::Save(
     IYsonConsumer* consumer,
     bool sortKeys) const
 {
-    std::vector<std::pair<Stroka, NConfig::IParameterPtr>> parameters;
+    std::vector<std::pair<Stroka, IParameterPtr>> parameters;
     FOREACH (const auto& pair, Parameters) {
         parameters.push_back(pair);
     }
 
     if (sortKeys) {
-        typedef std::pair<Stroka, NConfig::IParameterPtr> TPair;
+        typedef std::pair<Stroka, IParameterPtr> TPair;
         std::sort(
             parameters.begin(),
             parameters.end(),
@@ -124,27 +125,12 @@ void TYsonSerializableLite::Save(
     FOREACH (const auto& pair, parameters) {
         const auto& key = pair.first;
         const auto& parameter = pair.second;
-        if (parameter->IsPresent()) {
+        if (parameter->HasValue()) {
             consumer->OnKeyedItem(key);
             parameter->Save(consumer);
         }
     }
     consumer->OnEndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TBinaryYsonSerializer::Save(TStreamSaveContext& context, const TYsonSerializableLite& obj)
-{
-    auto str = ConvertToYsonStringStable(obj);
-    NYT::Save(context, str);
-}
-
-void TBinaryYsonSerializer::Load(TStreamLoadContext& context, TYsonSerializableLite& obj)
-{
-    auto str = NYT::Load<TYsonString>(context);
-    auto node = ConvertTo<INodePtr>(str);
-    obj.Load(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,6 +154,31 @@ TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)
         &writer,
         true); // truth matters :)
     return TYsonString(result, EYsonType::Node);   
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTree
+} // namespace NYT
+
+
+namespace NYT {
+
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBinaryYsonSerializer::Save(TStreamSaveContext& context, const TYsonSerializableLite& obj)
+{
+    auto str = ConvertToYsonStringStable(obj);
+    NYT::Save(context, str);
+}
+
+void TBinaryYsonSerializer::Load(TStreamLoadContext& context, TYsonSerializableLite& obj)
+{
+    auto str = NYT::Load<TYsonString>(context);
+    auto node = ConvertTo<INodePtr>(str);
+    obj.Load(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

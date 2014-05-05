@@ -41,7 +41,7 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 
 //! Configuration for TAddressResolver singleton.
 class TAddressResolverConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     bool EnableIPv4;

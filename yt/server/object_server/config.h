@@ -10,7 +10,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! A number identifying the cell in the whole world.

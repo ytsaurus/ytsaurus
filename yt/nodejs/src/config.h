@@ -14,7 +14,7 @@ namespace NNodeJS {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpProxyConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NYTree::INodePtr Logging;

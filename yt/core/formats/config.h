@@ -11,7 +11,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NYson::EYsonFormat Format;
@@ -26,7 +26,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDsvFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     char RecordSeparator;
@@ -84,7 +84,7 @@ DECLARE_ENUM(EJsonAttributesMode,
 );
 
 class TJsonFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     EJsonFormat Format;
@@ -108,7 +108,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamrFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     bool HasSubkey;
@@ -205,7 +205,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulDsvFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     char RecordSeparator;

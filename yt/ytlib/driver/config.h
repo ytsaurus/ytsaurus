@@ -22,7 +22,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDriverConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NMetaState::TMasterDiscoveryConfigPtr Masters;

@@ -15,7 +15,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReaderConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Timeout for a block request.
@@ -85,7 +85,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TClientBlockCacheConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! The maximum number of bytes that block are allowed to occupy.
@@ -103,7 +103,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSequentialReaderConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Prefetch window size (in bytes).
@@ -132,7 +132,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationWriterConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Maximum window size (in bytes).
@@ -192,7 +192,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TErasureWriterConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     i64 ErasureWindowSize;
@@ -208,7 +208,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TEncodingWriterConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     i64 EncodeWindowSize;
@@ -230,7 +230,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TEncodingWriterOptions
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
     NCompression::ECodec CompressionCodec;
 
@@ -244,7 +244,7 @@ struct TEncodingWriterOptions
 ///////////////////////////////////////////////////////////////////////////////
 
 class TDispatcherConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     int CompressionPoolSize;

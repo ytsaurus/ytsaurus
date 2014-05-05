@@ -12,7 +12,7 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     yhash_map<Stroka, NYTree::INodePtr> Services;
@@ -25,7 +25,7 @@ public:
 };
 
 class TServiceConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     yhash_map<Stroka, TMethodConfigPtr> Methods;
@@ -38,7 +38,7 @@ public:
 };
 
 class TMethodConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TNullable<bool> RequestHeavy;
@@ -60,7 +60,7 @@ public:
 };
 
 class TRetryingChannelConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Time to wait between consequent attempts.
@@ -87,7 +87,7 @@ public:
 };
 
 class TThrottlingChannelConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Maximum allowed number of requests per second.
