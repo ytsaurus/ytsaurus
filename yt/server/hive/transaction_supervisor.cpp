@@ -55,7 +55,6 @@ public:
     TImpl(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
-        IServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         THiveManagerPtr hiveManager,
@@ -70,13 +69,11 @@ public:
             hydraManager,
             automaton)
         , Config(config)
-        , RpcServer(rpcServer)
         , HiveManager(hiveManager)
         , TransactionManager(transactionManager)
         , TimestampProvider(timestampProvider)
     {
         YCHECK(Config);
-        YCHECK(RpcServer);
         YCHECK(HiveManager);
         YCHECK(TransactionManager);
         YCHECK(TimestampProvider);
@@ -112,16 +109,10 @@ public:
         Automaton->RegisterPart(this);
     }
 
-    void Start()
+    IServicePtr GetRpcService()
     {
-        RpcServer->RegisterService(this);
+        return this;
     }
-
-    void Stop()
-    {
-        RpcServer->UnregisterService(this);
-    }
-
 
     TMutationPtr CreateAbortTransactionMutation(const TReqAbortTransaction& request)
     {
@@ -130,7 +121,6 @@ public:
 
 private:
     TTransactionSupervisorConfigPtr Config;
-    IServerPtr RpcServer;
     THiveManagerPtr HiveManager;
     ITransactionManagerPtr TransactionManager;
     ITimestampProviderPtr TimestampProvider;
@@ -725,7 +715,6 @@ private:
 TTransactionSupervisor::TTransactionSupervisor(
     TTransactionSupervisorConfigPtr config,
     IInvokerPtr automatonInvoker,
-    IServerPtr rpcServer,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     THiveManagerPtr hiveManager,
@@ -734,7 +723,6 @@ TTransactionSupervisor::TTransactionSupervisor(
     : Impl_(New<TImpl>(
         config,
         automatonInvoker,
-        rpcServer,
         hydraManager,
         automaton,
         hiveManager,
@@ -745,14 +733,9 @@ TTransactionSupervisor::TTransactionSupervisor(
 TTransactionSupervisor::~TTransactionSupervisor()
 { }
 
-void TTransactionSupervisor::Start()
+IServicePtr TTransactionSupervisor::GetRpcService()
 {
-    Impl_->Start();
-}
-
-void TTransactionSupervisor::Stop()
-{
-    Impl_->Stop();
+    return Impl_->GetRpcService();
 }
 
 TMutationPtr TTransactionSupervisor::CreateAbortTransactionMutation(const TReqAbortTransaction& request)

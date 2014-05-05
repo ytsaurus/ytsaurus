@@ -10,6 +10,8 @@
 
 #include <core/concurrency/delayed_executor.h>
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
 
@@ -24,7 +26,7 @@
 #include <server/hydra/hydra_service.h>
 #include <server/hydra/rpc_helpers.h>
 
-#include <server/hive/hive_manager.pb.h>
+#include <server/hive/hive_manager.pb.h>    
 
 namespace NYT {
 namespace NHive {
@@ -34,6 +36,8 @@ using namespace NHydra;
 using namespace NHydra::NProto;
 using namespace NConcurrency;
 using namespace NHive::NProto;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +55,6 @@ public:
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
         IInvokerPtr automatonInvoker,
-        NRpc::IServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : THydraServiceBase(
@@ -62,10 +65,9 @@ public:
         , TCompositeAutomatonPart(
             hydraManager,
             automaton)
-        , SelfCellGuid(cellGuid)
-        , Config(config)
-        , CellDirectory(cellDirectory)
-        , RpcServer(rpcServer)
+        , SelfCellGuid_(cellGuid)
+        , Config_(config)
+        , CellDirectory_(cellDirectory)
     {
         Automaton->RegisterPart(this);
 
@@ -92,41 +94,35 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
     }
 
-    void Start()
+    IServicePtr GetRpcService()
     {
-        RpcServer->RegisterService(this);
+        return this;
     }
-
-    void Stop()
-    {
-        RpcServer->UnregisterService(this);
-    }
-
 
     const TCellGuid& GetSelfCellGuid() const
     {
-        return SelfCellGuid;
+        return SelfCellGuid_;
     }
 
 
     TMailbox* CreateMailbox(const TCellGuid& cellGuid)
     {
         auto* mailbox = new TMailbox(cellGuid);
-        MailboxMap.Insert(cellGuid, mailbox);
+        MailboxMap_.Insert(cellGuid, mailbox);
         
         if (IsLeader()) {
             SendPing(mailbox);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()));
         return mailbox;
     }
     
     TMailbox* GetOrCreateMailbox(const TCellGuid& cellGuid)
     {
-        auto* mailbox = MailboxMap.Find(cellGuid);
+        auto* mailbox = MailboxMap_.Find(cellGuid);
         if (!mailbox) {
             mailbox = CreateMailbox(cellGuid);
         }
@@ -145,9 +141,9 @@ public:
 
     void RemoveMailbox(const TCellGuid& cellGuid)
     {
-        MailboxMap.Remove(cellGuid);
+        MailboxMap_.Remove(cellGuid);
         LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(cellGuid));
     }
 
@@ -163,7 +159,7 @@ public:
         mailbox->OutcomingMessages().push_back(serializedMessage);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()),
             messageId);
 
@@ -178,18 +174,37 @@ public:
         PostMessage(mailbox, serializedMessage);
     }
 
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("mailboxes").DoMapFor(MailboxMap_, [&] (TFluentMap fluent, const std::pair<TCellGuid, TMailbox*>& pair) {
+                    auto* mailbox = pair.second;
+                    fluent
+                        .Item(ToString(mailbox->GetCellGuid())).BeginMap()
+                            .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
+                            .Item("last_incoming_message_id").Value(mailbox->GetLastIncomingMessageId())
+                            .Item("in_flight_message_count").Value(mailbox->GetInFlightMessageCount())
+                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
+                            .Item("incoming_message_ids").BeginList().DoFor(mailbox->IncomingMessages(), [&] (TFluentList fluent, const TMailbox::TIncomingMessageMap::value_type& pair) {
+                                fluent
+                                    .Item().Value(pair.first);
+                            })
+                            .EndList()
+                        .EndMap();
+                })
+            .EndMap();
+    }
+
 
     DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellGuid);
 
 private:
-    typedef TImpl TThis;
-    
-    TCellGuid SelfCellGuid;
-    THiveManagerConfigPtr Config;
-    TCellDirectoryPtr CellDirectory;
-    IServerPtr RpcServer;
+    TCellGuid SelfCellGuid_;
+    THiveManagerConfigPtr Config_;
+    TCellDirectoryPtr CellDirectory_;
 
-    TEntityMap<TCellGuid, TMailbox> MailboxMap;
+    TEntityMap<TCellGuid, TMailbox> MailboxMap_;
     
 
     // RPC handlers.
@@ -200,7 +215,7 @@ private:
 
         context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s",
             ~ToString(srcCellGuid),
-            ~ToString(SelfCellGuid));
+            ~ToString(SelfCellGuid_));
 
         auto* mailbox = FindMailbox(srcCellGuid);
         int lastIncomingMessageId = mailbox ? mailbox->GetLastIncomingMessageId() : -1;
@@ -220,7 +235,7 @@ private:
 
         context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, MessageIds: %d-%d",
             ~ToString(srcCellGuid),
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             firstMessageId,
             firstMessageId + request->messages_size() - 1);
         
@@ -254,7 +269,7 @@ private:
 
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + trimCount);
         LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellGuid: %s, DstCellGuid: %s, FirstOutcomingMessageId: %d)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()),
             mailbox->GetFirstOutcomingMessageId());
 
@@ -282,7 +297,7 @@ private:
 
     IChannelPtr GetMailboxChannel(TMailbox* mailbox)
     {
-        return CellDirectory->FindChannel(mailbox->GetCellGuid());
+        return CellDirectory_->FindChannel(mailbox->GetCellGuid());
     }
 
 
@@ -293,7 +308,7 @@ private:
 
         mailbox->SetConnected(true);
         LOG_INFO("Mailbox connected (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()));
     }
 
@@ -305,7 +320,7 @@ private:
         mailbox->SetConnected(false);
         mailbox->SetInFlightMessageCount(0);
         LOG_INFO("Mailbox disconnected (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()));
     }
 
@@ -315,7 +330,7 @@ private:
         TDelayedExecutor::Submit(
             BIND(&TImpl::OnPingTick, MakeWeak(this), mailbox->GetCellGuid())
                 .Via(EpochAutomatonInvoker_),
-            Config->PingPeriod);
+            Config_->PingPeriod);
     }
 
     void OnPingTick(const TCellGuid& cellGuid)
@@ -341,14 +356,14 @@ private:
         }
 
         LOG_DEBUG("Sending ping (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()));
 
         THiveServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config->RpcTimeout);
+        proxy.SetDefaultTimeout(Config_->RpcTimeout);
         
         auto req = proxy.Ping();
-        ToProto(req->mutable_src_cell_guid(), SelfCellGuid);
+        ToProto(req->mutable_src_cell_guid(), SelfCellGuid_);
         req->Invoke().Subscribe(
             BIND(&TImpl::OnPingResponse, MakeStrong(this), mailbox->GetCellGuid())
                 .Via(EpochAutomatonInvoker_));
@@ -362,7 +377,7 @@ private:
 
         if (!rsp->IsOK()) {
             LOG_DEBUG(*rsp, "Ping failed (SrcCellGuid: %s, DstCellGuid: %s)",
-                ~ToString(SelfCellGuid),
+                ~ToString(SelfCellGuid_),
                 ~ToString(mailbox->GetCellGuid()));
             SchedulePing(mailbox);
             return;
@@ -370,7 +385,7 @@ private:
 
         int lastIncomingMessageId = rsp->last_incoming_message_id();
         LOG_DEBUG("Ping succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessagId: %d)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()),
             lastIncomingMessageId);
 
@@ -397,10 +412,10 @@ private:
             return;
 
         THiveServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config->RpcTimeout);
+        proxy.SetDefaultTimeout(Config_->RpcTimeout);
 
         auto req = proxy.PostMessages();
-        ToProto(req->mutable_src_cell_guid(), SelfCellGuid);
+        ToProto(req->mutable_src_cell_guid(), SelfCellGuid_);
         int firstMessageId = mailbox->GetFirstOutcomingMessageId() + mailbox->GetInFlightMessageCount();
         int messageCount = mailbox->OutcomingMessages().size() - mailbox->GetInFlightMessageCount();
         req->set_first_message_id(firstMessageId);
@@ -414,7 +429,7 @@ private:
         mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() + messageCount);
 
         LOG_DEBUG("Posting outcoming messages (SrcCellGuid: %s, DstCellGuid: %s, MessageIds: %d-%d)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()),
             firstMessageId,
             firstMessageId + messageCount - 1);
@@ -432,7 +447,7 @@ private:
 
         if (!rsp->IsOK()) {
             LOG_DEBUG(*rsp, "Failed to post outcoming messages (SrcCellGuid: %s, DstCellGuid: %s)",
-                ~ToString(SelfCellGuid),
+                ~ToString(SelfCellGuid_),
                 ~ToString(mailbox->GetCellGuid()));
             SetMailboxDisconnected(mailbox);
             return;
@@ -440,7 +455,7 @@ private:
 
         int lastIncomingMessageId = rsp->last_incoming_message_id();
         LOG_DEBUG("Outcoming messages posted successfully (SrcCellGuid: %s, DstCellGuid: %s, LastIncomingMessageId: %d)",
-            ~ToString(SelfCellGuid),
+            ~ToString(SelfCellGuid_),
             ~ToString(mailbox->GetCellGuid()),
             lastIncomingMessageId);
 
@@ -490,7 +505,7 @@ private:
         if (messageId <= mailbox->GetLastIncomingMessageId()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Dropping an obsolete incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
                 ~ToString(mailbox->GetCellGuid()),
-                ~ToString(SelfCellGuid),
+                ~ToString(SelfCellGuid_),
                 messageId);
         } else {
             auto& incomingMessages = mailbox->IncomingMessages();
@@ -506,7 +521,7 @@ private:
 
                 LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
                     ~ToString(mailbox->GetCellGuid()),
-                    ~ToString(SelfCellGuid),
+                    ~ToString(SelfCellGuid_),
                     frontMessageId);
 
                 auto request = DeserializeMessage(serializedFrontMessage);
@@ -521,7 +536,7 @@ private:
             if (!consumed) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Keeping an out-of-order incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
                     ~ToString(mailbox->GetCellGuid()),
-                    ~ToString(SelfCellGuid),
+                    ~ToString(SelfCellGuid_),
                     messageId);
             }
         }
@@ -551,7 +566,7 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        for (const auto& pair : MailboxMap) {
+        for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
             mailbox->SetInFlightMessageCount(0);
             mailbox->SetConnected(false);
@@ -561,7 +576,7 @@ private:
 
     virtual void OnStopLeading() override
     {
-        for (const auto& pair : MailboxMap) {
+        for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
             mailbox->SetInFlightMessageCount(0);
         }
@@ -581,32 +596,32 @@ private:
     
     virtual void Clear() override
     {
-        MailboxMap.Clear();
+        MailboxMap_.Clear();
     }
 
     void SaveKeys(TSaveContext& context) const
     {
-        MailboxMap.SaveKeys(context);
+        MailboxMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context) const
     {
-        MailboxMap.SaveValues(context);
+        MailboxMap_.SaveValues(context);
     }
 
     void LoadKeys(TLoadContext& context)
     {
-        MailboxMap.LoadKeys(context);
+        MailboxMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
-        MailboxMap.LoadValues(context);
+        MailboxMap_.LoadValues(context);
     }
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, TCellGuid, MailboxMap)
+DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, TCellGuid, MailboxMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -615,7 +630,6 @@ THiveManager::THiveManager(
     THiveManagerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
     IInvokerPtr automatonInvoker,
-    IServerPtr rpcServer,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton)
     : Impl_(New<TImpl>(
@@ -623,7 +637,6 @@ THiveManager::THiveManager(
         config,
         cellDirectory,
         automatonInvoker,
-        rpcServer,
         hydraManager,
         automaton))
 { }
@@ -631,14 +644,9 @@ THiveManager::THiveManager(
 THiveManager::~THiveManager()
 { }
 
-void THiveManager::Start()
+IServicePtr THiveManager::GetRpcService()
 {
-    Impl_->Start();
-}
-
-void THiveManager::Stop()
-{
-    Impl_->Stop();
+    return Impl_->GetRpcService();
 }
 
 const TCellGuid& THiveManager::GetSelfCellGuid() const
@@ -674,6 +682,11 @@ void THiveManager::PostMessage(TMailbox* mailbox, const TMessage& message)
 void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
 {
     Impl_->PostMessage(mailbox, message);
+}
+
+void THiveManager::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    Impl_->BuildOrchidYson(consumer);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, TCellGuid, *Impl_)

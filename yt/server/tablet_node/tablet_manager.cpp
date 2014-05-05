@@ -1133,6 +1133,9 @@ private:
     void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
             .BeginMap()
                 .Item("state").Value(tablet->GetState())
                 .Item("pivot_key").Value(tablet->GetPivotKey())

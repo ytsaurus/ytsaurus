@@ -22,7 +22,6 @@ public:
     TTransactionSupervisor(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
-        NRpc::IServerPtr rpcServer,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
         THiveManagerPtr hiveManager,
@@ -31,8 +30,7 @@ public:
 
     ~TTransactionSupervisor();
 
-    void Start();
-    void Stop();
+    NRpc::IServicePtr GetRpcService();
 
     NHydra::TMutationPtr CreateAbortTransactionMutation(const NProto::TReqAbortTransaction& request);
 

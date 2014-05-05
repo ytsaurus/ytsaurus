@@ -293,7 +293,6 @@ void TBootstrap::Run()
         Config->HiveManager,
         CellDirectory,
         MetaStateFacade->GetInvoker(),
-        RpcServer,
         MetaStateFacade->GetManager(),
         MetaStateFacade->GetAutomaton());
 
@@ -326,7 +325,6 @@ void TBootstrap::Run()
     TransactionSupervisor = New<TTransactionSupervisor>(
         Config->TransactionSupervisor,
         MetaStateFacade->GetInvoker(),
-        RpcServer,
         MetaStateFacade->GetManager(),
         MetaStateFacade->GetAutomaton(),
         HiveManager,
@@ -334,8 +332,6 @@ void TBootstrap::Run()
         timestampProvider);
 
     fileSnapshotStore->Initialize();
-    HiveManager->Start();
-    TransactionSupervisor->Start();
     ObjectManager->Initialize();
     SecurityManager->Initialize();
     NodeTracker->Initialize();
@@ -370,6 +366,8 @@ void TBootstrap::Run()
     SetBuildAttributes(orchidRoot, "master");
 
     RpcServer->RegisterService(timestampManager->GetRpcService());
+    RpcServer->RegisterService(HiveManager->GetRpcService());
+    RpcServer->RegisterService(TransactionSupervisor->GetRpcService());
     RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore));
     RpcServer->RegisterService(CreateObjectService(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));

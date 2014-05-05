@@ -6,6 +6,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/yson/public.h>
+
 #include <ytlib/hydra/hydra_manager.pb.h>
 
 #include <server/hydra/public.h>
@@ -27,14 +29,12 @@ public:
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
         IInvokerPtr automatonInvoker,
-        NRpc::IServerPtr rpcServer,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
 
     ~THiveManager();
 
-    void Start();
-    void Stop();
+    NRpc::IServicePtr GetRpcService();
 
     const TCellGuid& GetSelfCellGuid() const;
 
@@ -45,6 +45,8 @@ public:
 
     void PostMessage(TMailbox* mailbox, const TMessage& message);
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message);
+
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellGuid);
 

@@ -324,7 +324,6 @@ public:
                 Config_->HiveManager,
                 Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Write),
-                rpcServer,
                 HydraManager_,
                 Automaton_);
 
@@ -343,7 +342,6 @@ public:
             TransactionSupervisor_ = New<TTransactionSupervisor>(
                 Config_->TransactionSupervisor,
                 GetAutomatonInvoker(EAutomatonThreadQueue::Write),
-                rpcServer,
                 HydraManager_,
                 Automaton_,
                 HiveManager_,
@@ -354,11 +352,11 @@ public:
                 Owner_,
                 Bootstrap_);
 
-            TransactionSupervisor_->Start();
             TabletManager_->Initialize();
             HydraManager_->Start();
-            HiveManager_->Start();
 
+            rpcServer->RegisterService(TransactionSupervisor_->GetRpcService());
+            rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
         }
 
@@ -394,16 +392,13 @@ public:
                 HydraManager_->Stop();
             }
 
-            if (HiveManager_) {
-                HiveManager_->Stop();
-            }
-
-            if (TransactionSupervisor_) {
-                TransactionSupervisor_->Stop();
-            }
-
             auto rpcServer = Bootstrap_->GetRpcServer();
-
+            if (TransactionSupervisor_) {
+                rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
+            }
+            if (HiveManager_) {
+                rpcServer->UnregisterService(HiveManager_->GetRpcService());
+            }
             if (TabletService_) {
                 rpcServer->UnregisterService(TabletService_);
             }
@@ -555,7 +550,8 @@ private:
 
         BuildYsonMapFluently(consumer)
             .Item("transactions").Do(BIND(&TTransactionManager::BuildOrchidYson, TransactionManager_))
-            .Item("tablets").Do(BIND(&TTabletManager::BuildOrchidYson, TabletManager_));
+            .Item("tablets").Do(BIND(&TTabletManager::BuildOrchidYson, TabletManager_))
+            .Item("hive").Do(BIND(&THiveManager::BuildOrchidYson, HiveManager_));
     }
 
 
