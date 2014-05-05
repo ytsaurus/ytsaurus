@@ -56,12 +56,13 @@ class TimeWatcher(object):
         return min(max(interval, self.min_interval), self.max_interval)
 
     def _is_time_up(self, time):
+        """ Is passed time up? """
         if not self.timeout_time:
             return False
         return time >= self.timeout_time
 
     def is_time_up(self):
-        """ Is time elapsed? """
+        """ Is time elapsed? (Invoke _is_time_up with current time.) """
         return self._is_time_up(time())
 
     def wait(self):
