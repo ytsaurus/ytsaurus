@@ -20,7 +20,6 @@ public:
         bool enableProfiling = true);
     virtual ~TActionQueue();
 
-    void Detach();
     void Shutdown();
 
     IInvokerPtr GetInvoker();
@@ -47,10 +46,8 @@ public:
     explicit TFairShareActionQueue(
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames);
-
     virtual ~TFairShareActionQueue();
 
-    void Detach();
     void Shutdown();
 
     IInvokerPtr GetInvoker(int index);

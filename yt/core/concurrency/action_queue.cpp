@@ -70,11 +70,6 @@ public:
         Shutdown();
     }
 
-    void Detach()
-    {
-        Thread_->Detach();
-    }
-
     void Shutdown()
     {
         Queue_->Shutdown();
@@ -105,11 +100,6 @@ TActionQueue::TActionQueue(
 
 TActionQueue::~TActionQueue()
 { }
-
-void TActionQueue::Detach()
-{
-    return Impl->Detach();
-}
 
 void TActionQueue::Shutdown()
 {
@@ -165,11 +155,6 @@ public:
     ~TImpl()
     {
         Shutdown();
-    }
-
-    void Detach()
-    {
-        TSchedulerThread::Detach();
     }
 
     void Shutdown()

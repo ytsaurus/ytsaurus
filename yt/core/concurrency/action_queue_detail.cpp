@@ -174,6 +174,7 @@ TSchedulerThread::TSchedulerThread(
 TSchedulerThread::~TSchedulerThread()
 {
     YCHECK(!IsRunning());
+    Thread.Detach();
 }
 
 void TSchedulerThread::Start()
@@ -209,11 +210,6 @@ void TSchedulerThread::Shutdown()
     if (GetCurrentThreadId() != ThreadId) {
         Thread.Join();
     }
-}
-
-void TSchedulerThread::Detach()
-{
-    Thread.Detach();
 }
 
 void* TSchedulerThread::ThreadMain(void* opaque)

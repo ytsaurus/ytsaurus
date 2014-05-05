@@ -113,8 +113,6 @@ public:
     void Start();
     void Shutdown();
 
-    void Detach();
-
     TThreadId GetId() const;
     bool IsRunning() const;
 
