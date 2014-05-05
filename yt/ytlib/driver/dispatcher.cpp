@@ -25,6 +25,10 @@ TDispatcher* TDispatcher::Get()
 
 void TDispatcher::Configure(int heavyPoolSize)
 {
+    if (HeavyPoolSize == heavyPoolSize) {
+        return;
+    }
+
     // We believe in proper memory ordering here.
     YCHECK(!HeavyThreadPool.HasValue());
     // We do not really want to store entire config within us.

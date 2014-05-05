@@ -69,7 +69,7 @@ function YtAuthority$authenticate(logger, party, token)
 
     // Fast-path.
     if (this._syncCheckCache(context, result)) {
-        return;
+        return result;
     }
 
     // Cache |token_cache| variable. :)

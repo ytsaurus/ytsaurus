@@ -259,7 +259,7 @@ describe("YtAuthentication", function() {
             .expects("executeSimple")
             .once()
             .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
-            .returns(Q.reject(new YtError().withCode(500)));
+            .returns(Q.reject(new YtError("Random error").withCode(500)));
         mock2
             .expects("executeSimple")
             .once()
