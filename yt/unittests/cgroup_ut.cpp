@@ -49,7 +49,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 #ifdef _linux_
 
-TEST(CGroup, AddMyself)
+TEST(CGroup, AddCurrentProcess)
 {
     TCGroup group("/sys/fs/cgroup/blkio", "some");
     group.Create();
@@ -58,7 +58,7 @@ TEST(CGroup, AddMyself)
     ASSERT_TRUE(pid >= 0);
 
     if (pid == 0) {
-        group.AddMyself();
+        group.AddCurrentProcess();
         auto tasks = group.GetTasks();
         ASSERT_EQ(1, tasks.size());
         EXPECT_EQ(getpid(), tasks[0]);
@@ -78,8 +78,8 @@ TEST(CGroup, GetCpuAccStat)
     group.Create();
 
     auto stats = GetCpuAccStat(group.GetFullName());
-    EXPECT_EQ(0, stats.user.count());
-    EXPECT_EQ(0, stats.system.count());
+    EXPECT_EQ(0, stats.User.count());
+    EXPECT_EQ(0, stats.System.count());
 
     group.Destroy();
 }
@@ -90,8 +90,8 @@ TEST(CGroup, GetBlockIOStat)
     group.Create();
 
     auto stats = GetBlockIOStat(group.GetFullName());
-    EXPECT_EQ(0, stats.ReadBytes);
-    EXPECT_EQ(0, stats.WriteBytes);
+    EXPECT_EQ(0, stats.BytesRead);
+    EXPECT_EQ(0, stats.BytesWritten);
     EXPECT_EQ(0, stats.Sectors);
 
     group.Destroy();

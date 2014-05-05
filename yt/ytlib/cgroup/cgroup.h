@@ -17,7 +17,7 @@ public:
     TCGroup(const Stroka& parent, const Stroka& name);
     ~TCGroup();
 
-    void AddMyself();
+    void AddCurrentProcess();
 
     void Create();
     void Destroy();
@@ -34,8 +34,8 @@ private:
 
 struct TCpuAcctStat
 {
-    std::chrono::nanoseconds user;
-    std::chrono::nanoseconds system;
+    std::chrono::nanoseconds User;
+    std::chrono::nanoseconds System;
 };
 
 TCpuAcctStat GetCpuAccStat(const Stroka& fullName);
@@ -45,8 +45,8 @@ TCpuAcctStat GetCpuAccStat(const Stroka& fullName);
 struct TBlockIOStat
 {
     int64_t Sectors;
-    int64_t ReadBytes;
-    int64_t WriteBytes;
+    int64_t BytesRead;
+    int64_t BytesWritten;
 };
 
 TBlockIOStat GetBlockIOStat(const Stroka& fullName);

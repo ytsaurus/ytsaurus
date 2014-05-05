@@ -3573,20 +3573,19 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("statistics").Value(statistics);
-    if (statistics.has_cpu_user()) {
-        record.Item("cpu_user").Value(statistics.cpu_user());
+    if (statistics.has_cpu_user_time()) {
+        record.Item("cpu_user_time").Value(statistics.cpu_user_time());}
+    if (statistics.has_cpu_system_time()) {
+        record.Item("cpu_system_time").Value(statistics.cpu_system_time());
     }
-    if (statistics.has_cpu_system()) {
-        record.Item("cpu_system").Value(statistics.cpu_system());
+    if (statistics.has_block_io_sectors()) {
+        record.Item("block_io_sectors").Value(statistics.block_io_sectors());
     }
-    if (statistics.has_sectors()) {
-        record.Item("sectors").Value(statistics.sectors());
+    if (statistics.has_block_io_bytes_read()) {
+        record.Item("block_io_bytes_read").Value(statistics.block_io_bytes_read());
     }
-    if (statistics.has_read_bytes()) {
-        record.Item("read_bytes").Value(statistics.read_bytes());
-    }
-    if (statistics.has_write_bytes()) {
-        record.Item("write_bytes").Value(statistics.write_bytes());
+    if (statistics.has_block_io_bytes_written()) {
+        record.Item("block_io_bytes_written").Value(statistics.block_io_bytes_written());
     }
     return record;
 }

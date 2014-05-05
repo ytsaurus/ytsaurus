@@ -525,8 +525,8 @@ private:
                 }
             }
 
-            CpuAcct.AddMyself();
-            BlockIO.AddMyself();
+            CpuAcct.AddCurrentProcess();
+            BlockIO.AddCurrentProcess();
 
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
@@ -637,12 +637,12 @@ private:
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
 
-        result.set_cpu_user(CpuAcctStats.user.count());
-        result.set_cpu_system(CpuAcctStats.system.count());
+        result.set_cpu_user_time(CpuAcctStats.User.count());
+        result.set_cpu_system_time(CpuAcctStats.System.count());
 
-        result.set_sectors(BlockIOStats.Sectors);
-        result.set_read_bytes(BlockIOStats.ReadBytes);
-        result.set_write_bytes(BlockIOStats.WriteBytes);
+        result.set_block_io_sectors(BlockIOStats.Sectors);
+        result.set_block_io_bytes_read(BlockIOStats.BytesRead);
+        result.set_block_io_bytes_written(BlockIOStats.BytesWritten);
 
         return result;
     }

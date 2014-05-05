@@ -32,14 +32,14 @@ TCGroup::~TCGroup()
         try {
             Destroy();
         } catch (const TErrorException& ) {
-            LOG_ERROR("Unable to destroy a cgroup: %s", ~FullName_);
+            LOG_ERROR("Unable to destroy cgroup %s", ~FullName_);
         }
     }
 }
 
 void TCGroup::Create()
 {
-    LOG_INFO("Create cgroup: %s", ~FullName_);
+    LOG_INFO("Create cgroup %s", ~FullName_);
 
 #ifdef _linux_
     int hasError = Mkdir(FullName_.data(), 0755);
@@ -52,7 +52,7 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroy cgroup: %s", ~FullName_);
+    LOG_INFO("Destroy cgroup %s", ~FullName_);
 
 #ifdef _linux_
     YCHECK(Created_);
@@ -65,13 +65,13 @@ void TCGroup::Destroy()
 #endif
 }
 
-void TCGroup::AddMyself()
+void TCGroup::AddCurrentProcess()
 {
 #ifdef _linux_
     auto pid = getpid();
-    LOG_INFO("Add process %d to cgroup: %s", pid, ~FullName_);
+    LOG_INFO("Add process %d to cgroup %s", pid, ~FullName_);
 
-    std::fstream tasks(NFS::CombinePaths(FullName_, "tasks").data(), std::ios_base::out | std::ios_base::app);
+    std::ofstream tasks(NFS::CombinePaths(FullName_, "tasks").data(), std::ios_base::app);
     tasks << getpid() << std::endl;
 #endif
 }
@@ -80,7 +80,7 @@ std::vector<int> TCGroup::GetTasks()
 {
     std::vector<int> results;
 #ifdef _linux_
-    std::fstream tasks(NFS::CombinePaths(FullName_, "tasks").data(), std::ios_base::in);
+    std::ifstream tasks(NFS::CombinePaths(FullName_, "tasks").data());
     if (tasks.fail()) {
         THROW_ERROR_EXCEPTION("Unable to open a task list file");
     }
@@ -156,10 +156,10 @@ std::vector<char> ReadAll(const Stroka& fileName)
 
 #ifdef _linux_
 
-std::chrono::nanoseconds from_jiffs(int64_t jiffs)
+std::chrono::nanoseconds from_jiffies(int64_t jiffies)
 {
-    long ticks_per_second = sysconf(_SC_CLK_TCK);
-    return std::chrono::nanoseconds(1000 * 1000 * 1000 * jiffs/ ticks_per_second);
+    long ticksPerSecond = sysconf(_SC_CLK_TCK);
+    return std::chrono::nanoseconds(1000 * 1000 * 1000 * jiffies/ ticksPerSecond);
 }
 
 #endif
@@ -174,18 +174,18 @@ TCpuAcctStat GetCpuAccStat(const Stroka& fullName)
     YCHECK(count == 4);
 
     std::string type[2];
-    int64_t jiffs[2];
+    int64_t jiffies[2];
 
     for (int i = 0; i < 2; ++i) {
         type[i] = values[2 * i];
-        jiffs[i] = To<int64_t>(~values[2 * i + 1]);
+        jiffies[i] = To<int64_t>(~values[2 * i + 1]);
     }
 
     for (int i = 0; i < 2; ++ i) {
         if (type[i] == "user") {
-            result.user = from_jiffs(jiffs[i]);
+            result.User = from_jiffies(jiffies[i]);
         } else if (type[i] == "system") {
-            result.system = from_jiffs(jiffs[i]);
+            result.System = from_jiffies(jiffies[i]);
         }
     }
 #endif
@@ -203,7 +203,7 @@ TBlockIOStat GetBlockIOStat(const Stroka& fullName)
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
-        result.ReadBytes = result.WriteBytes = 0;
+        result.BytesRead = result.BytesWritten = 0;
         int line_number = 0;
         while (3 * line_number + 2 < values.size()) {
             const Stroka& deviceId = values[3 * line_number];
@@ -215,9 +215,9 @@ TBlockIOStat GetBlockIOStat(const Stroka& fullName)
             YCHECK(deviceId[1] == ':');
 
             if (type == "Read") {
-                result.ReadBytes += bytes;
+                result.BytesRead += bytes;
             } else if (type == "Write") {
-                result.WriteBytes += bytes;
+                result.BytesWritten += bytes;
             } else {
                 YCHECK((type == "Sync") || (type == "Async") || (type == "Total"));
             }

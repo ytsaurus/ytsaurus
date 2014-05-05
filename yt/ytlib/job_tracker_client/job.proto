@@ -21,12 +21,12 @@ message TJobStatistics
     required NChunkClient.NProto.TDataStatistics output = 2;
     required int64 time = 3;
 
-    optional int64 cpu_user = 4;
-    optional int64 cpu_system = 5;
+    optional int64 cpu_user_time = 4;
+    optional int64 cpu_system_time = 5;
 
-    optional int64 sectors = 6;
-    optional int64 read_bytes = 7;
-    optional int64 write_bytes = 8;
+    optional int64 block_io_sectors = 6;
+    optional int64 block_io_bytes_read = 7;
+    optional int64 block_io_bytes_written = 8;
 }
 
 // Describes the outcome of the job, in particular if it has finished successfully.
