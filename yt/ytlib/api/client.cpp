@@ -108,7 +108,6 @@ public:
         IConnectionPtr connection,
         const TClientOptions& options)
         : Connection_(std::move(connection))
-        // TODO(babenko): consider using pool
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
     {
         MasterChannel_ = Connection_->GetMasterChannel();
@@ -536,11 +535,8 @@ private:
             options.Timestamp,
             Connection_->GetQueryPrepareCallbacks());
 
-        auto coordinator = CreateCoordinator(
-            GetCurrentInvoker(),
-            Connection_->GetQueryCoordinateCallbacks());
-
-        auto error = WaitFor(coordinator->Execute(fragment, writer));
+        auto executor = Connection_->GetQueryExecutor();
+        auto error = WaitFor(executor->Execute(fragment, writer));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 

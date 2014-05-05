@@ -39,7 +39,7 @@ struct IConnection
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual NQueryClient::IPrepareCallbacks* GetQueryPrepareCallbacks() = 0;
-    virtual NQueryClient::ICoordinateCallbacks* GetQueryCoordinateCallbacks() = 0;
+    virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

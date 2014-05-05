@@ -28,6 +28,7 @@
 #include <ytlib/query_client/plan_context.h>
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/query_service_proxy.h>
+#include <ytlib/query_client/executor.h>
 
 #include <ytlib/transaction_client/timestamp_provider.h>
 #include <ytlib/transaction_client/remote_timestamp_provider.h>
@@ -178,6 +179,10 @@ public:
             Config_->TableMountCache,
             MasterCacheChannel_,
             CellDirectory_);
+
+        QueryExecutor_ = CreateCoordinator(
+            NDriver::TDispatcher::Get()->GetHeavyInvoker(),
+            this);
     }
 
 
@@ -233,9 +238,9 @@ public:
         return this;
     }
 
-    virtual ICoordinateCallbacks* GetQueryCoordinateCallbacks() override
+    virtual IExecutorPtr GetQueryExecutor() override
     {
-        return this;
+        return QueryExecutor_;
     }
 
 
@@ -344,6 +349,7 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
+    IExecutorPtr QueryExecutor_;
 
 
     static IChannelPtr CreateMasterChannel(TMasterConnectionConfigPtr config)
