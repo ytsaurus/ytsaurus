@@ -23,7 +23,7 @@ struct TFakeInvoker
 namespace NDetail {
 
 template <class TRunnable, class TSignature, class TBoundArgs>
-class TBindState;
+struct TBindState;
 
 // White-box injection into a #TCallback<> object for checking
 // comparators and emptiness APIs. Use a #TBindState<> that is specialized
