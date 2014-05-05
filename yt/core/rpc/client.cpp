@@ -162,6 +162,7 @@ void TClientResponseBase::OnError(const TError& error)
         Error_  = error;
     }
 
+    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
     FireCompleted();
 }
 
@@ -220,6 +221,7 @@ void TClientResponse::OnResponse(TSharedRefArray message)
         State = EState::Done;
     }
 
+    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
     Deserialize(message);
     FireCompleted();
 }
@@ -242,6 +244,7 @@ void TOneWayClientResponse::OnAcknowledgement()
         State = EState::Done;
     }
 
+    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
     FireCompleted();
 }
 
