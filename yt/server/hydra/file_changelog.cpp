@@ -53,14 +53,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        AtomicIncrement(UseCount);
+        ++UseCount;
     }
 
     void Unlock()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        AtomicDecrement(UseCount);
+        --UseCount;
     }
 
 
@@ -155,7 +155,7 @@ public:
                 return false;
             }
 
-            if (UseCount != 0) {
+            if (UseCount.load() > 0) {
                 return false;
             }
 
@@ -231,9 +231,10 @@ private:
     TSyncFileChangelogPtr Changelog;
 
     TSpinLock SpinLock;
-    TAtomic UseCount;
+    std::atomic<int> UseCount;
     int FlushedRecordCount;
     i64 ByteSize;
+    
     std::vector<TSharedRef> AppendQueue;
     std::vector<TSharedRef> FlushQueue;
 
