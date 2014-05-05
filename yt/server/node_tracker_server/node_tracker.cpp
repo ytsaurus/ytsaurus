@@ -331,7 +331,9 @@ private:
             auto nodeId = request.node_id();
             const auto& statistics = request.statistics();
 
-            auto* node = GetNode(nodeId);
+            auto* node = FindNode(nodeId);
+            if (!node)
+                return;
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
                 nodeId,
