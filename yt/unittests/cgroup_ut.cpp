@@ -18,7 +18,7 @@ namespace {
 TEST(CGroup, CreateDestroy)
 {
     for (int i = 0; i < 2; ++i) {
-        TCGroup group("/sys/fs/cgroup/blkio", "some");
+        TBlockIO group("", "some");
         group.Create();
         group.Destroy();
     }
@@ -26,13 +26,13 @@ TEST(CGroup, CreateDestroy)
 
 TEST(CGroup, NotExistingGroupGetTasks)
 {
-    TCGroup group("/sys/fs/cgroup/blkio", "wierd_name");
+    TBlockIO group("", "wierd_name");
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
 
 TEST(CGroup, DoubleCreate)
 {
-    TCGroup group("/sys/fs/cgroup/blkio", "wierd_name");
+    TBlockIO group("", "wierd_name");
     group.Create();
     EXPECT_THROW(group.Create(), std::exception);
     group.Destroy();
@@ -40,7 +40,7 @@ TEST(CGroup, DoubleCreate)
 
 TEST(CGroup, EmptyHasNoTasks)
 {
-    TCGroup group("/sys/fs/cgroup/blkio", "some2");
+    TBlockIO group("", "some2");
     group.Create();
     auto tasks = group.GetTasks();
     EXPECT_EQ(0, tasks.size());
@@ -51,7 +51,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 TEST(CGroup, AddCurrentProcess)
 {
-    TCGroup group("/sys/fs/cgroup/blkio", "some");
+    TBlockIO group("", "some");
     group.Create();
 
     auto pid = fork();
@@ -74,10 +74,10 @@ TEST(CGroup, AddCurrentProcess)
 
 TEST(CGroup, GetCpuAccStat)
 {
-    TCGroup group("/sys/fs/cgroup/cpuacct", "some");
+    TCpuAccounting group("", "some");
     group.Create();
 
-    auto stats = GetCpuAccStat(group.GetFullName());
+    auto stats = group.GetStats();
     EXPECT_EQ(0, stats.User.count());
     EXPECT_EQ(0, stats.System.count());
 
@@ -86,10 +86,10 @@ TEST(CGroup, GetCpuAccStat)
 
 TEST(CGroup, GetBlockIOStat)
 {
-    TCGroup group("/sys/fs/cgroup/blkio", "some");
+    TBlockIO group("", "some");
     group.Create();
 
-    auto stats = GetBlockIOStat(group.GetFullName());
+    auto stats = group.GetStats();
     EXPECT_EQ(0, stats.BytesRead);
     EXPECT_EQ(0, stats.BytesWritten);
     EXPECT_EQ(0, stats.Sectors);

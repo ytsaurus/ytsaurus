@@ -18,11 +18,12 @@ namespace NCGroup {
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = CGroupLogger;
+static const char* CGroupRootPath = "/sys/fs/cgroup";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGroup::TCGroup(const Stroka& parent, const Stroka& name)
-    : FullName_(NFS::CombinePaths(parent, name))
+TCGroup::TCGroup(const Stroka& type, const Stroka& parent, const Stroka& name)
+    : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), parent), name))
     , Created_(false)
 { }
 
@@ -32,17 +33,17 @@ TCGroup::~TCGroup()
         try {
             Destroy();
         } catch (const TErrorException& ) {
-            LOG_ERROR("Unable to destroy cgroup %s", ~FullName_);
+            LOG_ERROR("Unable to destroy cgroup %s", ~FullPath_);
         }
     }
 }
 
 void TCGroup::Create()
 {
-    LOG_INFO("Create cgroup %s", ~FullName_);
+    LOG_INFO("Create cgroup %s", ~FullPath_);
 
 #ifdef _linux_
-    int hasError = Mkdir(FullName_.data(), 0755);
+    int hasError = Mkdir(FullPath_.data(), 0755);
     if (hasError != 0) {
         THROW_ERROR(TError::FromSystem());
     }
@@ -52,12 +53,12 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroy cgroup %s", ~FullName_);
+    LOG_INFO("Destroy cgroup %s", ~FullPath_);
 
 #ifdef _linux_
     YCHECK(Created_);
 
-    int hasError = NFs::Remove(FullName_.data());
+    int hasError = NFs::Remove(FullPath_.data());
     if (hasError != 0) {
         THROW_ERROR(TError::FromSystem());
     }
@@ -69,9 +70,9 @@ void TCGroup::AddCurrentProcess()
 {
 #ifdef _linux_
     auto pid = getpid();
-    LOG_INFO("Add process %d to cgroup %s", pid, ~FullName_);
+    LOG_INFO("Add process %d to cgroup %s", pid, ~FullPath_);
 
-    std::ofstream tasks(NFS::CombinePaths(FullName_, "tasks").data(), std::ios_base::app);
+    std::ofstream tasks(NFS::CombinePaths(FullPath_, "tasks").data(), std::ios_base::app);
     tasks << getpid() << std::endl;
 #endif
 }
@@ -80,7 +81,7 @@ std::vector<int> TCGroup::GetTasks()
 {
     std::vector<int> results;
 #ifdef _linux_
-    std::ifstream tasks(NFS::CombinePaths(FullName_, "tasks").data());
+    std::ifstream tasks(NFS::CombinePaths(FullPath_, "tasks").data());
     if (tasks.fail()) {
         THROW_ERROR_EXCEPTION("Unable to open a task list file");
     }
@@ -99,9 +100,9 @@ std::vector<int> TCGroup::GetTasks()
     return results;
 }
 
-const Stroka& TCGroup::GetFullName() const
+const Stroka& TCGroup::GetFullPath() const
 {
-    return FullName_;
+    return FullPath_;
 }
 
 bool TCGroup::IsCreated() const
@@ -164,11 +165,17 @@ std::chrono::nanoseconds from_jiffies(int64_t jiffies)
 
 #endif
 
-TCpuAcctStat GetCpuAccStat(const Stroka& fullName)
+////////////////////////////////////////////////////////////////////////////////
+
+TCpuAccounting::TCpuAccounting(const Stroka& parent, const Stroka& name)
+    : TCGroup("cpuacct", parent, name)
+{ }
+
+TCpuAccounting::TStats TCpuAccounting::GetStats()
 {
-    TCpuAcctStat result;
+    TCpuAccounting::TStats result;
 #ifdef _linux_
-    std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(fullName, "cpuacct.stat"));
+    std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(GetFullPath(), "cpuacct.stat"));
     yvector<Stroka> values;
     int count = Split(statsRaw.data(), " \n", values);
     YCHECK(count == 4);
@@ -194,12 +201,16 @@ TCpuAcctStat GetCpuAccStat(const Stroka& fullName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockIOStat GetBlockIOStat(const Stroka& fullName)
+TBlockIO::TBlockIO(const Stroka& parent, const Stroka& name)
+    : TCGroup("blkio", parent, name)
+{ }
+
+TBlockIO::TStats TBlockIO::GetStats()
 {
-    TBlockIOStat result;
+    TBlockIO::TStats result;
 #ifdef _linux_
     {
-        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(fullName, "blkio.io_service_bytes").data());
+        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes").data());
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
@@ -225,7 +236,7 @@ TBlockIOStat GetBlockIOStat(const Stroka& fullName)
         }
     }
     {
-        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(fullName, "blkio.sectors").data());
+        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(GetFullPath(), "blkio.sectors").data());
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 

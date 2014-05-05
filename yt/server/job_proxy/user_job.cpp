@@ -93,8 +93,8 @@ public:
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
-        , CpuAcct("/sys/fs/cgroup/cpuacct", ToString(TGuid::Create()))
-        , BlockIO("/sys/fs/cgroup/blkio", ToString(TGuid::Create()))
+        , CpuAccounting("", ToString(TGuid::Create()))
+        , BlockIO("", ToString(TGuid::Create()))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -113,7 +113,7 @@ public:
         InitCompleted = true;
 
         try {
-            CpuAcct.Create();
+            CpuAccounting.Create();
             BlockIO.Create();
         } catch (const TErrorException& e) {
             LOG_ERROR("Unable to create a cgroup to track job resource consumption");
@@ -143,17 +143,17 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        if (CpuAcct.IsCreated()) {
-            CpuAcctStats = NCGroup::GetCpuAccStat(CpuAcct.GetFullName());
+        if (CpuAccounting.IsCreated()) {
+            CpuAccountingStats = CpuAccounting.GetStats();
             try {
-                CpuAcct.Destroy();
+                CpuAccounting.Destroy();
             } catch (const TErrorException& e) {
                 LOG_ERROR("Unable to remove a cgroup");
             }
         }
 
         if (BlockIO.IsCreated()) {
-            BlockIOStats = NCGroup::GetBlockIOStat(BlockIO.GetFullName());
+            BlockIOStats = BlockIO.GetStats();
             try {
                 BlockIO.Destroy();
             } catch (const TErrorException& e) {
@@ -525,7 +525,7 @@ private:
                 }
             }
 
-            CpuAcct.AddCurrentProcess();
+            CpuAccounting.AddCurrentProcess();
             BlockIO.AddCurrentProcess();
 
             if (config->UserId > 0) {
@@ -637,8 +637,8 @@ private:
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
 
-        result.set_cpu_user_time(CpuAcctStats.User.count());
-        result.set_cpu_system_time(CpuAcctStats.System.count());
+        result.set_cpu_user_time(CpuAccountingStats.User.count());
+        result.set_cpu_system_time(CpuAccountingStats.System.count());
 
         result.set_block_io_sectors(BlockIOStats.Sectors);
         result.set_block_io_bytes_read(BlockIOStats.BytesRead);
@@ -675,11 +675,11 @@ private:
     TInstant ProcessStartTime;
     int ProcessId;
 
-    NCGroup::TCGroup CpuAcct;
-    NCGroup::TCpuAcctStat CpuAcctStats;
+    NCGroup::TCpuAccounting CpuAccounting;
+    NCGroup::TCpuAccounting::TStats CpuAccountingStats;
 
-    NCGroup::TCGroup BlockIO;
-    NCGroup::TBlockIOStat BlockIOStats;
+    NCGroup::TBlockIO BlockIO;
+    NCGroup::TBlockIO::TStats BlockIOStats;
 };
 
 TJobPtr CreateUserJob(

@@ -13,8 +13,9 @@ namespace NCGroup {
 class TCGroup
     : private TNonCopyable
 {
+protected:
+    TCGroup(const Stroka& type, const Stroka& parent, const Stroka& name);
 public:
-    TCGroup(const Stroka& parent, const Stroka& name);
     ~TCGroup();
 
     void AddCurrentProcess();
@@ -23,33 +24,45 @@ public:
     void Destroy();
 
     std::vector<int> GetTasks();
-    const Stroka& GetFullName() const;
+    const Stroka& GetFullPath() const;
     bool IsCreated() const;
 private:
-    Stroka FullName_;
+    Stroka FullPath_;
     bool Created_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCpuAcctStat
+class TCpuAccounting
+    : public TCGroup
 {
-    std::chrono::nanoseconds User;
-    std::chrono::nanoseconds System;
-};
+public:
+    struct TStats
+    {
+        std::chrono::nanoseconds User;
+        std::chrono::nanoseconds System;
+    };
 
-TCpuAcctStat GetCpuAccStat(const Stroka& fullName);
+    TCpuAccounting(const Stroka& parent, const Stroka& name);
+    TStats GetStats();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBlockIOStat
+class TBlockIO
+    : public TCGroup
 {
-    int64_t Sectors;
-    int64_t BytesRead;
-    int64_t BytesWritten;
-};
+public:
+    struct TStats
+    {
+        int64_t Sectors;
+        int64_t BytesRead;
+        int64_t BytesWritten;
+    };
 
-TBlockIOStat GetBlockIOStat(const Stroka& fullName);
+    TBlockIO(const Stroka& parent, const Stroka& name);
+    TStats GetStats();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
