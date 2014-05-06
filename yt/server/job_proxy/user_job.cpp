@@ -84,7 +84,8 @@ public:
     TUserJob(
         IJobHost* host,
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
-        std::unique_ptr<TUserJobIO> userJobIO)
+        std::unique_ptr<TUserJobIO> userJobIO,
+        NJobAgent::TJobId jobId)
         : TJob(host)
         , JobIO(std::move(userJobIO))
         , UserJobSpec(userJobSpec)
@@ -93,8 +94,9 @@ public:
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
-        , CpuAccounting("", ToString(TGuid::Create()))
-        , BlockIO("", ToString(TGuid::Create()))
+        , JobId(jobId)
+        , CpuAccounting("", ToString(jobId))
+        , BlockIO("", ToString(jobId))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -675,6 +677,8 @@ private:
     TInstant ProcessStartTime;
     int ProcessId;
 
+    NJobAgent::TJobId JobId;
+
     NCGroup::TCpuAccounting CpuAccounting;
     NCGroup::TCpuAccounting::TStats CpuAccountingStats;
 
@@ -685,12 +689,14 @@ private:
 TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO,
+    NJobAgent::TJobId jobId)
 {
     return New<TUserJob>(
         host,
         userJobSpec,
-        std::move(userJobIO));
+        std::move(userJobIO),
+        jobId);
 }
 
 #else
