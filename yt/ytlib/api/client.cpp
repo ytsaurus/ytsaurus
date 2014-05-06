@@ -1025,13 +1025,12 @@ public:
         TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options),
-        (path, nameTable, key, options));
+        (path, nameTable, key, options))
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<IRowsetPtr>>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
-        (path, keys, options))
         (path, nameTable, keys, options))
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TErrorOr<NQueryClient::TQueryStatistics>>, SelectRows, (
         const Stroka& query,

@@ -77,8 +77,8 @@ TError TCoordinator::Run()
 {
     TRACE_CHILD("QueryClient", "Coordinate") {
         TRACE_ANNOTATION("fragment_id", Fragment_.Id());
-    QueryStat = TQueryStatistics();
-    TDuration wallTime;
+        QueryStat = TQueryStatistics();
+        TDuration wallTime;
 
         try {
             LOG_DEBUG("Coordinating plan fragment");
@@ -119,11 +119,11 @@ TError TCoordinator::Run()
             LOG_ERROR(error);
             return error;
         }
+
+        QueryStat.SyncTime = wallTime - QueryStat.AsyncTime;
+
+        return TError();
     }
-
-    QueryStat.SyncTime = wallTime - QueryStat.AsyncTime;
-
-    return TError();
 }
 
 TPlanFragment TCoordinator::GetCoordinatorFragment() const

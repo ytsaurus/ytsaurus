@@ -320,23 +320,23 @@ public:
             TRACE_ANNOTATION("fragment_id", fragment.Id());
 
             auto Logger = BuildLogger(fragment);
-        TQueryStatistics queryStat;
-        TDuration wallTime;
+            TQueryStatistics queryStat;
+            TDuration wallTime;
 
-        try {
-            NProfiling::TScopedRaiiTimer scopedRaiiTimer(&wallTime);
+            try {
+                NProfiling::TScopedRaiiTimer scopedRaiiTimer(&wallTime);
 
-            TCodegenedFunction codegenedFunction;
-            TCGVariables fragmentParams;
+                TCodegenedFunction codegenedFunction;
+                TCGVariables fragmentParams;
 
-            std::tie(codegenedFunction, fragmentParams) = Codegen(fragment);
+                std::tie(codegenedFunction, fragmentParams) = Codegen(fragment);
 
-            // Make TRow from fragmentParams.ConstantArray.
-            TChunkedMemoryPool memoryPool;
-            auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
-            for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
-                constants[i] = fragmentParams.ConstantArray[i];
-            }
+                // Make TRow from fragmentParams.ConstantArray.
+                TChunkedMemoryPool memoryPool;
+                auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
+                for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
+                    constants[i] = fragmentParams.ConstantArray[i];
+                }
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -363,8 +363,8 @@ public:
                 passedFragmentParams.ScratchSpace = &scratchSpace;
                 passedFragmentParams.Writer = writer.Get();
                 passedFragmentParams.Batch = &batch;
-            passedFragmentParams.QueryStat = &queryStat;
-            passedFragmentParams.RowLimit = fragment.GetContext()->GetRowLimit();
+                passedFragmentParams.QueryStat = &queryStat;
+                passedFragmentParams.RowLimit = fragment.GetContext()->GetRowLimit();
 
                 CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
 
@@ -392,9 +392,10 @@ public:
             } catch (const std::exception& ex) {
                 return TError("Failed to evaluate plan fragment") << ex;
             }
-        queryStat.SyncTime = wallTime - queryStat.AsyncTime;
-        }
-        return queryStat;
+
+            queryStat.SyncTime = wallTime - queryStat.AsyncTime;
+            return queryStat;
+        }        
     }
 
 private:

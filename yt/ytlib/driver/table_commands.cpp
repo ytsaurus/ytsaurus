@@ -343,12 +343,18 @@ void TSelectCommand::DoExecute()
     options.Timestamp = Request_->Timestamp;
     options.RowLimit = Request_->RowLimit;
 
-    NYT::NApi::IRowsetPtr rowset;
-    NYT::NQueryClient::TQueryStatistics queryStat;
-
-    std::tie(rowset, queryStat) = rowsetOrError.Value();
     auto format = Context_->GetOutputFormat();
+    auto output = Context_->Request().OutputStream;
+    auto writer = CreateSchemafulWriterForFormat(format, output);
 
+    auto queryStatOrError = WaitFor(Context_->GetClient()->SelectRows(
+        Request_->Query,
+        writer,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(queryStatOrError);
+
+    NQueryClient::TQueryStatistics queryStat = queryStatOrError.Value();
+    
     LOG_INFO(
         "Query result statistics (RowsRead: %" PRIu64 ", RowsWritten: %" PRIu64 ", AsyncTime: %lfs., SyncTime: %lfs., Incomplete: %)",
         queryStat.RowsRead,
@@ -363,14 +369,6 @@ void TSelectCommand::DoExecute()
         .Item("async_time").Value(queryStat.AsyncTime.SecondsFloat())
         .Item("sync_time").Value(queryStat.SyncTime.SecondsFloat())
         .Item("incomplete").Value(ToString(queryStat.Incomplete));
-    auto output = Context_->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, output);
-
-    auto error = WaitFor(Context_->GetClient()->SelectRows(
-        Request_->Query,
-        writer,
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
