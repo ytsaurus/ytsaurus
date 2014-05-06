@@ -30,22 +30,22 @@ private:
 
 };
 
-class TScopedRaiiTimer
+class TAggregatingTimingGuard
 {
 public:
-    explicit TScopedRaiiTimer(TDuration* value)
+    explicit TAggregatingTimingGuard(TDuration* value)
         : Value_(value)
-        , StartTime_(GetCpuInstant())
+        , StartInstant_(GetCpuInstant())
     { }
 
-    ~TScopedRaiiTimer()
+    ~TAggregatingTimingGuard()
     {
-        *Value_ += CpuDurationToDuration(GetCpuInstant() - StartTime_);
+        *Value_ += CpuDurationToDuration(GetCpuInstant() - StartInstant_);
     }
 
 private:
     TDuration* Value_;
-    TCpuInstant StartTime_;
+    TCpuInstant StartInstant_;
     
 };
 

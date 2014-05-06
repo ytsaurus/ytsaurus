@@ -14,7 +14,7 @@ public:
     TPrepareController(
         IPrepareCallbacks* callbacks,
         const Stroka& source,
-        ui64 rowLimit,
+        i64 rowLimit,
         TTimestamp timestamp);
 
     ~TPrepareController();

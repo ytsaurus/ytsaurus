@@ -37,8 +37,8 @@ public:
     //! Returns plan fragments to be evaluated by peers.
     std::vector<TPlanFragment> GetPeerFragments() const;
 
-    //! Returns summary of delegated to peers query results.
-    TQueryStatistics GetQueryStatSummary() const;
+    //! Returns the totals by aggregating statistics for all involved peers.
+    TQueryStatistics GetStatistics() const;
 
 private:
     struct TDataSplitExplanation

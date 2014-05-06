@@ -347,28 +347,28 @@ void TSelectCommand::DoExecute()
     auto output = Context_->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, output);
 
-    auto queryStatOrError = WaitFor(Context_->GetClient()->SelectRows(
+    auto queryStatisticsOrError = WaitFor(Context_->GetClient()->SelectRows(
         Request_->Query,
         writer,
         options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(queryStatOrError);
+    THROW_ERROR_EXCEPTION_IF_FAILED(queryStatisticsOrError);
 
-    NQueryClient::TQueryStatistics queryStat = queryStatOrError.Value();
+    NQueryClient::TQueryStatistics statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
-        "Query result statistics (RowsRead: %" PRIu64 ", RowsWritten: %" PRIu64 ", AsyncTime: %lfs., SyncTime: %lfs., Incomplete: %)",
-        queryStat.RowsRead,
-        queryStat.RowsWritten,
-        queryStat.AsyncTime.SecondsFloat(),
-        queryStat.SyncTime.SecondsFloat(),
-        ~ToString(queryStat.Incomplete));
+        "Query result statistics (RowsRead: %" PRIi64 ", RowsWritten: %" PRIi64 ", AsyncTime: %" PRIi64 "ms., SyncTime: %" PRIi64 "ms., Incomplete: %s)",
+        statistics.RowsRead,
+        statistics.RowsWritten,
+        statistics.AsyncTime.MilliSeconds(),
+        statistics.SyncTime.MilliSeconds(),
+        ~FormatBool(statistics.Incomplete));
 
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
-        .Item("rows_read").Value(queryStat.RowsRead)
-        .Item("rows_written").Value(queryStat.RowsWritten)
-        .Item("async_time").Value(queryStat.AsyncTime.SecondsFloat())
-        .Item("sync_time").Value(queryStat.SyncTime.SecondsFloat())
-        .Item("incomplete").Value(ToString(queryStat.Incomplete));
+        .Item("rows_read").Value(statistics.RowsRead)
+        .Item("rows_written").Value(statistics.RowsWritten)
+        .Item("async_time").Value(statistics.AsyncTime.MilliSeconds())
+        .Item("sync_time").Value(statistics.SyncTime.MilliSeconds())
+        .Item("incomplete").Value(FormatBool(statistics.Incomplete));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

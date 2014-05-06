@@ -66,8 +66,8 @@ typedef std::pair<TKey, TKey> TKeyRange;
 
 struct TQueryStatistics
 {
-    ui64 RowsRead = 0;
-    ui64 RowsWritten = 0;
+    i64 RowsRead = 0;
+    i64 RowsWritten = 0;
     TDuration SyncTime;
     TDuration AsyncTime;
     bool Incomplete = false;

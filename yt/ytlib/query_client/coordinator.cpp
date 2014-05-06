@@ -11,6 +11,7 @@
 #include "graphviz.h"
 
 #include <core/concurrency/scheduler.h>
+
 #include <core/profiling/scoped_timer.h>
 
 #include <core/misc/protobuf_helpers.h>
@@ -82,7 +83,7 @@ TError TCoordinator::Run()
 
         try {
             LOG_DEBUG("Coordinating plan fragment");
-        NProfiling::TScopedRaiiTimer scopedRaiiTimer(&wallTime);
+        NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
             // Infer key range and push it down.
             auto keyRange = Fragment_.GetHead()->GetKeyRange();
@@ -141,7 +142,7 @@ std::vector<TPlanFragment> TCoordinator::GetPeerFragments() const
     return result;
 }
 
-TQueryStatistics TCoordinator::GetQueryStatSummary() const
+TQueryStatistics TCoordinator::GetStatistics() const
 {
     TQueryStatistics result;
 
@@ -292,7 +293,7 @@ const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
             ~ToString(fragment.Id()));
 
         int index = Peers_.size();
-        Peers_.emplace_back(fragment, collocatedSplit(op), nullptr, NYT::Null);
+        Peers_.emplace_back(fragment, collocatedSplit(op), nullptr, Null);
 
         TDataSplit facadeSplit;
 
@@ -368,7 +369,7 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
         TDataSplits newSplits;
 
         {
-            NProfiling::TScopedRaiiTimer scopedRaiiTimer(&QueryStat.AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&QueryStat.AsyncTime);
             auto newSplitsOrError = WaitFor(Callbacks_->SplitFurther(split, Fragment_.GetContext()));
             newSplits = newSplitsOrError.ValueOrThrow();
         }

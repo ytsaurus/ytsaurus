@@ -36,7 +36,7 @@ static auto& Logger = QueryClientLogger;
 TPrepareController::TPrepareController(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    ui64 rowLimit,
+    i64 rowLimit,
     TTimestamp timestamp)
     : Callbacks_(callbacks)
     , Source_(source)

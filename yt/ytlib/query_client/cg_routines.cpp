@@ -13,6 +13,7 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <core/concurrency/scheduler.h>
+
 #include <core/profiling/scoped_timer.h>
 
 #include <mutex>
@@ -41,7 +42,7 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
     auto writer = P->Writer;
     auto rowBuffer = P->RowBuffer;
 
-    ++P->QueryStat->RowsWritten;
+    ++P->Statistics->RowsWritten;
 
     YASSERT(batch->size() < batch->capacity());
 
@@ -49,7 +50,7 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
 
     if (batch->size() == batch->capacity()) {
         if (!writer->Write(*batch)) {
-            NProfiling::TScopedRaiiTimer scopedRaiiTimer(&P->QueryStat->AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&P->Statistics->AsyncTime);
             auto error = WaitFor(writer->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
@@ -86,13 +87,13 @@ void ScanOpHelper(
             bool hasMoreData = reader->Read(&rows);
             bool shouldWait = rows.empty();
 
-            P->QueryStat->RowsRead += rows.size();
+            P->Statistics->RowsRead += rows.size();
 
             size_t sizeLeft = rows.size();
             TRow* data = rows.data();
 
             while (sizeLeft && P->RowLimit) {
-                size_t consumeSize = std::min(P->RowLimit, sizeLeft);
+                size_t consumeSize = std::min(size_t(P->RowLimit), sizeLeft);
                 consumeRows(consumeRowsClosure, data, consumeSize);
                 data += consumeSize;
                 sizeLeft -= consumeSize;
@@ -105,12 +106,12 @@ void ScanOpHelper(
             }
 
             if (P->RowLimit == 0) {
-                P->QueryStat->Incomplete = true;
+                P->Statistics->Incomplete = true;
                 break;
             }
 
             if (shouldWait) {
-                NProfiling::TScopedRaiiTimer scopedRaiiTimer(&P->QueryStat->AsyncTime);
+                NProfiling::TAggregatingTimingGuard timingGuard(&P->Statistics->AsyncTime);
                 auto error = WaitFor(reader->GetReadyEvent());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }

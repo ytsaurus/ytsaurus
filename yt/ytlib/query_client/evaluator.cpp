@@ -320,11 +320,11 @@ public:
             TRACE_ANNOTATION("fragment_id", fragment.Id());
 
             auto Logger = BuildLogger(fragment);
-            TQueryStatistics queryStat;
+            TQueryStatistics statistics;
             TDuration wallTime;
 
             try {
-                NProfiling::TScopedRaiiTimer scopedRaiiTimer(&wallTime);
+                NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
                 TCodegenedFunction codegenedFunction;
                 TCGVariables fragmentParams;
@@ -363,7 +363,7 @@ public:
                 passedFragmentParams.ScratchSpace = &scratchSpace;
                 passedFragmentParams.Writer = writer.Get();
                 passedFragmentParams.Batch = &batch;
-                passedFragmentParams.QueryStat = &queryStat;
+                passedFragmentParams.Statistics = &statistics;
                 passedFragmentParams.RowLimit = fragment.GetContext()->GetRowLimit();
 
                 CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
@@ -371,7 +371,7 @@ public:
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
                     if (!writer->Write(batch)) {
-                    NProfiling::TScopedRaiiTimer scopedRaiiTimer(&queryStat.AsyncTime);
+                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                         auto error = WaitFor(writer->GetReadyEvent());
                         THROW_ERROR_EXCEPTION_IF_FAILED(error);
                     }
@@ -379,7 +379,7 @@ public:
 
                 LOG_DEBUG("Closing writer");
                 {
-                NProfiling::TScopedRaiiTimer scopedRaiiTimer(&queryStat.AsyncTime);
+                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                     auto error = WaitFor(writer->Close());
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
@@ -393,8 +393,8 @@ public:
                 return TError("Failed to evaluate plan fragment") << ex;
             }
 
-            queryStat.SyncTime = wallTime - queryStat.AsyncTime;
-            return queryStat;
+            statistics.SyncTime = wallTime - statistics.AsyncTime;
+            return statistics;
         }        
     }
 

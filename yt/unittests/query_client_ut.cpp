@@ -278,7 +278,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { TPlanFragment::Prepare(query, NullTimestamp, &PrepareMock_); },
+            [&] { TPlanFragment::Prepare(&PrepareMock_, query); },
             matcher);
     }
 
@@ -291,7 +291,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    TPlanFragment::Prepare("a, b FROM [//t] WHERE k > 3", NullTimestamp, std::numeric_limits<ui64>::max(), &PrepareMock_);
+    TPlanFragment::Prepare(&PrepareMock_, "a, b FROM [//t] WHERE k > 3");
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -358,7 +358,7 @@ protected:
         YCHECK(!Coordinator_);
         Coordinator_.Emplace(
             &CoordinateMock_,
-            TPlanFragment::Prepare(source, NullTimestamp, &PrepareMock_));
+            TPlanFragment::Prepare(&PrepareMock_, source));
 
         auto error = Coordinator_->Run();
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -420,7 +420,7 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
     EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(1), _))
         .WillOnce(Return(singleGroupedSplit));
     EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
-        .WillOnce(Return(std::make_pair(nullptr, NYT::TFuture<NYT::TErrorOr<NYT::NQueryClient::TQueryStatistics>>())));
+        .WillOnce(Return(std::make_pair(nullptr, TFuture<TErrorOr<NQueryClient::TQueryStatistics>>())));
 
     EXPECT_NO_THROW({
         Coordinate("k from [//t]");
@@ -1365,7 +1365,7 @@ protected:
         TEvaluator evaluator;
         auto error = evaluator.Run(
             &EvaluateMock_,
-            TPlanFragment::Prepare(query, NullTimestamp, rowLimit, &PrepareMock_),
+            TPlanFragment::Prepare(&PrepareMock_, query, rowLimit),
             WriterMock_);
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
@@ -1566,7 +1566,6 @@ TEST_F(TQueryEvaluateTest, Complex2)
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, false));
     }
-
 
     std::vector<TColumnSchema> resultColumns;
     resultColumns.emplace_back("x", EValueType::Integer);

@@ -49,8 +49,8 @@ struct TPassedFragmentParams
     ISchemafulWriter* Writer;
     std::vector<TRow>* Batch;
 
-    TQueryStatistics* QueryStat;
-    ui64 RowLimit;
+    TQueryStatistics* Statistics;
+    i64 RowLimit;
 };
 
 namespace NDetail {

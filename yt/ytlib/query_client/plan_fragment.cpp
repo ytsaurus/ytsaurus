@@ -55,18 +55,10 @@ TPlanFragment& TPlanFragment::operator=(TPlanFragment&& other)
 }
 
 TPlanFragment TPlanFragment::Prepare(
+    IPrepareCallbacks* callbacks,
     const Stroka& source,
-    TTimestamp timestamp,
-    IPrepareCallbacks* callbacks)
-{
-    return TPrepareController(callbacks, source, std::numeric_limits<ui64>::max(), timestamp).Run();
-}
-
-TPlanFragment TPlanFragment::Prepare(
-    const Stroka& source,
-    TTimestamp timestamp,
-    ui64 rowLimit,
-    IPrepareCallbacks* callbacks)
+    i64 rowLimit,
+    TTimestamp timestamp)
 {
     return TPrepareController(callbacks, source, rowLimit, timestamp).Run();
 }

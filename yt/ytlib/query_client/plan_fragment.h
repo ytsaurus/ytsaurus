@@ -37,15 +37,11 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TGuid, Id);
 
     static TPlanFragment Prepare(
+        IPrepareCallbacks* callbacks,
         const Stroka& source,
-        TTimestamp timestamp,
-        IPrepareCallbacks* callbacks);
+        i64 rowLimit = std::numeric_limits<i64>::max(),
+        TTimestamp timestamp = NullTimestamp);
 
-    static TPlanFragment Prepare(
-        const Stroka& source,
-        TTimestamp timestamp,
-        ui64 limit,
-        IPrepareCallbacks* callbacks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

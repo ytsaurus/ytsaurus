@@ -210,17 +210,16 @@ public:
         const Stroka& query,
         const TSelectRowsOptions& options) override
     {
+        auto result = NewPromise<TErrorOr<std::pair<IRowsetPtr, TQueryStatistics>>>();
+
         ISchemafulWriterPtr writer;
         TPromise<TErrorOr<IRowsetPtr>> rowset;
-
-        TPromise<TErrorOr<std::pair<IRowsetPtr, TQueryStatistics>>> result = NewPromise<TErrorOr<std::pair<IRowsetPtr, TQueryStatistics>>>();
-
         std::tie(writer, rowset) = CreateSchemafulRowsetWriter();
 
         SelectRows(query, writer, options).Subscribe(BIND([=] (TErrorOr<TQueryStatistics> error) mutable {
             if (!error.IsOK()) {
                 // It's uncommon to have the promise set here but let's be sloppy about it.
-                result.Set(static_cast<TError>(error));
+                result.Set(TError(error));
             } else {
                 result.Set(std::make_pair(rowset.Get().Value(), error.Value()));
             }
@@ -544,10 +543,10 @@ private:
         TSelectRowsOptions options)
     {
         auto fragment = TPlanFragment::Prepare(
+            Connection_->GetQueryPrepareCallbacks(),
             query,
-            options.Timestamp,
             options.RowLimit,
-            Connection_->GetQueryPrepareCallbacks());
+            options.Timestamp);
 
         auto executor = Connection_->GetQueryExecutor();
         auto error = WaitFor(executor->Execute(fragment, writer));

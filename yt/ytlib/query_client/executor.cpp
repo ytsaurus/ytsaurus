@@ -88,11 +88,11 @@ public:
                 RETURN_IF_ERROR(resultOrError);
 
                 TQueryStatistics result = resultOrError.Value();
-                TQueryStatistics subQueriesResult = coordinator.GetQueryStatSummary();
+                TQueryStatistics subqueryResult = coordinator.GetStatistics();
 
-                result.RowsRead += subQueriesResult.RowsRead;
-                result.RowsWritten += subQueriesResult.RowsWritten;
-                result.Incomplete |= subQueriesResult.Incomplete;
+                result.RowsRead += subqueryResult.RowsRead;
+                result.RowsWritten += subqueryResult.RowsWritten;
+                result.Incomplete |= subqueryResult.Incomplete;
 
                 return result;
             })

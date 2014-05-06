@@ -227,7 +227,7 @@ Stroka TInsertExecutor::GetCommandName() const
 TSelectExecutor::TSelectExecutor()
     : QueryArg("query", "query to execute", true, "", "QUERY")
     , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
-    , RowLimitArg("", "row_limit", "output rows limit", false, std::numeric_limits<ui64>::max(), "INTEGER")
+    , RowLimitArg("", "row_limit", "output rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
 {
     CmdLine.add(QueryArg);
     CmdLine.add(TimestampArg);

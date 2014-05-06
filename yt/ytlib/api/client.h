@@ -146,11 +146,12 @@ struct TSelectRowsOptions
 {
     TSelectRowsOptions()
         : Timestamp(NTransactionClient::LastCommittedTimestamp)
+        , RowLimit(std::numeric_limits<i64>::max())
     { }
 
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp;
-    ui64 RowLimit;
+    i64 RowLimit;
 };
 
 struct TGetNodeOptions

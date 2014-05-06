@@ -57,7 +57,7 @@ public:
 
     };
 
-    explicit TPlanContext(TTimestamp timestamp = NullTimestamp, ui64 limit = std::numeric_limits<ui64>::max());
+    explicit TPlanContext(TTimestamp timestamp = NullTimestamp, i64 rowLimit = std::numeric_limits<i64>::max());
     ~TPlanContext();
 
     void* Allocate(size_t size);
@@ -69,8 +69,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Source);
     DEFINE_BYVAL_RW_PROPERTY(Stroka, TablePath);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, Timestamp);
-    DEFINE_BYVAL_RW_PROPERTY(ui64, RowLimit);
+    DEFINE_BYVAL_RW_PROPERTY(i64, RowLimit);
 
+public:
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
 
     template <class TType, class... TArgs>
