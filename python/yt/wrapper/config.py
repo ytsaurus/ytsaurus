@@ -64,6 +64,7 @@ PYTHON_FUNCTION_MODULE_FILTER = None
 PYTHON_DO_NOT_USE_PYC = False
 
 MUTATION_ID = None
+TRACE = None
 
 update_from_env(globals())
 
