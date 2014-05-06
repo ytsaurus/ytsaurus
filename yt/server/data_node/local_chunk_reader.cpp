@@ -3,6 +3,8 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -52,24 +54,22 @@ public:
 
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        return New<TReadSession>(this)->Run(blockIndexes);
+        NTracing::TTraceSpanGuard guard("LocalChunkReader", "ReadBlocks");
+        return New<TReadSession>(this, std::move(guard))
+            ->Run(blockIndexes);
     }
 
     virtual TAsyncGetMetaResult AsyncGetChunkMeta(
         const TNullable<int>& partitionTag,
         const std::vector<int>* tags) override
     {
-        return Chunk_->GetMeta(FetchPriority, tags)
-            .Apply(BIND([=] (TChunk::TGetMetaResult result) -> TGetMetaResult {
-                if (!result.IsOK()) {
-                    return TError(result);
-                }
-
-                const auto& chunkMeta = *result.Value();
-                return partitionTag
-                    ? TGetMetaResult(FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag))
-                    : TGetMetaResult(chunkMeta);
-            }));
+        NTracing::TTraceSpanGuard guard("LocalChunkReader", "GetChunkMeta");
+        return Chunk_
+            ->GetMeta(FetchPriority, tags)
+            .Apply(BIND(
+                &TLocalChunkReader::OnGotChunkMeta,
+                partitionTag,
+                Passed(std::move(guard))));
     }
 
     virtual TChunkId GetChunkId() const override
@@ -86,9 +86,10 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        explicit TReadSession(TLocalChunkReaderPtr owner)
+        TReadSession(TLocalChunkReaderPtr owner, NTracing::TTraceSpanGuard guard)
             : Owner_(owner)
             , Promise_(NewPromise<TErrorOr<std::vector<TSharedRef>>>())
+            , TraceSpanGuard_(std::move(guard))
         { }
 
         TAsyncReadResult Run(const std::vector<int>& blockIndexes)
@@ -113,6 +114,8 @@ private:
         TLocalChunkReaderPtr Owner_;
         TPromise<TErrorOr<std::vector<TSharedRef>>> Promise_;
 
+        NTracing::TTraceSpanGuard TraceSpanGuard_;
+
         std::vector<TSharedRef> Blocks_;
 
 
@@ -128,10 +131,26 @@ private:
 
         void OnCompleted()
         {
+            TraceSpanGuard_.Release();
             Promise_.TrySet(Blocks_);
         }
 
     };
+
+    static TGetMetaResult OnGotChunkMeta(
+        const TNullable<int>& partitionTag,
+        NTracing::TTraceSpanGuard /*guard*/,
+        TChunk::TGetMetaResult result)
+    {
+        if (!result.IsOK()) {
+            return TError(result);
+        }
+
+        const auto& chunkMeta = *result.Value();
+        return partitionTag
+            ? TGetMetaResult(FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag))
+            : TGetMetaResult(chunkMeta);
+    }
 
 };
 
