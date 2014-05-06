@@ -88,7 +88,7 @@ private:
 
         RequestChangelogRotation();
 
-        Owner_->DecoratedAutomaton_->CommitMutations(TVersion(Version_.SegmentId + 1, 0));
+        Owner_->DecoratedAutomaton_->CommitMutations(Version_.Rotate());
     }
 
 

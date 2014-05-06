@@ -27,6 +27,9 @@ struct TVersion
     i64 ToRevision() const;
     static TVersion FromRevision(i64 revision);
 
+    TVersion Advance() const;
+    TVersion Rotate() const;
+
 };
 
 Stroka ToString(TVersion version);
@@ -84,6 +87,16 @@ inline i64 TVersion::ToRevision() const
 inline TVersion TVersion::FromRevision(i64 revision)
 {
     return TVersion(revision >> 32, revision & 0xffffffff);
+}
+
+TVersion TVersion::Advance() const
+{
+    return TVersion(SegmentId, RecordId + 1);
+}
+
+TVersion TVersion::Rotate() const
+{
+    return TVersion(SegmentId + 1, 0);
 }
 
 inline Stroka ToString(TVersion version)
