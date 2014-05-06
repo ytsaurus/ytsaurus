@@ -43,6 +43,7 @@ public:
 
     const TTraceContext& GetContext() const;
 
+    bool IsActive() const;
     void Release();
 
 private:
@@ -58,6 +59,7 @@ public:
     TNullTraceContextGuard(TNullTraceContextGuard&& other);
     ~TNullTraceContextGuard();
 
+    bool IsActive() const;
     void Release();
 
 private:
@@ -85,6 +87,7 @@ public:
     TTraceSpanGuard(TTraceSpanGuard&& other) = default;
     ~TTraceSpanGuard();
 
+    bool IsActive() const;
     void Release();
 
     //! Needed for TRACE_SPAN.

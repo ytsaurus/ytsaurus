@@ -92,7 +92,7 @@ TTraceContextGuard::TTraceContextGuard(const TTraceContext& context)
 
 TTraceContextGuard::TTraceContextGuard(TTraceContextGuard&& other)
     : Context_(other.Context_)
-    , Active_(true)
+    , Active_(other.Active_)
 {
     other.Active_ = false;
 }
@@ -105,6 +105,11 @@ TTraceContextGuard::~TTraceContextGuard()
 const TTraceContext& TTraceContextGuard::GetContext() const
 {
     return Context_;
+}
+
+bool TTraceContextGuard::IsActive() const
+{
+    return Active_;
 }
 
 void TTraceContextGuard::Release()
@@ -132,6 +137,11 @@ TNullTraceContextGuard::TNullTraceContextGuard(TNullTraceContextGuard&& other)
 TNullTraceContextGuard::~TNullTraceContextGuard()
 {
     Release();
+}
+
+bool TNullTraceContextGuard::IsActive() const
+{
+    return Active_;
 }
 
 void TNullTraceContextGuard::Release()
@@ -171,8 +181,10 @@ void PushContext(const TTraceContext& context)
 
 void PopContext()
 {
-    LOG_TRACE("Pop context %s", ~ToString(GetCurrentTraceContext()));
-    TraceContextStack()->pop_back();
+    auto& stack = TraceContextStack();
+    YCHECK(!stack->empty());
+    LOG_TRACE("Pop context %s", ~ToString(stack->back()));
+    stack->pop_back();
 }
 
 TTraceContext CreateChildTraceContext()
@@ -204,6 +216,11 @@ TTraceSpanGuard::TTraceSpanGuard(
         ClientSendAnnotation);
 }
 
+bool TTraceSpanGuard::IsActive() const
+{
+    return ContextGuard_.IsActive();
+}
+
 void TTraceSpanGuard::Release()
 {
     ContextGuard_.Release();
@@ -211,11 +228,13 @@ void TTraceSpanGuard::Release()
 
 TTraceSpanGuard::~TTraceSpanGuard()
 {
-    TraceEvent(
-        ContextGuard_.GetContext(),
-        ServiceName_,
-        SpanName_,
-        ClientReceiveAnnotation);
+    if (ContextGuard_.IsActive()) {
+        TraceEvent(
+            ContextGuard_.GetContext(),
+            ServiceName_,
+            SpanName_,
+            ClientReceiveAnnotation);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
