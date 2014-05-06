@@ -97,7 +97,7 @@ private:
     friend class TCacheValueBase<TKey, TValue, THash>;
 
     struct TItem
-        : TIntrusiveListItem<TItem>
+        : public TIntrusiveListItem<TItem>
     {
         TItem()
             : ValueOrError(NewPromise<TValuePtrOrError>())
