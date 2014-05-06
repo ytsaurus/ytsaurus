@@ -112,16 +112,6 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename T>
-T To(const char* str)
-{
-    T result;
-    std::stringstream stream;
-    stream << str;
-    stream >> result;
-    return result;
-}
-
 std::vector<char> ReadAll(const Stroka& fileName)
 {
     const size_t blockSize = 4096;
@@ -157,7 +147,7 @@ std::vector<char> ReadAll(const Stroka& fileName)
 
 #ifdef _linux_
 
-std::chrono::nanoseconds from_jiffies(int64_t jiffies)
+std::chrono::nanoseconds fromJiffies(int64_t jiffies)
 {
     long ticksPerSecond = sysconf(_SC_CLK_TCK);
     return std::chrono::nanoseconds(1000 * 1000 * 1000 * jiffies/ ticksPerSecond);
@@ -185,14 +175,14 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
 
     for (int i = 0; i < 2; ++i) {
         type[i] = values[2 * i];
-        jiffies[i] = To<int64_t>(~values[2 * i + 1]);
+        jiffies[i] = FromString<int64_t>(~values[2 * i + 1]);
     }
 
     for (int i = 0; i < 2; ++ i) {
         if (type[i] == "user") {
-            result.User = from_jiffies(jiffies[i]);
+            result.User = fromJiffies(jiffies[i]);
         } else if (type[i] == "system") {
-            result.System = from_jiffies(jiffies[i]);
+            result.System = fromJiffies(jiffies[i]);
         }
     }
 #endif
@@ -219,7 +209,7 @@ TBlockIO::TStats TBlockIO::GetStats()
         while (3 * line_number + 2 < values.size()) {
             const Stroka& deviceId = values[3 * line_number];
             const Stroka& type = values[3 * line_number + 1];
-            int64_t bytes = To<int64_t>(~values[3 * line_number + 2]);
+            int64_t bytes = FromString<int64_t>(~values[3 * line_number + 2]);
 
             YCHECK(deviceId.Size() > 2);
             YCHECK(deviceId[0] == '8');
@@ -244,7 +234,7 @@ TBlockIO::TStats TBlockIO::GetStats()
         int line_number = 0;
         while (2 * line_number < values.size()) {
             const Stroka& deviceId = values[2 * line_number];
-            int64_t sectors = To<int64_t>(~values[2 * line_number + 1]);
+            int64_t sectors = FromString<int64_t>(~values[2 * line_number + 1]);
 
             YCHECK(deviceId.Size() > 2);
             YCHECK(deviceId[0] == '8');
