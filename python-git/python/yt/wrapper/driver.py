@@ -1,7 +1,7 @@
 import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
-from common import require, generate_uuid
+from common import require, generate_uuid, bool_to_string
 from errors import YtError, YtResponseError
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy, get_session
@@ -154,6 +154,9 @@ def make_request(command_name, params,
             params["mutation_id"] = config.MUTATION_ID
         else:
             params["mutation_id"] = generate_uuid()
+
+    if config.TRACE is not None and config.TRACE:
+        params["trace"] = bool_to_string(config.TRACE)
 
     # prepare url
     url = "http://{0}/{1}/{2}".format(proxy, config.API_PATH, command_name)
