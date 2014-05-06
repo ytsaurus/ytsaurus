@@ -1293,7 +1293,8 @@ protected:
     void Evaluate(
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
-        const std::vector<TUnversionedOwningRow>& owningResult)
+        const std::vector<TUnversionedOwningRow>& owningResult,
+        ui64 rowLimit = std::numeric_limits<ui64>::max())
     {
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .Guarded()
@@ -1301,7 +1302,8 @@ protected:
             .Run(
                 query,
                 owningSource,
-                owningResult)
+                owningResult,
+                rowLimit)
             .Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
@@ -1309,7 +1311,8 @@ protected:
     void DoEvaluate(
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
-        const std::vector<TUnversionedOwningRow>& owningResult)
+        const std::vector<TUnversionedOwningRow>& owningResult,
+        ui64 rowLimit)
     {
         std::vector<TRow> source(owningSource.size());
         std::vector<std::vector<TRow>> results;
@@ -1362,7 +1365,7 @@ protected:
         TEvaluator evaluator;
         auto error = evaluator.Run(
             &EvaluateMock_,
-            TPlanFragment::Prepare(query, NullTimestamp, &PrepareMock_),
+            TPlanFragment::Prepare(query, NullTimestamp, rowLimit, &PrepareMock_),
             WriterMock_);
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
@@ -1720,6 +1723,41 @@ TEST_F(TQueryEvaluateTest, TestIf)
     result.push_back(BuildRow("x=a;t=200", simpleSplit, false));
     
     Evaluate("if(x = 4, \"a\", \"b\") as x, sum(b) as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestRowLimit)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, false));
+    }
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
+    result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
+    result.push_back(BuildRow("a=4;b=40", simpleSplit, false));
+
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", source, result, 3);
 
     SUCCEED();
 }
