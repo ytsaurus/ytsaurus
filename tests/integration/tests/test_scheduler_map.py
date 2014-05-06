@@ -16,7 +16,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         'scheduler' : {
             'event_log' : {
-                'flush_period' : 1000
+                'flush_period' : 300
             }
         }
     }
@@ -31,15 +31,18 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_scheduler_event_log(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write('//tmp/t1', [{"a": "b"} for i in xrange(100*1000)])
-        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
+        write('//tmp/t1', [{"a": "b"}])
+        map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done' >/dev/null")
 
-        time.sleep(5)
+        # wait for scheduler to dump the event log
+        time.sleep(1)
         res = read('//sys/scheduler/event_log')
         for item in res:
             if item['event_type'] == 'job_completed':
                 for key in ['cpu_user_time', 'cpu_system_time', 'block_io_sectors', 'block_io_bytes_read', 'block_io_bytes_written']:
                     assert key in item
+                # out job should burn enough cpu
+                assert int(item['cpu_user_time']) / (10**6) > 0
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_one_chunk(self):
