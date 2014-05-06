@@ -450,6 +450,8 @@ void TDecoratedAutomaton::LogMutationAtLeader(
     }
     MutationHeader_.set_timestamp(pendingMutation.Timestamp.GetValue());
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
+    MutationHeader_.set_segment_id(LoggedVersion_.SegmentId);
+    MutationHeader_.set_record_id(LoggedVersion_.RecordId);
     
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
 
@@ -638,6 +640,10 @@ void TDecoratedAutomaton::DoApplyMutation(const TSharedRef& recordData)
     NProto::TMutationHeader header;
     TSharedRef requestData;
     DeserializeMutationRecord(recordData, &header, &requestData);
+
+    YCHECK(
+        header.segment_id() == AutomatonVersion_.SegmentId &&
+        header.record_id() == AutomatonVersion_.RecordId);
 
     TMutationRequest request(
         header.mutation_type(),
