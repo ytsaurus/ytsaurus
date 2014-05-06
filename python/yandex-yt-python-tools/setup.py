@@ -14,7 +14,8 @@ def main():
              "yt/tools/binaries/yt_add_user.py",
              "yt/tools/binaries/yt_set_account.py",
              "yt/tools/binaries/yt_convert_to_erasure.py",
-             "yt/tools/binaries/yt_lock.py"]
+             "yt/tools/binaries/yt_lock.py",
+             "yt/tools/binaries/yt_doctor.py"]
     for file in files:
         # in egg and debian cases strategy of binary distribution is different
         if "EGG" in os.environ:
