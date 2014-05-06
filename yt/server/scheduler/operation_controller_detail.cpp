@@ -3578,8 +3578,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
     if (statistics.has_cpu_system_time()) {
         record.Item("cpu_system_time").Value(statistics.cpu_system_time());
     }
-    if (statistics.has_block_io_sectors()) {
-        record.Item("block_io_sectors").Value(statistics.block_io_sectors());
+    if (statistics.has_block_io_total_sectors()) {
+        record.Item("block_io_total_sectors").Value(statistics.block_io_total_sectors());
     }
     if (statistics.has_block_io_bytes_read()) {
         record.Item("block_io_bytes_read").Value(statistics.block_io_bytes_read());

@@ -650,7 +650,7 @@ private:
         result.set_cpu_user_time(CpuAccountingStats.User.count());
         result.set_cpu_system_time(CpuAccountingStats.System.count());
 
-        result.set_block_io_sectors(BlockIOStats.Sectors);
+        result.set_block_io_total_sectors(BlockIOStats.TotalSectors);
         result.set_block_io_bytes_read(BlockIOStats.BytesRead);
         result.set_block_io_bytes_written(BlockIOStats.BytesWritten);
 

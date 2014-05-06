@@ -55,7 +55,7 @@ class TBlockIO
 public:
     struct TStats
     {
-        int64_t Sectors;
+        int64_t TotalSectors;
         int64_t BytesRead;
         int64_t BytesWritten;
     };

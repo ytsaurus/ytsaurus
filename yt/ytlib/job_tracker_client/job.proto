@@ -24,7 +24,7 @@ message TJobStatistics
     optional int64 cpu_user_time = 4;
     optional int64 cpu_system_time = 5;
 
-    optional int64 block_io_sectors = 6;
+    optional int64 block_io_total_sectors = 6;
     optional int64 block_io_bytes_read = 7;
     optional int64 block_io_bytes_written = 8;
 }

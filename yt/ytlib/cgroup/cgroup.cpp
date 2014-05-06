@@ -239,7 +239,7 @@ TBlockIO::TStats TBlockIO::GetStats()
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
-        result.Sectors = 0;
+        result.TotalSectors = 0;
         int line_number = 0;
         while (2 * line_number < values.size()) {
             const Stroka& deviceId = values[2 * line_number];
@@ -249,7 +249,7 @@ TBlockIO::TStats TBlockIO::GetStats()
                 THROW_ERROR_EXCEPTION("Unable to parse %s. %s should start from 8:", ~filename, ~deviceId);
             }
 
-            result.Sectors += sectors;
+            result.TotalSectors += sectors;
             ++line_number;
         }
     }

@@ -92,7 +92,7 @@ TEST(CGroup, GetBlockIOStat)
     auto stats = group.GetStats();
     EXPECT_EQ(0, stats.BytesRead);
     EXPECT_EQ(0, stats.BytesWritten);
-    EXPECT_EQ(0, stats.Sectors);
+    EXPECT_EQ(0, stats.TotalSectors);
 
     group.Destroy();
 }
