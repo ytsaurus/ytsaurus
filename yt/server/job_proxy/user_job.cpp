@@ -95,8 +95,8 @@ public:
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
         , JobId(jobId)
-        , CpuAccounting("", ToString(jobId))
-        , BlockIO("", ToString(jobId))
+        , CpuAccounting(ToString(jobId))
+        , BlockIO(ToString(jobId))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(

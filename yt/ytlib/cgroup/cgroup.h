@@ -14,7 +14,7 @@ class TCGroup
     : private TNonCopyable
 {
 protected:
-    TCGroup(const Stroka& type, const Stroka& parent, const Stroka& name);
+    TCGroup(const Stroka& type, const Stroka& name);
 public:
     ~TCGroup();
 
@@ -43,7 +43,7 @@ public:
         std::chrono::nanoseconds System;
     };
 
-    TCpuAccounting(const Stroka& parent, const Stroka& name);
+    TCpuAccounting(const Stroka& name);
     TStats GetStats();
 };
 
@@ -60,9 +60,13 @@ public:
         int64_t BytesWritten;
     };
 
-    TBlockIO(const Stroka& parent, const Stroka& name);
+    TBlockIO(const Stroka& name);
     TStats GetStats();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<Stroka, Stroka> ParseCurrentProcessCGrops(const char* str, size_t size);
 
 ////////////////////////////////////////////////////////////////////////////////
 

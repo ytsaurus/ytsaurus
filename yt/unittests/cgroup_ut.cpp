@@ -18,7 +18,7 @@ namespace {
 TEST(CGroup, CreateDestroy)
 {
     for (int i = 0; i < 2; ++i) {
-        TBlockIO group("", "some");
+        TBlockIO group("some");
         group.Create();
         group.Destroy();
     }
@@ -26,13 +26,13 @@ TEST(CGroup, CreateDestroy)
 
 TEST(CGroup, NotExistingGroupGetTasks)
 {
-    TBlockIO group("", "wierd_name");
+    TBlockIO group("wierd_name");
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
 
 TEST(CGroup, DoubleCreate)
 {
-    TBlockIO group("", "wierd_name");
+    TBlockIO group("wierd_name");
     group.Create();
     EXPECT_THROW(group.Create(), std::exception);
     group.Destroy();
@@ -40,7 +40,7 @@ TEST(CGroup, DoubleCreate)
 
 TEST(CGroup, EmptyHasNoTasks)
 {
-    TBlockIO group("", "some2");
+    TBlockIO group("some2");
     group.Create();
     auto tasks = group.GetTasks();
     EXPECT_EQ(0, tasks.size());
@@ -51,7 +51,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 TEST(CGroup, AddCurrentProcess)
 {
-    TBlockIO group("", "some");
+    TBlockIO group("some");
     group.Create();
 
     auto pid = fork();
@@ -74,7 +74,7 @@ TEST(CGroup, AddCurrentProcess)
 
 TEST(CGroup, GetCpuAccStat)
 {
-    TCpuAccounting group("", "some");
+    TCpuAccounting group("some");
     group.Create();
 
     auto stats = group.GetStats();
@@ -86,7 +86,7 @@ TEST(CGroup, GetCpuAccStat)
 
 TEST(CGroup, GetBlockIOStat)
 {
-    TBlockIO group("", "some");
+    TBlockIO group("some");
     group.Create();
 
     auto stats = group.GetStats();
@@ -95,6 +95,40 @@ TEST(CGroup, GetBlockIOStat)
     EXPECT_EQ(0, stats.Sectors);
 
     group.Destroy();
+}
+
+TEST(CurrentProcessCGroup, Empty)
+{
+    std::vector<char> empty;
+    auto result = ParseCurrentProcessCGrops(empty.data(), empty.size());
+    EXPECT_TRUE(result.empty());
+}
+
+TEST(CurrentProcessCGroup, Basic)
+{
+    auto basic = STRINGBUF("4:blkio:/\n3:cpuacct:/\n2:freezer:/some\n1:memory:/\n");
+    auto result = ParseCurrentProcessCGrops(basic.data(), basic.length());
+    EXPECT_EQ("", result["blkio"]);
+    EXPECT_EQ("", result["cpuacct"]);
+    EXPECT_EQ("some", result["freezer"]);
+    EXPECT_EQ("", result["memory"]);
+    EXPECT_EQ(4, result.size());
+}
+
+TEST(CurrentProcessCGroup, Multiple)
+{
+    auto basic = STRINGBUF("5:cpuacct,cpu,cpuset:/daemons\n");
+    auto result = ParseCurrentProcessCGrops(basic.data(), basic.length());
+    EXPECT_EQ("daemons", result["cpu"]);
+    EXPECT_EQ("daemons", result["cpuset"]);
+    EXPECT_EQ("daemons", result["cpuacct"]);
+    EXPECT_EQ(3, result.size());
+}
+
+TEST(CurrentProcessCGroup, BadInput)
+{
+    auto basic = STRINGBUF("xxx:cpuacct,cpu,cpuset:/daemons\n");
+    EXPECT_THROW(ParseCurrentProcessCGrops(basic.data(), basic.length()), std::exception);
 }
 
 #endif

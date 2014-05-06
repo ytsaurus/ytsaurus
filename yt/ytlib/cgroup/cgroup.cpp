@@ -22,8 +22,10 @@ static const char* CGroupRootPath = "/sys/fs/cgroup";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGroup::TCGroup(const Stroka& type, const Stroka& parent, const Stroka& name)
-    : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), parent), name))
+Stroka GetParentFor(const Stroka& type);
+
+TCGroup::TCGroup(const Stroka& type, const Stroka& name)
+    : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
     , Created_(false)
 { }
 
@@ -45,7 +47,7 @@ void TCGroup::Create()
 #ifdef _linux_
     int hasError = Mkdir(FullPath_.data(), 0755);
     if (hasError != 0) {
-        THROW_ERROR(TError::FromSystem());
+        THROW_ERROR_EXCEPTION("Unable to create cgroup %s", ~FullPath_) << TError::FromSystem();
     }
     Created_ = true;
 #endif
@@ -157,8 +159,8 @@ std::chrono::nanoseconds fromJiffies(int64_t jiffies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuAccounting::TCpuAccounting(const Stroka& parent, const Stroka& name)
-    : TCGroup("cpuacct", parent, name)
+TCpuAccounting::TCpuAccounting(const Stroka& name)
+    : TCGroup("cpuacct", name)
 { }
 
 TCpuAccounting::TStats TCpuAccounting::GetStats()
@@ -191,8 +193,8 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockIO::TBlockIO(const Stroka& parent, const Stroka& name)
-    : TCGroup("blkio", parent, name)
+TBlockIO::TBlockIO(const Stroka& name)
+    : TCGroup("blkio", name)
 { }
 
 TBlockIO::TStats TBlockIO::GetStats()
@@ -246,6 +248,41 @@ TBlockIO::TStats TBlockIO::GetStats()
     }
 #endif
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<Stroka, Stroka> ParseCurrentProcessCGrops(const char* str, size_t size)
+{
+    std::map<Stroka, Stroka> result;
+
+    yvector<Stroka> values;
+    Split(str, ":\n", values);
+    for (size_t i = 0; i + 2 < values.size(); i += 3) {
+        FromString<int>(values[i]);
+
+        const Stroka& setOfSubsystems = values[i + 1];
+        const Stroka& name = values[i + 2];
+
+        yvector<Stroka> subsystems;
+        Split(setOfSubsystems.data(), ",", subsystems);
+        for (size_t j = 0; j < subsystems.size(); ++j) {
+            int start = 0;
+            if ((!name.empty()) && (name[0] == '/')) {
+                start = 1;
+            }
+            result[subsystems[j]] = name.substr(start);
+        }
+    }
+
+    return result;
+}
+
+Stroka GetParentFor(const Stroka& type)
+{
+    auto rawData = ReadAll("/proc/self/cgroup");
+    auto result = ParseCurrentProcessCGrops(rawData.data(), rawData.size());
+    return result[type];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
