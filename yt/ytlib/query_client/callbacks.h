@@ -75,7 +75,7 @@ struct ICoordinateCallbacks
         TPlanContextPtr context) = 0;
 
     //! Delegates fragment execution to be collocated with a given split.
-    virtual ISchemafulReaderPtr Delegate(
+    virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
         const TPlanFragment& fragment,
         const TDataSplit& collocatedSplit) = 0;
 

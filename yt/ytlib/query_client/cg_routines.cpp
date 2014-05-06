@@ -13,6 +13,7 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/profiling/scoped_timer.h>
 
 #include <mutex>
 
@@ -32,9 +33,15 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
     YCHECK(currentStackSize < 10000);
 #endif
     
+    if (P->RowLimit) {
+        --P->RowLimit;
+    }
+
     auto batch = P->Batch;
     auto writer = P->Writer;
     auto rowBuffer = P->RowBuffer;
+
+    ++P->QueryStat->RowsWritten;
 
     YASSERT(batch->size() < batch->capacity());
 
@@ -42,6 +49,7 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
 
     if (batch->size() == batch->capacity()) {
         if (!writer->Write(*batch)) {
+            NProfiling::TScopedRaiiTimer scopedRaiiTimer(&P->QueryStat->AsyncTime);
             auto error = WaitFor(writer->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
@@ -77,14 +85,32 @@ void ScanOpHelper(
 
             bool hasMoreData = reader->Read(&rows);
             bool shouldWait = rows.empty();
-            consumeRows(consumeRowsClosure, rows.data(), rows.size());
+
+            P->QueryStat->RowsRead += rows.size();
+
+            size_t sizeLeft = rows.size();
+            TRow* data = rows.data();
+
+            while (sizeLeft && P->RowLimit) {
+                size_t consumeSize = std::min(P->RowLimit, sizeLeft);
+                consumeRows(consumeRowsClosure, data, consumeSize);
+                data += consumeSize;
+                sizeLeft -= consumeSize;
+            }
+
             rows.clear();
 
             if (!hasMoreData) {
                 break;
             }
 
+            if (P->RowLimit == 0) {
+                P->QueryStat->Incomplete = true;
+                break;
+            }
+
             if (shouldWait) {
+                NProfiling::TScopedRaiiTimer scopedRaiiTimer(&P->QueryStat->AsyncTime);
                 auto error = WaitFor(reader->GetReadyEvent());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
@@ -134,6 +160,10 @@ void AddRow(
     size_t currentStackSize = P->StackSizeGuardHelper - reinterpret_cast<size_t>(&dummy);
     YCHECK(currentStackSize < 10000);
 #endif
+
+    if (P->RowLimit) {
+        --P->RowLimit;
+    }
 
     groupedRows->push_back(P->RowBuffer->Capture(*newRow));
     lookupRows->insert(groupedRows->back());

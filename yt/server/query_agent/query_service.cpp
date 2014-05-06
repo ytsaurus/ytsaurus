@@ -74,6 +74,8 @@ private:
         response->Attachments() = NCompression::CompressWithEnvelope(
             protocolWriter.Flush(),
             Config_->SelectResponseCodec);
+        ToProto(response->mutable_query_statistics(), result.Value());
+
         context->Reply();
     }
 

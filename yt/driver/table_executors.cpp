@@ -227,9 +227,11 @@ Stroka TInsertExecutor::GetCommandName() const
 TSelectExecutor::TSelectExecutor()
     : QueryArg("query", "query to execute", true, "", "QUERY")
     , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
+    , RowLimitArg("", "row_limit", "output rows limit", false, std::numeric_limits<ui64>::max(), "INTEGER")
 {
     CmdLine.add(QueryArg);
     CmdLine.add(TimestampArg);
+    CmdLine.add(RowLimitArg);
 }
 
 void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -238,6 +240,9 @@ void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("query").Value(QueryArg.getValue())
         .DoIf(TimestampArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("timestamp").Value(TimestampArg.getValue());
+        })
+        .DoIf(RowLimitArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("row_limit").Value(RowLimitArg.getValue());
         });
 }
 

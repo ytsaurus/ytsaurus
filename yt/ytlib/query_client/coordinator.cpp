@@ -11,6 +11,7 @@
 #include "graphviz.h"
 
 #include <core/concurrency/scheduler.h>
+#include <core/profiling/scoped_timer.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -76,9 +77,12 @@ TError TCoordinator::Run()
 {
     TRACE_CHILD("QueryClient", "Coordinate") {
         TRACE_ANNOTATION("fragment_id", Fragment_.Id());
+    QueryStat = TQueryStatistics();
+    TDuration wallTime;
 
         try {
             LOG_DEBUG("Coordinating plan fragment");
+        NProfiling::TScopedRaiiTimer scopedRaiiTimer(&wallTime);
 
             // Infer key range and push it down.
             auto keyRange = Fragment_.GetHead()->GetKeyRange();
@@ -110,14 +114,16 @@ TError TCoordinator::Run()
                 Simplify(Gather(Scatter(Fragment_.GetHead()))));
 
             DelegateToPeers();
-
-            return TError();
         } catch (const std::exception& ex) {
             auto error = TError("Failed to coordinate query fragment") << ex;
             LOG_ERROR(error);
             return error;
         }
     }
+
+    QueryStat.SyncTime = wallTime - QueryStat.AsyncTime;
+
+    return TError();
 }
 
 TPlanFragment TCoordinator::GetCoordinatorFragment() const
@@ -132,6 +138,29 @@ std::vector<TPlanFragment> TCoordinator::GetPeerFragments() const
     for (const auto& peer : Peers_) {
         result.emplace_back(peer.Fragment);
     }
+    return result;
+}
+
+TQueryStatistics TCoordinator::GetQueryStatSummary() const
+{
+    TQueryStatistics result;
+
+    for (const auto& peer : Peers_) {
+        TQueryStatistics subResult = peer.QueryResult.Get().Value();
+
+        result.RowsRead += subResult.RowsRead;
+        result.RowsWritten += subResult.RowsWritten;
+        result.SyncTime += subResult.SyncTime;
+        result.AsyncTime += subResult.AsyncTime;
+        result.Incomplete |= subResult.Incomplete;
+    }
+
+    result.SyncTime /= Peers_.size();
+    result.AsyncTime /= Peers_.size();
+
+    result.SyncTime += QueryStat.SyncTime;
+    result.AsyncTime += QueryStat.AsyncTime;    
+
     return result;
 }
 
@@ -263,7 +292,7 @@ const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
             ~ToString(fragment.Id()));
 
         int index = Peers_.size();
-        Peers_.emplace_back(fragment, collocatedSplit(op), nullptr);
+        Peers_.emplace_back(fragment, collocatedSplit(op), nullptr, NYT::Null);
 
         TDataSplit facadeSplit;
 
@@ -336,8 +365,13 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
             continue;
         }
 
-        auto newSplitsOrError = WaitFor(Callbacks_->SplitFurther(split, Fragment_.GetContext()));
-        auto newSplits = newSplitsOrError.ValueOrThrow();
+        TDataSplits newSplits;
+
+        {
+            NProfiling::TScopedRaiiTimer scopedRaiiTimer(&QueryStat.AsyncTime);
+            auto newSplitsOrError = WaitFor(Callbacks_->SplitFurther(split, Fragment_.GetContext()));
+            newSplits = newSplitsOrError.ValueOrThrow();
+        }
 
         LOG_DEBUG(
             "Got %" PRISZT " splits for input %s",
@@ -403,9 +437,11 @@ void TCoordinator::DelegateToPeers()
         if (!explanation.IsInternal) {
             LOG_DEBUG("Delegating subfragment (SubfragmentId: %s)",
                 ~ToString(peer.Fragment.Id()));
-            peer.Reader = Callbacks_->Delegate(
+            std::tie(peer.Reader, peer.QueryResult) = Callbacks_->Delegate(
                 peer.Fragment,
                 peer.CollocatedSplit);
+        } else {
+            peer.QueryResult = MakePromise<TErrorOr<TQueryStatistics>>(TQueryStatistics()).ToFuture();
         }
     }
 }

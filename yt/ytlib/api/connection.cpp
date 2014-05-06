@@ -82,6 +82,7 @@ class TQueryResponseReader
 public:
     explicit TQueryResponseReader(TQueryServiceProxy::TInvExecute asyncResponse)
         : AsyncResponse_(std::move(asyncResponse))
+        , QueryResult_(NewPromise<TErrorOr<TQueryStatistics>>())
     { }
 
     virtual TAsyncError Open(const TTableSchema& schema) override
@@ -102,11 +103,18 @@ public:
         return RowsetReader_->GetReadyEvent();
     }
 
+    TFuture<TErrorOr<TQueryStatistics>> GetQueryResult() const
+    {
+        return QueryResult_.ToFuture();
+    }    
+
 private:
     TQueryServiceProxy::TInvExecute AsyncResponse_;
 
     std::unique_ptr<TWireProtocolReader> ProtocolReader_;
     ISchemafulReaderPtr RowsetReader_;
+
+    TPromise<TErrorOr<TQueryStatistics>> QueryResult_;
 
     
     TError OnResponse(
@@ -116,6 +124,8 @@ private:
         if (!response->IsOK()) {
             return response->GetError();
         }
+
+        QueryResult_.Set(FromProto(response->query_statistics()));
 
         YCHECK(!ProtocolReader_);
         auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
@@ -128,8 +138,6 @@ private:
         YCHECK(asyncResult.IsSet()); // this reader is sync
         return asyncResult.Get();
     }
-
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,7 +323,7 @@ public:
         return result;
     }
 
-    virtual ISchemafulReaderPtr Delegate(
+    virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
         const TPlanFragment& fragment,
         const TDataSplit& collocatedSplit) override
     {
@@ -333,7 +341,9 @@ public:
 
         fragment.GetContext()->GetNodeDirectory()->DumpTo(req->mutable_node_directory());
         ToProto(req->mutable_plan_fragment(), fragment);
-        return New<TQueryResponseReader>(req->Invoke());
+
+        auto resultReader = New<TQueryResponseReader>(req->Invoke());
+        return std::make_pair(resultReader, resultReader->GetQueryResult());
     }
 
 private:

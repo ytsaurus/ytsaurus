@@ -57,7 +57,7 @@ public:
 
     };
 
-    explicit TPlanContext(TTimestamp timestamp = NullTimestamp);
+    explicit TPlanContext(TTimestamp timestamp = NullTimestamp, ui64 limit = std::numeric_limits<ui64>::max());
     ~TPlanContext();
 
     void* Allocate(size_t size);
@@ -65,14 +65,11 @@ public:
     TStringBuf Capture(const char* begin, const char* end);
     TStringBuf Capture(const TStringBuf& stringBuf);
 
-    void SetSource(Stroka source);
-    Stroka GetSource() const;
 
-    void SetTablePath(Stroka tablePath);
-    Stroka GetTablePath() const;
-
-    void SetTimestamp(TTimestamp timestamp);
-    TTimestamp GetTimestamp() const;
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, Source);
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, TablePath);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, Timestamp);
+    DEFINE_BYVAL_RW_PROPERTY(ui64, RowLimit);
 
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
 
@@ -83,10 +80,6 @@ public:
     }
 
 private:
-    Stroka Source_;
-    Stroka TablePath_;
-    TTimestamp Timestamp_;
-
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
     TChunkedMemoryPool MemoryPool_;

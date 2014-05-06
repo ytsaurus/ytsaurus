@@ -14,7 +14,7 @@ public:
 
     ~TEvaluator();
 
-    TError Run(
+    TErrorOr<TQueryStatistics> Run(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer);

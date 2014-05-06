@@ -15,6 +15,7 @@ message TReqExecute
 message TRspExecute
 {
     // Wire-encoded response is passed via attachments.
+    required TQueryStatistics query_statistics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
