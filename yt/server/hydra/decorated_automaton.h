@@ -117,8 +117,9 @@ private:
     TMutationContext* MutationContext_;
     mutable IChangelogPtr CurrentChangelog_;
 
-    std::atomic<TVersion> LoggedVersion_;
-    std::atomic<TVersion> AutomatonVersion_;
+    TSpinLock VersionSpinLock_;
+    TVersion LoggedVersion_;
+    TVersion AutomatonVersion_;
 
     TVersion SnapshotVersion_;
     TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotParamsPromise_;
