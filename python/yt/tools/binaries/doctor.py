@@ -25,7 +25,7 @@ def check_tokens_acl():
         if user in admins:
             continue
         if yt.check_permission(user, "read", "//sys/tokens")["action"] == "allow":
-            error("//sys/tokens acl are open for " + user)
+            error("//sys/tokens are open for " + user)
             is_ok = False
     if is_ok:
         ok("Acl of //sys/tokens")
