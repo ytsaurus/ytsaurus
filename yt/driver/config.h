@@ -50,6 +50,7 @@ public:
     TAddressResolverConfigPtr AddressResolver;
     TFormatDefaultsConfigPtr FormatDefaults;
     TDuration OperationPollPeriod;
+    bool Trace;
 
     TExecutorConfig()
     {
@@ -61,6 +62,8 @@ public:
             .DefaultNew();
         RegisterParameter("operation_poll_period", OperationPollPeriod)
             .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("trace", Trace)
+            .Default(false);
     }
 };
 
