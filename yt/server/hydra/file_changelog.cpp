@@ -183,6 +183,7 @@ public:
         auto appendRecord = [&] (const TSharedRef& record) {
             records.push_back(record);
             --needRecords;
+            ++currentRecordId;
             needBytes -= record.Size();
             readBytes += record.Size();
         };
@@ -212,7 +213,7 @@ public:
                     int memoryIndex = currentRecordId - firstMemoryRecordId;
                     YCHECK(memoryIndex >= 0);
                     while (memoryIndex < static_cast<int>(memoryRecords.size()) && needMore()) {
-                        appendRecord(memoryRecords[memoryIndex]);
+                        appendRecord(memoryRecords[memoryIndex++]);
                     }
                 };
 
@@ -243,7 +244,7 @@ private:
     //! These records are currently being flushed to the underlying sync changelog and
     //! immediately follow the flushed part.
     std::vector<TSharedRef> FlushQueue;
-    //! Newly appended records to here. These records immediately follow the flush part.
+    //! Newly appended records go here. These records immediately follow the flush part.
     std::vector<TSharedRef> AppendQueue;
 
     i64 ByteSize;
