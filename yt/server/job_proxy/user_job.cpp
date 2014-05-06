@@ -146,20 +146,28 @@ public:
         ToProto(result.mutable_error(), JobExitError);
 
         if (CpuAccounting.IsCreated()) {
-            CpuAccountingStats = CpuAccounting.GetStats();
+            try {
+                CpuAccountingStats = CpuAccounting.GetStats();
+            } catch (const TErrorException& e) {
+                LOG_ERROR(e, "Unable to get statistics");
+            }
             try {
                 CpuAccounting.Destroy();
             } catch (const TErrorException& e) {
-                LOG_ERROR("Unable to remove a cgroup");
+                LOG_ERROR(e, "Unable to remove a cgroup");
             }
         }
 
         if (BlockIO.IsCreated()) {
-            BlockIOStats = BlockIO.GetStats();
+            try {
+                BlockIOStats = BlockIO.GetStats();
+            } catch (const TErrorException& e) {
+                LOG_ERROR(e, "Unable to get statistics");
+            }
             try {
                 BlockIO.Destroy();
             } catch (const TErrorException& e) {
-                LOG_ERROR("Unable to remove a cgroup");
+                LOG_ERROR(e, "Unable to remove a cgroup");
             }
         }
 

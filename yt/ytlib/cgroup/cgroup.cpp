@@ -167,10 +167,13 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
 {
     TCpuAccounting::TStats result;
 #ifdef _linux_
-    std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(GetFullPath(), "cpuacct.stat"));
+    const Stroka filename = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
+    std::vector<char> statsRaw = ReadAll(filename);
     yvector<Stroka> values;
     int count = Split(statsRaw.data(), " \n", values);
-    YCHECK(count == 4);
+    if (count != 4) {
+        THROW_ERROR_EXCEPTION("Unable to parse %s. Expected 4 values. Got %d", ~filename, count);
+    }
 
     std::string type[2];
     int64_t jiffies[2];
@@ -202,7 +205,8 @@ TBlockIO::TStats TBlockIO::GetStats()
     TBlockIO::TStats result;
 #ifdef _linux_
     {
-        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes").data());
+        const Stroka filename = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
+        std::vector<char> statsRaw = ReadAll(filename);
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
@@ -213,22 +217,25 @@ TBlockIO::TStats TBlockIO::GetStats()
             const Stroka& type = values[3 * line_number + 1];
             int64_t bytes = FromString<int64_t>(~values[3 * line_number + 2]);
 
-            YCHECK(deviceId.Size() > 2);
-            YCHECK(deviceId[0] == '8');
-            YCHECK(deviceId[1] == ':');
+            if ((deviceId.Size() <= 2) || (deviceId[0] != '8') || (deviceId[1] != ':')) {
+                THROW_ERROR_EXCEPTION("Unable to parse %s. %s should start from 8:", ~filename, ~deviceId);
+            }
 
             if (type == "Read") {
                 result.BytesRead += bytes;
             } else if (type == "Write") {
                 result.BytesWritten += bytes;
             } else {
-                YCHECK((type == "Sync") || (type == "Async") || (type == "Total"));
+                if ((type != "Sync") && (type != "Async") && (type != "Total")) {
+                    THROW_ERROR_EXCEPTION("Unable to parse %s. Unexpected stat type: %s", ~filename, ~type);
+                }
             }
             ++line_number;
         }
     }
     {
-        std::vector<char> statsRaw = ReadAll(NFS::CombinePaths(GetFullPath(), "blkio.sectors").data());
+        const Stroka filename = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
+        std::vector<char> statsRaw = ReadAll(filename);
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
@@ -238,9 +245,9 @@ TBlockIO::TStats TBlockIO::GetStats()
             const Stroka& deviceId = values[2 * line_number];
             int64_t sectors = FromString<int64_t>(~values[2 * line_number + 1]);
 
-            YCHECK(deviceId.Size() > 2);
-            YCHECK(deviceId[0] == '8');
-            YCHECK(deviceId[1] == ':');
+            if ((deviceId.Size() <= 2) || (deviceId[0] != '8') || (deviceId[1] != ':')) {
+                THROW_ERROR_EXCEPTION("Unable to parse %s. %s should start from 8:", ~filename, ~deviceId);
+            }
 
             result.Sectors += sectors;
             ++line_number;
