@@ -99,14 +99,20 @@ TTraceContextGuard::TTraceContextGuard(TTraceContextGuard&& other)
 
 TTraceContextGuard::~TTraceContextGuard()
 {
-    if (Active_) {
-        PopContext();
-    }
+    Release();
 }
 
 const TTraceContext& TTraceContextGuard::GetContext() const
 {
     return Context_;
+}
+
+void TTraceContextGuard::Release()
+{
+    if (Active_) {
+        PopContext();
+        Active_ = false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,8 +131,14 @@ TNullTraceContextGuard::TNullTraceContextGuard(TNullTraceContextGuard&& other)
 
 TNullTraceContextGuard::~TNullTraceContextGuard()
 {
+    Release();
+}
+
+void TNullTraceContextGuard::Release()
+{
     if (Active_) {
         PopContext();
+        Active_ = false;
     }
 }
 
@@ -190,6 +202,11 @@ TTraceSpanGuard::TTraceSpanGuard(
         ServiceName_,
         SpanName_,
         ClientSendAnnotation);
+}
+
+void TTraceSpanGuard::Release()
+{
+    ContextGuard_.Release();
 }
 
 TTraceSpanGuard::~TTraceSpanGuard()

@@ -43,6 +43,8 @@ public:
 
     const TTraceContext& GetContext() const;
 
+    void Release();
+
 private:
     TTraceContext Context_;
     bool Active_;
@@ -55,6 +57,8 @@ public:
     TNullTraceContextGuard();
     TNullTraceContextGuard(TNullTraceContextGuard&& other);
     ~TNullTraceContextGuard();
+
+    void Release();
 
 private:
     bool Active_;
@@ -80,6 +84,8 @@ public:
         const Stroka& spanName);
     TTraceSpanGuard(TTraceSpanGuard&& other) = default;
     ~TTraceSpanGuard();
+
+    void Release();
 
     //! Needed for TRACE_SPAN.
     operator bool() const
