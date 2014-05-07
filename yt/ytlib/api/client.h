@@ -156,11 +156,13 @@ struct TGetNodeOptions
 {
     TGetNodeOptions()
         : Options(nullptr)
+        , IgnoreOpaque(false)
     { }
 
     NYTree::IAttributeDictionary* Options;
     NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
+    bool IgnoreOpaque;
 };
 
 struct TSetNodeOptions

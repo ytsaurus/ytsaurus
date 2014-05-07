@@ -627,6 +627,7 @@ private:
         if (options.MaxSize) {
             req->set_max_size(*options.MaxSize);
         }
+        req->set_ignore_opaque(options.IgnoreOpaque);
         if (options.Options) {
             ToProto(req->mutable_options(), *options.Options);
         }

@@ -24,6 +24,7 @@ void TGetCommand::DoExecute()
 {
     TGetNodeOptions options;
     options.MaxSize = Request_->MaxSize;
+    options.IgnoreOpaque = Request_->IgnoreOpaque;
     auto requestOptions = IAttributeDictionary::FromMap(Request_->GetOptions());
     options.Options = requestOptions.get();
     options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Request_->Attributes);
