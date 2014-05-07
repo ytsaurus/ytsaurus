@@ -652,3 +652,9 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c2 = get('//tmp/f/@access_counter')
         assert c1 == c2
+
+    def test_list_attributes(self):
+        create('map_node', '//tmp/map', attributes={'user_attr1': 10})
+        set('//tmp/map/@user_attr2', 'abc')
+        assert sorted(get('//tmp/map/@user_attributes_names')) == sorted(['user_attr1', 'user_attr2'])
+
