@@ -430,7 +430,7 @@ def add_reduce_parser(add_parser):
     parser.set_defaults(func=reduce)
 
 def remote_copy(args):
-    yt.run_remote_copy(args.src, args.dst, args.cluster, network_name=args.network, spec=args.spec)
+    yt.run_remote_copy(args.src, args.dst, args.cluster, network_name=args.network, spec=args.spec, copy_all_attributes=args.copy_all_attributes)
 
 def add_remote_copy_parser(add_parser):
     parser = add_parser("remote-copy", help="run reduce operation")
@@ -438,6 +438,7 @@ def add_remote_copy_parser(add_parser):
     parser.add_argument("--dst", required=True)
     parser.add_argument("--cluster", required=True)
     parser.add_argument("--network")
+    parser.add_argument("--copy-all-attributes", "--executable", action="store_true", default=False)
     parser.add_argument("--spec", action=ParseStructuredArgument)
     parser.set_defaults(func=remote_copy)
 
