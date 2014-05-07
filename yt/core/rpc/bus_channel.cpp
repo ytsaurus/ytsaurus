@@ -219,6 +219,7 @@ private:
 
             TActiveRequest activeRequest;
             activeRequest.ClientRequest = request;
+            activeRequest.Timeout = timeout;
             activeRequest.ResponseHandler = responseHandler;
             activeRequest.Timer = Profiler.TimingStart(
                 "/request_time",
@@ -330,6 +331,7 @@ private:
         struct TActiveRequest
         {
             IClientRequestPtr ClientRequest;
+            TNullable<TDuration> Timeout;
             IClientResponseHandlerPtr ResponseHandler;
             TDelayedExecutor::TCookie TimeoutCookie;
             NProfiling::TTimer Timer;
@@ -401,7 +403,11 @@ private:
                 // Don't need the guard anymore.
                 guard.Release();
 
-                NotifyError(activeRequest, error);
+                auto wrappedError = AddErrorAttributes(
+                    activeRequest,
+                    TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
+                        << error);
+                NotifyError(activeRequest, wrappedError);
             }
         }
 
@@ -426,7 +432,10 @@ private:
                 UnregisterRequest(it);
             }
 
-            NotifyError(activeRequest, TError(EErrorCode::Timeout, "Request timed out"));
+            auto error = AddErrorAttributes(
+                activeRequest,
+                TError(EErrorCode::Timeout, "Request timed out"));
+            NotifyError(activeRequest, error);
         }
 
         void FinalizeRequest(TActiveRequest& request)
@@ -475,6 +484,19 @@ private:
             } else {
                 activeRequest.ResponseHandler->OnResponse(std::move(message));
             }
+        }
+
+
+        static TError AddErrorAttributes(const TActiveRequest& activeRequest, TError error)
+        {
+            error = error
+                << TErrorAttribute("service", activeRequest.ClientRequest->GetService())
+                << TErrorAttribute("method", activeRequest.ClientRequest->GetMethod());
+            if (activeRequest.Timeout) {
+                error = error
+                    << TErrorAttribute("timeout", activeRequest.Timeout->MilliSeconds());
+            }
+            return error;
         }
 
     };
