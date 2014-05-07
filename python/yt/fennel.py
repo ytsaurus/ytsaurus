@@ -342,7 +342,7 @@ def init(table_name, proxy_path, **kwargs):
     event_log.init_if_not_initialized()
 
 
-if __name__ == "__main__":
+def run():
     from tornado import options
 
     import sys
