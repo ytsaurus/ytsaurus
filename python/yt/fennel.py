@@ -92,10 +92,12 @@ class EventLog(object):
     def __init__(self, yt, table_name=None):
         self.yt = yt
         self.table_name_ = table_name or "//tmp/event_log"
+        self.index_of_first_line_attr_ = "{0}/@index_of_first_line".format(self.table_name_)
+        self.lines_to_save_attr_ = "{0}/@lines_to_save".format(self.table_name_)
 
     def get_data(self, begin, count):
         with self.yt.Transaction():
-            lines_removed = int(self.yt.get("{0}/@index_of_first_line".format(self.table_name_)))
+            lines_removed = int(self.yt.get(self.index_of_first_line_attr_))
             begin -= lines_removed
             assert begin >= 0
             return [json.loads(item) for item in self.yt.read_table("{0}[#{1}:#{2}]".format(
@@ -104,10 +106,17 @@ class EventLog(object):
                 begin + count), format="json")]
 
     def set_next_line_to_save(self, line_index):
-        self.yt.set("{0}/@lines_to_save".format(self.table_name_), line_index)
+        self.yt.set(self.lines_to_save_attr_, line_index)
 
     def get_next_line_to_save(self):
-        return self.yt.get("{0}/@lines_to_save".format(self.table_name_))
+        return self.yt.get(self.lines_to_save_attr_)
+
+    def init_if_not_initialized(self):
+        with self.yt.Transaction():
+            if not self.yt.exists(self.lines_to_save_attr_):
+                self.yt.set(self.lines_to_save_attr_, 0)
+            if not self.yt.exists(self.index_of_first_line_attr_):
+                self.yt.set(self.index_of_first_line_attr_, 0)
 
 
 def serialize_chunk(chunk_id, seqno, lines, data):
@@ -323,6 +332,12 @@ def main(table_name, proxy_path, service_id, source_id, **kwargs):
     io_loop.start()
 
 
+def init(table_name, proxy_path, **kwargs):
+    yt.config.set_proxy(proxy_path)
+    event_log = EventLog(yt, table_name=table_name)
+    event_log.init_if_not_initialized()
+
+
 if __name__ == "__main__":
     from tornado import options
 
@@ -339,6 +354,8 @@ if __name__ == "__main__":
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
 
+    options.define("init", default=False, help="init and exit")
+
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
     options.define("verbose", default=False, help="vervose mode")
 
@@ -350,4 +367,9 @@ if __name__ == "__main__":
     def log_exit():
         logging.debug("Exited")
 
-    main(**options.options.as_dict())
+    if options.options.init:
+        func = init
+    else:
+        func = main
+
+    func(**options.options.as_dict())
