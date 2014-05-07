@@ -39,8 +39,10 @@ class TCpuAccounting
 public:
     struct TStats
     {
-        std::chrono::nanoseconds User;
-        std::chrono::nanoseconds System;
+        TStats();
+
+        TDuration User;
+        TDuration System;
     };
 
     TCpuAccounting(const Stroka& name);
@@ -55,6 +57,8 @@ class TBlockIO
 public:
     struct TStats
     {
+        TStats();
+
         int64_t TotalSectors;
         int64_t BytesRead;
         int64_t BytesWritten;

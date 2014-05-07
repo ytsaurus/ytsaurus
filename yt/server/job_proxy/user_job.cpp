@@ -647,8 +647,8 @@ private:
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
 
-        result.set_cpu_user_time(CpuAccountingStats.User.count());
-        result.set_cpu_system_time(CpuAccountingStats.System.count());
+        result.set_cpu_user_time(CpuAccountingStats.User.MilliSeconds());
+        result.set_cpu_system_time(CpuAccountingStats.System.MilliSeconds());
 
         result.set_block_io_total_sectors(BlockIOStats.TotalSectors);
         result.set_block_io_bytes_read(BlockIOStats.BytesRead);

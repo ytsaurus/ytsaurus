@@ -42,7 +42,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 for key in ['cpu_user_time', 'cpu_system_time', 'block_io_sectors', 'block_io_bytes_read', 'block_io_bytes_written']:
                     assert key in item
                 # out job should burn enough cpu
-                assert int(item['cpu_user_time']) / (10**6) > 0
+                assert int(item['cpu_user_time']) > 0
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_one_chunk(self):

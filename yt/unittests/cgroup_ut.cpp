@@ -78,8 +78,8 @@ TEST(CGroup, GetCpuAccStat)
     group.Create();
 
     auto stats = group.GetStats();
-    EXPECT_EQ(0, stats.User.count());
-    EXPECT_EQ(0, stats.System.count());
+    EXPECT_EQ(0, stats.User.MilliSeconds());
+    EXPECT_EQ(0, stats.System.MilliSeconds());
 
     group.Destroy();
 }

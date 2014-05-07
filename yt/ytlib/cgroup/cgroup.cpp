@@ -149,15 +149,20 @@ std::vector<char> ReadAll(const Stroka& fileName)
 
 #ifdef _linux_
 
-std::chrono::nanoseconds fromJiffies(int64_t jiffies)
+TDuration fromJiffies(int64_t jiffies)
 {
     long ticksPerSecond = sysconf(_SC_CLK_TCK);
-    return std::chrono::nanoseconds(1000 * 1000 * 1000 * jiffies/ ticksPerSecond);
+    return TDuration::MicroSeconds(1000 * 1000 * jiffies/ ticksPerSecond);
 }
 
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCpuAccounting::TStats::TStats()
+    : User(0)
+    , System(0)
+{ }
 
 TCpuAccounting::TCpuAccounting(const Stroka& name)
     : TCGroup("cpuacct", name)
@@ -195,6 +200,12 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TBlockIO::TStats::TStats()
+    : TotalSectors(0)
+    , BytesRead(0)
+    , BytesWritten(0)
+{ }
 
 TBlockIO::TBlockIO(const Stroka& name)
     : TCGroup("blkio", name)
@@ -274,11 +285,14 @@ std::map<Stroka, Stroka> ParseCurrentProcessCGrops(const char* str, size_t size)
         yvector<Stroka> subsystems;
         Split(setOfSubsystems.data(), ",", subsystems);
         for (size_t j = 0; j < subsystems.size(); ++j) {
-            int start = 0;
-            if ((!name.empty()) && (name[0] == '/')) {
-                start = 1;
+            // skip elements which starts with name=
+            if (subsystems[j].find("name=") == Stroka::npos) {
+                int start = 0;
+                if ((!name.empty()) && (name[0] == '/')) {
+                    start = 1;
+                }
+                result[subsystems[j]] = name.substr(start);
             }
-            result[subsystems[j]] = name.substr(start);
         }
     }
 
