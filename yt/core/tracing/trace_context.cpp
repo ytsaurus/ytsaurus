@@ -203,38 +203,78 @@ TTraceContext CreateRootTraceContext()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceSpanGuard::TTraceSpanGuard(
+    const TTraceContext& parentContext,
     const Stroka& serviceName,
     const Stroka& spanName)
-    : ContextGuard_(CreateChildTraceContext())
-    , ServiceName_(serviceName)
+    : ServiceName_(serviceName)
     , SpanName_(spanName)
+    , Context_(parentContext.CreateChild())
+    , Active_(true)
 {
     TraceEvent(
-        ContextGuard_.GetContext(),
+        Context_,
         ServiceName_,
         SpanName_,
         ClientSendAnnotation);
 }
 
-bool TTraceSpanGuard::IsActive() const
+TTraceSpanGuard::TTraceSpanGuard(TTraceSpanGuard&& other)
+    : ServiceName_(other.ServiceName_)
+    , SpanName_(other.SpanName_)
+    , Context_(other.Context_)
+    , Active_(other.Active_)
 {
-    return ContextGuard_.IsActive();
-}
-
-void TTraceSpanGuard::Release()
-{
-    ContextGuard_.Release();
+    other.Active_ = false;
 }
 
 TTraceSpanGuard::~TTraceSpanGuard()
 {
-    if (ContextGuard_.IsActive()) {
+    Release();
+}
+
+bool TTraceSpanGuard::IsActive() const
+{
+    return Active_;
+}
+
+const TTraceContext& TTraceSpanGuard::GetContext() const
+{
+    return Context_;
+}
+
+void TTraceSpanGuard::Release()
+{
+    if (Active_) {
         TraceEvent(
-            ContextGuard_.GetContext(),
+            Context_,
             ServiceName_,
             SpanName_,
             ClientReceiveAnnotation);
+        Active_ = false;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChildTraceContextGuard::TChildTraceContextGuard(
+    const Stroka& serviceName,
+    const Stroka& spanName)
+    : SpanGuard_(
+        GetCurrentTraceContext(),
+        serviceName,
+        spanName)
+    , ContextGuard_(SpanGuard_.GetContext())
+{ }
+
+bool TChildTraceContextGuard::IsActive() const
+{
+    return SpanGuard_.IsActive();
+}
+
+void TChildTraceContextGuard::Release()
+{
+    SpanGuard_.Release();
+    ContextGuard_.Release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

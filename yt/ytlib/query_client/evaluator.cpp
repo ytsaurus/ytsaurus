@@ -315,7 +315,7 @@ public:
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer)
     {
-        TRACE_SPAN("QueryClient", "Evaluate") {
+        TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", fragment.Id());
 
             auto Logger = BuildLogger(fragment);
@@ -399,7 +399,7 @@ private:
         if (BeginInsert(&cookie)) {
             LOG_DEBUG("Codegen cache miss");
             try {
-                TRACE_SPAN("QueryClient", "Compile") {
+                TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
                     auto newCGFragment = New<TCachedCGFragment>(id);
                     newCGFragment->Embody(Compiler_(fragment, *newCGFragment, binding));

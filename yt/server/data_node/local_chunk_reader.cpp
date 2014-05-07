@@ -54,7 +54,10 @@ public:
 
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        NTracing::TTraceSpanGuard guard("LocalChunkReader", "ReadBlocks");
+        NTracing::TTraceSpanGuard guard(
+            NTracing::GetCurrentTraceContext(),
+            "LocalChunkReader",
+            "ReadBlocks");
         return New<TReadSession>(this, std::move(guard))
             ->Run(blockIndexes);
     }
@@ -63,7 +66,10 @@ public:
         const TNullable<int>& partitionTag,
         const std::vector<int>* tags) override
     {
-        NTracing::TTraceSpanGuard guard("LocalChunkReader", "GetChunkMeta");
+        NTracing::TTraceSpanGuard guard(
+            NTracing::GetCurrentTraceContext(),
+            "LocalChunkReader",
+            "GetChunkMeta");
         return Chunk_
             ->GetMeta(FetchPriority, tags)
             .Apply(BIND(

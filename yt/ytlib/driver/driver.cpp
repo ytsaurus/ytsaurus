@@ -236,8 +236,7 @@ private:
         const auto& request = context->Request();
         const auto& response = context->Response();
 
-        {
-            NTracing::TTraceSpanGuard guard("Driver", request.CommandName);
+        TRACE_CHILD("Driver", request.CommandName) {
             command->Execute(context);
         }
 

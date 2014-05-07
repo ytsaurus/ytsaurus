@@ -30,7 +30,7 @@ protected:
         bool compress,
         const TSharedRef& ref)
     {
-        auto guard = CreateTraceSpanGuard(compress);
+        auto guard = CreateTraceContextGuard(compress);
         
         ByteArraySource input(ref.Begin(), ref.Size());
         TRACE_ANNOTATION("input_size", ref.Size());
@@ -49,7 +49,7 @@ protected:
         const std::vector<TSharedRef>& refs,
         std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
     {
-        auto guard = CreateTraceSpanGuard(compress);
+        auto guard = CreateTraceContextGuard(compress);
 
         if (refs.size() == 1) {
             return Run<TBlockTag>(
@@ -77,9 +77,11 @@ protected:
     }
 
 private:
-    static NTracing::TTraceSpanGuard CreateTraceSpanGuard(bool compress)
+    static NTracing::TChildTraceContextGuard CreateTraceContextGuard(bool compress)
     {
-        return NTracing::TTraceSpanGuard("Compression", compress ? "Compress" : "Decompress");
+        return NTracing::TChildTraceContextGuard(
+            "Compression",
+            compress ? "Compress" : "Decompress");
     }
 
 

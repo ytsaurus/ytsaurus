@@ -82,24 +82,46 @@ class TTraceSpanGuard
 {
 public:
     TTraceSpanGuard(
+        const TTraceContext& parentContext,
         const Stroka& serviceName,
         const Stroka& spanName);
-    TTraceSpanGuard(TTraceSpanGuard&& other) = default;
+    TTraceSpanGuard(TTraceSpanGuard&& other);
     ~TTraceSpanGuard();
+
+    bool IsActive() const;
+    const TTraceContext& GetContext() const;
+    void Release();
+
+private:
+    Stroka ServiceName_;
+    Stroka SpanName_;
+    TTraceContext Context_;
+    bool Active_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChildTraceContextGuard
+{
+public:
+    TChildTraceContextGuard(
+        const Stroka& serviceName,
+        const Stroka& spanName);
+    TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
 
     bool IsActive() const;
     void Release();
 
-    //! Needed for TRACE_SPAN.
+    //! Needed for TRACE_CHILD.
     operator bool() const
     {
         return false;
     }
 
 private:
+    TTraceSpanGuard SpanGuard_;
     TTraceContextGuard ContextGuard_;
-    Stroka ServiceName_;
-    Stroka SpanName_;
 
 };
 
@@ -171,8 +193,8 @@ inline bool IsTracingEnabled(const TTraceContext& context)
         } \
     } while (false)
 
-#define TRACE_SPAN(serviceName, spanName) \
-    if (auto TRACE_SPAN__Guard = ::NYT::NTracing::TTraceSpanGuard(serviceName, spanName)) \
+#define TRACE_CHILD(serviceName, spanName) \
+    if (auto TRACE_CHILD__Guard = ::NYT::NTracing::TChildTraceContextGuard(serviceName, spanName)) \
     { YUNREACHABLE(); } \
     else
 
