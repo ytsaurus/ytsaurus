@@ -14,6 +14,7 @@ import json
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
 DEFAULT_KAFKA_ENDPOINT = ("kafka02gt.stat.yandex.net", 9000)
+DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
 
@@ -24,7 +25,7 @@ CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
 class State(object):
     log = logging.getLogger("State")
 
-    def __init__(self, event_log, chunk_size=1000, **options):
+    def __init__(self, event_log, chunk_size=DEFAULT_CHUNK_SIZE, **options):
         self.log_broker_ = None
         self.log_broker_options_ = options
         self.event_log_ = event_log
@@ -323,14 +324,14 @@ class Session(object):
         return attributes
 
 
-def main(table_name, proxy_path, service_id, source_id, **kwargs):
+def main(table_name, proxy_path, service_id, source_id, chunk_size, **kwargs):
     io_loop = ioloop.IOLoop.instance()
     def stop():
         io_loop.stop()
 
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
-    state = State(event_log=event_log, chunk_size=1, service_id=service_id, source_id=source_id)
+    state = State(event_log=event_log, chunk_size=chunk_size, service_id=service_id, source_id=source_id)
     state.start()
     io_loop.start()
 
@@ -353,6 +354,7 @@ if __name__ == "__main__":
         default=DEFAULT_TABLE_NAME,
         help="[yt] path to scheduler event log")
     options.define("proxy_path", metavar="URL", help="[yt] url to proxy")
+    options.define("chunk_size", default=DEFAULT_CHUNK_SIZE, help="size of chunk in rows")
 
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
