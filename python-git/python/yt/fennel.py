@@ -12,6 +12,7 @@ import logging
 import json
 
 
+DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
 DEFAULT_KAFKA_ENDPOINT = ("kafka02gt.stat.yandex.net", 9000)
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
@@ -310,14 +311,7 @@ class Session(object):
         return attributes
 
 
-def main():
-    table_name = "//tmp/event_log"
-    proxy_path = "quine.yt.yandex.net"
-    service_id = "yt"
-    source_id = "tramsmm43"
-
-    logging.basicConfig(level=logging.DEBUG)
-
+def main(table_name, proxy_path, service_id, source_id, **kwargs):
     io_loop = ioloop.IOLoop.instance()
     def stop():
         io_loop.stop()
@@ -330,4 +324,30 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from tornado import options
+
+    import sys
+    import os
+    import atexit
+
+    options.define("table_name",
+        metavar="PATH",
+        default=DEFAULT_TABLE_NAME,
+        help="[yt] path to scheduler event log")
+    options.define("proxy_path", metavar="URL", help="[yt] url to proxy")
+
+    options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
+    options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
+
+    options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
+    options.define("verbose", default=False, help="vervose mode")
+
+    options.parse_command_line()
+
+    logging.debug("Started")
+
+    @atexit.register
+    def log_exit():
+        logging.debug("Exited")
+
+    main(**options.options.as_dict())
