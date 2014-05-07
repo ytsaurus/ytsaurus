@@ -45,10 +45,7 @@ typedef TIntrusivePtr<TWriterConfig> TWriterConfigPtr;
 struct TRule
     : public TYsonSerializable
 {
-    const char* AllCategoriesName = "*";
-
-    bool IncludeAllCategories;
-    yhash_set<Stroka> IncludeCategories;
+    TNullable<yhash_set<Stroka>> IncludeCategories;
     yhash_set<Stroka> ExcludeCategories;
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
@@ -56,12 +53,11 @@ struct TRule
     std::vector<Stroka> Writers;
 
     TRule()
-        : IncludeAllCategories(false)
     {
         RegisterParameter("include_categories", IncludeCategories)
-            .NonEmpty();
+            .Default();
         RegisterParameter("exclude_categories", ExcludeCategories)
-            .Default(yhash_set<Stroka>());
+            .Default();
         RegisterParameter("min_level", MinLevel)
             .Default(ELogLevel::Minimum);
         RegisterParameter("max_level", MaxLevel)
@@ -69,8 +65,6 @@ struct TRule
         RegisterParameter("writers", Writers)
             .NonEmpty();
     }
-
-    virtual void OnLoaded() override;
 
     bool IsApplicable(const Stroka& category) const;
     bool IsApplicable(const Stroka& category, ELogLevel level) const;

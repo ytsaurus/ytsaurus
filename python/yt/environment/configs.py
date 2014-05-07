@@ -59,17 +59,14 @@ def get_master_config():
             {
                 min_level = Info;
                 writers = [ file ];
-                include_categories  = [ "*" ];
             };
             {
                 min_level = Debug;
                 writers = [ raw ];
-                include_categories  = [ "*" ];
             };
             {
                 min_level = Error;
                 writers = [ stderr ];
-                include_categories  = [ "*" ];
             };
         ];
         writers = {
@@ -126,17 +123,14 @@ def get_scheduler_config():
             {
                 min_level = Info;
                 writers = [ file ];
-                include_categories  = [ "*" ];
             };
             {
                 min_level = Debug;
                 writers = [ raw ];
-                include_categories  = [ "*" ];
             };
             {
                 min_level = Error;
                 writers = [ stderr ];
-                include_categories  = [ "*" ];
             };
         ];
         writers = {
@@ -173,17 +167,14 @@ def get_driver_config():
             {
                 min_level = Info;
                 writers = [ file ];
-                include_categories  = [ "*" ];
             };
             {
                 min_level = Debug;
                 writers = [ raw ];
-                include_categories  = [ "*" ];
             };
             {
                 min_level = Error;
                 writers = [ stderr ];
-                include_categories  = [ "*" ];
             };
         ];
         writers = {
@@ -256,17 +247,14 @@ def get_node_config():
                 {
                     min_level = Info;
                     writers = [ file ];
-                    include_categories  = [ "*" ];
                 };
                 {
                     min_level = Debug;
                     writers = [ raw ];
-                    include_categories  = [ "*" ];
                 };
                 {
                     min_level = Error;
                     writers = [ stderr ];
-                    include_categories  = [ "*" ];
                 };
             ];
             writers = {
@@ -295,12 +283,10 @@ def get_node_config():
             {
                 min_level = info;
                 writers = [ file ];
-                include_categories  = [ "*" ];
             };
             {
                 min_level = debug;
                 writers = [ raw ];
-                include_categories  = [ "*" ];
             };
         ];
         writers = {

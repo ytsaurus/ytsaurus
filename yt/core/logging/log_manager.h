@@ -21,8 +21,7 @@ public:
 
     void Shutdown();
 
-    int GetConfigVersion() const;
-    int GetWritersRevision() const;
+    int GetVersion() const;
     ELogLevel GetMinLevel(const Stroka& category) const;
 
     void Enqueue(TLogEvent&& event);

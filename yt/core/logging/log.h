@@ -28,7 +28,7 @@ private:
     void UpdateConfig();
 
     Stroka Category;
-    int ConfigVersion;
+    int Version;
     mutable TLogManager* LogManager;
     ELogLevel MinLevel;
 };

@@ -70,19 +70,16 @@ TEST_F(TLoggingTest, ReloadsOnSigHup)
     LOG_INFO("Prepaing logging thread");
     sleep(1); // In sleep() we trust.
 
-    int version = TLogManager::Get()->GetConfigVersion();
-    int revision = TLogManager::Get()->GetWritersRevision();
+    int version = TLogManager::Get()->GetVersion();
 
     kill(getpid(), SIGHUP);
 
     LOG_INFO("Awaking logging thread");
     sleep(1); // In sleep() we trust.
 
-    int newVersion = TLogManager::Get()->GetConfigVersion();
-    int newRevision = TLogManager::Get()->GetWritersRevision();
+    int newVersion = TLogManager::Get()->GetVersion();
 
-    EXPECT_EQ(version, newVersion);
-    EXPECT_NE(revision, newRevision);
+    EXPECT_NE(version, newVersion);
 }
 
 #endif
@@ -134,7 +131,6 @@ TEST_F(TLoggingTest, Rule)
     auto rule = New<TRule>();
     rule->Load(ConvertToNode(TYsonString(
         R"({
-            include_categories = ["*"];
             exclude_categories = [ bus ];
             min_level = info;
             writers = [ some_writer ];
@@ -156,12 +152,10 @@ TEST_F(TLoggingTest, LogManager)
     auto config = R"({
         rules = [
             {
-                "include_categories" = [ "*" ];
                 "min_level" = "Info";
                 "writers" = [ "info" ];
             };
             {
-                "include_categories" = [ "*" ];
                 "min_level" = "Error";
                 "writers" = [ "error" ];
             };

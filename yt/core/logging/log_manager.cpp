@@ -221,7 +221,6 @@ public:
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
         , Version(-1)
-        , WritersRevision(-1)
         , EnqueueCounter("/enqueue_rate")
         , WriteCounter("/write_rate")
         , BacklogCounter("/backlog")
@@ -268,14 +267,9 @@ public:
      * In some cases (when configuration is being updated at the same time),
      * the actual version is greater than the version returned by this method.
      */
-    int GetConfigVersion()
+    int GetVersion()
     {
         return Version;
-    }
-
-    int GetWritersRevision() const
-    {
-        return WritersRevision;
     }
 
     ELogLevel GetMinLevel(const Stroka& category) const
@@ -594,7 +588,7 @@ private:
 
     void ReloadWriters()
     {
-        AtomicIncrement(WritersRevision);
+        AtomicIncrement(Version);
         for (auto& pair : Writers) {
             pair.second->Reload();
         }
@@ -646,7 +640,6 @@ private:
 
     // Configuration.
     TAtomic Version;
-    TAtomic WritersRevision;
 
     TLogConfigPtr Config;
     NProfiling::TRateCounter EnqueueCounter;
@@ -699,14 +692,9 @@ void TLogManager::Shutdown()
     Impl->Shutdown();
 }
 
-int TLogManager::GetConfigVersion() const
+int TLogManager::GetVersion() const
 {
-    return Impl->GetConfigVersion();
-}
-
-int TLogManager::GetWritersRevision() const
-{
-    return Impl->GetWritersRevision();
+    return Impl->GetVersion();
 }
 
 ELogLevel TLogManager::GetMinLevel(const Stroka& category) const

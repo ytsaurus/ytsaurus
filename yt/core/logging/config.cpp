@@ -6,16 +6,9 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRule::OnLoaded()
-{
-    if (IncludeCategories.size() == 1 && *IncludeCategories.begin() == AllCategoriesName) {
-        IncludeAllCategories = true;
-    }
-}
-
 bool TRule::IsApplicable(const Stroka& category) const
 {
-    if (!IncludeAllCategories && IncludeCategories.find(category) == IncludeCategories.end()) {
+    if (IncludeCategories && IncludeCategories->find(category) == IncludeCategories->end()) {
         // No match in include_categories.
         return false;
     }
@@ -38,12 +31,12 @@ bool TRule::IsApplicable(const Stroka& category, ELogLevel level) const
 TLogConfigPtr TLogConfig::CreateDefault()
 {
     auto rule = New<TRule>();
-    rule->IncludeAllCategories = true;
     rule->MinLevel = DefaultStdErrMinLevel;
     rule->Writers.push_back(DefaultStdErrWriterName);
     
     auto config = New<TLogConfig>();
     config->Rules.push_back(rule);
+
     return config;
 }
 
