@@ -494,10 +494,9 @@ class TestNativeMode(YtTestBase, YTEnv):
 
     def test_wait_strategy_timeout(self):
         records = ["x=1\n", "y=2\n", "z=3\n"]
-        do_nothing = "cat > /dev/null"
-        pause = 3.
+        pause = 3.0
         sleeep = "sleep {0}; cat > /dev/null".format(pause)
-        desired_timeout = 1.
+        desired_timeout = 1.0
 
         table = TEST_DIR + "/table"
         yt.write_table(table, records)

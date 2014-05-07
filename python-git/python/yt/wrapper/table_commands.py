@@ -8,7 +8,7 @@ from driver import read_content, get_host_for_heavy_operation, make_request
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
-                          move, mkdir, find_free_subpath, create, get_type, \
+                          move, mkdir, find_free_subpath, create, get, get_type, set_attribute, \
                           _make_formatted_transactional_request
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request, abort_transaction
@@ -773,11 +773,31 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, strategy=None):
+                    network_name=None, spec=None, attributes=None, copy_all_attributes=False, strategy=None):
     def get_input_name(table):
         return to_table(table).get_json()
 
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None))
+
+    if copy_all_attributes or attributes:
+        if len(source_table) != 1:
+            raise YtError("Cannot copy attributes of multiple source tables")
+
+        remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name))
+        current_proxy = config.http.PROXY
+
+        config.set_proxy(remote_proxy)
+        src_attributes = get(source_table[0] + "/@")
+
+        config.set_proxy(current_proxy)
+        if copy_all_attributes:
+            attributes = src_attributes.get("user_attributes_names", []) + ["compression_codec", "erasure_codec", "replication_factor"]
+        if attributes is None:
+            attributes = []
+
+        for attribute in attributes:
+            set_attribute(destination_table, attribute, src_attributes[attribute])
+
     spec = compose(
         _configure_spec,
         lambda _: update({"network_name": network_name}, _) if network_name is not None else _,
