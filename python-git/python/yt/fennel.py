@@ -17,6 +17,9 @@ DEFAULT_KAFKA_ENDPOINT = ("kafka02gt.stat.yandex.net", 9000)
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
 
+CHUNK_HEADER_FORMAT = "<QQQ"
+CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
+
 
 class State(object):
     log = logging.getLogger("State")
@@ -120,7 +123,7 @@ class EventLog(object):
 
 
 def serialize_chunk(chunk_id, seqno, lines, data):
-    serialized_data = struct.pack("<QQQ", chunk_id, seqno, lines)
+    serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
     for row in data:
         serialized_data += json.dumps(row)
     return serialized_data
@@ -133,8 +136,8 @@ def parse_chunk(serialized_data):
     assert index != -1
     index += len("\r\n")
 
-    chunk_id, seqno, lines = struct.unpack("<QQQ", serialized_data[index:index + 3*8])
-    index += 3*8
+    chunk_id, seqno, lines = struct.unpack(CHUNK_HEADER_FORMAT, serialized_data[index:index + CHUNK_HEADER_SIZE])
+    index += CHUNK_HEADER_SIZE
 
     data = []
     decoder = json.JSONDecoder()
