@@ -110,6 +110,10 @@ struct IHydraManager
      */
     virtual void SetReadOnly(bool value) = 0;
 
+    //! Starts a distributed snapshot build operation.
+    //! Once finished, returns the snapshot id.
+    virtual TFuture<TErrorOr<int>> BuildSnapshotDistributed() = 0;
+
     //! Produces monitoring info.
     /*!
      *  \note Thread affinity: any

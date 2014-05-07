@@ -25,6 +25,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
+    DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshot);
 
     //! Executes a single typed request.
     template <class TTypedRequest>

@@ -182,11 +182,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LogMutations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshotLocal));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshotDistributed)
-            .SetInvoker(DecoratedAutomaton_->CreateGuardedUserInvoker(AutomatonInvoker_)));
 
         CellManager_->SubscribePeerReconfigured(
             BIND(&TDistributedHydraManager::OnPeerReconfigured, Unretained(this))
@@ -272,7 +270,40 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (GetAutomatonState() != EPeerState::Leading) {
+            THROW_ERROR_EXCEPTION(
+                NHydra::EErrorCode::NoLeader,
+                "Not a leader");
+        }
+
         ReadOnly_ = value;
+    }
+
+    virtual TFuture<TErrorOr<int>> BuildSnapshotDistributed() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto epochContext = EpochContext_;
+
+        if (!epochContext || GetAutomatonState() != EPeerState::Leading) {
+            return MakeFuture<TErrorOr<int>>(TError(
+                NHydra::EErrorCode::InvalidState,
+                "Not an active leader"));
+        }
+
+        if (!epochContext->IsActiveLeader) {
+            return MakeFuture<TErrorOr<int>>(TError(
+                NHydra::EErrorCode::NoQuorum,
+                "No active quorum"));
+        }
+
+        return DoBuildSnapshotDistributed(epochContext).Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> errorOrParams) -> TErrorOr<int> {
+            if (!errorOrParams.IsOK()) {
+                return TError(errorOrParams);
+            }
+            const auto& params = errorOrParams.Value();
+            return params.SnapshotId;
+        }));
     }
 
     virtual TYsonProducer GetMonitoringProducer() override
@@ -303,15 +334,6 @@ public:
                 .EndMap();
         });
     }
-
-    DEFINE_SIGNAL(void(), StartLeading);
-    DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
-    DEFINE_SIGNAL(void(), LeaderActive);
-    DEFINE_SIGNAL(void(), StopLeading);
-
-    DEFINE_SIGNAL(void(), StartFollowing);
-    DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
-    DEFINE_SIGNAL(void(), StopFollowing);
 
     virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) override
     {
@@ -373,7 +395,17 @@ public:
         return DecoratedAutomaton_->GetMutationContext();
     }
 
- private:
+
+    DEFINE_SIGNAL(void(), StartLeading);
+    DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
+    DEFINE_SIGNAL(void(), LeaderActive);
+    DEFINE_SIGNAL(void(), StopLeading);
+
+    DEFINE_SIGNAL(void(), StartFollowing);
+    DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
+    DEFINE_SIGNAL(void(), StopFollowing);
+
+private:
     TDistributedHydraManagerConfigPtr Config_;
     NRpc::IServerPtr RpcServer;
     TCellManagerPtr CellManager_;
@@ -569,7 +601,7 @@ public:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshotLocal)
+    DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshot)
     {
         UNUSED(response);
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -673,45 +705,6 @@ public:
             default:
                 YUNREACHABLE();
         }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshotDistributed)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        bool setReadOnly = request->set_read_only();
-
-        context->SetRequestInfo("SetReadOnly: %s",
-            ~FormatBool(setReadOnly));
-
-        auto epochContext = EpochContext_;
-
-        if (!epochContext || GetAutomatonState() != EPeerState::Leading) {
-            THROW_ERROR_EXCEPTION(NHydra::EErrorCode::InvalidState, "Not a leader");
-        }
-
-        if (!epochContext->IsActiveLeader) {
-            THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoQuorum, "No active quorum");
-        }
-
-        auto asyncResult = DoBuildSnapshotDistributed(epochContext);
-
-        if (setReadOnly) {
-            SetReadOnly(true);
-        }
-
-        auto result = WaitFor(asyncResult, ControlInvoker_);
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!result.IsOK()) {
-            context->Reply(result);
-            return;
-        }
-
-        const auto& info = result.Value();
-        response->set_snapshot_id(info.SnapshotId);
-
-        context->Reply();
     }
 
 

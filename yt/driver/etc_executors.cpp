@@ -30,9 +30,9 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
 
 void TBuildSnapshotExecutor::DoExecute()
 {
-    THydraServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
-    auto req = proxy.BuildSnapshotDistributed();
+    auto req = proxy.BuildSnapshot();
     req->set_set_read_only(SetReadOnlyArg.getValue());
 
     auto rsp = req->Invoke().Get();

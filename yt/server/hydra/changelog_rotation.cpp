@@ -115,7 +115,7 @@ private:
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->SnapshotTimeout);
 
-                auto req = proxy.BuildSnapshotLocal();
+                auto req = proxy.BuildSnapshot();
                 ToProto(req->mutable_epoch_id(), Owner_->EpochId_);
                 req->set_revision(Version_.ToRevision());
 
@@ -133,7 +133,7 @@ private:
             BIND(&TSession::OnSnapshotsComplete, this_));
     }
 
-    void OnRemoteSnapshotBuilt(TPeerId id, THydraServiceProxy::TRspBuildSnapshotLocalPtr rsp)
+    void OnRemoteSnapshotBuilt(TPeerId id, THydraServiceProxy::TRspBuildSnapshotPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 

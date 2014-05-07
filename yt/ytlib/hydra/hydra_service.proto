@@ -59,13 +59,13 @@ message TRspLogMutations
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqBuildSnapshotLocal
+message TReqBuildSnapshot
 {
     required NYT.NProto.TGuid epoch_id = 1;
     required int64 revision = 2;
 }
 
-message TRspBuildSnapshotLocal
+message TRspBuildSnapshot
 {
     required uint64 checksum = 1;
 }
@@ -81,16 +81,4 @@ message TReqRotateChangelog
 message TRspRotateChangelog
 { }
                                                                               
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqBuildSnapshotDistributed
-{
-    optional bool set_read_only = 1 [default = false];
-}
-
-message TRspBuildSnapshotDistributed
-{
-    required int32 snapshot_id = 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////

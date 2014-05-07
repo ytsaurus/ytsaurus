@@ -91,7 +91,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
-        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force metastate to build snapshot");
+        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force master to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
 
         behaviors().readyType();
@@ -228,9 +228,9 @@ public:
         }
 
         try {
-            NHydra::THydraServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
+            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
             proxy.SetDefaultTimeout(Null); // infinity
-            auto req = proxy.BuildSnapshotDistributed();
+            auto req = proxy.BuildSnapshot();
             req->set_set_read_only(setReadOnly);
 
             auto rsp = req->Invoke().Get();

@@ -27,10 +27,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupChangelog);
     DEFINE_RPC_PROXY_METHOD(NProto, LogMutations);
-    DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshotLocal);
+    DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshot);
     DEFINE_RPC_PROXY_METHOD(NProto, RotateChangelog);
     DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
-    DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshotDistributed);
 
 };
 
