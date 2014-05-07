@@ -40,7 +40,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRequest
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
     TRequest()
     {

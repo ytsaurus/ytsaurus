@@ -9,6 +9,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonSerializableLite;
+class TYsonSerializable;
+
 class TYsonString;
 
 struct INode;

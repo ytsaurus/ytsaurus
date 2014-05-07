@@ -16,7 +16,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFormatDefaultsConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NFormats::TFormat Structured;

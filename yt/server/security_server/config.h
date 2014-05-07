@@ -10,7 +10,7 @@ namespace NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration StatisticsFlushPeriod;

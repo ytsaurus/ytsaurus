@@ -14,76 +14,61 @@
 #include <core/actions/callback.h>
 
 namespace NYT {
-namespace NConfig {
-
-// Introduces Serialize function family into current scope.
-using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IParameter
-    : public TRefCounted
-{
-    // node can be NULL
-    virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
-    virtual void Validate(const NYPath::TYPath& path) const = 0;
-    virtual void SetDefaults() = 0;
-    virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
-    virtual bool IsPresent() const = 0;
-};
-
-typedef TIntrusivePtr<IParameter> IParameterPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-class TParameter
-    : public IParameter
-{
-public:
-    /*!
-     * \note Must throw exception for incorrect data
-     */
-    typedef TCallback<void(const T&)> TValidator;
-    typedef typename TNullableTraits<T>::TValueType TValueType;
-
-    explicit TParameter(T& parameter);
-
-    virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) override;
-    virtual void Validate(const NYPath::TYPath& path) const override;
-    virtual void SetDefaults() override;
-    virtual void Save(NYson::IYsonConsumer* consumer) const override;
-    virtual bool IsPresent() const override;
-
-public:
-    TParameter& Describe(const char* description);
-    TParameter& Default(const T& defaultValue = T());
-    TParameter& DefaultNew();
-    TParameter& CheckThat(TValidator validator);
-    TParameter& GreaterThan(TValueType value);
-    TParameter& GreaterThanOrEqual(TValueType value);
-    TParameter& LessThan(TValueType value);
-    TParameter& LessThanOrEqual(TValueType value);
-    TParameter& InRange(TValueType lowerBound, TValueType upperBound);
-    TParameter& NonEmpty();
-
-private:
-    T& Parameter;
-    const char* Description;
-    TNullable<T> DefaultValue;
-    std::vector<TValidator> Validators;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NConfig
+namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonSerializableLite
 {
 public:
+    struct IParameter
+        : public TIntrinsicRefCounted
+    {
+        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
+        virtual void Validate(const NYPath::TYPath& path) const = 0;
+        virtual void SetDefaults() = 0;
+        virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
+        virtual bool HasValue() const = 0;
+    };
+
+    typedef TIntrusivePtr<IParameter> IParameterPtr;
+
+    template <class T>
+    class TParameter
+        : public IParameter
+    {
+    public:
+        typedef TCallback<void(const T&)> TValidator;
+        typedef typename TNullableTraits<T>::TValueType TValueType;
+
+        explicit TParameter(T& parameter);
+
+        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) override;
+        virtual void Validate(const NYPath::TYPath& path) const override;
+        virtual void SetDefaults() override;
+        virtual void Save(NYson::IYsonConsumer* consumer) const override;
+        virtual bool HasValue() const override;
+
+    public:
+        TParameter& Describe(const char* description);
+        TParameter& Default(const T& defaultValue = T());
+        TParameter& DefaultNew();
+        TParameter& CheckThat(TValidator validator);
+        TParameter& GreaterThan(TValueType value);
+        TParameter& GreaterThanOrEqual(TValueType value);
+        TParameter& LessThan(TValueType value);
+        TParameter& LessThanOrEqual(TValueType value);
+        TParameter& InRange(TValueType lowerBound, TValueType upperBound);
+        TParameter& NonEmpty();
+
+    private:
+        T& Parameter;
+        const char* Description;
+        TNullable<T> DefaultValue;
+        std::vector<TValidator> Validators;
+
+    };
+
     TYsonSerializableLite();
 
     void Load(
@@ -109,7 +94,7 @@ protected:
     virtual void OnLoaded();
 
     template <class T>
-    NConfig::TParameter<T>& RegisterParameter(
+    TParameter<T>& RegisterParameter(
         const Stroka& parameterName,
         T& value);
 
@@ -123,7 +108,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    typedef yhash_map<Stroka, NConfig::IParameterPtr> TParameterMap;
+    typedef yhash_map<Stroka, IParameterPtr> TParameterMap;
 
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;
@@ -138,23 +123,6 @@ class TYsonSerializable
     : public TRefCounted
     , public TYsonSerializableLite
 { };
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TBinaryYsonSerializer
-{
-    static void Save(TStreamSaveContext& context, const TYsonSerializableLite& obj);
-    static void Load(TStreamLoadContext& context, TYsonSerializableLite& obj);
-};
-
-template <class T, class C>
-struct TSerializerTraits<
-    T,
-    C,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TYsonSerializableLite&>>::TType>
-{
-    typedef TBinaryYsonSerializer TSerializer;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,6 +148,31 @@ template <class T>
 bool ReconfigureYsonSerializable(
     TIntrusivePtr<T> config,
     NYTree::INodePtr newConfigNode);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTree
+} // namespace NYT
+
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBinaryYsonSerializer
+{
+    static void Save(TStreamSaveContext& context, const NYTree::TYsonSerializableLite& obj);
+    static void Load(TStreamLoadContext& context, NYTree::TYsonSerializableLite& obj);
+};
+
+template <class T, class C>
+struct TSerializerTraits<
+    T,
+    C,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, NYTree::TYsonSerializableLite&>>::TType>
+{
+    typedef TBinaryYsonSerializer TSerializer;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

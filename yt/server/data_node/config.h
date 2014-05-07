@@ -12,7 +12,7 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPeerBlockTableConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int MaxPeersPerBlock;
@@ -29,7 +29,7 @@ public:
 };
 
 class TLocationConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Location root path.
@@ -74,7 +74,7 @@ public:
 };
 
 class TDiskHealthCheckerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Period between consequent checks.
@@ -100,7 +100,7 @@ public:
 
 //! Describes a configuration of a data node.
 class TDataNodeConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Period between consequent incremental heartbeats.

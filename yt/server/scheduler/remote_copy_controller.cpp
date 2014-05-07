@@ -311,6 +311,14 @@ private:
             Spec_->JobCount);
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
+        if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {
+            OnOperationFailed(TError(
+                Sprintf(
+                    "Too many chunks per job (>%d), merge input tables before remote copy",
+                    Spec_->MaxChunkCountPerJob)));
+            return;
+        }
+
         RemoteCopyTask_ = New<TRemoteCopyTask>(this, jobCount);
         RemoteCopyTask_->Initialize();
         RemoteCopyTask_->AddInput(stripes);

@@ -783,7 +783,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     if (statistics.Status & EChunkStatus::Lost) {
         YCHECK(LostChunks_.insert(chunk).second);
-        if (chunk->GetVital()) {
+        if (chunk->GetVital() && chunk->GetReplicationFactor() > 1) {
             YCHECK(LostVitalChunks_.insert(chunk).second);
         }
     }

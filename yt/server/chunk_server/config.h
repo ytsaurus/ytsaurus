@@ -13,7 +13,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! If |true| then replicator is disabled regardless of anything else.

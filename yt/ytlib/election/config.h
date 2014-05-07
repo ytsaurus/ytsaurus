@@ -12,7 +12,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! RPC interface port number.
@@ -39,7 +39,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TElectionManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration VotingRoundInterval;

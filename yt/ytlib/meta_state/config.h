@@ -16,7 +16,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangeLogDownloaderConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration LookupTimeout;
@@ -40,7 +40,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotDownloaderConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration LookupTimeout;
@@ -64,7 +64,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotBuilderConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration RemoteTimeout;
@@ -84,7 +84,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFollowerTrackerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration PingInterval;
@@ -104,7 +104,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderCommitterConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration RpcTimeout;
@@ -126,7 +126,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangeLogCacheConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! A path where changelogs are stored.
@@ -153,7 +153,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotStoreConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! A path where snapshots are stored.
@@ -173,7 +173,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResponseKeeperConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! How long responses are kept in memory.
@@ -193,7 +193,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentStateManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TChangeLogCacheConfigPtr ChangeLogs;

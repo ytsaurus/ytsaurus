@@ -10,7 +10,7 @@ namespace NOrchid {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOrchidManifest
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
     typedef TIntrusivePtr<TOrchidManifest> TPtr;
 

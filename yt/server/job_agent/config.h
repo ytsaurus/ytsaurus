@@ -10,7 +10,7 @@ namespace NJobAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceLimitsConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int UserSlots;
@@ -46,7 +46,7 @@ public:
 
 
 class TJobControllerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TResourceLimitsConfigPtr ResourceLimits;
