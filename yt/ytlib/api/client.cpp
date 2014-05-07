@@ -17,6 +17,8 @@
 #include <core/rpc/helpers.h>
 #include <core/rpc/scoped_channel.h>
 
+#include <core/compression/helpers.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/timestamp_provider.h>
 
@@ -484,13 +486,16 @@ private:
             writer.WriteColumnFilter(options.ColumnFilter);
             writer.WriteUnversionedRowset(subrequest.Keys, &idMapping);
             writer.WriteCommand(EWireProtocolCommand::End);
+            auto requestData = writer.Flush();
 
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
             TTabletServiceProxy proxy(channel);
             auto req = proxy.Read();
             ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
             req->set_timestamp(options.Timestamp);
-            req->set_encoded_request(writer.GetData());
+            req->Attachments() = NCompression::CompressWithEnvelope(
+                requestData,
+                Connection_->GetConfig()->LookupRequestCodec);
          
             subrequest.AsyncResponse = req->Invoke();
         }
@@ -508,7 +513,8 @@ private:
             auto rsp = WaitFor(subrequest.AsyncResponse);
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-            auto reader = std::make_unique<TWireProtocolReader>(rsp->encoded_response());
+            auto responseData = NCompression::DecompressWithEnvelope(rsp->Attachments());
+            auto reader = std::make_unique<TWireProtocolReader>(responseData);
             pooledRows.clear();
             reader->ReadUnversionedRowset(&pooledRows);
 
@@ -1241,6 +1247,7 @@ private:
             
             auto* writer = pair.second.get();
             writer->WriteCommand(EWireProtocolCommand::End);
+            auto requestData = writer->Flush();
 
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
 
@@ -1248,7 +1255,9 @@ private:
             auto writeReq = tabletProxy.Write();
             ToProto(writeReq->mutable_transaction_id(), Transaction_->GetId());
             ToProto(writeReq->mutable_tablet_id(), tabletInfo->TabletId);
-            writeReq->set_encoded_request(writer->GetData());
+            writeReq->Attachments() = NCompression::CompressWithEnvelope(
+                requestData,
+                Client_->GetConnection()->GetConfig()->WriteRequestCodec);
 
             writeCollector->Collect(
                 writeReq->Invoke().Apply(BIND([] (TTabletServiceProxy::TRspWritePtr rsp) {

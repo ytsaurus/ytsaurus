@@ -9,6 +9,8 @@
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/caching_channel_factory.h>
 
+#include <core/compression/helpers.h>
+
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
 
@@ -116,7 +118,8 @@ private:
         }
 
         YCHECK(!ProtocolReader_);
-        ProtocolReader_.reset(new TWireProtocolReader(response->encoded_response()));
+        auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
+        ProtocolReader_.reset(new TWireProtocolReader(data));
 
         YCHECK(!RowsetReader_);
         RowsetReader_ = ProtocolReader_->CreateSchemafulRowsetReader();

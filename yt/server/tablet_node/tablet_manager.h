@@ -44,16 +44,15 @@ public:
     void BackoffStore(IStorePtr store, EStoreState state);
 
 
-    void Read(
+    std::vector<TSharedRef> Read(
         TTablet* tablet,
         TTimestamp timestamp,
-        const Stroka& encodedRequest,
-        Stroka* encodedResponse);
+        const TSharedRef& requestData);
 
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        const Stroka& encodedRequest);
+        const TSharedRef& requestData);
 
 
     IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId);

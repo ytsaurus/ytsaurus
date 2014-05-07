@@ -43,6 +43,10 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("query_timeout", QueryTimeout)
         .Default(TDuration::Seconds(60));
+    RegisterParameter("write_request_codec", WriteRequestCodec)
+        .Default(NCompression::ECodec::Lz4);
+    RegisterParameter("lookup_request_codec", LookupRequestCodec)
+        .Default(NCompression::ECodec::Lz4);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "helpers.h"
+#include "details.h"
 
 namespace NYT {
 namespace NCompression {

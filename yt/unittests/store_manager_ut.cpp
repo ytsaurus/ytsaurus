@@ -68,21 +68,21 @@ protected:
     
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
     {
-        Stroka request;
+        TSharedRef request;
         {
             TWireProtocolWriter writer;
             writer.WriteColumnFilter(TColumnFilter());
             std::vector<TUnversionedRow> keys(1, key.Get());
             writer.WriteUnversionedRowset(keys);
-            request = writer.GetData();
+            request = MergeRefs(writer.Flush());
         }
-        
-        Stroka response;
+
+        TSharedRef response;
         {
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
             StoreManager->LookupRows(timestamp, &reader, &writer);
-            response = writer.GetData();
+            response = MergeRefs(writer.Flush());
         }
 
         {

@@ -88,7 +88,7 @@ public:
         const TColumnIdMapping* idMapping = nullptr);
     NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter();
 
-    Stroka GetData();
+    std::vector<TSharedRef> Flush();
 
 private:
     class TImpl;
@@ -103,7 +103,7 @@ private:
 class TWireProtocolReader
 {
 public:
-    explicit TWireProtocolReader(const Stroka& data); 
+    explicit TWireProtocolReader(const TSharedRef& data);
     ~TWireProtocolReader();
 
     EWireProtocolCommand ReadCommand();

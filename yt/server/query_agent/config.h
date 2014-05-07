@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/compression/public.h>
+
 #include <ytlib/new_table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
@@ -29,6 +31,9 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentRequests;
 
+    NCompression::ECodec LookupResponseCodec;
+    NCompression::ECodec SelectResponseCodec;
+
     TIntrusivePtr<TQueryChunkReaderConfig> Reader;
 
     TQueryAgentConfig()
@@ -39,6 +44,11 @@ public:
         RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
             .GreaterThan(0)
             .Default(4);
+
+        RegisterParameter("lookup_response_codec", LookupResponseCodec)
+            .Default(NCompression::ECodec::Lz4);
+        RegisterParameter("select_response_codec", SelectResponseCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterParameter("reader", Reader)
             .DefaultNew();

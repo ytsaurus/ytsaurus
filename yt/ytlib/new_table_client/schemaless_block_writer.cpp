@@ -31,22 +31,22 @@ void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
         size += GetByteSize(*it);
     }
 
-    char* begin = Data_.Allocate(size);
+    char* begin = Data_.Preallocate(size);
     char* current = begin;
     for (auto it = row.Begin(); it != row.End(); ++it) {
         current += WriteValue(current, *it);
     }
 
-    Data_.Skip(current - begin);
+    Data_.Advance(current - begin);
 }
 
 TBlock THorizontalSchemalessBlockWriter::FlushBlock()
 {
     std::vector<TSharedRef> blockParts;
-    auto offsets = Offsets_.FlushBuffer();
+    auto offsets = Offsets_.Flush();
     blockParts.insert(blockParts.end(), offsets.begin(), offsets.end());
 
-    auto data = Data_.FlushBuffer();
+    auto data = Data_.Flush();
     blockParts.insert(blockParts.end(), data.begin(), data.end());
 
     TBlockMeta meta;

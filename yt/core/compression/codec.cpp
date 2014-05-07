@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "codec.h"
-#include "helpers.h"
+#include "details.h"
 #include "snappy.h"
 #include "zlib.h"
 #include "lz.h"

@@ -40,12 +40,12 @@ message TReqWrite
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid tablet_id = 2;
-    required bytes encoded_request = 3;
+    // Wire-encoded request is passed via attachments.
 }
 
 message TRspWrite
 {
-    required bytes encoded_response = 1;
+    // Wire-encoded response is passed via attachments.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 
 #include <core/misc/error.h>
 #include <core/misc/chunked_memory_pool.h>
+#include <core/misc/chunked_output_stream.h>
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 
@@ -74,11 +75,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWireProtocolWriterChunkTag { };
+static const size_t PreallocateBlockSize = 4096;
+
 class TWireProtocolWriter::TImpl
 {
 public:
     TImpl()
-        : Current_(const_cast<char*>(Data_.data()))
+        : Stream_(TWireProtocolWriterChunkTag())
+        , BeginPreallocated_(nullptr)
+        , EndPreallocated_(nullptr)
+        , Current_(nullptr)
     {
         EnsureCapacity(WriterInitialBufferCapacity);
         WriteInt64(CurrentProtocolVersion);
@@ -145,25 +152,41 @@ public:
         }
     }
 
-    Stroka GetData()
+    std::vector<TSharedRef> Flush()
     {
-        Data_.resize(Current_ - Data_.data());
-        return Data_;
+        FlushPreallocated();
+        return Stream_.Flush();
     }
 
 private:
-    Stroka Data_;
+    TChunkedOutputStream Stream_;
+    char* BeginPreallocated_;
+    char* EndPreallocated_;
     char* Current_;
 
     std::vector<TUnversionedValue> PooledValues_;
 
 
-    void EnsureCapacity(i64 more)
+    void FlushPreallocated()
     {
-        i64 size = Current_ - Data_.data();
-        Data_.ReserveAndResize(size + more);
-        Current_ = const_cast<char*>(Data_.data() + size);
+        if (!Current_)
+            return;
+
+        Stream_.Advance(Current_ - BeginPreallocated_);
+        BeginPreallocated_ = EndPreallocated_ = Current_ = nullptr;
     }
+
+    void EnsureCapacity(size_t more)
+    {
+        if (LIKELY(Current_ + more < EndPreallocated_))
+            return;
+
+        FlushPreallocated();
+        size_t size = std::max(PreallocateBlockSize, more);
+        Current_ = BeginPreallocated_ = Stream_.Preallocate(size);
+        EndPreallocated_ = BeginPreallocated_ + size;
+    }
+
 
     void UnsafeWriteInt64(i64 value)
     {
@@ -281,9 +304,9 @@ TWireProtocolWriter::TWireProtocolWriter()
 TWireProtocolWriter::~TWireProtocolWriter()
 { }
 
-Stroka TWireProtocolWriter::GetData()
+std::vector<TSharedRef> TWireProtocolWriter::Flush()
 {
-    return Impl_->GetData();
+    return Impl_->Flush();
 }
 
 void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
@@ -388,9 +411,9 @@ struct TUnalignedWireProtocolReaderPoolTag { };
 class TWireProtocolReader::TImpl
 {
 public:
-    explicit TImpl(const Stroka& data)
+    explicit TImpl(const TSharedRef& data)
         : Data_(data)
-        , Current_(Data_.data())
+        , Current_(Data_.Begin())
         , AlignedPool_(
         	TAlignedWireProtocolReaderPoolTag(),
         	ReaderAlignedChunkSize)
@@ -457,7 +480,7 @@ public:
     }
 
 private:
-    Stroka Data_;
+    TSharedRef Data_;
     const char* Current_;
 
     i64 ProtocolVersion_;
@@ -546,7 +569,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWireProtocolReader::TWireProtocolReader(const Stroka& data)
+TWireProtocolReader::TWireProtocolReader(const TSharedRef& data)
     : Impl_(new TImpl(data))
 { }
 

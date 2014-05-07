@@ -83,19 +83,19 @@ void TSimpleVersionedBlockWriter::WriteRow(
 TBlock TSimpleVersionedBlockWriter::FlushBlock()
 {
     std::vector<TSharedRef> blockParts;
-    auto keys = KeyStream_.FlushBuffer();
+    auto keys = KeyStream_.Flush();
     blockParts.insert(blockParts.end(), keys.begin(), keys.end());
 
-    auto values = ValueStream_.FlushBuffer();
+    auto values = ValueStream_.Flush();
     blockParts.insert(blockParts.end(), values.begin(), values.end());
 
-    auto timestamps = TimestampsStream_.FlushBuffer();
+    auto timestamps = TimestampsStream_.Flush();
     blockParts.insert(blockParts.end(), timestamps.begin(), timestamps.end());
 
     blockParts.insert(blockParts.end(), KeyNullFlags_.Flush());
     blockParts.insert(blockParts.end(), ValueNullFlags_.Flush());
 
-    auto strings = StringData_.FlushBuffer();
+    auto strings = StringData_.Flush();
     blockParts.insert(blockParts.end(), strings.begin(), strings.end());
 
 

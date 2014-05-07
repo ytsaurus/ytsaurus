@@ -284,6 +284,7 @@ void TBootstrap::Run()
     auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
 
     RpcServer->RegisterService(CreateQueryService(
+        Config->QueryAgent,
         GetControlInvoker(),
         queryExecutor));
 

@@ -7,6 +7,8 @@
 #include "store_manager.h"
 #include "private.h"
 
+#include <core/compression/helpers.h>
+
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <server/hydra/hydra_service.h>
@@ -16,6 +18,7 @@
 #include <server/hydra/rpc_helpers.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -96,12 +99,16 @@ private:
         auto tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
 
-        tabletManager->Read(
+        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
+
+        auto responseData = tabletManager->Read(
             tablet,
             timestamp,
-            request->encoded_request(),
-            response->mutable_encoded_response());
+            requestData);
 
+        response->Attachments() = NCompression::CompressWithEnvelope(
+            responseData,
+            Bootstrap_->GetConfig()->QueryAgent->LookupResponseCodec);
         context->Reply();
     }
 
@@ -121,10 +128,12 @@ private:
         auto tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
 
+        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
+
         tabletManager->Write(
             tablet,
             transaction,
-            request->encoded_request());
+            requestData);
 
         context->Reply();
     }

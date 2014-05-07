@@ -188,6 +188,30 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
     }
 }
 
+template <class T>
+size_t GetTotalSize(const std::vector<T>& parts)
+{
+    size_t size = 0;
+    for (const auto& part : parts) {
+        size += part.Size();
+    }
+    return size;
+}
+
+template <class T>
+TSharedRef MergeRefs(const std::vector<T>& parts)
+{
+    size_t size = GetTotalSize(parts);
+    struct TMergedBlockTag { };
+    auto result = TSharedRef::Allocate<TMergedBlockTag>(size, false);
+    size_t pos = 0;
+    for (const auto& part : parts) {
+        std::copy(part.Begin(), part.End(), result.Begin() + pos);
+        pos += part.Size();
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStreamSaveContext

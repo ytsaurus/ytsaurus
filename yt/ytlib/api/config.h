@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/compression/public.h>
+
 #include <ytlib/hydra/config.h>
 
 #include <ytlib/transaction_client/public.h>
@@ -54,6 +56,8 @@ public:
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
     TDuration QueryTimeout;
+    NCompression::ECodec WriteRequestCodec;
+    NCompression::ECodec LookupRequestCodec;
 
     TConnectionConfig();
 };

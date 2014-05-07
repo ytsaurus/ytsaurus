@@ -161,18 +161,17 @@ public:
     }
 
 
-    void Read(
+    std::vector<TSharedRef> Read(
         TTablet* tablet,
         TTimestamp timestamp,
-        const Stroka& encodedRequest,
-        Stroka* encodedResponse)
+        const TSharedRef& requestData)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ValidateTabletMounted(tablet);
         ValidateReadTimestamp(timestamp);
 
-        TWireProtocolReader reader(encodedRequest);
+        TWireProtocolReader reader(requestData);
         TWireProtocolWriter writer;
 
         while (ExecuteSingleRead(
@@ -182,13 +181,13 @@ public:
             &writer))
         { }
 
-        *encodedResponse = writer.GetData();
+        return writer.Flush();
     }
 
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        const Stroka& encodedRequest)
+        const TSharedRef& requestData)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -196,7 +195,7 @@ public:
         ValidateTabletMounted(tablet);
         transaction->ValidateActive();
 
-        TWireProtocolReader reader(encodedRequest);
+        TWireProtocolReader reader(requestData);
 
         PooledRowRefs_.clear();
         int commandsSucceded = 0;
@@ -230,7 +229,7 @@ public:
         ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_commands_succeded(commandsSucceded);
-        hydraRequest.set_encoded_request(encodedRequest);
+        hydraRequest.set_encoded_request(ToString(requestData));
         CreateMutation(Slot_->GetHydraManager(), hydraRequest)
             ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
             ->Commit();
@@ -640,8 +639,9 @@ private:
         auto* tablet = GetTablet(tabletId);
 
         int commandsSucceded = request.commands_succeded();
+        auto requestData = TSharedRef::FromString(request.encoded_request());
 
-        TWireProtocolReader reader(request.encoded_request());
+        TWireProtocolReader reader(requestData);
 
         try {
             for (int index = 0; index < commandsSucceded; ++index) {
@@ -1239,28 +1239,26 @@ void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)
     Impl_->BackoffStore(store, state);
 }
 
-void TTabletManager::Read(
+std::vector<TSharedRef> TTabletManager::Read(
     TTablet* tablet,
     TTimestamp timestamp,
-    const Stroka& encodedRequest,
-    Stroka* encodedResponse)
+    const TSharedRef& requestData)
 {
-    Impl_->Read(
+    return Impl_->Read(
         tablet,
         timestamp,
-        encodedRequest,
-        encodedResponse);
+        requestData);
 }
 
 void TTabletManager::Write(
     TTablet* tablet,
     TTransaction* transaction,
-    const Stroka& encodedRequest)
+    const TSharedRef& requestData)
 {
     Impl_->Write(
         tablet,
         transaction,
-        encodedRequest);
+        requestData);
 }
 
 IStorePtr TTabletManager::CreateStore(TTablet* tablet, const TStoreId& storeId)

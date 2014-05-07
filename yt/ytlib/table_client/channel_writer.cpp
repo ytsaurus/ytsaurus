@@ -128,17 +128,17 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
     result.push_back(sizeOutput.Flush());
 
     for (auto& column : FixedColumns) {
-        auto blocks = column.FlushBuffer();
+        auto blocks = column.Flush();
         result.insert(result.end(), blocks.begin(), blocks.end());
     }
 
     {
-        auto blocks = RangeColumns.FlushBuffer();
+        auto blocks = RangeColumns.Flush();
         result.insert(result.end(), blocks.begin(), blocks.end());
     }
 
     if (WriteRangeSizes) {
-        auto blocks = RangeSizes.FlushBuffer();
+        auto blocks = RangeSizes.Flush();
         result.insert(result.end(), blocks.begin(), blocks.end());
         RangeOffset = 0;
     }

@@ -80,7 +80,7 @@ void TBlockWriter::WriteString(const TUnversionedValue& value, int index)
         column.NullBitmap.Push(false);
     } else {
         ui32 offset = FixedBuffer.GetSize();
-        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarInt64Size), value.Length));
+        FixedBuffer.Advance(WriteVarUInt64(FixedBuffer.Preallocate(MaxVarInt64Size), value.Length));
         FixedBuffer.DoWrite(value.Data.String, value.Length);
 
         column.Stream.DoWrite(&offset, sizeof(ui32));
@@ -107,10 +107,10 @@ TStringBuf TBlockWriter::WriteKeyString(const TUnversionedValue& value, int inde
         ui32 offset = FixedBuffer.GetSize();
         column.Stream.DoWrite(&offset, sizeof(ui32));
 
-        FixedBuffer.Skip(WriteVarUInt64(FixedBuffer.Allocate(MaxVarInt64Size), value.Length));
-        char* pos = FixedBuffer.Allocate(value.Length);
+        FixedBuffer.Advance(WriteVarUInt64(FixedBuffer.Preallocate(MaxVarInt64Size), value.Length));
+        char* pos = FixedBuffer.Preallocate(value.Length);
         std::copy(value.Data.String, value.Data.String + value.Length, pos);
-        FixedBuffer.Skip(value.Length);
+        FixedBuffer.Advance(value.Length);
         return TStringBuf(pos, value.Length);
     }
 }
@@ -120,13 +120,13 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
     ++VariableColumnCount;
 
     // Index in name table.
-    VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarInt64Size), nameTableIndex));
+    VariableBuffer.Advance(WriteVarUInt64(VariableBuffer.Preallocate(MaxVarInt64Size), nameTableIndex));
 
     if (value.Type == EValueType::Null) {
-       VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarInt64Size), 0));
+       VariableBuffer.Advance(WriteVarUInt64(VariableBuffer.Preallocate(MaxVarInt64Size), 0));
     } else if (value.Type == EValueType::Any) {
         // Length
-        VariableBuffer.Skip(WriteVarUInt64(VariableBuffer.Allocate(MaxVarInt64Size), value.Length));
+        VariableBuffer.Advance(WriteVarUInt64(VariableBuffer.Preallocate(MaxVarInt64Size), value.Length));
         // Yson
         VariableBuffer.DoWrite(value.Data.String, value.Length);
     } else {
@@ -148,8 +148,8 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
         }
 
         // Length
-        VariableBuffer.Skip(WriteVarUInt64(
-            VariableBuffer.Allocate(MaxVarInt64Size),
+        VariableBuffer.Advance(WriteVarUInt64(
+            VariableBuffer.Preallocate(MaxVarInt64Size),
             IntermediateBuffer.Size()));
         // Yson
         VariableBuffer.DoWrite(IntermediateBuffer.Begin(), IntermediateBuffer.Size());
@@ -210,7 +210,7 @@ auto TBlockWriter::FlushBlock() -> TBlock
     if (VariableOffset) {
         YASSERT(VariableColumn.GetSize() == GetRowCount() * 8);
         variableBufferOffset += VariableColumn.GetSize();
-        auto buffer = VariableColumn.FlushBuffer();
+        auto buffer = VariableColumn.Flush();
         result.Data.insert(result.Data.end(), buffer.begin(), buffer.end());
     }
 
@@ -220,21 +220,21 @@ auto TBlockWriter::FlushBlock() -> TBlock
         YASSERT(column.ValueSize * GetRowCount() == column.Stream.GetSize());
         variableBufferOffset += column.Stream.GetSize();
 
-        insertBuffer(column.Stream.FlushBuffer());
+        insertBuffer(column.Stream.Flush());
         column.NullBitmap.Save(&bitmaskStream);
     }
 
     variableBufferOffset += bitmaskStream.GetSize();
-    insertBuffer(bitmaskStream.FlushBuffer());
+    insertBuffer(bitmaskStream.Flush());
 
     variableBufferOffset += FixedBuffer.GetSize();
-    insertBuffer(FixedBuffer.FlushBuffer());
+    insertBuffer(FixedBuffer.Flush());
 
     i32 endOfKeyOffset = variableBufferOffset;
     if (VariableOffset) {
         result.Meta.set_variable_buffer_offset(variableBufferOffset);
         endOfKeyOffset += VariableBuffer.GetSize();
-        insertBuffer(VariableBuffer.FlushBuffer());
+        insertBuffer(VariableBuffer.Flush());
     }
 
     i32 blockSize = endOfKeyOffset;
@@ -243,7 +243,7 @@ auto TBlockWriter::FlushBlock() -> TBlock
         TChunkedOutputStream stream;
         EndOfKeyFlags.Save(&stream);
         blockSize += stream.GetSize();
-        insertBuffer(stream.FlushBuffer());
+        insertBuffer(stream.Flush());
     }
 
     result.Meta.set_block_size(blockSize);
