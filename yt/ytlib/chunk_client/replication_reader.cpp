@@ -461,7 +461,10 @@ private:
             if (address) {
                 SeedAddresses.insert(*address);
             } else {
-                LOG_WARNING("Cannot find %s address for %s", ~NetworkName_, ~descriptor.GetDefaultAddress());
+                RegisterError(TError(
+                    NChunkClient::EErrorCode::AddressNotFound,
+                    "Cannot find %s address for %s", ~NetworkName_.Quote(), ~descriptor.GetDefaultAddress()));
+                OnSessionFailed();
             }
         }
 
@@ -762,7 +765,10 @@ private:
                             blockIndex,
                             ~p2pDescriptor.GetAddress(NetworkName_));
                     } else {
-                        LOG_WARNING("Cannot find %s address for %s", ~NetworkName_, ~p2pDescriptor.GetDefaultAddress());
+                        RegisterError(TError(
+                            NChunkClient::EErrorCode::AddressNotFound,
+                            "Cannot find %s address for %s", ~NetworkName_.Quote(), ~p2pDescriptor.GetDefaultAddress()));
+                        OnSessionFailed();
                     }
                 }
             }

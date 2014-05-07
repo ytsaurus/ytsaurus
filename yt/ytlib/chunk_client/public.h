@@ -68,6 +68,7 @@ DECLARE_ENUM(EErrorCode,
     ((IOError)                  (711))
 
     ((MasterCommunicationFailed)(712))
+    ((AddressNotFound)          (713))
 );
 
 //! Values must be contiguous.

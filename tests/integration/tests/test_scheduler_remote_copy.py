@@ -160,10 +160,15 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
     def test_failed_cases(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
+        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
         create("table", "//tmp/t2")
 
         with pytest.raises(YtError):
             remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "unexisting"})
+
+        with pytest.raises(YtError):
+            remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote", "network_name": "unexisting"})
 
         with pytest.raises(YtError):
             remote_copy(in_='//tmp/t1', out='//tmp/unexisting', spec={"cluster_name": "remote"})
@@ -171,5 +176,3 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         write('//tmp/t1', [{"a": "b"}, {"c": "d"}], driver=self.remote_driver)
         with pytest.raises(YtError):
             remote_copy(in_='//tmp/t1[:#1]', out='//tmp/unexisting', spec={"cluster_name": "remote"})
-
-
