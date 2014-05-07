@@ -490,6 +490,7 @@ private:
         static TError AddErrorAttributes(const TActiveRequest& activeRequest, TError error)
         {
             error = error
+                << TErrorAttribute("request_id", activeRequest.ClientRequest->GetRequestId())
                 << TErrorAttribute("service", activeRequest.ClientRequest->GetService())
                 << TErrorAttribute("method", activeRequest.ClientRequest->GetMethod());
             if (activeRequest.Timeout) {
