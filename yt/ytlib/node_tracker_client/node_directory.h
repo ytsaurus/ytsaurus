@@ -25,11 +25,8 @@ public:
     bool IsLocal() const;
 
     const Stroka& GetDefaultAddress() const;
-
     const Stroka& GetAddressOrThrow(const Stroka& name) const;
-
     const Stroka& GetAddress(const Stroka& name) const;
-
     TNullable<Stroka> FindAddress(const Stroka& name) const;
 
     void Persist(TStreamPersistenceContext& context);
