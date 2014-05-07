@@ -68,6 +68,7 @@ private:
         attributes->push_back("state");
         attributes->push_back(TAttributeInfo("transaction_id", node && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", node));
+        attributes->push_back(TAttributeInfo("addresses", node));
         attributes->push_back(TAttributeInfo("alerts", node));
         attributes->push_back(TAttributeInfo("stored_replica_count", node));
         attributes->push_back(TAttributeInfo("cached_replica_count", node));
@@ -119,6 +120,12 @@ private:
             if (key == "alerts") {
                 BuildYsonFluently(consumer)
                     .Value(node->Alerts());
+                return true;
+            }
+
+            if (key == "addresses") {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetDescriptor().Addresses());
                 return true;
             }
 
