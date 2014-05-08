@@ -363,7 +363,7 @@ private:
     {
         return CombinePaths(
             Config_->TempPath,
-            Sprintf("%s.%d%s", ~ToString(CellGuid_), snapshotId, TempFileSuffix));
+            Sprintf("%s.%09d%s", ~ToString(CellGuid_), snapshotId, TempFileSuffix));
     }
 
     TYPath GetRemotePath(int snapshotId)
