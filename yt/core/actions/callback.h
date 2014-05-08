@@ -227,7 +227,8 @@ public:
             reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
     }
 
-    using TCallbackBase::Equals;
+    using TCallbackBase::operator ==;
+    using TCallbackBase::operator !=;
 
     TCallback& operator=(const TCallback& other)
     {

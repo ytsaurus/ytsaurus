@@ -136,32 +136,32 @@ TEST_F(TCallbackTest, Move)
 
 TEST_F(TCallbackTest, Equals)
 {
-    EXPECT_TRUE(FirstCallback.Equals(FirstCallback));
-    EXPECT_FALSE(FirstCallback.Equals(SecondCallback));
-    EXPECT_FALSE(SecondCallback.Equals(FirstCallback));
+    EXPECT_EQ(FirstCallback, FirstCallback);
+    EXPECT_NE(FirstCallback, SecondCallback);
+    EXPECT_NE(SecondCallback, FirstCallback);
 
     // We should compare based on instance, not type.
     TCallback<void()> localCallback(New<TFakeBindState1>());
     TCallback<void()> anotherCallback = FirstCallback;
 
-    EXPECT_TRUE(FirstCallback.Equals(anotherCallback));
-    EXPECT_FALSE(FirstCallback.Equals(localCallback));
+    EXPECT_EQ(FirstCallback, anotherCallback);
+    EXPECT_NE(FirstCallback, localCallback);
 
     // Empty, however, is always equal to empty.
     TCallback<void()> localNullCallback;
-    EXPECT_TRUE(NullCallback.Equals(localNullCallback));
+    EXPECT_EQ(NullCallback, localNullCallback);
 }
 
 TEST_F(TCallbackTest, Reset)
 {
     // Resetting should bring us back to empty.
     ASSERT_TRUE(FirstCallback);
-    ASSERT_FALSE(FirstCallback.Equals(NullCallback));
+    ASSERT_NE(FirstCallback, NullCallback);
 
     FirstCallback.Reset();
 
     EXPECT_FALSE(FirstCallback);
-    EXPECT_TRUE(FirstCallback.Equals(NullCallback));
+    EXPECT_EQ(FirstCallback, NullCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

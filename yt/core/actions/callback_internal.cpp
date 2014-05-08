@@ -48,11 +48,16 @@ void TCallbackBase::Swap(TCallbackBase& other)
     UntypedInvoke = std::move(tempUntypedInvoke);
 }
 
-bool TCallbackBase::Equals(const TCallbackBase& other) const
+bool TCallbackBase::operator == (const TCallbackBase& other) const
 {
     return
-        BindState.Get() == other.BindState.Get() &&
+        BindState == other.BindState &&
         UntypedInvoke == other.UntypedInvoke;
+}
+
+bool TCallbackBase::operator != (const TCallbackBase& other) const
+{
+    return !(*this == other);
 }
 
 TCallbackBase::TCallbackBase(const TCallbackBase& other)

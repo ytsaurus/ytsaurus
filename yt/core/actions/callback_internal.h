@@ -70,8 +70,11 @@ protected:
     //! Swaps the state and the invoke function with other callback (without typechecking!).
     void Swap(TCallbackBase& other);
 
-    //! Returns true iff this callback equals to the other (which may be null).
-    bool Equals(const TCallbackBase& other) const;
+    //! Returns |true| iff this callback is equal to the other (which may be null).
+    bool operator == (const TCallbackBase& other) const;
+
+    //! Returns |true| iff this callback is not equal to the other (which may be null).
+    bool operator != (const TCallbackBase& other) const;
 
     /*!
      * Yup, out-of-line copy constructor. Yup, explicit.
