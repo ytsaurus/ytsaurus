@@ -683,8 +683,8 @@ private:
                 operation->SetState(EOperationState::Reviving);
 
                 // NB: Async transaction is not checked.
-                if (!schedulePing(operation->GetUserTransaction()) ||
-                    !schedulePing(operation->GetSyncSchedulerTransaction()) ||
+                schedulePing(operation->GetUserTransaction());
+                if (!schedulePing(operation->GetSyncSchedulerTransaction()) ||
                     !schedulePing(operation->GetInputTransaction()) ||
                     !schedulePing(operation->GetOutputTransaction()))
                 {
