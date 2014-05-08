@@ -84,6 +84,9 @@ struct IHydraManager
 
     //! Finds the response for an earlier committed mutation with a given id.
     //! Returns |Null| if nothing is found.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
     virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) = 0;
 
     //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
@@ -96,6 +99,9 @@ struct IHydraManager
     virtual TMutationContext* GetMutationContext() = 0;
 
     //! Returns |true| if a mutation is currently being applied.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
     virtual bool IsMutating() = 0;
 
     //! Returns |true| if read-only mode is active.
@@ -112,6 +118,9 @@ struct IHydraManager
 
     //! Starts a distributed snapshot build operation.
     //! Once finished, returns the snapshot id.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
     virtual TFuture<TErrorOr<int>> BuildSnapshotDistributed() = 0;
 
     //! Produces monitoring info.
