@@ -437,7 +437,7 @@ YtCommand.prototype._getInputFormat = function() {
                 header.trim(),
                 binding.ECompression_None,
                 _PREDEFINED_JSON_FORMAT);
-        } catch(err) {
+        } catch (err) {
             throw new YtError("Unable to parse X-YT-Input-Format header.", err);
         }
     }
@@ -488,17 +488,31 @@ YtCommand.prototype._getOutputFormat = function() {
         this.mime_type = undefined;
         return;
     }
+    if (this.descriptor.is_heavy) {
+        // Do our best to guess filename.
+        var filename;
+        try {
+            filename = qs.parse(this.req.parsedUrl.query).path;
+            filename = filename.toLowerCase()
+                .replace(/[^a-z0-9.]/g, '_')
+                .replace(/_+/, '_')
+                .replace(/^_/, '')
+                .replace(/_$/, '');
+            filename = "yt_" + filename;
+        } catch (err) {
+            filename = undefined;
+        }
+
+        var disposition = "attachment";
+        if (typeof(disposition) !== "undefined") {
+            disposition = disposition + "; filename=\"" + filename + "\"";
+        }
+
+        this.rsp.setHeader("Content-Disposition", disposition);
+    }
     if (this.descriptor.output_type_as_integer === binding.EDataType_Binary) {
         this.output_format = _PREDEFINED_YSON_FORMAT;
         this.mime_type = "application/octet-stream";
-
-        // TODO(sandello): Set Content-Disposition more intelligently.
-        if (this.name === "download") {
-            this.mime_type = "text/plain";
-            this.rsp.setHeader("Content-Disposition", "inline");
-        } else {
-            this.rsp.setHeader("Content-Disposition", "attachment");
-        }
         return;
     }
 
@@ -528,7 +542,7 @@ YtCommand.prototype._getOutputFormat = function() {
                 header.trim(),
                 binding.ECompression_None,
                 _PREDEFINED_JSON_FORMAT);
-        } catch(err) {
+        } catch (err) {
             throw new YtError("Unable to parse X-YT-Output-Format header.", err);
         }
     }
@@ -590,14 +604,14 @@ YtCommand.prototype._captureParameters = function() {
             output_format: this.output_format
         };
         from_formats = new binding.TNodeWrap(from_formats);
-    } catch(err) {
+    } catch (err) {
         throw new YtError("Unable to parse formats.", err);
     }
 
     try {
         from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
         from_url = new binding.TNodeWrap(from_url);
-    } catch(err) {
+    } catch (err) {
         throw new YtError("Unable to parse parameters from the query string.", err);
     }
 
@@ -609,7 +623,7 @@ YtCommand.prototype._captureParameters = function() {
                 binding.ECompression_None,
                 _PREDEFINED_JSON_FORMAT);
         }
-    } catch(err) {
+    } catch (err) {
         throw new YtError("Unable to parse parameters from the request header X-YT-Parameters.", err);
     }
 
