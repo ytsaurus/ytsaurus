@@ -210,7 +210,10 @@ def add_create_parser(add_parser):
     parser.set_defaults(func=create)
 
 def get(args):
-    result = yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
+    result = yt.get(args.path,
+                    attributes=args.attribute,
+                    format=args.format,
+                    ignore_opaque=args.ignore_opaque)
     if args.format is None:
         result = get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result)
     print result
@@ -218,6 +221,7 @@ def get(args):
 def add_get_parser(add_parser):
     parser = add_parser("get", help="get subtree of object in the given path")
     parser.add_argument("path")
+    parser.add_argument("--ignore-opaque", action="store_true", default=False)
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--spec", action=ParseStructuredArgument)
     parser.add_argument("--attribute", action="append")
