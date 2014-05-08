@@ -33,6 +33,8 @@ def parse_bool(word):
         raise YtError("Cannot parse boolean from %s" % word)
 
 def bool_to_string(bool_value):
+    if bool_value not in [False, True]:
+        raise YtError("Incorrect bool value '{0}'".format(bool_value))
     if bool_value:
         return "true"
     else:
