@@ -378,3 +378,7 @@ def run():
         func = main
 
     func(**options.options.as_dict())
+
+
+if __name__ == "__main__":
+    run()
