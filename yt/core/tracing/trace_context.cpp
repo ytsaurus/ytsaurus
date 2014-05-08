@@ -129,7 +129,7 @@ TNullTraceContextGuard::TNullTraceContextGuard()
 }
 
 TNullTraceContextGuard::TNullTraceContextGuard(TNullTraceContextGuard&& other)
-    : Active_(true)
+    : Active_(other.Active_)
 {
     other.Active_ = false;
 }
