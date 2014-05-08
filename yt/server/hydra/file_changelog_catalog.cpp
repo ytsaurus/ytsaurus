@@ -651,7 +651,9 @@ private:
         auto appendResult = AppendToMultiplexedChangelog(record);
 
         // Check if it is time to rotate.
-        if (MultiplexedChangelog->GetRecordCount() >= Config->Multiplexed->RotateRecords) {
+        if (MultiplexedChangelog->GetRecordCount() >= Config->Multiplexed->MaxChangelogRecordCount ||
+            MultiplexedChangelog->GetDataSize() >= Config->Multiplexed->MaxChangelogDataSize)
+        {
             int multiplexedChangelogId = MultiplexedChangelog->GetId();
             LOG_INFO("Started rotating multiplexed changelog %d",
                 multiplexedChangelogId);

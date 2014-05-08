@@ -70,14 +70,26 @@ class TMultiplexedFileChangelogConfig
     : public TFileChangelogConfig
 {
 public:
-    //! Number of records to force rotation of the multiplexed changelog.
-    int RotateRecords;
+    //! Changelog record count limit.
+    /*!
+     *  When this limit is reached, the current multiplexed changelog is rotated.
+     */
+    int MaxChangelogRecordCount;
+
+    //! Changelog data size limit, in bytes.
+    /*!
+     *  See #MaxChangelogRecordCount.
+     */
+    i64 MaxChangelogDataSize;
 
     TMultiplexedFileChangelogConfig()
     {
-        RegisterParameter("rotate_records", RotateRecords)
-            .GreaterThan(0)
-            .Default(100000);
+        RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)
+            .Default(1000000)
+            .GreaterThan(0);
+        RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
     }
 };
 
@@ -240,11 +252,11 @@ public:
      *  When this limit is reached, the current changelog is rotated and a snapshot
      *  is built.
      */
-    int MaxChangelogRecords;
+    int MaxChangelogRecordCount;
 
     //! Changelog data size limit, in bytes.
     /*!
-     *  See #MaxChangelogRecords.
+     *  See #MaxChangelogRecordCount.
      */
     i64 MaxChangelogDataSize;
 
@@ -254,7 +266,7 @@ public:
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_batch_size", MaxBatchSize)
             .Default(10000);
-        RegisterParameter("max_changelog_record_count", MaxChangelogRecords)
+        RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)
             .Default(1000000)
             .GreaterThan(0);
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
