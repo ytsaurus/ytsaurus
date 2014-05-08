@@ -155,12 +155,14 @@ TRequestExecutor::TRequestExecutor()
     , InputFormatArg("", "in_format", "input format", false, "", "YSON")
     , OutputFormatArg("", "out_format", "output format", false, "", "YSON")
     , OptArg("", "opt", "override command option", false, "YPATH=YSON")
+    , ResponseParametersArg("", "response_parameters", "print response parameters", false)
 {
     CmdLine.add(AuthenticatedUserArg);
     CmdLine.add(FormatArg);
     CmdLine.add(InputFormatArg);
     CmdLine.add(OutputFormatArg);
     CmdLine.add(OptArg);
+    CmdLine.add(ResponseParametersArg);
 }
 
 void TRequestExecutor::DoExecute()
@@ -214,6 +216,11 @@ void TRequestExecutor::DoExecute()
             "output_format");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing output format") << ex;
+    }
+
+    TYsonWriter ysonWriter(&StdErrStream(), NYson::EYsonFormat::Pretty);
+    if (ResponseParametersArg.getValue()) {
+        request.ResponseParametersConsumer = &ysonWriter;
     }
 
     DoExecute(request);

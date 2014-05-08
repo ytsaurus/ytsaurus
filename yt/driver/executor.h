@@ -70,6 +70,7 @@ protected:
     TCLAP::ValueArg<Stroka> InputFormatArg;
     TCLAP::ValueArg<Stroka> OutputFormatArg;
     TCLAP::MultiArg<Stroka> OptArg;
+    TCLAP::SwitchArg ResponseParametersArg;
 
     virtual void DoExecute() override;
     virtual void DoExecute(const TDriverRequest& request);
