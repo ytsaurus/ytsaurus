@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/compression/public.h>
+
 #include <ytlib/new_table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
@@ -134,6 +136,8 @@ public:
 
     TDuration AutoFlushPeriod;
 
+    NCompression::ECodec ChangelogCodec;
+
     TTabletManagerConfig()
     {
         RegisterParameter("aligned_pool_chunk_size", AlignedPoolChunkSize)
@@ -151,6 +155,9 @@ public:
 
         RegisterParameter("auto_flush_period", AutoFlushPeriod)
             .Default(TDuration::Minutes(5));
+
+        RegisterParameter("changelog_codec", ChangelogCodec)
+            .Default(NCompression::ECodec::Lz4);
     }
 };
 

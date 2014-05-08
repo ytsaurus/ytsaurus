@@ -19,6 +19,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <core/compression/codec.h>
+
 #include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/tablet_client/config.h>
@@ -45,6 +47,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
@@ -77,6 +80,7 @@ public:
             slot,
             bootstrap)
         , Config_(config)
+        , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , OnStoreMemoryUsageUpdated_(BIND(&TImpl::OnStoreMemoryUsageUpdated, MakeWeak(this)))
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
@@ -225,11 +229,14 @@ public:
             PrewrittenRows_.push(rowRef);
         }
 
+        auto compressedRequestData = ChangelogCodec_->Compress(requestData);
+
         TReqExecuteWrite hydraRequest;
         ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_commands_succeded(commandsSucceded);
-        hydraRequest.set_encoded_request(ToString(requestData));
+        hydraRequest.set_codec(ChangelogCodec_->GetId());
+        hydraRequest.set_compressed_data(ToString(compressedRequestData));
         CreateMutation(Slot_->GetHydraManager(), hydraRequest)
             ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
             ->Commit();
@@ -290,6 +297,8 @@ public:
 
 private:
     TTabletManagerConfigPtr Config_;
+
+    ICodec* ChangelogCodec_;
 
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
@@ -639,7 +648,10 @@ private:
         auto* tablet = GetTablet(tabletId);
 
         int commandsSucceded = request.commands_succeded();
-        auto requestData = TSharedRef::FromString(request.encoded_request());
+        auto codecId = ECodec(request.codec());
+        auto* codec = GetCodec(codecId);
+        auto compressedRequestData = TSharedRef::FromString(request.compressed_data());
+        auto requestData = codec->Decompress(compressedRequestData);
 
         TWireProtocolReader reader(requestData);
 
