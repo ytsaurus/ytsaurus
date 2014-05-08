@@ -270,10 +270,14 @@ class YamrFormat(Format):
         for iter in xrange(self._get_field_count()):
             len_bytes = stream.read(4)
             if not len_bytes:
+                if iter > 0:
+                    raise YtError("Incomplete record in yamr lenval")
                 return ""
             result.write(len_bytes)
             length = struct.unpack('i', len_bytes)[0]
             field = stream.read(length)
+            if len(field) != length:
+                raise YtError("Incorrect length field in yamr lenval, expected {0}, received {1}".format(length, len(field)))
             if unparsed:
                 result.write(field)
             else:
