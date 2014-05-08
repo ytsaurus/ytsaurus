@@ -366,9 +366,9 @@ void TSelectCommand::DoExecute()
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("rows_read").Value(statistics.RowsRead)
         .Item("rows_written").Value(statistics.RowsWritten)
-        .Item("async_time").Value(statistics.AsyncTime.MilliSeconds())
-        .Item("sync_time").Value(statistics.SyncTime.MilliSeconds())
-        .Item("incomplete").Value(FormatBool(statistics.Incomplete));
+        .Item("async_time").Value(statistics.AsyncTime)
+        .Item("sync_time").Value(statistics.SyncTime)
+        .Item("incomplete").Value(statistics.Incomplete);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
