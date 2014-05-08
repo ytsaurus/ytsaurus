@@ -15,7 +15,7 @@ from copy import deepcopy
 
 import __builtin__
 
-def get(path, attributes=None, format=None, spec=None):
+def get(path, attributes=None, format=None, ignore_opaque=False, spec=None):
     """
     Gets the tree growning from path.
     attributes -- attributes to provide for each node in the response.
@@ -28,7 +28,7 @@ def get(path, attributes=None, format=None, spec=None):
         {
             "path": prepare_path(path),
             "attributes": get_value(attributes, []),
-            "spec": {} if spec is None else spec
+            "ignore_opaque": bool_to_string(ignore_opaque)
         },
         format=format)
 
