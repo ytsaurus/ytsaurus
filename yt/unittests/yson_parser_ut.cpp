@@ -13,6 +13,7 @@ namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
+using ::testing::HasSubstr;
 
 using namespace NYTree;
 
@@ -422,6 +423,17 @@ TEST_F(TYsonParserTest, EmptyMapFragment)
     Run();
 }
 
+TEST_F(TYsonParserTest, BufferLimit)
+{
+    bool exceptionThrown = false;
+    try {
+        ParseYsonStringBuffer(" abcdefj  ", &Mock, EYsonType::Node, false, 6);
+    } catch (const std::exception& ex) {
+        exceptionThrown = true;
+        EXPECT_THAT(ex.what(), HasSubstr("Buffer size limit exceeded"));
+    }
+    EXPECT_TRUE(exceptionThrown);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

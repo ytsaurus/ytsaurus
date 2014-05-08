@@ -355,10 +355,12 @@ class TLexerBase
 private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo> > > TBaseStream;
     std::vector<char> Buffer;
+    int BufferLimit;
 
 public:
-    TLexerBase(const TBlockStream& blockStream)
+    TLexerBase(const TBlockStream& blockStream, int bufferLimit = -1)
         : TBaseStream(blockStream)
+        , BufferLimit(bufferLimit)
     { }
     
 protected:
@@ -401,6 +403,9 @@ protected:
             char ch = *TBaseStream::Begin();
             TBaseStream::Advance(1);
             if (ch != '"') {
+                if (BufferLimit != -1 && Buffer.size() >= BufferLimit) {
+                    THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
+                }
                 Buffer.push_back(ch);
             } else {
                 // We must count the number of '\' at the end of StringValue
@@ -413,6 +418,9 @@ protected:
                 if (slashCount % 2 == 0) {
                     break;
                 } else {
+                    if (BufferLimit != -1 && Buffer.size() >= BufferLimit) {
+                        THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
+                    }
                     Buffer.push_back(ch);
                 }
             }            
@@ -433,6 +441,9 @@ protected:
             if (isalpha(ch) || isdigit(ch) ||
                 ch == '_' || ch == '-' || ch == '%' || ch == '.')
             {
+                if (BufferLimit != -1 && Buffer.size() >= BufferLimit) {
+                    THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
+                }
                 Buffer.push_back(ch);
             } else {
                 break;
@@ -474,6 +485,11 @@ protected:
                     continue;
                 }
                 size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
+
+                if (BufferLimit != -1 && Buffer.size() + readingBytes > BufferLimit) {
+                    THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
+                }
+
                 Buffer.insert(Buffer.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
                 needToRead -= readingBytes;
                 TBaseStream::Advance(readingBytes);

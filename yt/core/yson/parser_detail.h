@@ -20,8 +20,8 @@ private:
     TConsumer* Consumer;
 
 public:
-    TParser(const TBlockStream& blockStream, TConsumer* consumer) 
-        : TBase(blockStream)
+    TParser(const TBlockStream& blockStream, TConsumer* consumer, int bufferLimit) 
+        : TBase(blockStream, bufferLimit)
         , Consumer(consumer)
     { }
     
@@ -297,16 +297,17 @@ template <class TConsumer, class TBlockStream>
 void ParseYsonStreamImpl(
     const TBlockStream& blockStream, 
     IYsonConsumer* consumer, 
-    EYsonType parsingMode = EYsonType::Node, 
-    bool enableLinePositionInfo = false)
+    EYsonType parsingMode, 
+    bool enableLinePositionInfo,
+    int bufferLimit)
 {
     if (enableLinePositionInfo) {
         typedef NDetail::TParser<TConsumer, TBlockStream, true> TImpl;
-        TImpl impl(blockStream, consumer);
+        TImpl impl(blockStream, consumer, bufferLimit);
         impl.DoParse(parsingMode);
     } else {
         typedef NDetail::TParser<TConsumer, TBlockStream, false> TImpl;
-        TImpl impl(blockStream, consumer);
+        TImpl impl(blockStream, consumer, bufferLimit);
         impl.DoParse(parsingMode);
     }
 }
@@ -321,15 +322,16 @@ public:
 };
 
 template <class TConsumer, bool EnableLinePositionInfo>
-class TStatelessYsonParserImpl : public TStatelessYsonParserImplBase
+class TStatelessYsonParserImpl
+    : public TStatelessYsonParserImplBase
 {
 private:
     typedef NDetail::TParser<TConsumer, TStringReader, EnableLinePositionInfo> TParser;
     TParser Parser;
 
 public:
-    TStatelessYsonParserImpl(TConsumer* consumer)
-        : Parser(TStringReader(), consumer)
+    TStatelessYsonParserImpl(TConsumer* consumer, int bufferLimit)
+        : Parser(TStringReader(), consumer, bufferLimit)
     { }
     
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) override

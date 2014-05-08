@@ -13,7 +13,8 @@ public:
     TYsonParser(
         IYsonConsumer* consumer,
         EYsonType type = EYsonType::Node,
-        bool enableLinePositionInfo = false);
+        bool enableLinePositionInfo = false,
+        int bufferLimit = -1);
 
     ~TYsonParser();
 
@@ -33,7 +34,8 @@ class TStatelessYsonParser
 public:
     TStatelessYsonParser(
         IYsonConsumer* consumer,
-        bool enableLinePositionInfo = false);
+        bool enableLinePositionInfo = false,
+        int bufferLimit = -1);
 
     ~TStatelessYsonParser();
 
@@ -51,7 +53,8 @@ void ParseYsonStringBuffer(
     const TStringBuf& buffer,
     IYsonConsumer* consumer,
     EYsonType type = EYsonType::Node,
-    bool enableLinePositionInfo = false);
+    bool enableLinePositionInfo = false,
+    int bufferLimit = -1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
