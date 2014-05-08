@@ -213,11 +213,14 @@ class IOLoopedTestCase(unittest.TestCase):
         self.stream_holder = {}
         self.force_stop = False
         self.io_loop = ioloop.IOLoop()
-        self.io_loop.add_timeout(datetime.timedelta(seconds=1), self.stop)
+        self.io_loop.add_timeout(datetime.timedelta(seconds=self.get_second_to_stop()), self.stop)
         self.fail_connections_ = 0
 
     def tearDown(self):
         pass
+
+    def get_second_to_stop(self):
+        return 1
 
     def test_empty(self):
         pass
@@ -264,6 +267,9 @@ class TestSessionReconanect(IOLoopedTestCase):
         assert s.id_ is not None
         assert not self.force_stop
 
+    def get_second_to_stop(self):
+        return 4
+
 
 class TestSaveChunk(IOLoopedTestCase):
     def test_basic(self):
@@ -294,8 +300,8 @@ def test_session_integration():
     def stop():
         io_loop.stop()
 
-    io_loop.add_timeout(datetime.timedelta(seconds=1), stop)
-    s = fennel.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream)
+    io_loop.add_timeout(datetime.timedelta(seconds=3), stop)
+    s = fennel.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream, source_id="WHt4FAA")
     s.connect()
     io_loop.start()
     assert s.id_ is not None

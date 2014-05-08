@@ -10,6 +10,7 @@ import socket
 import struct
 import logging
 import json
+import datetime
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -178,7 +179,7 @@ class LogBroker(object):
             self.chunk_id_ += 1
             self.lines_ += 1
 
-            self.log.debug("Save chunk [%d]: %r", seqno, serialized_data)
+            self.log.debug("Save chunk [%d]", seqno)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
             self.iostream_.write(data_to_write)
         else:
@@ -294,7 +295,7 @@ class Session(object):
     def on_close(self):
         self.log.error("Connection is closed")
         self.iostream_ = None
-        self.connect()
+        self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
     def process_data(self, data):
         if data.startswith("skip"):
