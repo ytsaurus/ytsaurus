@@ -12,8 +12,8 @@ namespace NLog {
 
 DECLARE_ENUM(EWriterType,
     (File)
-    (StdOut)
-    (StdErr)
+    (Stdout)
+    (Stderr)
 );
 
 struct TWriterConfig
@@ -32,7 +32,7 @@ struct TWriterConfig
             if (Type == EWriterType::File && FileName.empty()) {
                 THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
             } else if (Type != EWriterType::File && !FileName.empty()) {
-                THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %s writer", ~Type.ToString());
+                THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %s writer", ~FormatEnum(Type).Quote());
             }
         });
     }
@@ -123,7 +123,6 @@ public:
     }
 
     static TLogConfigPtr CreateDefault();
-
     static TLogConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
 

@@ -6,8 +6,8 @@ namespace NLog {
 ////////////////////////////////////////////////////////////////////////////////
 
 const char* const SystemLoggingCategory = "Logging";
-const char* const DefaultStdErrWriterName = "StdErr";
-const ELogLevel DefaultStdErrMinLevel = ELogLevel::Info;
+const char* const DefaultStderrWriterName = "Stderr";
+const ELogLevel DefaultStderrMinLevel = ELogLevel::Info;
 
 ////////////////////////////////////////////////////////////////////////////////
 

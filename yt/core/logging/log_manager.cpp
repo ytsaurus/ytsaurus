@@ -20,6 +20,8 @@
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 
+#include <atomic>
+
 #ifdef _win_
     #include <io.h>
 #else
@@ -29,6 +31,7 @@
 #ifdef _linux_
     #include <sys/inotify.h>
 #endif
+
 
 namespace NYT {
 namespace NLog {
@@ -227,9 +230,9 @@ public:
         , Suspended(false)
         , ReopenEnqueued(false)
     {
-        SystemWriters.push_back(New<TStdErrLogWriter>());
+        SystemWriters.push_back(New<TStderrLogWriter>());
         DoUpdateConfig(TLogConfig::CreateDefault());
-        Writers.insert(std::make_pair(DefaultStdErrWriterName, New<TStdErrLogWriter>()));
+        Writers.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
 
         Thread->Start();
         Queue->SetThreadId(Thread->GetId());
@@ -509,11 +512,11 @@ private:
                 std::unique_ptr<TNotificationWatch> watch;
 
                 switch (config->Type) {
-                    case EWriterType::StdOut:
-                        writer = New<TStdOutLogWriter>();
+                    case EWriterType::Stdout:
+                        writer = New<TStdoutLogWriter>();
                         break;
-                    case EWriterType::StdErr:
-                        writer = New<TStdErrLogWriter>();
+                    case EWriterType::Stderr:
+                        writer = New<TStderrLogWriter>();
                         break;
                     case EWriterType::File:
                         writer = New<TFileLogWriter>(config->FileName);
@@ -538,7 +541,7 @@ private:
                 }
             }
 
-            AtomicIncrement(Version);
+            Version++;
 
             if (FlushExecutor) {
                 FlushExecutor->Stop();
@@ -588,7 +591,7 @@ private:
 
     void ReloadWriters()
     {
-        AtomicIncrement(Version);
+        Version++;
         for (auto& pair : Writers) {
             pair.second->Reload();
         }
@@ -639,7 +642,7 @@ private:
     TEnqueuedAction CurrentAction;
 
     // Configuration.
-    TAtomic Version;
+    std::atomic<int> Version;
 
     TLogConfigPtr Config;
     NProfiling::TRateCounter EnqueueCounter;
@@ -663,7 +666,7 @@ private:
 
     std::unique_ptr<TNotificationHandle> NotificationHandle;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
-    std::map<int, TNotificationWatch*> NotificationWatchesIndex;
+    yhash_map<int, TNotificationWatch*> NotificationWatchesIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

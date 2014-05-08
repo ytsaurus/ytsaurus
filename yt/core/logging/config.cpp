@@ -31,8 +31,8 @@ bool TRule::IsApplicable(const Stroka& category, ELogLevel level) const
 TLogConfigPtr TLogConfig::CreateDefault()
 {
     auto rule = New<TRule>();
-    rule->MinLevel = DefaultStdErrMinLevel;
-    rule->Writers.push_back(DefaultStdErrWriterName);
+    rule->MinLevel = DefaultStderrMinLevel;
+    rule->Writers.push_back(DefaultStderrWriterName);
     
     auto config = New<TLogConfig>();
     config->Rules.push_back(rule);

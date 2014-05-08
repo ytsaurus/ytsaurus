@@ -74,13 +74,13 @@ void TStreamLogWriter::CheckSpace(i64 minSpace)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdErrLogWriter::TStdErrLogWriter()
+TStderrLogWriter::TStderrLogWriter()
     : TStreamLogWriter(&StdErrStream())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdOutLogWriter::TStdOutLogWriter()
+TStdoutLogWriter::TStdoutLogWriter()
     : TStreamLogWriter(&StdOutStream())
 { }
 
@@ -123,7 +123,7 @@ void TFileLogWriter::ReopenFile()
     FileOutput_->SetFinishPropagateMode(true);
 }
 
-void TFileLogWriter::EnsureInitialized(bool trailingLinebreak)
+void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
 {
     if (Initialized_) {
         return;
@@ -145,7 +145,7 @@ void TFileLogWriter::EnsureInitialized(bool trailingLinebreak)
 
     Stream_ = ~FileOutput_;
 
-    if (trailingLinebreak) {
+    if (writeTrailingNewline) {
         *FileOutput_ << Endl;
     }
     Write(GetBannerEvent());
@@ -173,7 +173,7 @@ void TFileLogWriter::Reload()
 {
     Flush();
 
-    if (~File_) {
+    if (File_) {
         try {
             File_->Close();
         } catch (const std::exception& ex) {

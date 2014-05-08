@@ -50,20 +50,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdErrLogWriter
+class TStderrLogWriter
     : public TStreamLogWriter
 {
 public:
-    TStdErrLogWriter();
+    TStderrLogWriter();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdOutLogWriter
+class TStdoutLogWriter
     : public TStreamLogWriter
 {
 public:
-    TStdOutLogWriter();
+    TStdoutLogWriter();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +82,7 @@ protected:
     static const size_t BufferSize = 1 << 16;
 
     void ReopenFile();
-    void EnsureInitialized(bool trailingLinebreak = false);
+    void EnsureInitialized(bool writeTrailingNewline = false);
 
     Stroka FileName_;
     bool Initialized_;

@@ -71,10 +71,10 @@ def get_master_config():
         ];
         writers = {
             stderr = {
-                type = StdErr;
+                type = stderr;
             };
             file = {
-                type = File;
+                type = file;
                 file_name = "master-0.log";
             };
             raw = {
@@ -135,10 +135,10 @@ def get_scheduler_config():
         ];
         writers = {
             stderr = {
-                type = StdErr;
+                type = stderr;
             };
             file = {
-                type = File;
+                type = file;
                 file_name = "scheduler-0.log";
             };
             raw = {
@@ -179,14 +179,14 @@ def get_driver_config():
         ];
         writers = {
             stderr = {
-                type = StdErr;
+                type = stderr;
             };
             file = {
-                type = File;
+                type = file;
                 file_name = "ytdriver.log";
             };
             raw = {
-                type = File;
+                type = file;
                 file_name = "ytdriver.debug.log";
             };
         };
@@ -259,14 +259,14 @@ def get_node_config():
             ];
             writers = {
                 stderr = {
-                    type = StdErr;
+                    type = stderr;
                 };
                 file = {
-                    type = File;
+                    type = file;
                     file_name = "job_proxy-0.log";
                 };
                 raw = {
-                    type = File;
+                    type = file;
                     file_name = "job_proxy-0.debug.log";
                 };
             }
@@ -291,7 +291,7 @@ def get_node_config():
         ];
         writers = {
             stderr = {
-                type = std_err;
+                type = stderr;
             };
             file = {
                 type = file;

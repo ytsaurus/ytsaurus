@@ -89,7 +89,7 @@ TEST_F(TLoggingTest, FileWriter)
     NFs::Remove("test.log");
 
     auto writer = New<TFileLogWriter>("test.log");
-    WriteEvent(~writer);
+    WriteEvent(writer.Get());
 
     {
         auto lines = ReadFile("test.log");
@@ -99,7 +99,7 @@ TEST_F(TLoggingTest, FileWriter)
     }
 
     writer->Reload();
-    WriteEvent(~writer);
+    WriteEvent(writer.Get());
 
     {
         auto lines = ReadFile("test.log");

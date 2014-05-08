@@ -9,8 +9,8 @@ namespace NLog {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const char* const SystemLoggingCategory;
-extern const char* const DefaultStdErrWriterName;
-extern const ELogLevel DefaultStdErrMinLevel;
+extern const char* const DefaultStderrWriterName;
+extern const ELogLevel DefaultStderrMinLevel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
