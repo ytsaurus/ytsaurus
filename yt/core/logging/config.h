@@ -17,7 +17,7 @@ DECLARE_ENUM(EWriterType,
 );
 
 struct TWriterConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
     EWriterType Type;
     Stroka FileName;
@@ -43,7 +43,7 @@ typedef TIntrusivePtr<TWriterConfig> TWriterConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRule
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
     TNullable<yhash_set<Stroka>> IncludeCategories;
     yhash_set<Stroka> ExcludeCategories;
@@ -75,7 +75,7 @@ typedef TIntrusivePtr<TRule> TRulePtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TNullable<TDuration> FlushPeriod;
